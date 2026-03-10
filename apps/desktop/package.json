@@ -1,0 +1,32 @@
+{
+  "name": "@bandscope/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@bandscope/shared-types": "0.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.6",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^3.0.8",
+    "eslint": "^9.22.0",
+    "jsdom": "^26.0.0",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.1",
+    "vite": "^6.2.1",
+    "vitest": "^3.0.8"
+  }
+}

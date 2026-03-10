@@ -1,0 +1,63 @@
+name: sbom
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+    tags:
+      - "v*"
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  supplemental-inventory:
+    name: supply-chain-inventory
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate supply-chain inventory baseline
+        run: python3 scripts/checks/verify_supply_chain.py
+
+  sbom:
+    name: sbom
+    runs-on: ubuntu-latest
+    needs:
+      - supplemental-inventory
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@57aae528053a48a3f6235f2d9461b05fbcb7366d # v0.23.1
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: bandscope-sbom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bandscope-sbom
+          path: bandscope-sbom.cdx.json
+
+      - name: Upload supplemental inventory artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bandscope-supply-chain-inventory
+          path: supply-chain/supplemental-component-inventory.json
+
+      - name: Attach SBOM to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" bandscope-sbom.cdx.json supply-chain/supplemental-component-inventory.json --clobber

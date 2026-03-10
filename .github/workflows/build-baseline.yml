@@ -1,0 +1,106 @@
+name: build-baseline
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+    tags:
+      - "v*"
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: gate / build / windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+        with:
+          version: "0.8.6"
+      - name: Install Rust stable
+        shell: bash
+        run: rustup toolchain install stable --profile minimal
+      - name: Install node dependencies
+        run: npm ci
+      - name: Sync Python dependencies
+        run: uv sync --project services/analysis-engine --group dev --frozen
+      - name: Build frontend
+        run: npm run build --workspace @bandscope/desktop
+      - name: Build native shell
+        run: cargo +stable build --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked
+      - name: Package Windows artifact
+        run: python scripts/release/package_desktop_artifact.py
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bandscope-windows-${{ github.sha }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+            artifacts/*.manifest.txt
+      - name: Attach Windows artifact to release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 artifacts/*.manifest.txt --clobber
+
+  build-macos:
+    name: gate / build / macos
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+        with:
+          version: "0.8.6"
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
+      - name: Install node dependencies
+        run: npm ci
+      - name: Sync Python dependencies
+        run: uv sync --project services/analysis-engine --group dev --frozen
+      - name: Build frontend
+        run: npm run build --workspace @bandscope/desktop
+      - name: Build native shell
+        run: cargo +stable build --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked
+      - name: Package macOS artifact
+        run: python3 scripts/release/package_desktop_artifact.py
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bandscope-macos-${{ github.sha }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+            artifacts/*.manifest.txt
+      - name: Attach macOS artifact to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 artifacts/*.manifest.txt --clobber

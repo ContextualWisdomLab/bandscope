@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "generatedBy": "repo-maintained inventory",
+  "bundledBinaries": [],
+  "modelArtifacts": [],
+  "notes": [
+    "Add ffmpeg, yt-dlp, model weights, or sidecar assets here before they ship.",
+    "Track source URL, version, checksum, license, storage path, and release usage for every item."
+  ]
+}

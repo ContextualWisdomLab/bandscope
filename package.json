@@ -1,0 +1,19 @@
+{
+  "name": "bandscope",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "ci": "./scripts/harness/quickcheck.sh",
+    "lint": "npm run lint --workspaces --if-present && python3 scripts/checks/verify_docs.py && python3 scripts/checks/verify_security_notes.py && python3 scripts/checks/security_gates.py && python3 scripts/checks/verify_supply_chain.py && python3 scripts/checks/verify_github_bootstrap_policy.py && sh -c 'cd services/analysis-engine && uv run ruff check src tests && uv run ruff format --check src tests'",
+    "typecheck": "npm run typecheck --workspaces --if-present && sh -c 'cd services/analysis-engine && uv run mypy src'",
+    "test": "npm run test --workspaces --if-present && sh -c 'cd services/analysis-engine && uv run pytest tests --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100'",
+    "build": "npm run build --workspaces --if-present",
+    "check:rust": "./scripts/checks/check_rust.sh",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+  }
+}
