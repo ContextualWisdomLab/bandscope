@@ -83,7 +83,7 @@ Last updated: 2026-03-11
 - The desktop app is scaffolded as `Tauri + Vite + React`, but initial verification keeps Rust packaging out of the default quickcheck path.
 - The desktop shell uses an explicit Tauri CSP that only allows self-hosted assets, inline styles, Tauri IPC, and loopback development traffic.
 - Mechanical gates focus on lint, typecheck, unit tests, coverage for Python, and documentation presence.
-- Python quality gates also require 100% docstring presence for tracked modules, classes, and functions under `services/analysis-engine`, its tests, and repo-owned Python scripts.
+- Python quality gates also require 100% docstring coverage via `package.json` script `check:python-docstrings`, enforced with Ruff rules `D100` through `D107` across tracked packages, modules, classes, nested classes, functions, methods (including `__init__`), `services/analysis-engine` tests, and repo-owned Python scripts.
 - Mechanical gates also enforce security document presence, plan `Security Notes`, and basic forbidden-pattern checks.
 - Security context is part of architecture, not just implementation detail; docs and plans must record the trust boundary touched by risky changes.
 - Supply-chain controls are part of the bootstrap architecture, not a release-afterthought.
