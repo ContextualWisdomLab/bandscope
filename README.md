@@ -1,6 +1,8 @@
 # BandScope
 
-BandScope is a public GitHub project for a local-first desktop app that gives amateur band members fast chord, stem, and range analysis without DAW complexity.
+BandScope is a public GitHub project for a local-first desktop app that turns a song into a practical rehearsal view: likely harmony by section and by instrument or vocal role, section roadmap, tempo and groove cues, separated stems, playable ranges, simplification hints, transposition or capo guidance, overlap cues, visible confidence, and rehearsal priorities without DAW complexity.
+
+It does not promise notation-grade full arrangement transcription or DAW-style production editing.
 
 Brand and product voice source of truth: `docs/brand-story.md`
 App security source of truth: `docs/security/app-security.md`
@@ -80,6 +82,7 @@ BANDSCOPE_ENABLE_RUST_CHECK=1 ./scripts/harness/quickcheck.sh
 
 - make the repository bootstrappable on a clean machine
 - keep frontend and Python engine contracts explicit
+- keep rehearsal-domain outputs explicit across sections, roles, cues, confidence, and exports
 - enforce mechanical checks early
 - keep docs visible to future agents
 - keep brand, product voice, and UX tone consistent through repo docs
