@@ -6,5 +6,14 @@
   "chordsCard": "코드 분석 기준선이 연결되었습니다.",
   "rangesCard": "음역 분석 기준선이 연결되었습니다.",
   "settingsCard": "설정 기준선이 연결되었습니다.",
-  "supportedFormats": "지원 입력 형식"
+  "supportedFormats": "지원 입력 형식",
+  "sectionConfidence": "구간 신뢰도",
+  "roleConfidence": "신뢰도",
+  "harmonySource": "화성 출처",
+  "manualOverride": "수동 수정",
+  "confidenceLevelLow": "확신이 낮음",
+  "confidenceLevelMedium": "귀로 한 번 더 확인",
+  "confidenceLevelHigh": "믿고 가져가도 됨",
+  "provenanceSourceModel": "자동 추정",
+  "provenanceSourceUser": "사용자 확인"
 }

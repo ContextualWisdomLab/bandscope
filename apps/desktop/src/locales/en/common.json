@@ -6,5 +6,14 @@
   "chordsCard": "Chord analysis baseline is wired.",
   "rangesCard": "Range analysis baseline is wired.",
   "settingsCard": "Settings baseline is wired.",
-  "supportedFormats": "Supported input formats"
+  "supportedFormats": "Supported input formats",
+  "sectionConfidence": "Section confidence",
+  "roleConfidence": "confidence",
+  "harmonySource": "harmony source",
+  "manualOverride": "manual override",
+  "confidenceLevelLow": "Low confidence",
+  "confidenceLevelMedium": "Needs ear check",
+  "confidenceLevelHigh": "Ready to trust",
+  "provenanceSourceModel": "Auto-detected",
+  "provenanceSourceUser": "User-confirmed"
 }
