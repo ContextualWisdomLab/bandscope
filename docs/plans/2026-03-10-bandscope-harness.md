@@ -126,7 +126,7 @@ Expected: PASS
 **Files:**
 - Modify: `README.md` if commands drift
 
-**Step 1: Run `npm install` and `uv sync --project services/analysis-engine`**
+**Step 1: Run `npm ci` and `uv sync --project services/analysis-engine --group dev --frozen`**
 
 **Step 2: Run `./scripts/harness/quickcheck.sh` and record outputs**
 

@@ -33,7 +33,10 @@ def verify_required_files() -> list[str]:
 
 def verify_pinned_actions() -> list[str]:
     violations: list[str] = []
-    for path in Path(".github/workflows").glob("*.yml"):
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for path in workflow_paths:
         for idx, line in enumerate(
             path.read_text(encoding="utf-8").splitlines(), start=1
         ):
@@ -125,6 +128,9 @@ def verify_workflow_coverage() -> list[str]:
         "macos-latest",
         "gate / build / windows",
         "gate / build / macos",
+        "release-artifact / macos",
+        "release-artifact / windows",
+        "ubuntu-latest",
     ]:
         if build and token not in build:
             missing.append(f"build workflow missing token: {token}")
