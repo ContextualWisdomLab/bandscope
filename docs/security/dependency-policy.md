@@ -59,7 +59,7 @@ Any PR that adds a new direct dependency must record:
 - the approximate transitive footprint or supply-chain cost
 - the BandScope-specific risk to public GitHub release and distribution flows
 
-Use `.github/pull_request_template.md` to capture this evidence.
+Use `.github/PULL_REQUEST_TEMPLATE.md` to capture this evidence.
 
 ## SBOM rule
 

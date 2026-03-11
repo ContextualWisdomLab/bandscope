@@ -52,7 +52,7 @@
 - Create: `docs/security/dependency-policy.md`
 - Create: `docs/security/github-required-checks.md`
 - Create: `supply-chain/supplemental-component-inventory.json`
-- Create: `.github/pull_request_template.md`
+- Create: `.github/PULL_REQUEST_TEMPLATE.md`
 
 **Security Notes**
 

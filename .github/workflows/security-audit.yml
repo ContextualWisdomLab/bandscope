@@ -38,9 +38,11 @@ jobs:
       - name: Install pip-audit
         run: python -m pip install pip-audit==2.8.0
       - name: Export Python lock for audit
-        run: uv export --project services/analysis-engine --frozen --format requirements-txt --no-hashes --output-file services/analysis-engine/requirements-audit.txt
+        working-directory: services/analysis-engine
+        run: uv export --frozen --format requirements-txt --no-hashes --output-file requirements-audit.txt
       - name: Audit Python dependencies
-        run: python -m pip_audit -r services/analysis-engine/requirements-audit.txt --strict
+        working-directory: services/analysis-engine
+        run: python -m pip_audit -r requirements-audit.txt --strict
       - name: Install stable Rust toolchain
         run: rustup toolchain install stable --profile minimal
       - name: Install cargo-audit
