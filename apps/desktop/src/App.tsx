@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   createDemoRehearsalSong,
   SUPPORTED_AUDIO_FORMATS
@@ -11,7 +12,7 @@ import { createTranslator, detectPreferredLocale } from "./i18n";
 
 export function App() {
   const t = createTranslator(detectPreferredLocale());
-  const rehearsalSong = createDemoRehearsalSong();
+  const rehearsalSong = useMemo(() => createDemoRehearsalSong(), []);
 
   return (
     <main>
@@ -39,8 +40,8 @@ export function App() {
                 <span> - {role.cue.value}</span>
                 <span> - {t("roleConfidence")} {role.confidence.level}</span>
                 <span> - {t("harmonySource")} {role.harmony.source}</span>
-                {role.manualOverrides.map((override) => (
-                  <span key={override.field}>
+                {role.manualOverrides.map((override, index) => (
+                  <span key={`${override.field}-${override.source}-${override.value.chord}-${index}`}>
                     {" "}
                     - {t("manualOverride")} {override.value.chord} ({override.source})
                   </span>

@@ -94,6 +94,16 @@ describe("shared type helpers", () => {
     const malformedSong = createDemoRehearsalSong() as unknown as {
       sections: Array<{ roles: unknown[] }>;
     };
+    const arrayPayload = Object.assign([], {
+      id: "array-song",
+      title: "Array Song",
+      sections: [],
+      exportSummary: {
+        format: "cue-sheet",
+        headline: "Array payload",
+        focusSections: []
+      }
+    });
     malformedSong.sections[0]!.roles = [{ id: "broken-role" }];
 
     expect(isRehearsalSong(song)).toBe(true);
@@ -108,6 +118,7 @@ describe("shared type helpers", () => {
       }
     })).toBe(false);
     expect(isRehearsalSong(malformedSong)).toBe(false);
+    expect(isRehearsalSong(arrayPayload)).toBe(false);
 
     const parsed = parseRehearsalSong(song);
     parsed.sections[0]?.roles.splice(0, 1);
