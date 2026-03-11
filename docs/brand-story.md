@@ -25,7 +25,7 @@ They should also be able to follow the form quickly, understand tempo and groove
 That means BandScope cannot treat `the chord` as one flat answer for the whole arrangement.
 Different keyboard players, each left hand, each right hand, the bass guitar, guitars, horns, strings, lead vocals, backing vocals, or other arrangement-carrying roles can hold different note choices or harmonic functions at the same moment.
 BandScope should treat those roles as separate extraction targets.
-If the arrangement exposes separate left/right hands, multiple keyboard players, bass movement, lead-vocal melody, or backing-vocal harmony, the product should extract and present them separately so rehearsal decisions can be made per player and per role, not only at the song-summary level.
+If the arrangement exposes separate left/right hands, multiple keyboard players, bass movement, lead-vocal melody, or backing-vocal harmony, the product should aim to extract and present them separately enough that rehearsal decisions can be made per player and per role, not only at the song-summary level.
 
 BandScope does not try to replace musical judgment.
 It helps people understand songs faster and rehearse better.
