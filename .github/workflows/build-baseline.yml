@@ -51,12 +51,20 @@ jobs:
       - name: Verify Windows antivirus baseline
         shell: pwsh
         run: |
-          $status = Get-MpComputerStatus
-          if (-not $status.AntivirusEnabled) {
-            throw "Windows antivirus is disabled"
+          if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) {
+            $status = Get-MpComputerStatus
+            if (-not $status.AntivirusEnabled) {
+              throw "Windows antivirus is disabled"
+            }
+            if (-not $status.RealTimeProtectionEnabled) {
+              throw "Windows real-time protection is disabled"
+            }
+            return
           }
-          if (-not $status.RealTimeProtectionEnabled) {
-            throw "Windows real-time protection is disabled"
+
+          $products = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
+          if (-not $products) {
+            throw "No Windows antivirus product was reported by SecurityCenter2"
           }
       - name: Install node dependencies
         run: npm ci
@@ -109,12 +117,20 @@ jobs:
       - name: Verify Windows antivirus baseline
         shell: pwsh
         run: |
-          $status = Get-MpComputerStatus
-          if (-not $status.AntivirusEnabled) {
-            throw "Windows antivirus is disabled"
+          if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) {
+            $status = Get-MpComputerStatus
+            if (-not $status.AntivirusEnabled) {
+              throw "Windows antivirus is disabled"
+            }
+            if (-not $status.RealTimeProtectionEnabled) {
+              throw "Windows real-time protection is disabled"
+            }
+            return
           }
-          if (-not $status.RealTimeProtectionEnabled) {
-            throw "Windows real-time protection is disabled"
+
+          $products = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
+          if (-not $products) {
+            throw "No Windows antivirus product was reported by SecurityCenter2"
           }
       - name: Install node dependencies
         run: npm ci
