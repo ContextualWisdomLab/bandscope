@@ -1,0 +1,10 @@
+{
+  "appTitle": "BandScope Bootstrap",
+  "appSubtitle": "GitHub-governed local-first desktop analysis baseline",
+  "homeCard": "Home baseline is wired.",
+  "playerCard": "Player baseline is wired.",
+  "chordsCard": "Chord analysis baseline is wired.",
+  "rangesCard": "Range analysis baseline is wired.",
+  "settingsCard": "Settings baseline is wired.",
+  "supportedFormats": "Supported input formats"
+}

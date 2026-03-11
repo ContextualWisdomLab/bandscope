@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.venv/
+.coverage
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+apps/desktop/src-tauri/target/
+*.pyc
+*.pyo
+*.egg-info/
