@@ -4,7 +4,7 @@ export type ProjectSummary = {
   id: string;
   title: string;
   status: "idle" | "running" | "done" | "failed";
-  supportedAudioFormats: readonly string[];
+  supportedAudioFormats: readonly (typeof SUPPORTED_AUDIO_FORMATS)[number][];
 };
 
 export function createDefaultProjectSummary(input: {

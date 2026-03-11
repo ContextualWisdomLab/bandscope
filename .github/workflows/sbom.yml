@@ -16,7 +16,7 @@ on:
       - published
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   supplemental-inventory:
@@ -33,6 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - supplemental-inventory
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

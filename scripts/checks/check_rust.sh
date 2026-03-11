@@ -8,4 +8,4 @@ if [[ "$(uname -s)" == "Darwin" ]] && command -v xcodebuild >/dev/null 2>&1; the
   fi
 fi
 
-cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked

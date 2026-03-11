@@ -51,6 +51,8 @@ def verify_pinned_actions() -> list[str]:
 
 def verify_dependabot_coverage() -> list[str]:
     path = Path(".github/dependabot.yml")
+    if not path.exists():
+        return [f"missing file: {path}"]
     content = path.read_text(encoding="utf-8")
     missing: list[str] = []
     for ecosystem in ["npm", "pip", "cargo", "github-actions"]:
@@ -59,25 +61,40 @@ def verify_dependabot_coverage() -> list[str]:
     return missing
 
 
+def read_workflow(path: Path, label: str, missing: list[str]) -> str:
+    if not path.exists():
+        missing.append(f"missing file: {path}")
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
 def verify_workflow_coverage() -> list[str]:
     missing: list[str] = []
-    sbom = Path(".github/workflows/sbom.yml").read_text(encoding="utf-8")
+    ci = read_workflow(Path(".github/workflows/ci.yml"), "ci", missing)
+    for token in ["develop", "main", "pull_request", "push", "ci / build-and-test"]:
+        if ci and token not in ci:
+            missing.append(f"ci workflow missing token: {token}")
+    sbom = read_workflow(Path(".github/workflows/sbom.yml"), "sbom", missing)
     for token in ["develop", "main", "pull_request", "release:", "tags:"]:
-        if token not in sbom:
+        if sbom and token not in sbom:
             missing.append(f"sbom workflow missing trigger token: {token}")
-    review = Path(".github/workflows/dependency-review.yml").read_text(encoding="utf-8")
+    review = read_workflow(
+        Path(".github/workflows/dependency-review.yml"), "dependency review", missing
+    )
     for token in ["develop", "main", "pull_request"]:
-        if token not in review:
+        if review and token not in review:
             missing.append(f"dependency review workflow missing trigger token: {token}")
-    audit = Path(".github/workflows/security-audit.yml").read_text(encoding="utf-8")
+    audit = read_workflow(
+        Path(".github/workflows/security-audit.yml"), "security audit", missing
+    )
     for token in ["develop", "main", "pull_request", "push"]:
-        if token not in audit:
+        if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
-    codeql = Path(".github/workflows/codeql.yml").read_text(encoding="utf-8")
+    codeql = read_workflow(Path(".github/workflows/codeql.yml"), "codeql", missing)
     for token in ["develop", "main", "pull_request", "push", "codeql"]:
-        if token not in codeql:
+        if codeql and token not in codeql:
             missing.append(f"codeql workflow missing token: {token}")
-    release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+    release = read_workflow(Path(".github/workflows/release.yml"), "release", missing)
     for token in [
         "develop",
         "main",
@@ -86,15 +103,17 @@ def verify_workflow_coverage() -> list[str]:
         "tags:",
         "release-preflight",
     ]:
-        if token not in release:
+        if release and token not in release:
             missing.append(f"release workflow missing token: {token}")
-    secret_scan = Path(".github/workflows/secret-scan-gate.yml").read_text(
-        encoding="utf-8"
+    secret_scan = read_workflow(
+        Path(".github/workflows/secret-scan-gate.yml"), "secret scan", missing
     )
     for token in ["develop", "main", "pull_request", "push", "secret-scan-gate"]:
-        if token not in secret_scan:
+        if secret_scan and token not in secret_scan:
             missing.append(f"secret scan workflow missing token: {token}")
-    build = Path(".github/workflows/build-baseline.yml").read_text(encoding="utf-8")
+    build = read_workflow(
+        Path(".github/workflows/build-baseline.yml"), "build baseline", missing
+    )
     for token in [
         "develop",
         "main",
@@ -107,7 +126,7 @@ def verify_workflow_coverage() -> list[str]:
         "gate / build / windows",
         "gate / build / macos",
     ]:
-        if token not in build:
+        if build and token not in build:
             missing.append(f"build workflow missing token: {token}")
     return missing
 

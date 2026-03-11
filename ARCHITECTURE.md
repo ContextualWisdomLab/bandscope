@@ -49,6 +49,7 @@ Last updated: 2026-03-10
 
 - The harness uses `npm` workspaces for JavaScript/TypeScript and `uv` for Python.
 - The desktop app is scaffolded as `Tauri + Vite + React`, but initial verification keeps Rust packaging out of the default quickcheck path.
+- The desktop shell uses an explicit Tauri CSP that only allows self-hosted assets, inline styles, Tauri IPC, and loopback development traffic.
 - Mechanical gates focus on lint, typecheck, unit tests, coverage for Python, and documentation presence.
 - Mechanical gates also enforce security document presence, plan `Security Notes`, and basic forbidden-pattern checks.
 - Security context is part of architecture, not just implementation detail; docs and plans must record the trust boundary touched by risky changes.

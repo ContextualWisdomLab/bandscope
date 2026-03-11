@@ -43,6 +43,17 @@ def main() -> int:
     if not frontend_dist.exists():
         raise FileNotFoundError(f"Missing frontend dist directory: {frontend_dist}")
 
+    metadata_paths = [
+        repo_root / "services" / "analysis-engine" / "uv.lock",
+        repo_root / "package-lock.json",
+        repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock",
+        repo_root / "supply-chain" / "supplemental-component-inventory.json",
+    ]
+    missing_metadata = [str(path) for path in metadata_paths if not path.exists()]
+    if missing_metadata:
+        missing_list = ", ".join(missing_metadata)
+        raise FileNotFoundError(f"Missing release metadata files: {missing_list}")
+
     git_sha = os.environ.get("GITHUB_SHA", "local")[:12]
     system = platform.system().lower()
     archive_name = f"bandscope-{system}-{git_sha}.zip"
@@ -58,12 +69,7 @@ def main() -> int:
                     path,
                     arcname=str(Path("frontend") / path.relative_to(frontend_dist)),
                 )
-        for extra_path in [
-            repo_root / "services" / "analysis-engine" / "uv.lock",
-            repo_root / "package-lock.json",
-            repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock",
-            repo_root / "supply-chain" / "supplemental-component-inventory.json",
-        ]:
+        for extra_path in metadata_paths:
             archive.write(extra_path, arcname=str(Path("metadata") / extra_path.name))
 
     checksum_path = output_dir / f"{archive_name}.sha256"

@@ -30,6 +30,9 @@ def main() -> int:
 
     missing_refs: list[str] = []
     for path, refs in REQUIRED_REFERENCES.items():
+        if not path.exists():
+            missing_refs.append(f"missing referenced file: {path}")
+            continue
         body = path.read_text(encoding="utf-8")
         for ref in refs:
             if ref not in body:

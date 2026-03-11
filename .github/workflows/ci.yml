@@ -26,7 +26,7 @@ jobs:
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
-        run: uv sync --project services/analysis-engine --group dev
+        run: uv sync --project services/analysis-engine --group dev --frozen
       - name: Run quickcheck
         run: ./scripts/harness/quickcheck.sh
 
@@ -38,4 +38,4 @@ jobs:
       - name: Install stable Rust toolchain
         run: rustup toolchain install stable --profile minimal
       - name: Check Tauri shell
-        run: cargo +stable check --manifest-path apps/desktop/src-tauri/Cargo.toml
+        run: cargo +stable check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
