@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "node -e \"require('node:fs').mkdirSync('coverage/.tmp', { recursive: true })\" && vitest run --coverage"
   },
   "dependencies": {
     "@bandscope/shared-types": "0.1.0",
