@@ -21,7 +21,7 @@ Cross-platform builds help catch:
 - build jobs must execute real dependency install, frontend build, native shell build, analysis engine packaging sanity, and artifact upload
 - build jobs must remain merge gates on both `develop` and `main`
 - workflow runner labels must be explicit and architecture-stable rather than `*-latest` shortcuts when the shortcut hides one architecture
-- Windows runner evidence should include an antivirus baseline check before packaging artifacts
+- Windows runner evidence should include an antivirus baseline check before packaging artifacts; hosted-runner telemetry may be incomplete, so the check records available Defender or SecurityCenter evidence rather than assuming real-time flags are always enabled
 - exact Windows 10 and macOS 24/25 GitHub-hosted labels are not currently published in the GitHub-hosted runner catalog; if those exact versions become release gates, self-hosted or larger-runner capacity is required
 
 ## Required check names
