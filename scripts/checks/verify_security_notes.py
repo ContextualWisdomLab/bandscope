@@ -1,3 +1,5 @@
+"""Verify that design-plan documents include a complete Security Notes section."""
+
 from pathlib import Path
 import sys
 
@@ -15,6 +17,7 @@ REQUIRED_SUBSECTIONS = [
 
 
 def security_notes_section(content: str) -> str:
+    """Extract the lowercased Security Notes section from a plan document."""
     lowered = content.lower()
     marker = SECURITY_NOTES_TEXT.lower()
     start = lowered.find(marker)
@@ -34,6 +37,7 @@ def security_notes_section(content: str) -> str:
 
 
 def main() -> int:
+    """Return a failing exit code when plan files are missing security notes."""
     missing: list[str] = []
     for path in sorted(PLAN_DIR.glob("*.md")):
         content = path.read_text(encoding="utf-8")
