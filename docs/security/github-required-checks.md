@@ -9,7 +9,7 @@ These are the merge-gate status checks that should be required on protected bran
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
-- `codeql`
+- `CodeQL`
 - `sbom`
 - `release-preflight`
 - `gate / build / windows`
@@ -20,7 +20,7 @@ These are the merge-gate status checks that should be required on protected bran
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
-- `codeql`
+- `CodeQL`
 - `sbom`
 - `release-preflight`
 - `gate / build / windows`
