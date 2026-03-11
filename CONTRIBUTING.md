@@ -17,7 +17,6 @@ Read `docs/repository/gitflow.md` before opening a PR.
 
 - direct push to `main` or `develop` is not allowed
 - every protected-branch merge requires a passing `CodeRabbit` check
-- stale approvals are dismissed on new commits
 - all review conversations must be resolved before merge
 - required checks must stay green; do not bypass them
 

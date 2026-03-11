@@ -15,7 +15,7 @@ BandScope is a public GitHub repository. GitHub is the source of truth for code,
 
 - every merge into `main` or `develop` goes through a PR
 - CODEOWNERS routes review to the right owners
-- a passing `CodeRabbit` check substitutes for the non-author approving review requirement in this harness baseline
+- a passing `CodeRabbit` check substitutes for GitHub's built-in approving-review gate in this harness baseline
 - self-approval, direct push, and arbitrary rule weakening are out of policy
 
 ## No direct push policy

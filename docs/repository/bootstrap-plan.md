@@ -18,7 +18,6 @@
 - direct push blocked
 - PR required
 - passing `CodeRabbit` gate required
-- stale approval dismissal enabled
 - conversation resolution required
 - force push blocked
 - branch deletion blocked
@@ -49,7 +48,7 @@ After bootstrap creates `develop`, the repository default branch is `develop`. `
 
 ## Review substitution rule
 
-For this harness baseline, a passing `CodeRabbit` check is the enforced review gate substitute for a non-author approving review.
+For this harness baseline, a passing `CodeRabbit` check replaces GitHub's built-in approving-review gate. Protected branches still require PRs, conversation resolution, and all required checks.
 
 ## Path note
 
