@@ -1,3 +1,5 @@
+"""Tests for repository supply-chain and workflow coverage checks."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,6 +8,7 @@ from conftest import load_module
 
 
 def test_supply_chain_check_requires_multi_arch_runner_labels(monkeypatch, tmp_path: Path) -> None:
+    """Ensure missing multi-arch workflow tokens are reported as violations."""
     supply_chain = load_module("scripts/checks/verify_supply_chain.py", "verify_supply_chain")
 
     workflow_dir = tmp_path / ".github" / "workflows"
@@ -50,6 +53,7 @@ jobs:
 
 
 def test_supply_chain_check_accepts_repo_multi_arch_workflow(monkeypatch) -> None:
+    """Ensure the checked-in multi-arch workflow satisfies the baseline policy."""
     supply_chain = load_module("scripts/checks/verify_supply_chain.py", "verify_supply_chain_repo")
     repo_root = Path(__file__).resolve().parents[3]
 

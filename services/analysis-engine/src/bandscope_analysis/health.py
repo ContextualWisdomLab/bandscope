@@ -4,6 +4,8 @@ from typing import Literal, TypedDict
 
 
 class HealthReport(TypedDict):
+    """Typed health payload returned by the analysis-engine bootstrap API."""
+
     service: Literal["bandscope-analysis"]
     status: Literal["ready"]
     pipeline_stages: list[Literal["decode", "draft", "separate", "persist"]]

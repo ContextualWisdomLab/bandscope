@@ -1,3 +1,5 @@
+"""Shared pytest helpers for analysis-engine and harness verification tests."""
+
 from __future__ import annotations
 
 from importlib.util import module_from_spec, spec_from_file_location
@@ -6,6 +8,7 @@ from types import ModuleType
 
 
 def load_module(relative_path: str, module_name: str) -> ModuleType:
+    """Load a repository Python module from a path outside the package root."""
     repo_root = Path(__file__).resolve().parents[3]
     module_path = repo_root / relative_path
     spec = spec_from_file_location(module_name, module_path)

@@ -1,3 +1,5 @@
+"""Verify that required repository documentation files and references exist."""
+
 from pathlib import Path
 import sys
 
@@ -62,6 +64,7 @@ REQUIRED_REFERENCES = {
 
 
 def main() -> int:
+    """Return a failing exit code when required docs or references are missing."""
     missing = [str(path) for path in REQUIRED_PATHS if not path.exists()]
     if missing:
         print("Missing required docs:")

@@ -1,3 +1,5 @@
+"""Verify that repository-controlled supply-chain controls stay in place."""
+
 from pathlib import Path
 import re
 
@@ -28,10 +30,12 @@ DOCKER_ACTION = re.compile(r"^\s*-?\s*uses:\s+docker://")
 
 
 def verify_required_files() -> list[str]:
+    """Return missing files required by the supply-chain baseline."""
     return [str(path) for path in REQUIRED_FILES if not path.exists()]
 
 
 def verify_pinned_actions() -> list[str]:
+    """Return workflow actions that are not pinned to immutable SHAs."""
     violations: list[str] = []
     workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
         Path(".github/workflows").glob("*.yaml")
@@ -53,6 +57,7 @@ def verify_pinned_actions() -> list[str]:
 
 
 def verify_dependabot_coverage() -> list[str]:
+    """Return missing Dependabot ecosystems from the repo configuration."""
     path = Path(".github/dependabot.yml")
     if not path.exists():
         return [f"missing file: {path}"]
@@ -65,6 +70,7 @@ def verify_dependabot_coverage() -> list[str]:
 
 
 def read_workflow(path: Path, label: str, missing: list[str]) -> str:
+    """Read a workflow file, recording a missing-file violation when absent."""
     if not path.exists():
         missing.append(f"missing file: {path}")
         return ""
@@ -72,6 +78,7 @@ def read_workflow(path: Path, label: str, missing: list[str]) -> str:
 
 
 def verify_workflow_coverage() -> list[str]:
+    """Return workflow trigger and artifact coverage violations."""
     missing: list[str] = []
     ci = read_workflow(Path(".github/workflows/ci.yml"), "ci", missing)
     for token in ["develop", "main", "pull_request", "push", "ci / build-and-test"]:
@@ -153,6 +160,7 @@ def verify_workflow_coverage() -> list[str]:
 
 
 def main() -> int:
+    """Return a failing exit code when supply-chain controls are incomplete."""
     violations: list[str] = []
     violations.extend(f"missing file: {item}" for item in verify_required_files())
     violations.extend(verify_pinned_actions())

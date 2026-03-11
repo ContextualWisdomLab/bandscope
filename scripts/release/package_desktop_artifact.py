@@ -1,3 +1,5 @@
+"""Package desktop build outputs into traceable release artifacts."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,6 +10,7 @@ import zipfile
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest for a file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -16,6 +19,7 @@ def sha256_file(path: Path) -> str:
 
 
 def normalized_platform() -> str:
+    """Return the normalized artifact platform label for the current environment."""
     if artifact_platform := os.environ.get("BANDSCOPE_ARTIFACT_OS"):
         return artifact_platform
 
@@ -27,6 +31,7 @@ def normalized_platform() -> str:
 
 
 def normalized_architecture() -> str:
+    """Return the normalized artifact architecture label for the current environment."""
     if artifact_arch := os.environ.get("BANDSCOPE_ARTIFACT_ARCH"):
         return artifact_arch
 
@@ -40,6 +45,7 @@ def normalized_architecture() -> str:
 
 
 def artifact_identity() -> dict[str, str]:
+    """Build the archive and manifest names for the current artifact target."""
     git_sha = os.environ.get("GITHUB_SHA", "local")[:12]
     target_platform = normalized_platform()
     target_arch = normalized_architecture()
@@ -53,6 +59,7 @@ def artifact_identity() -> dict[str, str]:
 
 
 def expected_binary_path(repo_root: Path) -> Path:
+    """Return the expected desktop binary path for the selected target triple."""
     system = normalized_platform()
     binary_name = (
         "bandscope-desktop.exe" if system == "windows" else "bandscope-desktop"
@@ -64,6 +71,7 @@ def expected_binary_path(repo_root: Path) -> Path:
 
 
 def main() -> int:
+    """Package the desktop binary, frontend assets, and metadata into a zip archive."""
     repo_root = Path(__file__).resolve().parents[2]
     binary_path = expected_binary_path(repo_root)
     frontend_dist = repo_root / "apps" / "desktop" / "dist"
