@@ -88,8 +88,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isDenseArray(value: unknown): value is unknown[] {
+  return Array.isArray(value) && Object.keys(value).length === value.length;
+}
+
+function isArrayOf<T>(value: unknown, predicate: (item: unknown) => item is T): value is T[] {
+  return isDenseArray(value) && value.every((item) => predicate(item));
+}
+
 function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
+  return isArrayOf(value, (item): item is string => typeof item === "string");
 }
 
 function isOneOf<T extends string>(options: readonly T[], value: unknown): value is T {
@@ -153,8 +161,7 @@ function isRehearsalRole(value: unknown): value is RehearsalRole {
     isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority) &&
     typeof value.simplification === "string" &&
     typeof value.setupNote === "string" &&
-    Array.isArray(value.manualOverrides) &&
-    value.manualOverrides.every((override) => isManualOverride(override))
+    isArrayOf(value.manualOverrides, isManualOverride)
   );
 }
 
@@ -165,8 +172,7 @@ function isRehearsalSection(value: unknown): value is RehearsalSection {
     typeof value.label === "string" &&
     typeof value.groove === "string" &&
     isConfidenceMarker(value.confidence) &&
-    Array.isArray(value.roles) &&
-    value.roles.every((role) => isRehearsalRole(role))
+    isArrayOf(value.roles, isRehearsalRole)
   );
 }
 
@@ -315,8 +321,7 @@ export function isRehearsalSong(value: unknown): value is RehearsalSong {
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.title === "string" &&
-    Array.isArray(value.sections) &&
-    value.sections.every((section) => isRehearsalSection(section)) &&
+    isArrayOf(value.sections, isRehearsalSection) &&
     isExportSummary(value.exportSummary)
   );
 }

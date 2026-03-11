@@ -10,5 +10,10 @@
   "sectionConfidence": "Section confidence",
   "roleConfidence": "confidence",
   "harmonySource": "harmony source",
-  "manualOverride": "manual override"
+  "manualOverride": "manual override",
+  "confidenceLevelLow": "Low confidence",
+  "confidenceLevelMedium": "Needs ear check",
+  "confidenceLevelHigh": "Ready to trust",
+  "provenanceSourceModel": "Auto-detected",
+  "provenanceSourceUser": "User-confirmed"
 }
