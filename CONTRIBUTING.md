@@ -4,6 +4,7 @@ BandScope is a public GitHub project. GitHub is the source of truth for code rev
 
 ## Branch strategy
 
+- `develop` is the repository default branch after bootstrap.
 - `main` is the protected release branch.
 - `develop` is the protected integration branch.
 - `feature/*` branches target `develop`.

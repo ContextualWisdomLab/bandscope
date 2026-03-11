@@ -26,11 +26,12 @@ The expected sequence is:
 3. create or confirm the GitHub public repository
 4. create the initial `README.md` commit to establish `main`
 5. create and push `develop`
-6. apply the initial branch protection baseline
-7. create the bootstrap/setup branch and PR
-8. add workflows and merge through PR review
-9. tighten required checks once workflow names exist
-10. verify with GitHub CLI or API evidence
+6. switch the repository default branch to `develop`
+7. apply the initial branch protection baseline
+8. create the bootstrap/setup branch and PR
+9. add workflows and merge through PR review
+10. tighten required checks once workflow names exist
+11. verify with GitHub CLI or API evidence
 
 ## Supply-chain bootstrap rule
 
@@ -76,6 +77,11 @@ Do not treat these as TODOs, later hardening, or optional recommendations.
 
 - create `develop` from `main`
 - push `develop`
+
+### Phase 4.5. Default branch handoff
+
+- switch the repository default branch to `develop` once the integration branch exists
+- keep `main` as the protected release branch even though the repository default branch is now `develop`
 
 ### Phase 5. Initial protection baseline
 

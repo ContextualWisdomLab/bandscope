@@ -2,8 +2,8 @@
 
 ## Branch roles
 
+- `develop`: repository default branch after bootstrap and the protected integration branch
 - `main`: release branch, protected, review required
-- `develop`: integration branch, protected, review required
 - `feature/*`: short-lived work branches targeting `develop`
 - `release/*`: release preparation branches targeting `main`
 - `hotfix/*`: urgent fixes targeting `main`, with follow-up sync back into `develop`

@@ -2,15 +2,16 @@
 
 ## Required execution order
 
-1. Create the public GitHub repository with default branch `main`.
+1. Create the public GitHub repository with initial default branch `main`.
 2. Push a one-time empty `README.md` commit directly to `main`.
 3. Create `develop` from `main`.
-4. Apply phase-1 protection to `main` and `develop` without required checks yet.
-5. Create `bootstrap/setup` from `develop`.
-6. Add the bootstrap baseline files, workflows, templates, docs, i18n seed files, and app skeleton.
-7. Open `bootstrap/setup -> develop` and assign a reviewer.
-8. After merge, tighten protections by connecting required checks.
-9. Open `develop -> main` as `release/bootstrap-initial`.
+4. Switch the repository default branch to `develop` after `develop` exists.
+5. Apply phase-1 protection to `main` and `develop` without required checks yet.
+6. Create `bootstrap/setup` from `develop`.
+7. Add the bootstrap baseline files, workflows, templates, docs, i18n seed files, and app skeleton.
+8. Open `bootstrap/setup -> develop` and assign a reviewer.
+9. After merge, tighten protections by connecting required checks.
+10. Open `develop -> main` as `release/bootstrap-initial`.
 
 ## Phase-1 protections
 
@@ -40,6 +41,10 @@ After workflows exist, require these stable checks on `main` and `develop`:
 ## Initial README exception
 
 The empty `README.md` commit exists only to initialize the public repository before protections can be enforced. It is not a standing exception.
+
+## Default branch declaration
+
+After bootstrap creates `develop`, the repository default branch is `develop`. `main` remains the protected release branch.
 
 ## Path note
 
