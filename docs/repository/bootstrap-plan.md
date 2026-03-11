@@ -17,7 +17,7 @@
 
 - direct push blocked
 - PR required
-- at least one approving review required
+- passing `CodeRabbit` gate required
 - stale approval dismissal enabled
 - conversation resolution required
 - force push blocked
@@ -29,10 +29,11 @@
 
 After workflows exist, require these stable checks on `main` and `develop`:
 
+- `CodeRabbit`
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
-- `codeql`
+- `CodeQL`
 - `sbom`
 - `release-preflight`
 - `gate / build / windows`
@@ -45,6 +46,10 @@ The empty `README.md` commit exists only to initialize the public repository bef
 ## Default branch declaration
 
 After bootstrap creates `develop`, the repository default branch is `develop`. `main` remains the protected release branch.
+
+## Review substitution rule
+
+For this harness baseline, a passing `CodeRabbit` check is the enforced review gate substitute for a non-author approving review.
 
 ## Path note
 

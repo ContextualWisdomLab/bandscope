@@ -6,6 +6,7 @@ These are the merge-gate status checks that should be required on protected bran
 
 ### `develop`
 
+- `CodeRabbit`
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
@@ -17,6 +18,7 @@ These are the merge-gate status checks that should be required on protected bran
 
 ### `main`
 
+- `CodeRabbit`
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
@@ -35,6 +37,7 @@ These are required repository settings or GitHub security features, not branch s
 - Dependency graph: required
 - Dependency submission coverage: required where GitHub supports it for the repository setup
 - Dependency review gate on PRs: required
+- CodeRabbit review gate substitution: required
 
 ## Workflow-managed baseline
 

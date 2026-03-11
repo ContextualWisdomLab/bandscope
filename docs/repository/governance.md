@@ -9,12 +9,13 @@ BandScope is a public GitHub repository. GitHub is the source of truth for code,
 - `develop` is the repository default branch after bootstrap
 - `main` is the protected release branch
 - `develop` is the protected integration branch
-- both branches require PR-based merges, at least one approving review, stale approval dismissal, conversation resolution, force-push prohibition, branch-deletion prohibition, and admin enforcement
+- both branches require PR-based merges, a passing `CodeRabbit` gate, conversation resolution, force-push prohibition, branch-deletion prohibition, and admin enforcement
 
 ## Review policy
 
 - every merge into `main` or `develop` goes through a PR
 - CODEOWNERS routes review to the right owners
+- a passing `CodeRabbit` check substitutes for the non-author approving review requirement in this harness baseline
 - self-approval, direct push, and arbitrary rule weakening are out of policy
 
 ## No direct push policy

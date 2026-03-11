@@ -43,7 +43,7 @@ Bootstrap or setup work is not complete unless GitHub-facing supply-chain contro
 - `.github/workflows/codeql.yml`
 - `.github/workflows/sbom.yml`
 - `.github/workflows/release.yml`
-- branch protection or rulesets for `main` and `develop` that require `ci / build-and-test`, `dependency-review`, `security-audit`, `codeql`, `sbom`, `release-preflight`, `gate / build / windows`, and `gate / build / macos`
+- branch protection or rulesets for `main` and `develop` that require `CodeRabbit`, `ci / build-and-test`, `dependency-review`, `security-audit`, `CodeQL`, `sbom`, `release-preflight`, `gate / build / windows`, and `gate / build / macos`
 - release retention for the generated SBOM and supplemental inventory
 
 Do not treat these as TODOs, later hardening, or optional recommendations.
@@ -86,7 +86,7 @@ Do not treat these as TODOs, later hardening, or optional recommendations.
 ### Phase 5. Initial protection baseline
 
 - apply PR-only merge
-- require review
+- require `CodeRabbit` as the review-equivalent gate
 - disable force push
 - restrict deletion
 - checks can be tightened later after workflows exist
