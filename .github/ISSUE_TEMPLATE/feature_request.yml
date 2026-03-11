@@ -20,3 +20,5 @@ body:
     id: security
     attributes:
       label: Security or supply-chain considerations
+    validations:
+      required: true

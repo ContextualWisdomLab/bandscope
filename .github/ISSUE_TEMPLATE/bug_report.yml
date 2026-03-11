@@ -22,3 +22,13 @@ body:
       label: Expected behavior
     validations:
       required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Describe what happened instead.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment details
+      description: OS, BandScope version, install source, and any relevant device context.
