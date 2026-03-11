@@ -23,6 +23,12 @@ def normalized_platform() -> str:
     if artifact_platform := os.environ.get("BANDSCOPE_ARTIFACT_OS"):
         return artifact_platform
 
+    target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE", "")
+    if "windows" in target_triple:
+        return "windows"
+    if "apple-darwin" in target_triple:
+        return "macos"
+
     system = platform.system().lower()
     if system == "darwin":
         return "macos"
@@ -34,6 +40,12 @@ def normalized_architecture() -> str:
     """Return the normalized artifact architecture label for the current environment."""
     if artifact_arch := os.environ.get("BANDSCOPE_ARTIFACT_ARCH"):
         return artifact_arch
+
+    target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE", "")
+    if target_triple.startswith(("x86_64", "amd64")):
+        return "amd64"
+    if target_triple.startswith(("aarch64", "arm64")):
+        return "arm64"
 
     machine = platform.machine().lower()
     if machine in {"x86_64", "amd64"}:
