@@ -1,8 +1,8 @@
 # AGENTS.md
 
 ## Project overview
-- BandScope is a local-first desktop app for chord, stem, and range analysis.
-- Authoritative delivery rules live in `docs/ARCHITECTURE.md`, `docs/plans/`, and the root verification scripts.
+- BandScope is a local-first desktop app for rehearsal prep: a practical song view with likely harmony by section and by instrument or vocal role, form and groove cues, stems, playable ranges, simplification guidance, transposition or setup cues, part-overlap cues, visible confidence, and rehearsal priorities.
+- Authoritative delivery rules live in `ARCHITECTURE.md`, `docs/plans/`, and the root verification scripts.
 - Brand, tone, UX copy, and prioritization rules live in `docs/brand-story.md` and must be applied to PRDs, TRDs, UI copy, onboarding, empty states, and error messages.
 - App security rules live in `docs/security/app-security.md` and must be applied to file handling, URL intake, subprocesses, IPC, WebView usage, model loading, updates, logging, cache handling, and export behavior.
 - Dependency, SBOM, and supply-chain rules live in `docs/security/dependency-policy.md` and must be applied to dependency additions, GitHub Actions, releases, bundled binaries, and model artifacts.
@@ -58,6 +58,7 @@
 - Keep UI and analysis engine decoupled through shared contracts.
 - Prefer minimal, test-first changes for production code.
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
+- Do not reduce the product to a chord analyzer when form, timing, player coordination, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
 
 ## Safety

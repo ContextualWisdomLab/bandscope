@@ -4,6 +4,28 @@
 
 BandScope is a local-first desktop app with a React + Tauri shell, shared TypeScript contracts, and a Python analysis service.
 
+It is technically defined as a rehearsal-analysis product, not a single-output chord detector.
+
+## Core rehearsal artifacts
+
+- likely harmony by section and by role
+- section roadmap with entries, dropouts, pickups, stops, and handoffs
+- groove and timing cues
+- role ranges, overlap warnings, and simplification guidance
+- transposition, capo, tuning, or setup cues where relevant
+- role-specific confidence and rehearsal priority
+
+## Shared domain contracts
+
+- Shared contracts must support a `song -> section -> role` model.
+- Roles can include instruments, vocal roles, or hand-specific subdivisions when the arrangement exposes them clearly.
+- Contracts should preserve user edits, provenance, and confidence so UI and exports stay aligned with the same domain model.
+
+## Exported rehearsal deliverables
+
+- BandScope should support cue-sheet or chart-style outputs derived from the same section and role model.
+- Exported artifacts should stay compact and rehearsal-friendly rather than becoming DAW sessions or engraved scores.
+
 ## Delivery flow
 
 GitHub is the source of truth for repository governance, PR review, CI/CD, Code Security, dependency review, SBOM retention, and release distribution.

@@ -8,7 +8,7 @@ Future agents must apply it when writing PRDs, TRDs, UX flows, code, exports, lo
 ## App security context
 
 BandScope is a Windows/macOS local-first desktop app.
-Users provide local audio files or YouTube URLs, and the product performs audio analysis, stem separation, chord detection, range visualization, loop playback, project save/load, and result export.
+Users provide local audio files or YouTube URLs, and the product performs rehearsal analysis: per-role harmony detection, stem separation, form and cue extraction, range visualization, loop playback, confidence-marked guidance, project save/load, and result export.
 
 BandScope should not become a product that trades away safety for convenience.
 Even as a local desktop app, it still exposes attack surfaces through files, decoders, subprocesses, model artifacts, WebView rendering, IPC, local backend communication, updates, exports, logs, caches, and installers.
@@ -125,6 +125,8 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Prevent CSV formula injection.
 - Sanitize export filenames and derived metadata.
 - Keep export scope narrow and predictable.
+- Treat cue sheets, chart-style exports, lyric-linked anchors, and role summaries as derived data that still require sanitization.
+- Do not let export formats expand into arbitrary scriptable project formats or unsafe document payloads.
 
 ## Feature-specific rules
 

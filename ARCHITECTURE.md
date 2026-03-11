@@ -45,6 +45,36 @@ Last updated: 2026-03-10
 - `scripts/harness` - fail-fast repo verification
 - `scripts/checks` - small doc and structure checks
 
+## Product capability scope
+
+- BandScope is not only a shell around chord labels, stems, and ranges.
+- The technical scope includes rehearsal-facing outputs for harmony, section roadmap, groove cues, role entry and dropout cues, simplification guidance, transposition or setup guidance, confidence flags, and rehearsal priority.
+- These outputs must stay aligned with `docs/brand-story.md` rather than drifting back to a song-summary-only analyzer.
+
+## Analysis target model
+
+- The analysis target is a `song -> section -> role` hierarchy, not a single song-wide chord track.
+- A `role` can represent an instrument, a vocal function, or a hand-specific subdivision when the arrangement exposes it clearly.
+- Typical roles include bass, guitar, keyboard players, keyboard left hand, keyboard right hand, lead vocal, backing vocal, horns, strings, and other arrangement-carrying parts.
+- Shared contracts should be able to carry different harmonic guidance for simultaneous roles in the same section.
+
+## Rehearsal outputs
+
+- Core rehearsal artifacts should include:
+  - likely harmony by section and by role
+  - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
+  - groove and timing cues relevant to locking the band together
+  - playable ranges and density or overlap warnings
+  - simplification, transposition, capo, tuning, or setup cues where applicable
+  - role-specific rehearsal priorities and confidence flags
+  - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
+
+## Confidence, edits, and provenance
+
+- Confidence must be representable at the section and role level.
+- Automatic analysis should remain editable without losing provenance of what was model-generated versus user-confirmed.
+- Future shared contracts should preserve manual overrides, confidence markers, and export-safe summaries of those states.
+
 ## Harness decisions
 
 - The harness uses `npm` workspaces for JavaScript/TypeScript and `uv` for Python.
@@ -58,6 +88,7 @@ Last updated: 2026-03-10
 - Cross-platform Windows and macOS build coverage is part of the bootstrap security architecture.
 - GitHub-facing setup is staged: no-git -> local-git -> GitHub-connected -> protected-branches with required checks.
 - Shared contracts live in `packages/shared-types` so the UI can evolve without importing Python internals.
+- Shared contracts should ultimately model section, role, cue, confidence, and export artifacts explicitly enough that desktop UI and analysis outputs do not invent their own parallel schemas.
 - Product and UX decisions should prefer rehearsal-first simplicity while still maintaining high analytical accuracy.
 - Security decisions should prefer allowlisted narrow capabilities over generic convenience APIs.
 
