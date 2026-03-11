@@ -35,7 +35,15 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
       - name: Install stable Rust toolchain
         run: rustup toolchain install stable --profile minimal
+      - name: Install node dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build --workspace @bandscope/desktop
       - name: Check Tauri shell
         run: cargo +stable check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
