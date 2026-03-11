@@ -37,7 +37,7 @@ def security_notes_section(content: str) -> str:
 
 
 def main() -> int:
-    """Return a failing exit code when plan files are missing security notes."""
+    """Return a failing exit code when Security Notes or required subsections are missing."""
     missing: list[str] = []
     for path in sorted(PLAN_DIR.glob("*.md")):
         content = path.read_text(encoding="utf-8")

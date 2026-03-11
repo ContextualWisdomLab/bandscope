@@ -56,11 +56,15 @@ def normalized_architecture() -> str:
     return machine
 
 
+def resolved_artifact_target() -> tuple[str, str]:
+    """Return the normalized platform and architecture for the current artifact target."""
+    return normalized_platform(), normalized_architecture()
+
+
 def artifact_identity() -> dict[str, str]:
     """Build the archive and manifest names for the current artifact target."""
     git_sha = os.environ.get("GITHUB_SHA", "local")[:12]
-    target_platform = normalized_platform()
-    target_arch = normalized_architecture()
+    target_platform, target_arch = resolved_artifact_target()
     suffix = f"bandscope-{target_platform}-{target_arch}-{git_sha}"
     return {
         "platform": target_platform,

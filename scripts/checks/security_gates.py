@@ -1,4 +1,4 @@
-"""Scan tracked source files for disallowed security patterns."""
+"""Scan repository workspace source files for disallowed security patterns."""
 
 from pathlib import Path
 import re
