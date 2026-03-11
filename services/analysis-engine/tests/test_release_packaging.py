@@ -51,6 +51,32 @@ def test_expected_binary_path_uses_target_triple_when_provided(monkeypatch, tmp_
     )
 
 
+def test_expected_binary_path_derives_windows_extension_from_target_triple(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Ensure Windows target triples select the .exe packaging path on non-Windows hosts."""
+    packaging = load_module(
+        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_windows_target"
+    )
+
+    monkeypatch.delenv("BANDSCOPE_ARTIFACT_OS", raising=False)
+    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
+    monkeypatch.setattr(packaging.platform, "system", lambda: "Darwin")
+
+    binary_path = packaging.expected_binary_path(tmp_path)
+
+    assert binary_path == (
+        tmp_path
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "x86_64-pc-windows-msvc"
+        / "release"
+        / "bandscope-desktop.exe"
+    )
+
+
 def test_release_packaging_maps_darwin_to_macos(monkeypatch) -> None:
     """Ensure Darwin hosts map to the repository's canonical macOS label."""
     packaging = load_module(
