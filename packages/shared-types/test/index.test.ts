@@ -68,8 +68,8 @@ describe("shared type helpers", () => {
       }
     });
 
-    expect(song.sections[0]?.roles[2]?.harmony.source).toBe("model");
-    expect(song.sections[0]?.roles[2]?.manualOverrides[0]).toMatchObject({
+    expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
+    expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
       field: "harmony",
       source: "user",
       value: {
