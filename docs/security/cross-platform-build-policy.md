@@ -4,6 +4,7 @@
 
 BandScope ships to Windows and macOS.
 For that reason, Windows and macOS builds are security controls, not optional compatibility checks.
+Each platform must be validated for both `amd64` and `arm64` packaging paths.
 
 Cross-platform builds help catch:
 
@@ -14,10 +15,12 @@ Cross-platform builds help catch:
 
 ## Mandatory baseline
 
-- every protected-branch change must build on Windows and macOS
-- every release or tag validation must build on Windows and macOS
+- every protected-branch change must build on Windows `amd64` + `arm64`
+- every protected-branch change must build on macOS Intel + arm64
+- every release or tag validation must build on the same four OS/architecture combinations
 - build jobs must execute real dependency install, frontend build, native shell build, analysis engine packaging sanity, and artifact upload
 - build jobs must remain merge gates on both `develop` and `main`
+- workflow runner labels must be explicit and architecture-stable rather than `*-latest` shortcuts when the shortcut hides one architecture
 
 ## Required check names
 
@@ -25,10 +28,11 @@ Cross-platform builds help catch:
 - `gate / build / macos`
 
 These are intended required checks for both `develop` and `main`.
+Each gate must represent both architectures for its OS.
 
 ## Release connection
 
-- release validation must produce Windows and macOS artifacts
+- release validation must produce Windows amd64, Windows arm64, macOS amd64, and macOS arm64 artifacts
 - each artifact must have a checksum
 - release artifacts should stay linkable to SBOM artifacts and supplemental inventory
 - code signing and notarization readiness should be documented even if signing credentials are not present in CI yet
@@ -37,8 +41,10 @@ These are intended required checks for both `develop` and `main`.
 
 Mark work as `BLOCKED` or `FAILED` if any of the following is missing:
 
-- Windows build workflow path
-- macOS build workflow path
+- Windows amd64 build workflow path
+- Windows arm64 build workflow path
+- macOS amd64 build workflow path
+- macOS arm64 build workflow path
 - release or tag build coverage
 - intended required checks recorded in repo docs
 - actual branch protection enforcement when GitHub admin context is required but unavailable

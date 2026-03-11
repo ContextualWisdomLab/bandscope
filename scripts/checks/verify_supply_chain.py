@@ -124,16 +124,30 @@ def verify_workflow_coverage() -> list[str]:
         "push",
         "release:",
         "tags:",
-        "windows-latest",
-        "macos-latest",
+        "windows-2025",
+        "windows-11-arm",
+        "macos-15-intel",
+        "macos-15",
         "gate / build / windows",
         "gate / build / macos",
         "release-artifact / macos",
         "release-artifact / windows",
         "ubuntu-latest",
+        "bandscope-windows-amd64-${{ github.sha }}",
+        "bandscope-windows-arm64-${{ github.sha }}",
+        "bandscope-macos-amd64-${{ github.sha }}",
+        "bandscope-macos-arm64-${{ github.sha }}",
     ]:
         if build and token not in build:
             missing.append(f"build workflow missing token: {token}")
+    if build and "windows-latest" in build:
+        missing.append(
+            "build workflow should not rely on windows-latest for architecture coverage"
+        )
+    if build and "macos-latest" in build:
+        missing.append(
+            "build workflow should not rely on macos-latest for architecture coverage"
+        )
     return missing
 
 
