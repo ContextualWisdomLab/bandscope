@@ -137,6 +137,7 @@ def verify_workflow_coverage() -> list[str]:
         "bandscope-windows-arm64-${{ github.sha }}",
         "bandscope-macos-amd64-${{ github.sha }}",
         "bandscope-macos-arm64-${{ github.sha }}",
+        "Get-MpComputerStatus",
     ]:
         if build and token not in build:
             missing.append(f"build workflow missing token: {token}")

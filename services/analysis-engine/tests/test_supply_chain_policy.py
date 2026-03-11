@@ -1,19 +1,8 @@
 from __future__ import annotations
 
-from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from types import ModuleType
 
-
-def load_module(relative_path: str, module_name: str) -> ModuleType:
-    repo_root = Path(__file__).resolve().parents[3]
-    module_path = repo_root / relative_path
-    spec = spec_from_file_location(module_name, module_path)
-    assert spec is not None
-    assert spec.loader is not None
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from conftest import load_module
 
 
 def test_supply_chain_check_requires_multi_arch_runner_labels(monkeypatch, tmp_path: Path) -> None:
@@ -57,6 +46,7 @@ jobs:
     assert "build workflow missing token: macos-15-intel" in violations
     assert "build workflow missing token: bandscope-windows-arm64-${{ github.sha }}" in violations
     assert "build workflow missing token: bandscope-macos-amd64-${{ github.sha }}" in violations
+    assert "build workflow missing token: Get-MpComputerStatus" in violations
 
 
 def test_supply_chain_check_accepts_repo_multi_arch_workflow(monkeypatch) -> None:

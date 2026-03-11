@@ -48,6 +48,16 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Add Windows target
         run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain stable
+      - name: Verify Windows antivirus baseline
+        shell: pwsh
+        run: |
+          $status = Get-MpComputerStatus
+          if (-not $status.AntivirusEnabled) {
+            throw "Windows antivirus is disabled"
+          }
+          if (-not $status.RealTimeProtectionEnabled) {
+            throw "Windows real-time protection is disabled"
+          }
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -96,6 +106,16 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Add Windows arm target
         run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain stable
+      - name: Verify Windows antivirus baseline
+        shell: pwsh
+        run: |
+          $status = Get-MpComputerStatus
+          if (-not $status.AntivirusEnabled) {
+            throw "Windows antivirus is disabled"
+          }
+          if (-not $status.RealTimeProtectionEnabled) {
+            throw "Windows real-time protection is disabled"
+          }
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies

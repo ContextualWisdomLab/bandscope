@@ -23,6 +23,7 @@ Last updated: 2026-03-11
 - Windows and macOS build security policy lives in `docs/security/cross-platform-build-policy.md`.
 - Target-OS builds are merge gates and release-validation controls, not optional compatibility checks.
 - Windows amd64 + arm64 and macOS amd64 + arm64 are all part of the protected-branch and release-validation build baseline.
+- Windows build runners should verify antivirus protection before native packaging begins.
 
 ## GitHub bootstrap source
 
@@ -88,6 +89,7 @@ Last updated: 2026-03-11
 - Dependency review, audit, supply-chain inventory validation, and SBOM generation are expected protected-branch gates for both `develop` and `main`.
 - Cross-platform Windows and macOS build coverage is part of the bootstrap security architecture.
 - Release artifacts, checksums, and manifests should encode both OS and architecture so packaged binaries remain traceable.
+- Exact Windows 10 and macOS 24/25 GitHub-hosted coverage is a platform-capability constraint today; the current hosted baseline uses the closest published explicit runner labels and must move to self-hosted or larger runners if exact-version enforcement becomes mandatory.
 - GitHub-facing setup is staged: no-git -> local-git -> GitHub-connected -> protected-branches with required checks.
 - Shared contracts live in `packages/shared-types` so the UI can evolve without importing Python internals.
 - Shared contracts should ultimately model section, role, cue, confidence, and export artifacts explicitly enough that desktop UI and analysis outputs do not invent their own parallel schemas.

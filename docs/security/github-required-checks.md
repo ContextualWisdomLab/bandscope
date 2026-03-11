@@ -50,6 +50,7 @@ These controls are expressed by repo workflows and are expected to be connected 
 - `gate / build / windows`: intended required check
 - `gate / build / macos`: intended required check
 - per-architecture desktop artifacts: required for Windows amd64/arm64 and macOS amd64/arm64
+- Windows build jobs: antivirus baseline evidence required before packaging
 - release-time SBOM artifact retention: required baseline
 - release-time supplemental inventory retention: required baseline
 
