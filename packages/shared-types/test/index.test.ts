@@ -3,6 +3,7 @@ import {
   createDemoRehearsalSong,
   isRehearsalSong,
   parseRehearsalSong,
+  type RehearsalSong,
   SUPPORTED_AUDIO_FORMATS
 } from "../src/index";
 
@@ -140,5 +141,255 @@ describe("shared type helpers", () => {
     expect(parsed.sections[0]?.roles).toHaveLength(2);
     expect(song.sections[0]?.roles).toHaveLength(3);
     expect(() => parseRehearsalSong(null)).toThrow("Invalid rehearsal song contract");
+    expect(() => parseRehearsalSong({
+      id: "bad",
+      title: "Bad",
+      sections: [],
+      exportSummary: {
+        format: 42,
+        headline: "oops"
+      }
+    })).toThrow("exportSummary.format");
+  });
+
+  it("reports the first invalid field path for nested contract failures", () => {
+    const roleSparse = createDemoRehearsalSong() as unknown as {
+      sections: Array<{ roles: unknown[] }>;
+    };
+    const badOverride = createDemoRehearsalSong() as unknown as {
+      sections: Array<{ roles: Array<{ manualOverrides: Array<{ value: { source: string } }> }> }>;
+    };
+    const badHeadline = createDemoRehearsalSong() as unknown as {
+      exportSummary: { headline: unknown };
+    };
+    const badFocusSection = createDemoRehearsalSong() as unknown as {
+      exportSummary: { focusSections: unknown[] };
+    };
+    const badExportSummary = createDemoRehearsalSong() as unknown as {
+      exportSummary: unknown;
+    };
+    const missingId = { ...createDemoRehearsalSong(), id: 42 };
+    const sparseSections = createDemoRehearsalSong() as unknown as { sections: RehearsalSong["sections"] };
+
+    roleSparse.sections[0]!.roles = new Array(1);
+    badOverride.sections[0]!.roles[2]!.manualOverrides[0]!.value.source = "model";
+    badHeadline.exportSummary.headline = 99;
+    badFocusSection.exportSummary.focusSections = ["Verse 1", 7];
+    badExportSummary.exportSummary = [];
+    sparseSections.sections = new Array(1) as RehearsalSong["sections"];
+
+    expect(() => parseRehearsalSong(roleSparse)).toThrow("sections[0].roles");
+    expect(() => parseRehearsalSong(badOverride)).toThrow("manualOverrides[0].value.source");
+    expect(() => parseRehearsalSong(badHeadline)).toThrow("exportSummary.headline");
+    expect(() => parseRehearsalSong(badFocusSection)).toThrow("exportSummary.focusSections[1]");
+    expect(() => parseRehearsalSong(badExportSummary)).toThrow("exportSummary");
+    expect(() => parseRehearsalSong(missingId)).toThrow("id");
+    expect(() => parseRehearsalSong(sparseSections)).toThrow("sections");
+  });
+
+  it("covers detailed validation branches", () => {
+    const createInvalidSong = (mutate: (song: RehearsalSong) => unknown) => {
+      const song = createDemoRehearsalSong();
+      mutate(song);
+      return song;
+    };
+
+    const cases: Array<{ message: string; payload: unknown }> = [
+      { message: "title", payload: { id: "song" } },
+      {
+        message: "sections[0]",
+        payload: { ...createDemoRehearsalSong(), sections: [null] }
+      },
+      {
+        message: "sections[0].id",
+        payload: createInvalidSong((song) => {
+          (song.sections[0] as RehearsalSong["sections"][number]).id = 4 as never;
+        })
+      },
+      {
+        message: "sections[0].label",
+        payload: createInvalidSong((song) => {
+          (song.sections[0] as RehearsalSong["sections"][number]).label = 4 as never;
+        })
+      },
+      {
+        message: "sections[0].groove",
+        payload: createInvalidSong((song) => {
+          (song.sections[0] as RehearsalSong["sections"][number]).groove = 4 as never;
+        })
+      },
+      {
+        message: "sections[0].confidence.level",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.confidence.level = "certain" as never;
+        })
+      },
+      {
+        message: "sections[0].confidence.source",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.confidence.source = "other" as never;
+        })
+      },
+      {
+        message: "sections[0].confidence.notes",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.confidence.notes = 1 as never;
+        })
+      },
+      {
+        message: "sections[0].confidence",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.confidence = null as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].id",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.id = 7 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0] = null as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].name",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.name = 7 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].roleType",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.roleType = "drums" as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].harmony",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.harmony = null as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].harmony.chord",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.harmony.chord = 3 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].harmony.functionLabel",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.harmony.functionLabel = 3 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].harmony.source",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.harmony.source = "other" as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].cue",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.cue = null as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].cue.kind",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.cue.kind = "bar" as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].cue.value",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.cue.value = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].range",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.range = null as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].range.lowestNote",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.range.lowestNote = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].range.highestNote",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.range.highestNote = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].confidence",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.confidence = null as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].rehearsalPriority",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.rehearsalPriority = "urgent" as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].simplification",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.simplification = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].setupNote",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.setupNote = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[2].manualOverrides[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[2]!.manualOverrides[0] = null as never;
+        })
+      },
+      {
+        message: "sections[0].roles[2].manualOverrides[0].field",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[2]!.manualOverrides[0]!.field = "cue" as never;
+        })
+      },
+      {
+        message: "sections[0].roles[2].manualOverrides[0].source",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[2]!.manualOverrides[0]!.source = "model" as never;
+        })
+      },
+      {
+        message: "sections[0].roles[2].manualOverrides[0].value.chord",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[2]!.manualOverrides[0]!.value.chord = 5 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].manualOverrides",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.manualOverrides = new Array(1) as never;
+        })
+      },
+      {
+        message: "exportSummary.focusSections",
+        payload: createInvalidSong((song) => {
+          song.exportSummary.focusSections = new Array(1) as never;
+        })
+      }
+    ];
+
+    for (const testCase of cases) {
+      expect(() => parseRehearsalSong(testCase.payload)).toThrow(testCase.message);
+    }
   });
 });

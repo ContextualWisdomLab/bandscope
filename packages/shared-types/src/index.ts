@@ -92,97 +92,12 @@ function isDenseArray(value: unknown): value is unknown[] {
   return Array.isArray(value) && Array.from({ length: value.length }, (_, index) => index in value).every(Boolean);
 }
 
-function isArrayOf<T>(value: unknown, predicate: (item: unknown) => item is T): value is T[] {
-  return isDenseArray(value) && value.every((item) => predicate(item));
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return isArrayOf(value, (item): item is string => typeof item === "string");
-}
-
 function isOneOf<T extends string>(options: readonly T[], value: unknown): value is T {
   return typeof value === "string" && options.includes(value as T);
 }
 
-function isConfidenceMarker(value: unknown): value is ConfidenceMarker {
-  return (
-    isRecord(value) &&
-    isOneOf(CONFIDENCE_LEVELS, value.level) &&
-    isOneOf(PROVENANCE_SOURCES, value.source) &&
-    typeof value.notes === "string"
-  );
-}
-
-function isCueAnchor(value: unknown): value is CueAnchor {
-  return (
-    isRecord(value) &&
-    isOneOf(CUE_ANCHOR_KINDS, value.kind) &&
-    typeof value.value === "string"
-  );
-}
-
-function isRangeSummary(value: unknown): value is RangeSummary {
-  return (
-    isRecord(value) &&
-    typeof value.lowestNote === "string" &&
-    typeof value.highestNote === "string"
-  );
-}
-
-function isRehearsalHarmony(value: unknown): value is RehearsalHarmony {
-  return (
-    isRecord(value) &&
-    typeof value.chord === "string" &&
-    typeof value.functionLabel === "string" &&
-    isOneOf(PROVENANCE_SOURCES, value.source)
-  );
-}
-
-function isManualOverride(value: unknown): value is ManualOverride {
-  return (
-    isRecord(value) &&
-    value.field === "harmony" &&
-    isRehearsalHarmony(value.value) &&
-    value.value.source === "user" &&
-    value.source === "user"
-  );
-}
-
-function isRehearsalRole(value: unknown): value is RehearsalRole {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.name === "string" &&
-    isOneOf(ROLE_TYPES, value.roleType) &&
-    isRehearsalHarmony(value.harmony) &&
-    isCueAnchor(value.cue) &&
-    isRangeSummary(value.range) &&
-    isConfidenceMarker(value.confidence) &&
-    isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority) &&
-    typeof value.simplification === "string" &&
-    typeof value.setupNote === "string" &&
-    isArrayOf(value.manualOverrides, isManualOverride)
-  );
-}
-
-function isRehearsalSection(value: unknown): value is RehearsalSection {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.label === "string" &&
-    typeof value.groove === "string" &&
-    isConfidenceMarker(value.confidence) &&
-    isArrayOf(value.roles, isRehearsalRole)
-  );
-}
-
-function isExportSummary(value: unknown): value is ExportSummary {
-  return (
-    isRecord(value) &&
-    isOneOf(EXPORT_FORMATS, value.format) &&
-    typeof value.headline === "string" &&
-    isStringArray(value.focusSections)
-  );
+function invalidField(path: string): string {
+  return `Invalid rehearsal song contract: invalid field '${path}'`;
 }
 
 const demoRehearsalSongSeed: RehearsalSong = {
@@ -316,20 +231,233 @@ export function createDemoRehearsalSong(): RehearsalSong {
   return structuredClone(demoRehearsalSongSeed);
 }
 
+function validateConfidenceMarker(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (!isOneOf(CONFIDENCE_LEVELS, value.level)) {
+    return invalidField(`${path}.level`);
+  }
+  if (!isOneOf(PROVENANCE_SOURCES, value.source)) {
+    return invalidField(`${path}.source`);
+  }
+  if (typeof value.notes !== "string") {
+    return invalidField(`${path}.notes`);
+  }
+
+  return null;
+}
+
+function validateCueAnchor(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (!isOneOf(CUE_ANCHOR_KINDS, value.kind)) {
+    return invalidField(`${path}.kind`);
+  }
+  if (typeof value.value !== "string") {
+    return invalidField(`${path}.value`);
+  }
+
+  return null;
+}
+
+function validateRangeSummary(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (typeof value.lowestNote !== "string") {
+    return invalidField(`${path}.lowestNote`);
+  }
+  if (typeof value.highestNote !== "string") {
+    return invalidField(`${path}.highestNote`);
+  }
+
+  return null;
+}
+
+function validateRehearsalHarmony(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (typeof value.chord !== "string") {
+    return invalidField(`${path}.chord`);
+  }
+  if (typeof value.functionLabel !== "string") {
+    return invalidField(`${path}.functionLabel`);
+  }
+  if (!isOneOf(PROVENANCE_SOURCES, value.source)) {
+    return invalidField(`${path}.source`);
+  }
+
+  return null;
+}
+
+function validateManualOverride(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (value.field !== "harmony") {
+    return invalidField(`${path}.field`);
+  }
+  if (value.source !== "user") {
+    return invalidField(`${path}.source`);
+  }
+
+  const harmonyError = validateRehearsalHarmony(value.value, `${path}.value`);
+  if (harmonyError) {
+    return harmonyError;
+  }
+  const harmonyValue = value.value as RehearsalHarmony;
+  if (harmonyValue.source !== "user") {
+    return invalidField(`${path}.value.source`);
+  }
+
+  return null;
+}
+
+function validateRehearsalRole(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.name !== "string") {
+    return invalidField(`${path}.name`);
+  }
+  if (!isOneOf(ROLE_TYPES, value.roleType)) {
+    return invalidField(`${path}.roleType`);
+  }
+
+  const harmonyError = validateRehearsalHarmony(value.harmony, `${path}.harmony`);
+  if (harmonyError) {
+    return harmonyError;
+  }
+
+  const cueError = validateCueAnchor(value.cue, `${path}.cue`);
+  if (cueError) {
+    return cueError;
+  }
+
+  const rangeError = validateRangeSummary(value.range, `${path}.range`);
+  if (rangeError) {
+    return rangeError;
+  }
+
+  const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);
+  if (confidenceError) {
+    return confidenceError;
+  }
+
+  if (!isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority)) {
+    return invalidField(`${path}.rehearsalPriority`);
+  }
+  if (typeof value.simplification !== "string") {
+    return invalidField(`${path}.simplification`);
+  }
+  if (typeof value.setupNote !== "string") {
+    return invalidField(`${path}.setupNote`);
+  }
+  if (!isDenseArray(value.manualOverrides)) {
+    return invalidField(`${path}.manualOverrides`);
+  }
+  for (const [index, override] of value.manualOverrides.entries()) {
+    const overrideError = validateManualOverride(override, `${path}.manualOverrides[${index}]`);
+    if (overrideError) {
+      return overrideError;
+    }
+  }
+
+  return null;
+}
+
+function validateRehearsalSection(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.label !== "string") {
+    return invalidField(`${path}.label`);
+  }
+  if (typeof value.groove !== "string") {
+    return invalidField(`${path}.groove`);
+  }
+
+  const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);
+  if (confidenceError) {
+    return confidenceError;
+  }
+
+  if (!isDenseArray(value.roles)) {
+    return invalidField(`${path}.roles`);
+  }
+  for (const [index, role] of value.roles.entries()) {
+    const roleError = validateRehearsalRole(role, `${path}.roles[${index}]`);
+    if (roleError) {
+      return roleError;
+    }
+  }
+
+  return null;
+}
+
+function validateExportSummary(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (!isOneOf(EXPORT_FORMATS, value.format)) {
+    return invalidField(`${path}.format`);
+  }
+  if (typeof value.headline !== "string") {
+    return invalidField(`${path}.headline`);
+  }
+  if (!isDenseArray(value.focusSections)) {
+    return invalidField(`${path}.focusSections`);
+  }
+  for (const [index, section] of value.focusSections.entries()) {
+    if (typeof section !== "string") {
+      return invalidField(`${path}.focusSections[${index}]`);
+    }
+  }
+
+  return null;
+}
+
+function validateRehearsalSong(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return invalidField("root");
+  }
+  if (typeof value.id !== "string") {
+    return invalidField("id");
+  }
+  if (typeof value.title !== "string") {
+    return invalidField("title");
+  }
+  if (!isDenseArray(value.sections)) {
+    return invalidField("sections");
+  }
+  for (const [index, section] of value.sections.entries()) {
+    const sectionError = validateRehearsalSection(section, `sections[${index}]`);
+    if (sectionError) {
+      return sectionError;
+    }
+  }
+
+  return validateExportSummary(value.exportSummary, "exportSummary");
+}
+
 export function isRehearsalSong(value: unknown): value is RehearsalSong {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    isArrayOf(value.sections, isRehearsalSection) &&
-    isExportSummary(value.exportSummary)
-  );
+  return validateRehearsalSong(value) === null;
 }
 
 export function parseRehearsalSong(value: unknown): RehearsalSong {
-  if (!isRehearsalSong(value)) {
-    throw new Error("Invalid rehearsal song contract");
+  const validationError = validateRehearsalSong(value);
+  if (validationError) {
+    throw new Error(validationError);
   }
 
-  return structuredClone(value);
+  return structuredClone(value as RehearsalSong);
 }
