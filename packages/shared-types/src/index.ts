@@ -89,7 +89,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isDenseArray(value: unknown): value is unknown[] {
-  return Array.isArray(value) && Object.keys(value).length === value.length;
+  return Array.isArray(value) && Array.from({ length: value.length }, (_, index) => index in value).every(Boolean);
 }
 
 function isArrayOf<T>(value: unknown, predicate: (item: unknown) => item is T): value is T[] {

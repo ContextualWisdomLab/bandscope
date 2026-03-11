@@ -13,8 +13,8 @@ describe("App", () => {
     expect(screen.getByText(/Keyboard 1 Right Hand/i)).toBeInTheDocument();
     expect(screen.getByText(/Lead Vocal/i)).toBeInTheDocument();
     expect(screen.getByText(/Section confidence: Needs ear check \(Auto-detected\)/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/harmony source Auto-detected/i)).toHaveLength(3);
-    expect(screen.getByText(/manual override C#m11 \(User-confirmed\)/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/harmony source: Auto-detected/i)).toHaveLength(3);
+    expect(screen.getByText(/manual override: C#m11 \(User-confirmed\)/i)).toBeInTheDocument();
     expect(screen.getByText(/Home baseline is wired/i)).toBeInTheDocument();
   });
 });

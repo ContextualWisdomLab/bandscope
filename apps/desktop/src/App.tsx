@@ -47,12 +47,12 @@ export function App() {
                 <strong>{role.name}</strong>
                 <span> - {role.harmony.chord}</span>
                 <span> - {role.cue.value}</span>
-                <span> - {t("roleConfidence")} {confidenceLabels[role.confidence.level]}</span>
-                <span> - {t("harmonySource")} {provenanceLabels[role.harmony.source]}</span>
+                <span> - {t("roleConfidence")}: {confidenceLabels[role.confidence.level]}</span>
+                <span> - {t("harmonySource")}: {provenanceLabels[role.harmony.source]}</span>
                 {role.manualOverrides.map((override, index) => (
                   <span key={`${override.field}-${override.source}-${override.value.chord}-${index}`}>
                     {" "}
-                    - {t("manualOverride")} {override.value.chord} ({provenanceLabels[override.source]})
+                    - {t("manualOverride")}: {override.value.chord} ({provenanceLabels[override.source]})
                   </span>
                 ))}
               </li>
