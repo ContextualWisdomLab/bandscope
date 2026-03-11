@@ -82,7 +82,7 @@ describe("shared type helpers", () => {
     const first = createDemoRehearsalSong();
     const second = createDemoRehearsalSong();
 
-    first.sections[0]?.roles[2]?.manualOverrides.splice(0, 1);
+    first.sections[0]?.roles[2]?.manualOverrides?.splice(0, 1);
 
     expect(second).not.toBe(first);
     expect(second.sections).not.toBe(first.sections);
