@@ -1,0 +1,46 @@
+name: release
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-preflight:
+    name: release-preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+        with:
+          version: "0.8.6"
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
+      - name: Install node dependencies
+        run: npm ci
+      - name: Sync Python dependencies
+        run: uv sync --project services/analysis-engine --group dev --frozen
+      - name: Run harness verification
+        run: ./scripts/harness/quickcheck.sh
+      - name: Build frontend
+        run: npm run build --workspace @bandscope/desktop
