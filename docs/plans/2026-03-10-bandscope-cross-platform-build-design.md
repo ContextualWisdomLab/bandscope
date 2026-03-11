@@ -36,17 +36,29 @@
 - workflow definitions include `develop`, `main`, tag, and release coverage
 - artifacts and checksum files are uploaded for both OS jobs
 
+### Realistic threats
+
+- missing platform icon assets can break release packaging after CI otherwise looks healthy
+- release upload permissions can accidentally remain attached to normal build jobs
+
+### Remaining risk
+
+- notarization and signing enforcement still depend on platform credentials outside the repo
+
 ## Approaches considered
 
 ### 1. Keep only Linux verification plus optional macOS check
+
 - Pros: cheaper CI
 - Cons: misses Windows-specific release path and fails the mandatory policy
 
 ### 2. Dedicated Windows/macOS build workflow
+
 - Pros: clear merge-gate names, cleaner release linkage, real target-OS coverage
 - Cons: more CI cost
 
 ### 3. Release-only platform builds
+
 - Pros: fewer CI minutes on PRs
 - Cons: fails protected-branch security baseline and catches regressions too late
 

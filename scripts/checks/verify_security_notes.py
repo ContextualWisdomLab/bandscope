@@ -9,7 +9,28 @@ REQUIRED_SUBSECTIONS = [
     "trust boundary",
     "mitigations",
     "test points",
+    "realistic threats",
+    "remaining risk",
 ]
+
+
+def security_notes_section(content: str) -> str:
+    lowered = content.lower()
+    marker = SECURITY_NOTES_TEXT.lower()
+    start = lowered.find(marker)
+    if start == -1:
+        return ""
+
+    end_candidates = []
+    for delimiter in ["\n---", "\n## approaches considered", "\n## decision"]:
+        end = lowered.find(delimiter, start + len(marker))
+        if end != -1:
+            end_candidates.append(end)
+
+    if not end_candidates:
+        return lowered[start:]
+
+    return lowered[start : min(end_candidates)]
 
 
 def main() -> int:
@@ -19,7 +40,7 @@ def main() -> int:
         if SECURITY_NOTES_TEXT not in content:
             missing.append(str(path))
             continue
-        lowered = content.lower()
+        lowered = security_notes_section(content)
         for subsection in REQUIRED_SUBSECTIONS:
             if subsection not in lowered:
                 missing.append(f"{path} missing subsection: {subsection}")

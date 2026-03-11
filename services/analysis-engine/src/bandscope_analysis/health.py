@@ -1,7 +1,15 @@
 """Health helpers for the BandScope analysis engine."""
 
+from typing import Literal, TypedDict
 
-def build_health_report() -> dict[str, object]:
+
+class HealthReport(TypedDict):
+    service: Literal["bandscope-analysis"]
+    status: Literal["ready"]
+    pipeline_stages: list[Literal["decode", "draft", "separate", "persist"]]
+
+
+def build_health_report() -> HealthReport:
     """Return the baseline engine readiness payload for harness verification."""
     return {
         "service": "bandscope-analysis",

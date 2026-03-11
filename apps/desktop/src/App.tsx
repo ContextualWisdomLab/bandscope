@@ -4,10 +4,10 @@ import { HomeFeature } from "./features/home";
 import { PlayerFeature } from "./features/player";
 import { RangesFeature } from "./features/ranges";
 import { SettingsFeature } from "./features/settings";
-import { createTranslator } from "./i18n";
+import { createTranslator, detectPreferredLocale } from "./i18n";
 
 export function App() {
-  const t = createTranslator("en");
+  const t = createTranslator(detectPreferredLocale());
 
   return (
     <main>

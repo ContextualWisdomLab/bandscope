@@ -41,17 +41,29 @@
 - pattern gates should fail on obvious dangerous execution or rendering shortcuts
 - supply-chain checks should fail if lockfiles, dependency-review/audit/SBOM workflows, pinned actions, or supplemental inventory disappear
 
+### Realistic threats
+
+- bootstrap docs can drift away from enforced checks and mislead future agents
+- risky patterns can hide in workflow YAML if only source code files are scanned
+
+### Remaining risk
+
+- runtime app hardening is still shallow until real IPC and backend flows exist beyond the bootstrap shell
+
 ## Approaches considered
 
 ### 1. Minimal single-package harness
+
 - Pros: fastest startup
 - Cons: frontend and Python boundaries blur quickly
 
 ### 2. Monorepo harness with shared contracts
+
 - Pros: clear boundaries, scalable verification, good fit for BandScope
 - Cons: slightly more configuration upfront
 
 ### 3. Full product scaffold including packaging automation
+
 - Pros: closest to end-state
 - Cons: too much setup before core behavior exists
 

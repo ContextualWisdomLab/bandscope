@@ -10,30 +10,39 @@
 
 **Security Notes:** Supply-chain workflows are part of the public attack surface. The harness must fail if lockfiles, workflow pinning, dependency review, audits, SBOM generation, or supplemental inventory drift out of policy.
 
-### Attack surface
+## Attack surface
 
 - dependency manifests and lockfiles
 - GitHub Actions and third-party actions
 - bundled binaries and model artifacts
 - release assets and uploaded SBOMs
 
-### Trust boundary
+## Trust boundary
 
 - package-manager graphs do not fully cover binaries and model artifacts
 - GitHub workflows and release assets are externally visible supply-chain surfaces
 
-### Mitigations
+## Mitigations
 
 - commit lockfiles and pin workflow actions by SHA
 - add dependency review, audit, and SBOM workflows
 - keep supplemental component inventory in machine-readable form
 - document intended required checks for develop and main
 
-### Test points
+## Test points
 
 - local supply-chain verification script
 - quickcheck path includes supply-chain verification
 - workflows trigger on develop, main, PR, tag, and release-related events
+
+## Realistic threats
+
+- over-broad workflow permissions can let PR-modified code affect release surfaces
+- missing bundled-binary inventory can hide shipped assets outside package-manager graphs
+
+## Remaining risk
+
+- GitHub-native security signals still depend on repository settings and service availability outside repo control
 
 ---
 

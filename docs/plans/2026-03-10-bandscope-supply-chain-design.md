@@ -42,17 +42,29 @@
 - release workflows must retain SBOM artifacts and supplemental inventory
 - bootstrap reporting must include the exact evidence set for workflow paths, required checks, Dependabot baseline, SBOM retention, and supplemental inventory
 
+### Realistic threats
+
+- workflow permission creep can turn build jobs into unintended release writers
+- lockfile or inventory drift can make releases unverifiable even when CI is green
+
+### Remaining risk
+
+- ecosystem advisory coverage still lives outside repo control and can lag real compromise timelines
+
 ## Approaches considered
 
 ### 1. Minimal package-manager-only checks
+
 - Pros: small setup
 - Cons: ignores bundled binaries, model assets, and release traceability
 
 ### 2. GitHub-first supply-chain baseline
+
 - Pros: fits public repository workflow, catches dependency drift early, supports release traceability
 - Cons: needs multiple workflows and GitHub platform enforcement
 
 ### 3. Manual release checklist only
+
 - Pros: low automation cost
 - Cons: not enforceable, too easy to bypass, fails the baseline requirement
 
