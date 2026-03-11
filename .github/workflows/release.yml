@@ -44,23 +44,3 @@ jobs:
         run: ./scripts/harness/quickcheck.sh
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
-      - name: Build desktop shell
-        run: cargo +stable build --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked
-      - name: Package release artifact
-        run: python3 scripts/release/package_desktop_artifact.py
-      - name: Generate CycloneDX SBOM
-        uses: anchore/sbom-action@57aae528053a48a3f6235f2d9461b05fbcb7366d # v0.23.1
-        with:
-          path: .
-          format: cyclonedx-json
-          output-file: bandscope-release-sbom.cdx.json
-      - name: Upload release artifact bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: bandscope-release-bundle
-          path: |
-            artifacts/*.zip
-            artifacts/*.sha256
-            artifacts/*.manifest.txt
-            bandscope-release-sbom.cdx.json
-            supply-chain/supplemental-component-inventory.json

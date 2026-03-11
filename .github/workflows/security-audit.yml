@@ -48,4 +48,5 @@ jobs:
       - name: Install cargo-audit
         run: cargo +stable install cargo-audit --locked
       - name: Audit Rust dependencies
-        run: cargo +stable audit --manifest-path apps/desktop/src-tauri/Cargo.toml
+        working-directory: apps/desktop/src-tauri
+        run: cargo +stable audit
