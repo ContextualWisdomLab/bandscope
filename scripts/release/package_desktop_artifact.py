@@ -60,12 +60,18 @@ def artifact_identity() -> dict[str, str]:
 
 def expected_binary_path(repo_root: Path) -> Path:
     """Return the expected desktop binary path for the selected target triple."""
-    system = normalized_platform()
+    target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE")
+    if target_triple and "windows" in target_triple:
+        system = "windows"
+    elif target_triple and "apple-darwin" in target_triple:
+        system = "macos"
+    else:
+        system = normalized_platform()
     binary_name = (
         "bandscope-desktop.exe" if system == "windows" else "bandscope-desktop"
     )
     target_root = repo_root / "apps" / "desktop" / "src-tauri" / "target"
-    if target_triple := os.environ.get("BANDSCOPE_TARGET_TRIPLE"):
+    if target_triple:
         target_root = target_root / target_triple
     return target_root / "release" / binary_name
 
