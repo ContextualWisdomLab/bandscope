@@ -6,7 +6,6 @@ These are the merge-gate status checks that should be required on protected bran
 
 ### `develop`
 
-- `CodeRabbit`
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
@@ -21,7 +20,6 @@ These are the merge-gate status checks that should be required on protected bran
 
 ### `main`
 
-- `CodeRabbit`
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
@@ -40,7 +38,7 @@ These are required repository settings or GitHub security features, not branch s
 - Dependency graph: required
 - Dependency submission coverage: required where GitHub supports it for the repository setup
 - Dependency review gate on PRs: required
-- CodeRabbit review gate substitution: required
+- CodeRabbit review request and review-equivalent policy: required
 
 ## Workflow-managed baseline
 
@@ -66,6 +64,12 @@ These controls are expressed by repo workflows and are expected to be connected 
 
 The files in this repository define the workflows and the intended check names.
 Actual branch protection, required checks, and GitHub security feature activation must be enforced in the GitHub repository settings or rulesets with repository admin permissions.
+
+## CodeRabbit enforcement note
+
+BandScope still requests CodeRabbit on PRs and treats it as the default AI review path.
+However, the hosted `CodeRabbit` status context has shown repeated stale `PENDING` and stale `CHANGES_REQUESTED` states after all actionable review was cleared.
+Because of that operational behavior, protected branches require the stable repository-owned checks above rather than the external `CodeRabbit` status context itself.
 
 Missing repository state should trigger GitHub bootstrap per `docs/workflow/github-bootstrap-execution-policy.md`.
 Only missing admin permissions or platform capability should be reported as `BLOCKED`.
