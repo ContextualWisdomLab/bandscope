@@ -1,12 +1,16 @@
 import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
+  createProjectBootstrapSummary,
   createDefaultProjectSummary,
   createDemoRehearsalSong,
   isRehearsalSong,
   isAnalysisJobStatus,
+  parseLocalAudioSource,
   parseRehearsalSong,
   parseAnalysisJobRequest,
+  type AnalysisJobRequest,
+  type LocalAudioSource,
   type RehearsalSong,
   SUPPORTED_AUDIO_FORMATS
 } from "../src/index";
@@ -194,6 +198,62 @@ describe("shared type helpers", () => {
       updatedAt: "2026-03-12T00:00:00.000Z",
       error: { code: "not_found", message: "Missing", extraField: true }
     })).toBe(false);
+  });
+
+  it("validates local audio sources and bootstrap requests", () => {
+    const source: LocalAudioSource = {
+      sourcePath: "/Users/test/Music/late-night-set.wav",
+      fileName: "late-night-set.wav",
+      extension: "wav",
+      fileSizeBytes: 1_024_000
+    };
+    const request: AnalysisJobRequest = {
+      sourceKind: "local_audio",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      localSource: source
+    };
+
+    expect(parseLocalAudioSource(source)).toEqual(source);
+    expect(() => parseLocalAudioSource(null)).toThrow("root");
+    expect(() => parseLocalAudioSource({ ...source, extraField: true })).toThrow("extraField");
+    expect(() => parseLocalAudioSource({ ...source, sourcePath: "   " })).toThrow("sourcePath");
+    expect(() => parseLocalAudioSource({ ...source, fileName: "   " })).toThrow("fileName");
+    expect(parseAnalysisJobRequest(request)).toEqual(request);
+    expect(() => parseLocalAudioSource({ ...source, extension: "ogg" })).toThrow("extension");
+    expect(() => parseLocalAudioSource({ ...source, fileSizeBytes: -1 })).toThrow("fileSizeBytes");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "local_audio",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"]
+    })).toThrow("localSource");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "local_audio",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      localSource: { ...source, sourcePath: "" }
+    })).toThrow("sourcePath");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      localSource: source
+    })).toThrow("localSource");
+
+    expect(createProjectBootstrapSummary({
+      projectId: "project-1",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    })).toEqual({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    });
   });
 
   it("creates a rehearsal song with section and role level guidance", () => {
