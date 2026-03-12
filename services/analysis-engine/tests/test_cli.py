@@ -102,6 +102,21 @@ def test_cli_main_handles_non_mapping_payload(monkeypatch) -> None:
     assert response["state"] == "failed"
 
 
+def test_cli_main_handles_malformed_json(monkeypatch) -> None:
+    """Ensure malformed JSON yields a typed invalid-request failure envelope."""
+    stdin = io.StringIO("{")
+    stdout = io.StringIO()
+
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 0
+    response = json.loads(stdout.getvalue())
+    assert response["jobId"] == "unknown-job"
+    assert response["state"] == "failed"
+    assert response["error"]["code"] == "invalid_request"
+
+
 def test_cli_module_runs_as_main(monkeypatch) -> None:
     """Ensure the module-level main guard is covered by executing the module directly."""
     stdin = io.StringIO(

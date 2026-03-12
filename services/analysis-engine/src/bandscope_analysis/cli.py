@@ -9,9 +9,28 @@ from datetime import UTC, datetime
 from bandscope_analysis.api import run_analysis_job
 
 
+def failed_cli_response(message: str) -> dict[str, object]:
+    """Return a typed CLI failure envelope for malformed stdin payloads."""
+    requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    return {
+        "jobId": "unknown-job",
+        "state": "failed",
+        "requestedAt": requested_at,
+        "updatedAt": requested_at,
+        "error": {
+            "code": "invalid_request",
+            "message": message,
+        },
+    }
+
+
 def main() -> int:
     """Read a job payload from stdin and print a structured job response to stdout."""
-    payload = json.load(sys.stdin)
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError as error:
+        json.dump(failed_cli_response(f"Invalid analysis job request: {error.msg}"), sys.stdout)
+        return 0
     job_id = payload.get("jobId", "unknown-job") if isinstance(payload, dict) else "unknown-job"
     request = payload.get("request") if isinstance(payload, dict) else payload
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")

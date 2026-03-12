@@ -184,7 +184,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/analysis could not start/i)).toBeTruthy();
+      expect(screen.getAllByText(/analysis could not start/i)).toHaveLength(2);
     });
   });
 
@@ -217,6 +217,44 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/analysis could not start/i)).toBeTruthy();
+    });
+  });
+
+  it("shows the direct failure message when start returns a failed job", async () => {
+    tauriInvoke.mockResolvedValueOnce({
+      jobId: "job-5",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis queue is full. Please wait for a running job to finish."
+      }
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/analysis queue is full/i)).toBeTruthy();
+    });
+  });
+
+  it("falls back to generic text when start returns a failed job without details", async () => {
+    tauriInvoke.mockResolvedValueOnce({
+      jobId: "job-6",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/analysis could not start/i).length).toBeGreaterThan(0);
     });
   });
 

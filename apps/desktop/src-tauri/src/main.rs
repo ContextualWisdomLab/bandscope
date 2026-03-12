@@ -5,10 +5,10 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex,
     },
 };
@@ -19,13 +19,17 @@ struct AppState(Arc<AppStateInner>);
 
 struct AppStateInner {
     next_job: AtomicU64,
+    in_flight_jobs: AtomicUsize,
     jobs: Mutex<HashMap<String, AnalysisJobStatus>>,
 }
+
+const MAX_IN_FLIGHT_JOBS: usize = 2;
 
 impl Default for AppState {
     fn default() -> Self {
         Self(Arc::new(AppStateInner {
             next_job: AtomicU64::new(1),
+            in_flight_jobs: AtomicUsize::new(0),
             jobs: Mutex::new(HashMap::new()),
         }))
     }
@@ -165,36 +169,86 @@ fn iso_timestamp_now() -> String {
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into())
 }
 
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(3)
-        .expect("repo root")
-        .to_path_buf()
+fn unique_push(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if !paths.iter().any(|existing| existing == &candidate) {
+        paths.push(candidate);
+    }
 }
 
-fn analysis_command(repo_root: &Path) -> (String, Vec<String>) {
+fn runtime_search_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(parent) = current_exe.parent() {
+            for ancestor in parent.ancestors() {
+                unique_push(&mut roots, ancestor.to_path_buf());
+            }
+            unique_push(&mut roots, parent.join("resources"));
+            unique_push(&mut roots, parent.join("../Resources"));
+        }
+    }
+    if let Ok(current_dir) = std::env::current_dir() {
+        for ancestor in current_dir.ancestors() {
+            unique_push(&mut roots, ancestor.to_path_buf());
+        }
+    }
+    roots
+}
+
+fn analysis_command() -> (PathBuf, String, Vec<String>) {
     if let Ok(python_path) = std::env::var("BANDSCOPE_ANALYSIS_PYTHON") {
         return (
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             python_path,
             vec!["-m".into(), "bandscope_analysis.cli".into()],
         );
     }
 
-    let venv_python = repo_root
-        .join("services")
-        .join("analysis-engine")
-        .join(".venv")
-        .join("bin")
-        .join("python");
-    if venv_python.exists() {
-        return (
-            venv_python.to_string_lossy().into_owned(),
-            vec!["-m".into(), "bandscope_analysis.cli".into()],
-        );
+    for root in runtime_search_roots() {
+        let candidates = [
+            root.join("services")
+                .join("analysis-engine")
+                .join(".venv")
+                .join("bin")
+                .join("python"),
+            root.join("services")
+                .join("analysis-engine")
+                .join(".venv")
+                .join("Scripts")
+                .join("python.exe"),
+            root.join("analysis-engine")
+                .join(".venv")
+                .join("bin")
+                .join("python"),
+            root.join("analysis-engine")
+                .join(".venv")
+                .join("Scripts")
+                .join("python.exe"),
+            root.join("analysis-engine")
+                .join("python")
+                .join("bin")
+                .join("python"),
+            root.join("analysis-engine")
+                .join("python")
+                .join("python.exe"),
+            root.join("python").join("bin").join("python"),
+            root.join("python").join("python.exe"),
+        ];
+
+        for candidate in candidates {
+            if candidate.exists() {
+                return (
+                    root,
+                    candidate.to_string_lossy().into_owned(),
+                    vec!["-m".into(), "bandscope_analysis.cli".into()],
+                );
+            }
+        }
     }
 
+    let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
     (
+        working_dir,
         "uv".into(),
         vec![
             "run".into(),
@@ -207,17 +261,60 @@ fn analysis_command(repo_root: &Path) -> (String, Vec<String>) {
     )
 }
 
+fn try_acquire_job_slot(state: &AppState) -> bool {
+    state
+        .0
+        .in_flight_jobs
+        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+            (current < MAX_IN_FLIGHT_JOBS).then_some(current + 1)
+        })
+        .is_ok()
+}
+
+fn release_job_slot(state: &AppState) {
+    state.0.in_flight_jobs.fetch_sub(1, Ordering::SeqCst);
+}
+
 fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
-    let request: AnalysisJobRequest = serde_json::from_value(payload)
-        .map_err(|_| "Invalid analysis job request: invalid field 'root'".to_string())?;
-    if request.source_kind != "demo" {
-        return Err("Invalid analysis job request: invalid field 'sourceKind'".into());
-    }
-    if request.source_label.trim().is_empty() {
-        return Err("Invalid analysis job request: invalid field 'sourceLabel'".into());
+    let Value::Object(map) = payload else {
+        return Err("Invalid analysis job request: invalid field 'root'".into());
+    };
+
+    for key in map.keys() {
+        if key != "sourceKind" && key != "sourceLabel" && key != "roleFocus" {
+            return Err(format!(
+                "Invalid analysis job request: invalid field '{key}'"
+            ));
+        }
     }
 
-    Ok(request)
+    let source_kind = map.get("sourceKind").and_then(Value::as_str);
+    let source_label = map.get("sourceLabel").and_then(Value::as_str);
+    let role_focus = map.get("roleFocus").and_then(Value::as_array);
+
+    if source_kind != Some("demo") {
+        return Err("Invalid analysis job request: invalid field 'sourceKind'".into());
+    }
+    let source_label = source_label
+        .filter(|label| !label.trim().is_empty())
+        .ok_or_else(|| "Invalid analysis job request: invalid field 'sourceLabel'".to_string())?;
+    let role_focus = role_focus
+        .ok_or_else(|| "Invalid analysis job request: invalid field 'roleFocus'".to_string())?;
+    let mut parsed_role_focus = Vec::with_capacity(role_focus.len());
+    for (index, role) in role_focus.iter().enumerate() {
+        let Some(role) = role.as_str() else {
+            return Err(format!(
+                "Invalid analysis job request: invalid field 'roleFocus[{index}]'"
+            ));
+        };
+        parsed_role_focus.push(role.to_string());
+    }
+
+    Ok(AnalysisJobRequest {
+        source_kind: "demo".into(),
+        source_label: source_label.to_string(),
+        role_focus: parsed_role_focus,
+    })
 }
 
 fn failed_status(
@@ -251,11 +348,10 @@ fn run_analysis_engine(
     request: AnalysisJobRequest,
     requested_at: String,
 ) -> AnalysisJobStatus {
-    let repo_root = repo_root();
-    let (program, args) = analysis_command(&repo_root);
+    let (working_dir, program, args) = analysis_command();
     let mut process = match Command::new(program)
         .args(args)
-        .current_dir(repo_root)
+        .current_dir(working_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -348,6 +444,14 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
     };
 
     let job_id = format!("job-{}", state.0.next_job.fetch_add(1, Ordering::Relaxed));
+    if !try_acquire_job_slot(&state) {
+        return failed_status(
+            job_id,
+            requested_at,
+            AnalysisJobErrorCode::EngineUnavailable,
+            "Analysis queue is full. Please wait for a running job to finish.",
+        );
+    }
     let queued = AnalysisJobStatus {
         job_id: job_id.clone(),
         state: AnalysisJobState::Queued,
@@ -375,6 +479,7 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
         );
         let finished = run_analysis_engine(job_id, parsed_request, requested_at);
         store_status(&app_state, finished);
+        release_job_slot(&app_state);
     });
 
     queued
