@@ -183,6 +183,12 @@
           "markdownDescription": "Enables the get_analysis_job_status command without any pre-configured scope."
         },
         {
+          "description": "Enables the select_local_audio_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-select-local-audio-source",
+          "markdownDescription": "Enables the select_local_audio_source command without any pre-configured scope."
+        },
+        {
           "description": "Enables the start_analysis_job command without any pre-configured scope.",
           "type": "string",
           "const": "allow-start-analysis-job",
@@ -193,6 +199,12 @@
           "type": "string",
           "const": "deny-get-analysis-job-status",
           "markdownDescription": "Denies the get_analysis_job_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the select_local_audio_source command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-select-local-audio-source",
+          "markdownDescription": "Denies the select_local_audio_source command without any pre-configured scope."
         },
         {
           "description": "Denies the start_analysis_job command without any pre-configured scope.",

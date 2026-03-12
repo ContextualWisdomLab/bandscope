@@ -96,6 +96,8 @@ Last updated: 2026-03-11
 - Shared contracts should ultimately model section, role, cue, confidence, and export artifacts explicitly enough that desktop UI and analysis outputs do not invent their own parallel schemas.
 - The current shared-types baseline includes a rehearsal-domain fixture that exercises section, role, cue, confidence, provenance, and export-summary fields in the desktop shell before the full analysis pipeline lands.
 - Local analysis orchestration uses typed Tauri IPC commands and a Python subprocess over stdin/stdout rather than a loopback HTTP listener.
+- Local audio intake bootstraps a project by validating a user-selected file in Rust, creating app-owned temp/cache/project roots, and referencing the original source file rather than copying it in this phase.
+- Those bootstrap roots should resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
 - Product and UX decisions should prefer rehearsal-first simplicity while still maintaining high analytical accuracy.
 - Security decisions should prefer allowlisted narrow capabilities over generic convenience APIs.
 

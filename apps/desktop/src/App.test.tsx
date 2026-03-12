@@ -10,6 +10,14 @@ vi.mock("./lib/analysis", () => ({
     sourceLabel: "Late Night Set",
     roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
   }),
+  selectLocalAudioSource: async () => {
+    const response = await tauriInvoke("select_local_audio_source", undefined);
+    if (response?.code) {
+      return { ok: false, error: response };
+    }
+
+    return { ok: true, bootstrap: response };
+  },
   startAnalysisJob: (request: unknown) => tauriInvoke("start_analysis_job", { request }),
   getAnalysisJobStatus: (jobId: string) => tauriInvoke("get_analysis_job_status", { jobId })
 }));
@@ -94,6 +102,99 @@ function succeededResult() {
 describe("App", () => {
   beforeEach(() => {
     tauriInvoke.mockReset();
+  });
+
+  it("selects a local audio source and starts a local-audio analysis job", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce({
+        projectId: "project-1",
+        sourceMode: "reference",
+        projectRoot: "/tmp/bandscope/projects/project-1",
+        cacheRoot: "/tmp/bandscope/cache/project-1",
+        tempRoot: "/tmp/bandscope/temp/project-1",
+        source: {
+          sourcePath: "/Users/test/Music/late-night-set.wav",
+          fileName: "late-night-set.wav",
+          extension: "wav",
+          fileSizeBytes: 1024000
+        }
+      })
+      .mockResolvedValueOnce({
+        jobId: "job-local-1",
+        state: "queued",
+        requestedAt: "2026-03-12T00:00:00.000Z",
+        updatedAt: "2026-03-12T00:00:00.000Z",
+        progressLabel: "Queued for analysis"
+      })
+      .mockResolvedValueOnce(succeededResult());
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenNthCalledWith(2, "start_analysis_job", {
+        request: {
+          sourceKind: "local_audio",
+          projectId: "project-1",
+          sourceLabel: "late-night-set.wav",
+          roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
+        }
+      });
+    });
+  });
+
+  it("shows a safe file-intake error for unsupported local audio selection", async () => {
+    tauriInvoke.mockResolvedValueOnce({
+      code: "unsupported_file",
+      message: "Choose a WAV, MP3, FLAC, or M4A file to start analysis."
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
+    });
+    expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
+  });
+
+  it("falls back to generic local-audio error copy when selection omits a message", async () => {
+    tauriInvoke.mockResolvedValueOnce({
+      code: "unsupported_file"
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
+    });
+    expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
+  });
+
+  it("preserves safe file-read failure copy from the intake bridge", async () => {
+    tauriInvoke.mockResolvedValueOnce({
+      code: "invalid_request",
+      message: "Could not read the selected audio file."
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/could not read the selected audio file/i)).toBeTruthy();
+    });
+    expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
   });
 
   it("starts an analysis job and renders the returned rehearsal result", async () => {

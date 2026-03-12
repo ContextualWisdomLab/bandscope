@@ -1,12 +1,17 @@
 import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
+  createProjectBootstrapSummary,
   createDefaultProjectSummary,
   createDemoRehearsalSong,
   isRehearsalSong,
   isAnalysisJobStatus,
+  parseLocalAudioSource,
+  parseProjectBootstrapSummary,
   parseRehearsalSong,
   parseAnalysisJobRequest,
+  type AnalysisJobRequest,
+  type LocalAudioSource,
   type RehearsalSong,
   SUPPORTED_AUDIO_FORMATS
 } from "../src/index";
@@ -196,6 +201,149 @@ describe("shared type helpers", () => {
     })).toBe(false);
   });
 
+  it("validates local audio sources and bootstrap requests", () => {
+    const source: LocalAudioSource = {
+      sourcePath: "/Users/test/Music/late-night-set.wav",
+      fileName: "late-night-set.wav",
+      extension: "wav",
+      fileSizeBytes: 1_024_000
+    };
+    const request: AnalysisJobRequest = {
+      sourceKind: "local_audio",
+      projectId: "project-1",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"]
+    };
+
+    expect(parseLocalAudioSource(source)).toEqual(source);
+    expect(() => parseLocalAudioSource(null)).toThrow("root");
+    expect(() => parseLocalAudioSource({ ...source, extraField: true })).toThrow("extraField");
+    expect(() => parseLocalAudioSource({ ...source, sourcePath: "   " })).toThrow("sourcePath");
+    expect(() => parseLocalAudioSource({ ...source, fileName: "   " })).toThrow("fileName");
+    expect(parseAnalysisJobRequest(request)).toEqual(request);
+    expect(() => parseLocalAudioSource({ ...source, extension: "ogg" })).toThrow("extension");
+    expect(() => parseLocalAudioSource({ ...source, fileSizeBytes: -1 })).toThrow("fileSizeBytes");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "local_audio",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"]
+    })).toThrow("projectId");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "local_audio",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      localSource: source
+    })).toThrow("localSource");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "local_audio",
+      projectId: "project-1",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      localSource: source
+    })).toThrow("localSource");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "local_audio",
+      projectId: "project-1",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      localSource: { ...source, sourcePath: "" }
+    })).toThrow("localSource");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      localSource: source
+    })).toThrow("localSource");
+
+    expect(createProjectBootstrapSummary({
+      projectId: "project-1",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    })).toEqual({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    });
+    expect(parseProjectBootstrapSummary({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    })).toEqual({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    });
+    expect(() => parseProjectBootstrapSummary(null)).toThrow("root");
+    expect(() => parseProjectBootstrapSummary({
+      projectId: "project-1",
+      sourceMode: "copy",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    })).toThrow("sourceMode");
+    expect(() => parseProjectBootstrapSummary({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source,
+      extraField: true
+    })).toThrow("extraField");
+    expect(() => parseProjectBootstrapSummary({
+      projectId: "   ",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    })).toThrow("projectId");
+    expect(() => parseProjectBootstrapSummary({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    })).toThrow("projectRoot");
+    expect(() => parseProjectBootstrapSummary({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source
+    })).toThrow("cacheRoot");
+    expect(() => parseProjectBootstrapSummary({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "",
+      source
+    })).toThrow("tempRoot");
+    expect(() => parseProjectBootstrapSummary({
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source: { ...source, extension: "ogg" }
+    })).toThrow("project bootstrap summary.source");
+  });
+
   it("creates a rehearsal song with section and role level guidance", () => {
     const song = createDemoRehearsalSong();
 
@@ -248,7 +396,7 @@ describe("shared type helpers", () => {
       source: "user",
       value: {
         chord: "C#m11"
-      }
+        }
     });
   });
 

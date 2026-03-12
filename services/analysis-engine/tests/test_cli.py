@@ -53,6 +53,30 @@ def test_cli_returns_succeeded_job_status_for_valid_request() -> None:
     assert response["result"]["title"] == "Late Night Set"
 
 
+def test_cli_returns_succeeded_job_status_for_valid_local_audio_request() -> None:
+    """Ensure the CLI accepts the local-audio intake request shape."""
+    payload = {
+        "jobId": "job-local-1",
+        "request": {
+            "sourceKind": "local_audio",
+            "projectId": "project-1",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": ["bass-guitar"],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+        },
+    }
+
+    response = run_cli(payload)
+
+    assert response["jobId"] == "job-local-1"
+    assert response["state"] == "succeeded"
+
+
 def test_cli_returns_failed_status_for_invalid_request() -> None:
     """Ensure the CLI returns a typed invalid-request failure for malformed payloads."""
     response = run_cli({"jobId": "job-2", "request": {"sourceKind": "demo"}})
@@ -63,6 +87,33 @@ def test_cli_returns_failed_status_for_invalid_request() -> None:
         "code": "invalid_request",
         "message": "Invalid analysis job request: invalid field 'sourceLabel'",
     }
+
+
+def test_cli_returns_failed_status_for_invalid_local_audio_request() -> None:
+    """Ensure malformed local-audio metadata is rejected safely."""
+    response = run_cli(
+        {
+            "jobId": "job-local-2",
+            "request": {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "late-night-set.wav",
+                "roleFocus": ["bass-guitar"],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "ogg",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+        }
+    )
+
+    assert response["state"] == "failed"
+    assert (
+        response["error"]["message"]
+        == "Invalid analysis job request: invalid field 'localSource.extension'"
+    )
 
 
 def test_cli_main_reads_stdin_and_writes_stdout(monkeypatch) -> None:

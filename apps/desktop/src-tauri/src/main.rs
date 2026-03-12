@@ -1,11 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -14,6 +15,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+use tauri::Manager;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[derive(Clone)]
@@ -23,11 +25,13 @@ struct AppStateInner {
     next_job: AtomicU64,
     in_flight_jobs: AtomicUsize,
     jobs: Mutex<HashMap<String, AnalysisJobStatus>>,
+    bootstrap_sources: Mutex<HashMap<String, ProjectBootstrapSummaryPayload>>,
 }
 
 const MAX_IN_FLIGHT_JOBS: usize = 2;
 const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
 const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
+const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 
 impl Default for AppState {
     fn default() -> Self {
@@ -35,6 +39,7 @@ impl Default for AppState {
             next_job: AtomicU64::new(1),
             in_flight_jobs: AtomicUsize::new(0),
             jobs: Mutex::new(HashMap::new()),
+            bootstrap_sources: Mutex::new(HashMap::new()),
         }))
     }
 }
@@ -43,8 +48,10 @@ impl Default for AppState {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct AnalysisJobRequest {
     source_kind: String,
+    project_id: Option<String>,
     source_label: String,
     role_focus: Vec<String>,
+    local_source: Option<LocalAudioSourcePayload>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -167,6 +174,26 @@ struct AnalysisJobStatus {
     error: Option<AnalysisJobError>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LocalAudioSourcePayload {
+    source_path: String,
+    file_name: String,
+    extension: String,
+    file_size_bytes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProjectBootstrapSummaryPayload {
+    project_id: String,
+    source_mode: String,
+    project_root: String,
+    cache_root: String,
+    temp_root: String,
+    source: LocalAudioSourcePayload,
+}
+
 fn iso_timestamp_now() -> String {
     OffsetDateTime::now_utc()
         .format(&Rfc3339)
@@ -279,13 +306,79 @@ fn release_job_slot(state: &AppState) {
     state.0.in_flight_jobs.fetch_sub(1, Ordering::SeqCst);
 }
 
+fn next_project_id(state: &AppState) -> String {
+    format!(
+        "project-{}-{}",
+        OffsetDateTime::now_utc().unix_timestamp_nanos(),
+        state.0.next_job.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
+fn app_owned_root(app: &tauri::AppHandle, kind: &str, project_id: &str) -> Result<PathBuf, String> {
+    let base_root = match kind {
+        "projects" => app
+            .path()
+            .app_local_data_dir()
+            .map_err(|_| "Could not prepare the local project workspace.".to_string())?,
+        "cache" => app
+            .path()
+            .app_cache_dir()
+            .map_err(|_| "Could not prepare the local cache workspace.".to_string())?,
+        "temp" => app
+            .path()
+            .app_local_data_dir()
+            .map(|path| path.join("temp"))
+            .map_err(|_| "Could not prepare the local temp workspace.".to_string())?,
+        _ => return Err(format!("Could not prepare the local {kind} workspace.")),
+    };
+    let root = base_root.join(project_id);
+    std::fs::create_dir_all(&root)
+        .map_err(|_| format!("Could not prepare the local {kind} workspace."))?;
+    Ok(root)
+}
+
+fn normalize_local_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, String> {
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| "Could not read the selected audio file.".to_string())?;
+    let extension = canonical
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| "Choose a WAV, MP3, FLAC, or M4A file to start analysis.".to_string())?;
+    if !AUDIO_EXTENSIONS.contains(&extension.as_str()) {
+        return Err("Choose a WAV, MP3, FLAC, or M4A file to start analysis.".into());
+    }
+    let metadata = std::fs::metadata(&canonical)
+        .map_err(|_| "Could not read the selected audio file.".to_string())?;
+    if !metadata.is_file() || metadata.len() == 0 {
+        return Err("Could not read the selected audio file.".into());
+    }
+    let file_name = canonical
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Could not read the selected audio file.".to_string())?;
+
+    Ok(LocalAudioSourcePayload {
+        source_path: canonical.to_string_lossy().into_owned(),
+        file_name: file_name.to_string(),
+        extension,
+        file_size_bytes: metadata.len(),
+    })
+}
+
 fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
     let Value::Object(map) = payload else {
         return Err("Invalid analysis job request: invalid field 'root'".into());
     };
 
     for key in map.keys() {
-        if key != "sourceKind" && key != "sourceLabel" && key != "roleFocus" {
+        if key != "sourceKind"
+            && key != "projectId"
+            && key != "sourceLabel"
+            && key != "roleFocus"
+            && key != "localSource"
+        {
             return Err(format!(
                 "Invalid analysis job request: invalid field '{key}'"
             ));
@@ -293,10 +386,19 @@ fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
     }
 
     let source_kind = map.get("sourceKind").and_then(Value::as_str);
+    let project_id = map.get("projectId").and_then(Value::as_str);
     let source_label = map.get("sourceLabel").and_then(Value::as_str);
     let role_focus = map.get("roleFocus").and_then(Value::as_array);
+    let local_source = match map.get("localSource") {
+        Some(value) => Some(
+            serde_json::from_value::<LocalAudioSourcePayload>(value.clone()).map_err(|_| {
+                "Invalid analysis job request: invalid field 'localSource'".to_string()
+            })?,
+        ),
+        None => None,
+    };
 
-    if source_kind != Some("demo") {
+    if source_kind != Some("demo") && source_kind != Some("local_audio") {
         return Err("Invalid analysis job request: invalid field 'sourceKind'".into());
     }
     let source_label = source_label
@@ -314,10 +416,32 @@ fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
         parsed_role_focus.push(role.to_string());
     }
 
+    match source_kind {
+        Some("demo") => {
+            if local_source.is_some() || project_id.is_some() {
+                return Err("Invalid analysis job request: invalid field 'projectId'".into());
+            }
+        }
+        Some("local_audio") => {
+            let Some(project_id) = project_id else {
+                return Err("Invalid analysis job request: invalid field 'projectId'".into());
+            };
+            if project_id.trim().is_empty() {
+                return Err("Invalid analysis job request: invalid field 'projectId'".into());
+            }
+            if local_source.is_some() {
+                return Err("Invalid analysis job request: invalid field 'localSource'".into());
+            }
+        }
+        _ => {}
+    }
+
     Ok(AnalysisJobRequest {
-        source_kind: "demo".into(),
+        source_kind: source_kind.unwrap_or("demo").to_string(),
+        project_id: project_id.map(|value| value.to_string()),
         source_label: source_label.to_string(),
         role_focus: parsed_role_focus,
+        local_source,
     })
 }
 
@@ -345,6 +469,25 @@ fn store_status(state: &AppState, status: AnalysisJobStatus) {
     if let Ok(mut jobs) = state.0.jobs.lock() {
         jobs.insert(status.job_id.clone(), status);
     }
+}
+
+fn store_bootstrap_source(state: &AppState, summary: ProjectBootstrapSummaryPayload) {
+    if let Ok(mut sources) = state.0.bootstrap_sources.lock() {
+        sources.insert(summary.project_id.clone(), summary);
+    }
+}
+
+fn lookup_bootstrap_source(
+    state: &AppState,
+    project_id: &str,
+) -> Result<ProjectBootstrapSummaryPayload, String> {
+    state
+        .0
+        .bootstrap_sources
+        .lock()
+        .ok()
+        .and_then(|sources| sources.get(project_id).cloned())
+        .ok_or_else(|| "Analysis job source was not found. Choose local audio again.".to_string())
 }
 
 fn run_analysis_engine(
@@ -471,7 +614,7 @@ fn run_analysis_engine(
 #[tauri::command]
 fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> AnalysisJobStatus {
     let requested_at = iso_timestamp_now();
-    let parsed_request = match parse_request_payload(request) {
+    let mut parsed_request = match parse_request_payload(request) {
         Ok(parsed_request) => parsed_request,
         Err(message) => {
             return failed_status(
@@ -482,6 +625,30 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
             )
         }
     };
+
+    if parsed_request.source_kind == "local_audio" {
+        let Some(project_id) = parsed_request.project_id.clone() else {
+            return failed_status(
+                "invalid-job".into(),
+                requested_at,
+                AnalysisJobErrorCode::InvalidRequest,
+                "Invalid analysis job request: invalid field 'projectId'",
+            );
+        };
+        let bootstrap = match lookup_bootstrap_source(&state, &project_id) {
+            Ok(bootstrap) => bootstrap,
+            Err(message) => {
+                return failed_status(
+                    "invalid-job".into(),
+                    requested_at,
+                    AnalysisJobErrorCode::NotFound,
+                    &message,
+                )
+            }
+        };
+        parsed_request.source_label = bootstrap.source.file_name.clone();
+        parsed_request.local_source = Some(bootstrap.source);
+    }
 
     let job_id = format!("job-{}", state.0.next_job.fetch_add(1, Ordering::Relaxed));
     if !try_acquire_job_slot(&state) {
@@ -543,10 +710,39 @@ fn get_analysis_job_status(job_id: String, state: tauri::State<'_, AppState>) ->
         })
 }
 
+#[tauri::command]
+fn select_local_audio_source(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<ProjectBootstrapSummaryPayload, String> {
+    let path = FileDialog::new()
+        .add_filter("Audio", &AUDIO_EXTENSIONS)
+        .pick_file()
+        .ok_or_else(|| "Choose a WAV, MP3, FLAC, or M4A file to start analysis.".to_string())?;
+    let source = normalize_local_audio_source(&path)?;
+    let project_id = next_project_id(&state);
+    let project_root = app_owned_root(&app, "projects", &project_id)?;
+    let cache_root = app_owned_root(&app, "cache", &project_id)?;
+    let temp_root = app_owned_root(&app, "temp", &project_id)?;
+
+    let summary = ProjectBootstrapSummaryPayload {
+        project_id,
+        source_mode: "reference".into(),
+        project_root: project_root.to_string_lossy().into_owned(),
+        cache_root: cache_root.to_string_lossy().into_owned(),
+        temp_root: temp_root.to_string_lossy().into_owned(),
+        source,
+    };
+    store_bootstrap_source(&state, summary.clone());
+
+    Ok(summary)
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
+            select_local_audio_source,
             start_analysis_job,
             get_analysis_job_status
         ])

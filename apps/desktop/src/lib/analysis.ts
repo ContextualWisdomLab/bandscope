@@ -5,8 +5,11 @@ import {
   createDemoRehearsalSong,
   isAnalysisJobStatus,
   parseAnalysisJobRequest,
+  parseProjectBootstrapSummary,
+  type AnalysisJobError,
   type AnalysisJobRequest,
-  type AnalysisJobStatus
+  type AnalysisJobStatus,
+  type ProjectBootstrapSummary
 } from "@bandscope/shared-types";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -18,6 +21,18 @@ declare global {
 }
 
 const browserJobStore = new Map<string, AnalysisJobStatus>();
+const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
+const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
+  UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
+  "Could not read the selected audio file.",
+  "Could not prepare the local project workspace.",
+  "Could not prepare the local cache workspace.",
+  "Could not prepare the local temp workspace."
+]);
+
+export type LocalAudioSelectionResult =
+  | { ok: true; bootstrap: ProjectBootstrapSummary }
+  | { ok: false; error: AnalysisJobError };
 
 function getInvoke(): TauriInvoke | null {
   if (typeof window === "undefined") {
@@ -42,6 +57,10 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     });
     browserJobStore.set(jobId, queued);
     return queued;
+  }
+
+  if (command === "select_local_audio_source") {
+    throw new Error(UNSUPPORTED_LOCAL_AUDIO_MESSAGE);
   }
 
   if (command === "get_analysis_job_status") {
@@ -82,6 +101,27 @@ async function invokeAnalysis(command: string, args?: Record<string, unknown>): 
 
 export function createDefaultAnalysisRequest(): AnalysisJobRequest {
   return createDemoAnalysisJobRequest();
+}
+
+export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResult> {
+  try {
+    const response = await invokeAnalysis("select_local_audio_source");
+    return {
+      ok: true,
+      bootstrap: parseProjectBootstrapSummary(response)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message:
+          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
+            ? error.message
+            : UNSUPPORTED_LOCAL_AUDIO_MESSAGE
+      }
+    };
+  }
 }
 
 export async function startAnalysisJob(request: AnalysisJobRequest): Promise<AnalysisJobStatus> {

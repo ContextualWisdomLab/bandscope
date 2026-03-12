@@ -77,15 +77,38 @@ export type RehearsalSong = {
   exportSummary: ExportSummary;
 };
 
-export type AnalysisSourceKind = "demo";
+export type AnalysisSourceKind = "demo" | "local_audio";
 export type AnalysisJobState = "queued" | "running" | "succeeded" | "failed";
 export type AnalysisJobErrorCode = "invalid_request" | "not_found" | "engine_unavailable";
 
-export type AnalysisJobRequest = {
-  sourceKind: AnalysisSourceKind;
-  sourceLabel: string;
-  roleFocus: string[];
+export type LocalAudioSource = {
+  sourcePath: string;
+  fileName: string;
+  extension: (typeof SUPPORTED_AUDIO_FORMATS)[number];
+  fileSizeBytes: number;
 };
+
+export type ProjectBootstrapSummary = {
+  projectId: string;
+  sourceMode: "reference";
+  projectRoot: string;
+  cacheRoot: string;
+  tempRoot: string;
+  source: LocalAudioSource;
+};
+
+export type AnalysisJobRequest =
+  | {
+      sourceKind: "demo";
+      sourceLabel: string;
+      roleFocus: string[];
+    }
+  | {
+      sourceKind: "local_audio";
+      projectId: string;
+      sourceLabel: string;
+      roleFocus: string[];
+    };
 
 export type AnalysisJobError = {
   code: AnalysisJobErrorCode;
@@ -118,7 +141,7 @@ const PROVENANCE_SOURCES = ["model", "user"] as const;
 const CUE_ANCHOR_KINDS = ["lyric", "count", "transition"] as const;
 const ROLE_TYPES = ["instrument", "vocal", "hand"] as const;
 const EXPORT_FORMATS = ["cue-sheet", "chart-summary"] as const;
-const ANALYSIS_SOURCE_KINDS = ["demo"] as const;
+const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
 const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
 
@@ -287,6 +310,100 @@ export function createDemoAnalysisJobRequest(): AnalysisJobRequest {
   };
 }
 
+export function createProjectBootstrapSummary(input: {
+  projectId: string;
+  projectRoot: string;
+  cacheRoot: string;
+  tempRoot: string;
+  source: LocalAudioSource;
+}): ProjectBootstrapSummary {
+  return {
+    projectId: input.projectId,
+    sourceMode: "reference",
+    projectRoot: input.projectRoot,
+    cacheRoot: input.cacheRoot,
+    tempRoot: input.tempRoot,
+    source: input.source
+  };
+}
+
+function validateProjectBootstrapSummary(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return "Invalid project bootstrap summary: invalid field 'root'";
+  }
+  const allowedKeys = ["projectId", "sourceMode", "projectRoot", "cacheRoot", "tempRoot", "source"] as const;
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) {
+      return `Invalid project bootstrap summary: invalid field '${key}'`;
+    }
+  }
+  if (typeof value.projectId !== "string" || value.projectId.trim().length === 0) {
+    return "Invalid project bootstrap summary: invalid field 'projectId'";
+  }
+  if (value.sourceMode !== "reference") {
+    return "Invalid project bootstrap summary: invalid field 'sourceMode'";
+  }
+  if (typeof value.projectRoot !== "string" || value.projectRoot.trim().length === 0) {
+    return "Invalid project bootstrap summary: invalid field 'projectRoot'";
+  }
+  if (typeof value.cacheRoot !== "string" || value.cacheRoot.trim().length === 0) {
+    return "Invalid project bootstrap summary: invalid field 'cacheRoot'";
+  }
+  if (typeof value.tempRoot !== "string" || value.tempRoot.trim().length === 0) {
+    return "Invalid project bootstrap summary: invalid field 'tempRoot'";
+  }
+  const sourceError = validateLocalAudioSource(value.source);
+  if (sourceError) {
+    return sourceError.replace("Invalid local audio source", "Invalid project bootstrap summary.source");
+  }
+
+  return null;
+}
+
+export function parseProjectBootstrapSummary(value: unknown): ProjectBootstrapSummary {
+  const validationError = validateProjectBootstrapSummary(value);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  return structuredClone(value as ProjectBootstrapSummary);
+}
+
+function validateLocalAudioSource(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return "Invalid local audio source: invalid field 'root'";
+  }
+  const allowedKeys = ["sourcePath", "fileName", "extension", "fileSizeBytes"] as const;
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) {
+      return `Invalid local audio source: invalid field '${key}'`;
+    }
+  }
+  if (typeof value.sourcePath !== "string" || value.sourcePath.trim().length === 0) {
+    return "Invalid local audio source: invalid field 'sourcePath'";
+  }
+  if (typeof value.fileName !== "string" || value.fileName.trim().length === 0) {
+    return "Invalid local audio source: invalid field 'fileName'";
+  }
+  if (!isOneOf(SUPPORTED_AUDIO_FORMATS, value.extension)) {
+    return "Invalid local audio source: invalid field 'extension'";
+  }
+  if (typeof value.fileSizeBytes !== "number" || !Number.isFinite(value.fileSizeBytes) || value.fileSizeBytes <= 0) {
+    return "Invalid local audio source: invalid field 'fileSizeBytes'";
+  }
+
+  return null;
+}
+
+export function parseLocalAudioSource(value: unknown): LocalAudioSource {
+  const validationError = validateLocalAudioSource(value);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  return structuredClone(value as LocalAudioSource);
+}
+
 export function createAnalysisJobStatus(input:
   | {
       jobId: string;
@@ -351,13 +468,22 @@ function validateAnalysisJobRequest(value: unknown): string | null {
       return `Invalid analysis job request: invalid field 'roleFocus[${index}]'`;
     }
   }
-  const allowedKeys = new Set(["sourceKind", "sourceLabel", "roleFocus"]);
+  const allowedKeys = new Set(
+    value.sourceKind === "local_audio"
+      ? ["sourceKind", "projectId", "sourceLabel", "roleFocus"]
+      : ["sourceKind", "sourceLabel", "roleFocus"]
+  );
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `Invalid analysis job request: invalid field '${key}'`;
     }
   }
-
+  if (value.sourceKind === "local_audio") {
+    if (typeof value.projectId !== "string" || value.projectId.trim().length === 0) {
+      return "Invalid analysis job request: invalid field 'projectId'";
+    }
+  }
+  
   return null;
 }
 
