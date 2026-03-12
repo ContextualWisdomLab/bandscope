@@ -18,6 +18,22 @@ import { createTranslator, detectPreferredLocale } from "./i18n";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 
+function progressMessage(
+  t: ReturnType<typeof createTranslator>,
+  state: AnalysisJobStatus["state"]
+): string {
+  switch (state) {
+    case "queued":
+      return t("analysisStateQueued");
+    case "running":
+      return t("analysisStateRunning");
+    case "succeeded":
+      return t("analysisStateSucceeded");
+    case "failed":
+      return t("analysisStateFailed");
+  }
+}
+
 function renderSong(
   song: RehearsalSong,
   sectionConfidenceLabel: string,
@@ -78,6 +94,7 @@ export function App() {
     model: t("provenanceSourceModel"),
     user: t("provenanceSourceUser")
   } as const;
+  const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
 
   useEffect(() => {
     if (!jobStatus || (jobStatus.state !== "queued" && jobStatus.state !== "running")) {
@@ -93,10 +110,10 @@ export function App() {
           setJobError(null);
         }
         if (nextStatus.state === "failed") {
-          setJobError(nextStatus.error?.message ?? "Analysis could not start.");
+          setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
         }
       } catch {
-        setJobError("Analysis could not start.");
+        setJobError(t("analysisCouldNotStart"));
       }
     }, ANALYSIS_POLL_INTERVAL_MS);
 
@@ -113,8 +130,11 @@ export function App() {
       if (nextStatus.state === "succeeded" && nextStatus.result) {
         setJobResult(nextStatus.result);
       }
+      if (nextStatus.state === "failed") {
+        setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
+      }
     } catch {
-      setJobError("Analysis could not start.");
+      setJobError(t("analysisCouldNotStart"));
     }
   };
 
@@ -125,8 +145,8 @@ export function App() {
       <p>
         {t("supportedFormats")}: {SUPPORTED_AUDIO_FORMATS.join(", ")}
       </p>
-      <button type="button" onClick={handleStartAnalysis}>Start analysis</button>
-      {jobStatus?.progressLabel ? <p>{jobStatus.progressLabel}</p> : null}
+      <button type="button" onClick={handleStartAnalysis} disabled={analysisInFlight}>{t("startAnalysis")}</button>
+      {jobStatus ? <p>{progressMessage(t, jobStatus.state)}</p> : null}
       {jobError ? <p>{jobError}</p> : null}
       {jobResult
         ? renderSong(

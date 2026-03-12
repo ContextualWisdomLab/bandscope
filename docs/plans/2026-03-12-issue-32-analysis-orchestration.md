@@ -1,7 +1,5 @@
 # Issue 32 Analysis Orchestration Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Add a secure local analysis job orchestration slice that lets the desktop app start a typed job, poll status, and receive a rehearsal-song result through Tauri IPC.
 
 **Architecture:** React submits a validated request to narrow Tauri commands, Rust tracks in-memory job state and launches the Python engine as an allowlisted subprocess, and Python validates stdin JSON before returning a structured status/result envelope. The first implementation uses a demo source so the orchestration path is real without waiting for file intake.

@@ -102,6 +102,16 @@ export type AnalysisJobStatus = {
   error?: AnalysisJobError;
 };
 
+export type AnalysisJobSnapshot = {
+  jobId: string;
+  request: AnalysisJobRequest;
+  status: AnalysisJobStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  error?: AnalysisJobError;
+  metadata?: Record<string, unknown>;
+};
+
 const CONFIDENCE_LEVELS = ["low", "medium", "high"] as const;
 const REHEARSAL_PRIORITIES = ["low", "medium", "high"] as const;
 const PROVENANCE_SOURCES = ["model", "user"] as const;
@@ -267,15 +277,31 @@ export function createDemoAnalysisJobRequest(): AnalysisJobRequest {
   };
 }
 
-export function createAnalysisJobStatus(input: {
-  jobId: string;
-  state: AnalysisJobState;
-  result?: RehearsalSong;
-  error?: AnalysisJobError;
-  progressLabel?: string;
-  requestedAt?: string;
-  updatedAt?: string;
-}): AnalysisJobStatus {
+export function createAnalysisJobStatus(input:
+  | {
+      jobId: string;
+      state: "queued" | "running";
+      progressLabel?: string;
+      requestedAt?: string;
+      updatedAt?: string;
+    }
+  | {
+      jobId: string;
+      state: "succeeded";
+      result: RehearsalSong;
+      progressLabel?: string;
+      requestedAt?: string;
+      updatedAt?: string;
+    }
+  | {
+      jobId: string;
+      state: "failed";
+      error: AnalysisJobError;
+      progressLabel?: string;
+      requestedAt?: string;
+      updatedAt?: string;
+    }
+): AnalysisJobStatus {
   const now = new Date().toISOString();
   return {
     jobId: input.jobId,
@@ -283,8 +309,8 @@ export function createAnalysisJobStatus(input: {
     requestedAt: input.requestedAt ?? now,
     updatedAt: input.updatedAt ?? now,
     progressLabel: input.progressLabel,
-    result: input.result,
-    error: input.error
+    result: "result" in input ? input.result : undefined,
+    error: "error" in input ? input.error : undefined
   };
 }
 
@@ -295,7 +321,7 @@ function validateAnalysisJobRequest(value: unknown): string | null {
   if (!isOneOf(ANALYSIS_SOURCE_KINDS, value.sourceKind)) {
     return "Invalid analysis job request: invalid field 'sourceKind'";
   }
-  if (typeof value.sourceLabel !== "string") {
+  if (typeof value.sourceLabel !== "string" || value.sourceLabel.trim().length === 0) {
     return "Invalid analysis job request: invalid field 'sourceLabel'";
   }
   if (!isDenseArray(value.roleFocus)) {
