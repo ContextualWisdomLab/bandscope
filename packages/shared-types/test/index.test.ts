@@ -1,8 +1,12 @@
 import {
+  createAnalysisJobStatus,
+  createDemoAnalysisJobRequest,
   createDefaultProjectSummary,
   createDemoRehearsalSong,
   isRehearsalSong,
+  isAnalysisJobStatus,
   parseRehearsalSong,
+  parseAnalysisJobRequest,
   type RehearsalSong,
   SUPPORTED_AUDIO_FORMATS
 } from "../src/index";
@@ -20,6 +24,127 @@ describe("shared type helpers", () => {
       status: "idle",
       supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
     });
+  });
+
+  it("validates analysis job requests and status envelopes", () => {
+    const request = createDemoAnalysisJobRequest();
+    const status = createAnalysisJobStatus({
+      jobId: "job-1",
+      state: "succeeded",
+      result: createDemoRehearsalSong()
+    });
+
+    expect(request).toEqual({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
+    });
+    expect(parseAnalysisJobRequest(request)).toEqual(request);
+    expect(() => parseAnalysisJobRequest(null)).toThrow("root");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "file",
+      sourceLabel: "Late Night Set",
+      roleFocus: []
+    })).toThrow("sourceKind");
+    expect(() => parseAnalysisJobRequest({ sourceKind: "demo" })).toThrow("sourceLabel");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: {}
+    })).toThrow("roleFocus");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: [7]
+    })).toThrow("roleFocus[0]");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      extraField: true
+    })).toThrow("extraField");
+    expect(isAnalysisJobStatus(status)).toBe(true);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: {
+        code: "not_found",
+        message: "Missing"
+      }
+    })).toBe(true);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "succeeded",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus(null)).toBe(false);
+    expect(isAnalysisJobStatus({
+      state: "queued",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "unknown",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "queued",
+      requestedAt: 1,
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "queued",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: 1
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "queued",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      progressLabel: 42
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "succeeded",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      result: { id: "bad" }
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: []
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: { code: "bad_code", message: "oops" }
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: { code: "not_found" }
+    })).toBe(false);
   });
 
   it("creates a rehearsal song with section and role level guidance", () => {
