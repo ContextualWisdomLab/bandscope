@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
@@ -23,13 +24,17 @@ function getInvoke(): TauriInvoke | null {
     return null;
   }
 
-  return window.__TAURI_INVOKE__ ?? null;
+  return window.__TAURI_INVOKE__ ?? invoke;
+}
+
+function browserJobId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
 async function browserFallback(command: string, args?: Record<string, unknown>): Promise<unknown> {
   if (command === "start_analysis_job") {
-    const request = parseAnalysisJobRequest(args?.request);
-    const jobId = `browser-${request.sourceLabel.replaceAll(/\s+/g, "-").toLowerCase()}`;
+    parseAnalysisJobRequest(args?.request);
+    const jobId = browserJobId("browser-job");
     const queued = createAnalysisJobStatus({
       jobId,
       state: "queued",
@@ -67,9 +72,9 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
 }
 
 async function invokeAnalysis(command: string, args?: Record<string, unknown>): Promise<unknown> {
-  const invoke = getInvoke();
-  if (invoke) {
-    return invoke(command, args);
+  const invokeCommand = getInvoke();
+  if (invokeCommand) {
+    return invokeCommand(command, args);
   }
 
   return browserFallback(command, args);
@@ -80,8 +85,22 @@ export function createDefaultAnalysisRequest(): AnalysisJobRequest {
 }
 
 export async function startAnalysisJob(request: AnalysisJobRequest): Promise<AnalysisJobStatus> {
+  let parsedRequest: AnalysisJobRequest;
+  try {
+    parsedRequest = parseAnalysisJobRequest(request);
+  } catch (error) {
+    return createAnalysisJobStatus({
+      jobId: browserJobId("invalid-job"),
+      state: "failed",
+      error: {
+        code: "invalid_request",
+        message: error instanceof Error ? error.message : "Invalid analysis job request."
+      }
+    });
+  }
+
   const response = await invokeAnalysis("start_analysis_job", {
-    request: parseAnalysisJobRequest(request)
+    request: parsedRequest
   });
   if (!isAnalysisJobStatus(response)) {
     throw new Error("Invalid analysis job status response");

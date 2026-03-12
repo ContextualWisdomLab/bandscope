@@ -184,7 +184,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
 
     await waitFor(() => {
-      expect(screen.getAllByText(/analysis could not start/i)).toHaveLength(2);
+      expect(screen.getByText(/analysis could not start/i)).toBeTruthy();
+      expect(screen.getByText(/analysis failed during execution/i)).toBeTruthy();
     });
   });
 

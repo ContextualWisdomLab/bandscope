@@ -22,13 +22,85 @@ class AnalysisJobError(TypedDict):
     message: str
 
 
+class ConfidencePayload(TypedDict):
+    """Typed confidence payload nested inside rehearsal results."""
+
+    level: str
+    source: str
+    notes: str
+
+
+class CuePayload(TypedDict):
+    """Typed cue payload nested inside rehearsal results."""
+
+    kind: str
+    value: str
+
+
+class RangePayload(TypedDict):
+    """Typed range payload nested inside rehearsal results."""
+
+    lowestNote: str
+    highestNote: str
+
+
+class HarmonyPayload(TypedDict):
+    """Typed harmony payload nested inside rehearsal results."""
+
+    chord: str
+    functionLabel: str
+    source: str
+
+
+class ManualOverridePayload(TypedDict):
+    """Typed manual override payload nested inside rehearsal roles."""
+
+    field: str
+    value: HarmonyPayload
+    source: str
+
+
+class RehearsalRolePayload(TypedDict):
+    """Typed rehearsal role payload nested inside sections."""
+
+    id: str
+    name: str
+    roleType: str
+    harmony: HarmonyPayload
+    cue: CuePayload
+    range: RangePayload
+    confidence: ConfidencePayload
+    rehearsalPriority: str
+    simplification: str
+    setupNote: str
+    manualOverrides: list[ManualOverridePayload]
+
+
+class RehearsalSectionPayload(TypedDict):
+    """Typed rehearsal section payload nested inside songs."""
+
+    id: str
+    label: str
+    groove: str
+    confidence: ConfidencePayload
+    roles: list[RehearsalRolePayload]
+
+
+class ExportSummaryPayload(TypedDict):
+    """Typed export summary payload nested inside songs."""
+
+    format: str
+    headline: str
+    focusSections: list[str]
+
+
 class RehearsalSong(TypedDict):
     """Typed rehearsal song payload returned by the bootstrap engine."""
 
     id: str
     title: str
-    sections: list[dict[str, object]]
-    exportSummary: dict[str, object]
+    sections: list[RehearsalSectionPayload]
+    exportSummary: ExportSummaryPayload
 
 
 class AnalysisJobStatus(TypedDict):

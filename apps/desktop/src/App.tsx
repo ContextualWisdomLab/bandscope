@@ -85,6 +85,7 @@ export function App() {
   const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
   const confidenceLabels = {
     low: t("confidenceLevelLow"),
     medium: t("confidenceLevelMedium"),
@@ -113,6 +114,7 @@ export function App() {
           setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
         }
       } catch {
+        setJobStatus(null);
         setJobError(t("analysisCouldNotStart"));
       }
     }, ANALYSIS_POLL_INTERVAL_MS);
@@ -124,6 +126,7 @@ export function App() {
     setJobError(null);
     setJobResult(null);
     setJobStatus(null);
+    setIsStarting(true);
     try {
       const nextStatus = await startAnalysisJob(defaultRequest);
       setJobStatus(nextStatus);
@@ -134,7 +137,10 @@ export function App() {
         setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
       }
     } catch {
+      setJobStatus(null);
       setJobError(t("analysisCouldNotStart"));
+    } finally {
+      setIsStarting(false);
     }
   };
 
@@ -145,7 +151,7 @@ export function App() {
       <p>
         {t("supportedFormats")}: {SUPPORTED_AUDIO_FORMATS.join(", ")}
       </p>
-      <button type="button" onClick={handleStartAnalysis} disabled={analysisInFlight}>{t("startAnalysis")}</button>
+      <button type="button" onClick={handleStartAnalysis} disabled={analysisInFlight || isStarting}>{t("startAnalysis")}</button>
       {jobStatus ? <p>{progressMessage(t, jobStatus.state)}</p> : null}
       {jobError ? <p>{jobError}</p> : null}
       {jobResult
