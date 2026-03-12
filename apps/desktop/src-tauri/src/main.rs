@@ -11,6 +11,8 @@ use std::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex,
     },
+    thread,
+    time::{Duration, Instant},
 };
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
@@ -24,6 +26,8 @@ struct AppStateInner {
 }
 
 const MAX_IN_FLIGHT_JOBS: usize = 2;
+const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
+const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 
 impl Default for AppState {
     fn default() -> Self {
@@ -385,6 +389,42 @@ fn run_analysis_engine(
                 AnalysisJobErrorCode::EngineUnavailable,
                 "Analysis engine is unavailable.",
             );
+        }
+    }
+
+    let deadline = Instant::now() + ANALYSIS_PROCESS_TIMEOUT;
+    loop {
+        match process.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = process.kill();
+                    let _ = process.wait();
+                    return failed_status(
+                        payload["jobId"]
+                            .as_str()
+                            .unwrap_or("unknown-job")
+                            .to_string(),
+                        requested_at,
+                        AnalysisJobErrorCode::EngineUnavailable,
+                        "Analysis engine timed out.",
+                    );
+                }
+                thread::sleep(ANALYSIS_WAIT_POLL);
+            }
+            Err(_) => {
+                let _ = process.kill();
+                let _ = process.wait();
+                return failed_status(
+                    payload["jobId"]
+                        .as_str()
+                        .unwrap_or("unknown-job")
+                        .to_string(),
+                    requested_at,
+                    AnalysisJobErrorCode::EngineUnavailable,
+                    "Analysis engine is unavailable.",
+                );
+            }
         }
     }
 

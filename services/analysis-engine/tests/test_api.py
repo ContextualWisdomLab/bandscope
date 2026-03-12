@@ -35,6 +35,7 @@ def test_validate_analysis_job_request_accepts_demo_payload() -> None:
 def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
     """Ensure the request validator reports every expected safe-failure path."""
     cases = [
+        ([], "root"),
         ({}, "sourceKind"),
         ({"sourceKind": "file", "sourceLabel": "Late Night Set", "roleFocus": []}, "sourceKind"),
         ({"sourceKind": "demo", "roleFocus": []}, "sourceLabel"),

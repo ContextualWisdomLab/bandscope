@@ -138,6 +138,16 @@ function invalidField(path: string): string {
   return `Invalid rehearsal song contract: invalid field '${path}'`;
 }
 
+function unexpectedKey(value: Record<string, unknown>, allowedKeys: readonly string[], path: string): string | null {
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key)) {
+      return invalidField(path ? `${path}.${key}` : key);
+    }
+  }
+
+  return null;
+}
+
 const demoRehearsalSongSeed: RehearsalSong = {
   id: "demo-song",
   title: "Late Night Set",
@@ -303,15 +313,24 @@ export function createAnalysisJobStatus(input:
     }
 ): AnalysisJobStatus {
   const now = new Date().toISOString();
-  return {
+  const status: AnalysisJobStatus = {
     jobId: input.jobId,
     state: input.state,
     requestedAt: input.requestedAt ?? now,
     updatedAt: input.updatedAt ?? now,
-    progressLabel: input.progressLabel,
-    result: "result" in input ? input.result : undefined,
-    error: "error" in input ? input.error : undefined
   };
+
+  if (input.progressLabel !== undefined) {
+    status.progressLabel = input.progressLabel;
+  }
+  if ("result" in input) {
+    status.result = input.result;
+  }
+  if ("error" in input) {
+    status.error = input.error;
+  }
+
+  return status;
 }
 
 function validateAnalysisJobRequest(value: unknown): string | null {
@@ -355,6 +374,10 @@ function validateAnalysisJobError(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
+  const extraKey = unexpectedKey(value, ["code", "message"], path);
+  if (extraKey) {
+    return extraKey;
+  }
   if (!isOneOf(ANALYSIS_JOB_ERROR_CODES, value.code)) {
     return invalidField(`${path}.code`);
   }
@@ -369,11 +392,21 @@ function validateAnalysisJobStatus(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
   }
+  const allowedKeysByState: Record<AnalysisJobState, string[]> = {
+    queued: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel"],
+    running: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel"],
+    succeeded: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "result"],
+    failed: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "error"]
+  };
   if (typeof value.jobId !== "string") {
     return invalidField("jobId");
   }
   if (!isOneOf(ANALYSIS_JOB_STATES, value.state)) {
     return invalidField("state");
+  }
+  const extraKey = unexpectedKey(value, allowedKeysByState[value.state], "");
+  if (extraKey) {
+    return extraKey;
   }
   if (typeof value.requestedAt !== "string") {
     return invalidField("requestedAt");
@@ -414,6 +447,10 @@ function validateConfidenceMarker(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
+  const extraKey = unexpectedKey(value, ["level", "source", "notes"], path);
+  if (extraKey) {
+    return extraKey;
+  }
   if (!isOneOf(CONFIDENCE_LEVELS, value.level)) {
     return invalidField(`${path}.level`);
   }
@@ -431,6 +468,10 @@ function validateCueAnchor(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
+  const extraKey = unexpectedKey(value, ["kind", "value"], path);
+  if (extraKey) {
+    return extraKey;
+  }
   if (!isOneOf(CUE_ANCHOR_KINDS, value.kind)) {
     return invalidField(`${path}.kind`);
   }
@@ -445,6 +486,10 @@ function validateRangeSummary(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
+  const extraKey = unexpectedKey(value, ["lowestNote", "highestNote"], path);
+  if (extraKey) {
+    return extraKey;
+  }
   if (typeof value.lowestNote !== "string") {
     return invalidField(`${path}.lowestNote`);
   }
@@ -458,6 +503,10 @@ function validateRangeSummary(value: unknown, path: string): string | null {
 function validateRehearsalHarmony(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["chord", "functionLabel", "source"], path);
+  if (extraKey) {
+    return extraKey;
   }
   if (typeof value.chord !== "string") {
     return invalidField(`${path}.chord`);
@@ -475,6 +524,10 @@ function validateRehearsalHarmony(value: unknown, path: string): string | null {
 function validateManualOverride(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["field", "value", "source"], path);
+  if (extraKey) {
+    return extraKey;
   }
   if (value.field !== "harmony") {
     return invalidField(`${path}.field`);
@@ -498,6 +551,26 @@ function validateManualOverride(value: unknown, path: string): string | null {
 function validateRehearsalRole(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
+  }
+  const extraKey = unexpectedKey(
+    value,
+    [
+      "id",
+      "name",
+      "roleType",
+      "harmony",
+      "cue",
+      "range",
+      "confidence",
+      "rehearsalPriority",
+      "simplification",
+      "setupNote",
+      "manualOverrides"
+    ],
+    path
+  );
+  if (extraKey) {
+    return extraKey;
   }
   if (typeof value.id !== "string") {
     return invalidField(`${path}.id`);
@@ -555,6 +628,10 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
+  const extraKey = unexpectedKey(value, ["id", "label", "groove", "confidence", "roles"], path);
+  if (extraKey) {
+    return extraKey;
+  }
   if (typeof value.id !== "string") {
     return invalidField(`${path}.id`);
   }
@@ -587,6 +664,10 @@ function validateExportSummary(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
+  const extraKey = unexpectedKey(value, ["format", "headline", "focusSections"], path);
+  if (extraKey) {
+    return extraKey;
+  }
   if (!isOneOf(EXPORT_FORMATS, value.format)) {
     return invalidField(`${path}.format`);
   }
@@ -608,6 +689,10 @@ function validateExportSummary(value: unknown, path: string): string | null {
 function validateRehearsalSong(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
+  }
+  const extraKey = unexpectedKey(value, ["id", "title", "sections", "exportSummary"], "");
+  if (extraKey) {
+    return extraKey;
   }
   if (typeof value.id !== "string") {
     return invalidField("id");
