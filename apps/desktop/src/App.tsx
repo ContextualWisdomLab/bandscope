@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   SUPPORTED_AUDIO_FORMATS,
   type AnalysisJobStatus,
+  type AnalysisJobRequest,
+  type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
 import { ChordsFeature } from "./features/chords";
@@ -12,6 +14,7 @@ import { SettingsFeature } from "./features/settings";
 import {
   createDefaultAnalysisRequest,
   getAnalysisJobStatus,
+  selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale } from "./i18n";
@@ -86,6 +89,8 @@ export function App() {
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
+  const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const confidenceLabels = {
     low: t("confidenceLevelLow"),
     medium: t("confidenceLevelMedium"),
@@ -96,6 +101,14 @@ export function App() {
     user: t("provenanceSourceUser")
   } as const;
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
+  const selectedRequest: AnalysisJobRequest = selectedBootstrap
+    ? {
+        sourceKind: "local_audio",
+        projectId: selectedBootstrap.projectId,
+        sourceLabel: selectedBootstrap.source.fileName,
+        roleFocus: defaultRequest.roleFocus
+      }
+    : defaultRequest;
 
   useEffect(() => {
     if (!jobStatus || (jobStatus.state !== "queued" && jobStatus.state !== "running")) {
@@ -128,7 +141,7 @@ export function App() {
     setJobStatus(null);
     setIsStarting(true);
     try {
-      const nextStatus = await startAnalysisJob(defaultRequest);
+      const nextStatus = await startAnalysisJob(selectedRequest);
       setJobStatus(nextStatus);
       if (nextStatus.state === "succeeded" && nextStatus.result) {
         setJobResult(nextStatus.result);
@@ -144,6 +157,19 @@ export function App() {
     }
   };
 
+  const handleChooseLocalAudio = async () => {
+    setSelectionError(null);
+    const selection = await selectLocalAudioSource();
+    if (selection.ok) {
+      setSelectedBootstrap(selection.bootstrap);
+      return;
+    }
+
+    setSelectedBootstrap(null);
+    setSelectionError(selection.error.message || t("unsupportedLocalAudio"));
+    setJobStatus(null);
+  };
+
   return (
     <main>
       <h1>{t("appTitle")}</h1>
@@ -151,9 +177,13 @@ export function App() {
       <p>
         {t("supportedFormats")}: {SUPPORTED_AUDIO_FORMATS.join(", ")}
       </p>
+      <button type="button" onClick={handleChooseLocalAudio} disabled={analysisInFlight || isStarting}>{t("chooseLocalAudio")}</button>
       <button type="button" onClick={handleStartAnalysis} disabled={analysisInFlight || isStarting}>{t("startAnalysis")}</button>
+      {selectedBootstrap ? <p>{t("selectedAudio")}: {selectedBootstrap.source.fileName}</p> : null}
+      {selectedBootstrap ? <p>{t("sourceModeReference")}</p> : null}
       {jobStatus ? <p>{progressMessage(t, jobStatus.state)}</p> : null}
       {jobError ? <p>{jobError}</p> : null}
+      {selectionError ? <p>{selectionError}</p> : null}
       {jobResult
         ? renderSong(
             jobResult,

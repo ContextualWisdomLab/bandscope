@@ -204,6 +204,12 @@ git commit -m "docs: record local audio bootstrap boundary"
 
 - user-selected file -> Rust intake validation -> Python subprocess request validation
 
+### Realistic threats
+
+- malformed or oversized local media file
+- fake extension hiding an unsupported source
+- canonical path or original-file details leaking into visible error text
+
 ### Mitigations
 
 - extension allowlist
@@ -222,3 +228,16 @@ git commit -m "docs: record local audio bootstrap boundary"
 ### Remaining risk
 
 - bootstrap references the original audio path instead of copying it, so source moves/deletions still break the project until a later persistence issue addresses portability
+
+## Dependency Admission Rationale
+
+### `rfd` (Rust runtime dependency)
+
+- why needed: provides the narrow native file-picker path used by the Tauri-side local audio intake command
+- dependency class: runtime desktop dependency for the Tauri shell only
+- alternatives considered: widening frontend-side path entry was rejected because it weakens the file-selection trust boundary; `tauri-plugin-dialog` was deferred to keep this slice minimal
+- source trust: actively maintained Rust desktop dialog crate with broad ecosystem adoption
+- license: acceptable for BandScope's repository policy baseline
+- known security issues: none known at implementation time from local review
+- transitive footprint: moderate native desktop dialog dependency footprint, limited to the desktop shell crate
+- BandScope release risk: native dialog behavior must remain covered by Windows/macOS build gates because it participates in local file intake

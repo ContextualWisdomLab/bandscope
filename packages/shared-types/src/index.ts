@@ -105,9 +105,9 @@ export type AnalysisJobRequest =
     }
   | {
       sourceKind: "local_audio";
+      projectId: string;
       sourceLabel: string;
       roleFocus: string[];
-      localSource: LocalAudioSource;
     };
 
 export type AnalysisJobError = {
@@ -327,6 +327,48 @@ export function createProjectBootstrapSummary(input: {
   };
 }
 
+function validateProjectBootstrapSummary(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return "Invalid project bootstrap summary: invalid field 'root'";
+  }
+  const allowedKeys = ["projectId", "sourceMode", "projectRoot", "cacheRoot", "tempRoot", "source"] as const;
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) {
+      return `Invalid project bootstrap summary: invalid field '${key}'`;
+    }
+  }
+  if (typeof value.projectId !== "string" || value.projectId.trim().length === 0) {
+    return "Invalid project bootstrap summary: invalid field 'projectId'";
+  }
+  if (value.sourceMode !== "reference") {
+    return "Invalid project bootstrap summary: invalid field 'sourceMode'";
+  }
+  if (typeof value.projectRoot !== "string" || value.projectRoot.trim().length === 0) {
+    return "Invalid project bootstrap summary: invalid field 'projectRoot'";
+  }
+  if (typeof value.cacheRoot !== "string" || value.cacheRoot.trim().length === 0) {
+    return "Invalid project bootstrap summary: invalid field 'cacheRoot'";
+  }
+  if (typeof value.tempRoot !== "string" || value.tempRoot.trim().length === 0) {
+    return "Invalid project bootstrap summary: invalid field 'tempRoot'";
+  }
+  const sourceError = validateLocalAudioSource(value.source);
+  if (sourceError) {
+    return sourceError.replace("Invalid local audio source", "Invalid project bootstrap summary.source");
+  }
+
+  return null;
+}
+
+export function parseProjectBootstrapSummary(value: unknown): ProjectBootstrapSummary {
+  const validationError = validateProjectBootstrapSummary(value);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  return structuredClone(value as ProjectBootstrapSummary);
+}
+
 function validateLocalAudioSource(value: unknown): string | null {
   if (!isRecord(value)) {
     return "Invalid local audio source: invalid field 'root'";
@@ -426,13 +468,9 @@ function validateAnalysisJobRequest(value: unknown): string | null {
       return `Invalid analysis job request: invalid field 'roleFocus[${index}]'`;
     }
   }
-  const localSourceError = value.localSource === undefined ? null : validateLocalAudioSource(value.localSource);
-  if (localSourceError) {
-    return localSourceError.replace("Invalid local audio source: ", "Invalid analysis job request: ");
-  }
   const allowedKeys = new Set(
     value.sourceKind === "local_audio"
-      ? ["sourceKind", "sourceLabel", "roleFocus", "localSource"]
+      ? ["sourceKind", "projectId", "sourceLabel", "roleFocus"]
       : ["sourceKind", "sourceLabel", "roleFocus"]
   );
   for (const key of Object.keys(value)) {
@@ -440,10 +478,12 @@ function validateAnalysisJobRequest(value: unknown): string | null {
       return `Invalid analysis job request: invalid field '${key}'`;
     }
   }
-  if (value.sourceKind === "local_audio" && value.localSource === undefined) {
-    return "Invalid analysis job request: invalid field 'localSource'";
+  if (value.sourceKind === "local_audio") {
+    if (typeof value.projectId !== "string" || value.projectId.trim().length === 0) {
+      return "Invalid analysis job request: invalid field 'projectId'";
+    }
   }
-
+  
   return null;
 }
 

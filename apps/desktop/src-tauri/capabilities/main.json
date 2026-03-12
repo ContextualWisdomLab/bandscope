@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "allow-start-analysis-job",
-    "allow-get-analysis-job-status"
+    "allow-get-analysis-job-status",
+    "allow-select-local-audio-source"
   ]
 }

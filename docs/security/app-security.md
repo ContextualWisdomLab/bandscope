@@ -138,6 +138,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Prefer isolated worker processing for decode and analysis.
 - Guard against very large files, abnormal duration, and hostile metadata.
 - Do not add arbitrary filesystem scanning just to find media files.
+- When bootstrapping a project around local audio, prefer referencing the validated original file plus app-owned temp/cache/project roots over copying the file until persistence requirements justify the extra storage boundary.
 
 ### YouTube and remote URL import
 
@@ -173,6 +174,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Document retention and cleanup policy.
 - Set restrictive permissions where the platform allows it.
 - Tell the user whether a project references the original file or copies it.
+- For bootstrap local-audio projects, resolve project and cache/temp roots from app-owned Tauri data/cache paths rather than the shared system temp namespace.
 
 ### Logging, telemetry, and crash reports
 

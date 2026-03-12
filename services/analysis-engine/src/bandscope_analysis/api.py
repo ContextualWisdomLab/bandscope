@@ -10,9 +10,20 @@ from bandscope_analysis.health import HealthReport, build_health_report
 class AnalysisJobRequest(TypedDict):
     """Typed orchestration request payload accepted by the analysis engine."""
 
-    sourceKind: Literal["demo"]
+    sourceKind: Literal["demo", "local_audio"]
     sourceLabel: str
     roleFocus: list[str]
+    projectId: NotRequired[str]
+    localSource: NotRequired[LocalAudioSource]
+
+
+class LocalAudioSource(TypedDict):
+    """Typed local-audio source descriptor accepted by the engine."""
+
+    sourcePath: str
+    fileName: str
+    extension: Literal["wav", "mp3", "flac", "m4a"]
+    fileSizeBytes: int
 
 
 class AnalysisJobError(TypedDict):
@@ -125,7 +136,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if not isinstance(payload, dict):
         raise ValueError("Invalid analysis job request: invalid field 'root'")
 
-    allowed_keys = {"sourceKind", "sourceLabel", "roleFocus"}
+    allowed_keys = {"sourceKind", "sourceLabel", "roleFocus", "projectId", "localSource"}
     for key in payload:
         if key not in allowed_keys:
             raise ValueError(f"Invalid analysis job request: invalid field '{key}'")
@@ -133,8 +144,9 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     source_kind = payload.get("sourceKind")
     source_label = payload.get("sourceLabel")
     role_focus = payload.get("roleFocus")
+    project_id = payload.get("projectId")
 
-    if source_kind != "demo":
+    if source_kind not in {"demo", "local_audio"}:
         raise ValueError("Invalid analysis job request: invalid field 'sourceKind'")
     if not isinstance(source_label, str) or not source_label.strip():
         raise ValueError("Invalid analysis job request: invalid field 'sourceLabel'")
@@ -144,10 +156,50 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         if not isinstance(role, str):
             raise ValueError(f"Invalid analysis job request: invalid field 'roleFocus[{index}]'")
 
+    local_source = payload.get("localSource")
+    if source_kind == "demo":
+        if local_source is not None or project_id is not None:
+            raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+        return {
+            "sourceKind": source_kind,
+            "sourceLabel": source_label,
+            "roleFocus": role_focus,
+        }
+
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+    if local_source is None:
+        raise ValueError("Invalid analysis job request: invalid field 'localSource'")
+    if not isinstance(local_source, dict):
+        raise ValueError("Invalid analysis job request: invalid field 'localSource'")
+    allowed_local_keys = {"sourcePath", "fileName", "extension", "fileSizeBytes"}
+    for key in local_source:
+        if key not in allowed_local_keys:
+            raise ValueError(f"Invalid analysis job request: invalid field 'localSource.{key}'")
+    source_path = local_source.get("sourcePath")
+    file_name = local_source.get("fileName")
+    extension = local_source.get("extension")
+    file_size_bytes = local_source.get("fileSizeBytes")
+    if not isinstance(source_path, str) or not source_path.strip():
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
+    if not isinstance(file_name, str) or not file_name.strip():
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
+    if extension not in {"wav", "mp3", "flac", "m4a"}:
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.extension'")
+    if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
+
     return {
         "sourceKind": source_kind,
         "sourceLabel": source_label,
         "roleFocus": role_focus,
+        "projectId": project_id,
+        "localSource": {
+            "sourcePath": source_path,
+            "fileName": file_name,
+            "extension": extension,
+            "fileSizeBytes": file_size_bytes,
+        },
     }
 
 

@@ -48,8 +48,9 @@ Issue `#33` will add a local-file picker, validation, and typed project bootstra
 - React calls a new `select_local_audio_source` bridge helper.
 - Tauri opens a file dialog with a narrow audio extension allowlist.
 - Rust validates file existence, canonicalizes the path, checks extension and metadata baseline, creates app-owned directories, and returns a typed `LocalAudioSource` plus `ProjectBootstrapSummary`.
-- React then calls the existing orchestration path with `sourceKind: "local_audio"` and the new source metadata.
-- Python validates the expanded request shape and returns a structured success or invalid-request failure.
+- React then calls the existing orchestration path with `sourceKind: "local_audio"` and the issued `projectId` only.
+- Rust rehydrates the trusted source metadata from its stored bootstrap record before launching Python.
+- Python validates the Rust-owned expanded request shape and returns a structured success or invalid-request failure.
 
 ## Data Model
 
@@ -57,13 +58,13 @@ Shared contracts will expand to include:
 - `AnalysisSourceKind = "demo" | "local_audio"`
 - `LocalAudioSource`
 - `ProjectBootstrapSummary`
-- updated `AnalysisJobRequest` containing an optional `localSource` payload when `sourceKind` is `local_audio`
+- updated `AnalysisJobRequest` containing a required `projectId` when `sourceKind` is `local_audio`
 
 ## Error Handling
 
 - Unsupported extensions fail before orchestration starts.
 - Missing or unreadable selected files fail with safe, rehearsal-first copy.
-- Unknown or malformed `localSource` fields fail at TypeScript, Rust, and Python boundaries.
+- Unknown or malformed `projectId` or bootstrap-source lookups fail safely at TypeScript, Rust, and Python boundaries.
 - UI-visible failures avoid raw canonical paths and engine stderr.
 
 ## Testing
@@ -79,11 +80,17 @@ Shared contracts will expand to include:
 
 - file dialog selection payload
 - Rust path normalization and metadata handling
-- Python validation of local-source request payloads
+- Python validation of Rust-owned local-source request payloads
 
 ### Trust boundary
 
 - user-selected file -> Rust intake validation -> Python subprocess request validation
+
+### Realistic threats
+
+- malformed audio file metadata or fake extension
+- unexpected path resolution outside the user-selected file
+- leaking raw canonical paths into the UI or logs
 
 ### Mitigations
 
