@@ -38,14 +38,12 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install Syft
-        run: |
-          curl -sSfL -o "$RUNNER_TEMP/syft.tar.gz" "https://github.com/anchore/syft/releases/download/v1.20.0/syft_1.20.0_linux_amd64.tar.gz"
-          tar -xzf "$RUNNER_TEMP/syft.tar.gz" -C "$RUNNER_TEMP" syft
-
       - name: Generate CycloneDX SBOM
-        run: |
-          "$RUNNER_TEMP/syft" dir:. -o cyclonedx-json=bandscope-sbom.cdx.json
+        uses: anchore/sbom-action@57aae528053a48a3f6235f2d9461b05fbcb7366d # v0.23.1
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: bandscope-sbom.cdx.json
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
