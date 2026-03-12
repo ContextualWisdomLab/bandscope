@@ -377,7 +377,7 @@ fn run_analysis_engine(
         "request": request,
     });
 
-    if let Some(stdin) = process.stdin.as_mut() {
+    if let Some(mut stdin) = process.stdin.take() {
         if stdin.write_all(payload.to_string().as_bytes()).is_err() {
             let _ = process.kill();
             return failed_status(
