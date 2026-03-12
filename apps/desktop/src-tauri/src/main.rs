@@ -210,16 +210,9 @@ fn runtime_search_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent) = current_exe.parent() {
-            for ancestor in parent.ancestors() {
-                unique_push(&mut roots, ancestor.to_path_buf());
-            }
+            unique_push(&mut roots, parent.to_path_buf());
             unique_push(&mut roots, parent.join("resources"));
             unique_push(&mut roots, parent.join("../Resources"));
-        }
-    }
-    if let Ok(current_dir) = std::env::current_dir() {
-        for ancestor in current_dir.ancestors() {
-            unique_push(&mut roots, ancestor.to_path_buf());
         }
     }
     roots
@@ -266,7 +259,7 @@ fn analysis_command() -> (PathBuf, String, Vec<String>) {
         ];
 
         for candidate in candidates {
-            if candidate.exists() {
+            if candidate.is_file() {
                 return (
                     root,
                     candidate.to_string_lossy().into_owned(),
@@ -276,19 +269,10 @@ fn analysis_command() -> (PathBuf, String, Vec<String>) {
         }
     }
 
-    let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-
     (
-        working_dir,
-        "uv".into(),
-        vec![
-            "run".into(),
-            "--project".into(),
-            "services/analysis-engine".into(),
-            "python".into(),
-            "-m".into(),
-            "bandscope_analysis.cli".into(),
-        ],
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        "__bandscope_missing_analysis_python__".into(),
+        Vec::new(),
     )
 }
 
