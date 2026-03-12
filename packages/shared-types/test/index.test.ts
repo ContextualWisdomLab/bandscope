@@ -87,8 +87,6 @@ describe("shared type helpers", () => {
       state: "failed",
       requestedAt: failedStatus.requestedAt,
       updatedAt: failedStatus.updatedAt,
-      progressLabel: undefined,
-      result: undefined,
       error: {
         code: "engine_unavailable",
         message: "Analysis engine is unavailable."
@@ -99,9 +97,7 @@ describe("shared type helpers", () => {
       state: "queued",
       requestedAt: queuedStatus.requestedAt,
       updatedAt: queuedStatus.updatedAt,
-      progressLabel: "Queued for analysis",
-      result: undefined,
-      error: undefined
+      progressLabel: "Queued for analysis"
     });
     expect(isAnalysisJobStatus({
       jobId: "job-1",
@@ -183,6 +179,20 @@ describe("shared type helpers", () => {
       requestedAt: "2026-03-12T00:00:00.000Z",
       updatedAt: "2026-03-12T00:00:00.000Z",
       error: { code: "not_found" }
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "queued",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      extraField: true
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: { code: "not_found", message: "Missing", extraField: true }
     })).toBe(false);
   });
 
@@ -349,6 +359,97 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(badExportSummary)).toThrow("exportSummary");
     expect(() => parseRehearsalSong(missingId)).toThrow("id");
     expect(() => parseRehearsalSong(sparseSections)).toThrow("sections");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      extraField: true
+    })).toThrow("extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      exportSummary: {
+        ...createDemoRehearsalSong().exportSummary,
+        extraField: true
+      }
+    })).toThrow("exportSummary.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        extraField: true
+      }]
+    })).toThrow("sections[0].extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        confidence: {
+          ...createDemoRehearsalSong().sections[0].confidence,
+          extraField: true
+        },
+        roles: createDemoRehearsalSong().sections[0].roles
+      }]
+    })).toThrow("sections[0].confidence.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          extraField: true
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          harmony: {
+            ...createDemoRehearsalSong().sections[0].roles[0].harmony,
+            extraField: true
+          }
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].harmony.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          cue: {
+            ...createDemoRehearsalSong().sections[0].roles[0].cue,
+            extraField: true
+          }
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].cue.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          range: {
+            ...createDemoRehearsalSong().sections[0].roles[0].range,
+            extraField: true
+          }
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].range.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          manualOverrides: [{
+            ...createDemoRehearsalSong().sections[0].roles[2].manualOverrides[0],
+            extraField: true
+          }]
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].manualOverrides[0].extraField");
   });
 
   it("covers detailed validation branches", () => {

@@ -102,6 +102,30 @@ def test_cli_main_handles_non_mapping_payload(monkeypatch) -> None:
     assert response["state"] == "failed"
 
 
+def test_cli_main_rejects_invalid_job_id(monkeypatch) -> None:
+    """Ensure malformed job identifiers return a typed invalid-request error."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": 7,
+                "request": {
+                    "sourceKind": "demo",
+                    "sourceLabel": "Late Night Set",
+                    "roleFocus": ["bass-guitar"],
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 0
+    response = json.loads(stdout.getvalue())
+    assert response["error"]["message"] == "Invalid analysis job request: invalid field 'jobId'"
+
+
 def test_cli_main_handles_malformed_json(monkeypatch) -> None:
     """Ensure malformed JSON yields a typed invalid-request failure envelope."""
     stdin = io.StringIO("{")

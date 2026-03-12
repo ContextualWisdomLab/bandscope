@@ -16,7 +16,7 @@
   "analysisStateQueued": "Queued for analysis",
   "analysisStateRunning": "Running analysis",
   "analysisStateSucceeded": "Analysis ready",
-  "analysisStateFailed": "Analysis could not start.",
+  "analysisStateFailed": "Analysis failed during execution.",
   "confidenceLevelLow": "Low confidence",
   "confidenceLevelMedium": "Needs ear check",
   "confidenceLevelHigh": "Ready to trust",
