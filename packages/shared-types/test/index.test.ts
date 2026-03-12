@@ -33,6 +33,19 @@ describe("shared type helpers", () => {
       state: "succeeded",
       result: createDemoRehearsalSong()
     });
+    const queuedStatus = createAnalysisJobStatus({
+      jobId: "job-queued",
+      state: "queued",
+      progressLabel: "Queued for analysis"
+    });
+    const failedStatus = createAnalysisJobStatus({
+      jobId: "job-failed",
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis engine is unavailable."
+      }
+    });
 
     expect(request).toEqual({
       sourceKind: "demo",
@@ -47,6 +60,11 @@ describe("shared type helpers", () => {
       roleFocus: []
     })).toThrow("sourceKind");
     expect(() => parseAnalysisJobRequest({ sourceKind: "demo" })).toThrow("sourceLabel");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "   ",
+      roleFocus: []
+    })).toThrow("sourceLabel");
     expect(() => parseAnalysisJobRequest({
       sourceKind: "demo",
       sourceLabel: "Late Night Set",
@@ -64,6 +82,27 @@ describe("shared type helpers", () => {
       extraField: true
     })).toThrow("extraField");
     expect(isAnalysisJobStatus(status)).toBe(true);
+    expect(failedStatus).toEqual({
+      jobId: "job-failed",
+      state: "failed",
+      requestedAt: failedStatus.requestedAt,
+      updatedAt: failedStatus.updatedAt,
+      progressLabel: undefined,
+      result: undefined,
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis engine is unavailable."
+      }
+    });
+    expect(queuedStatus).toEqual({
+      jobId: "job-queued",
+      state: "queued",
+      requestedAt: queuedStatus.requestedAt,
+      updatedAt: queuedStatus.updatedAt,
+      progressLabel: "Queued for analysis",
+      result: undefined,
+      error: undefined
+    });
     expect(isAnalysisJobStatus({
       jobId: "job-1",
       state: "failed",

@@ -2,6 +2,7 @@ import enCommon from "../locales/en/common.json";
 import koCommon from "../locales/ko/common.json";
 
 export type Locale = "en" | "ko";
+export type TranslationKey = keyof typeof enCommon;
 
 const dictionaries = {
   en: enCommon,
@@ -9,7 +10,7 @@ const dictionaries = {
 } as const;
 
 export function createTranslator(locale: Locale = "en") {
-  return function t(key: keyof typeof enCommon): string {
+  return function t(key: TranslationKey): string {
     return dictionaries[locale][key] ?? dictionaries.en[key];
   };
 }
