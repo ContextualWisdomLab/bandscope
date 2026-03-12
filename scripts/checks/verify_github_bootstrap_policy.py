@@ -1,3 +1,5 @@
+"""Verify that GitHub bootstrap policy docs are present and referenced."""
+
 from pathlib import Path
 
 
@@ -16,6 +18,7 @@ REQUIRED_POLICY_TEXT = [
 
 
 def main() -> int:
+    """Return a failing exit code when bootstrap policy docs drift out of sync."""
     if not REQUIRED_PATH.exists():
         print(f"Missing GitHub bootstrap policy: {REQUIRED_PATH}")
         return 1

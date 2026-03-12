@@ -1,3 +1,5 @@
+"""Tests for desktop release packaging helpers and artifact metadata."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,6 +10,7 @@ from conftest import load_module
 def test_release_packaging_includes_architecture_in_artifact_identity(
     monkeypatch,
 ) -> None:
+    """Ensure artifact names encode the selected platform and architecture."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact"
     )
@@ -26,7 +29,34 @@ def test_release_packaging_includes_architecture_in_artifact_identity(
     }
 
 
+def test_release_packaging_derives_artifact_identity_from_target_triple(
+    monkeypatch,
+) -> None:
+    """Ensure target triples drive archive naming when explicit artifact env vars are absent."""
+    packaging = load_module(
+        "scripts/release/package_desktop_artifact.py",
+        "package_desktop_artifact_identity_target",
+    )
+
+    monkeypatch.setenv("GITHUB_SHA", "fedcba9876543210")
+    monkeypatch.delenv("BANDSCOPE_ARTIFACT_OS", raising=False)
+    monkeypatch.delenv("BANDSCOPE_ARTIFACT_ARCH", raising=False)
+    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
+    monkeypatch.setattr(packaging.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(packaging.platform, "machine", lambda: "arm64")
+
+    artifact = packaging.artifact_identity()
+
+    assert artifact == {
+        "platform": "windows",
+        "arch": "amd64",
+        "archive_name": "bandscope-windows-amd64-fedcba987654.zip",
+        "manifest_name": "bandscope-windows-amd64-fedcba987654.manifest.txt",
+    }
+
+
 def test_expected_binary_path_uses_target_triple_when_provided(monkeypatch, tmp_path: Path) -> None:
+    """Ensure target triples redirect packaging to the expected Tauri output path."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_target"
     )
@@ -47,7 +77,34 @@ def test_expected_binary_path_uses_target_triple_when_provided(monkeypatch, tmp_
     )
 
 
+def test_expected_binary_path_derives_windows_extension_from_target_triple(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Ensure Windows target triples select the .exe packaging path on non-Windows hosts."""
+    packaging = load_module(
+        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_windows_target"
+    )
+
+    monkeypatch.delenv("BANDSCOPE_ARTIFACT_OS", raising=False)
+    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
+    monkeypatch.setattr(packaging.platform, "system", lambda: "Darwin")
+
+    binary_path = packaging.expected_binary_path(tmp_path)
+
+    assert binary_path == (
+        tmp_path
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "x86_64-pc-windows-msvc"
+        / "release"
+        / "bandscope-desktop.exe"
+    )
+
+
 def test_release_packaging_maps_darwin_to_macos(monkeypatch) -> None:
+    """Ensure Darwin hosts map to the repository's canonical macOS label."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_platform"
     )
@@ -59,6 +116,7 @@ def test_release_packaging_maps_darwin_to_macos(monkeypatch) -> None:
 
 
 def test_release_packaging_main_writes_arch_specific_manifest(monkeypatch, tmp_path: Path) -> None:
+    """Ensure the packaging entry point writes an architecture-aware manifest."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_main"
     )
