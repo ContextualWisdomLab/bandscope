@@ -77,12 +77,40 @@ export type RehearsalSong = {
   exportSummary: ExportSummary;
 };
 
+export type AnalysisSourceKind = "demo";
+export type AnalysisJobState = "queued" | "running" | "succeeded" | "failed";
+export type AnalysisJobErrorCode = "invalid_request" | "not_found" | "engine_unavailable";
+
+export type AnalysisJobRequest = {
+  sourceKind: AnalysisSourceKind;
+  sourceLabel: string;
+  roleFocus: string[];
+};
+
+export type AnalysisJobError = {
+  code: AnalysisJobErrorCode;
+  message: string;
+};
+
+export type AnalysisJobStatus = {
+  jobId: string;
+  state: AnalysisJobState;
+  requestedAt: string;
+  updatedAt: string;
+  progressLabel?: string;
+  result?: RehearsalSong;
+  error?: AnalysisJobError;
+};
+
 const CONFIDENCE_LEVELS = ["low", "medium", "high"] as const;
 const REHEARSAL_PRIORITIES = ["low", "medium", "high"] as const;
 const PROVENANCE_SOURCES = ["model", "user"] as const;
 const CUE_ANCHOR_KINDS = ["lyric", "count", "transition"] as const;
 const ROLE_TYPES = ["instrument", "vocal", "hand"] as const;
 const EXPORT_FORMATS = ["cue-sheet", "chart-summary"] as const;
+const ANALYSIS_SOURCE_KINDS = ["demo"] as const;
+const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
+const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -229,6 +257,131 @@ export function createDefaultProjectSummary(input: {
 
 export function createDemoRehearsalSong(): RehearsalSong {
   return structuredClone(demoRehearsalSongSeed);
+}
+
+export function createDemoAnalysisJobRequest(): AnalysisJobRequest {
+  return {
+    sourceKind: "demo",
+    sourceLabel: demoRehearsalSongSeed.title,
+    roleFocus: demoRehearsalSongSeed.sections[0].roles.map((role) => role.id)
+  };
+}
+
+export function createAnalysisJobStatus(input: {
+  jobId: string;
+  state: AnalysisJobState;
+  result?: RehearsalSong;
+  error?: AnalysisJobError;
+  progressLabel?: string;
+  requestedAt?: string;
+  updatedAt?: string;
+}): AnalysisJobStatus {
+  const now = new Date().toISOString();
+  return {
+    jobId: input.jobId,
+    state: input.state,
+    requestedAt: input.requestedAt ?? now,
+    updatedAt: input.updatedAt ?? now,
+    progressLabel: input.progressLabel,
+    result: input.result,
+    error: input.error
+  };
+}
+
+function validateAnalysisJobRequest(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return "Invalid analysis job request: invalid field 'root'";
+  }
+  if (!isOneOf(ANALYSIS_SOURCE_KINDS, value.sourceKind)) {
+    return "Invalid analysis job request: invalid field 'sourceKind'";
+  }
+  if (typeof value.sourceLabel !== "string") {
+    return "Invalid analysis job request: invalid field 'sourceLabel'";
+  }
+  if (!isDenseArray(value.roleFocus)) {
+    return "Invalid analysis job request: invalid field 'roleFocus'";
+  }
+  for (const [index, role] of value.roleFocus.entries()) {
+    if (typeof role !== "string") {
+      return `Invalid analysis job request: invalid field 'roleFocus[${index}]'`;
+    }
+  }
+  const allowedKeys = new Set(["sourceKind", "sourceLabel", "roleFocus"]);
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) {
+      return `Invalid analysis job request: invalid field '${key}'`;
+    }
+  }
+
+  return null;
+}
+
+export function parseAnalysisJobRequest(value: unknown): AnalysisJobRequest {
+  const validationError = validateAnalysisJobRequest(value);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  return structuredClone(value as AnalysisJobRequest);
+}
+
+function validateAnalysisJobError(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  if (!isOneOf(ANALYSIS_JOB_ERROR_CODES, value.code)) {
+    return invalidField(`${path}.code`);
+  }
+  if (typeof value.message !== "string") {
+    return invalidField(`${path}.message`);
+  }
+
+  return null;
+}
+
+function validateAnalysisJobStatus(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return invalidField("root");
+  }
+  if (typeof value.jobId !== "string") {
+    return invalidField("jobId");
+  }
+  if (!isOneOf(ANALYSIS_JOB_STATES, value.state)) {
+    return invalidField("state");
+  }
+  if (typeof value.requestedAt !== "string") {
+    return invalidField("requestedAt");
+  }
+  if (typeof value.updatedAt !== "string") {
+    return invalidField("updatedAt");
+  }
+  if (value.progressLabel !== undefined && typeof value.progressLabel !== "string") {
+    return invalidField("progressLabel");
+  }
+  if (value.result !== undefined) {
+    const resultError = validateRehearsalSong(value.result);
+    if (resultError) {
+      return resultError;
+    }
+  }
+  if (value.error !== undefined) {
+    const errorValidation = validateAnalysisJobError(value.error, "error");
+    if (errorValidation) {
+      return errorValidation;
+    }
+  }
+  if (value.state === "succeeded" && value.result === undefined) {
+    return invalidField("result");
+  }
+  if (value.state === "failed" && value.error === undefined) {
+    return invalidField("error");
+  }
+
+  return null;
+}
+
+export function isAnalysisJobStatus(value: unknown): value is AnalysisJobStatus {
+  return validateAnalysisJobStatus(value) === null;
 }
 
 function validateConfidenceMarker(value: unknown, path: string): string | null {
