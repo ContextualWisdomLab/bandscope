@@ -98,6 +98,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Validate all IPC and local backend payloads against strict schemas.
 - Reject unknown commands, unknown fields, and malformed payloads by default.
 - If a local HTTP service exists, consider per-session tokens or equivalent anti-cross-process protection.
+- For the current orchestration slice, prefer stdin/stdout JSON exchange with an allowlisted Python subprocess over opening a new local HTTP listener.
 
 ### WebView and UI rendering
 

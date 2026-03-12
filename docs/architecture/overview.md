@@ -35,6 +35,7 @@ GitHub is the source of truth for repository governance, PR review, CI/CD, Code 
 - prefer local processing for audio and analysis
 - keep risky capabilities narrow, allowlisted, and explicit
 - treat files, URLs, models, caches, and release artifacts as untrusted inputs
+- route orchestration through typed Tauri IPC and a narrow Python subprocess bridge before considering any loopback HTTP surface
 
 ## CI/CD and release flow
 
