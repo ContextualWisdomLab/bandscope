@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from bandscope_analysis.health import HealthReport, build_health_report
 
@@ -31,16 +31,16 @@ class RehearsalSong(TypedDict):
     exportSummary: dict[str, object]
 
 
-class AnalysisJobStatus(TypedDict, total=False):
+class AnalysisJobStatus(TypedDict):
     """Typed analysis job snapshot shared with the desktop orchestrator."""
 
     jobId: str
     state: Literal["queued", "running", "succeeded", "failed"]
     requestedAt: str
     updatedAt: str
-    progressLabel: str
-    result: RehearsalSong
-    error: AnalysisJobError
+    progressLabel: NotRequired[str]
+    result: NotRequired[RehearsalSong]
+    error: NotRequired[AnalysisJobError]
 
 
 def get_analysis_status() -> HealthReport:
@@ -64,12 +64,13 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
     if source_kind != "demo":
         raise ValueError("Invalid analysis job request: invalid field 'sourceKind'")
-    if not isinstance(source_label, str):
+    if not isinstance(source_label, str) or not source_label.strip():
         raise ValueError("Invalid analysis job request: invalid field 'sourceLabel'")
     if not isinstance(role_focus, list):
         raise ValueError("Invalid analysis job request: invalid field 'roleFocus'")
-    if not all(isinstance(role, str) for role in role_focus):
-        raise ValueError("Invalid analysis job request: invalid field 'roleFocus[0]'")
+    for index, role in enumerate(role_focus):
+        if not isinstance(role, str):
+            raise ValueError(f"Invalid analysis job request: invalid field 'roleFocus[{index}]'")
 
     return {
         "sourceKind": source_kind,
