@@ -16,4 +16,5 @@ BandScope treats GitHub Code Security as part of bootstrap governance.
 
 - `main` and `develop` must require the stable checks documented in `docs/repository/bootstrap-plan.md`
 - Code Security controls must not be arbitrarily disabled or bypassed
+- External AI-review status contexts may be requested but should not be the sole required status gate when the provider is operationally flaky.
 - missing permissions to enable GitHub-native controls are `BLOCKED`, not justification to weaken the baseline
