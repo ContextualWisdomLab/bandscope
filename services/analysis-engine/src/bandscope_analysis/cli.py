@@ -31,10 +31,20 @@ def main() -> int:
     except json.JSONDecodeError as error:
         json.dump(failed_cli_response(f"Invalid analysis job request: {error.msg}"), sys.stdout)
         return 0
-    job_id = payload.get("jobId", "unknown-job") if isinstance(payload, dict) else "unknown-job"
-    request = payload.get("request") if isinstance(payload, dict) else payload
+    if not isinstance(payload, dict):
+        json.dump(
+            failed_cli_response("Invalid analysis job request: invalid field 'root'"), sys.stdout
+        )
+        return 0
+    job_id = payload.get("jobId")
+    if not isinstance(job_id, str) or not job_id.strip():
+        json.dump(
+            failed_cli_response("Invalid analysis job request: invalid field 'jobId'"), sys.stdout
+        )
+        return 0
+    request = payload.get("request")
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    response = run_analysis_job(str(job_id), request, requested_at)
+    response = run_analysis_job(job_id, request, requested_at)
     json.dump(response, sys.stdout)
     return 0
 
