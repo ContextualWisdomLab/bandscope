@@ -1,8 +1,12 @@
 import {
+  createAnalysisJobStatus,
+  createDemoAnalysisJobRequest,
   createDefaultProjectSummary,
   createDemoRehearsalSong,
   isRehearsalSong,
+  isAnalysisJobStatus,
   parseRehearsalSong,
+  parseAnalysisJobRequest,
   type RehearsalSong,
   SUPPORTED_AUDIO_FORMATS
 } from "../src/index";
@@ -20,6 +24,176 @@ describe("shared type helpers", () => {
       status: "idle",
       supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
     });
+  });
+
+  it("validates analysis job requests and status envelopes", () => {
+    const request = createDemoAnalysisJobRequest();
+    const status = createAnalysisJobStatus({
+      jobId: "job-1",
+      state: "succeeded",
+      result: createDemoRehearsalSong()
+    });
+    const queuedStatus = createAnalysisJobStatus({
+      jobId: "job-queued",
+      state: "queued",
+      progressLabel: "Queued for analysis"
+    });
+    const failedStatus = createAnalysisJobStatus({
+      jobId: "job-failed",
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis engine is unavailable."
+      }
+    });
+
+    expect(request).toEqual({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
+    });
+    expect(parseAnalysisJobRequest(request)).toEqual(request);
+    expect(() => parseAnalysisJobRequest(null)).toThrow("root");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "file",
+      sourceLabel: "Late Night Set",
+      roleFocus: []
+    })).toThrow("sourceKind");
+    expect(() => parseAnalysisJobRequest({ sourceKind: "demo" })).toThrow("sourceLabel");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "   ",
+      roleFocus: []
+    })).toThrow("sourceLabel");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: {}
+    })).toThrow("roleFocus");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: [7]
+    })).toThrow("roleFocus[0]");
+    expect(() => parseAnalysisJobRequest({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar"],
+      extraField: true
+    })).toThrow("extraField");
+    expect(isAnalysisJobStatus(status)).toBe(true);
+    expect(failedStatus).toEqual({
+      jobId: "job-failed",
+      state: "failed",
+      requestedAt: failedStatus.requestedAt,
+      updatedAt: failedStatus.updatedAt,
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis engine is unavailable."
+      }
+    });
+    expect(queuedStatus).toEqual({
+      jobId: "job-queued",
+      state: "queued",
+      requestedAt: queuedStatus.requestedAt,
+      updatedAt: queuedStatus.updatedAt,
+      progressLabel: "Queued for analysis"
+    });
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: {
+        code: "not_found",
+        message: "Missing"
+      }
+    })).toBe(true);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "succeeded",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus(null)).toBe(false);
+    expect(isAnalysisJobStatus({
+      state: "queued",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "unknown",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "queued",
+      requestedAt: 1,
+      updatedAt: "2026-03-12T00:00:00.000Z"
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "queued",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: 1
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "queued",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      progressLabel: 42
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "succeeded",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      result: { id: "bad" }
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: []
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: { code: "bad_code", message: "oops" }
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: { code: "not_found" }
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "queued",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      extraField: true
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "failed",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      error: { code: "not_found", message: "Missing", extraField: true }
+    })).toBe(false);
   });
 
   it("creates a rehearsal song with section and role level guidance", () => {
@@ -185,6 +359,97 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(badExportSummary)).toThrow("exportSummary");
     expect(() => parseRehearsalSong(missingId)).toThrow("id");
     expect(() => parseRehearsalSong(sparseSections)).toThrow("sections");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      extraField: true
+    })).toThrow("extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      exportSummary: {
+        ...createDemoRehearsalSong().exportSummary,
+        extraField: true
+      }
+    })).toThrow("exportSummary.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        extraField: true
+      }]
+    })).toThrow("sections[0].extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        confidence: {
+          ...createDemoRehearsalSong().sections[0].confidence,
+          extraField: true
+        },
+        roles: createDemoRehearsalSong().sections[0].roles
+      }]
+    })).toThrow("sections[0].confidence.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          extraField: true
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          harmony: {
+            ...createDemoRehearsalSong().sections[0].roles[0].harmony,
+            extraField: true
+          }
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].harmony.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          cue: {
+            ...createDemoRehearsalSong().sections[0].roles[0].cue,
+            extraField: true
+          }
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].cue.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          range: {
+            ...createDemoRehearsalSong().sections[0].roles[0].range,
+            extraField: true
+          }
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].range.extraField");
+    expect(() => parseRehearsalSong({
+      ...createDemoRehearsalSong(),
+      sections: [{
+        ...createDemoRehearsalSong().sections[0],
+        roles: [{
+          ...createDemoRehearsalSong().sections[0].roles[0],
+          manualOverrides: [{
+            ...createDemoRehearsalSong().sections[0].roles[2].manualOverrides[0],
+            extraField: true
+          }]
+        }]
+      }]
+    })).toThrow("sections[0].roles[0].manualOverrides[0].extraField");
   });
 
   it("covers detailed validation branches", () => {

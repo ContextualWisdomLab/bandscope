@@ -1,0 +1,1 @@
+{"main-capability":{"identifier":"main-capability","description":"Capability for the main BandScope window to use the analysis orchestration commands.","local":true,"windows":["main"],"permissions":["core:default","allow-start-analysis-job","allow-get-analysis-job-status"]}}
