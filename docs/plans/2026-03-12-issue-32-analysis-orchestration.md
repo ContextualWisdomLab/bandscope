@@ -202,3 +202,37 @@ cd services/analysis-engine && uv run pytest tests -q
 git add ARCHITECTURE.md docs/architecture/overview.md docs/security/app-security.md
 git commit -m "docs: record analysis orchestration boundary"
 ```
+
+## Security Notes
+
+### Attack surface
+
+- React invoke payloads
+- Tauri command handlers
+- Python subprocess stdin/stdout transport
+
+### Trust boundary
+
+- frontend -> Tauri IPC -> Python subprocess
+
+### Mitigations
+
+- allowlisted commands only
+- strict request/status schema validation in TypeScript, Rust, and Python
+- redacted engine failures instead of raw stderr exposure
+
+### Test points
+
+- malformed request rejection
+- unknown job id failure envelope
+- subprocess failure mapping to safe typed errors
+
+### Realistic threats
+
+- malformed IPC payload injection
+- unknown-command use
+- raw local path or engine-detail leakage
+
+### Remaining risk
+
+- later file-backed orchestration work must keep the same validation posture when real source paths arrive
