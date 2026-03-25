@@ -45,6 +45,14 @@
 
 ## Architecture references
 - `ARCHITECTURE.md`
+- `docs/engineering/acceptance-criteria.md`
+- `docs/engineering/harness-engineering.md`
+- `docs/workflow/one-day-delivery-plan.md`
+- `docs/workflow/pr-continuity.md`
+- `docs/agents/README.md`
+- `docs/coderabbit/review-commands.md`
+- `docs/security/api-security-checklist.md`
+- `docs/operations/deploy-runbook.md`
 - `docs/brand-story.md`
 - `docs/security/app-security.md`
 - `docs/security/dependency-policy.md`
