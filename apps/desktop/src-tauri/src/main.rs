@@ -480,6 +480,16 @@ fn run_analysis_engine(
     requested_at: String,
 ) -> AnalysisJobStatus {
     let (working_dir, program, args) = analysis_command();
+
+    if program == "__bandscope_missing_analysis_python__" {
+        return failed_status(
+            job_id,
+            requested_at,
+            AnalysisJobErrorCode::EngineUnavailable,
+            "Analysis engine is unavailable.",
+        );
+    }
+
     let mut process = match Command::new(program)
         .args(args)
         .current_dir(working_dir)
