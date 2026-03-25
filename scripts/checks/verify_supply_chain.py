@@ -16,6 +16,7 @@ REQUIRED_FILES = [
     Path(".github/workflows/release.yml"),
     Path(".github/workflows/secret-scan-gate.yml"),
     Path(".github/workflows/build-baseline.yml"),
+    Path(".github/workflows/ossf-scorecard.yml"),
     Path("docs/security/dependency-policy.md"),
     Path("docs/security/sbom-policy.md"),
     Path("docs/security/code-security.md"),
@@ -156,6 +157,12 @@ def verify_workflow_coverage() -> list[str]:
         missing.append(
             "build workflow should not rely on macos-latest for architecture coverage"
         )
+    scorecard = read_workflow(
+        Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
+    )
+    for token in ["develop", "main", "push", "schedule", "ossf-scorecard"]:
+        if scorecard and token not in scorecard:
+            missing.append(f"ossf scorecard workflow missing token: {token}")
     return missing
 
 
