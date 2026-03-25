@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 
 class RoleType(str, Enum):
@@ -64,8 +64,8 @@ class ManualOverride(TypedDict):
     """A manual override applied to a role field."""
 
     field: str
-    previousValue: str
-    reason: str
+    value: dict[str, Any]
+    source: str
 
 
 class RehearsalRole(TypedDict):

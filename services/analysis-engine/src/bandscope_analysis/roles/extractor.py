@@ -27,7 +27,7 @@ class RoleExtractor:
 
     def extract(
         self,
-        sections: list[dict[str, Any]],
+        sections: list[Any],
         audio_features: dict[str, Any] | None = None,
     ) -> RoleExtractionResult:
         """Extract roles and their topology per section.

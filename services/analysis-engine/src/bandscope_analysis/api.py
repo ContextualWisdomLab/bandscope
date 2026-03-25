@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict, cast
 
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
@@ -212,7 +212,7 @@ def build_demo_rehearsal_song() -> RehearsalSong:
     arrangement = [{"label": "verse", "groove": "Straight eighths with a late snare feel"}]
     extraction_result = extract_sections(arrangement)
     verse_section = extraction_result["sections"][0]
-    
+
     # Extract roles
     extractor = RoleExtractor()
     role_result = extractor.extract([verse_section])
@@ -231,7 +231,7 @@ def build_demo_rehearsal_song() -> RehearsalSong:
                     "source": "model",
                     "notes": "Double-check the pickup into the chorus.",
                 },
-                "roles": verse_roles,
+                "roles": cast(list[RehearsalRolePayload], verse_roles),
             }
         ],
         "exportSummary": {
