@@ -1,7 +1,6 @@
 name: ossf-scorecard
 
 on:
-  branch_protection_rule:
   schedule:
     - cron: '30 1 * * 1'
   push:
