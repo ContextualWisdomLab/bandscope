@@ -18,6 +18,22 @@ Last updated: 2026-03-11
 - Dependency and SBOM policy lives in `docs/security/dependency-policy.md`.
 - Intended required checks for `main` and `develop` live in `docs/security/github-required-checks.md`.
 
+## Engineering acceptance and workflow source
+
+- Repository completion criteria live in `docs/engineering/acceptance-criteria.md`.
+- Harness/runtime verification guidance lives in `docs/engineering/harness-engineering.md`.
+- Canonical delivery flow lives in `docs/workflow/one-day-delivery-plan.md`.
+- PR canonicalization and duplicate-handling policy lives in `docs/workflow/pr-continuity.md`.
+
+## Agent and review operations source
+
+- Agent/subagent/skill usage baseline lives in `docs/agents/README.md`.
+- CodeRabbit command and review handling baseline lives in `docs/coderabbit/review-commands.md`.
+
+## Deployment and runtime verification source
+
+- Deployment/release/runtime verification runbook lives in `docs/operations/deploy-runbook.md`.
+
 ## Cross-platform build source
 
 - Windows and macOS build security policy lives in `docs/security/cross-platform-build-policy.md`.
