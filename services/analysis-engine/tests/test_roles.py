@@ -69,8 +69,8 @@ def test_role_extractor_basic():
 
     verse_graph = verse_topology["part_graph"]
     assert len(verse_graph) == 3
-    assert verse_graph[1]['role_id'] == 'keys-right'
-    assert verse_graph[1]['is_active'] is False
+    assert verse_graph[1]["role_id"] == "keys-right"
+    assert verse_graph[1]["is_active"] is False
     assert verse_graph[0]["role_id"] == "bass-guitar"
     assert verse_graph[0]["handoff_to"] == []
 
@@ -80,6 +80,7 @@ def test_role_extractor_empty():
     extractor = RoleExtractor()
     result = extractor.extract([])
     assert result["topologies"] == []
+
 
 def test_role_extractor_invalid_section():
     """Test that RoleExtractor handles non-dict sections gracefully."""
