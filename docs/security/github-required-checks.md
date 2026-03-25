@@ -10,6 +10,7 @@ These are the merge-gate status checks that should be required on protected bran
 - `dependency-review`
 - `security-audit`
 - `CodeQL`
+- `trivy-fs-scan`
 - `sbom`
 - `release-preflight`
 - `gate / build / windows`
@@ -24,6 +25,7 @@ These are the merge-gate status checks that should be required on protected bran
 - `dependency-review`
 - `security-audit`
 - `CodeQL`
+- `trivy-fs-scan`
 - `sbom`
 - `release-preflight`
 - `gate / build / windows`
