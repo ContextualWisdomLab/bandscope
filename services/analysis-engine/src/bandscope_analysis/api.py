@@ -87,6 +87,7 @@ class RehearsalRolePayload(TypedDict):
     simplification: str
     setupNote: str
     manualOverrides: list[ManualOverridePayload]
+    overlapWarnings: list[str]
 
 
 class PartGraphNodePayload(TypedDict):
