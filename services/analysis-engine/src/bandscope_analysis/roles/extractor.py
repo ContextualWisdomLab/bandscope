@@ -73,6 +73,35 @@ class RoleExtractor:
                 "simplification": "Stay on roots if the chorus entrance gets muddy.",
                 "setupNote": "Keep the attack short so the verse breathes.",
                 "manualOverrides": [],
+                "overlapWarnings": [
+                    "Density warning: competing with Keyboard Left Hand in low register."
+                ],
+            }
+
+            keys_left_role: RehearsalRole = {
+                "id": "keys-left",
+                "name": "Keyboard 1 Left Hand",
+                "roleType": RoleType.HAND,
+                "harmony": {
+                    "chord": "C#",
+                    "functionLabel": "Root reinforcement",
+                    "source": "model",
+                },
+                "cue": {
+                    "kind": CueAnchorKind.TRANSITION,
+                    "value": "Lock in with bass pedal.",
+                },
+                "range": {"lowestNote": "C#2", "highestNote": "C#3"},
+                "confidence": {
+                    "level": "low",
+                    "source": "model",
+                    "notes": "Muddy frequency range, difficult to clearly separate from bass.",
+                },
+                "rehearsalPriority": RehearsalPriority.MEDIUM,
+                "simplification": "Omit if bass is covering the lower register.",
+                "setupNote": "Use a darker patch to avoid clashing with right hand.",
+                "manualOverrides": [],
+                "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
             }
 
             keys_role: RehearsalRole = {
@@ -98,6 +127,7 @@ class RoleExtractor:
                 "simplification": "Drop top extension if the chorus turnaround feels busy.",
                 "setupNote": "Keep the patch bright enough to stay over the guitars.",
                 "manualOverrides": [],
+                "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
             }
 
             vocal_role: RehearsalRole = {
@@ -130,6 +160,7 @@ class RoleExtractor:
                         "source": "user",
                     }
                 ],
+                "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
             }
 
             active_roles = [bass_role]
@@ -140,9 +171,15 @@ class RoleExtractor:
             ]
 
             if i == 0:
-                active_roles.extend([keys_role, vocal_role])
+                active_roles.extend([keys_left_role, keys_role, vocal_role])
                 part_graph.extend(
                     [
+                        {
+                            "role_id": "keys-left",
+                            "is_active": True,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
                         {
                             "role_id": "keys-right",
                             "is_active": True,
@@ -158,10 +195,16 @@ class RoleExtractor:
                     ]
                 )
                 part_graph[0]["handoff_to"].append("lead-vocal")
-                part_graph[2]["handoff_from"].append("bass-guitar")
+                part_graph[3]["handoff_from"].append("bass-guitar")
             else:
                 part_graph.extend(
                     [
+                        {
+                            "role_id": "keys-left",
+                            "is_active": False,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
                         {
                             "role_id": "keys-right",
                             "is_active": False,

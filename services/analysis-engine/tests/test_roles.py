@@ -8,28 +8,28 @@ from bandscope_analysis.roles.model import (
 )
 
 
-def test_role_type_enum():
+def test_role_type_enum() -> None:
     """Verify RoleType enum values match the domain requirements."""
-    assert RoleType.INSTRUMENT == "instrument"
-    assert RoleType.VOCAL == "vocal"
-    assert RoleType.HAND == "hand"
+    assert RoleType.INSTRUMENT.value == "instrument"
+    assert RoleType.VOCAL.value == "vocal"
+    assert RoleType.HAND.value == "hand"
 
 
-def test_rehearsal_priority_enum():
+def test_rehearsal_priority_enum() -> None:
     """Verify RehearsalPriority enum values match."""
-    assert RehearsalPriority.LOW == "low"
-    assert RehearsalPriority.MEDIUM == "medium"
-    assert RehearsalPriority.HIGH == "high"
+    assert RehearsalPriority.LOW.value == "low"
+    assert RehearsalPriority.MEDIUM.value == "medium"
+    assert RehearsalPriority.HIGH.value == "high"
 
 
-def test_cue_anchor_kind_enum():
+def test_cue_anchor_kind_enum() -> None:
     """Verify CueAnchorKind enum values match."""
-    assert CueAnchorKind.LYRIC == "lyric"
-    assert CueAnchorKind.COUNT == "count"
-    assert CueAnchorKind.TRANSITION == "transition"
+    assert CueAnchorKind.LYRIC.value == "lyric"
+    assert CueAnchorKind.COUNT.value == "count"
+    assert CueAnchorKind.TRANSITION.value == "transition"
 
 
-def test_role_extractor_basic():
+def test_role_extractor_basic() -> None:
     """Test that RoleExtractor returns a valid topology structure."""
     extractor = RoleExtractor()
 
@@ -44,13 +44,15 @@ def test_role_extractor_basic():
     # Check intro section
     intro_topology = result["topologies"][0]
     assert intro_topology["section_id"] == "intro"
-    assert len(intro_topology["active_roles"]) == 3
+    assert len(intro_topology["active_roles"]) == 4
 
     roles_by_id = {r["id"]: r for r in intro_topology["active_roles"]}
     assert "bass-guitar" in roles_by_id
     assert "lead-vocal" in roles_by_id
     assert "keys-right" in roles_by_id
+    assert "keys-left" in roles_by_id
     assert roles_by_id["lead-vocal"]["roleType"] == "vocal"
+    assert "Melodic overlap" in roles_by_id["lead-vocal"]["overlapWarnings"][0]
 
     intro_graph = intro_topology["part_graph"]
     graph_by_role = {n["role_id"]: n for n in intro_graph}
@@ -66,23 +68,26 @@ def test_role_extractor_basic():
     assert verse_topology["active_roles"][0]["id"] == "bass-guitar"
     assert verse_topology["active_roles"][0]["roleType"] == "instrument"
     assert verse_topology["active_roles"][0]["rehearsalPriority"] == "high"
+    assert "Density warning" in verse_topology["active_roles"][0]["overlapWarnings"][0]
 
     verse_graph = verse_topology["part_graph"]
-    assert len(verse_graph) == 3
-    assert verse_graph[1]["role_id"] == "keys-right"
+    assert len(verse_graph) == 4
+    assert verse_graph[1]["role_id"] == "keys-left"
     assert verse_graph[1]["is_active"] is False
+    assert verse_graph[2]["role_id"] == "keys-right"
+    assert verse_graph[2]["is_active"] is False
     assert verse_graph[0]["role_id"] == "bass-guitar"
     assert verse_graph[0]["handoff_to"] == []
 
 
-def test_role_extractor_empty():
+def test_role_extractor_empty() -> None:
     """Test extractor with empty sections list."""
     extractor = RoleExtractor()
     result = extractor.extract([])
     assert result["topologies"] == []
 
 
-def test_role_extractor_invalid_section():
+def test_role_extractor_invalid_section() -> None:
     """Test that RoleExtractor handles non-dict sections gracefully."""
     extractor = RoleExtractor()
     sections = [{"id": "intro"}, "invalid-section-string"]
