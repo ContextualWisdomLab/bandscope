@@ -7,6 +7,7 @@ BandScope treats GitHub Code Security as part of bootstrap governance.
 ## Required controls
 
 - CodeQL or equivalent code scanning workflow
+- Trivy filesystem vulnerability scan
 - dependency review on pull requests
 - security audit workflow for npm, Python, and Rust dependencies in scope
 - Dependabot alerts and security updates
