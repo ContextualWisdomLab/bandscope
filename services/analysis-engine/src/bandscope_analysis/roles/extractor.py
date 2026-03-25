@@ -28,13 +28,13 @@ class RoleExtractor:
     def extract(
         self,
         sections: list[Any],
-        audio_features: dict[str, Any] | None = None,
+        _audio_features: dict[str, Any] | None = None,
     ) -> RoleExtractionResult:
         """Extract roles and their topology per section.
 
         Args:
             sections: List of section dicts (must contain 'id').
-            audio_features: Optional audio features to inform extraction.
+            _audio_features: Optional audio features to inform extraction.
 
         Returns:
             RoleExtractionResult containing topologies and notes.
@@ -49,10 +49,10 @@ class RoleExtractor:
             bass_role: RehearsalRole = {
                 "id": "bass-guitar",
                 "name": "Bass Guitar",
-                "roleType": RoleType.INSTRUMENT.value,
+                "roleType": RoleType.INSTRUMENT,
                 "harmony": {"chord": "C#m7", "functionLabel": "vi pedal anchor", "source": "model"},
                 "cue": {
-                    "kind": CueAnchorKind.TRANSITION.value,
+                    "kind": CueAnchorKind.TRANSITION,
                     "value": "Hold through the pickup before the downbeat.",
                 },
                 "range": {"lowestNote": "C#2", "highestNote": "E3"},
@@ -61,7 +61,7 @@ class RoleExtractor:
                     "source": "model",
                     "notes": "Watch the slide into the turnaround.",
                 },
-                "rehearsalPriority": RehearsalPriority.HIGH.value,
+                "rehearsalPriority": RehearsalPriority.HIGH,
                 "simplification": "Stay on roots if the chorus entrance gets muddy.",
                 "setupNote": "Keep the attack short so the verse breathes.",
                 "manualOverrides": [],
@@ -70,14 +70,14 @@ class RoleExtractor:
             keys_role: RehearsalRole = {
                 "id": "keys-right",
                 "name": "Keyboard 1 Right Hand",
-                "roleType": RoleType.HAND.value,
+                "roleType": RoleType.HAND,
                 "harmony": {
                     "chord": "Emaj7",
                     "functionLabel": "Imaj7 color",
                     "source": "model",
                 },
                 "cue": {
-                    "kind": CueAnchorKind.COUNT.value,
+                    "kind": CueAnchorKind.COUNT,
                     "value": "Enter on beat 2 after the pickup.",
                 },
                 "range": {"lowestNote": "B3", "highestNote": "G#5"},
@@ -86,7 +86,7 @@ class RoleExtractor:
                     "source": "model",
                     "notes": "Top note voicing may need a quick ear check.",
                 },
-                "rehearsalPriority": RehearsalPriority.HIGH.value,
+                "rehearsalPriority": RehearsalPriority.HIGH,
                 "simplification": "Drop top extension if the chorus turnaround feels busy.",
                 "setupNote": "Keep the patch bright enough to stay over the guitars.",
                 "manualOverrides": [],
@@ -95,20 +95,20 @@ class RoleExtractor:
             vocal_role: RehearsalRole = {
                 "id": "lead-vocal",
                 "name": "Lead Vocal",
-                "roleType": RoleType.VOCAL.value,
+                "roleType": RoleType.VOCAL,
                 "harmony": {
                     "chord": "C#m7",
                     "functionLabel": "vi melodic pull",
                     "source": "model",
                 },
-                "cue": {"kind": CueAnchorKind.LYRIC.value, "value": "city lights"},
+                "cue": {"kind": CueAnchorKind.LYRIC, "value": "city lights"},
                 "range": {"lowestNote": "G#3", "highestNote": "C#5"},
                 "confidence": {
                     "level": "high",
                     "source": "user",
                     "notes": "Singer confirmed the pickup phrasing in rehearsal notes.",
                 },
-                "rehearsalPriority": RehearsalPriority.MEDIUM.value,
+                "rehearsalPriority": RehearsalPriority.MEDIUM,
                 "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
                 "setupNote": "Watch the breath before the last line of the verse.",
                 "manualOverrides": [

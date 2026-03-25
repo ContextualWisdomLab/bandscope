@@ -56,7 +56,7 @@ class CueAnchorKind(str, Enum):
 class RoleCueAnchor(TypedDict):
     """A cue anchor for a role."""
 
-    kind: str  # CueAnchorKind
+    kind: CueAnchorKind
     value: str
 
 
@@ -73,12 +73,12 @@ class RehearsalRole(TypedDict):
 
     id: str
     name: str
-    roleType: str  # RoleType
+    roleType: RoleType
     harmony: RehearsalHarmony
     cue: RoleCueAnchor
     range: RangeSummary
     confidence: ConfidenceMarker
-    rehearsalPriority: str  # RehearsalPriority
+    rehearsalPriority: RehearsalPriority
     simplification: str
     setupNote: str
     manualOverrides: list[ManualOverride]
