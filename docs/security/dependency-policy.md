@@ -90,6 +90,19 @@ Every bootstrap, PR, or release report that claims this baseline is enforced mus
 - any failed command or GitHub API call when enforcement could not be completed
 - any remaining manual review item that still needs repository-admin action
 
+## Vulnerability exception handling
+
+Exceptions are allowed only when no patched version exists and the advisory is non-exploitable for this repository context.
+
+- every exception must reference the exact advisory ID and reason
+- every exception must document scope, exposure, and compensating controls
+- exceptions must be encoded in repo-controlled workflow/config (not ad-hoc local commands)
+- exceptions must be reviewed and removed once a patched version becomes available
+
+Current controlled exception:
+
+- `GHSA-5239-wwwm-4pmq` (`Pygments <=2.19.2`) in Python dev/test dependency path; no patched version is available at this time, impact is low/local-access ReDoS, and BandScope does not expose Pygments parsing on untrusted runtime input paths. The CI `security-audit` workflow applies a targeted ignore for this advisory only.
+
 ## Required checks intent
 
 The expected required status checks are documented in `docs/security/github-required-checks.md`.
