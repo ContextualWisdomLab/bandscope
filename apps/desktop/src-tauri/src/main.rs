@@ -32,6 +32,7 @@ const MAX_IN_FLIGHT_JOBS: usize = 2;
 const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
 const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
+const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__";
 
 impl Default for AppState {
     fn default() -> Self {
@@ -210,16 +211,9 @@ fn runtime_search_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent) = current_exe.parent() {
-            for ancestor in parent.ancestors() {
-                unique_push(&mut roots, ancestor.to_path_buf());
-            }
+            unique_push(&mut roots, parent.to_path_buf());
             unique_push(&mut roots, parent.join("resources"));
             unique_push(&mut roots, parent.join("../Resources"));
-        }
-    }
-    if let Ok(current_dir) = std::env::current_dir() {
-        for ancestor in current_dir.ancestors() {
-            unique_push(&mut roots, ancestor.to_path_buf());
         }
     }
     roots
@@ -266,7 +260,7 @@ fn analysis_command() -> (PathBuf, String, Vec<String>) {
         ];
 
         for candidate in candidates {
-            if candidate.exists() {
+            if candidate.is_file() {
                 return (
                     root,
                     candidate.to_string_lossy().into_owned(),
@@ -276,19 +270,10 @@ fn analysis_command() -> (PathBuf, String, Vec<String>) {
         }
     }
 
-    let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-
     (
-        working_dir,
-        "uv".into(),
-        vec![
-            "run".into(),
-            "--project".into(),
-            "services/analysis-engine".into(),
-            "python".into(),
-            "-m".into(),
-            "bandscope_analysis.cli".into(),
-        ],
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        MISSING_ANALYSIS_PYTHON.into(),
+        Vec::new(),
     )
 }
 
@@ -496,6 +481,16 @@ fn run_analysis_engine(
     requested_at: String,
 ) -> AnalysisJobStatus {
     let (working_dir, program, args) = analysis_command();
+
+    if program == MISSING_ANALYSIS_PYTHON {
+        return failed_status(
+            job_id,
+            requested_at,
+            AnalysisJobErrorCode::EngineUnavailable,
+            "Analysis engine is unavailable.",
+        );
+    }
+
     let mut process = match Command::new(program)
         .args(args)
         .current_dir(working_dir)
