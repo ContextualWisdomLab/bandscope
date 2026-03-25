@@ -43,7 +43,11 @@ class RoleExtractor:
 
         # Simple mock implementation for testing/demonstration purposes
         for i, section in enumerate(sections):
-            section_id = section.get("id", f"section-{i}")
+            if not isinstance(section, dict):
+                logger.warning("Invalid section format at index %d; expected dict, got %s", i, type(section).__name__)
+                section_id = f"section-{i}"
+            else:
+                section_id = section.get("id", f"section-{i}")
 
             # Create a mock bass role
             bass_role: RehearsalRole = {
@@ -151,6 +155,23 @@ class RoleExtractor:
                 )
                 part_graph[0]["handoff_to"].append("lead-vocal")
                 part_graph[2]["handoff_from"].append("bass-guitar")
+            else:
+                part_graph.extend(
+                    [
+                        {
+                            "role_id": "keys-right",
+                            "is_active": False,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                        {
+                            "role_id": "lead-vocal",
+                            "is_active": False,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                    ]
+                )
 
             topology: SectionRoleTopology = {
                 "section_id": section_id,

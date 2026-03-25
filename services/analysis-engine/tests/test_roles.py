@@ -68,7 +68,9 @@ def test_role_extractor_basic():
     assert verse_topology["active_roles"][0]["rehearsalPriority"] == "high"
 
     verse_graph = verse_topology["part_graph"]
-    assert len(verse_graph) == 1
+    assert len(verse_graph) == 3
+    assert verse_graph[1]['role_id'] == 'keys-right'
+    assert verse_graph[1]['is_active'] is False
     assert verse_graph[0]["role_id"] == "bass-guitar"
     assert verse_graph[0]["handoff_to"] == []
 
@@ -78,3 +80,12 @@ def test_role_extractor_empty():
     extractor = RoleExtractor()
     result = extractor.extract([])
     assert result["topologies"] == []
+
+def test_role_extractor_invalid_section():
+    """Test that RoleExtractor handles non-dict sections gracefully."""
+    extractor = RoleExtractor()
+    sections = [{"id": "intro"}, "invalid-section-string"]
+    result = extractor.extract(sections)
+    assert len(result["topologies"]) == 2
+    assert result["topologies"][0]["section_id"] == "intro"
+    assert result["topologies"][1]["section_id"] == "section-1"

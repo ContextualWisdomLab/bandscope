@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
@@ -89,6 +89,15 @@ class RehearsalRolePayload(TypedDict):
     manualOverrides: list[ManualOverridePayload]
 
 
+class PartGraphNodePayload(TypedDict):
+    """Typed part-graph node payload nested inside sections."""
+
+    role_id: str
+    is_active: bool
+    handoff_to: list[str]
+    handoff_from: list[str]
+
+
 class RehearsalSectionPayload(TypedDict):
     """Typed rehearsal section payload nested inside songs."""
 
@@ -97,6 +106,7 @@ class RehearsalSectionPayload(TypedDict):
     groove: str
     confidence: ConfidencePayload
     roles: list[RehearsalRolePayload]
+    partGraph: list[PartGraphNodePayload]
 
 
 class ExportSummaryPayload(TypedDict):
@@ -216,7 +226,8 @@ def build_demo_rehearsal_song() -> RehearsalSong:
     # Extract roles
     extractor = RoleExtractor()
     role_result = extractor.extract([verse_section])
-    verse_roles = role_result["topologies"][0]["active_roles"]
+    verse_topology = role_result["topologies"][0]
+    verse_roles = verse_topology["active_roles"]
 
     return {
         "id": "demo-song",
@@ -232,6 +243,7 @@ def build_demo_rehearsal_song() -> RehearsalSong:
                     "notes": "Double-check the pickup into the chorus.",
                 },
                 "roles": cast(list[RehearsalRolePayload], verse_roles),
+                "partGraph": cast(Any, verse_topology["part_graph"]),
             }
         ],
         "exportSummary": {
