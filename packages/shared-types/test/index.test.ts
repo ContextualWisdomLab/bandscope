@@ -353,7 +353,7 @@ describe("shared type helpers", () => {
       sections: [
         {
           id: "verse-1",
-          label: "Verse 1",
+          label: "verse",
           confidence: {
             level: "medium",
             source: "model"
@@ -496,7 +496,7 @@ describe("shared type helpers", () => {
     roleSparse.sections[0]!.roles = new Array(1);
     badOverride.sections[0]!.roles[2]!.manualOverrides[0]!.value.source = "model";
     badHeadline.exportSummary.headline = 99;
-    badFocusSection.exportSummary.focusSections = ["Verse 1", 7];
+    badFocusSection.exportSummary.focusSections = ["verse", 7];
     badExportSummary.exportSummary = [];
     sparseSections.sections = new Array(1) as RehearsalSong["sections"];
 

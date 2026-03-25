@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Literal, NotRequired, TypedDict
 
 from bandscope_analysis.health import HealthReport, build_health_report
+from bandscope_analysis.sections import extract_sections
 
 
 class AnalysisJobRequest(TypedDict):
@@ -205,14 +206,20 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
 def build_demo_rehearsal_song() -> RehearsalSong:
     """Return the bootstrap rehearsal song payload for orchestration tests."""
+
+    # Extract sections using the new pipeline
+    arrangement = [{"label": "verse", "groove": "Straight eighths with a late snare feel"}]
+    extraction_result = extract_sections(arrangement)
+    verse_section = extraction_result["sections"][0]
+
     return {
         "id": "demo-song",
         "title": "Late Night Set",
         "sections": [
             {
-                "id": "verse-1",
-                "label": "Verse 1",
-                "groove": "Straight eighths with a late snare feel",
+                "id": verse_section["id"],
+                "label": verse_section["form_label"],
+                "groove": verse_section["groove"],
                 "confidence": {
                     "level": "medium",
                     "source": "model",
@@ -307,8 +314,8 @@ def build_demo_rehearsal_song() -> RehearsalSong:
         ],
         "exportSummary": {
             "format": "cue-sheet",
-            "headline": "Start with Verse 1 entrances before the chorus lift.",
-            "focusSections": ["Verse 1"],
+            "headline": "Start with verse entrances before the chorus lift.",
+            "focusSections": ["verse"],
         },
     }
 

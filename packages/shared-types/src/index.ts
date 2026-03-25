@@ -1,4 +1,18 @@
 export const SUPPORTED_AUDIO_FORMATS = ["wav", "mp3", "flac", "m4a"] as const;
+export const SECTION_FORM_LABELS = [
+  "intro",
+  "verse",
+  "pre-chorus",
+  "chorus",
+  "bridge",
+  "outro",
+  "tag",
+  "pickup",
+  "stop",
+  "handoff"
+] as const;
+
+export type SectionFormLabel = (typeof SECTION_FORM_LABELS)[number];
 
 export type ProjectSummary = {
   id: string;
@@ -58,7 +72,7 @@ export type RehearsalRole = {
 
 export type RehearsalSection = {
   id: string;
-  label: string;
+  label: SectionFormLabel;
   groove: string;
   confidence: ConfidenceMarker;
   roles: RehearsalRole[];
@@ -177,7 +191,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
   sections: [
     {
       id: "verse-1",
-      label: "Verse 1",
+      label: "verse",
       groove: "Straight eighths with a late snare feel",
       confidence: {
         level: "medium",
@@ -281,8 +295,8 @@ const demoRehearsalSongSeed: RehearsalSong = {
   ],
   exportSummary: {
     format: "cue-sheet",
-    headline: "Start with Verse 1 entrances before the chorus lift.",
-    focusSections: ["Verse 1"]
+    headline: "Start with verse entrances before the chorus lift.",
+    focusSections: ["verse"]
   }
 };
 
@@ -761,7 +775,7 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
   if (typeof value.id !== "string") {
     return invalidField(`${path}.id`);
   }
-  if (typeof value.label !== "string") {
+  if (!isOneOf(SECTION_FORM_LABELS, value.label)) {
     return invalidField(`${path}.label`);
   }
   if (typeof value.groove !== "string") {
