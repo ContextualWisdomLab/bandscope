@@ -6,17 +6,13 @@ import logging
 from typing import Any
 
 from .model import (
-    ConfidenceMarker,
-    RoleCueAnchor,
-    RangeSummary,
-    RehearsalHarmony,
-    RehearsalRole,
+    CueAnchorKind,
     PartGraphNode,
-    SectionRoleTopology,
+    RehearsalPriority,
+    RehearsalRole,
     RoleExtractionResult,
     RoleType,
-    RehearsalPriority,
-    CueAnchorKind,
+    SectionRoleTopology,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,6 +22,7 @@ class RoleExtractor:
     """Extracts roles and builds the part graph for song sections."""
 
     def __init__(self) -> None:
+        """Initialize the role extractor."""
         pass
 
     def extract(
@@ -47,34 +44,27 @@ class RoleExtractor:
         # Simple mock implementation for testing/demonstration purposes
         for i, section in enumerate(sections):
             section_id = section.get("id", f"section-{i}")
-            
+
             # Create a mock bass role
             bass_role: RehearsalRole = {
                 "id": "bass-guitar",
                 "name": "Bass Guitar",
                 "roleType": RoleType.INSTRUMENT.value,
-                "harmony": {
-                    "chord": "C#m7",
-                    "functionLabel": "vi pedal anchor",
-                    "source": "model"
-                },
+                "harmony": {"chord": "C#m7", "functionLabel": "vi pedal anchor", "source": "model"},
                 "cue": {
                     "kind": CueAnchorKind.TRANSITION.value,
                     "value": "Hold through the pickup before the downbeat.",
                 },
-                "range": {
-                    "lowestNote": "C#2",
-                    "highestNote": "E3"
-                },
+                "range": {"lowestNote": "C#2", "highestNote": "E3"},
                 "confidence": {
                     "level": "medium",
                     "source": "model",
-                    "notes": "Watch the slide into the turnaround."
+                    "notes": "Watch the slide into the turnaround.",
                 },
                 "rehearsalPriority": RehearsalPriority.HIGH.value,
                 "simplification": "Stay on roots if the chorus entrance gets muddy.",
                 "setupNote": "Keep the attack short so the verse breathes.",
-                "manualOverrides": []
+                "manualOverrides": [],
             }
 
             keys_role: RehearsalRole = {
@@ -97,7 +87,7 @@ class RoleExtractor:
                     "notes": "Top note voicing may need a quick ear check.",
                 },
                 "rehearsalPriority": RehearsalPriority.HIGH.value,
-                "simplification": "Drop the top extension if the chorus turnaround still feels busy.",
+                "simplification": "Drop top extension if the chorus turnaround feels busy.",
                 "setupNote": "Keep the patch bright enough to stay over the guitars.",
                 "manualOverrides": [],
             }
@@ -119,7 +109,7 @@ class RoleExtractor:
                     "notes": "Singer confirmed the pickup phrasing in rehearsal notes.",
                 },
                 "rehearsalPriority": RehearsalPriority.MEDIUM.value,
-                "simplification": "Keep the sustained note centered; skip the ad-lib on the first pass.",
+                "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
                 "setupNote": "Watch the breath before the last line of the verse.",
                 "manualOverrides": [
                     {
@@ -135,40 +125,37 @@ class RoleExtractor:
             }
 
             active_roles = [bass_role]
-            
+
             # Simple part graph for bass
             part_graph: list[PartGraphNode] = [
-                {
-                    "role_id": "bass-guitar",
-                    "is_active": True,
-                    "handoff_to": [],
-                    "handoff_from": []
-                }
+                {"role_id": "bass-guitar", "is_active": True, "handoff_to": [], "handoff_from": []}
             ]
-            
+
             if i == 0:
                 active_roles.extend([keys_role, vocal_role])
-                part_graph.extend([
-                    {
-                        "role_id": "keys-right",
-                        "is_active": True,
-                        "handoff_to": [],
-                        "handoff_from": []
-                    },
-                    {
-                        "role_id": "lead-vocal",
-                        "is_active": True,
-                        "handoff_to": [],
-                        "handoff_from": []
-                    }
-                ])
+                part_graph.extend(
+                    [
+                        {
+                            "role_id": "keys-right",
+                            "is_active": True,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                        {
+                            "role_id": "lead-vocal",
+                            "is_active": True,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                    ]
+                )
                 part_graph[0]["handoff_to"].append("lead-vocal")
                 part_graph[2]["handoff_from"].append("bass-guitar")
 
             topology: SectionRoleTopology = {
                 "section_id": section_id,
                 "active_roles": active_roles,
-                "part_graph": part_graph
+                "part_graph": part_graph,
             }
             topologies.append(topology)
 

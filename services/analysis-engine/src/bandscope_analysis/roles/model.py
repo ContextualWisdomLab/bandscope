@@ -23,18 +23,24 @@ class RehearsalPriority(str, Enum):
 
 
 class ConfidenceMarker(TypedDict):
+    """Confidence level and notes for a field or role."""
+
     level: Literal["low", "medium", "high"]
     source: Literal["model", "user"]
     notes: str
 
 
 class RehearsalHarmony(TypedDict):
+    """Harmony specifics for a role."""
+
     chord: str
     functionLabel: str
     source: Literal["model", "user"]
 
 
 class RangeSummary(TypedDict):
+    """Range summary for a role."""
+
     lowestNote: str
     highestNote: str
 
@@ -48,11 +54,15 @@ class CueAnchorKind(str, Enum):
 
 
 class RoleCueAnchor(TypedDict):
+    """A cue anchor for a role."""
+
     kind: str  # CueAnchorKind
     value: str
 
 
 class ManualOverride(TypedDict):
+    """A manual override applied to a role field."""
+
     field: str
     previousValue: str
     reason: str

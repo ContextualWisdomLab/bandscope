@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Literal, NotRequired, TypedDict
 
 from bandscope_analysis.health import HealthReport, build_health_report
-from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.roles import RoleExtractor
+from bandscope_analysis.sections import extract_sections
 
 
 class AnalysisJobRequest(TypedDict):

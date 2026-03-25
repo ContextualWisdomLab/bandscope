@@ -1,15 +1,15 @@
 """Role extraction and part graphing module."""
 
-from .model import (
-    RoleType,
-    RehearsalPriority,
-    CueAnchorKind,
-    RehearsalRole,
-    PartGraphNode,
-    SectionRoleTopology,
-    RoleExtractionResult,
-)
 from .extractor import RoleExtractor
+from .model import (
+    CueAnchorKind,
+    PartGraphNode,
+    RehearsalPriority,
+    RehearsalRole,
+    RoleExtractionResult,
+    RoleType,
+    SectionRoleTopology,
+)
 
 __all__ = [
     "RoleType",
