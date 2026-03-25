@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from bandscope_analysis.health import HealthReport, build_health_report
+from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 
 
@@ -88,6 +89,15 @@ class RehearsalRolePayload(TypedDict):
     manualOverrides: list[ManualOverridePayload]
 
 
+class PartGraphNodePayload(TypedDict):
+    """Typed part-graph node payload nested inside sections."""
+
+    role_id: str
+    is_active: bool
+    handoff_to: list[str]
+    handoff_from: list[str]
+
+
 class RehearsalSectionPayload(TypedDict):
     """Typed rehearsal section payload nested inside songs."""
 
@@ -96,6 +106,7 @@ class RehearsalSectionPayload(TypedDict):
     groove: str
     confidence: ConfidencePayload
     roles: list[RehearsalRolePayload]
+    partGraph: list[PartGraphNodePayload]
 
 
 class ExportSummaryPayload(TypedDict):
@@ -212,6 +223,12 @@ def build_demo_rehearsal_song() -> RehearsalSong:
     extraction_result = extract_sections(arrangement)
     verse_section = extraction_result["sections"][0]
 
+    # Extract roles
+    extractor = RoleExtractor()
+    role_result = extractor.extract([verse_section])
+    verse_topology = role_result["topologies"][0]
+    verse_roles = verse_topology["active_roles"]
+
     return {
         "id": "demo-song",
         "title": "Late Night Set",
@@ -225,91 +242,8 @@ def build_demo_rehearsal_song() -> RehearsalSong:
                     "source": "model",
                     "notes": "Double-check the pickup into the chorus.",
                 },
-                "roles": [
-                    {
-                        "id": "bass-guitar",
-                        "name": "Bass Guitar",
-                        "roleType": "instrument",
-                        "harmony": {
-                            "chord": "C#m7",
-                            "functionLabel": "vi pedal anchor",
-                            "source": "model",
-                        },
-                        "cue": {
-                            "kind": "transition",
-                            "value": "Hold through the pickup before the downbeat.",
-                        },
-                        "range": {"lowestNote": "C#2", "highestNote": "E3"},
-                        "confidence": {
-                            "level": "medium",
-                            "source": "model",
-                            "notes": "Watch the slide into the turnaround.",
-                        },
-                        "rehearsalPriority": "high",
-                        "simplification": "Stay on roots if the chorus entrance gets muddy.",
-                        "setupNote": "Keep the attack short so the verse breathes.",
-                        "manualOverrides": [],
-                    },
-                    {
-                        "id": "keys-right",
-                        "name": "Keyboard 1 Right Hand",
-                        "roleType": "hand",
-                        "harmony": {
-                            "chord": "Emaj7",
-                            "functionLabel": "Imaj7 color",
-                            "source": "model",
-                        },
-                        "cue": {
-                            "kind": "count",
-                            "value": "Enter on beat 2 after the pickup.",
-                        },
-                        "range": {"lowestNote": "B3", "highestNote": "G#5"},
-                        "confidence": {
-                            "level": "medium",
-                            "source": "model",
-                            "notes": "Top note voicing may need a quick ear check.",
-                        },
-                        "rehearsalPriority": "high",
-                        "simplification": (
-                            "Drop the top extension if the chorus turnaround still feels busy."
-                        ),
-                        "setupNote": "Keep the patch bright enough to stay over the guitars.",
-                        "manualOverrides": [],
-                    },
-                    {
-                        "id": "lead-vocal",
-                        "name": "Lead Vocal",
-                        "roleType": "vocal",
-                        "harmony": {
-                            "chord": "C#m7",
-                            "functionLabel": "vi melodic pull",
-                            "source": "model",
-                        },
-                        "cue": {"kind": "lyric", "value": "city lights"},
-                        "range": {"lowestNote": "G#3", "highestNote": "C#5"},
-                        "confidence": {
-                            "level": "high",
-                            "source": "user",
-                            "notes": "Singer confirmed the pickup phrasing in rehearsal notes.",
-                        },
-                        "rehearsalPriority": "medium",
-                        "simplification": (
-                            "Keep the sustained note centered; skip the ad-lib on the first pass."
-                        ),
-                        "setupNote": "Watch the breath before the last line of the verse.",
-                        "manualOverrides": [
-                            {
-                                "field": "harmony",
-                                "value": {
-                                    "chord": "C#m11",
-                                    "functionLabel": "vi suspended lift",
-                                    "source": "user",
-                                },
-                                "source": "user",
-                            }
-                        ],
-                    },
-                ],
+                "roles": cast(list[RehearsalRolePayload], verse_roles),
+                "partGraph": cast(Any, verse_topology["part_graph"]),
             }
         ],
         "exportSummary": {
