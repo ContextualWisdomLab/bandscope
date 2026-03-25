@@ -44,7 +44,11 @@ class RoleExtractor:
         # Simple mock implementation for testing/demonstration purposes
         for i, section in enumerate(sections):
             if not isinstance(section, dict):
-                logger.warning("Invalid section format at index %d; expected dict, got %s", i, type(section).__name__)
+                logger.warning(
+                    "Invalid section format at index %d; expected dict, got %s",
+                    i,
+                    type(section).__name__,
+                )
                 section_id = f"section-{i}"
             else:
                 section_id = section.get("id", f"section-{i}")
