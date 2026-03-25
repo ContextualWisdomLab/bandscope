@@ -160,9 +160,12 @@ def verify_workflow_coverage() -> list[str]:
     scorecard = read_workflow(
         Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
     )
-    for token in ["develop", "main", "push", "schedule", "ossf-scorecard"]:
-        if scorecard and token not in scorecard:
-            missing.append(f"ossf scorecard workflow missing token: {token}")
+    if scorecard:
+        missing.extend(
+            f"ossf scorecard workflow missing token: {token}"
+            for token in ["develop", "main", "push", "schedule", "ossf-scorecard"]
+            if token not in scorecard
+        )
     return missing
 
 
