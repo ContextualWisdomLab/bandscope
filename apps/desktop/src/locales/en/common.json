@@ -25,5 +25,12 @@
   "confidenceLevelMedium": "Needs ear check",
   "confidenceLevelHigh": "Ready to trust",
   "provenanceSourceModel": "Auto-detected",
-  "provenanceSourceUser": "User-confirmed"
+  "provenanceSourceUser": "User-confirmed",
+  "workspaceEmptyState": "Choose an audio file to prepare for your rehearsal.",
+  "workspaceLoadingState": "Analyzing the song's form and instrument roles...",
+  "workspaceErrorState": "An error occurred during analysis. Please try again.",
+  "sectionRoadmapTitle": "Section Roadmap",
+  "roleSwitcherTitle": "Role-specific View",
+  "allRoles": "All Roles",
+  "overlapWarning": "Clash warning"
 }
