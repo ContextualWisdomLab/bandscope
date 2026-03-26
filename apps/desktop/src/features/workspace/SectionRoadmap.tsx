@@ -1,14 +1,42 @@
-import type { RehearsalSong } from "@bandscope/shared-types";
+import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
+import { useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 
 interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
+  onSongUpdate?: (song: RehearsalSong) => void;
 }
 
-export function SectionRoadmap({ song, activeRole }: SectionRoadmapProps) {
-  const t = createTranslator(detectPreferredLocale());
+export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+
+  const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
+    if (!onSongUpdate) return;
+    const newChord = window.prompt("Enter new chord:", role.harmony.chord);
+    if (newChord !== null && newChord.trim() !== "" && newChord !== role.harmony.chord) {
+      const updatedSong = structuredClone(song);
+      const section = updatedSong.sections.find(s => s.id === sectionId);
+      if (section) {
+        const targetRole = section.roles.find(r => r.id === role.id);
+        if (targetRole) {
+          targetRole.harmony = {
+            ...targetRole.harmony,
+            chord: newChord.trim(),
+            source: "user"
+          };
+          targetRole.manualOverrides = targetRole.manualOverrides.filter(o => o.field !== "harmony");
+          targetRole.manualOverrides.push({
+            field: "harmony",
+            value: { ...targetRole.harmony, source: "user" as const },
+            source: "user"
+          });
+          onSongUpdate(updatedSong);
+        }
+      }
+    }
+  };
 
   return (
     <div style={{ marginTop: "24px" }}>
@@ -55,7 +83,20 @@ export function SectionRoadmap({ song, activeRole }: SectionRoadmapProps) {
                       )}
                     </div>
                     <div style={{ fontSize: "0.9em", marginTop: "4px" }}>
-                      Chord: <strong>{role.harmony.chord}</strong>
+                      Chord: <strong 
+                        role={onSongUpdate ? "button" : undefined}
+                        tabIndex={onSongUpdate ? 0 : undefined}
+                        style={{ cursor: onSongUpdate ? "pointer" : "default", textDecoration: onSongUpdate ? "underline" : "none", color: role.harmony.source === "user" ? "#1890ff" : "inherit" }} 
+                        onClick={() => handleChordEdit(section.id, role)}
+                        onKeyDown={(e) => {
+                          if (onSongUpdate && (e.key === "Enter" || e.key === " ")) {
+                            e.preventDefault();
+                            handleChordEdit(section.id, role);
+                          }
+                        }}
+                        title={onSongUpdate ? "Click to edit chord" : undefined}
+                      >{role.harmony.chord}</strong>
+                      {role.harmony.source === "user" && <span style={{ fontSize: "0.8em", marginLeft: "4px", color: "#1890ff" }}>(User)</span>}
                     </div>
                     <div style={{ fontSize: "0.85em", color: "#666", marginTop: "2px" }}>
                       Cue: {role.cue.value}

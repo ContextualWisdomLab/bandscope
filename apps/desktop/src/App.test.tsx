@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
 const tauriInvoke = vi.fn();
+const mockLoadProject = vi.fn();
+const mockSaveProject = vi.fn();
 
 vi.mock("./lib/analysis", () => ({
   createDefaultAnalysisRequest: () => ({
@@ -26,7 +28,9 @@ vi.mock("./lib/analysis", () => ({
       return { ok: false, error: response };
     }
     return { ok: true, bootstrap: response };
-  }
+  },
+  loadProject: () => mockLoadProject(),
+  saveProject: (song: unknown) => mockSaveProject(song)
 }));
 
 function succeededResult() {
@@ -111,6 +115,8 @@ function succeededResult() {
 describe("App", () => {
   beforeEach(() => {
     tauriInvoke.mockReset();
+    mockLoadProject.mockReset();
+    mockSaveProject.mockReset();
   });
 
   it("selects a local audio source and starts a local-audio analysis job", async () => {
@@ -496,4 +502,192 @@ describe("App", () => {
     });
   });
 
+
+  it("loads a project and updates the UI", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+    expect(mockLoadProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles loading a project failure safely", async () => {
+    mockLoadProject.mockRejectedValueOnce(new Error("Corrupt file"));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load project: Corrupt file/i)).toBeTruthy();
+    });
+  });
+
+  it("ignores cancellation when loading a project", async () => {
+    mockLoadProject.mockRejectedValueOnce(new Error("User cancelled"));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    // Should not show error, should remain in empty state
+    await waitFor(() => {
+      expect(screen.queryByText(/Failed to load project/i)).toBeNull();
+    });
+  });
+
+  it("handles loading a project failure with string error gracefully", async () => {
+    mockLoadProject.mockRejectedValueOnce("Unknown load error");
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load project: Unknown load error/i)).toBeTruthy();
+    });
+  });
+
+  it("ignores cancellation when loading a project with string error", async () => {
+    mockLoadProject.mockRejectedValueOnce("User cancelled");
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Failed to load project/i)).toBeNull();
+    });
+  });
+
+  it("saves a project successfully", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockResolvedValueOnce(undefined);
+    
+    // Now click save
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(mockSaveProject).toHaveBeenCalledWith(succeededResult().result);
+    });
+  });
+
+  it("handles saving a project failure gracefully", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce(new Error("Permission denied"));
+    
+    // Now click save
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to save project: Permission denied/i)).toBeTruthy();
+    });
+  });
+
+  it("ignores cancellation when saving a project with Error object", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce(new Error("User cancelled"));
+    
+    // Now click save
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Failed to save project/i)).toBeNull();
+    });
+  });
+
+  it("handles saving a project failure with string error gracefully", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce("Disk full");
+    
+    // Now click save
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to save project: Disk full/i)).toBeTruthy();
+    });
+  });
+
+  it("ignores cancellation when saving a project with string error", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce("User cancelled");
+    
+    // Now click save
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Failed to save project/i)).toBeNull();
+    });
+  });
+
+  it("handles song update from workspace", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    // Mock prompt to simulate user entering a new chord
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Dbmaj7");
+
+    // Click on the chord to edit it (assuming SectionRoadmap renders it and allows click to edit)
+    fireEvent.click(screen.getAllByText("C#m7", { selector: 'strong' })[0]);
+
+    // Wait for the UI to update with the new chord (which verifies handleSongUpdate was called and state updated)
+    await waitFor(() => {
+      expect(screen.getAllByText("Dbmaj7").length).toBeGreaterThan(0);
+    });
+
+    promptSpy.mockRestore();
+  });
+
+  it("does nothing when Save Project is clicked but there is no jobResult", () => {
+    render(<App />);
+    const saveButton = screen.getByRole("button", { name: /save project/i });
+    fireEvent.click(saveButton);
+    expect(mockSaveProject).not.toHaveBeenCalled();
+  });
 });

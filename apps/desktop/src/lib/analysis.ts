@@ -6,10 +6,12 @@ import {
   isAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
+  parseRehearsalSong,
   type AnalysisJobError,
   type AnalysisJobRequest,
   type AnalysisJobStatus,
-  type ProjectBootstrapSummary
+  type ProjectBootstrapSummary,
+  type RehearsalSong
 } from "@bandscope/shared-types";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -87,6 +89,14 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     return succeeded;
   }
 
+  if (command === "save_project") {
+    return;
+  }
+
+  if (command === "load_project") {
+    throw new Error("Local load not supported in browser");
+  }
+
   throw new Error(`Unknown analysis bridge command: ${command}`);
 }
 
@@ -155,6 +165,7 @@ export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobSt
   }
   return response;
 }
+
 export async function importYoutubeUrl(url: string): Promise<LocalAudioSelectionResult> {
   try {
     const response = await invokeAnalysis("import_youtube_url", { url });
@@ -172,4 +183,14 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       }
     };
   }
+}
+
+export async function saveProject(song: RehearsalSong): Promise<void> {
+  const parsedSong = parseRehearsalSong(song);
+  await invokeAnalysis("save_project", { payload: parsedSong });
+}
+
+export async function loadProject(): Promise<RehearsalSong> {
+  const response = await invokeAnalysis("load_project");
+  return parseRehearsalSong(response);
 }

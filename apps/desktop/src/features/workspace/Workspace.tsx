@@ -5,9 +5,10 @@ import { SectionRoadmap } from "./SectionRoadmap";
 
 interface WorkspaceProps {
   song: RehearsalSong;
+  onSongUpdate?: (song: RehearsalSong) => void;
 }
 
-export function Workspace({ song }: WorkspaceProps) {
+export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
 
   // Extract all unique roles from the song's sections
@@ -39,6 +40,7 @@ export function Workspace({ song }: WorkspaceProps) {
       <SectionRoadmap 
         song={song} 
         activeRole={activeRole} 
+        onSongUpdate={onSongUpdate}
       />
     </div>
   );

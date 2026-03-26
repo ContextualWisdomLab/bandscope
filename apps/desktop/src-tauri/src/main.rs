@@ -844,6 +844,39 @@ async fn import_youtube_url(
 
     Err("YouTube import failed with an unknown error.".to_string())
 }
+#[tauri::command]
+fn save_project(payload: Value) -> Result<(), String> {
+    let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+        .map_err(|_| "Invalid project payload".to_string())?;
+
+    let path = FileDialog::new()
+        .add_filter("BandScope Project", &["bscope", "json"])
+        .save_file()
+        .ok_or_else(|| "User cancelled".to_string())?;
+
+    let content = serde_json::to_string_pretty(&parsed)
+        .map_err(|_| "Failed to serialize project".to_string())?;
+    std::fs::write(path, content).map_err(|_| "Failed to write file".to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn load_project() -> Result<RehearsalSongPayload, String> {
+    let path = FileDialog::new()
+        .add_filter("BandScope Project", &["bscope", "json"])
+        .pick_file()
+        .ok_or_else(|| "User cancelled".to_string())?;
+
+    let metadata = std::fs::metadata(&path).map_err(|_| "Failed to read file".to_string())?;
+    if metadata.len() > 5 * 1024 * 1024 {
+        return Err("Project file is too large (exceeds 5MB limit)".to_string());
+    }
+
+    let content = std::fs::read_to_string(path).map_err(|_| "Failed to read file".to_string())?;
+    serde_json::from_str(&content).map_err(|_| "Invalid project file format".to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
@@ -851,7 +884,9 @@ fn main() {
             select_local_audio_source,
             import_youtube_url,
             start_analysis_job,
-            get_analysis_job_status
+            get_analysis_job_status,
+            save_project,
+            load_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
