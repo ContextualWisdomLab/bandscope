@@ -802,7 +802,11 @@ async fn import_youtube_url(
 
             let safe_title: String = title
                 .chars()
-                .filter(|c| !c.is_control() && *c != '/' && *c != '\\' && *c != '.')
+                .map(|c| match c {
+                    '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '.' => '_',
+                    c if c.is_control() => '_',
+                    c => c,
+                })
                 .take(100)
                 .collect();
             let safe_title = if safe_title.is_empty() {

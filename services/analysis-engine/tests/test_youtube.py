@@ -174,16 +174,8 @@ def test_download_youtube_audio_exception(mock_ydl_class: MagicMock) -> None:
     assert "Unexpected explosion" in result["error"]["message"]
 
 
-@patch("bandscope_analysis.youtube.os.path.getsize")
-@patch("bandscope_analysis.youtube.os.path.exists")
-@patch("bandscope_analysis.youtube.os.remove")
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
-def test_download_youtube_audio_duration_exceeded(
-    mock_ydl_class: MagicMock,
-    mock_remove: MagicMock,
-    mock_exists: MagicMock,
-    mock_getsize: MagicMock,
-) -> None:
+def test_download_youtube_audio_duration_exceeded(mock_ydl_class: MagicMock) -> None:
     """Test download fails if duration exceeds 15 minutes."""
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
@@ -260,8 +252,8 @@ def test_module_execution(
     monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
 
     with patch.object(sys, "exit") as mock_exit:
-        with patch("bandscope_analysis.youtube.os.path.exists") as mock_exists:
-            with patch("bandscope_analysis.youtube.os.path.getsize") as mock_getsize:
+        with patch("os.path.exists") as mock_exists:
+            with patch("os.path.getsize") as mock_getsize:
                 mock_exists.return_value = True
                 mock_getsize.return_value = 10 * 1024 * 1024
                 runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
