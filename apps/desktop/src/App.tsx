@@ -37,7 +37,7 @@ function progressMessage(
 }
 
 export function App() {
-  const t = createTranslator(detectPreferredLocale());
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
   const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
@@ -133,8 +133,9 @@ export function App() {
   };
 
   const handleSaveProject = async () => {
+    if (!jobResult) return;
     try {
-      await saveProject(jobResult!);
+      await saveProject(jobResult);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
         setJobError(`Failed to save project: ${e.message}`);

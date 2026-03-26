@@ -738,14 +738,15 @@ fn save_project(payload: Value) -> Result<(), String> {
     let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
         .map_err(|_| "Invalid project payload".to_string())?;
 
-    if let Some(path) = FileDialog::new()
+    let path = FileDialog::new()
         .add_filter("BandScope Project", &["bscope", "json"])
         .save_file()
-    {
-        let content = serde_json::to_string_pretty(&parsed)
-            .map_err(|_| "Failed to serialize project".to_string())?;
-        std::fs::write(path, content).map_err(|_| "Failed to write file".to_string())?;
-    }
+        .ok_or_else(|| "User cancelled".to_string())?;
+
+    let content = serde_json::to_string_pretty(&parsed)
+        .map_err(|_| "Failed to serialize project".to_string())?;
+    std::fs::write(path, content).map_err(|_| "Failed to write file".to_string())?;
+
     Ok(())
 }
 

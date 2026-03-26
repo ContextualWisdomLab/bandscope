@@ -83,8 +83,16 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                     </div>
                     <div style={{ fontSize: "0.9em", marginTop: "4px" }}>
                       Chord: <strong 
+                        role={onSongUpdate ? "button" : undefined}
+                        tabIndex={onSongUpdate ? 0 : undefined}
                         style={{ cursor: onSongUpdate ? "pointer" : "default", textDecoration: onSongUpdate ? "underline" : "none", color: role.harmony.source === "user" ? "#1890ff" : "inherit" }} 
                         onClick={() => handleChordEdit(section.id, role)}
+                        onKeyDown={(e) => {
+                          if (onSongUpdate && (e.key === "Enter" || e.key === " ")) {
+                            e.preventDefault();
+                            handleChordEdit(section.id, role);
+                          }
+                        }}
                         title={onSongUpdate ? "Click to edit chord" : undefined}
                       >{role.harmony.chord}</strong>
                       {role.harmony.source === "user" && <span style={{ fontSize: "0.8em", marginLeft: "4px", color: "#1890ff" }}>(User)</span>}
