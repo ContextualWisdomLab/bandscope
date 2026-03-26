@@ -251,13 +251,19 @@ def test_module_execution(
     mock_ydl.prepare_filename.return_value = "/tmp/123.m4a"
     monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
 
+    # Mock os to ensure runpy uses our mocked filesystem methods
+    import os
+
+    mock_os = MagicMock()
+    # Keep some essential attributes
+    mock_os.path = MagicMock()
+    mock_os.path.exists.return_value = True
+    mock_os.path.getsize.return_value = 10 * 1024 * 1024
+    monkeypatch.setitem(sys.modules, "os", mock_os)
+
     with patch.object(sys, "exit") as mock_exit:
-        with patch("os.path.exists") as mock_exists:
-            with patch("os.path.getsize") as mock_getsize:
-                mock_exists.return_value = True
-                mock_getsize.return_value = 10 * 1024 * 1024
-                runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
-                mock_exit.assert_called_with(0)
+        runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
+        mock_exit.assert_called_with(0)
 
 
 @patch("bandscope_analysis.youtube.urllib.parse.urlparse")
