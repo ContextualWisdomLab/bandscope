@@ -92,6 +92,8 @@ dependencies = [
  "tauri",
  "tauri-build",
  "time",
+ "tokio",
+ "url",
 ]
 
 [[package]]

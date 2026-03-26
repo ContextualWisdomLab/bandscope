@@ -32,5 +32,9 @@
   "sectionRoadmapTitle": "구간 흐름",
   "roleSwitcherTitle": "악기/보컬 역할",
   "allRoles": "전체 보기",
-  "overlapWarning": "충돌 주의"
+  "overlapWarning": "충돌 주의",
+  "youtubePlaceholder": "유튜브 URL...",
+  "importYoutube": "유튜브 가져오기",
+  "importingYoutube": "가져오는 중...",
+  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다."
 }

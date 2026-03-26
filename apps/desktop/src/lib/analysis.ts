@@ -89,7 +89,6 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     return succeeded;
   }
 
-
   if (command === "save_project") {
     return;
   }
@@ -99,7 +98,6 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   }
 
   throw new Error(`Unknown analysis bridge command: ${command}`);
-
 }
 
 async function invokeAnalysis(command: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -166,6 +164,25 @@ export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobSt
     throw new Error("Invalid analysis job status response");
   }
   return response;
+}
+
+export async function importYoutubeUrl(url: string): Promise<LocalAudioSelectionResult> {
+  try {
+    const response = await invokeAnalysis("import_youtube_url", { url });
+    return {
+      ok: true,
+      bootstrap: parseProjectBootstrapSummary(response)
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : (typeof error === 'string' ? error : "YouTube import failed.");
+    return {
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message
+      }
+    };
+  }
 }
 
 export async function saveProject(song: RehearsalSong): Promise<void> {
