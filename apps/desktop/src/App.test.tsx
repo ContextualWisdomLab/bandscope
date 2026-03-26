@@ -612,4 +612,11 @@ describe("App", () => {
 
     promptSpy.mockRestore();
   });
+
+  it("does nothing when Save Project is clicked but there is no jobResult", () => {
+    render(<App />);
+    const saveButton = screen.getByRole("button", { name: /save project/i });
+    fireEvent.click(saveButton);
+    expect(mockSaveProject).not.toHaveBeenCalled();
+  });
 });

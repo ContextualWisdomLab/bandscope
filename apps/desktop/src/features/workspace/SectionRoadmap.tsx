@@ -1,4 +1,5 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
+import { useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 
@@ -9,7 +10,7 @@ interface SectionRoadmapProps {
 }
 
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
-  const t = createTranslator(detectPreferredLocale());
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;

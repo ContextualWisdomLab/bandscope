@@ -133,8 +133,9 @@ export function App() {
   };
 
   const handleSaveProject = async () => {
+    if (!jobResult) return;
     try {
-      await saveProject(jobResult!);
+      await saveProject(jobResult);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
         setJobError(`Failed to save project: ${e.message}`);
@@ -168,15 +169,21 @@ export function App() {
           <h1 style={{ margin: "0 0 8px 0" }}>{t("appTitle")}</h1>
           <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
         </div>
-        {jobResult && (
-          <button 
+        <button 
             type="button" 
             onClick={handleSaveProject} 
-            style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#fff", border: "1px solid #ccc" }}
+            aria-disabled={!jobResult}
+            style={{ 
+              padding: "8px 16px", 
+              cursor: jobResult ? "pointer" : "not-allowed", 
+              borderRadius: "4px", 
+              backgroundColor: jobResult ? "#fff" : "#f5f5f5", 
+              border: "1px solid #ccc",
+              opacity: jobResult ? 1 : 0.5
+            }}
           >
             Save Project
           </button>
-        )}
       </header>
 
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center" }}>
