@@ -252,8 +252,6 @@ def test_module_execution(
     monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
 
     # Mock os to ensure runpy uses our mocked filesystem methods
-    import os
-
     mock_os = MagicMock()
     # Keep some essential attributes
     mock_os.path = MagicMock()
