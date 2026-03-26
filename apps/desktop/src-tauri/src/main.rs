@@ -33,6 +33,7 @@ const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
 const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__";
+const YOUTUBE_IMPORT_TIMEOUT: Duration = Duration::from_secs(120);
 
 impl Default for AppState {
     fn default() -> Self {
@@ -772,15 +773,20 @@ async fn import_youtube_url(
     args.push("--out-dir".into());
     args.push(cache_root.to_string_lossy().into_owned());
 
-    let output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new(program)
-            .args(args)
-            .current_dir(working_dir)
-            .output()
-    })
-    .await
-    .map_err(|_| "Failed to execute YouTube import process.".to_string())?
-    .map_err(|_| "Failed to start YouTube import process.".to_string())?;
+    let spawn_result = tokio::time::timeout(
+        YOUTUBE_IMPORT_TIMEOUT,
+        tauri::async_runtime::spawn_blocking(move || {
+            Command::new(program)
+                .args(args)
+                .current_dir(working_dir)
+                .output()
+        })
+    ).await;
+
+    let output = spawn_result
+        .map_err(|_| "YouTube import timed out.".to_string())?
+        .map_err(|_| "Failed to execute YouTube import process.".to_string())?
+        .map_err(|_| "Failed to start YouTube import process.".to_string())?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout)
@@ -794,9 +800,20 @@ async fn import_youtube_url(
             let metadata_fs = std::fs::metadata(path).map_err(|_| "Could not read downloaded audio file.".to_string())?;
             let extension = path.extension().and_then(|v| v.to_str()).unwrap_or("m4a").to_string();
 
+            let safe_title: String = title
+                .chars()
+                .filter(|c| !c.is_control() && *c != '/' && *c != '\\' && *c != '.')
+                .take(100)
+                .collect();
+            let safe_title = if safe_title.is_empty() {
+                "youtube_audio".to_string()
+            } else {
+                safe_title
+            };
+
             let source = LocalAudioSourcePayload {
                 source_path: filepath.to_string(),
-                file_name: format!("{}.{}", title, extension),
+                file_name: format!("{}.{}", safe_title, extension),
                 extension,
                 file_size_bytes: metadata_fs.len(),
             };

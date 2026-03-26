@@ -67,14 +67,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+            info = ydl.extract_info(url, download=False)
             if info is None:
                 raise Exception("Failed to extract info")
-            actual_filepath = ydl.prepare_filename(info)
             duration = info.get("duration")
             if duration is not None and duration > 15 * 60:
-                if os.path.exists(actual_filepath):
-                    os.remove(actual_filepath)
                 return {
                     "ok": False,
                     "error": {
@@ -82,6 +79,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                         "message": "Video exceeds the 15-minute limit.",
                     },
                 }
+
+            info = ydl.extract_info(url, download=True)
+            if info is None:
+                raise Exception("Failed to extract info")
+            actual_filepath = ydl.prepare_filename(info)
 
             if (
                 os.path.exists(actual_filepath)

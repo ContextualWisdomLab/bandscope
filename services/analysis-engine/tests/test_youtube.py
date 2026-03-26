@@ -15,6 +15,8 @@ def test_validate_url() -> None:
     assert validate_url("https://youtube.com/watch?v=123") is True
     assert validate_url("https://youtu.be/123") is True
     assert validate_url("https://www.youtube.com/watch?v=123") is True
+    assert validate_url("https://m.youtube.com/watch?v=123") is True
+    assert validate_url("https://music.youtube.com/watch?v=123") is True
     assert validate_url("http://youtube.com/watch?v=123") is False
     assert validate_url("https://vimeo.com/123") is False
 
@@ -120,13 +122,10 @@ def test_download_youtube_audio_duration_exceeded(
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
     mock_ydl.extract_info.return_value = {"id": "123", "duration": 16 * 60}
-    mock_ydl.prepare_filename.return_value = "/tmp/123.m4a"
-    mock_exists.return_value = True
 
     result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
     assert result["ok"] is False
     assert result["error"]["code"] == "duration_exceeded"
-    mock_remove.assert_called_with("/tmp/123.m4a")
 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")
@@ -204,3 +203,18 @@ def test_validate_url_exception(mock_urlparse: MagicMock) -> None:
     """Test URL validation exception handling."""
     mock_urlparse.side_effect = Exception("Test exception")
     assert validate_url("https://youtube.com/watch?v=123") is False
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_second_info_none(mock_ydl_class: MagicMock) -> None:
+    """Test when the second extract_info returns None."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+
+    # First call (download=False) returns info, second call (download=True) returns None
+    mock_ydl.extract_info.side_effect = [{"duration": 60}, None]
+
+    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "download_error"
+    assert "Failed to extract info" in result["error"]["message"]
