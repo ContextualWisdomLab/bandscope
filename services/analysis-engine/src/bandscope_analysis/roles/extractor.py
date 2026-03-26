@@ -14,6 +14,7 @@ from .model import (
     RoleType,
     SectionRoleTopology,
 )
+from .priority import calculate_rehearsal_priority
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class RoleExtractor:
                     "source": "model",
                     "notes": "Watch the slide into the turnaround.",
                 },
-                "rehearsalPriority": RehearsalPriority.HIGH,
+                "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
                 "simplification": "Stay on roots if the chorus entrance gets muddy.",
                 "setupNote": "Keep the attack short so the verse breathes.",
                 "manualOverrides": [],
@@ -97,7 +98,7 @@ class RoleExtractor:
                     "source": "model",
                     "notes": "Muddy frequency range, difficult to clearly separate from bass.",
                 },
-                "rehearsalPriority": RehearsalPriority.MEDIUM,
+                "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
                 "simplification": "Omit if bass is covering the lower register.",
                 "setupNote": "Use a darker patch to avoid clashing with right hand.",
                 "manualOverrides": [],
@@ -123,7 +124,7 @@ class RoleExtractor:
                     "source": "model",
                     "notes": "Top note voicing may need a quick ear check.",
                 },
-                "rehearsalPriority": RehearsalPriority.HIGH,
+                "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
                 "simplification": "Drop top extension if the chorus turnaround feels busy.",
                 "setupNote": "Keep the patch bright enough to stay over the guitars.",
                 "manualOverrides": [],
@@ -146,7 +147,7 @@ class RoleExtractor:
                     "source": "user",
                     "notes": "Singer confirmed the pickup phrasing in rehearsal notes.",
                 },
-                "rehearsalPriority": RehearsalPriority.MEDIUM,
+                "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
                 "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
                 "setupNote": "Watch the breath before the last line of the verse.",
                 "manualOverrides": [
@@ -162,6 +163,9 @@ class RoleExtractor:
                 ],
                 "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
             }
+
+            for role in [bass_role, keys_left_role, keys_role, vocal_role]:
+                role["rehearsalPriority"] = calculate_rehearsal_priority(role)
 
             active_roles = [bass_role]
 

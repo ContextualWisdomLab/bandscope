@@ -87,7 +87,6 @@ function succeededResult() {
               rehearsalPriority: "medium",
               simplification: "Keep the sustained note centered; skip the ad-lib on the first pass.",
               setupNote: "Watch the breath before the last line of the verse.",
-              overlapWarnings: [{ targetRoleId: "keys-right", severity: "high", description: "Clash" }],
               manualOverrides: [
                 {
                   field: "harmony",
