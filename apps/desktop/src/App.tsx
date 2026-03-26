@@ -10,7 +10,9 @@ import {
   createDefaultAnalysisRequest,
   getAnalysisJobStatus,
   selectLocalAudioSource,
-  startAnalysisJob
+  startAnalysisJob,
+  loadProject,
+  saveProject
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
@@ -35,7 +37,7 @@ function progressMessage(
 }
 
 export function App() {
-  const t = createTranslator(detectPreferredLocale());
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
   const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
@@ -77,7 +79,7 @@ export function App() {
     }, ANALYSIS_POLL_INTERVAL_MS);
 
     return () => window.clearTimeout(timer);
-  }, [jobStatus]);
+  }, [jobStatus, t]);
 
   const handleStartAnalysis = async () => {
     setJobError(null);
@@ -114,6 +116,39 @@ export function App() {
     setJobStatus(null);
   };
 
+  const handleLoadProject = async () => {
+    try {
+      const song = await loadProject();
+      setJobResult(song);
+      setJobError(null);
+      setSelectedBootstrap(null);
+      setJobStatus(null);
+    } catch (e) {
+      if (e instanceof Error && e.message !== "User cancelled") {
+        setJobError(`Failed to load project: ${e.message}`);
+      } else if (typeof e === "string" && e !== "User cancelled") {
+        setJobError(`Failed to load project: ${e}`);
+      }
+    }
+  };
+
+  const handleSaveProject = async () => {
+    if (!jobResult) return;
+    try {
+      await saveProject(jobResult);
+    } catch (e) {
+      if (e instanceof Error && e.message !== "User cancelled") {
+        setJobError(`Failed to save project: ${e.message}`);
+      } else if (typeof e === "string" && e !== "User cancelled") {
+        setJobError(`Failed to save project: ${e}`);
+      }
+    }
+  };
+
+  const handleSongUpdate = (updatedSong: RehearsalSong) => {
+    setJobResult(updatedSong);
+  };
+
   const renderWorkspaceState = () => {
     if (jobError) {
       return <ErrorState error={jobError} />;
@@ -122,16 +157,33 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} />;
+      return <Workspace song={jobResult} onSongUpdate={handleSongUpdate} />;
     }
     return <EmptyState />;
   };
 
   return (
     <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
-      <header style={{ marginBottom: "32px" }}>
-        <h1 style={{ margin: "0 0 8px 0" }}>{t("appTitle")}</h1>
-        <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
+      <header style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1 style={{ margin: "0 0 8px 0" }}>{t("appTitle")}</h1>
+          <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
+        </div>
+        <button 
+            type="button" 
+            onClick={handleSaveProject} 
+            aria-disabled={!jobResult}
+            style={{ 
+              padding: "8px 16px", 
+              cursor: jobResult ? "pointer" : "not-allowed", 
+              borderRadius: "4px", 
+              backgroundColor: jobResult ? "#fff" : "#f5f5f5", 
+              border: "1px solid #ccc",
+              opacity: jobResult ? 1 : 0.5
+            }}
+          >
+            Save Project
+          </button>
       </header>
 
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center" }}>
@@ -142,6 +194,14 @@ export function App() {
           style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
         >
           {t("chooseLocalAudio")}
+        </button>
+        <button 
+          type="button" 
+          onClick={handleLoadProject} 
+          disabled={analysisInFlight || isStarting}
+          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
+        >
+          Open Project
         </button>
         <button 
           type="button" 
