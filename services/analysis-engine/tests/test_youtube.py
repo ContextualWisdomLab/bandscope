@@ -81,6 +81,7 @@ def test_download_youtube_audio_converted_extension(
 
     # os.path.exists returns False for .webm, but True for .opus
     def exists_side_effect(path: str) -> bool:
+        """Mock exists function to simulate converted extension file presence."""
         return path == "/tmp/123.opus"
 
     mock_exists.side_effect = exists_side_effect
