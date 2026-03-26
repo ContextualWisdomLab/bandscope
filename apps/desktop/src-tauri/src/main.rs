@@ -832,6 +832,8 @@ async fn import_youtube_url(
             };
             store_bootstrap_source(&state, summary.clone());
             return Ok(summary);
+        } else {
+            return Err(format!("YouTube import reported ok but missing metadata: {}", parsed.to_string()));
         }
     }
 
