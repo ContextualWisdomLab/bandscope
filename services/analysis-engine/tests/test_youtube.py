@@ -28,8 +28,14 @@ def test_download_youtube_audio_invalid_url() -> None:
     assert result["error"]["code"] == "unsupported_url"
 
 
+@patch("bandscope_analysis.youtube.os.path.getsize")
+@patch("bandscope_analysis.youtube.os.path.exists")
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
-def test_download_youtube_audio_success(mock_ydl_class: MagicMock) -> None:
+def test_download_youtube_audio_success(
+    mock_ydl_class: MagicMock,
+    mock_exists: MagicMock,
+    mock_getsize: MagicMock,
+) -> None:
     """Test successful download."""
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
@@ -40,7 +46,9 @@ def test_download_youtube_audio_success(mock_ydl_class: MagicMock) -> None:
         "duration": 60,
     }
     mock_ydl.extract_info.return_value = mock_info
-    mock_ydl.prepare_filename.return_value = "/tmp/123.m4a"
+    mock_ydl.prepare_filename.return_value = "/tmp/123.webm"
+    mock_exists.return_value = True
+    mock_getsize.return_value = 10 * 1024 * 1024
 
     result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
 
@@ -48,7 +56,65 @@ def test_download_youtube_audio_success(mock_ydl_class: MagicMock) -> None:
     assert result["metadata"]["id"] == "123"
     assert result["metadata"]["title"] == "Test Video"
     assert result["metadata"]["duration"] == 60
-    assert result["metadata"]["filepath"] == "/tmp/123.m4a"
+    assert result["metadata"]["filepath"] == "/tmp/123.webm"
+
+
+@patch("bandscope_analysis.youtube.os.path.getsize")
+@patch("bandscope_analysis.youtube.os.path.exists")
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_converted_extension(
+    mock_ydl_class: MagicMock,
+    mock_exists: MagicMock,
+    mock_getsize: MagicMock,
+) -> None:
+    """Test successful download when the file is converted to another extension."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+
+    mock_info = {
+        "id": "123",
+        "title": "Test Video",
+        "duration": 60,
+    }
+    mock_ydl.extract_info.return_value = mock_info
+    mock_ydl.prepare_filename.return_value = "/tmp/123.webm"
+
+    # os.path.exists returns False for .webm, but True for .opus
+    def exists_side_effect(path: str) -> bool:
+        return path == "/tmp/123.opus"
+
+    mock_exists.side_effect = exists_side_effect
+    mock_getsize.return_value = 10 * 1024 * 1024
+
+    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+
+    assert result["ok"] is True
+    assert result["metadata"]["filepath"] == "/tmp/123.opus"
+
+
+@patch("bandscope_analysis.youtube.os.path.exists")
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_file_not_found(
+    mock_ydl_class: MagicMock,
+    mock_exists: MagicMock,
+) -> None:
+    """Test failure when the downloaded file cannot be found."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+
+    mock_info = {
+        "id": "123",
+        "title": "Test Video",
+        "duration": 60,
+    }
+    mock_ydl.extract_info.return_value = mock_info
+    mock_ydl.prepare_filename.return_value = "/tmp/123.webm"
+    mock_exists.return_value = False
+
+    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "file_not_found"
 
 
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
@@ -194,8 +260,12 @@ def test_module_execution(
     monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
 
     with patch.object(sys, "exit") as mock_exit:
-        runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
-        mock_exit.assert_called_with(0)
+        with patch("bandscope_analysis.youtube.os.path.exists") as mock_exists:
+            with patch("bandscope_analysis.youtube.os.path.getsize") as mock_getsize:
+                mock_exists.return_value = True
+                mock_getsize.return_value = 10 * 1024 * 1024
+                runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
+                mock_exit.assert_called_with(0)
 
 
 @patch("bandscope_analysis.youtube.urllib.parse.urlparse")
@@ -203,6 +273,7 @@ def test_validate_url_exception(mock_urlparse: MagicMock) -> None:
     """Test URL validation exception handling."""
     mock_urlparse.side_effect = Exception("Test exception")
     assert validate_url("https://youtube.com/watch?v=123") is False
+
 
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
 def test_download_youtube_audio_second_info_none(mock_ydl_class: MagicMock) -> None:

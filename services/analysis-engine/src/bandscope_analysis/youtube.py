@@ -54,14 +54,14 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             },
         }
 
-    ydl_opts = {
+    ydl_opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,
         "noplaylist": True,
-        "extract_audio": True,
+        "postprocessors": [{"key": "FFmpegExtractAudio"}],
         "geo_bypass": False,
     }
 
@@ -84,6 +84,22 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             if info is None:
                 raise Exception("Failed to extract info")
             actual_filepath = ydl.prepare_filename(info)
+
+            if not os.path.exists(actual_filepath):
+                # Try to find the file with a different extension in case of conversion
+                base_path = os.path.splitext(actual_filepath)[0]
+                for ext in [".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg"]:
+                    if os.path.exists(base_path + ext):
+                        actual_filepath = base_path + ext
+                        break
+                else:
+                    return {
+                        "ok": False,
+                        "error": {
+                            "code": "file_not_found",
+                            "message": "Downloaded file could not be found.",
+                        },
+                    }
 
             if (
                 os.path.exists(actual_filepath)
