@@ -6,11 +6,6 @@ import {
   type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
-import { ChordsFeature } from "./features/chords";
-import { HomeFeature } from "./features/home";
-import { PlayerFeature } from "./features/player";
-import { RangesFeature } from "./features/ranges";
-import { SettingsFeature } from "./features/settings";
 import {
   createDefaultAnalysisRequest,
   getAnalysisJobStatus,
@@ -18,6 +13,8 @@ import {
   startAnalysisJob
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale } from "./i18n";
+import { Workspace } from "./features/workspace/Workspace";
+import { EmptyState, LoadingState, ErrorState } from "./features/workspace/WorkspaceStates";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 
@@ -37,51 +34,6 @@ function progressMessage(
   }
 }
 
-function renderSong(
-  song: RehearsalSong,
-  sectionConfidenceLabel: string,
-  roleConfidenceLabel: string,
-  harmonySourceLabel: string,
-  manualOverrideLabel: string,
-  confidenceLabels: Record<"low" | "medium" | "high", string>,
-  provenanceLabels: Record<"model" | "user", string>
-) {
-  return (
-    <>
-      <section>
-        <h2>{song.title}</h2>
-        <p>{song.exportSummary.headline}</p>
-      </section>
-      {song.sections.map((section) => (
-        <section key={section.id}>
-          <h3>{section.label}</h3>
-          <p>{section.groove}</p>
-          <p>
-            {sectionConfidenceLabel}: {confidenceLabels[section.confidence.level]} ({provenanceLabels[section.confidence.source]})
-          </p>
-          <ul>
-            {section.roles.map((role) => (
-              <li key={role.id}>
-                <strong>{role.name}</strong>
-                <span> - {role.harmony.chord}</span>
-                <span> - {role.cue.value}</span>
-                <span> - {roleConfidenceLabel}: {confidenceLabels[role.confidence.level]}</span>
-                <span> - {harmonySourceLabel}: {provenanceLabels[role.harmony.source]}</span>
-                {role.manualOverrides.map((override, index) => (
-                  <span key={`${override.field}-${override.source}-${override.value.chord}-${index}`}>
-                    {" "}
-                    - {manualOverrideLabel}: {override.value.chord} ({provenanceLabels[override.source]})
-                  </span>
-                ))}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </>
-  );
-}
-
 export function App() {
   const t = createTranslator(detectPreferredLocale());
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
@@ -91,15 +43,7 @@ export function App() {
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
-  const confidenceLabels = {
-    low: t("confidenceLevelLow"),
-    medium: t("confidenceLevelMedium"),
-    high: t("confidenceLevelHigh")
-  } as const;
-  const provenanceLabels = {
-    model: t("provenanceSourceModel"),
-    user: t("provenanceSourceUser")
-  } as const;
+  
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
     ? {
@@ -170,36 +114,62 @@ export function App() {
     setJobStatus(null);
   };
 
+  const renderWorkspaceState = () => {
+    if (jobError) {
+      return <ErrorState error={jobError} />;
+    }
+    if (analysisInFlight || isStarting) {
+      return <LoadingState />;
+    }
+    if (jobResult) {
+      return <Workspace song={jobResult} />;
+    }
+    return <EmptyState />;
+  };
+
   return (
-    <main>
-      <h1>{t("appTitle")}</h1>
-      <p>{t("appSubtitle")}</p>
-      <p>
-        {t("supportedFormats")}: {SUPPORTED_AUDIO_FORMATS.join(", ")}
-      </p>
-      <button type="button" onClick={handleChooseLocalAudio} disabled={analysisInFlight || isStarting}>{t("chooseLocalAudio")}</button>
-      <button type="button" onClick={handleStartAnalysis} disabled={analysisInFlight || isStarting}>{t("startAnalysis")}</button>
-      {selectedBootstrap ? <p>{t("selectedAudio")}: {selectedBootstrap.source.fileName}</p> : null}
-      {selectedBootstrap ? <p>{t("sourceModeReference")}</p> : null}
-      {jobStatus ? <p>{progressMessage(t, jobStatus.state)}</p> : null}
-      {jobError ? <p>{jobError}</p> : null}
-      {selectionError ? <p>{selectionError}</p> : null}
-      {jobResult
-        ? renderSong(
-            jobResult,
-            t("sectionConfidence"),
-            t("roleConfidence"),
-            t("harmonySource"),
-            t("manualOverride"),
-            confidenceLabels,
-            provenanceLabels
-          )
-        : null}
-      <HomeFeature title={t("homeCard")} />
-      <PlayerFeature title={t("playerCard")} />
-      <ChordsFeature title={t("chordsCard")} />
-      <RangesFeature title={t("rangesCard")} />
-      <SettingsFeature title={t("settingsCard")} />
+    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
+      <header style={{ marginBottom: "32px" }}>
+        <h1 style={{ margin: "0 0 8px 0" }}>{t("appTitle")}</h1>
+        <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
+      </header>
+
+      <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center" }}>
+        <button 
+          type="button" 
+          onClick={handleChooseLocalAudio} 
+          disabled={analysisInFlight || isStarting}
+          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
+        >
+          {t("chooseLocalAudio")}
+        </button>
+        <button 
+          type="button" 
+          onClick={handleStartAnalysis} 
+          disabled={analysisInFlight || isStarting || !selectedBootstrap}
+          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#1890ff", color: "white", border: "none" }}
+        >
+          {t("startAnalysis")}
+        </button>
+      </div>
+
+      <div style={{ marginBottom: "24px", fontSize: "0.9em", color: "#666" }}>
+        <p style={{ margin: "4px 0" }}>
+          {t("supportedFormats")}: {SUPPORTED_AUDIO_FORMATS.join(", ")}
+        </p>
+        {selectedBootstrap && (
+          <>
+            <p style={{ margin: "4px 0" }}>{t("selectedAudio")}: {selectedBootstrap.source.fileName}</p>
+            <p style={{ margin: "4px 0" }}>{t("sourceModeReference")}</p>
+          </>
+        )}
+        {jobStatus && <p style={{ margin: "4px 0", fontWeight: "bold" }}>{progressMessage(t, jobStatus.state)}</p>}
+        {selectionError && <p style={{ margin: "4px 0", color: "#a8071a" }}>{selectionError}</p>}
+      </div>
+
+      <section>
+        {renderWorkspaceState()}
+      </section>
     </main>
   );
 }
