@@ -9,7 +9,7 @@ export default defineConfig({
     setupFiles: ["./src/setupTests.ts"],
     coverage: {
       provider: "v8",
-      include: ["src/App.tsx"],
+      include: ["src/App.tsx", "src/lib/export.ts"],
       thresholds: {
         lines: 100,
         functions: 100,

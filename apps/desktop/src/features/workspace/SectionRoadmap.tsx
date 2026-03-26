@@ -38,6 +38,18 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
     }
   };
 
+  const getPriorityColor = (priority: string) => {
+    if (priority === "high") return "#ff4d4f";
+    if (priority === "medium") return "#faad14";
+    return "#52c41a";
+  };
+
+  const getPriorityIcon = (priority: string) => {
+    if (priority === "high") return "🚨";
+    if (priority === "medium") return "⚠️";
+    return "✅";
+  };
+
   return (
     <div style={{ marginTop: "24px" }}>
       <h2>{t("sectionRoadmapTitle")}</h2>
@@ -72,15 +84,20 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                     padding: "8px", 
                     backgroundColor: "#f9f9f9", 
                     borderRadius: "4px",
-                    borderLeft: role.confidence.level === "low" ? "4px solid #ff4d4f" : "4px solid #d9d9d9"
+                    borderLeft: `4px solid ${getPriorityColor(role.rehearsalPriority)}`
                   }}>
-                    <div style={{ fontWeight: "bold", fontSize: "0.9em" }}>
-                      {role.name}
-                      {role.confidence.level === "low" && (
-                        <span style={{ color: "#ff4d4f", fontSize: "0.8em", marginLeft: "4px" }}>
-                          ({t("confidenceLevelLow")})
-                        </span>
-                      )}
+                    <div style={{ fontWeight: "bold", fontSize: "0.9em", display: "flex", justifyContent: "space-between" }}>
+                      <span>
+                        {role.name}
+                        {role.confidence.level === "low" && (
+                          <span style={{ color: "#ff4d4f", fontSize: "0.8em", marginLeft: "4px" }}>
+                            ({t("confidenceLevelLow")})
+                          </span>
+                        )}
+                      </span>
+                      <span title={`Priority: ${role.rehearsalPriority}`}>
+                        {getPriorityIcon(role.rehearsalPriority)}
+                      </span>
                     </div>
                     <div style={{ fontSize: "0.9em", marginTop: "4px" }}>
                       Chord: <strong 
