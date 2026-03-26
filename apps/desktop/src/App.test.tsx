@@ -467,6 +467,28 @@ describe("App", () => {
     });
   });
 
+  it("handles loading a project failure with string error gracefully", async () => {
+    mockLoadProject.mockRejectedValueOnce("Unknown load error");
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load project: Unknown load error/i)).toBeTruthy();
+    });
+  });
+
+  it("ignores cancellation when loading a project with string error", async () => {
+    mockLoadProject.mockRejectedValueOnce("User cancelled");
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Failed to load project/i)).toBeNull();
+    });
+  });
+
   it("saves a project successfully", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
@@ -497,17 +519,74 @@ describe("App", () => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockSaveProject.mockRejectedValueOnce(new Error("Permission denied"));
     
     // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
-      expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to save project", expect.any(Error));
+      expect(screen.getByText(/Failed to save project: Permission denied/i)).toBeTruthy();
     });
+  });
+
+  it("ignores cancellation when saving a project with Error object", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce(new Error("User cancelled"));
     
-    consoleErrorSpy.mockRestore();
+    // Now click save
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Failed to save project/i)).toBeNull();
+    });
+  });
+
+  it("handles saving a project failure with string error gracefully", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce("Disk full");
+    
+    // Now click save
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to save project: Disk full/i)).toBeTruthy();
+    });
+  });
+
+  it("ignores cancellation when saving a project with string error", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    // Load first to get jobResult populated
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce("User cancelled");
+    
+    // Now click save
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Failed to save project/i)).toBeNull();
+    });
   });
 
   it("handles song update from workspace", async () => {

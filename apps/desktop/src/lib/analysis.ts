@@ -169,7 +169,8 @@ export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobSt
 }
 
 export async function saveProject(song: RehearsalSong): Promise<void> {
-  await invokeAnalysis("save_project", { payload: song });
+  const parsedSong = parseRehearsalSong(song);
+  await invokeAnalysis("save_project", { payload: parsedSong });
 }
 
 export async function loadProject(): Promise<RehearsalSong> {

@@ -688,9 +688,7 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
 }
 
 #[tauri::command]
-fn get_analysis_job_status,
-            save_project,
-            load_project(job_id: String, state: tauri::State<'_, AppState>) -> AnalysisJobStatus {
+fn get_analysis_job_status(job_id: String, state: tauri::State<'_, AppState>) -> AnalysisJobStatus {
     state
         .0
         .jobs
@@ -735,7 +733,6 @@ fn select_local_audio_source(
     Ok(summary)
 }
 
-
 #[tauri::command]
 fn save_project(payload: Value) -> Result<(), String> {
     let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
@@ -757,7 +754,13 @@ fn load_project() -> Result<RehearsalSongPayload, String> {
     let path = FileDialog::new()
         .add_filter("BandScope Project", &["bscope", "json"])
         .pick_file()
-        .ok_or_else(|| "No file selected".to_string())?;
+        .ok_or_else(|| "User cancelled".to_string())?;
+
+    let metadata = std::fs::metadata(&path).map_err(|_| "Failed to read file".to_string())?;
+    if metadata.len() > 5 * 1024 * 1024 {
+        return Err("Project file is too large (exceeds 5MB limit)".to_string());
+    }
+
     let content = std::fs::read_to_string(path).map_err(|_| "Failed to read file".to_string())?;
     serde_json::from_str(&content).map_err(|_| "Invalid project file format".to_string())
 }

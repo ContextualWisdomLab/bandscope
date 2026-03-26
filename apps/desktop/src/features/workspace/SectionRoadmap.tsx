@@ -25,9 +25,10 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
             chord: newChord.trim(),
             source: "user"
           };
+          targetRole.manualOverrides = targetRole.manualOverrides.filter(o => o.field !== "harmony");
           targetRole.manualOverrides.push({
             field: "harmony",
-            value: { ...targetRole.harmony, source: "user" },
+            value: { ...targetRole.harmony, source: "user" as const },
             source: "user"
           });
           onSongUpdate(updatedSong);

@@ -126,6 +126,8 @@ export function App() {
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
         setJobError(`Failed to load project: ${e.message}`);
+      } else if (typeof e === "string" && e !== "User cancelled") {
+        setJobError(`Failed to load project: ${e}`);
       }
     }
   };
@@ -134,7 +136,11 @@ export function App() {
     try {
       await saveProject(jobResult!);
     } catch (e) {
-      console.error("Failed to save project", e);
+      if (e instanceof Error && e.message !== "User cancelled") {
+        setJobError(`Failed to save project: ${e.message}`);
+      } else if (typeof e === "string" && e !== "User cancelled") {
+        setJobError(`Failed to save project: ${e}`);
+      }
     }
   };
 
