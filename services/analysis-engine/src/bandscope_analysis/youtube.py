@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import sys
+import urllib.parse
 from typing import Any, Dict
 
 import yt_dlp  # type: ignore
@@ -23,11 +24,14 @@ def validate_url(url: str) -> bool:
     Returns:
         True if the URL is valid, False otherwise.
     """
-    if not url.startswith("https://"):
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme != "https":
+            return False
+        host = parsed.netloc.lower().split(":")[0]
+        return host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
+    except Exception:
         return False
-    if "youtube.com/" not in url and "youtu.be/" not in url:
-        return False
-    return True
 
 
 def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
@@ -67,6 +71,30 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             if info is None:
                 raise Exception("Failed to extract info")
             actual_filepath = ydl.prepare_filename(info)
+            duration = info.get("duration")
+            if duration is not None and duration > 15 * 60:
+                if os.path.exists(actual_filepath):
+                    os.remove(actual_filepath)
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "duration_exceeded",
+                        "message": "Video exceeds the 15-minute limit.",
+                    },
+                }
+
+            if (
+                os.path.exists(actual_filepath)
+                and os.path.getsize(actual_filepath) > 50 * 1024 * 1024
+            ):
+                os.remove(actual_filepath)
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "size_exceeded",
+                        "message": "Downloaded file exceeds the 50MB limit.",
+                    },
+                }
             return {
                 "ok": True,
                 "metadata": {

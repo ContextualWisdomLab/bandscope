@@ -1,5 +1,6 @@
 """Tests for YouTube import capabilities."""
 
+import importlib
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -105,19 +106,67 @@ def test_download_youtube_audio_exception(mock_ydl_class: MagicMock) -> None:
     assert "Unexpected explosion" in result["error"]["message"]
 
 
+@patch("bandscope_analysis.youtube.os.path.getsize")
+@patch("bandscope_analysis.youtube.os.path.exists")
+@patch("bandscope_analysis.youtube.os.remove")
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_duration_exceeded(
+    mock_ydl_class: MagicMock,
+    mock_remove: MagicMock,
+    mock_exists: MagicMock,
+    mock_getsize: MagicMock,
+) -> None:
+    """Test download fails if duration exceeds 15 minutes."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "123", "duration": 16 * 60}
+    mock_ydl.prepare_filename.return_value = "/tmp/123.m4a"
+    mock_exists.return_value = True
+
+    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    assert result["ok"] is False
+    assert result["error"]["code"] == "duration_exceeded"
+    mock_remove.assert_called_with("/tmp/123.m4a")
+
+
+@patch("bandscope_analysis.youtube.os.path.getsize")
+@patch("bandscope_analysis.youtube.os.path.exists")
+@patch("bandscope_analysis.youtube.os.remove")
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_size_exceeded(
+    mock_ydl_class: MagicMock,
+    mock_remove: MagicMock,
+    mock_exists: MagicMock,
+    mock_getsize: MagicMock,
+) -> None:
+    """Test download fails if size exceeds 50MB."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "123", "duration": 10 * 60}
+    mock_ydl.prepare_filename.return_value = "/tmp/123.m4a"
+    mock_exists.return_value = True
+    mock_getsize.return_value = 51 * 1024 * 1024
+
+    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    assert result["ok"] is False
+    assert result["error"]["code"] == "size_exceeded"
+    mock_remove.assert_called_with("/tmp/123.m4a")
+
+
 def test_main_block(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """Test the CLI entry point."""
     test_args = ["youtube.py", "--url", "https://youtube.com/watch?v=123", "--out-dir", "/tmp"]
     monkeypatch.setattr(sys, "argv", test_args)
 
+    import bandscope_analysis.youtube
+
+    importlib.reload(bandscope_analysis.youtube)
+
     with patch("bandscope_analysis.youtube.download_youtube_audio") as mock_download:
         mock_download.return_value = {"ok": True, "metadata": {"id": "123"}}
 
         with patch.object(sys, "exit") as mock_exit:
-            import bandscope_analysis.youtube
-
             bandscope_analysis.youtube.main()
-
             mock_exit.assert_called_with(0)
 
             # test failure exit 1
@@ -148,3 +197,10 @@ def test_module_execution(
     with patch.object(sys, "exit") as mock_exit:
         runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
         mock_exit.assert_called_with(0)
+
+
+@patch("bandscope_analysis.youtube.urllib.parse.urlparse")
+def test_validate_url_exception(mock_urlparse: MagicMock) -> None:
+    """Test URL validation exception handling."""
+    mock_urlparse.side_effect = Exception("Test exception")
+    assert validate_url("https://youtube.com/watch?v=123") is False

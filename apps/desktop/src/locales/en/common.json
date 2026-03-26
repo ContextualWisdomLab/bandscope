@@ -32,5 +32,9 @@
   "sectionRoadmapTitle": "Section Roadmap",
   "roleSwitcherTitle": "Role-specific View",
   "allRoles": "All Roles",
-  "overlapWarning": "Clash warning"
+  "overlapWarning": "Clash warning",
+  "youtubePlaceholder": "YouTube URL...",
+  "importYoutube": "Import YouTube",
+  "importingYoutube": "Importing...",
+  "youtubeImportFailed": "Failed to import YouTube URL."
 }

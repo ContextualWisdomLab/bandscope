@@ -734,12 +734,20 @@ fn select_local_audio_source(
 }
 
 #[tauri::command]
-fn import_youtube_url(
+async fn import_youtube_url(
     url: String,
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<ProjectBootstrapSummaryPayload, String> {
-    if !url.starts_with("https://") || (!url.contains("youtube.com/") && !url.contains("youtu.be/")) {
+    let parsed_url = match url::Url::parse(&url) {
+        Ok(u) => u,
+        Err(_) => return Err("Only standard YouTube URLs are supported.".to_string()),
+    };
+    if parsed_url.scheme() != "https" {
+        return Err("Only standard YouTube URLs are supported.".to_string());
+    }
+    let host = parsed_url.host_str().unwrap_or("").to_lowercase();
+    if host != "youtu.be" && host != "youtube.com" && !host.ends_with(".youtube.com") {
         return Err("Only standard YouTube URLs are supported.".to_string());
     }
 
@@ -764,11 +772,15 @@ fn import_youtube_url(
     args.push("--out-dir".into());
     args.push(cache_root.to_string_lossy().into_owned());
 
-    let output = Command::new(program)
-        .args(args)
-        .current_dir(working_dir)
-        .output()
-        .map_err(|_| "Failed to start YouTube import process.".to_string())?;
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        Command::new(program)
+            .args(args)
+            .current_dir(working_dir)
+            .output()
+    })
+    .await
+    .map_err(|_| "Failed to execute YouTube import process.".to_string())?
+    .map_err(|_| "Failed to start YouTube import process.".to_string())?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout)

@@ -129,7 +129,7 @@ export function App() {
         setSelectionError(selection.error.message);
       }
     } catch {
-      setSelectionError("Failed to import YouTube URL.");
+      setSelectionError(t("youtubeImportFailed"));
     } finally {
       setIsImporting(false);
     }
@@ -167,7 +167,7 @@ export function App() {
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <input 
             type="text" 
-            placeholder="YouTube URL..." 
+            placeholder={t("youtubePlaceholder")} 
             value={youtubeUrl}
             onChange={(e) => setYoutubeUrl(e.target.value)}
             disabled={analysisInFlight || isStarting || isImporting}
@@ -179,7 +179,7 @@ export function App() {
             disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
             style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
           >
-            {isImporting ? "Importing..." : "Import YouTube"}
+            {isImporting ? t("importingYoutube") : t("importYoutube")}
           </button>
         </div>
 
