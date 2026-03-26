@@ -733,11 +733,88 @@ fn select_local_audio_source(
     Ok(summary)
 }
 
+#[tauri::command]
+fn import_youtube_url(
+    url: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<ProjectBootstrapSummaryPayload, String> {
+    if !url.starts_with("https://") || (!url.contains("youtube.com/") && !url.contains("youtu.be/")) {
+        return Err("Only standard YouTube URLs are supported.".to_string());
+    }
+
+    let project_id = next_project_id(&state);
+    let project_root = app_owned_root(&app, "projects", &project_id)?;
+    let cache_root = app_owned_root(&app, "cache", &project_id)?;
+    let temp_root = app_owned_root(&app, "temp", &project_id)?;
+
+    let (working_dir, program, mut args) = analysis_command();
+    if program == MISSING_ANALYSIS_PYTHON {
+        return Err("Analysis engine is unavailable.".to_string());
+    }
+
+    // Replace `bandscope_analysis.cli` with `bandscope_analysis.youtube`
+    if let Some(pos) = args.iter().position(|a| a == "bandscope_analysis.cli") {
+        args[pos] = "bandscope_analysis.youtube".into();
+    } else {
+        return Err("Internal error: Could not construct YouTube import command.".to_string());
+    }
+    args.push("--url".into());
+    args.push(url.clone());
+    args.push("--out-dir".into());
+    args.push(cache_root.to_string_lossy().into_owned());
+
+    let output = Command::new(program)
+        .args(args)
+        .current_dir(working_dir)
+        .output()
+        .map_err(|_| "Failed to start YouTube import process.".to_string())?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&stdout)
+        .map_err(|_| "Failed to parse YouTube import response.".to_string())?;
+
+    if parsed.get("ok").and_then(|v| v.as_bool()) == Some(true) {
+        if let Some(metadata) = parsed.get("metadata") {
+            let filepath = metadata.get("filepath").and_then(|v| v.as_str()).unwrap_or("");
+            let title = metadata.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown YouTube Audio");
+            let path = Path::new(filepath);
+            let metadata_fs = std::fs::metadata(path).map_err(|_| "Could not read downloaded audio file.".to_string())?;
+            let extension = path.extension().and_then(|v| v.to_str()).unwrap_or("m4a").to_string();
+
+            let source = LocalAudioSourcePayload {
+                source_path: filepath.to_string(),
+                file_name: format!("{}.{}", title, extension),
+                extension,
+                file_size_bytes: metadata_fs.len(),
+            };
+
+            let summary = ProjectBootstrapSummaryPayload {
+                project_id,
+                source_mode: "reference".into(),
+                project_root: project_root.to_string_lossy().into_owned(),
+                cache_root: cache_root.to_string_lossy().into_owned(),
+                temp_root: temp_root.to_string_lossy().into_owned(),
+                source,
+            };
+            store_bootstrap_source(&state, summary.clone());
+            return Ok(summary);
+        }
+    }
+
+    if let Some(err) = parsed.get("error") {
+        let msg = err.get("message").and_then(|v| v.as_str()).unwrap_or("Unknown error during YouTube import.");
+        return Err(msg.to_string());
+    }
+
+    Err("YouTube import failed with an unknown error.".to_string())
+}
 fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             select_local_audio_source,
+            import_youtube_url,
             start_analysis_job,
             get_analysis_job_status
         ])

@@ -10,6 +10,7 @@ import {
   createDefaultAnalysisRequest,
   getAnalysisJobStatus,
   selectLocalAudioSource,
+  importYoutubeUrl,
   startAnalysisJob
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale } from "./i18n";
@@ -43,6 +44,8 @@ export function App() {
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
   
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
@@ -114,6 +117,23 @@ export function App() {
     setJobStatus(null);
   };
 
+  const handleImportYoutube = async () => {
+    setSelectionError(null);
+    setIsImporting(true);
+    try {
+      const selection = await importYoutubeUrl(youtubeUrl);
+      if (selection.ok) {
+        setSelectedBootstrap(selection.bootstrap);
+        setYoutubeUrl("");
+      } else {
+        setSelectionError(selection.error.message);
+      }
+    } catch {
+      setSelectionError("Failed to import YouTube URL.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
   const renderWorkspaceState = () => {
     if (jobError) {
       return <ErrorState error={jobError} />;
@@ -134,19 +154,40 @@ export function App() {
         <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
       </header>
 
-      <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center" }}>
+      <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
         <button 
           type="button" 
           onClick={handleChooseLocalAudio} 
-          disabled={analysisInFlight || isStarting}
+          disabled={analysisInFlight || isStarting || isImporting}
           style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
         >
           {t("chooseLocalAudio")}
         </button>
+        
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <input 
+            type="text" 
+            placeholder="YouTube URL..." 
+            value={youtubeUrl}
+            onChange={(e) => setYoutubeUrl(e.target.value)}
+            disabled={analysisInFlight || isStarting || isImporting}
+            style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ccc", width: "200px" }}
+          />
+          <button 
+            type="button" 
+            onClick={handleImportYoutube} 
+            disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+            style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
+          >
+            {isImporting ? "Importing..." : "Import YouTube"}
+          </button>
+        </div>
+
         <button 
           type="button" 
+
           onClick={handleStartAnalysis} 
-          disabled={analysisInFlight || isStarting || !selectedBootstrap}
+          disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
           style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#1890ff", color: "white", border: "none" }}
         >
           {t("startAnalysis")}

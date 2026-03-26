@@ -155,3 +155,21 @@ export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobSt
   }
   return response;
 }
+export async function importYoutubeUrl(url: string): Promise<LocalAudioSelectionResult> {
+  try {
+    const response = await invokeAnalysis("import_youtube_url", { url });
+    return {
+      ok: true,
+      bootstrap: parseProjectBootstrapSummary(response)
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : (typeof error === 'string' ? error : "YouTube import failed.");
+    return {
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message
+      }
+    };
+  }
+}

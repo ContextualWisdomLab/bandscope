@@ -19,7 +19,14 @@ vi.mock("./lib/analysis", () => ({
     return { ok: true, bootstrap: response };
   },
   startAnalysisJob: (request: unknown) => tauriInvoke("start_analysis_job", { request }),
-  getAnalysisJobStatus: (jobId: string) => tauriInvoke("get_analysis_job_status", { jobId })
+  getAnalysisJobStatus: (jobId: string) => tauriInvoke("get_analysis_job_status", { jobId }),
+  importYoutubeUrl: async (url: string) => {
+    const response = await tauriInvoke("import_youtube_url", { url });
+    if (response?.code) {
+      return { ok: false, error: response };
+    }
+    return { ok: true, bootstrap: response };
+  }
 }));
 
 function succeededResult() {
@@ -424,4 +431,69 @@ describe("App", () => {
     });
     expect(tauriInvoke).toHaveBeenCalledTimes(2); // select + start
   });
+
+  it("imports a YouTube URL successfully", async () => {
+    tauriInvoke.mockResolvedValueOnce({
+      projectId: "project-yt-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-yt-1",
+      cacheRoot: "/tmp/bandscope/cache/project-yt-1",
+      tempRoot: "/tmp/bandscope/temp/project-yt-1",
+      source: {
+        sourcePath: "/tmp/bandscope/temp/project-yt-1/youtube.wav",
+        fileName: "youtube.wav",
+        extension: "wav",
+        fileSizeBytes: 5000000
+      }
+    });
+
+    render(<App />);
+
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=123" } });
+    
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenCalledWith("import_youtube_url", { url: "https://youtube.com/watch?v=123" });
+      expect(screen.getByText(/youtube\.wav/i)).toBeTruthy();
+    });
+  });
+
+  it("handles YouTube import failure with a message", async () => {
+    tauriInvoke.mockResolvedValueOnce({
+      code: "youtube_import_failed",
+      message: "This video is age restricted."
+    });
+
+    render(<App />);
+
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=456" } });
+    
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/This video is age restricted/i)).toBeTruthy();
+    });
+  });
+
+  it("handles generic exception during YouTube import", async () => {
+    tauriInvoke.mockRejectedValueOnce(new Error("Network Error"));
+
+    render(<App />);
+
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=789" } });
+    
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+  });
+
 });
