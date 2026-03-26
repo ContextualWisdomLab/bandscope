@@ -6,10 +6,12 @@ import {
   isAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
+  parseRehearsalSong,
   type AnalysisJobError,
   type AnalysisJobRequest,
   type AnalysisJobStatus,
-  type ProjectBootstrapSummary
+  type ProjectBootstrapSummary,
+  type RehearsalSong
 } from "@bandscope/shared-types";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -87,7 +89,17 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     return succeeded;
   }
 
+
+  if (command === "save_project") {
+    return;
+  }
+
+  if (command === "load_project") {
+    throw new Error("Local load not supported in browser");
+  }
+
   throw new Error(`Unknown analysis bridge command: ${command}`);
+
 }
 
 async function invokeAnalysis(command: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -154,4 +166,13 @@ export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobSt
     throw new Error("Invalid analysis job status response");
   }
   return response;
+}
+
+export async function saveProject(song: RehearsalSong): Promise<void> {
+  await invokeAnalysis("save_project", { payload: song });
+}
+
+export async function loadProject(): Promise<RehearsalSong> {
+  const response = await invokeAnalysis("load_project");
+  return parseRehearsalSong(response);
 }

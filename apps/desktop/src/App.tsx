@@ -10,7 +10,9 @@ import {
   createDefaultAnalysisRequest,
   getAnalysisJobStatus,
   selectLocalAudioSource,
-  startAnalysisJob
+  startAnalysisJob,
+  loadProject,
+  saveProject
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
@@ -77,7 +79,7 @@ export function App() {
     }, ANALYSIS_POLL_INTERVAL_MS);
 
     return () => window.clearTimeout(timer);
-  }, [jobStatus]);
+  }, [jobStatus, t]);
 
   const handleStartAnalysis = async () => {
     setJobError(null);
@@ -114,6 +116,32 @@ export function App() {
     setJobStatus(null);
   };
 
+  const handleLoadProject = async () => {
+    try {
+      const song = await loadProject();
+      setJobResult(song);
+      setJobError(null);
+      setSelectedBootstrap(null);
+      setJobStatus(null);
+    } catch (e) {
+      if (e instanceof Error && e.message !== "User cancelled") {
+        setJobError(`Failed to load project: ${e.message}`);
+      }
+    }
+  };
+
+  const handleSaveProject = async () => {
+    try {
+      await saveProject(jobResult!);
+    } catch (e) {
+      console.error("Failed to save project", e);
+    }
+  };
+
+  const handleSongUpdate = (updatedSong: RehearsalSong) => {
+    setJobResult(updatedSong);
+  };
+
   const renderWorkspaceState = () => {
     if (jobError) {
       return <ErrorState error={jobError} />;
@@ -122,16 +150,27 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} />;
+      return <Workspace song={jobResult} onSongUpdate={handleSongUpdate} />;
     }
     return <EmptyState />;
   };
 
   return (
     <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
-      <header style={{ marginBottom: "32px" }}>
-        <h1 style={{ margin: "0 0 8px 0" }}>{t("appTitle")}</h1>
-        <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
+      <header style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1 style={{ margin: "0 0 8px 0" }}>{t("appTitle")}</h1>
+          <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
+        </div>
+        {jobResult && (
+          <button 
+            type="button" 
+            onClick={handleSaveProject} 
+            style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#fff", border: "1px solid #ccc" }}
+          >
+            Save Project
+          </button>
+        )}
       </header>
 
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center" }}>
@@ -142,6 +181,14 @@ export function App() {
           style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
         >
           {t("chooseLocalAudio")}
+        </button>
+        <button 
+          type="button" 
+          onClick={handleLoadProject} 
+          disabled={analysisInFlight || isStarting}
+          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
+        >
+          Open Project
         </button>
         <button 
           type="button" 

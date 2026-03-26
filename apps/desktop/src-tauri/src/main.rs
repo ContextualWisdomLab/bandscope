@@ -688,7 +688,9 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
 }
 
 #[tauri::command]
-fn get_analysis_job_status(job_id: String, state: tauri::State<'_, AppState>) -> AnalysisJobStatus {
+fn get_analysis_job_status,
+            save_project,
+            load_project(job_id: String, state: tauri::State<'_, AppState>) -> AnalysisJobStatus {
     state
         .0
         .jobs
@@ -733,13 +735,42 @@ fn select_local_audio_source(
     Ok(summary)
 }
 
+
+#[tauri::command]
+fn save_project(payload: Value) -> Result<(), String> {
+    let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+        .map_err(|_| "Invalid project payload".to_string())?;
+
+    if let Some(path) = FileDialog::new()
+        .add_filter("BandScope Project", &["bscope", "json"])
+        .save_file()
+    {
+        let content = serde_json::to_string_pretty(&parsed)
+            .map_err(|_| "Failed to serialize project".to_string())?;
+        std::fs::write(path, content).map_err(|_| "Failed to write file".to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn load_project() -> Result<RehearsalSongPayload, String> {
+    let path = FileDialog::new()
+        .add_filter("BandScope Project", &["bscope", "json"])
+        .pick_file()
+        .ok_or_else(|| "No file selected".to_string())?;
+    let content = std::fs::read_to_string(path).map_err(|_| "Failed to read file".to_string())?;
+    serde_json::from_str(&content).map_err(|_| "Invalid project file format".to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             select_local_audio_source,
             start_analysis_job,
-            get_analysis_job_status
+            get_analysis_job_status,
+            save_project,
+            load_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
