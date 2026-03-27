@@ -211,9 +211,12 @@ def test_cli_module_runs_as_main(monkeypatch) -> None:
     monkeypatch.setattr(sys, "stdin", stdin)
     monkeypatch.setattr(sys, "stdout", stdout)
 
-    try:
-        runpy.run_module("bandscope_analysis.cli", run_name="__main__")
-    except SystemExit as exit_signal:
-        assert exit_signal.code == 0
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        try:
+            runpy.run_module("bandscope_analysis.cli", run_name="__main__")
+        except SystemExit as exit_signal:
+            assert exit_signal.code == 0
 
     assert json.loads(stdout.getvalue())["jobId"] == "job-4"
