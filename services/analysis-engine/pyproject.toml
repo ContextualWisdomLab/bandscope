@@ -7,7 +7,9 @@ name = "bandscope-analysis"
 version = "0.1.0"
 description = "BandScope local-first analysis engine"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "yt-dlp>=2026.3.17",
+]
 
 [dependency-groups]
 dev = [

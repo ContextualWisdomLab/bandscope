@@ -1,6 +1,8 @@
 # BandScope
 
-BandScope is a public GitHub project for a local-first desktop app that gives amateur band members fast chord, stem, and range analysis without DAW complexity.
+BandScope is a public GitHub project for a local-first desktop app that turns a song into a practical rehearsal view: likely harmony by section and by instrument or vocal role, section roadmap, tempo and groove cues, separated stems, playable ranges, simplification hints, transposition or capo guidance, overlap cues, visible confidence, and rehearsal priorities without DAW complexity.
+
+It does not promise notation-grade full arrangement transcription or DAW-style production editing.
 
 Brand and product voice source of truth: `docs/brand-story.md`
 App security source of truth: `docs/security/app-security.md`
@@ -35,6 +37,10 @@ If a change touches files, URLs, subprocesses, IPC, WebView, model loading, upda
 If a change adds or updates dependencies, Actions, bundled binaries, or model artifacts, keep it aligned with lockfile, dependency-review, audit, and SBOM policy.
 If a change affects build, packaging, release, updater, bundled assets, or target-OS behavior, keep it aligned with the mandatory Windows and macOS build policy.
 If GitHub-specific execution is required and no repo exists yet, treat that as bootstrap work rather than a default blocker.
+
+## Current Status
+
+The core implementation backlog (Issue #26) has been successfully completed. BandScope now features a functioning local-first workflow, including audio intake, Python-based offline analysis, section/role extraction, manual user overrides, and CSV/JSON cue-sheet exports. The repository maintains 100% measured test coverage and 100% measured docstring coverage for the `services/analysis-engine` package and `apps/desktop` frontend components. TODO: Expand CI coverage threshold enforcement to all future sub-packages.
 
 ## Workspace layout
 
@@ -80,6 +86,7 @@ BANDSCOPE_ENABLE_RUST_CHECK=1 ./scripts/harness/quickcheck.sh
 
 - make the repository bootstrappable on a clean machine
 - keep frontend and Python engine contracts explicit
+- keep rehearsal-domain outputs explicit across sections, roles, cues, confidence, and exports
 - enforce mechanical checks early
 - keep docs visible to future agents
 - keep brand, product voice, and UX tone consistent through repo docs

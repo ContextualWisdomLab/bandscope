@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-select-local-audio-source"
+description = "Enables the select_local_audio_source command without any pre-configured scope."
+commands.allow = ["select_local_audio_source"]
+
+[[permission]]
+identifier = "deny-select-local-audio-source"
+description = "Denies the select_local_audio_source command without any pre-configured scope."
+commands.deny = ["select_local_audio_source"]

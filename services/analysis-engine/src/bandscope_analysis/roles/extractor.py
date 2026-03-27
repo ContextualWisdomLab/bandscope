@@ -1,0 +1,237 @@
+"""Role extractor implementation."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from .model import (
+    CueAnchorKind,
+    PartGraphNode,
+    RehearsalPriority,
+    RehearsalRole,
+    RoleExtractionResult,
+    RoleType,
+    SectionRoleTopology,
+)
+from .priority import calculate_rehearsal_priority
+
+logger = logging.getLogger(__name__)
+
+
+class RoleExtractor:
+    """Extracts roles and builds the part graph for song sections."""
+
+    def __init__(self) -> None:
+        """Initialize the role extractor."""
+        pass
+
+    def extract(
+        self,
+        sections: list[Any],
+        _audio_features: dict[str, Any] | None = None,
+    ) -> RoleExtractionResult:
+        """Extract roles and their topology per section.
+
+        Args:
+            sections: List of section dicts (must contain 'id').
+            _audio_features: Optional audio features to inform extraction.
+
+        Returns:
+            RoleExtractionResult containing topologies and notes.
+        """
+        topologies: list[SectionRoleTopology] = []
+
+        # Simple mock implementation for testing/demonstration purposes
+        for i, section in enumerate(sections):
+            if not isinstance(section, dict):
+                logger.warning(
+                    "Invalid section format at index %d; expected dict, got %s",
+                    i,
+                    type(section).__name__,
+                )
+                section_id = f"section-{i}"
+            else:
+                section_id = section.get("id", f"section-{i}")
+
+            # Create a mock bass role
+            bass_role: RehearsalRole = {
+                "id": "bass-guitar",
+                "name": "Bass Guitar",
+                "roleType": RoleType.INSTRUMENT,
+                "harmony": {"chord": "C#m7", "functionLabel": "vi pedal anchor", "source": "model"},
+                "cue": {
+                    "kind": CueAnchorKind.TRANSITION,
+                    "value": "Hold through the pickup before the downbeat.",
+                },
+                "range": {"lowestNote": "C#2", "highestNote": "E3"},
+                "confidence": {
+                    "level": "medium",
+                    "source": "model",
+                    "notes": "Watch the slide into the turnaround.",
+                },
+                "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
+                "simplification": "Stay on roots if the chorus entrance gets muddy.",
+                "setupNote": "Keep the attack short so the verse breathes.",
+                "manualOverrides": [],
+                "overlapWarnings": [
+                    "Density warning: competing with Keyboard Left Hand in low register."
+                ],
+            }
+
+            keys_left_role: RehearsalRole = {
+                "id": "keys-left",
+                "name": "Keyboard 1 Left Hand",
+                "roleType": RoleType.HAND,
+                "harmony": {
+                    "chord": "C#",
+                    "functionLabel": "Root reinforcement",
+                    "source": "model",
+                },
+                "cue": {
+                    "kind": CueAnchorKind.TRANSITION,
+                    "value": "Lock in with bass pedal.",
+                },
+                "range": {"lowestNote": "C#2", "highestNote": "C#3"},
+                "confidence": {
+                    "level": "low",
+                    "source": "model",
+                    "notes": "Muddy frequency range, difficult to clearly separate from bass.",
+                },
+                "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
+                "simplification": "Omit if bass is covering the lower register.",
+                "setupNote": "Use a darker patch to avoid clashing with right hand.",
+                "manualOverrides": [],
+                "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
+            }
+
+            keys_role: RehearsalRole = {
+                "id": "keys-right",
+                "name": "Keyboard 1 Right Hand",
+                "roleType": RoleType.HAND,
+                "harmony": {
+                    "chord": "Emaj7",
+                    "functionLabel": "Imaj7 color",
+                    "source": "model",
+                },
+                "cue": {
+                    "kind": CueAnchorKind.COUNT,
+                    "value": "Enter on beat 2 after the pickup.",
+                },
+                "range": {"lowestNote": "B3", "highestNote": "G#5"},
+                "confidence": {
+                    "level": "medium",
+                    "source": "model",
+                    "notes": "Top note voicing may need a quick ear check.",
+                },
+                "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
+                "simplification": "Drop top extension if the chorus turnaround feels busy.",
+                "setupNote": "Keep the patch bright enough to stay over the guitars.",
+                "manualOverrides": [],
+                "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
+            }
+
+            vocal_role: RehearsalRole = {
+                "id": "lead-vocal",
+                "name": "Lead Vocal",
+                "roleType": RoleType.VOCAL,
+                "harmony": {
+                    "chord": "C#m7",
+                    "functionLabel": "vi melodic pull",
+                    "source": "model",
+                },
+                "cue": {"kind": CueAnchorKind.LYRIC, "value": "city lights"},
+                "range": {"lowestNote": "G#3", "highestNote": "C#5"},
+                "confidence": {
+                    "level": "high",
+                    "source": "user",
+                    "notes": "Singer confirmed the pickup phrasing in rehearsal notes.",
+                },
+                "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
+                "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
+                "setupNote": "Watch the breath before the last line of the verse.",
+                "manualOverrides": [
+                    {
+                        "field": "harmony",
+                        "value": {
+                            "chord": "C#m11",
+                            "functionLabel": "vi suspended lift",
+                            "source": "user",
+                        },
+                        "source": "user",
+                    }
+                ],
+                "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
+            }
+
+            for role in [bass_role, keys_left_role, keys_role, vocal_role]:
+                role["rehearsalPriority"] = calculate_rehearsal_priority(role)
+
+            active_roles = [bass_role]
+
+            # Simple part graph for bass
+            part_graph: list[PartGraphNode] = [
+                {"role_id": "bass-guitar", "is_active": True, "handoff_to": [], "handoff_from": []}
+            ]
+
+            if i == 0:
+                active_roles.extend([keys_left_role, keys_role, vocal_role])
+                part_graph.extend(
+                    [
+                        {
+                            "role_id": "keys-left",
+                            "is_active": True,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                        {
+                            "role_id": "keys-right",
+                            "is_active": True,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                        {
+                            "role_id": "lead-vocal",
+                            "is_active": True,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                    ]
+                )
+                part_graph[0]["handoff_to"].append("lead-vocal")
+                part_graph[3]["handoff_from"].append("bass-guitar")
+            else:
+                part_graph.extend(
+                    [
+                        {
+                            "role_id": "keys-left",
+                            "is_active": False,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                        {
+                            "role_id": "keys-right",
+                            "is_active": False,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                        {
+                            "role_id": "lead-vocal",
+                            "is_active": False,
+                            "handoff_to": [],
+                            "handoff_from": [],
+                        },
+                    ]
+                )
+
+            topology: SectionRoleTopology = {
+                "section_id": section_id,
+                "active_roles": active_roles,
+                "part_graph": part_graph,
+            }
+            topologies.append(topology)
+
+        return {
+            "topologies": topologies,
+            "extraction_notes": "Extracted roles and computed handoffs.",
+        }

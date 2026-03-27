@@ -8,7 +8,7 @@ Future agents must apply it when writing PRDs, TRDs, UX flows, code, exports, lo
 ## App security context
 
 BandScope is a Windows/macOS local-first desktop app.
-Users provide local audio files or YouTube URLs, and the product performs audio analysis, stem separation, chord detection, range visualization, loop playback, project save/load, and result export.
+Users provide local audio files or YouTube URLs, and the product performs rehearsal analysis: per-role harmony detection, stem separation, form and cue extraction, range visualization, loop playback, confidence-marked guidance, project save/load, and result export.
 
 BandScope should not become a product that trades away safety for convenience.
 Even as a local desktop app, it still exposes attack surfaces through files, decoders, subprocesses, model artifacts, WebView rendering, IPC, local backend communication, updates, exports, logs, caches, and installers.
@@ -98,6 +98,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Validate all IPC and local backend payloads against strict schemas.
 - Reject unknown commands, unknown fields, and malformed payloads by default.
 - If a local HTTP service exists, consider per-session tokens or equivalent anti-cross-process protection.
+- For the current orchestration slice, prefer stdin/stdout JSON exchange with an allowlisted Python subprocess over opening a new local HTTP listener.
 
 ### WebView and UI rendering
 
@@ -125,6 +126,8 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Prevent CSV formula injection.
 - Sanitize export filenames and derived metadata.
 - Keep export scope narrow and predictable.
+- Treat cue sheets, chart-style exports, lyric-linked anchors, and role summaries as derived data that still require sanitization.
+- Do not let export formats expand into arbitrary scriptable project formats or unsafe document payloads.
 
 ## Feature-specific rules
 
@@ -135,6 +138,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Prefer isolated worker processing for decode and analysis.
 - Guard against very large files, abnormal duration, and hostile metadata.
 - Do not add arbitrary filesystem scanning just to find media files.
+- When bootstrapping a project around local audio, prefer referencing the validated original file plus app-owned temp/cache/project roots over copying the file until persistence requirements justify the extra storage boundary.
 
 ### YouTube and remote URL import
 
@@ -170,6 +174,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Document retention and cleanup policy.
 - Set restrictive permissions where the platform allows it.
 - Tell the user whether a project references the original file or copies it.
+- For bootstrap local-audio projects, resolve project and cache/temp roots from app-owned Tauri data/cache paths rather than the shared system temp namespace.
 
 ### Logging, telemetry, and crash reports
 

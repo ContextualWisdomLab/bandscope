@@ -1,3 +1,5 @@
+"""Scan repository workspace source files for disallowed security patterns."""
+
 from pathlib import Path
 import re
 import sys
@@ -32,12 +34,14 @@ SELF_PATH = Path("scripts/checks/security_gates.py")
 
 
 def should_scan(path: Path) -> bool:
+    """Return whether a path should be scanned for security-pattern violations."""
     return path.suffix in TARGET_EXTENSIONS and not any(
         part in EXCLUDED_PARTS for part in path.parts
     )
 
 
 def main() -> int:
+    """Return a failing exit code when a forbidden security pattern is found."""
     violations: list[str] = []
 
     for path in Path(".").rglob("*"):

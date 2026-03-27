@@ -1,3 +1,5 @@
+"""Package desktop build outputs into traceable release artifacts."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,6 +10,7 @@ import zipfile
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest for a file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -15,23 +18,82 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def expected_binary_path(repo_root: Path) -> Path:
+def normalized_platform() -> str:
+    """Return the normalized artifact platform label for the current environment."""
+    if artifact_platform := os.environ.get("BANDSCOPE_ARTIFACT_OS"):
+        return artifact_platform
+
+    target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE", "")
+    if "windows" in target_triple:
+        return "windows"
+    if "apple-darwin" in target_triple:
+        return "macos"
+
     system = platform.system().lower()
+    if system == "darwin":
+        return "macos"
+
+    return system
+
+
+def normalized_architecture() -> str:
+    """Return the normalized artifact architecture label for the current environment."""
+    if artifact_arch := os.environ.get("BANDSCOPE_ARTIFACT_ARCH"):
+        return artifact_arch
+
+    target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE", "")
+    if target_triple.startswith(("x86_64", "amd64")):
+        return "amd64"
+    if target_triple.startswith(("aarch64", "arm64")):
+        return "arm64"
+
+    machine = platform.machine().lower()
+    if machine in {"x86_64", "amd64"}:
+        return "amd64"
+    if machine in {"arm64", "aarch64"}:
+        return "arm64"
+
+    return machine
+
+
+def resolved_artifact_target() -> tuple[str, str]:
+    """Return the normalized platform and architecture for the current artifact target."""
+    return normalized_platform(), normalized_architecture()
+
+
+def artifact_identity() -> dict[str, str]:
+    """Build the archive and manifest names for the current artifact target."""
+    git_sha = os.environ.get("GITHUB_SHA", "local")[:12]
+    target_platform, target_arch = resolved_artifact_target()
+    suffix = f"bandscope-{target_platform}-{target_arch}-{git_sha}"
+    return {
+        "platform": target_platform,
+        "arch": target_arch,
+        "archive_name": f"{suffix}.zip",
+        "manifest_name": f"{suffix}.manifest.txt",
+    }
+
+
+def expected_binary_path(repo_root: Path) -> Path:
+    """Return the expected desktop binary path for the selected target triple."""
+    target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE")
+    if target_triple and "windows" in target_triple:
+        system = "windows"
+    elif target_triple and "apple-darwin" in target_triple:
+        system = "macos"
+    else:
+        system = normalized_platform()
     binary_name = (
         "bandscope-desktop.exe" if system == "windows" else "bandscope-desktop"
     )
-    return (
-        repo_root
-        / "apps"
-        / "desktop"
-        / "src-tauri"
-        / "target"
-        / "release"
-        / binary_name
-    )
+    target_root = repo_root / "apps" / "desktop" / "src-tauri" / "target"
+    if target_triple:
+        target_root = target_root / target_triple
+    return target_root / "release" / binary_name
 
 
 def main() -> int:
+    """Package the desktop binary, frontend assets, and metadata into a zip archive."""
     repo_root = Path(__file__).resolve().parents[2]
     binary_path = expected_binary_path(repo_root)
     frontend_dist = repo_root / "apps" / "desktop" / "dist"
@@ -54,9 +116,8 @@ def main() -> int:
         missing_list = ", ".join(missing_metadata)
         raise FileNotFoundError(f"Missing release metadata files: {missing_list}")
 
-    git_sha = os.environ.get("GITHUB_SHA", "local")[:12]
-    system = platform.system().lower()
-    archive_name = f"bandscope-{system}-{git_sha}.zip"
+    identity = artifact_identity()
+    archive_name = identity["archive_name"]
     archive_path = output_dir / archive_name
 
     with zipfile.ZipFile(
@@ -77,11 +138,13 @@ def main() -> int:
         f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8"
     )
 
-    manifest_path = output_dir / f"bandscope-{system}-{git_sha}.manifest.txt"
+    manifest_path = output_dir / identity["manifest_name"]
     manifest_path.write_text(
         "\n".join(
             [
-                f"platform={system}",
+                f"platform={identity['platform']}",
+                f"arch={identity['arch']}",
+                f"target_triple={os.environ.get('BANDSCOPE_TARGET_TRIPLE', 'native')}",
                 f"binary={binary_path.name}",
                 f"archive={archive_name}",
                 f"checksum={checksum_path.name}",

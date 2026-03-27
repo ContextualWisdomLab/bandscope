@@ -1,7 +1,16 @@
 {
   "version": 1,
   "generatedBy": "repo-maintained inventory",
-  "bundledBinaries": [],
+  "bundledBinaries": [
+    {
+      "name": "yt-dlp",
+      "version": ">=2026.3.17",
+      "sourceUrl": "https://pypi.org/project/yt-dlp/",
+      "license": "Unlicense",
+      "storagePath": "services/analysis-engine/uv.lock",
+      "releaseUsage": "Used by analysis-engine to extract audio from YouTube URLs."
+    }
+  ],
   "modelArtifacts": [],
   "notes": [
     "Add ffmpeg, yt-dlp, model weights, or sidecar assets here before they ship.",

@@ -1,3 +1,5 @@
+"""Verify that repository-controlled supply-chain controls stay in place."""
+
 from pathlib import Path
 import re
 
@@ -14,6 +16,7 @@ REQUIRED_FILES = [
     Path(".github/workflows/release.yml"),
     Path(".github/workflows/secret-scan-gate.yml"),
     Path(".github/workflows/build-baseline.yml"),
+    Path(".github/workflows/ossf-scorecard.yml"),
     Path("docs/security/dependency-policy.md"),
     Path("docs/security/sbom-policy.md"),
     Path("docs/security/code-security.md"),
@@ -28,10 +31,12 @@ DOCKER_ACTION = re.compile(r"^\s*-?\s*uses:\s+docker://")
 
 
 def verify_required_files() -> list[str]:
+    """Return missing files required by the supply-chain baseline."""
     return [str(path) for path in REQUIRED_FILES if not path.exists()]
 
 
 def verify_pinned_actions() -> list[str]:
+    """Return workflow actions that are not pinned to immutable SHAs."""
     violations: list[str] = []
     workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
         Path(".github/workflows").glob("*.yaml")
@@ -53,6 +58,7 @@ def verify_pinned_actions() -> list[str]:
 
 
 def verify_dependabot_coverage() -> list[str]:
+    """Return missing Dependabot ecosystems from the repo configuration."""
     path = Path(".github/dependabot.yml")
     if not path.exists():
         return [f"missing file: {path}"]
@@ -65,6 +71,7 @@ def verify_dependabot_coverage() -> list[str]:
 
 
 def read_workflow(path: Path, label: str, missing: list[str]) -> str:
+    """Read a workflow file, recording a missing-file violation when absent."""
     if not path.exists():
         missing.append(f"missing file: {path}")
         return ""
@@ -72,6 +79,7 @@ def read_workflow(path: Path, label: str, missing: list[str]) -> str:
 
 
 def verify_workflow_coverage() -> list[str]:
+    """Return workflow trigger and artifact coverage violations."""
     missing: list[str] = []
     ci = read_workflow(Path(".github/workflows/ci.yml"), "ci", missing)
     for token in ["develop", "main", "pull_request", "push", "ci / build-and-test"]:
@@ -124,20 +132,45 @@ def verify_workflow_coverage() -> list[str]:
         "push",
         "release:",
         "tags:",
-        "windows-latest",
-        "macos-latest",
+        "windows-2025",
+        "windows-11-arm",
+        "macos-15-intel",
+        "macos-15",
         "gate / build / windows",
         "gate / build / macos",
         "release-artifact / macos",
         "release-artifact / windows",
         "ubuntu-latest",
+        "bandscope-windows-amd64-${{ github.sha }}",
+        "bandscope-windows-arm64-${{ github.sha }}",
+        "bandscope-macos-amd64-${{ github.sha }}",
+        "bandscope-macos-arm64-${{ github.sha }}",
+        "Get-MpComputerStatus",
     ]:
         if build and token not in build:
             missing.append(f"build workflow missing token: {token}")
+    if build and "windows-latest" in build:
+        missing.append(
+            "build workflow should not rely on windows-latest for architecture coverage"
+        )
+    if build and "macos-latest" in build:
+        missing.append(
+            "build workflow should not rely on macos-latest for architecture coverage"
+        )
+    scorecard = read_workflow(
+        Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
+    )
+    if scorecard:
+        missing.extend(
+            f"ossf scorecard workflow missing token: {token}"
+            for token in ["develop", "main", "push", "schedule", "ossf-scorecard"]
+            if token not in scorecard
+        )
     return missing
 
 
 def main() -> int:
+    """Return a failing exit code when supply-chain controls are incomplete."""
     violations: list[str] = []
     violations.extend(f"missing file: {item}" for item in verify_required_files())
     violations.extend(verify_pinned_actions())
