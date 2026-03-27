@@ -9,9 +9,11 @@ interface SectionRoadmapProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
+/** Documented. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
+  /** Documented. */
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;
     const newChord = window.prompt("Enter new chord:", role.harmony.chord);
@@ -38,12 +40,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
     }
   };
 
+  /** Documented. */
   const getPriorityColor = (priority: string) => {
     if (priority === "high") return "#ff4d4f";
     if (priority === "medium") return "#faad14";
     return "#52c41a";
   };
 
+  /** Documented. */
   const getPriorityIcon = (priority: string) => {
     if (priority === "high") return "🚨";
     if (priority === "medium") return "⚠️";

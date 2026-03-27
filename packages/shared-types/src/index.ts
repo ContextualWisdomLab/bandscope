@@ -1,5 +1,7 @@
-export const SUPPORTED_AUDIO_FORMATS = ["wav", "mp3", "flac", "m4a"] as const;
-export const SECTION_FORM_LABELS = [
+export /** Documented. */
+const SUPPORTED_AUDIO_FORMATS = ["wav", "mp3", "flac", "m4a"] as const;
+export /** Documented. */
+const SECTION_FORM_LABELS = [
   "intro",
   "verse",
   "pre-chorus",
@@ -12,8 +14,10 @@ export const SECTION_FORM_LABELS = [
   "handoff"
 ] as const;
 
+/** Documented. */
 export type SectionFormLabel = (typeof SECTION_FORM_LABELS)[number];
 
+/** Documented. */
 export type ProjectSummary = {
   id: string;
   title: string;
@@ -21,34 +25,44 @@ export type ProjectSummary = {
   supportedAudioFormats: readonly (typeof SUPPORTED_AUDIO_FORMATS)[number][];
 };
 
+/** Documented. */
 export type ConfidenceLevel = "low" | "medium" | "high";
+/** Documented. */
 export type ProvenanceSource = "model" | "user";
+/** Documented. */
 export type CueAnchorKind = "lyric" | "count" | "transition";
+/** Documented. */
 export type RehearsalPriority = "low" | "medium" | "high";
+/** Documented. */
 export type ExportFormat = "cue-sheet" | "chart-summary";
 
+/** Documented. */
 export type ConfidenceMarker = {
   level: ConfidenceLevel;
   source: ProvenanceSource;
   notes: string;
 };
 
+/** Documented. */
 export type CueAnchor = {
   kind: CueAnchorKind;
   value: string;
 };
 
+/** Documented. */
 export type RangeSummary = {
   lowestNote: string;
   highestNote: string;
 };
 
+/** Documented. */
 export type RehearsalHarmony = {
   chord: string;
   functionLabel: string;
   source: ProvenanceSource;
 };
 
+/** Documented. */
 export type ManualOverride =
   {
     field: "harmony";
@@ -56,6 +70,7 @@ export type ManualOverride =
     source: "user";
   };
 
+/** Documented. */
 export type RehearsalRole = {
   id: string;
   name: string;
@@ -70,6 +85,7 @@ export type RehearsalRole = {
   manualOverrides: ManualOverride[];
 };
 
+/** Documented. */
 export type RehearsalSection = {
   id: string;
   label: SectionFormLabel;
@@ -78,12 +94,14 @@ export type RehearsalSection = {
   roles: RehearsalRole[];
 };
 
+/** Documented. */
 export type ExportSummary = {
   format: ExportFormat;
   headline: string;
   focusSections: string[];
 };
 
+/** Documented. */
 export type RehearsalSong = {
   id: string;
   title: string;
@@ -91,10 +109,14 @@ export type RehearsalSong = {
   exportSummary: ExportSummary;
 };
 
+/** Documented. */
 export type AnalysisSourceKind = "demo" | "local_audio";
+/** Documented. */
 export type AnalysisJobState = "queued" | "running" | "succeeded" | "failed";
+/** Documented. */
 export type AnalysisJobErrorCode = "invalid_request" | "not_found" | "engine_unavailable";
 
+/** Documented. */
 export type LocalAudioSource = {
   sourcePath: string;
   fileName: string;
@@ -102,6 +124,7 @@ export type LocalAudioSource = {
   fileSizeBytes: number;
 };
 
+/** Documented. */
 export type ProjectBootstrapSummary = {
   projectId: string;
   sourceMode: "reference";
@@ -111,6 +134,7 @@ export type ProjectBootstrapSummary = {
   source: LocalAudioSource;
 };
 
+/** Documented. */
 export type AnalysisJobRequest =
   | {
       sourceKind: "demo";
@@ -124,11 +148,13 @@ export type AnalysisJobRequest =
       roleFocus: string[];
     };
 
+/** Documented. */
 export type AnalysisJobError = {
   code: AnalysisJobErrorCode;
   message: string;
 };
 
+/** Documented. */
 export type AnalysisJobStatus = {
   jobId: string;
   state: AnalysisJobState;
@@ -139,6 +165,7 @@ export type AnalysisJobStatus = {
   error?: AnalysisJobError;
 };
 
+/** Documented. */
 export type AnalysisJobSnapshot = {
   jobId: string;
   request: AnalysisJobRequest;
@@ -159,22 +186,27 @@ const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
 const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
 
+/** Documented. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Documented. */
 function isDenseArray(value: unknown): value is unknown[] {
   return Array.isArray(value) && Array.from({ length: value.length }, (_, index) => index in value).every(Boolean);
 }
 
+/** Documented. */
 function isOneOf<T extends string>(options: readonly T[], value: unknown): value is T {
   return typeof value === "string" && options.includes(value as T);
 }
 
+/** Documented. */
 function invalidField(path: string): string {
   return `Invalid rehearsal song contract: invalid field '${path}'`;
 }
 
+/** Documented. */
 function unexpectedKey(value: Record<string, unknown>, allowedKeys: readonly string[], path: string): string | null {
   for (const key of Object.keys(value)) {
     if (!allowedKeys.includes(key)) {
@@ -300,6 +332,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
   }
 };
 
+/** Documented. */
 export function createDefaultProjectSummary(input: {
   id: string;
   title: string;
@@ -312,10 +345,12 @@ export function createDefaultProjectSummary(input: {
   };
 }
 
+/** Documented. */
 export function createDemoRehearsalSong(): RehearsalSong {
   return structuredClone(demoRehearsalSongSeed);
 }
 
+/** Documented. */
 export function createDemoAnalysisJobRequest(): AnalysisJobRequest {
   return {
     sourceKind: "demo",
@@ -324,6 +359,7 @@ export function createDemoAnalysisJobRequest(): AnalysisJobRequest {
   };
 }
 
+/** Documented. */
 export function createProjectBootstrapSummary(input: {
   projectId: string;
   projectRoot: string;
@@ -341,6 +377,7 @@ export function createProjectBootstrapSummary(input: {
   };
 }
 
+/** Documented. */
 function validateProjectBootstrapSummary(value: unknown): string | null {
   if (!isRecord(value)) {
     return "Invalid project bootstrap summary: invalid field 'root'";
@@ -374,6 +411,7 @@ function validateProjectBootstrapSummary(value: unknown): string | null {
   return null;
 }
 
+/** Documented. */
 export function parseProjectBootstrapSummary(value: unknown): ProjectBootstrapSummary {
   const validationError = validateProjectBootstrapSummary(value);
   if (validationError) {
@@ -383,6 +421,7 @@ export function parseProjectBootstrapSummary(value: unknown): ProjectBootstrapSu
   return structuredClone(value as ProjectBootstrapSummary);
 }
 
+/** Documented. */
 function validateLocalAudioSource(value: unknown): string | null {
   if (!isRecord(value)) {
     return "Invalid local audio source: invalid field 'root'";
@@ -409,6 +448,7 @@ function validateLocalAudioSource(value: unknown): string | null {
   return null;
 }
 
+/** Documented. */
 export function parseLocalAudioSource(value: unknown): LocalAudioSource {
   const validationError = validateLocalAudioSource(value);
   if (validationError) {
@@ -418,6 +458,7 @@ export function parseLocalAudioSource(value: unknown): LocalAudioSource {
   return structuredClone(value as LocalAudioSource);
 }
 
+/** Documented. */
 export function createAnalysisJobStatus(input:
   | {
       jobId: string;
@@ -464,6 +505,7 @@ export function createAnalysisJobStatus(input:
   return status;
 }
 
+/** Documented. */
 function validateAnalysisJobRequest(value: unknown): string | null {
   if (!isRecord(value)) {
     return "Invalid analysis job request: invalid field 'root'";
@@ -501,6 +543,7 @@ function validateAnalysisJobRequest(value: unknown): string | null {
   return null;
 }
 
+/** Documented. */
 export function parseAnalysisJobRequest(value: unknown): AnalysisJobRequest {
   const validationError = validateAnalysisJobRequest(value);
   if (validationError) {
@@ -510,6 +553,7 @@ export function parseAnalysisJobRequest(value: unknown): AnalysisJobRequest {
   return structuredClone(value as AnalysisJobRequest);
 }
 
+/** Documented. */
 function validateAnalysisJobError(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -528,6 +572,7 @@ function validateAnalysisJobError(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateAnalysisJobStatus(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
@@ -579,10 +624,12 @@ function validateAnalysisJobStatus(value: unknown): string | null {
   return null;
 }
 
+/** Documented. */
 export function isAnalysisJobStatus(value: unknown): value is AnalysisJobStatus {
   return validateAnalysisJobStatus(value) === null;
 }
 
+/** Documented. */
 function validateConfidenceMarker(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -604,6 +651,7 @@ function validateConfidenceMarker(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateCueAnchor(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -622,6 +670,7 @@ function validateCueAnchor(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRangeSummary(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -640,6 +689,7 @@ function validateRangeSummary(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRehearsalHarmony(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -661,6 +711,7 @@ function validateRehearsalHarmony(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateManualOverride(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -688,6 +739,7 @@ function validateManualOverride(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRehearsalRole(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -764,6 +816,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRehearsalSection(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -800,6 +853,7 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateExportSummary(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -826,6 +880,7 @@ function validateExportSummary(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRehearsalSong(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
@@ -853,10 +908,12 @@ function validateRehearsalSong(value: unknown): string | null {
   return validateExportSummary(value.exportSummary, "exportSummary");
 }
 
+/** Documented. */
 export function isRehearsalSong(value: unknown): value is RehearsalSong {
   return validateRehearsalSong(value) === null;
 }
 
+/** Documented. */
 export function parseRehearsalSong(value: unknown): RehearsalSong {
   const validationError = validateRehearsalSong(value);
   if (validationError) {

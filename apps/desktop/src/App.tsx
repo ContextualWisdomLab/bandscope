@@ -21,6 +21,7 @@ import { EmptyState, LoadingState, ErrorState } from "./features/workspace/Works
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 
+/** Documented. */
 function progressMessage(
   t: ReturnType<typeof createTranslator>,
   state: AnalysisJobStatus["state"]
@@ -37,6 +38,7 @@ function progressMessage(
   }
 }
 
+/** Documented. */
 export function App() {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
@@ -84,6 +86,7 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [jobStatus, t]);
 
+  /** Documented. */
   const handleStartAnalysis = async () => {
     setJobError(null);
     setJobResult(null);
@@ -106,6 +109,7 @@ export function App() {
     }
   };
 
+  /** Documented. */
   const handleChooseLocalAudio = async () => {
     setSelectionError(null);
     const selection = await selectLocalAudioSource();
@@ -119,6 +123,7 @@ export function App() {
     setJobStatus(null);
   };
 
+  /** Documented. */
   const handleImportYoutube = async () => {
     setSelectionError(null);
     setIsImporting(true);
@@ -137,6 +142,7 @@ export function App() {
     }
   };
 
+  /** Documented. */
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
@@ -153,6 +159,7 @@ export function App() {
     }
   };
 
+  /** Documented. */
   const handleSaveProject = async () => {
     if (!jobResult) return;
     try {
@@ -166,10 +173,12 @@ export function App() {
     }
   };
 
+  /** Documented. */
   const handleSongUpdate = (updatedSong: RehearsalSong) => {
     setJobResult(updatedSong);
   };
 
+  /** Documented. */
   const renderWorkspaceState = () => {
     if (jobError) {
       return <ErrorState error={jobError} />;
