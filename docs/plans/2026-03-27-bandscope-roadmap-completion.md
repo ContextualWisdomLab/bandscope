@@ -42,3 +42,9 @@ Future work will transition from foundational pipeline engineering to:
 - Tuning analysis heuristics.
 - Expanding instrument-specific features (e.g., precise capo/tuning detection).
 - Enhancing playback and waveform visualization capabilities.
+
+## Security Notes
+
+- **App Security Integration:** All tasks implemented across this roadmap adhere strictly to local-first rules. Audio files and IPC payloads are untrusted inputs and parsed securely without raw eval/exec boundaries.
+- **Supply Chain:** Validated 100% retention of SBOM and lockfile gates to minimize third-party risk.
+- **Build Checks:** All CI branches maintain rigid Windows/macOS enforcement points to guarantee reproducible environments.
