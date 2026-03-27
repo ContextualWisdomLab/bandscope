@@ -45,6 +45,26 @@ Future work will transition from foundational pipeline engineering to:
 
 ## Security Notes
 
-- **App Security Integration:** All tasks implemented across this roadmap adhere strictly to local-first rules. Audio files and IPC payloads are untrusted inputs and parsed securely without raw eval/exec boundaries.
-- **Supply Chain:** Validated 100% retention of SBOM and lockfile gates to minimize third-party risk.
-- **Build Checks:** All CI branches maintain rigid Windows/macOS enforcement points to guarantee reproducible environments.
+### Attack Surface
+- Minimal footprint; the primary interface handles untrusted user-supplied local audio files and structured JSON IPC messaging.
+- Secondary footprint via policy-constrained YouTube metadata fetch endpoints.
+
+### Trust Boundary
+- Local IPC socket acts as a trust boundary between the React UI (untrusted) and the Python analysis engine (trusted).
+- Audio inputs from external sources are considered untrusted.
+
+### Mitigations
+- Strict schema validation for all IPC messages.
+- Subprocesses executed with `shell=False` to prevent injection.
+- Zero network dependency for core analysis workflows.
+
+### Test Points
+- 100% test coverage enforced on all analysis pipelines and orchestrator boundaries.
+- Negative tests for malformed JSON and corrupted audio inputs.
+
+### Realistic Threats
+- Maliciously crafted audio files triggering buffer overflows in underlying parsing libraries.
+- Privilege escalation via IPC injection (mitigated by strict schema).
+
+### Remaining Risk
+- Third-party library vulnerabilities in complex dependencies (e.g., ffmpeg or ML parsers), tracked via SBOM and dependency reviews.
