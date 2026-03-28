@@ -11,7 +11,16 @@
       "releaseUsage": "Used by analysis-engine to extract audio from YouTube URLs."
     }
   ],
-  "modelArtifacts": [],
+  "modelArtifacts": [
+    {
+      "name": "htdemucs",
+      "version": "demucs-v4.0",
+      "sourceUrl": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/f7e0c4bc-ba3fe64a.th",
+      "license": "MIT",
+      "storagePath": "~/.cache/torch/hub/checkpoints/",
+      "releaseUsage": "Used by analysis-engine for spectral source separation (stems)."
+    }
+  ],
   "notes": [
     "Add ffmpeg, yt-dlp, model weights, or sidecar assets here before they ship.",
     "Track source URL, version, checksum, license, storage path, and release usage for every item."

@@ -372,3 +372,72 @@ def test_cli_main_temporal_analyzer_mock_success(monkeypatch) -> None:
     assert cli.main() == 0
     res = json.loads(stdout.getvalue())
     assert res["jobId"] == "job-audio-success"
+
+
+def test_cli_main_temporal_analyzer_and_separator_mock_success(monkeypatch) -> None:
+    """Ensure the temporal analyzer and stem separator injection block succeeds."""
+    import io
+    import json
+
+    from bandscope_analysis import cli
+
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-audio-success-sep",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "p1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/valid/path.wav",
+                        "fileName": "test.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 100,
+                    },
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    class FakeAnalyzerSuccess:
+        def analyze(self, path):
+            return {"bpm": 120.0, "beats": []}
+
+    class FakeAudioStemSeparator:
+        def separate_audio(self, audio, sample_rate, segment_seconds=2.0):
+            import numpy as np
+
+            return {
+                "vocals": np.zeros((2, 100), dtype=np.float32),
+                "drums": np.zeros((2, 100), dtype=np.float32),
+                "bass": np.zeros((2, 100), dtype=np.float32),
+                "other": np.zeros((2, 100), dtype=np.float32),
+            }
+
+    def fake_librosa_load(path, sr, mono, duration):
+        import numpy as np
+
+        return np.zeros((2, 100), dtype=np.float32), sr
+
+    import librosa
+
+    monkeypatch.setattr(librosa, "load", fake_librosa_load)
+    import bandscope_analysis.separation.audio_separator
+
+    monkeypatch.setattr(
+        bandscope_analysis.separation.audio_separator,
+        "AudioStemSeparator",
+        FakeAudioStemSeparator,
+    )
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+
+    assert cli.main() == 0
+    res = json.loads(stdout.getvalue())
+    assert res["jobId"] == "job-audio-success-sep"

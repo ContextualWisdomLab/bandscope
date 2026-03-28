@@ -91,6 +91,20 @@ def main() -> int:
             except Exception as e:
                 logging.warning(f"Temporal analysis failed, continuing with mock: {e}")
 
+            logging.info(f"Performing stem separation on {audio_path}...")
+            try:
+                import librosa
+
+                from bandscope_analysis.separation.audio_separator import AudioStemSeparator
+
+                # Load only the first 10 seconds for the CLI proof to prevent hanging
+                y, sr = librosa.load(audio_path, sr=44100, mono=False, duration=10.0)
+                separator = AudioStemSeparator()
+                stems = separator.separate_audio(y, sample_rate=int(sr), segment_seconds=2.0)
+                logging.info(f"Successfully extracted {len(stems)} stems: {list(stems.keys())}")
+            except Exception as e:
+                logging.warning(f"Stem separation failed, continuing with mock: {e}")
+
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     response = run_analysis_job(job_id, request, requested_at)
     json.dump(response, sys.stdout)
