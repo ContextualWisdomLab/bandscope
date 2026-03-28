@@ -132,6 +132,15 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         ✨ {role.simplification}
                       </div>
                     )}
+                    {role.overlapWarnings.length > 0 && (
+                      <div style={{ marginTop: "4px" }}>
+                        {role.overlapWarnings.map((warning, wIdx) => (
+                          <div key={wIdx} style={{ fontSize: "0.8em", color: "#fa541c", marginTop: "2px" }}>
+                            ⚠️ {warning}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
               ))}
             </div>
