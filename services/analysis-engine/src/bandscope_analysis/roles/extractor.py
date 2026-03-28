@@ -15,6 +15,7 @@ from .model import (
     SectionRoleTopology,
 )
 from .priority import calculate_rehearsal_priority
+from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,8 @@ class RoleExtractor:
                 },
                 "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
                 "simplification": "Stay on roots if the chorus entrance gets muddy.",
-                "setupNote": "Keep the attack short so the verse breathes.",
+                "setupNote": get_setup_note("Bass Guitar", ["C#m7"])
+                or "Keep the attack short so the verse breathes.",
                 "manualOverrides": [],
                 "overlapWarnings": [
                     "Density warning: competing with Keyboard Left Hand in low register."
@@ -100,7 +102,8 @@ class RoleExtractor:
                 },
                 "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
                 "simplification": "Omit if bass is covering the lower register.",
-                "setupNote": "Use a darker patch to avoid clashing with right hand.",
+                "setupNote": get_setup_note("Keyboard", ["C#"])
+                or "Use a darker patch to avoid clashing with right hand.",
                 "manualOverrides": [],
                 "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
             }
@@ -126,7 +129,8 @@ class RoleExtractor:
                 },
                 "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
                 "simplification": "Drop top extension if the chorus turnaround feels busy.",
-                "setupNote": "Keep the patch bright enough to stay over the guitars.",
+                "setupNote": get_setup_note("Keyboard", ["Emaj7"])
+                or "Keep the patch bright enough to stay over the guitars.",
                 "manualOverrides": [],
                 "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
             }
@@ -149,7 +153,8 @@ class RoleExtractor:
                 },
                 "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
                 "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
-                "setupNote": "Watch the breath before the last line of the verse.",
+                "setupNote": get_setup_note("Lead Vocal", ["C#m7"])
+                or "Watch the breath before the last line of the verse.",
                 "manualOverrides": [
                     {
                         "field": "harmony",
@@ -164,14 +169,44 @@ class RoleExtractor:
                 "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
             }
 
-            for role in [bass_role, keys_left_role, keys_role, vocal_role]:
+            acoustic_guitar_role: RehearsalRole = {
+                "id": "acoustic-guitar",
+                "name": "Acoustic Guitar",
+                "roleType": RoleType.INSTRUMENT,
+                "harmony": {
+                    "chord": "Eb",
+                    "functionLabel": "I",
+                    "source": "model",
+                },
+                "cue": {"kind": CueAnchorKind.TRANSITION, "value": "Strum on the downbeat."},
+                "range": {"lowestNote": "E2", "highestNote": "C#5"},
+                "confidence": {
+                    "level": "medium",
+                    "source": "model",
+                    "notes": "Standard open chords detected.",
+                },
+                "rehearsalPriority": RehearsalPriority.MEDIUM,
+                "simplification": "Simplify strumming pattern if rushing.",
+                "setupNote": get_setup_note("Acoustic Guitar", ["Eb", "Bb", "Fm", "Ab"])
+                or "Check tuning.",
+                "manualOverrides": [],
+                "overlapWarnings": [],
+            }
+
+            for role in [bass_role, keys_left_role, keys_role, vocal_role, acoustic_guitar_role]:
                 role["rehearsalPriority"] = calculate_rehearsal_priority(role)
 
-            active_roles = [bass_role]
+            active_roles = [bass_role, acoustic_guitar_role]
 
-            # Simple part graph for bass
+            # Simple part graph for bass and guitar
             part_graph: list[PartGraphNode] = [
-                {"role_id": "bass-guitar", "is_active": True, "handoff_to": [], "handoff_from": []}
+                {"role_id": "bass-guitar", "is_active": True, "handoff_to": [], "handoff_from": []},
+                {
+                    "role_id": "acoustic-guitar",
+                    "is_active": True,
+                    "handoff_to": [],
+                    "handoff_from": [],
+                },
             ]
 
             if i == 0:
@@ -198,8 +233,11 @@ class RoleExtractor:
                         },
                     ]
                 )
-                part_graph[0]["handoff_to"].append("lead-vocal")
-                part_graph[3]["handoff_from"].append("bass-guitar")
+                for node in part_graph:
+                    if node["role_id"] == "bass-guitar":
+                        node["handoff_to"].append("lead-vocal")
+                    elif node["role_id"] == "lead-vocal":
+                        node["handoff_from"].append("bass-guitar")
             else:
                 part_graph.extend(
                     [
