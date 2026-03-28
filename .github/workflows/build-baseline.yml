@@ -163,6 +163,7 @@ jobs:
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
+        if: runner.os != 'Windows' || runner.arch != 'ARM64' # llvmlite lacks wheel for Windows ARM64
         run: uv sync --project services/analysis-engine --group dev --frozen
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
