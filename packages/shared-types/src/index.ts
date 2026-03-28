@@ -83,6 +83,15 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   manualOverrides: ManualOverride[];
+  overlapWarnings: string[];
+};
+
+/** Documented. */
+export type PartGraphNode = {
+  role_id: string;
+  is_active: boolean;
+  handoff_to: string[];
+  handoff_from: string[];
 };
 
 /** Documented. */
@@ -92,6 +101,7 @@ export type RehearsalSection = {
   groove: string;
   confidence: ConfidenceMarker;
   roles: RehearsalRole[];
+  partGraph: PartGraphNode[];
 };
 
 /** Documented. */
@@ -256,7 +266,10 @@ const demoRehearsalSongSeed: RehearsalSong = {
           rehearsalPriority: "high",
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
-          manualOverrides: []
+          manualOverrides: [],
+          overlapWarnings: [
+            "Density warning: competing with Keyboard Left Hand in low register."
+          ]
         },
         {
           id: "keys-right",
@@ -283,7 +296,10 @@ const demoRehearsalSongSeed: RehearsalSong = {
           rehearsalPriority: "high",
           simplification: "Drop the top extension if the chorus turnaround still feels busy.",
           setupNote: "Keep the patch bright enough to stay over the guitars.",
-          manualOverrides: []
+          manualOverrides: [],
+          overlapWarnings: [
+            "Melodic overlap: top notes conflict with Lead Vocal range."
+          ]
         },
         {
           id: "lead-vocal",
@@ -320,8 +336,16 @@ const demoRehearsalSongSeed: RehearsalSong = {
               },
               source: "user"
             }
+          ],
+          overlapWarnings: [
+            "Melodic overlap: competing with Keyboard 1 Right Hand."
           ]
         }
+      ],
+      partGraph: [
+        { role_id: "bass-guitar", is_active: true, handoff_to: ["lead-vocal"], handoff_from: [] },
+        { role_id: "keys-right", is_active: true, handoff_to: [], handoff_from: [] },
+        { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: ["bass-guitar"] }
       ]
     }
   ],
@@ -757,7 +781,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "rehearsalPriority",
       "simplification",
       "setupNote",
-      "manualOverrides"
+      "manualOverrides",
+      "overlapWarnings"
     ],
     path
   );
@@ -812,6 +837,49 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       return overrideError;
     }
   }
+  if (!isDenseArray(value.overlapWarnings)) {
+    return invalidField(`${path}.overlapWarnings`);
+  }
+  for (const [index, warning] of value.overlapWarnings.entries()) {
+    if (typeof warning !== "string") {
+      return invalidField(`${path}.overlapWarnings[${index}]`);
+    }
+  }
+
+  return null;
+}
+
+/** Documented. */
+function validatePartGraphNode(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["role_id", "is_active", "handoff_to", "handoff_from"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.role_id !== "string") {
+    return invalidField(`${path}.role_id`);
+  }
+  if (typeof value.is_active !== "boolean") {
+    return invalidField(`${path}.is_active`);
+  }
+  if (!isDenseArray(value.handoff_to)) {
+    return invalidField(`${path}.handoff_to`);
+  }
+  for (const [index, handoff] of value.handoff_to.entries()) {
+    if (typeof handoff !== "string") {
+      return invalidField(`${path}.handoff_to[${index}]`);
+    }
+  }
+  if (!isDenseArray(value.handoff_from)) {
+    return invalidField(`${path}.handoff_from`);
+  }
+  for (const [index, handoff] of value.handoff_from.entries()) {
+    if (typeof handoff !== "string") {
+      return invalidField(`${path}.handoff_from[${index}]`);
+    }
+  }
 
   return null;
 }
@@ -821,7 +889,7 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
-  const extraKey = unexpectedKey(value, ["id", "label", "groove", "confidence", "roles"], path);
+  const extraKey = unexpectedKey(value, ["id", "label", "groove", "confidence", "roles", "partGraph"], path);
   if (extraKey) {
     return extraKey;
   }
@@ -847,6 +915,16 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
     const roleError = validateRehearsalRole(role, `${path}.roles[${index}]`);
     if (roleError) {
       return roleError;
+    }
+  }
+
+  if (!isDenseArray(value.partGraph)) {
+    return invalidField(`${path}.partGraph`);
+  }
+  for (const [index, node] of value.partGraph.entries()) {
+    const nodeError = validatePartGraphNode(node, `${path}.partGraph[${index}]`);
+    if (nodeError) {
+      return nodeError;
     }
   }
 
