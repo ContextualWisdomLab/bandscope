@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import librosa
 import numpy as np
@@ -39,25 +40,25 @@ class TemporalAnalyzer:
         try:
             # Load audio, converting to mono and standardizing sample rate
             y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
-            
+
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):
                 raise ValueError("Expected numpy array from librosa.load")
-                
+
             y_array: NDArray[np.floating[Any]] = y
             duration = float(librosa.get_duration(y=y_array, sr=sr))
 
             logger.info("Extracting tempo and beat tracking...")
             # Use librosa's robust beat tracker
             tempo, beat_frames = librosa.beat.beat_track(y=y_array, sr=sr)
-            
+
             # Convert frame indices to time (seconds)
             beat_times: NDArray[np.floating[Any]] = librosa.frames_to_time(beat_frames, sr=sr)
-            
+
             # Extract downbeats (simple approximation: every 4th beat)
             # A real model might use madmom or complex DBNs for precise downbeats
             downbeat_times = [float(bt) for i, bt in enumerate(beat_times) if i % 4 == 0]
-            
+
             bpm_val = float(tempo[0]) if isinstance(tempo, np.ndarray) else float(tempo)
 
             logger.info(f"Analysis complete: {bpm_val:.1f} BPM, {len(beat_times)} beats detected.")
@@ -67,7 +68,7 @@ class TemporalAnalyzer:
                 "beat_times": [float(bt) for bt in beat_times],
                 "downbeat_times": downbeat_times,
                 "duration_seconds": duration,
-                "sample_rate": sr,
+                "sample_rate": int(sr),
                 "audio_path": path_str,
             }
 

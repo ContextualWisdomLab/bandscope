@@ -32,7 +32,28 @@ This document outlines the MECE execution strategy to incrementally substitute m
 - **Tech**: Async progress callbacks, IPC streaming updates.
 - **Output**: Responsive UI during long-running tasks.
 
-## Security & Supply Chain Rules (Mandatory)
-Before introducing ANY heavy ML library (`librosa`, `torch`, `demucs`):
+## Security Notes
+
+### Attack Surface
+The integration of ML libraries like `librosa`, `torch`, and `demucs` exposes the desktop app to complex audio processing pipelines that parse potentially malformed user-provided audio files.
+
+### Trust Boundary
+The primary trust boundary is between the user's filesystem (audio files) and the Python local analysis engine. All input audio is untrusted.
+
+### Mitigations
+We will restrict audio ingestion through `librosa`/`soundfile` using strict format constraints. We will execute ML tasks locally, without reaching out to external networks, and run them under low privileges where possible.
+
+### Test Points
+- Loading truncated or corrupted WAV/MP3 files.
+- Providing extremely large audio files to test OOM behavior.
+- Validating that no external network calls occur during offline ML processing.
+
+### Realistic Threats
+- OOM (Out Of Memory) crashing the user's host OS during `demucs` execution.
+- Arbitrary code execution (ACE) vulnerabilities within C-level parsing dependencies of `librosa`/`soundfile`.
+
+### Remaining Risk
+Large ML dependencies carry high vulnerability footprints. We depend on upstream patching for zero-days in C-level audio codec libraries.
+
 1. **Supply Chain**: Must follow `docs/security/dependency-policy.md`. Large ML dependencies carry high vulnerability footprints.
 2. **Execution**: Must gracefully handle lack of GPU/MPS, defaulting to CPU chunks without OOM-crashing the host OS.

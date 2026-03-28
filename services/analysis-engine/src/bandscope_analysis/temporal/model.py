@@ -7,7 +7,7 @@ from typing import TypedDict
 
 class TemporalFeatures(TypedDict):
     """Features extracted during temporal analysis."""
-    
+
     bpm: float
     beat_times: list[float]
     downbeat_times: list[float]
