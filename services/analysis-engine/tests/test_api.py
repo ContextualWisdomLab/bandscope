@@ -206,7 +206,7 @@ def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
 
     assert song["title"] == "Late Night Set"
     assert song["sections"][0]["roles"][0]["id"] == "bass-guitar"
-    assert song["sections"][0]["roles"][3]["manualOverrides"][0]["value"]["source"] == "user"
+    assert song["sections"][0]["roles"][4]["manualOverrides"][0]["value"]["source"] == "user"
 
 
 def test_run_analysis_job_returns_success_and_failure_envelopes() -> None:
