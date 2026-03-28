@@ -3,9 +3,9 @@
 from bandscope_analysis.ranges.analyzer import (
     RangeAnalyzer,
     _note_to_midi,
+    _overlap_severity,
     _parse_note,
     _ranges_overlap,
-    _overlap_severity,
 )
 from bandscope_analysis.ranges.model import RangeAnalysisResult
 
@@ -101,8 +101,16 @@ def test_range_analyzer_with_roles() -> None:
     sections = [{"id": "verse-1"}]
     roles_by_section = {
         "verse-1": [
-            {"id": "bass", "name": "Bass Guitar", "range": {"lowestNote": "C#2", "highestNote": "E3"}},
-            {"id": "vocal", "name": "Lead Vocal", "range": {"lowestNote": "G#3", "highestNote": "C#5"}},
+            {
+                "id": "bass",
+                "name": "Bass Guitar",
+                "range": {"lowestNote": "C#2", "highestNote": "E3"},
+            },
+            {
+                "id": "vocal",
+                "name": "Lead Vocal",
+                "range": {"lowestNote": "G#3", "highestNote": "C#5"},
+            },
         ]
     }
     result = analyzer.analyze(sections, roles_by_section)
@@ -118,7 +126,11 @@ def test_range_analyzer_detects_overlap() -> None:
     roles_by_section = {
         "verse-1": [
             {"id": "bass", "name": "Bass", "range": {"lowestNote": "C#2", "highestNote": "E3"}},
-            {"id": "keys-left", "name": "Keys Left", "range": {"lowestNote": "C#2", "highestNote": "C#3"}},
+            {
+                "id": "keys-left",
+                "name": "Keys Left",
+                "range": {"lowestNote": "C#2", "highestNote": "C#3"},
+            },
         ]
     }
     result = analyzer.analyze(sections, roles_by_section)
@@ -134,8 +146,16 @@ def test_range_analyzer_no_overlap() -> None:
     sections = [{"id": "verse-1"}]
     roles_by_section = {
         "verse-1": [
-            {"id": "bass", "name": "Bass", "range": {"lowestNote": "C2", "highestNote": "E2"}},
-            {"id": "vocal", "name": "Vocal", "range": {"lowestNote": "A4", "highestNote": "C6"}},
+            {
+                "id": "bass",
+                "name": "Bass",
+                "range": {"lowestNote": "C2", "highestNote": "E2"},
+            },
+            {
+                "id": "vocal",
+                "name": "Vocal",
+                "range": {"lowestNote": "A4", "highestNote": "C6"},
+            },
         ]
     }
     result = analyzer.analyze(sections, roles_by_section)

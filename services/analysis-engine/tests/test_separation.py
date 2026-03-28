@@ -87,7 +87,9 @@ def test_stem_separator_deduplicates() -> None:
 def test_stem_separator_invalid_role() -> None:
     """Test separator handles non-dict roles gracefully."""
     separator = StemSeparator()
-    result = separator.separate([{"id": "bass", "name": "Bass", "roleType": "instrument"}, "invalid"])
+    result = separator.separate(
+        [{"id": "bass", "name": "Bass", "roleType": "instrument"}, "invalid"]
+    )
     assert len(result["stems"]) == 1
 
 

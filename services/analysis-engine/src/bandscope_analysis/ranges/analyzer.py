@@ -125,7 +125,9 @@ def _ranges_overlap(low_a: str, high_a: str, low_b: str, high_b: str) -> bool:
     return midi_low_a <= midi_high_b and midi_low_b <= midi_high_a
 
 
-def _overlap_severity(low_a: str, high_a: str, low_b: str, high_b: str) -> Literal["low", "medium", "high"]:
+def _overlap_severity(
+    low_a: str, high_a: str, low_b: str, high_b: str
+) -> Literal["low", "medium", "high"]:
     """Determine severity of range overlap.
 
     Args:
