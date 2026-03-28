@@ -18,6 +18,7 @@ describe("export sanitization", () => {
     expect(escapeCsvField("Normal text")).toBe("Normal text");
     expect(escapeCsvField("Text, with comma")).toBe('"Text, with comma"');
     expect(escapeCsvField('Text with "quotes"')).toBe('"Text with ""quotes"""');
+    expect(escapeCsvField("Text with\rcarriage return")).toBe('"Text with\rcarriage return"');
   });
 });
 

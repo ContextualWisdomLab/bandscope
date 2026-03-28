@@ -18,7 +18,7 @@ export function escapeCsvField(value: string): string {
     escapedValue = `'${value}`;
   }
   // Enclose in double quotes if there's a comma, newline, or double quote
-  if (escapedValue.includes(",") || escapedValue.includes("\n") || escapedValue.includes('"')) {
+  if (escapedValue.includes(",") || escapedValue.includes("\n") || escapedValue.includes("\r") || escapedValue.includes('"')) {
     const escapedQuotes = escapedValue.replace(/"/g, '""');
     return `"${escapedQuotes}"`;
   }
