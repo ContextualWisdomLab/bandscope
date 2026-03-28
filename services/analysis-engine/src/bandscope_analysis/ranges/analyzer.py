@@ -39,6 +39,12 @@ _NOTE_ORDER = [
 def _parse_note(note: str) -> tuple[str, int]:
     """Parse a note string like 'C#4' into (name, octave).
 
+    Security Notes:
+    - Input is untrusted string from role range data.
+    - Safe failure: returns default ('C', 4) for empty or malformed input.
+    - No exec or eval; only character-level parsing with int conversion.
+    - Bounded input: only processes single note strings.
+
     Args:
         note: A note string such as 'C4', 'G#3', 'Bb2'.
 
@@ -47,16 +53,20 @@ def _parse_note(note: str) -> tuple[str, int]:
     """
     if not note:
         return ("C", 4)
-    # Find where the octave digit starts
+    # Find the boundary between note name and octave number by scanning
+    # from the end of the string. Octave digits appear at the tail.
     for i in range(len(note) - 1, -1, -1):
         if note[i].isdigit() or (note[i] == "-" and i == len(note) - 1):
+            # Still in the octave portion; continue scanning left.
             pass
         else:
+            # Found the last non-digit character; split here.
             name = note[: i + 1]
             octave_str = note[i + 1 :]
             if octave_str and (octave_str.isdigit() or (octave_str[0] == "-")):
                 return (name, int(octave_str))
             return (name, 4)
+    # Entire string was digits (edge case); return as-is with default octave.
     return (note, 4)
 
 

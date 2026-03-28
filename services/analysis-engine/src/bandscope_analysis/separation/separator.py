@@ -44,7 +44,17 @@ def _categorize_role(role_id: str, role_name: str, role_type: str) -> StemCatego
 
 
 class StemSeparator:
-    """Categorizes roles into stem groups for source separation."""
+    """Categorizes roles into stem groups for source separation.
+
+    Security Notes:
+    - Processes untrusted input: role IDs, names, and role type strings.
+    - Input validation: all values are coerced to str via str(); no eval or exec.
+    - Safe failure: non-dict roles are skipped with a warning log.
+    - Allowlist: role categorization uses a fixed keyword map (_ROLE_TO_STEM);
+      unrecognized roles fall through to StemCategory.OTHER.
+    - Trust boundary: role names and IDs are treated as opaque labels; they are
+      stored but not interpreted or executed.
+    """
 
     def __init__(self) -> None:
         """Initialize the stem separator."""

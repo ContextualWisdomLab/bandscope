@@ -14,7 +14,18 @@ _DEFAULT_KEY_CENTER = "C"
 
 
 class ChordAnalyzer:
-    """Analyzes chord progressions from section and role data."""
+    """Analyzes chord progressions from section and role data.
+
+    Security Notes:
+    - Processes untrusted input: chord symbols, function labels, and source
+      fields from role harmony data.
+    - Input validation: all values are coerced to str via str(); no eval or exec.
+    - Safe failure: missing or malformed harmony data is skipped silently.
+    - Trust boundary: chord and functionLabel are treated as opaque strings;
+      they are stored but not interpreted or executed.
+    - Allowlist: source field is passed through as-is; the upstream validator
+      constrains it to 'model' | 'user'.
+    """
 
     def __init__(self) -> None:
         """Initialize the chord analyzer."""
