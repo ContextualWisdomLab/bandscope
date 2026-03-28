@@ -19,11 +19,6 @@ def detect_capo_and_tuning(chords: list[str]) -> dict[str, str | int | None]:
     chords_set = set(chords)
 
     # Check for drop D indicators
-    if "D5" in chords_set or "Eb" in chords_set and "D" in chords_set:
-        # A bit naive, but D5 heavy usually means drop D
-        # Wait, let's just make it simple: if 'D5' is present
-        pass
-
     if "D5" in chords_set:
         return {"capo": 0, "tuning": "Drop D"}
 

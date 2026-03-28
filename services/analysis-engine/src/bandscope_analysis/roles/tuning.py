@@ -19,11 +19,10 @@ def get_setup_note(role_name: str, chords: list[str]) -> str | None:
     # Capo only makes sense for guitars usually
     if "guitar" in role_lower and "bass" not in role_lower:
         result = detect_capo_and_tuning(chords)
-        capo = result["tuning"] if result["capo"] == 0 else f"Capo {result['capo']}"
         tuning = result["tuning"]
 
         if isinstance(result["capo"], int) and result["capo"] > 0:
-            return f"Setup: {tuning} tuning, {capo}"
+            return f"Setup: {tuning} tuning, Capo {result['capo']}"
         elif tuning != "Standard":
             return f"Setup: {tuning} tuning"
 

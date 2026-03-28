@@ -233,8 +233,11 @@ class RoleExtractor:
                         },
                     ]
                 )
-                part_graph[0]["handoff_to"].append("lead-vocal")
-                part_graph[4]["handoff_from"].append("bass-guitar")
+                for node in part_graph:
+                    if node["role_id"] == "bass-guitar":
+                        node["handoff_to"].append("lead-vocal")
+                    elif node["role_id"] == "lead-vocal":
+                        node["handoff_from"].append("bass-guitar")
             else:
                 part_graph.extend(
                     [
