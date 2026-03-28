@@ -9,17 +9,20 @@ def test_detect_capo_standard():
     assert result["capo"] == 0
     assert result["tuning"] == "Standard"
 
+
 def test_detect_capo_fret1():
     """Test capo detection for flat keys."""
     result = detect_capo_and_tuning(["Eb", "Bb", "Fm", "Ab"])
     assert result["capo"] == 1
     assert result["tuning"] == "Standard"
 
+
 def test_detect_capo_empty():
     """Test empty chord list."""
     result = detect_capo_and_tuning([])
     assert result["capo"] is None
     assert result["tuning"] == "Standard"
+
 
 def test_detect_drop_d():
     """Test drop D tuning."""
