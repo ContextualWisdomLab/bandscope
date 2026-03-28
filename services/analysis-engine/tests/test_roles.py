@@ -44,7 +44,7 @@ def test_role_extractor_basic() -> None:
     # Check intro section
     intro_topology = result["topologies"][0]
     assert intro_topology["section_id"] == "intro"
-    assert len(intro_topology["active_roles"]) == 4
+    assert len(intro_topology["active_roles"]) == 5
 
     roles_by_id = {r["id"]: r for r in intro_topology["active_roles"]}
     assert "bass-guitar" in roles_by_id
@@ -64,18 +64,20 @@ def test_role_extractor_basic() -> None:
     # Check verse-1 section (only bass)
     verse_topology = result["topologies"][1]
     assert verse_topology["section_id"] == "verse-1"
-    assert len(verse_topology["active_roles"]) == 1
+    assert len(verse_topology["active_roles"]) == 2
     assert verse_topology["active_roles"][0]["id"] == "bass-guitar"
     assert verse_topology["active_roles"][0]["roleType"] == "instrument"
     assert verse_topology["active_roles"][0]["rehearsalPriority"] == "high"
     assert "Density warning" in verse_topology["active_roles"][0]["overlapWarnings"][0]
 
     verse_graph = verse_topology["part_graph"]
-    assert len(verse_graph) == 4
-    assert verse_graph[1]["role_id"] == "keys-left"
-    assert verse_graph[1]["is_active"] is False
-    assert verse_graph[2]["role_id"] == "keys-right"
+    assert len(verse_graph) == 5
+    assert verse_graph[1]["role_id"] == "acoustic-guitar"
+    assert verse_graph[1]["is_active"] is True
+    assert verse_graph[2]["role_id"] == "keys-left"
     assert verse_graph[2]["is_active"] is False
+    assert verse_graph[3]["role_id"] == "keys-right"
+    assert verse_graph[3]["is_active"] is False
     assert verse_graph[0]["role_id"] == "bass-guitar"
     assert verse_graph[0]["handoff_to"] == []
 
