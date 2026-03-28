@@ -12,16 +12,17 @@ export function sanitizeFilename(title: string): string {
 
 /** Documented. */
 export function escapeCsvField(value: string): string {
+  let escapedValue = value;
   // Prevent CSV formula injection by prefixing problematic leading characters with a single quote
   if (/^[=+\-@]/.test(value)) {
-    return `'${value}`;
+    escapedValue = `'${value}`;
   }
   // Enclose in double quotes if there's a comma, newline, or double quote
-  if (value.includes(",") || value.includes("\n") || value.includes('"')) {
-    const escapedQuotes = value.replace(/"/g, '""');
+  if (escapedValue.includes(",") || escapedValue.includes("\n") || escapedValue.includes('"')) {
+    const escapedQuotes = escapedValue.replace(/"/g, '""');
     return `"${escapedQuotes}"`;
   }
-  return value;
+  return escapedValue;
 }
 
 /** Documented. */
