@@ -11,12 +11,14 @@ describe("export sanitization", () => {
 
   it("escapes CSV fields to prevent formula injection", () => {
     expect(escapeCsvField("=1+2")).toBe("'=1+2");
+    expect(escapeCsvField("=\n=HYPERLINK(\"http://evil\")")).toBe('"\'=\n=HYPERLINK(""http://evil"")"');
     expect(escapeCsvField("+SUM(A1)")).toBe("'+SUM(A1)");
     expect(escapeCsvField("-100")).toBe("'-100");
     expect(escapeCsvField("@cmd")).toBe("'@cmd");
     expect(escapeCsvField("Normal text")).toBe("Normal text");
     expect(escapeCsvField("Text, with comma")).toBe('"Text, with comma"');
     expect(escapeCsvField('Text with "quotes"')).toBe('"Text with ""quotes"""');
+    expect(escapeCsvField("Text with\rcarriage return")).toBe('"Text with\rcarriage return"');
   });
 });
 
