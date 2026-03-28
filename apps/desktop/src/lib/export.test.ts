@@ -45,8 +45,12 @@ describe("export generation", () => {
             rehearsalPriority: "high",
             simplification: "simple",
             setupNote: "setup",
-            manualOverrides: []
+            manualOverrides: [],
+            overlapWarnings: []
           }
+        ],
+        partGraph: [
+          { role_id: "r1", is_active: true, handoff_to: [], handoff_from: [] }
         ]
       }
     ]

@@ -70,7 +70,10 @@ function succeededResult() {
               rehearsalPriority: "high",
               simplification: "Stay on roots if the chorus entrance gets muddy.",
               setupNote: "Keep the attack short so the verse breathes.",
-              manualOverrides: []
+              manualOverrides: [],
+              overlapWarnings: [
+                "Density warning: competing with Keyboard Left Hand in low register."
+              ]
             },
             {
               id: "lead-vocal",
@@ -97,8 +100,13 @@ function succeededResult() {
                   },
                   source: "user"
                 }
-              ]
+              ],
+              overlapWarnings: []
             }
+          ],
+          partGraph: [
+            { role_id: "bass-guitar", is_active: true, handoff_to: ["lead-vocal"], handoff_from: [] },
+            { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: ["bass-guitar"] }
           ]
         }
       ],
