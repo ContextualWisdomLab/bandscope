@@ -1,4 +1,4 @@
-"""Role extraction and part graphing module."""
+"""Role extraction and part graph models."""
 
 from .extractor import RoleExtractor
 from .model import (
@@ -10,14 +10,16 @@ from .model import (
     RoleType,
     SectionRoleTopology,
 )
+from .tuning import get_setup_note
 
 __all__ = [
-    "RoleType",
-    "RehearsalPriority",
-    "CueAnchorKind",
-    "RehearsalRole",
-    "PartGraphNode",
-    "SectionRoleTopology",
-    "RoleExtractionResult",
     "RoleExtractor",
+    "CueAnchorKind",
+    "PartGraphNode",
+    "RehearsalPriority",
+    "RehearsalRole",
+    "RoleExtractionResult",
+    "RoleType",
+    "SectionRoleTopology",
+    "get_setup_note",
 ]

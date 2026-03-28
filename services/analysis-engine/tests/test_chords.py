@@ -1,6 +1,7 @@
 """Tests for the chord analysis module."""
 
 from bandscope_analysis.chords.analyzer import ChordAnalyzer, _infer_key_center
+from bandscope_analysis.chords.capo import detect_capo_and_tuning
 from bandscope_analysis.chords.model import ChordAnalysisResult
 
 
@@ -131,3 +132,31 @@ def test_chord_analysis_result_structure() -> None:
     result: ChordAnalysisResult = analyzer.analyze([{"id": "intro-1"}])
     assert "sections" in result
     assert "analysis_notes" in result
+
+
+def test_detect_capo_standard():
+    """Test standard tuning and no capo."""
+    result = detect_capo_and_tuning(["G", "D", "Em", "C"])
+    assert result["capo"] == 0
+    assert result["tuning"] == "Standard"
+
+
+def test_detect_capo_fret1():
+    """Test capo detection for flat keys."""
+    result = detect_capo_and_tuning(["Eb", "Bb", "Fm", "Ab"])
+    assert result["capo"] == 1
+    assert result["tuning"] == "Standard"
+
+
+def test_detect_capo_empty():
+    """Test empty chord list."""
+    result = detect_capo_and_tuning([])
+    assert result["capo"] is None
+    assert result["tuning"] == "Standard"
+
+
+def test_detect_drop_d():
+    """Test drop D tuning."""
+    result = detect_capo_and_tuning(["D5", "G5", "A5"])
+    assert result["capo"] == 0
+    assert result["tuning"] == "Drop D"
