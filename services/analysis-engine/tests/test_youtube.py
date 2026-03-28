@@ -25,6 +25,9 @@ def test_validate_url() -> None:
     assert validate_url("https://youtube.com/watch?v=") is False
     assert validate_url("https://youtu.be/") is False
     assert validate_url("https://youtu.be/123/extra") is False
+    assert validate_url("https://youtube.com/watch?v=123&v=456") is False
+    assert validate_url("https://youtube.com/watch?v=&v=456") is False
+    assert validate_url("https://youtube.com/watch?v=123&v=") is False
 
 
 def test_download_youtube_audio_invalid_url() -> None:

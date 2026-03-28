@@ -37,7 +37,7 @@ def validate_url(url: str) -> bool:
         if host == "youtube.com" or host.endswith(".youtube.com"):
             if parsed.path != "/watch":
                 return False
-            query = urllib.parse.parse_qs(parsed.query, keep_blank_values=False)
+            query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
             video_ids = query.get("v", [])
             return len(video_ids) == 1 and bool(video_ids[0].strip())
 

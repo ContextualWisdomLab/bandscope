@@ -875,9 +875,10 @@ fn is_supported_youtube_url(url: &str) -> bool {
 
     if host == "youtube.com" || host.ends_with(".youtube.com") {
         return parsed_url.path() == "/watch"
+            && parsed_url.query_pairs().filter(|(k, _)| k == "v").count() == 1
             && parsed_url
                 .query_pairs()
-                .any(|(key, value)| key == "v" && !value.trim().is_empty());
+                .any(|(k, v)| k == "v" && !v.trim().is_empty());
     }
 
     false
