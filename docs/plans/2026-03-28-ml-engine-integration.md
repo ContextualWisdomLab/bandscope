@@ -17,7 +17,7 @@ This document outlines the MECE execution strategy to incrementally substitute m
 - **Tech**: Integrate `demucs` (or a smaller alternative) running locally.
 - **Output**: 4 or 6 discrete stems (vocals, bass, drums, other).
 
-### Track 3: Harmonic & Pitch Pipelines (#107)
+### Track 3: Harmonic & Pitch Pipelines (#107) (COMPLETED)
 - **Goal**: Replace hardcoded `C#m7` strings with DSP-derived chord and pitch arrays.
 - **Tech**: Chromagram extraction and Viterbi decoding for chords. YIN/pYIN for pitch ranges.
 - **Output**: Accurate harmonic sequences tied to Track 1's beat grid.
