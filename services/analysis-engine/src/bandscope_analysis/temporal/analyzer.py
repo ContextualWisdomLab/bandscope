@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 # Standard sample rate for BandScope analysis
 TARGET_SR = 44100
+MAX_AUDIO_FILE_BYTES = 100 * 1024 * 1024  # 100 MiB
+MAX_ANALYSIS_DURATION_SECONDS = 15 * 60  # 15 minutes
 
 
 class TemporalAnalyzer:
@@ -34,12 +36,25 @@ class TemporalAnalyzer:
         Returns:
             TemporalFeatures containing BPM and beat grids.
         """
-        path_str = str(audio_path)
+        path = Path(audio_path)
+        path_str = str(path)
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
+            file_size = path.stat().st_size
+            if file_size > MAX_AUDIO_FILE_BYTES:
+                raise ValueError(
+                    f"Audio file is too large for temporal analysis: {file_size} bytes "
+                    f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
+                )
+
             # Load audio, converting to mono and standardizing sample rate
-            y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
+            y, sr = librosa.load(
+                path_str,
+                sr=TARGET_SR,
+                mono=True,
+                duration=MAX_ANALYSIS_DURATION_SECONDS,
+            )
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):
