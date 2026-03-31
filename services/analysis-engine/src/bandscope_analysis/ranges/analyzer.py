@@ -63,7 +63,8 @@ def _parse_note(note: str) -> tuple[str, int]:
             # Found the last non-digit character; split here.
             name = note[: i + 1]
             octave_str = note[i + 1 :]
-            if octave_str and (octave_str.isdigit() or (octave_str[0] == "-")):
+            is_negative_octave = octave_str.startswith("-") and octave_str[1:].isdigit()
+            if octave_str and (octave_str.isdigit() or is_negative_octave):
                 return (name, int(octave_str))
             return (name, 4)
     # Entire string was digits (edge case); return as-is with default octave.
