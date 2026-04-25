@@ -1,136 +1,121 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   SUPPORTED_AUDIO_FORMATS,
-  type AnalysisJobStatus,
-  type AnalysisJobRequest,
-  type ProjectBootstrapSummary,
-  type RehearsalSong
+  type RehearsalWorkspace,
+  type SongRehearsalPack
 } from "@bandscope/shared-types";
 import {
   createDefaultAnalysisRequest,
-  getAnalysisJobStatus,
   selectLocalAudioSource,
   importYoutubeUrl,
-  startAnalysisJob,
   loadProject,
   saveProject
 } from "./lib/analysis";
+import {
+  enqueueSong,
+  subscribeToWorkspaceUpdates,
+  getWorkspaceState
+} from "./lib/job_runner";
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
-import { EmptyState, LoadingState, ErrorState } from "./features/workspace/WorkspaceStates";
+import { EmptyState } from "./features/workspace/WorkspaceStates";
 
-const ANALYSIS_POLL_INTERVAL_MS = 250;
-
-/** Documented. */
+/**
+ * Returns a translated progress message for a given pack state.
+ */
 function progressMessage(
   t: ReturnType<typeof createTranslator>,
-  state: AnalysisJobStatus["state"]
+  state: SongRehearsalPack["packState"]
 ): string {
   switch (state) {
     case "queued":
       return t("analysisStateQueued");
-    case "running":
+    case "analyzing":
       return t("analysisStateRunning");
-    case "succeeded":
+    case "ready":
       return t("analysisStateSucceeded");
     case "failed":
       return t("analysisStateFailed");
+    default:
+      return "";
   }
 }
 
-/** Documented. */
+/**
+ * Main application component for the BandScope desktop app.
+ */
 export function App() {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
-  const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
-  const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
-  const [jobError, setJobError] = useState<string | null>(null);
-  const [isStarting, setIsStarting] = useState(false);
-  const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
-  const [selectionError, setSelectionError] = useState<string | null>(null);
+  
+  const [workspace, setWorkspace] = useState<RehearsalWorkspace | null>(null);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+
+  const [isStarting] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
-  
-  const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
-  const selectedRequest: AnalysisJobRequest = selectedBootstrap
-    ? {
-        sourceKind: "local_audio",
-        projectId: selectedBootstrap.projectId,
-        sourceLabel: selectedBootstrap.source.fileName,
-        roleFocus: defaultRequest.roleFocus
-      }
-    : defaultRequest;
+  const [selectionError, setSelectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!jobStatus || (jobStatus.state !== "queued" && jobStatus.state !== "running")) {
-      return;
-    }
-
-    const timer = window.setTimeout(async () => {
-      try {
-        const nextStatus = await getAnalysisJobStatus(jobStatus.jobId);
-        setJobStatus(nextStatus);
-        if (nextStatus.state === "succeeded" && nextStatus.result) {
-          setJobResult(nextStatus.result);
-          setJobError(null);
-        }
-        if (nextStatus.state === "failed") {
-          setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
-        }
-      } catch {
-        setJobStatus(null);
-        setJobError(t("analysisCouldNotStart"));
+    let unmounted = false;
+    let unlistenFn: (() => void) | undefined;
+    const unlistenPromise = subscribeToWorkspaceUpdates((ws) => {
+      if (!unmounted) setWorkspace(ws);
+    });
+    
+    unlistenPromise.then(u => {
+      if (!unmounted) {
+        unlistenFn = u;
+      } else if (u) {
+        u();
       }
-    }, ANALYSIS_POLL_INTERVAL_MS);
+    });
 
-    return () => window.clearTimeout(timer);
-  }, [jobStatus, t]);
+    getWorkspaceState().then(ws => {
+      if (!unmounted && ws) setWorkspace(ws);
+    });
 
-  /** Documented. */
-  const handleStartAnalysis = async () => {
-    setJobError(null);
-    setJobResult(null);
-    setJobStatus(null);
-    setIsStarting(true);
-    try {
-      const nextStatus = await startAnalysisJob(selectedRequest);
-      setJobStatus(nextStatus);
-      if (nextStatus.state === "succeeded" && nextStatus.result) {
-        setJobResult(nextStatus.result);
-      }
-      if (nextStatus.state === "failed") {
-        setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
-      }
-    } catch {
-      setJobStatus(null);
-      setJobError(t("analysisCouldNotStart"));
-    } finally {
-      setIsStarting(false);
-    }
-  };
+    return () => {
+      unmounted = true;
+      if (unlistenFn) unlistenFn();
+      else unlistenPromise.then(u => u && u());
+    };
+  }, []);
 
-  /** Documented. */
+  /**
+   * Handles selecting a local audio file and enqueueing a new song analysis job.
+   */
   const handleChooseLocalAudio = async () => {
     setSelectionError(null);
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
-      setSelectedBootstrap(selection.bootstrap);
+      enqueueSong({
+        sourceKind: "local_audio",
+        projectId: selection.bootstrap.projectId,
+        sourceLabel: selection.bootstrap.source.fileName,
+        roleFocus: defaultRequest.roleFocus
+      }).catch(err => setSelectionError(err instanceof Error ? err.message : "Failed to enqueue song"));
       return;
     }
-
-    setSelectedBootstrap(null);
     setSelectionError(selection.error.message || t("unsupportedLocalAudio"));
-    setJobStatus(null);
   };
 
-  /** Documented. */
+  /**
+   * Handles importing a YouTube URL for analysis.
+   */
   const handleImportYoutube = async () => {
     setSelectionError(null);
     setIsImporting(true);
     try {
       const selection = await importYoutubeUrl(youtubeUrl);
       if (selection.ok) {
-        setSelectedBootstrap(selection.bootstrap);
+        enqueueSong({
+          sourceKind: "local_audio",
+          projectId: selection.bootstrap.projectId,
+          sourceLabel: "YouTube Import",
+          roleFocus: defaultRequest.roleFocus
+        });
         setYoutubeUrl("");
       } else {
         setSelectionError(selection.error.message);
@@ -142,74 +127,106 @@ export function App() {
     }
   };
 
-  /** Documented. */
+  /**
+   * Handles enqueueing a default demo song.
+   */
+  const handleDemoSong = () => {
+    enqueueSong(defaultRequest).catch(err => setSelectionError(err instanceof Error ? err.message : "Failed to enqueue song"));
+  };
+
+  /**
+   * Handles loading an existing project from disk.
+   */
   const handleLoadProject = async () => {
+    // TODO: loadProject needs to be updated to return a RehearsalWorkspace instead of RehearsalSong (Issue #xx)
     try {
       const song = await loadProject();
-      setJobResult(song);
-      setJobError(null);
-      setSelectedBootstrap(null);
-      setJobStatus(null);
+      setWorkspace({
+        id: "loaded-ws",
+        title: "Loaded Workspace",
+        workspaceVersion: 1,
+        songs: [{
+          id: "loaded-pack",
+          packState: "ready",
+          sourceLabel: song.title,
+          song: song
+        }]
+      });
+      setWorkspaceError(null);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
-        setJobError(`Failed to load project: ${e.message}`);
-      } else if (typeof e === "string" && e !== "User cancelled") {
-        setJobError(`Failed to load project: ${e}`);
+        setWorkspaceError(`Failed to load project: ${e.message}`);
       }
     }
   };
 
-  /** Documented. */
+  /**
+   * Handles saving the current project to disk.
+   */
   const handleSaveProject = async () => {
-    if (!jobResult) return;
+    // Note: saveProject needs to be updated to accept a RehearsalWorkspace.
+    // For now we just save the first ready song.
+    if (!workspace) return;
+    const readyPack = workspace.songs.find(s => s.packState === "ready");
+    if (!readyPack || readyPack.packState !== "ready") return;
     try {
-      await saveProject(jobResult);
+      await saveProject(readyPack.song);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
-        setJobError(`Failed to save project: ${e.message}`);
-      } else if (typeof e === "string" && e !== "User cancelled") {
-        setJobError(`Failed to save project: ${e}`);
+        setWorkspaceError(`Failed to save project: ${e.message}`);
       }
     }
   };
 
-  /** Documented. */
-  const handleSongUpdate = (updatedSong: RehearsalSong) => {
-    setJobResult(updatedSong);
+  /**
+   * Renders the list of songs in the current workspace.
+   */
+  const renderWorkspaceList = () => {
+    if (!workspace) return <EmptyState />;
+    
+    return (
+      <div style={{ marginBottom: "24px" }}>
+        <h3>Songs in Workspace</h3>
+        {workspace.songs.map(pack => (
+          <div key={pack.id} style={{ display: "flex", justifyContent: "space-between", padding: "12px", border: "1px solid #eee", marginBottom: "8px", borderRadius: "4px" }}>
+            <div>
+              <strong>{pack.sourceLabel}</strong>
+              <span style={{ marginLeft: "12px", color: pack.packState === "failed" ? "red" : "gray" }}>
+                {progressMessage(t, pack.packState)}
+              </span>
+              {pack.packState === "failed" && <div style={{ color: "red", fontSize: "0.8em" }}>{pack.error.message}</div>}
+            </div>
+            <div>
+              {pack.packState === "ready" && (
+                <button onClick={() => setSelectedPackId(pack.id)}>Open Rehearsal Pack</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
-  /** Documented. */
-  const renderWorkspaceState = () => {
-    if (jobError) {
-      return <ErrorState error={jobError} />;
-    }
-    if (analysisInFlight || isStarting) {
-      return <LoadingState />;
-    }
-    if (jobResult) {
-      return <Workspace song={jobResult} onSongUpdate={handleSongUpdate} />;
-    }
-    return <EmptyState />;
-  };
+  const selectedPack = workspace?.songs.find(s => s.id === selectedPackId);
 
   return (
     <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
       <header style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ margin: "0 0 8px 0" }}>{t("appTitle")}</h1>
+          <h1 style={{ margin: "0 0 8px 0" }}>{workspace?.title || t("appTitle")}</h1>
           <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
         </div>
         <button 
             type="button" 
             onClick={handleSaveProject} 
-            aria-disabled={!jobResult}
+            aria-disabled={!workspace}
             style={{ 
               padding: "8px 16px", 
-              cursor: jobResult ? "pointer" : "not-allowed", 
+              cursor: workspace ? "pointer" : "not-allowed", 
               borderRadius: "4px", 
-              backgroundColor: jobResult ? "#fff" : "#f5f5f5", 
+              backgroundColor: workspace ? "#fff" : "#f5f5f5", 
               border: "1px solid #ccc",
-              opacity: jobResult ? 1 : 0.5
+              opacity: workspace ? 1 : 0.5
             }}
           >
             Save Project
@@ -220,7 +237,7 @@ export function App() {
         <button 
           type="button" 
           onClick={handleChooseLocalAudio} 
-          disabled={analysisInFlight || isStarting || isImporting}
+          disabled={isStarting || isImporting}
           style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
         >
           {t("chooseLocalAudio")}
@@ -232,13 +249,13 @@ export function App() {
             placeholder={t("youtubePlaceholder")} 
             value={youtubeUrl}
             onChange={(e) => setYoutubeUrl(e.target.value)}
-            disabled={analysisInFlight || isStarting || isImporting}
+            disabled={isStarting || isImporting}
             style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ccc", width: "200px" }}
           />
           <button 
             type="button" 
             onClick={handleImportYoutube} 
-            disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+            disabled={!youtubeUrl || isStarting || isImporting}
             style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
           >
             {isImporting ? t("importingYoutube") : t("importYoutube")}
@@ -248,18 +265,19 @@ export function App() {
         <button 
           type="button" 
           onClick={handleLoadProject} 
-          disabled={analysisInFlight || isStarting}
+          disabled={isStarting}
           style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
         >
           Open Project
         </button>
+
         <button 
           type="button" 
-          onClick={handleStartAnalysis} 
-          disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+          onClick={handleDemoSong} 
+          disabled={isStarting || isImporting}
           style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#1890ff", color: "white", border: "none" }}
         >
-          {t("startAnalysis")}
+          Add Demo Song
         </button>
       </div>
 
@@ -267,18 +285,19 @@ export function App() {
         <p style={{ margin: "4px 0" }}>
           {t("supportedFormats")}: {SUPPORTED_AUDIO_FORMATS.join(", ")}
         </p>
-        {selectedBootstrap && (
-          <>
-            <p style={{ margin: "4px 0" }}>{t("selectedAudio")}: {selectedBootstrap.source.fileName}</p>
-            <p style={{ margin: "4px 0" }}>{t("sourceModeReference")}</p>
-          </>
-        )}
-        {jobStatus && <p style={{ margin: "4px 0", fontWeight: "bold" }}>{progressMessage(t, jobStatus.state)}</p>}
         {selectionError && <p style={{ margin: "4px 0", color: "#a8071a" }}>{selectionError}</p>}
+        {workspaceError && <p style={{ margin: "4px 0", color: "#a8071a" }}>{workspaceError}</p>}
       </div>
 
       <section>
-        {renderWorkspaceState()}
+        {selectedPack && selectedPack.packState === "ready" ? (
+          <div>
+            <button onClick={() => setSelectedPackId(null)} style={{ marginBottom: "16px" }}>&larr; Back to Workspace</button>
+            <Workspace song={selectedPack.song} />
+          </div>
+        ) : (
+          renderWorkspaceList()
+        )}
       </section>
     </main>
   );
