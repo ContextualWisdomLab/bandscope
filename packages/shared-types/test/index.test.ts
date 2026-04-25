@@ -909,7 +909,7 @@ describe("shared type helpers", () => {
     // Coverage for error and engineState and song errors
     expect(() => parseSongRehearsalPack({ ...validPack, engineState: "bad" })).toThrow("engineState");
     expect(() => parseSongRehearsalPack({ ...validPack, song: { ...validPack.song, id: 123 } })).toThrow("id");
-    const { song, ...packWithoutSong } = validPack;
+    const { song: _song, ...packWithoutSong } = validPack;
     expect(() => parseSongRehearsalPack({ ...packWithoutSong, packState: "failed", error: { code: "bad", message: "m" } })).toThrow("error.code");
     
 
@@ -921,6 +921,7 @@ describe("shared type helpers", () => {
       error: { code: "not_found", message: "missing" }
     })).toBeTruthy();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(() => parseSongRehearsalPack({ ...validPack, packState: "ready", song: { id: 123 } as any })).toThrow("id");
 
 
