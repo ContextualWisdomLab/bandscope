@@ -111,6 +111,28 @@ export type ExportSummary = {
   focusSections: string[];
 };
 
+
+/** Documented. */
+export type PackState = "queued" | "analyzing" | "ready" | "failed";
+
+/** Documented. */
+export type SongRehearsalPack = {
+  id: string;
+  engineState?: AnalysisJobState;
+  packState: PackState;
+  song?: RehearsalSong;
+  error?: AnalysisJobError;
+  sourceLabel: string;
+};
+
+/** Documented. */
+export type RehearsalWorkspace = {
+  id: string;
+  title: string;
+  songs: SongRehearsalPack[];
+  workspaceVersion: number;
+};
+
 /** Documented. */
 export type RehearsalSong = {
   id: string;
@@ -195,6 +217,8 @@ const EXPORT_FORMATS = ["cue-sheet", "chart-summary"] as const;
 const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
 const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
+const PACK_STATES = ["queued", "analyzing", "ready", "failed"] as const;
+
 
 /** Documented. */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -999,4 +1023,62 @@ export function parseRehearsalSong(value: unknown): RehearsalSong {
   }
 
   return structuredClone(value as RehearsalSong);
+}
+
+
+/** Documented. */
+function validateSongRehearsalPack(value: unknown, path: string): string | null {
+  if (!isRecord(value)) return invalidField(path);
+  const extraKey = unexpectedKey(value, ["id", "engineState", "packState", "song", "error", "sourceLabel"], path);
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (!isOneOf(PACK_STATES, value.packState)) return invalidField(`${path}.packState`);
+  if (typeof value.sourceLabel !== "string") return invalidField(`${path}.sourceLabel`);
+  
+  if (value.engineState !== undefined && !isOneOf(ANALYSIS_JOB_STATES, value.engineState)) return invalidField(`${path}.engineState`);
+  if (value.song !== undefined) {
+    const songError = validateRehearsalSong(value.song);
+    if (songError) return songError.replace("root", `${path}.song`);
+  }
+  if (value.error !== undefined) {
+    const errorValidation = validateAnalysisJobError(value.error, `${path}.error`);
+    if (errorValidation) return errorValidation;
+  }
+  return null;
+}
+
+/** Documented. */
+export function parseSongRehearsalPack(value: unknown): SongRehearsalPack {
+  const validationError = validateSongRehearsalPack(value, "root");
+  if (validationError) throw new Error(validationError);
+  return structuredClone(value as SongRehearsalPack);
+}
+
+/** Documented. */
+function validateRehearsalWorkspace(value: unknown): string | null {
+  if (!isRecord(value)) return invalidField("root");
+  const extraKey = unexpectedKey(value, ["id", "title", "songs", "workspaceVersion"], "");
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField("id");
+  if (typeof value.title !== "string") return invalidField("title");
+  if (typeof value.workspaceVersion !== "number") return invalidField("workspaceVersion");
+  if (!isDenseArray(value.songs)) return invalidField("songs");
+  
+  for (const [index, song] of value.songs.entries()) {
+    const packError = validateSongRehearsalPack(song, `songs[${index}]`);
+    if (packError) return packError;
+  }
+  return null;
+}
+
+/** Documented. */
+export function isRehearsalWorkspace(value: unknown): value is RehearsalWorkspace {
+  return validateRehearsalWorkspace(value) === null;
+}
+
+/** Documented. */
+export function parseRehearsalWorkspace(value: unknown): RehearsalWorkspace {
+  const validationError = validateRehearsalWorkspace(value);
+  if (validationError) throw new Error(validationError);
+  return structuredClone(value as RehearsalWorkspace);
 }

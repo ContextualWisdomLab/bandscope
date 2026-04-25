@@ -9,6 +9,11 @@ import {
   parseLocalAudioSource,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
+  isRehearsalWorkspace,
+  parseRehearsalWorkspace,
+  parseSongRehearsalPack,
+  SongRehearsalPack,
+  RehearsalWorkspace,
   parseAnalysisJobRequest,
   type AnalysisJobRequest,
   type LocalAudioSource,
@@ -870,5 +875,57 @@ describe("shared type helpers", () => {
     for (const testCase of cases) {
       expect(() => parseRehearsalSong(testCase.payload)).toThrow(testCase.message);
     }
+  });
+
+  it("validates SongRehearsalPack and RehearsalWorkspace", () => {
+    const validPack: SongRehearsalPack = {
+      id: "pack-1",
+      packState: "ready",
+      sourceLabel: "Test Song",
+      song: createDemoRehearsalSong(),
+      engineState: "succeeded"
+    };
+
+    const validWorkspace: RehearsalWorkspace = {
+      id: "ws-1",
+      title: "My Workspace",
+      workspaceVersion: 1,
+      songs: [validPack]
+    };
+
+    expect(parseSongRehearsalPack(validPack)).toEqual(validPack);
+    expect(isRehearsalWorkspace(validWorkspace)).toBe(true);
+    expect(parseRehearsalWorkspace(validWorkspace)).toEqual(validWorkspace);
+
+    // Invalid packs
+    expect(() => parseSongRehearsalPack({ ...validPack, packState: "invalid" })).toThrow("packState");
+    expect(() => parseSongRehearsalPack({ ...validPack, extraField: true })).toThrow("extraField");
+    
+    // Invalid workspaces
+    expect(isRehearsalWorkspace({ ...validWorkspace, songs: [{...validPack, packState: "bad"}] })).toBe(false);
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, id: 123 })).toThrow("id");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, workspaceVersion: "1" })).toThrow("workspaceVersion");
+
+    // Coverage for error and engineState and song errors
+    expect(() => parseSongRehearsalPack({ ...validPack, engineState: "bad" })).toThrow("engineState");
+    expect(() => parseSongRehearsalPack({ ...validPack, song: { ...validPack.song, id: 123 } })).toThrow("id");
+    expect(() => parseSongRehearsalPack({ ...validPack, error: { code: "bad", message: "m" } })).toThrow("error.code");
+    
+    // Valid cases with error and no song
+    expect(parseSongRehearsalPack({
+      id: "pack-2",
+      packState: "failed",
+      sourceLabel: "Test",
+      error: { code: "not_found", message: "missing" }
+    })).toBeTruthy();
+
+    expect(() => parseRehearsalWorkspace(null)).toThrow("root");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, extra: 1 })).toThrow("extra");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, title: 123 })).toThrow("title");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, songs: {} })).toThrow("songs");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, songs: [null] })).toThrow("songs[0]");
+
+    expect(() => parseSongRehearsalPack({ ...validPack, id: 123 })).toThrow("id");
+    expect(() => parseSongRehearsalPack({ ...validPack, sourceLabel: 123 })).toThrow("sourceLabel");
   });
 });

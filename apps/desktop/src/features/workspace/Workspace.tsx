@@ -85,6 +85,16 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
         onRoleChange={setActiveRole} 
       />
 
+      
+      {activeRole && (
+        <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f2f5", borderRadius: "8px", display: "flex", gap: "16px", alignItems: "center" }}>
+          <strong>Stem Player: {activeRole}</strong>
+          <button style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "#1890ff", color: "#fff", border: "none", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>▶ Play</button>
+          <button style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#fff", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>🔁 Loop Section</button>
+          <button style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#fff", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>🔇 Mute Others (Solo)</button>
+        </div>
+      )}
+
       <SectionRoadmap 
         song={song} 
         activeRole={activeRole} 
