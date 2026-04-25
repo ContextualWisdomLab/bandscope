@@ -235,8 +235,7 @@ describe("App", () => {
       songs: [
         { id: "p1", packState: "analyzing", sourceLabel: "Song 1" },
         { id: "p2", packState: "failed", sourceLabel: "Song 2", error: { message: "Fail" } },
-        { id: "p3", // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        packState: "unknown" as any, sourceLabel: "Song 3" }
+        { id: "p3", packState: "queued", sourceLabel: "Song 3" }
       ]
     };
     render(<App />);
