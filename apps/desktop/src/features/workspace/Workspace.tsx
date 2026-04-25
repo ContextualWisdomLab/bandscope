@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
+import { GrooveMap } from "./GrooveMap";
 import { generateCueSheetCsv, generateChartSummaryJson, sanitizeFilename } from "../../lib/export";
 
 interface WorkspaceProps {
@@ -87,11 +88,34 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
 
       
       {activeRole && (
-        <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f2f5", borderRadius: "8px", display: "flex", gap: "16px", alignItems: "center" }}>
-          <strong>Stem Player: {activeRole}</strong>
-          <button aria-label="Play stem" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "#1890ff", color: "#fff", border: "none", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>▶ Play</button>
-          <button aria-label="Loop section" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#f5f5f5", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>🔁 Loop Section</button>
-          <button aria-label="Solo/mute others" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#f5f5f5", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>🔇 Mute Others (Solo)</button>
+        <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f2f5", borderRadius: "8px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+            <strong>Stem Player: {activeRole}</strong>
+            <button aria-label="Play stem" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "#1890ff", color: "#fff", border: "none", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>▶ Play</button>
+            <button aria-label="Loop section" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#f5f5f5", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>🔁 Loop Section</button>
+            <button aria-label="Solo/mute others" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#f5f5f5", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>🔇 Mute Others (Solo)</button>
+            <button 
+              aria-label="Transcribe Bass"
+              title={activeRole.toLowerCase().includes("bass") ? "Transcribe part" : "Transcription is currently optimized for Bass. More instruments coming soon."}
+              disabled={!activeRole.toLowerCase().includes("bass")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "4px",
+                border: "1px solid #d9d9d9",
+                backgroundColor: activeRole.toLowerCase().includes("bass") ? "#52c41a" : "#f5f5f5",
+                color: activeRole.toLowerCase().includes("bass") ? "#fff" : "rgba(0, 0, 0, 0.25)",
+                cursor: activeRole.toLowerCase().includes("bass") ? "pointer" : "not-allowed",
+                minWidth: "44px",
+                minHeight: "44px"
+              }}
+            >
+              Transcribe Bass
+            </button>
+          </div>
+          {(() => {
+            const role = song.sections.flatMap(s => s.roles).find(r => r.id === activeRole);
+            return <GrooveMap notes={role?.transcription} isLoading={false} />;
+          })()}
         </div>
       )}
 

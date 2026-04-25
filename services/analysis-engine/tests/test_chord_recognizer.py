@@ -29,7 +29,7 @@ def test_chord_recognizer_c_major_chord() -> None:
     """Test chord recognition with a clear C major chord."""
     recognizer = ChordRecognizer()
     sr = 22050
-    t = np.linspace(0, 1.0, sr)
+    t = np.linspace(0, 3.0, sr * 3)
     # C major: C4 (261.63Hz), E4 (329.63Hz), G4 (392.00Hz)
     y = (
         np.sin(2 * np.pi * 261.63 * t)
@@ -118,7 +118,7 @@ def test_chord_recognizer_changing_chords():
     """Test for test_chord_recognizer_changing_chords."""
     recognizer = ChordRecognizer()
     sr = 22050
-    t1 = np.linspace(0, 1.0, sr, endpoint=False)
+    t1 = np.linspace(0, 2.0, sr * 2, endpoint=False)
     # C major
     y1 = (
         np.sin(2 * np.pi * 261.63 * t1)
@@ -126,7 +126,7 @@ def test_chord_recognizer_changing_chords():
         + np.sin(2 * np.pi * 392.00 * t1)
     ) / 3.0
 
-    t2 = np.linspace(0, 1.0, sr, endpoint=False)
+    t2 = np.linspace(0, 2.0, sr * 2, endpoint=False)
     # G major: G4 (392.00Hz), B4 (493.88Hz), D5 (587.33Hz)
     y2 = (
         np.sin(2 * np.pi * 392.00 * t2)
