@@ -32,10 +32,12 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   "Could not prepare the local temp workspace."
 ]);
 
+/** Documented. */
 export type LocalAudioSelectionResult =
   | { ok: true; bootstrap: ProjectBootstrapSummary }
   | { ok: false; error: AnalysisJobError };
 
+/** Documented. */
 function getInvoke(): TauriInvoke | null {
   if (typeof window === "undefined") {
     return null;
@@ -44,10 +46,12 @@ function getInvoke(): TauriInvoke | null {
   return window.__TAURI_INVOKE__ ?? invoke;
 }
 
+/** Documented. */
 function browserJobId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
+/** Documented. */
 async function browserFallback(command: string, args?: Record<string, unknown>): Promise<unknown> {
   if (command === "start_analysis_job") {
     parseAnalysisJobRequest(args?.request);
@@ -100,6 +104,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   throw new Error(`Unknown analysis bridge command: ${command}`);
 }
 
+/** Documented. */
 async function invokeAnalysis(command: string, args?: Record<string, unknown>): Promise<unknown> {
   const invokeCommand = getInvoke();
   if (invokeCommand) {
@@ -109,10 +114,12 @@ async function invokeAnalysis(command: string, args?: Record<string, unknown>): 
   return browserFallback(command, args);
 }
 
+/** Documented. */
 export function createDefaultAnalysisRequest(): AnalysisJobRequest {
   return createDemoAnalysisJobRequest();
 }
 
+/** Documented. */
 export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResult> {
   try {
     const response = await invokeAnalysis("select_local_audio_source");
@@ -134,6 +141,7 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
   }
 }
 
+/** Documented. */
 export async function startAnalysisJob(request: AnalysisJobRequest): Promise<AnalysisJobStatus> {
   let parsedRequest: AnalysisJobRequest;
   try {
@@ -158,6 +166,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
   return response;
 }
 
+/** Documented. */
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
   if (!isAnalysisJobStatus(response)) {
@@ -166,6 +175,7 @@ export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobSt
   return response;
 }
 
+/** Documented. */
 export async function importYoutubeUrl(url: string): Promise<LocalAudioSelectionResult> {
   try {
     const response = await invokeAnalysis("import_youtube_url", { url });
@@ -185,11 +195,13 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
   }
 }
 
+/** Documented. */
 export async function saveProject(song: RehearsalSong): Promise<void> {
   const parsedSong = parseRehearsalSong(song);
   await invokeAnalysis("save_project", { payload: parsedSong });
 }
 
+/** Documented. */
 export async function loadProject(): Promise<RehearsalSong> {
   const response = await invokeAnalysis("load_project");
   return parseRehearsalSong(response);

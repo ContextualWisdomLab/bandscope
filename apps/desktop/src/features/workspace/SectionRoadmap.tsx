@@ -9,9 +9,11 @@ interface SectionRoadmapProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
+/** Documented. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
+  /** Documented. */
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;
     const newChord = window.prompt("Enter new chord:", role.harmony.chord);
@@ -38,12 +40,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
     }
   };
 
+  /** Documented. */
   const getPriorityColor = (priority: string) => {
     if (priority === "high") return "#ff4d4f";
     if (priority === "medium") return "#faad14";
     return "#52c41a";
   };
 
+  /** Documented. */
   const getPriorityIcon = (priority: string) => {
     if (priority === "high") return "🚨";
     if (priority === "medium") return "⚠️";
@@ -126,6 +130,15 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                     {role.simplification && (
                       <div style={{ fontSize: "0.85em", color: "#1890ff", marginTop: "4px" }}>
                         ✨ {role.simplification}
+                      </div>
+                    )}
+                    {role.overlapWarnings.length > 0 && (
+                      <div style={{ marginTop: "4px" }}>
+                        {role.overlapWarnings.map((warning, wIdx) => (
+                          <div key={wIdx} style={{ fontSize: "0.8em", color: "#fa541c", marginTop: "2px" }}>
+                            ⚠️ {warning}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

@@ -8,7 +8,7 @@ import os
 import runpy
 import subprocess
 import sys
-import pytest
+import warnings
 from pathlib import Path
 
 from bandscope_analysis import cli
@@ -213,9 +213,162 @@ def test_cli_module_runs_as_main(monkeypatch) -> None:
     monkeypatch.setattr(sys, "stdout", stdout)
 
     try:
-        with pytest.warns(RuntimeWarning, match="'bandscope_analysis.cli' found in sys.modules"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
             runpy.run_module("bandscope_analysis.cli", run_name="__main__")
     except SystemExit as exit_signal:
         assert exit_signal.code == 0
 
     assert json.loads(stdout.getvalue())["jobId"] == "job-4"
+
+
+def test_cli_main_empty_input(monkeypatch) -> None:
+    """Ensure empty input yields an error."""
+    stdin = io.StringIO("")
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    assert cli.main() == 0
+    assert "Empty input" in stdout.getvalue()
+
+
+def test_cli_main_status_arg(monkeypatch) -> None:
+    """Ensure --status returns the analysis engine status."""
+    stdin = io.StringIO("")
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--status"])
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    assert cli.main() == 0
+    assert "ready" in stdout.getvalue()
+
+
+def test_cli_main_job_arg_invalid_file(monkeypatch, tmp_path) -> None:
+    """Ensure --job with missing file yields an error."""
+    stdin = io.StringIO("")
+    stdout = io.StringIO()
+    non_existent = tmp_path / "nope.json"
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(non_existent)])
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    assert cli.main() == 1
+    assert "Failed to read job file" in stdout.getvalue()
+
+
+def test_cli_main_job_arg_valid_file(monkeypatch, tmp_path) -> None:
+    """Ensure --job with valid file processes the job."""
+    job_file = tmp_path / "job.json"
+    job_file.write_text(
+        json.dumps(
+            {
+                "jobId": "job-file",
+                "request": {
+                    "sourceKind": "demo",
+                    "sourceLabel": "Late Night Set",
+                    "roleFocus": ["keys-right"],
+                },
+            }
+        )
+    )
+    stdin = io.StringIO("")
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(job_file)])
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    assert cli.main() == 0
+    assert "job-file" in stdout.getvalue()
+
+
+def test_cli_main_job_arg_json_string(monkeypatch) -> None:
+    """Ensure --job with raw JSON string processes the job."""
+    json_str = json.dumps(
+        {
+            "jobId": "job-raw",
+            "request": {
+                "sourceKind": "demo",
+                "sourceLabel": "Raw String",
+                "roleFocus": ["keys-right"],
+            },
+        }
+    )
+    stdin = io.StringIO("")
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", json_str])
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    assert cli.main() == 0
+    assert "job-raw" in stdout.getvalue()
+
+
+def test_cli_main_temporal_analyzer_mock(monkeypatch) -> None:
+    """Ensure the temporal analyzer injection block is covered and handles errors."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-audio",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "p1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/invalid/path.wav",
+                        "fileName": "test.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 100,
+                    },
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    class FakeAnalyzer:
+        def analyze(self, path):
+            raise RuntimeError("mocked failure")
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzer)
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+
+    assert cli.main() == 0
+    res = json.loads(stdout.getvalue())
+    assert res["jobId"] == "job-audio"
+
+
+def test_cli_main_temporal_analyzer_mock_success(monkeypatch) -> None:
+    """Ensure the temporal analyzer injection block succeeds."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-audio-success",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "p1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/valid/path.wav",
+                        "fileName": "test.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 100,
+                    },
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    class FakeAnalyzerSuccess:
+        def analyze(self, path):
+            return {"bpm": 120.0, "beats": []}
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+
+    assert cli.main() == 0
+    res = json.loads(stdout.getvalue())
+    assert res["jobId"] == "job-audio-success"

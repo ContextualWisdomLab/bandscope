@@ -9,6 +9,11 @@ import {
   parseLocalAudioSource,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
+  isRehearsalWorkspace,
+  parseRehearsalWorkspace,
+  parseSongRehearsalPack,
+  SongRehearsalPack,
+  RehearsalWorkspace,
   parseAnalysisJobRequest,
   type AnalysisJobRequest,
   type LocalAudioSource,
@@ -794,6 +799,72 @@ describe("shared type helpers", () => {
         })
       },
       {
+        message: "sections[0].roles[0].overlapWarnings",
+        payload: createInvalidSong((song) => {
+          (song.sections[0]!.roles[0] as unknown as Record<string, unknown>).overlapWarnings = "not-an-array";
+        })
+      },
+      {
+        message: "sections[0].roles[0].overlapWarnings[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.overlapWarnings = [42 as never];
+        })
+      },
+      {
+        message: "sections[0].partGraph",
+        payload: createInvalidSong((song) => {
+          (song.sections[0] as unknown as Record<string, unknown>).partGraph = "not-an-array";
+        })
+      },
+      {
+        message: "sections[0].partGraph[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph = [null as never];
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].role_id",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.role_id = 42 as never;
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].is_active",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.is_active = "yes" as never;
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].handoff_to",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.handoff_to = "not-an-array" as never;
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].handoff_to[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.handoff_to = [42 as never];
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].handoff_from",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.handoff_from = "not-an-array" as never;
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].handoff_from[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.handoff_from = [42 as never];
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].extraField",
+        payload: createInvalidSong((song) => {
+          (song.sections[0]!.partGraph[0] as unknown as Record<string, unknown>).extraField = true;
+        })
+      },
+      {
         message: "exportSummary.focusSections",
         payload: createInvalidSong((song) => {
           song.exportSummary.focusSections = new Array(1) as never;
@@ -804,5 +875,57 @@ describe("shared type helpers", () => {
     for (const testCase of cases) {
       expect(() => parseRehearsalSong(testCase.payload)).toThrow(testCase.message);
     }
+  });
+
+  it("validates SongRehearsalPack and RehearsalWorkspace", () => {
+    const validPack: SongRehearsalPack = {
+      id: "pack-1",
+      packState: "ready",
+      sourceLabel: "Test Song",
+      song: createDemoRehearsalSong(),
+      engineState: "succeeded"
+    };
+
+    const validWorkspace: RehearsalWorkspace = {
+      id: "ws-1",
+      title: "My Workspace",
+      workspaceVersion: 1,
+      songs: [validPack]
+    };
+
+    expect(parseSongRehearsalPack(validPack)).toEqual(validPack);
+    expect(isRehearsalWorkspace(validWorkspace)).toBe(true);
+    expect(parseRehearsalWorkspace(validWorkspace)).toEqual(validWorkspace);
+
+    // Invalid packs
+    expect(() => parseSongRehearsalPack({ ...validPack, packState: "invalid" })).toThrow("packState");
+    expect(() => parseSongRehearsalPack({ ...validPack, extraField: true })).toThrow("extraField");
+    
+    // Invalid workspaces
+    expect(isRehearsalWorkspace({ ...validWorkspace, songs: [{...validPack, packState: "bad"}] })).toBe(false);
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, id: 123 })).toThrow("id");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, workspaceVersion: "1" })).toThrow("workspaceVersion");
+
+    // Coverage for error and engineState and song errors
+    expect(() => parseSongRehearsalPack({ ...validPack, engineState: "bad" })).toThrow("engineState");
+    expect(() => parseSongRehearsalPack({ ...validPack, song: { ...validPack.song, id: 123 } })).toThrow("id");
+    expect(() => parseSongRehearsalPack({ ...validPack, error: { code: "bad", message: "m" } })).toThrow("error.code");
+    
+    // Valid cases with error and no song
+    expect(parseSongRehearsalPack({
+      id: "pack-2",
+      packState: "failed",
+      sourceLabel: "Test",
+      error: { code: "not_found", message: "missing" }
+    })).toBeTruthy();
+
+    expect(() => parseRehearsalWorkspace(null)).toThrow("root");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, extra: 1 })).toThrow("extra");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, title: 123 })).toThrow("title");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, songs: {} })).toThrow("songs");
+    expect(() => parseRehearsalWorkspace({ ...validWorkspace, songs: [null] })).toThrow("songs[0]");
+
+    expect(() => parseSongRehearsalPack({ ...validPack, id: 123 })).toThrow("id");
+    expect(() => parseSongRehearsalPack({ ...validPack, sourceLabel: 123 })).toThrow("sourceLabel");
   });
 });

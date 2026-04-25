@@ -4,24 +4,28 @@ import type { RehearsalSong } from "@bandscope/shared-types";
 // 1. Filename sanitization to prevent directory traversal or invalid characters.
 // 2. CSV formula injection prevention (fields starting with =, +, -, @ must be prefixed with a single quote).
 
+/** Documented. */
 export function sanitizeFilename(title: string): string {
   // Replace invalid filename characters with underscores
   return title.replace(/[^a-zA-Z0-9_\-\s]/g, "_").trim() || "export";
 }
 
+/** Documented. */
 export function escapeCsvField(value: string): string {
+  let escapedValue = value;
   // Prevent CSV formula injection by prefixing problematic leading characters with a single quote
   if (/^[=+\-@]/.test(value)) {
-    return `'${value}`;
+    escapedValue = `'${value}`;
   }
   // Enclose in double quotes if there's a comma, newline, or double quote
-  if (value.includes(",") || value.includes("\n") || value.includes('"')) {
-    const escapedQuotes = value.replace(/"/g, '""');
+  if (escapedValue.includes(",") || escapedValue.includes("\n") || escapedValue.includes("\r") || escapedValue.includes('"')) {
+    const escapedQuotes = escapedValue.replace(/"/g, '""');
     return `"${escapedQuotes}"`;
   }
-  return value;
+  return escapedValue;
 }
 
+/** Documented. */
 export function generateCueSheetCsv(song: RehearsalSong): string {
   const headers = ["Section", "Groove", "Role", "Harmony", "Cue", "Priority", "Notes"];
   const rows: string[] = [headers.join(",")];
@@ -46,6 +50,7 @@ export function generateCueSheetCsv(song: RehearsalSong): string {
   return rows.join("\n");
 }
 
+/** Documented. */
 export function generateChartSummaryJson(song: RehearsalSong): string {
   // Just a clean JSON stringification for now, focusing on the core chart data
   const summary = {

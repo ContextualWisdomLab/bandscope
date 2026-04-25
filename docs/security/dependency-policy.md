@@ -102,6 +102,7 @@ Exceptions are allowed only when no patched version exists and the advisory is n
 Current controlled exception:
 
 - `GHSA-5239-wwwm-4pmq` (`Pygments <=2.19.2`) in Python dev/test dependency path; no patched version is available at this time, impact is low/local-access ReDoS, and BandScope does not expose Pygments parsing on untrusted runtime input paths. The CI `security-audit` workflow applies a targeted ignore for this advisory only.
+- Cargo audit warnings for legacy `gtk3`, `glib`, and `fxhash` vulnerabilities (e.g. `RUSTSEC-2024-0413`, `RUSTSEC-2024-0429`, `RUSTSEC-2025-0057`) inherited through Tauri v2 `wry`/`webkit2gtk` integration are explicitly allowed. These are deep framework dependencies with no alternative, so they are documented exceptions and ignored by default.
 
 ## Required checks intent
 

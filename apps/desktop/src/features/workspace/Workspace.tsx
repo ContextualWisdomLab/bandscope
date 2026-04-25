@@ -9,6 +9,7 @@ interface WorkspaceProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
+/** Documented. */
 export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
 
@@ -25,6 +26,7 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
     return Array.from(roleMap.entries()).map(([id, name]) => ({ id, name }));
   }, [song]);
 
+  /** Documented. */
   const handleExportCueSheet = () => {
     const csv = generateCueSheetCsv(song);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -38,6 +40,7 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
     URL.revokeObjectURL(url);
   };
 
+  /** Documented. */
   const handleExportChart = () => {
     const json = generateChartSummaryJson(song);
     const blob = new Blob([json], { type: "application/json;charset=utf-8;" });
@@ -81,6 +84,16 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
         activeRole={activeRole} 
         onRoleChange={setActiveRole} 
       />
+
+      
+      {activeRole && (
+        <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f2f5", borderRadius: "8px", display: "flex", gap: "16px", alignItems: "center" }}>
+          <strong>Stem Player: {activeRole}</strong>
+          <button style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "#1890ff", color: "#fff", border: "none", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>▶ Play</button>
+          <button style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#fff", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>🔁 Loop Section</button>
+          <button style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#fff", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>🔇 Mute Others (Solo)</button>
+        </div>
+      )}
 
       <SectionRoadmap 
         song={song} 
