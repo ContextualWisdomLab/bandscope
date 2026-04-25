@@ -1,6 +1,8 @@
 """Tests for the analysis-engine orchestration CLI."""
 
 from __future__ import annotations
+import warnings
+import pytest
 
 import io
 import json
@@ -192,6 +194,7 @@ def test_cli_main_handles_malformed_json(monkeypatch) -> None:
     assert response["error"]["code"] == "invalid_request"
 
 
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
 def test_cli_module_runs_as_main(monkeypatch) -> None:
     """Ensure the module-level main guard is covered by executing the module directly."""
     stdin = io.StringIO(
