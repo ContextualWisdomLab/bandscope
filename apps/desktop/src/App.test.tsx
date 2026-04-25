@@ -211,7 +211,7 @@ describe("App", () => {
     mockSaveProject.mockRejectedValueOnce(new Error("Write error"));
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Save Project/i })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: /Save Project/i }).hasAttribute("disabled")).toBe(false);
     });
     fireEvent.click(screen.getByRole("button", { name: /Save Project/i }));
     await waitFor(() => {
@@ -372,7 +372,7 @@ describe("App", () => {
     mockSaveProject.mockResolvedValueOnce(undefined);
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Save Project/i })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: /Save Project/i }).hasAttribute("disabled")).toBe(false);
     });
     fireEvent.click(screen.getByRole("button", { name: /Save Project/i }));
     // Wait for the mock to be called

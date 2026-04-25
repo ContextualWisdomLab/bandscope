@@ -167,8 +167,8 @@ export function App() {
     // Note: saveProject needs to be updated to accept a RehearsalWorkspace.
     // For now we just save the first ready song.
     if (!workspace) return;
-    const readyPack = workspace.songs.find(s => s.packState === "ready" && s.song);
-    if (!readyPack || !readyPack.song) return;
+    const readyPack = workspace.songs.find(s => s.packState === "ready");
+    if (!readyPack || readyPack.packState !== "ready") return;
     try {
       await saveProject(readyPack.song);
     } catch (e) {
@@ -194,7 +194,7 @@ export function App() {
               <span style={{ marginLeft: "12px", color: pack.packState === "failed" ? "red" : "gray" }}>
                 {progressMessage(t, pack.packState)}
               </span>
-              {pack.error && <div style={{ color: "red", fontSize: "0.8em" }}>{pack.error.message}</div>}
+              {pack.packState === "failed" && <div style={{ color: "red", fontSize: "0.8em" }}>{pack.error.message}</div>}
             </div>
             <div>
               {pack.packState === "ready" && (
@@ -290,7 +290,7 @@ export function App() {
       </div>
 
       <section>
-        {selectedPack && selectedPack.song ? (
+        {selectedPack && selectedPack.packState === "ready" ? (
           <div>
             <button onClick={() => setSelectedPackId(null)} style={{ marginBottom: "16px" }}>&larr; Back to Workspace</button>
             <Workspace song={selectedPack.song} />

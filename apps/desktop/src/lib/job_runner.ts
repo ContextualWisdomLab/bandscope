@@ -87,7 +87,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     if (pack) {
       pack.packState = "queued";
       pack.engineState = "queued";
-      pack.error = undefined;
+      
       triggerMockUpdate();
       
       // Simulate processing
