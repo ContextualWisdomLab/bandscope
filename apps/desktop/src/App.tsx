@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   SUPPORTED_AUDIO_FORMATS,
   type RehearsalWorkspace,
-  type SongRehearsalPack,
-  type AnalysisJobRequest,
-  type ProjectBootstrapSummary
+  type SongRehearsalPack
 } from "@bandscope/shared-types";
 import {
   createDefaultAnalysisRequest,
@@ -20,8 +18,11 @@ import {
 } from "./lib/job_runner";
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
-import { EmptyState, LoadingState, ErrorState } from "./features/workspace/WorkspaceStates";
+import { EmptyState } from "./features/workspace/WorkspaceStates";
 
+/**
+ * Returns a translated progress message for a given pack state.
+ */
 function progressMessage(
   t: ReturnType<typeof createTranslator>,
   state: SongRehearsalPack["packState"]
@@ -40,6 +41,9 @@ function progressMessage(
   }
 }
 
+/**
+ * Main application component for the BandScope desktop app.
+ */
 export function App() {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
@@ -48,28 +52,40 @@ export function App() {
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
 
-  const [isStarting, setIsStarting] = useState(false);
+  const [isStarting] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [selectionError, setSelectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    subscribeToWorkspaceUpdates((ws) => {
-      setWorkspace(ws);
-    }).then(u => {
-      unlisten = u;
+    let unmounted = false;
+    let unlistenFn: (() => void) | undefined;
+    const unlistenPromise = subscribeToWorkspaceUpdates((ws) => {
+      if (!unmounted) setWorkspace(ws);
+    });
+    
+    unlistenPromise.then(u => {
+      if (!unmounted) {
+        unlistenFn = u;
+      } else if (u) {
+        u();
+      }
     });
 
     getWorkspaceState().then(ws => {
-      if (ws) setWorkspace(ws);
+      if (!unmounted && ws) setWorkspace(ws);
     });
 
     return () => {
-      if (unlisten) unlisten();
+      unmounted = true;
+      if (unlistenFn) unlistenFn();
+      else unlistenPromise.then(u => u && u());
     };
   }, []);
 
+  /**
+   * Handles selecting a local audio file and enqueueing a new song analysis job.
+   */
   const handleChooseLocalAudio = async () => {
     setSelectionError(null);
     const selection = await selectLocalAudioSource();
@@ -79,12 +95,15 @@ export function App() {
         projectId: selection.bootstrap.projectId,
         sourceLabel: selection.bootstrap.source.fileName,
         roleFocus: defaultRequest.roleFocus
-      });
+      }).catch(err => setSelectionError(err instanceof Error ? err.message : "Failed to enqueue song"));
       return;
     }
     setSelectionError(selection.error.message || t("unsupportedLocalAudio"));
   };
 
+  /**
+   * Handles importing a YouTube URL for analysis.
+   */
   const handleImportYoutube = async () => {
     setSelectionError(null);
     setIsImporting(true);
@@ -108,12 +127,18 @@ export function App() {
     }
   };
 
+  /**
+   * Handles enqueueing a default demo song.
+   */
   const handleDemoSong = () => {
-    enqueueSong(defaultRequest);
+    enqueueSong(defaultRequest).catch(err => setSelectionError(err instanceof Error ? err.message : "Failed to enqueue song"));
   };
 
+  /**
+   * Handles loading an existing project from disk.
+   */
   const handleLoadProject = async () => {
-    // Note: loadProject needs to be updated to return a RehearsalWorkspace, but for now we skip or mock
+    // TODO: loadProject needs to be updated to return a RehearsalWorkspace instead of RehearsalSong (Issue #xx)
     try {
       const song = await loadProject();
       setWorkspace({
@@ -135,6 +160,9 @@ export function App() {
     }
   };
 
+  /**
+   * Handles saving the current project to disk.
+   */
   const handleSaveProject = async () => {
     // Note: saveProject needs to be updated to accept a RehearsalWorkspace.
     // For now we just save the first ready song.
@@ -150,6 +178,9 @@ export function App() {
     }
   };
 
+  /**
+   * Renders the list of songs in the current workspace.
+   */
   const renderWorkspaceList = () => {
     if (!workspace) return <EmptyState />;
     

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   type RehearsalWorkspace,
@@ -21,13 +21,13 @@ declare global {
 
 /** Documented. */
 function getInvoke(): TauriInvoke | null {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || !isTauri()) {
     return null;
   }
   return window.__TAURI_INVOKE__ ?? invoke;
 }
 
-let mockWorkspace: RehearsalWorkspace = {
+const mockWorkspace: RehearsalWorkspace = {
   id: "mock-ws",
   title: "Browser Mock Workspace",
   songs: [],
@@ -37,6 +37,9 @@ let mockWorkspace: RehearsalWorkspace = {
 type MockListener = (event: { payload: unknown }) => void;
 const mockListeners = new Set<MockListener>();
 
+/**
+ * Triggers a mock workspace update to all listeners.
+ */
 function triggerMockUpdate() {
   const payload = JSON.parse(JSON.stringify(mockWorkspace));
   mockListeners.forEach(listener => listener({ payload }));
@@ -86,6 +89,21 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
       pack.engineState = "queued";
       pack.error = undefined;
       triggerMockUpdate();
+      
+      // Simulate processing
+      setTimeout(() => {
+        const p = mockWorkspace.songs.find(s => s.id === jobId);
+        if (p) {
+          p.packState = "analyzing";
+          p.engineState = "running";
+          triggerMockUpdate();
+          setTimeout(() => {
+            p.packState = "ready";
+            p.engineState = "succeeded";
+            triggerMockUpdate();
+          }, 2000);
+        }
+      }, 1000);
     }
     return;
   }
@@ -133,11 +151,15 @@ export async function subscribeToWorkspaceUpdates(callback: WorkspaceUpdateCallb
       if (isRehearsalWorkspace(event.payload)) {
         callback(parseRehearsalWorkspace(event.payload));
       } else {
+        // eslint-disable-next-line no-console -- Warn about invalid payload structure
         console.warn("Received invalid workspace update from Tauri", event.payload);
       }
     });
   } else {
     // Browser fallback
+    /**
+     * Internal listener for fallback mock updates.
+     */
     const listener: MockListener = (event) => {
       if (isRehearsalWorkspace(event.payload)) {
         callback(parseRehearsalWorkspace(event.payload));
@@ -157,6 +179,7 @@ export async function getWorkspaceState(): Promise<RehearsalWorkspace | null> {
     if (!response) return null;
     return parseRehearsalWorkspace(response);
   } catch (error) {
+    // eslint-disable-next-line no-console -- Error logging for workspace state fetch failure
     console.error("Failed to get workspace state", error);
     return null;
   }

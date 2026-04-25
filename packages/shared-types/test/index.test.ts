@@ -909,8 +909,10 @@ describe("shared type helpers", () => {
     // Coverage for error and engineState and song errors
     expect(() => parseSongRehearsalPack({ ...validPack, engineState: "bad" })).toThrow("engineState");
     expect(() => parseSongRehearsalPack({ ...validPack, song: { ...validPack.song, id: 123 } })).toThrow("id");
-    expect(() => parseSongRehearsalPack({ ...validPack, error: { code: "bad", message: "m" } })).toThrow("error.code");
+    const { song, ...packWithoutSong } = validPack;
+    expect(() => parseSongRehearsalPack({ ...packWithoutSong, packState: "failed", error: { code: "bad", message: "m" } })).toThrow("error.code");
     
+
     // Valid cases with error and no song
     expect(parseSongRehearsalPack({
       id: "pack-2",
@@ -918,6 +920,9 @@ describe("shared type helpers", () => {
       sourceLabel: "Test",
       error: { code: "not_found", message: "missing" }
     })).toBeTruthy();
+
+    expect(() => parseSongRehearsalPack({ ...validPack, packState: "ready", song: { id: 123 } as any })).toThrow("id");
+
 
     expect(() => parseRehearsalWorkspace(null)).toThrow("root");
     expect(() => parseRehearsalWorkspace({ ...validWorkspace, extra: 1 })).toThrow("extra");

@@ -1,9 +1,12 @@
 """Pitch tracker using librosa's pYIN or YIN algorithm."""
 
+import logging
 from typing import Optional, TypedDict
 
 import librosa
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class TrackedPitchRange(TypedDict):
@@ -40,7 +43,8 @@ class PitchTracker:
         # We can try to use pyin, but if it fails or returns no pitch, fallback.
         try:
             f0, voiced_flag, voiced_probs = librosa.pyin(y, fmin=fmin, fmax=fmax, sr=sr)
-        except Exception:
+        except librosa.util.exceptions.ParameterError as e:
+            logger.warning("pYIN failed: %s", e)
             return {"lowest_note": None, "highest_note": None, "confidence": "low"}
 
         # Filter f0 to only keep voiced frames

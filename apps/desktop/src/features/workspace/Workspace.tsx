@@ -89,9 +89,9 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
       {activeRole && (
         <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f0f2f5", borderRadius: "8px", display: "flex", gap: "16px", alignItems: "center" }}>
           <strong>Stem Player: {activeRole}</strong>
-          <button style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "#1890ff", color: "#fff", border: "none", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>▶ Play</button>
-          <button style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#fff", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>🔁 Loop Section</button>
-          <button style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#fff", cursor: "pointer", minWidth: "44px", minHeight: "44px" }}>🔇 Mute Others (Solo)</button>
+          <button aria-label="Play stem" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "#1890ff", color: "#fff", border: "none", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>▶ Play</button>
+          <button aria-label="Loop section" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#f5f5f5", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>🔁 Loop Section</button>
+          <button aria-label="Solo/mute others" title="Coming soon" disabled={true} style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#f5f5f5", cursor: "not-allowed", minWidth: "44px", minHeight: "44px" }}>🔇 Mute Others (Solo)</button>
         </div>
       )}
 
