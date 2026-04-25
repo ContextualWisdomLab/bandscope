@@ -4,6 +4,9 @@ import { App } from "./App";
 
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
+const mockGenerateBndscpArchive = vi.fn();
+const mockParseBndscpArchive = vi.fn();
+const mockResolveMissingAudio = vi.fn();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock store for testing
 let mockWorkspaceStore: any = null;
@@ -29,6 +32,15 @@ vi.mock("./lib/job_runner", () => ({
     };
   }),
   getWorkspaceState: vi.fn(async () => mockWorkspaceStore)
+}));
+
+vi.mock("./lib/export", () => ({
+  generateBndscpArchive: (...args: unknown[]) => mockGenerateBndscpArchive(...args)
+}));
+
+vi.mock("./lib/import", () => ({
+  parseBndscpArchive: (...args: unknown[]) => mockParseBndscpArchive(...args),
+  mockResolveMissingAudio: (...args: unknown[]) => mockResolveMissingAudio(...args)
 }));
 
 vi.mock("./lib/analysis", () => ({
@@ -205,7 +217,7 @@ describe("App", () => {
         id: "pack-ready2",
         packState: "ready",
         sourceLabel: "Ready Song",
-        song: { id: "song2" } as unknown as import("@bandscope/shared-types").SongRehearsalPack["song"]
+        song: { id: "song2" } as unknown as import("@bandscope/shared-types").RehearsalSong
       }]
     };
     mockSaveProject.mockRejectedValueOnce(new Error("Write error"));
@@ -235,7 +247,8 @@ describe("App", () => {
       songs: [
         { id: "p1", packState: "analyzing", sourceLabel: "Song 1" },
         { id: "p2", packState: "failed", sourceLabel: "Song 2", error: { message: "Fail" } },
-        { id: "p3", packState: "queued", sourceLabel: "Song 3" }
+        { id: "p3", packState: "queued", sourceLabel: "Song 3" },
+        { id: "p4", packState: "invalid_state", sourceLabel: "Song 4" }
       ]
     };
     render(<App />);
@@ -243,6 +256,7 @@ describe("App", () => {
       expect(screen.getByText(/Song 1/i)).toBeTruthy();
       expect(screen.getByText(/Song 2/i)).toBeTruthy();
       expect(screen.getByText(/Song 3/i)).toBeTruthy();
+      expect(screen.getByText(/Song 4/i)).toBeTruthy();
     });
   });
 
@@ -366,7 +380,7 @@ describe("App", () => {
         id: "pack-ready-success",
         packState: "ready",
         sourceLabel: "Ready Song",
-        song: { id: "song2" } as unknown as import("@bandscope/shared-types").SongRehearsalPack["song"]
+        song: { id: "song2" } as unknown as import("@bandscope/shared-types").RehearsalSong
       }]
     };
     mockSaveProject.mockResolvedValueOnce(undefined);
@@ -440,4 +454,225 @@ describe("App", () => {
       expect(screen.getByText(/Audio enqueue fail/i)).toBeTruthy();
     });
   });
+
+  it("handles handleShareWorkspace success", async () => {
+    mockWorkspaceStore = {
+      id: "ws-1",
+      title: "Test Workspace",
+      workspaceVersion: 1,
+      songs: []
+    };
+    const mockBlob = new Blob(["test"], { type: "application/zip" });
+    mockGenerateBndscpArchive.mockResolvedValueOnce(mockBlob);
+    
+    // Mock URL.createObjectURL and URL.revokeObjectURL
+    global.URL.createObjectURL = vi.fn(() => "blob:test");
+    global.URL.revokeObjectURL = vi.fn();
+    
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Share Workspace/i }).hasAttribute("disabled")).toBe(false);
+    });
+    
+    fireEvent.click(screen.getByRole("button", { name: /Share Workspace/i }));
+    
+    await waitFor(() => {
+      expect(mockGenerateBndscpArchive).toHaveBeenCalledWith(mockWorkspaceStore, true);
+    });
+  });
+
+  it("handles handleShareWorkspace error", async () => {
+    mockWorkspaceStore = {
+      id: "ws-1",
+      title: "Test Workspace",
+      workspaceVersion: 1,
+      songs: []
+    };
+    mockGenerateBndscpArchive.mockRejectedValueOnce(new Error("Export failed"));
+    
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Share Workspace/i })).toBeTruthy();
+    });
+    
+    fireEvent.click(screen.getByRole("button", { name: /Share Workspace/i }));
+    
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to share workspace: Export failed/i)).toBeTruthy();
+    });
+  });
+
+  it("covers handleShareWorkspace early return when no workspace", async () => {
+    vi.mocked(getWorkspaceState).mockResolvedValueOnce(null);
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Share Workspace/i }));
+    await new Promise(r => setTimeout(r, 0));
+  });
+
+  it("handles handleImportWorkspace success", async () => {
+    mockParseBndscpArchive.mockResolvedValueOnce({
+      metadata: {
+        workspace: { id: "ws-imported", title: "Imported Workspace", songs: [] }
+      },
+      requiresMissingAudio: []
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Import Workspace/i }));
+    // wait for input to be clicked and trigger onchange
+    const fileInput = screen.getByTestId("workspace-import-input") as HTMLInputElement;
+    expect(fileInput).not.toBeNull();
+    // dispatch an event
+    const file = new File([''], 'test.bndscp', { type: 'application/octet-stream' });
+    Object.defineProperty(fileInput, 'files', { value: [file] });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Imported Workspace/i)).toBeTruthy();
+    });
+  });
+
+  it("handles handleImportWorkspace early return when no file", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Import Workspace/i }));
+    const fileInput = screen.getByTestId("workspace-import-input") as HTMLInputElement;
+    Object.defineProperty(fileInput, 'files', { value: [] });
+    fireEvent.change(fileInput);
+    await new Promise(r => setTimeout(r, 0));
+  });
+
+  it("handles handleImportWorkspace error", async () => {
+    mockParseBndscpArchive.mockRejectedValueOnce(new Error("Import failed"));
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Import Workspace/i }));
+    
+    const fileInput = screen.getByTestId("workspace-import-input") as HTMLInputElement;
+    const file = new File([''], 'test.bndscp', { type: 'application/octet-stream' });
+    Object.defineProperty(fileInput, 'files', { value: [file] });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import workspace: Import failed/i)).toBeTruthy();
+    });
+  });
+
+  it("shows Missing Audio empty state when audio is missing", async () => {
+    mockParseBndscpArchive.mockResolvedValueOnce({
+      metadata: {
+        workspace: {
+          id: "ws-missing",
+          title: "Missing Audio Workspace",
+          workspaceVersion: 1,
+          songs: [{
+            id: "pack-missing",
+            packState: "ready",
+            sourceLabel: "Song 1",
+            song: { id: "song1" } as unknown as import("@bandscope/shared-types").RehearsalSong
+          }]
+        }
+      },
+      requiresMissingAudio: ["pack-missing"]
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Import Workspace/i }));
+    
+    const fileInput = screen.getByTestId("workspace-import-input") as HTMLInputElement;
+    const file = new File([''], 'test.bndscp', { type: 'application/octet-stream' });
+    Object.defineProperty(fileInput, 'files', { value: [file] });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Missing Audio/i).length).toBeGreaterThan(0);
+      expect(screen.getByRole("button", { name: /Locate Audio/i })).toBeTruthy();
+    });
+  });
+
+  it("handles handleResolveMissingAudio success", async () => {
+    // Setup workspace with missing audio
+    mockParseBndscpArchive.mockResolvedValueOnce({
+      metadata: {
+        workspace: {
+          id: "ws-missing",
+          title: "Missing Audio Workspace",
+          workspaceVersion: 1,
+          songs: [{
+            id: "pack-missing",
+            packState: "ready",
+            sourceLabel: "Song 1",
+            song: { id: "song1" } as unknown as import("@bandscope/shared-types").RehearsalSong
+          }]
+        }
+      },
+      requiresMissingAudio: ["pack-missing"]
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Import Workspace/i }));
+    const fileInput = screen.getByTestId("workspace-import-input") as HTMLInputElement;
+    const file = new File([''], 'test.bndscp', { type: 'application/octet-stream' });
+    Object.defineProperty(fileInput, 'files', { value: [file] });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Locate Audio/i })).toBeTruthy();
+    });
+
+    // Mock resolving the audio
+    mockResolveMissingAudio.mockResolvedValueOnce({ name: "ResolvedAudio.mp3" });
+    
+    fireEvent.click(screen.getByRole("button", { name: /Locate Audio/i }));
+
+    await waitFor(() => {
+      expect(enqueueSong).toHaveBeenCalledWith(expect.objectContaining({
+        sourceKind: "local_audio",
+        projectId: "pack-missing",
+        sourceLabel: "ResolvedAudio.mp3"
+      }));
+      // Button should disappear
+      expect(screen.queryByRole("button", { name: /Locate Audio/i })).toBeNull();
+    });
+  });
+
+  it("handles handleResolveMissingAudio error", async () => {
+    // Setup workspace with missing audio
+    mockParseBndscpArchive.mockResolvedValueOnce({
+      metadata: {
+        workspace: {
+          id: "ws-missing",
+          title: "Missing Audio Workspace",
+          workspaceVersion: 1,
+          songs: [{
+            id: "pack-missing",
+            packState: "ready",
+            sourceLabel: "Song 1",
+            song: { id: "song1" } as unknown as import("@bandscope/shared-types").RehearsalSong
+          }]
+        }
+      },
+      requiresMissingAudio: ["pack-missing"]
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Import Workspace/i }));
+    const fileInput = screen.getByTestId("workspace-import-input") as HTMLInputElement;
+    const file = new File([''], 'test.bndscp', { type: 'application/octet-stream' });
+    Object.defineProperty(fileInput, 'files', { value: [file] });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Locate Audio/i })).toBeTruthy();
+    });
+
+    // Mock an error
+    mockResolveMissingAudio.mockRejectedValueOnce(new Error("File access denied"));
+    
+    fireEvent.click(screen.getByRole("button", { name: /Locate Audio/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to resolve audio: File access denied/i)).toBeTruthy();
+    });
+  });
 });
+

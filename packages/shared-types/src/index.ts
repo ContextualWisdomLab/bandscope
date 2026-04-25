@@ -1103,3 +1103,37 @@ export function parseRehearsalWorkspace(value: unknown): RehearsalWorkspace {
   if (validationError) throw new Error(validationError);
   return structuredClone(value as RehearsalWorkspace);
 }
+
+/** Documented. */
+export type BndscpMetadata = {
+  workspace: RehearsalWorkspace;
+  analysis_engine_version: string;
+  includes_audio: boolean;
+};
+
+/** Documented. */
+function validateBndscpMetadata(value: unknown): string | null {
+  if (!isRecord(value)) return invalidField("root");
+  const extraKey = unexpectedKey(value, ["workspace", "analysis_engine_version", "includes_audio"], "");
+  if (extraKey) return extraKey;
+  if (typeof value.analysis_engine_version !== "string") return invalidField("analysis_engine_version");
+  if (typeof value.includes_audio !== "boolean") return invalidField("includes_audio");
+  
+  const workspaceError = validateRehearsalWorkspace(value.workspace);
+  if (workspaceError) return workspaceError;
+  
+  return null;
+}
+
+/** Documented. */
+export function isBndscpMetadata(value: unknown): value is BndscpMetadata {
+  return validateBndscpMetadata(value) === null;
+}
+
+/** Documented. */
+export function parseBndscpMetadata(value: unknown): BndscpMetadata {
+  const validationError = validateBndscpMetadata(value);
+  if (validationError) throw new Error(validationError);
+  return structuredClone(value as BndscpMetadata);
+}
+

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   SUPPORTED_AUDIO_FORMATS,
   type RehearsalWorkspace,
@@ -16,6 +16,8 @@ import {
   subscribeToWorkspaceUpdates,
   getWorkspaceState
 } from "./lib/job_runner";
+import { generateBndscpArchive } from "./lib/export";
+import { parseBndscpArchive, mockResolveMissingAudio } from "./lib/import";
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState } from "./features/workspace/WorkspaceStates";
@@ -56,6 +58,8 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [missingAudio, setMissingAudio] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let unmounted = false;
@@ -179,6 +183,74 @@ export function App() {
   };
 
   /**
+   * Handles exporting the workspace for sharing.
+   */
+  const handleShareWorkspace = async () => {
+    if (!workspace) return;
+    try {
+      const blob = await generateBndscpArchive(workspace, true);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${workspace.title.replace(/\\s+/g, "_") || "workspace"}.bndscp`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setWorkspaceError(`Failed to share workspace: ${e instanceof Error ? e.message : "Unknown error"}`);
+    }
+  };
+
+  /**
+   * Handles importing a workspace from a .bndscp file.
+   */
+  const handleImportWorkspace = async () => {
+    fileInputRef.current?.click();
+  };
+
+  /**
+   * Handles changes to the hidden file input for importing a workspace.
+   */
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImporting(true);
+    try {
+      const result = await parseBndscpArchive(file);
+      setWorkspace(result.metadata.workspace);
+      setMissingAudio(result.requiresMissingAudio);
+      setWorkspaceError(null);
+    } catch (err) {
+      setWorkspaceError(`Failed to import workspace: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setIsImporting(false);
+      // Reset the input value so the same file can be imported again if needed
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  /**
+   * Resolves missing audio for a pack.
+   */
+  const handleResolveMissingAudio = async (packId: string, sourceLabel: string) => {
+    try {
+      const file = await mockResolveMissingAudio(packId, sourceLabel);
+      if (file) {
+        enqueueSong({
+          sourceKind: "local_audio",
+          projectId: packId,
+          sourceLabel: file.name,
+          roleFocus: defaultRequest.roleFocus
+        });
+        setMissingAudio(prev => prev.filter(id => id !== packId));
+      }
+    } catch (e) {
+      setWorkspaceError(`Failed to resolve audio: ${e instanceof Error ? e.message : "Unknown error"}`);
+    }
+  };
+
+  /**
    * Renders the list of songs in the current workspace.
    */
   const renderWorkspaceList = () => {
@@ -187,26 +259,37 @@ export function App() {
     return (
       <div style={{ marginBottom: "24px" }}>
         <h3>Songs in Workspace</h3>
-        {workspace.songs.map(pack => (
-          <div key={pack.id} style={{ display: "flex", justifyContent: "space-between", padding: "12px", border: "1px solid #eee", marginBottom: "8px", borderRadius: "4px" }}>
-            <div>
-              <strong>{pack.sourceLabel}</strong>
-              <span style={{ marginLeft: "12px", color: pack.packState === "failed" ? "red" : "gray" }}>
-                {progressMessage(t, pack.packState)}
-              </span>
-              {pack.packState === "failed" && <div style={{ color: "red", fontSize: "0.8em" }}>{pack.error.message}</div>}
+        {workspace.songs.map(pack => {
+          const isMissingAudio = missingAudio.includes(pack.id);
+          
+          return (
+            <div key={pack.id} style={{ display: "flex", justifyContent: "space-between", padding: "12px", border: "1px solid #eee", marginBottom: "8px", borderRadius: "4px" }}>
+              <div>
+                <strong>{pack.sourceLabel}</strong>
+                <span style={{ marginLeft: "12px", color: pack.packState === "failed" ? "red" : isMissingAudio ? "orange" : "gray" }}>
+                  {isMissingAudio ? "Missing Audio" : progressMessage(t, pack.packState)}
+                </span>
+                {pack.packState === "failed" && !isMissingAudio && <div style={{ color: "red", fontSize: "0.8em" }}>{pack.error?.message}</div>}
+              </div>
+              <div>
+                {isMissingAudio ? (
+                  <button onClick={() => handleResolveMissingAudio(pack.id, pack.sourceLabel)} style={{ backgroundColor: "#faad14", color: "white", border: "none", padding: "4px 8px", borderRadius: "4px", cursor: "pointer" }}>
+                    Locate Audio
+                  </button>
+                ) : pack.packState === "ready" ? (
+                  <button onClick={() => setSelectedPackId(pack.id)}>Open Rehearsal Pack</button>
+                ) : null}
+              </div>
             </div>
-            <div>
-              {pack.packState === "ready" && (
-                <button onClick={() => setSelectedPackId(pack.id)}>Open Rehearsal Pack</button>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
 
+  /**
+   * The currently selected pack.
+   */
   const selectedPack = workspace?.songs.find(s => s.id === selectedPackId);
 
   return (
@@ -216,7 +299,8 @@ export function App() {
           <h1 style={{ margin: "0 0 8px 0" }}>{workspace?.title || t("appTitle")}</h1>
           <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
         </div>
-        <button 
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button 
             type="button" 
             onClick={handleSaveProject} 
             aria-disabled={!workspace}
@@ -231,6 +315,23 @@ export function App() {
           >
             Save Project
           </button>
+          <button 
+            type="button" 
+            onClick={handleShareWorkspace} 
+            aria-disabled={!workspace}
+            style={{ 
+              padding: "8px 16px", 
+              cursor: workspace ? "pointer" : "not-allowed", 
+              borderRadius: "4px", 
+              backgroundColor: workspace ? "#1890ff" : "#f5f5f5", 
+              color: workspace ? "white" : "inherit",
+              border: "1px solid #ccc",
+              opacity: workspace ? 1 : 0.5
+            }}
+          >
+            Share Workspace
+          </button>
+        </div>
       </header>
 
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
@@ -270,6 +371,23 @@ export function App() {
         >
           Open Project
         </button>
+
+        <button 
+          type="button" 
+          onClick={handleImportWorkspace} 
+          disabled={isStarting || isImporting}
+          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
+        >
+          {isImporting ? "Importing..." : "Import Workspace"}
+        </button>
+        <input 
+          type="file" 
+          accept=".bndscp" 
+          style={{ display: "none" }} 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          data-testid="workspace-import-input"
+        />
 
         <button 
           type="button" 

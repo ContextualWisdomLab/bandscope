@@ -11,9 +11,12 @@ import {
   parseRehearsalSong,
   isRehearsalWorkspace,
   parseRehearsalWorkspace,
+  isBndscpMetadata,
+  parseBndscpMetadata,
   parseSongRehearsalPack,
   SongRehearsalPack,
   RehearsalWorkspace,
+  type BndscpMetadata,
   parseAnalysisJobRequest,
   type AnalysisJobRequest,
   type LocalAudioSource,
@@ -933,5 +936,28 @@ describe("shared type helpers", () => {
 
     expect(() => parseSongRehearsalPack({ ...validPack, id: 123 })).toThrow("id");
     expect(() => parseSongRehearsalPack({ ...validPack, sourceLabel: 123 })).toThrow("sourceLabel");
+  });
+
+  it("validates BndscpMetadata", () => {
+    const validWorkspace: RehearsalWorkspace = {
+      id: "ws-1",
+      title: "My Workspace",
+      workspaceVersion: 1,
+      songs: []
+    };
+    const validMetadata: BndscpMetadata = {
+      workspace: validWorkspace,
+      analysis_engine_version: "1.0.0",
+      includes_audio: true
+    };
+    
+    expect(isBndscpMetadata(validMetadata)).toBe(true);
+    expect(parseBndscpMetadata(validMetadata)).toEqual(validMetadata);
+    
+    expect(() => parseBndscpMetadata(null)).toThrow("root");
+    expect(() => parseBndscpMetadata({ ...validMetadata, analysis_engine_version: 123 })).toThrow("analysis_engine_version");
+    expect(() => parseBndscpMetadata({ ...validMetadata, includes_audio: "true" })).toThrow("includes_audio");
+    expect(() => parseBndscpMetadata({ ...validMetadata, workspace: null })).toThrow("root");
+    expect(() => parseBndscpMetadata({ ...validMetadata, extra: true })).toThrow("extra");
   });
 });
