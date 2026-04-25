@@ -38,8 +38,12 @@ class TemporalAnalyzer:
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
-            # Load audio, converting to mono and standardizing sample rate
-            y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
+            import warnings
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                # Load audio, converting to mono and standardizing sample rate
+                y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):

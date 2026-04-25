@@ -56,6 +56,14 @@ export type RangeSummary = {
 };
 
 /** Documented. */
+export type TranscriptionNote = {
+  pitch: string;
+  onset: number;
+  offset: number;
+  velocity: number;
+};
+
+/** Documented. */
 export type RehearsalHarmony = {
   chord: string;
   functionLabel: string;
@@ -84,6 +92,7 @@ export type RehearsalRole = {
   setupNote: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
+  transcription?: TranscriptionNote[];
 };
 
 /** Documented. */
@@ -813,6 +822,30 @@ function validateManualOverride(value: unknown, path: string): string | null {
 }
 
 /** Documented. */
+function validateTranscriptionNote(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["pitch", "onset", "offset", "velocity"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.pitch !== "string") {
+    return invalidField(`${path}.pitch`);
+  }
+  if (typeof value.onset !== "number") {
+    return invalidField(`${path}.onset`);
+  }
+  if (typeof value.offset !== "number") {
+    return invalidField(`${path}.offset`);
+  }
+  if (typeof value.velocity !== "number") {
+    return invalidField(`${path}.velocity`);
+  }
+  return null;
+}
+
+/** Documented. */
 function validateRehearsalRole(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -831,7 +864,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "manualOverrides",
-      "overlapWarnings"
+      "overlapWarnings",
+      "transcription"
     ],
     path
   );
@@ -892,6 +926,18 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   for (const [index, warning] of value.overlapWarnings.entries()) {
     if (typeof warning !== "string") {
       return invalidField(`${path}.overlapWarnings[${index}]`);
+    }
+  }
+
+  if (value.transcription !== undefined) {
+    if (!isDenseArray(value.transcription)) {
+      return invalidField(`${path}.transcription`);
+    }
+    for (const [index, note] of value.transcription.entries()) {
+      const noteError = validateTranscriptionNote(note, `${path}.transcription[${index}]`);
+      if (noteError) {
+        return noteError;
+      }
     }
   }
 

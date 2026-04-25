@@ -28,6 +28,9 @@ packages = ["src/bandscope_analysis"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["src/bandscope_analysis"]
