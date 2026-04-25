@@ -8,11 +8,11 @@ from typing import Any
 from .model import (
     CueAnchorKind,
     PartGraphNode,
+    RangeSummary,
     RehearsalPriority,
     RehearsalRole,
     RoleExtractionResult,
     RoleType,
-    RangeSummary,
     SectionRoleTopology,
 )
 from .priority import calculate_rehearsal_priority
@@ -65,18 +65,24 @@ class RoleExtractor:
                 if "vocals" in stems:
                     p_res = pitch_tracker.track(stems["vocals"], sr=sr)
                     if p_res:
-                        vocal_range = {
-                            "lowestNote": p_res["lowest_note"] or "",
-                            "highestNote": p_res["highest_note"] or "",
-                        }
+                        v_lowest = p_res.get("lowest_note")
+                        v_highest = p_res.get("highest_note")
+                        if v_lowest and v_highest:
+                            vocal_range = {
+                                "lowestNote": v_lowest,
+                                "highestNote": v_highest,
+                            }
 
                 if "bass" in stems:
                     p_res = pitch_tracker.track(stems["bass"], sr=sr)
                     if p_res:
-                        bass_range = {
-                            "lowestNote": p_res["lowest_note"] or "",
-                            "highestNote": p_res["highest_note"] or "",
-                        }
+                        b_lowest = p_res.get("lowest_note")
+                        b_highest = p_res.get("highest_note")
+                        if b_lowest and b_highest:
+                            bass_range = {
+                                "lowestNote": b_lowest,
+                                "highestNote": b_highest,
+                            }
                     c_res = chord_recognizer.recognize(stems["bass"], sr=sr)
                     if c_res and len(c_res) > 0:
                         # Use the most common chord or first chord

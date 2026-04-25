@@ -116,14 +116,27 @@ export type ExportSummary = {
 export type PackState = "queued" | "analyzing" | "ready" | "failed";
 
 /** Documented. */
-export type SongRehearsalPack = {
-  id: string;
-  engineState?: AnalysisJobState;
-  packState: PackState;
-  song?: RehearsalSong;
-  error?: AnalysisJobError;
-  sourceLabel: string;
-};
+export type SongRehearsalPack = 
+  | {
+      id: string;
+      packState: "queued" | "analyzing";
+      engineState: AnalysisJobState;
+      sourceLabel: string;
+    }
+  | {
+      id: string;
+      packState: "ready";
+      engineState?: AnalysisJobState;
+      song: RehearsalSong;
+      sourceLabel: string;
+    }
+  | {
+      id: string;
+      packState: "failed";
+      engineState?: AnalysisJobState;
+      error: AnalysisJobError;
+      sourceLabel: string;
+    };
 
 /** Documented. */
 export type RehearsalWorkspace = {
@@ -1029,18 +1042,26 @@ export function parseRehearsalSong(value: unknown): RehearsalSong {
 /** Documented. */
 function validateSongRehearsalPack(value: unknown, path: string): string | null {
   if (!isRecord(value)) return invalidField(path);
-  const extraKey = unexpectedKey(value, ["id", "engineState", "packState", "song", "error", "sourceLabel"], path);
-  if (extraKey) return extraKey;
+  
   if (typeof value.id !== "string") return invalidField(`${path}.id`);
   if (!isOneOf(PACK_STATES, value.packState)) return invalidField(`${path}.packState`);
   if (typeof value.sourceLabel !== "string") return invalidField(`${path}.sourceLabel`);
-  
   if (value.engineState !== undefined && !isOneOf(ANALYSIS_JOB_STATES, value.engineState)) return invalidField(`${path}.engineState`);
-  if (value.song !== undefined) {
+  
+  if (value.packState === "queued" || value.packState === "analyzing") {
+    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel"], path);
+    if (extraKey) return extraKey;
+    if (!isOneOf(ANALYSIS_JOB_STATES, value.engineState)) return invalidField(`${path}.engineState`);
+  } else if (value.packState === "ready") {
+    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "song"], path);
+    if (extraKey) return extraKey;
+    if (value.song === undefined) return invalidField(`${path}.song`);
     const songError = validateRehearsalSong(value.song);
-    if (songError) return songError.replace("root", `${path}.song`);
-  }
-  if (value.error !== undefined) {
+    if (songError) return songError;
+  } else if (value.packState === "failed") {
+    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "error"], path);
+    if (extraKey) return extraKey;
+    if (value.error === undefined) return invalidField(`${path}.error`);
     const errorValidation = validateAnalysisJobError(value.error, `${path}.error`);
     if (errorValidation) return errorValidation;
   }

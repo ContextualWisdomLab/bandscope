@@ -1,3 +1,5 @@
+"""Test ML role analysis module."""
+
 from unittest.mock import patch
 
 import numpy as np
