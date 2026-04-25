@@ -1,4 +1,4 @@
-import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
+import type { RehearsalSong, RehearsalRole, Annotation } from "@bandscope/shared-types";
 import { useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
@@ -7,11 +7,33 @@ interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
   onSongUpdate?: (song: RehearsalSong) => void;
+  annotations?: Annotation[];
+  onAddAnnotation?: (annotation: Annotation) => void;
 }
 
 /** Documented. */
-export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
+export function SectionRoadmap({ song, activeRole, onSongUpdate, annotations = [], onAddAnnotation }: SectionRoadmapProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+
+  /** Documented. */
+  const handleCopyLink = (sectionId: string) => {
+    const link = `bandscope://song/${song.id}/section/${sectionId}`;
+    const text = `We're struggling with this section. 1. Open the song file in BandScope. 2. Click this link: ${link}`;
+    navigator.clipboard.writeText(text);
+  };
+
+  /** Documented. */
+  const handleAddNote = (sectionId: string) => {
+    const text = window.prompt("Enter your note:");
+    if (text && onAddAnnotation) {
+      onAddAnnotation({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        text: text.trim(),
+        sectionId,
+      });
+    }
+  };
 
   /** Documented. */
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
@@ -68,16 +90,30 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
               borderRadius: "8px",
               padding: "16px",
               backgroundColor: section.confidence.level === "low" ? "#fff1f0" : "#fff",
+              position: "relative"
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3 style={{ margin: 0 }}>{section.label}</h3>
-              <ConfidenceBadge level={section.confidence.level} />
+              <div style={{ display: "flex", gap: "4px" }}>
+                <ConfidenceBadge level={section.confidence.level} />
+                <button onClick={() => handleCopyLink(section.id)} title="Copy Link" style={{ cursor: "pointer", background: "none", border: "none" }}>🔗</button>
+                <button onClick={() => handleAddNote(section.id)} title="Add Note" style={{ cursor: "pointer", background: "none", border: "none" }}>📝</button>
+              </div>
             </div>
             
             <div style={{ marginTop: "8px", fontSize: "0.9em", color: "#666" }}>
               <p style={{ margin: "4px 0" }}>Groove: {section.groove}</p>
             </div>
+            
+            {annotations.filter(a => a.sectionId === section.id).length > 0 && (
+              <div style={{ marginTop: "8px", padding: "8px", background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: "4px", fontSize: "0.85em" }}>
+                <strong>Notes ({annotations.filter(a => a.sectionId === section.id).length}):</strong>
+                {annotations.filter(a => a.sectionId === section.id).map(a => (
+                  <div key={a.id} style={{ marginTop: "4px" }}>- {a.text}</div>
+                ))}
+              </div>
+            )}
 
             <div style={{ marginTop: "16px" }}>
               {section.roles

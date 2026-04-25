@@ -934,4 +934,18 @@ describe("shared type helpers", () => {
     expect(() => parseSongRehearsalPack({ ...validPack, id: 123 })).toThrow("id");
     expect(() => parseSongRehearsalPack({ ...validPack, sourceLabel: 123 })).toThrow("sourceLabel");
   });
+
+  it("covers Annotation invalid payload cases", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const validPack: any = {
+      id: "pack-1",
+      packState: "ready",
+      sourceLabel: "Test Song",
+      song: { id: "demo-song", title: "Demo", sections: [], exportSummary: {format:"cue-sheet", focusSections:[], headline:""} },
+      engineState: "succeeded"
+    };
+    const validAnnotation = { id: "1", timestamp: 0, text: "t", sectionId: "s1", roleId: "r1" };
+    expect(() => parseSongRehearsalPack({ ...validPack, packState: "ready", annotations: [{...validAnnotation, extra: 1}] })).toThrow("extra");
+    expect(() => parseSongRehearsalPack({ ...validPack, packState: "ready", annotations: [{...validAnnotation, id: 1}] })).toThrow("id");
+  });
 });

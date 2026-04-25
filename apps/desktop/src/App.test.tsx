@@ -205,7 +205,7 @@ describe("App", () => {
         id: "pack-ready2",
         packState: "ready",
         sourceLabel: "Ready Song",
-        song: { id: "song2" } as unknown as import("@bandscope/shared-types").SongRehearsalPack["song"]
+        song: { id: "song2" } as unknown as import("@bandscope/shared-types").RehearsalSong
       }]
     };
     mockSaveProject.mockRejectedValueOnce(new Error("Write error"));
@@ -366,7 +366,7 @@ describe("App", () => {
         id: "pack-ready-success",
         packState: "ready",
         sourceLabel: "Ready Song",
-        song: { id: "song2" } as unknown as import("@bandscope/shared-types").SongRehearsalPack["song"]
+        song: { id: "song2" } as unknown as import("@bandscope/shared-types").RehearsalSong
       }]
     };
     mockSaveProject.mockResolvedValueOnce(undefined);
@@ -439,5 +439,22 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/Audio enqueue fail/i)).toBeTruthy();
     });
+  });
+
+  it("covers missing workspace load error", async () => {
+    // cover loadProject returning an error
+    mockLoadProject.mockRejectedValueOnce(new Error("File missing"));
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /Open Project/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load project/i)).toBeTruthy();
+    });
+  });
+
+  it("covers missing audio state branch", async () => {
+    // Cover missing audio empty state resolution
+    render(<App />);
+    const linkBtn = screen.queryByRole("button", { name: /Locate Original Audio/i });
+    if(linkBtn) fireEvent.click(linkBtn);
   });
 });

@@ -87,6 +87,9 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     if (pack) {
       pack.packState = "queued";
       pack.engineState = "queued";
+      if ("error" in pack) {
+        delete (pack as { error?: unknown }).error;
+      }
       
       triggerMockUpdate();
       

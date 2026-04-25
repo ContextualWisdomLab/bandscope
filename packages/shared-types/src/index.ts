@@ -116,12 +116,22 @@ export type ExportSummary = {
 export type PackState = "queued" | "analyzing" | "ready" | "failed";
 
 /** Documented. */
+export type Annotation = {
+  id: string;
+  timestamp: string;
+  text: string;
+  sectionId: string;
+  roleId?: string;
+};
+
+/** Documented. */
 export type SongRehearsalPack = 
   | {
       id: string;
       packState: "queued" | "analyzing";
       engineState: AnalysisJobState;
       sourceLabel: string;
+      annotations?: Annotation[];
     }
   | {
       id: string;
@@ -129,6 +139,7 @@ export type SongRehearsalPack =
       engineState?: AnalysisJobState;
       song: RehearsalSong;
       sourceLabel: string;
+      annotations?: Annotation[];
     }
   | {
       id: string;
@@ -136,6 +147,7 @@ export type SongRehearsalPack =
       engineState?: AnalysisJobState;
       error: AnalysisJobError;
       sourceLabel: string;
+      annotations?: Annotation[];
     };
 
 /** Documented. */
@@ -1048,24 +1060,50 @@ function validateSongRehearsalPack(value: unknown, path: string): string | null 
   if (typeof value.sourceLabel !== "string") return invalidField(`${path}.sourceLabel`);
   if (value.engineState !== undefined && !isOneOf(ANALYSIS_JOB_STATES, value.engineState)) return invalidField(`${path}.engineState`);
   
+  if (value.annotations !== undefined) {
+    if (!isDenseArray(value.annotations)) return invalidField(`${path}.annotations`);
+    for (const [index, annotation] of value.annotations.entries()) {
+      const annError = validateAnnotation(annotation, `${path}.annotations[${index}]`);
+      if (annError) return annError;
+    }
+  }
+
   if (value.packState === "queued" || value.packState === "analyzing") {
-    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel"], path);
+    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "annotations"], path);
     if (extraKey) return extraKey;
     if (!isOneOf(ANALYSIS_JOB_STATES, value.engineState)) return invalidField(`${path}.engineState`);
   } else if (value.packState === "ready") {
-    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "song"], path);
+    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "song", "annotations"], path);
     if (extraKey) return extraKey;
     if (value.song === undefined) return invalidField(`${path}.song`);
     const songError = validateRehearsalSong(value.song);
     if (songError) return songError;
   } else if (value.packState === "failed") {
-    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "error"], path);
+    const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "error", "annotations"], path);
     if (extraKey) return extraKey;
     if (value.error === undefined) return invalidField(`${path}.error`);
     const errorValidation = validateAnalysisJobError(value.error, `${path}.error`);
     if (errorValidation) return errorValidation;
   }
   return null;
+}
+
+/** Documented. */
+function validateAnnotation(value: unknown, path: string): string | null {
+  if (!isRecord(value)) return invalidField(path);
+  const extraKey = unexpectedKey(value, ["id", "timestamp", "text", "sectionId", "roleId"], path);
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (typeof value.timestamp !== "string") return invalidField(`${path}.timestamp`);
+  if (typeof value.text !== "string") return invalidField(`${path}.text`);
+  if (typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
+  if (value.roleId !== undefined && typeof value.roleId !== "string") return invalidField(`${path}.roleId`);
+  return null;
+}
+
+/** Documented. */
+export function validateBandScopeUri(uri: string): boolean {
+  return /^bandscope:\/\/song\/[a-zA-Z0-9-]+\/section\/[a-zA-Z0-9-]+$/.test(uri);
 }
 
 /** Documented. */

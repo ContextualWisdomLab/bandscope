@@ -1,16 +1,18 @@
 import { useState, useMemo } from "react";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import type { RehearsalSong, Annotation } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { generateCueSheetCsv, generateChartSummaryJson, sanitizeFilename } from "../../lib/export";
 
 interface WorkspaceProps {
   song: RehearsalSong;
+  annotations?: Annotation[];
   onSongUpdate?: (song: RehearsalSong) => void;
+  onAddAnnotation?: (annotation: Annotation) => void;
 }
 
 /** Documented. */
-export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
+export function Workspace({ song, annotations = [], onSongUpdate, onAddAnnotation }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
 
   // Extract all unique roles from the song's sections
@@ -99,6 +101,8 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
         song={song} 
         activeRole={activeRole} 
         onSongUpdate={onSongUpdate}
+        annotations={annotations}
+        onAddAnnotation={onAddAnnotation}
       />
     </div>
   );

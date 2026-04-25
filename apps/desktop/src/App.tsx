@@ -19,6 +19,8 @@ import {
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState } from "./features/workspace/WorkspaceStates";
+import { parseDeepLink } from "./lib/deepLink";
+import { mergeAnnotations } from "./lib/annotations";
 
 /**
  * Returns a translated progress message for a given pack state.
@@ -57,6 +59,8 @@ export function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [selectionError, setSelectionError] = useState<string | null>(null);
 
+  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
+
   useEffect(() => {
     let unmounted = false;
     let unlistenFn: (() => void) | undefined;
@@ -73,15 +77,54 @@ export function App() {
     });
 
     getWorkspaceState().then(ws => {
-      if (!unmounted && ws) setWorkspace(ws);
+      if (!unmounted && ws) {
+        setWorkspace(ws);
+        
+        // Check for deep link on load
+        if (window.location.hash.startsWith("#bandscope://")) {
+          const uri = window.location.hash.slice(1);
+          const parsed = parseDeepLink(uri);
+          if (parsed) {
+            const targetPack = ws.songs.find(s => "song" in s && s.song?.id === parsed.songId);
+            if (targetPack) {
+              setSelectedPackId(targetPack.id);
+            } else {
+              setDeepLinkError("Song not found. Ask the leader to share the .bndscp file first");
+            }
+          }
+          window.location.hash = ""; // Clear hash after processing
+        }
+      }
     });
+
+    /**
+     * Handle hash changes for deep linking
+     */
+    const handleHashChange = () => {
+      if (window.location.hash.startsWith("#bandscope://")) {
+        const uri = window.location.hash.slice(1);
+        const parsed = parseDeepLink(uri);
+        if (parsed && workspace) {
+          const targetPack = workspace.songs.find(s => "song" in s && s.song?.id === parsed.songId);
+          if (targetPack) {
+            setSelectedPackId(targetPack.id);
+            setDeepLinkError(null);
+          } else {
+            setDeepLinkError("Song not found. Ask the leader to share the .bndscp file first");
+          }
+        }
+        window.location.hash = ""; // Clear hash after processing
+      }
+    };
+    window.addEventListener("hashchange", handleHashChange);
 
     return () => {
       unmounted = true;
+      window.removeEventListener("hashchange", handleHashChange);
       if (unlistenFn) unlistenFn();
       else unlistenPromise.then(u => u && u());
     };
-  }, []);
+  }, [workspace]);
 
   /**
    * Handles selecting a local audio file and enqueueing a new song analysis job.
@@ -168,7 +211,7 @@ export function App() {
     // For now we just save the first ready song.
     if (!workspace) return;
     const readyPack = workspace.songs.find(s => s.packState === "ready");
-    if (!readyPack || readyPack.packState !== "ready") return;
+    if (!readyPack || !("song" in readyPack)) return;
     try {
       await saveProject(readyPack.song);
     } catch (e) {
@@ -194,7 +237,7 @@ export function App() {
               <span style={{ marginLeft: "12px", color: pack.packState === "failed" ? "red" : "gray" }}>
                 {progressMessage(t, pack.packState)}
               </span>
-              {pack.packState === "failed" && <div style={{ color: "red", fontSize: "0.8em" }}>{pack.error.message}</div>}
+              {pack.packState === "failed" && "error" in pack && <div style={{ color: "red", fontSize: "0.8em" }}>{pack.error.message}</div>}
             </div>
             <div>
               {pack.packState === "ready" && (
@@ -287,13 +330,35 @@ export function App() {
         </p>
         {selectionError && <p style={{ margin: "4px 0", color: "#a8071a" }}>{selectionError}</p>}
         {workspaceError && <p style={{ margin: "4px 0", color: "#a8071a" }}>{workspaceError}</p>}
+        {deepLinkError && (
+          <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#fff1f0", border: "1px solid #ffa39e", borderRadius: "8px", textAlign: "center" }}>
+            <p style={{ margin: "0 0 12px 0", color: "#a8071a", fontWeight: "bold" }}>{deepLinkError}</p>
+            <button onClick={() => setDeepLinkError(null)} style={{ padding: "6px 12px", cursor: "pointer", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#fff" }}>
+              Dismiss
+            </button>
+          </div>
+        )}
       </div>
 
       <section>
-        {selectedPack && selectedPack.packState === "ready" ? (
+        {selectedPack && selectedPack.packState === "ready" && "song" in selectedPack ? (
           <div>
             <button onClick={() => setSelectedPackId(null)} style={{ marginBottom: "16px" }}>&larr; Back to Workspace</button>
-            <Workspace song={selectedPack.song} />
+            <Workspace 
+              song={selectedPack.song} 
+              annotations={selectedPack.annotations}
+              onAddAnnotation={(ann) => {
+                if (workspace) {
+                  const updatedWorkspace = structuredClone(workspace);
+                  const pack = updatedWorkspace.songs.find(s => s.id === selectedPack.id);
+                  if (pack) {
+                    pack.annotations = mergeAnnotations(pack.annotations, [ann]);
+                    setWorkspace(updatedWorkspace);
+                    // In a real app we might also sync back to disk here
+                  }
+                }
+              }}
+            />
           </div>
         ) : (
           renderWorkspaceList()

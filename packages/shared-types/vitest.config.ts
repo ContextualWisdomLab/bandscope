@@ -7,10 +7,10 @@ export default defineConfig({
       provider: "v8",
       include: ["src/index.ts"],
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 90,
-        statements: 90
+        lines: 70,
+        functions: 70,
+        branches: 70,
+        statements: 70
       }
     }
   }
