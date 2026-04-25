@@ -45,7 +45,7 @@ def test_temporal_analyzer_basic(dummy_audio_file: Path) -> None:
 def test_temporal_analyzer_file_not_found() -> None:
     """Test that analyzer raises appropriate error for missing files."""
     analyzer = TemporalAnalyzer()
-    with pytest.raises(ValueError, match="Temporal analysis failed"):
+    with pytest.raises(FileNotFoundError, match="Audio file not found"):
         analyzer.analyze("nonexistent_file.wav")
 
 

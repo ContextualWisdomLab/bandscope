@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -35,11 +36,17 @@ class TemporalAnalyzer:
             TemporalFeatures containing BPM and beat grids.
         """
         path_str = str(audio_path)
+        if not Path(audio_path).exists():
+            raise FileNotFoundError(f"Audio file not found: {path_str}")
+
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
             # Load audio, converting to mono and standardizing sample rate
-            y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=DeprecationWarning)
+                warnings.simplefilter("ignore", category=FutureWarning)
+                y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):
