@@ -1,7 +1,7 @@
+"""Tests for desktop release packaging helpers and artifact metadata."""
 from __future__ import annotations
 
 import pytest
-"""Tests for desktop release packaging helpers and artifact metadata."""
 
 from pathlib import Path
 

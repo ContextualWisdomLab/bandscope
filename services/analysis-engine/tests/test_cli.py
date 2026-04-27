@@ -1,8 +1,8 @@
+"""Tests for the analysis-engine orchestration CLI."""
 from __future__ import annotations
 
 import pytest
 from typing import Any, cast
-"""Tests for the analysis-engine orchestration CLI."""
 
 import io
 import json

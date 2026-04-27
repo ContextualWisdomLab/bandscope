@@ -1,7 +1,7 @@
+"""Tests for repository supply-chain and workflow coverage checks."""
 from __future__ import annotations
 
 import pytest
-"""Tests for repository supply-chain and workflow coverage checks."""
 
 from pathlib import Path
 
