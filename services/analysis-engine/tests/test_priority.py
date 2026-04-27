@@ -1,4 +1,5 @@
 """Tests for the rehearsal priority calculation module."""
+
 from typing import Any, cast
 
 from bandscope_analysis.roles.model import RehearsalPriority

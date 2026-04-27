@@ -1,4 +1,5 @@
 """Tests for the ML role extraction module."""
+
 from unittest.mock import patch
 
 import numpy as np

@@ -8,11 +8,11 @@ from typing import Any
 from .model import (
     CueAnchorKind,
     PartGraphNode,
+    RangeSummary,
     RehearsalPriority,
     RehearsalRole,
     RoleExtractionResult,
     RoleType,
-    RangeSummary,
     SectionRoleTopology,
 )
 from .priority import calculate_rehearsal_priority

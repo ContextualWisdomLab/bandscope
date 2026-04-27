@@ -42,6 +42,7 @@ class TemporalAnalyzer:
 
         try:
             import warnings
+
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=DeprecationWarning)
                 warnings.simplefilter("ignore", category=FutureWarning)

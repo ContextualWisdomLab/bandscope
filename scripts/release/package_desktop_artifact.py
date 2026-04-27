@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import hashlib
 import os
 import platform
 import zipfile
+from pathlib import Path
 
 
 def sha256_file(path: Path) -> str:
@@ -83,9 +83,7 @@ def expected_binary_path(repo_root: Path) -> Path:
         system = "macos"
     else:
         system = normalized_platform()
-    binary_name = (
-        "bandscope-desktop.exe" if system == "windows" else "bandscope-desktop"
-    )
+    binary_name = "bandscope-desktop.exe" if system == "windows" else "bandscope-desktop"
     target_root = repo_root / "apps" / "desktop" / "src-tauri" / "target"
     if target_triple:
         target_root = target_root / target_triple
@@ -120,9 +118,7 @@ def main() -> int:
     archive_name = identity["archive_name"]
     archive_path = output_dir / archive_name
 
-    with zipfile.ZipFile(
-        archive_path, "w", compression=zipfile.ZIP_DEFLATED
-    ) as archive:
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.write(binary_path, arcname=f"bin/{binary_path.name}")
         for path in frontend_dist.rglob("*"):
             if path.is_file():
@@ -134,9 +130,7 @@ def main() -> int:
             archive.write(extra_path, arcname=str(Path("metadata") / extra_path.name))
 
     checksum_path = output_dir / f"{archive_name}.sha256"
-    checksum_path.write_text(
-        f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8"
-    )
+    checksum_path.write_text(f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8")
 
     manifest_path = output_dir / identity["manifest_name"]
     manifest_path.write_text(

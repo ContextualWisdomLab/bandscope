@@ -1,8 +1,6 @@
 """Tests for the analysis-engine orchestration CLI."""
-from __future__ import annotations
 
-import pytest
-from typing import Any, cast
+from __future__ import annotations
 
 import io
 import json
@@ -12,6 +10,9 @@ import subprocess
 import sys
 import warnings
 from pathlib import Path
+from typing import Any, cast
+
+import pytest
 
 from bandscope_analysis import cli
 
