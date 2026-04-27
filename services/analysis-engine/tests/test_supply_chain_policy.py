@@ -1,13 +1,14 @@
-"""Tests for repository supply-chain and workflow coverage checks."""
-
 from __future__ import annotations
+
+import pytest
+"""Tests for repository supply-chain and workflow coverage checks."""
 
 from pathlib import Path
 
 from conftest import load_module
 
 
-def test_supply_chain_check_requires_multi_arch_runner_labels(monkeypatch, tmp_path: Path) -> None:
+def test_supply_chain_check_requires_multi_arch_runner_labels(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Ensure missing multi-arch workflow tokens are reported as violations."""
     supply_chain = load_module("scripts/checks/verify_supply_chain.py", "verify_supply_chain")
 
@@ -52,7 +53,7 @@ jobs:
     assert "build workflow missing token: Get-MpComputerStatus" in violations
 
 
-def test_supply_chain_check_accepts_repo_multi_arch_workflow(monkeypatch) -> None:
+def test_supply_chain_check_accepts_repo_multi_arch_workflow(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure the checked-in multi-arch workflow satisfies the baseline policy."""
     supply_chain = load_module("scripts/checks/verify_supply_chain.py", "verify_supply_chain_repo")
     repo_root = Path(__file__).resolve().parents[3]

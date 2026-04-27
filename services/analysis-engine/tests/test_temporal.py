@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import soundfile as sf
+import soundfile as sf  # type: ignore
 
 from bandscope_analysis.temporal import TemporalAnalyzer
 
@@ -49,7 +49,7 @@ def test_temporal_analyzer_file_not_found() -> None:
         analyzer.analyze("nonexistent_file.wav")
 
 
-def test_temporal_analyzer_invalid_y_type(monkeypatch, tmp_path):
+def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Ensure temporal analyzer raises ValueError if librosa returns non-ndarray."""
     import librosa
 

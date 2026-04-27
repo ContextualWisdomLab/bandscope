@@ -47,7 +47,7 @@ def test_chord_recognizer_c_major_chord() -> None:
 
 
 
-def test_chord_recognizer_hpss_exception():
+def test_chord_recognizer_hpss_exception() -> None:
     """Test for test_chord_recognizer_hpss_exception."""
     recognizer = ChordRecognizer()
     y = np.random.randn(22050 * 3)
@@ -56,7 +56,7 @@ def test_chord_recognizer_hpss_exception():
         chords = recognizer.recognize(y, sr=22050)
         assert isinstance(chords, list)
 
-def test_chord_recognizer_chroma_cqt_exception():
+def test_chord_recognizer_chroma_cqt_exception() -> None:
     """Test for test_chord_recognizer_chroma_cqt_exception."""
     recognizer = ChordRecognizer()
     y = np.random.randn(22050 * 3)
@@ -65,7 +65,7 @@ def test_chord_recognizer_chroma_cqt_exception():
         chords = recognizer.recognize(y, sr=22050)
         assert chords == []
 
-def test_chord_recognizer_rms_exception():
+def test_chord_recognizer_rms_exception() -> None:
     """Test for test_chord_recognizer_rms_exception."""
     recognizer = ChordRecognizer()
     y = np.random.randn(22050 * 3)
@@ -74,7 +74,7 @@ def test_chord_recognizer_rms_exception():
         chords = recognizer.recognize(y, sr=22050)
         assert isinstance(chords, list)
 
-def test_chord_recognizer_rms_padding():
+def test_chord_recognizer_rms_padding() -> None:
     """Test for test_chord_recognizer_rms_padding."""
     recognizer = ChordRecognizer()
     y = np.random.randn(22050 * 3)
@@ -87,7 +87,7 @@ def test_chord_recognizer_rms_padding():
         chords = recognizer.recognize(y, sr=22050)
         assert isinstance(chords, list)
         
-def test_chord_recognizer_empty_chromagram():
+def test_chord_recognizer_empty_chromagram() -> None:
     """Test for test_chord_recognizer_empty_chromagram."""
     recognizer = ChordRecognizer()
     y = np.random.randn(22050 * 3)
@@ -97,7 +97,7 @@ def test_chord_recognizer_empty_chromagram():
         chords = recognizer.recognize(y, sr=22050)
         assert chords == []
 
-def test_chord_recognizer_rms_longer():
+def test_chord_recognizer_rms_longer() -> None:
     """Test for test_chord_recognizer_rms_longer."""
     recognizer = ChordRecognizer()
     y = np.random.randn(22050 * 3)
@@ -111,7 +111,7 @@ def test_chord_recognizer_rms_longer():
         chords = recognizer.recognize(y, sr=22050)
         assert isinstance(chords, list)
 
-def test_chord_recognizer_changing_chords():
+def test_chord_recognizer_changing_chords() -> None:
     """Test for test_chord_recognizer_changing_chords."""
     recognizer = ChordRecognizer()
     sr = 22050

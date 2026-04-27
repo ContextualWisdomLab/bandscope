@@ -71,7 +71,7 @@ def test_pitch_tracker_sweep() -> None:
 
 
 
-def test_pitch_tracker_pyin_exception():
+def test_pitch_tracker_pyin_exception() -> None:
     """Test for test_pitch_tracker_pyin_exception."""
     tracker = PitchTracker()
     y = np.random.randn(22050)
@@ -81,7 +81,7 @@ def test_pitch_tracker_pyin_exception():
         assert result["lowest_note"] is None
         assert result["highest_note"] is None
 
-def test_pitch_tracker_few_frames():
+def test_pitch_tracker_few_frames() -> None:
     """Test for test_pitch_tracker_few_frames."""
     tracker = PitchTracker()
     sr = 22050
@@ -92,7 +92,7 @@ def test_pitch_tracker_few_frames():
     # Should hit len(voiced_f0) < 10 branch
     assert result["lowest_note"] is not None
 
-def test_pitch_tracker_none_f0():
+def test_pitch_tracker_none_f0() -> None:
     """Test for test_pitch_tracker_none_f0."""
     tracker = PitchTracker()
     y = np.random.randn(22050)
