@@ -794,6 +794,72 @@ describe("shared type helpers", () => {
         })
       },
       {
+        message: "sections[0].roles[0].overlapWarnings",
+        payload: createInvalidSong((song) => {
+          (song.sections[0]!.roles[0] as unknown as Record<string, unknown>).overlapWarnings = "not-an-array";
+        })
+      },
+      {
+        message: "sections[0].roles[0].overlapWarnings[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.overlapWarnings = [42 as never];
+        })
+      },
+      {
+        message: "sections[0].partGraph",
+        payload: createInvalidSong((song) => {
+          (song.sections[0] as unknown as Record<string, unknown>).partGraph = "not-an-array";
+        })
+      },
+      {
+        message: "sections[0].partGraph[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph = [null as never];
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].role_id",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.role_id = 42 as never;
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].is_active",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.is_active = "yes" as never;
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].handoff_to",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.handoff_to = "not-an-array" as never;
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].handoff_to[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.handoff_to = [42 as never];
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].handoff_from",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.handoff_from = "not-an-array" as never;
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].handoff_from[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.partGraph[0]!.handoff_from = [42 as never];
+        })
+      },
+      {
+        message: "sections[0].partGraph[0].extraField",
+        payload: createInvalidSong((song) => {
+          (song.sections[0]!.partGraph[0] as unknown as Record<string, unknown>).extraField = true;
+        })
+      },
+      {
         message: "exportSummary.focusSections",
         payload: createInvalidSong((song) => {
           song.exportSummary.focusSections = new Array(1) as never;

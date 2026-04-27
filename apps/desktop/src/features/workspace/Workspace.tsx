@@ -9,6 +9,7 @@ interface WorkspaceProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
+/** Documented. */
 export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
 
@@ -25,6 +26,7 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
     return Array.from(roleMap.entries()).map(([id, name]) => ({ id, name }));
   }, [song]);
 
+  /** Documented. */
   const handleExportCueSheet = () => {
     const csv = generateCueSheetCsv(song);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -38,6 +40,7 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
     URL.revokeObjectURL(url);
   };
 
+  /** Documented. */
   const handleExportChart = () => {
     const json = generateChartSummaryJson(song);
     const blob = new Blob([json], { type: "application/json;charset=utf-8;" });

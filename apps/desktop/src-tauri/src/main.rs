@@ -740,15 +740,7 @@ async fn import_youtube_url(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<ProjectBootstrapSummaryPayload, String> {
-    let parsed_url = match url::Url::parse(&url) {
-        Ok(u) => u,
-        Err(_) => return Err("Only standard YouTube URLs are supported.".to_string()),
-    };
-    if parsed_url.scheme() != "https" {
-        return Err("Only standard YouTube URLs are supported.".to_string());
-    }
-    let host = parsed_url.host_str().unwrap_or("").to_lowercase();
-    if host != "youtu.be" && host != "youtube.com" && !host.ends_with(".youtube.com") {
+    if !is_supported_youtube_url(&url) {
         return Err("Only standard YouTube URLs are supported.".to_string());
     }
 
@@ -780,8 +772,9 @@ async fn import_youtube_url(
                 .args(args)
                 .current_dir(working_dir)
                 .output()
-        })
-    ).await;
+        }),
+    )
+    .await;
 
     let output = spawn_result
         .map_err(|_| "YouTube import timed out.".to_string())?
@@ -794,11 +787,22 @@ async fn import_youtube_url(
 
     if parsed.get("ok").and_then(|v| v.as_bool()) == Some(true) {
         if let Some(metadata) = parsed.get("metadata") {
-            let filepath = metadata.get("filepath").and_then(|v| v.as_str()).unwrap_or("");
-            let title = metadata.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown YouTube Audio");
+            let filepath = metadata
+                .get("filepath")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let title = metadata
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown YouTube Audio");
             let path = Path::new(filepath);
-            let metadata_fs = std::fs::metadata(path).map_err(|_| "Could not read downloaded audio file.".to_string())?;
-            let extension = path.extension().and_then(|v| v.to_str()).unwrap_or("m4a").to_string();
+            let metadata_fs = std::fs::metadata(path)
+                .map_err(|_| "Could not read downloaded audio file.".to_string())?;
+            let extension = path
+                .extension()
+                .and_then(|v| v.to_str())
+                .unwrap_or("m4a")
+                .to_string();
 
             let safe_title: String = title
                 .chars()
@@ -833,16 +837,51 @@ async fn import_youtube_url(
             store_bootstrap_source(&state, summary.clone());
             return Ok(summary);
         } else {
-            return Err(format!("YouTube import reported ok but missing metadata: {}", parsed.to_string()));
+            return Err(format!(
+                "YouTube import reported ok but missing metadata: {}",
+                parsed.to_string()
+            ));
         }
     }
 
     if let Some(err) = parsed.get("error") {
-        let msg = err.get("message").and_then(|v| v.as_str()).unwrap_or("Unknown error during YouTube import.");
+        let msg = err
+            .get("message")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown error during YouTube import.");
         return Err(msg.to_string());
     }
 
     Err("YouTube import failed with an unknown error.".to_string())
+}
+
+fn is_supported_youtube_url(url: &str) -> bool {
+    let parsed_url = match url::Url::parse(url) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+    if parsed_url.scheme() != "https" {
+        return false;
+    }
+
+    let host = parsed_url.host_str().unwrap_or("").to_lowercase();
+    if host == "youtu.be" {
+        let mut segments = match parsed_url.path_segments() {
+            Some(s) => s.filter(|segment| !segment.is_empty()),
+            None => return false,
+        };
+        return segments.next().is_some() && segments.next().is_none();
+    }
+
+    if host == "youtube.com" || host.ends_with(".youtube.com") {
+        return parsed_url.path() == "/watch"
+            && parsed_url.query_pairs().filter(|(k, _)| k == "v").count() == 1
+            && parsed_url
+                .query_pairs()
+                .any(|(k, v)| k == "v" && !v.trim().is_empty());
+    }
+
+    false
 }
 #[tauri::command]
 fn save_project(payload: Value) -> Result<(), String> {

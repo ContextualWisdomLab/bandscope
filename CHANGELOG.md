@@ -1,3 +1,6 @@
+## [Unreleased]
+- Implemented rehearsal workspace design (Issue #107)
+
 # Changelog
 
 ## [0.1.0] - 2026-03-27

@@ -29,7 +29,19 @@ def validate_url(url: str) -> bool:
         if parsed.scheme != "https":
             return False
         host = parsed.netloc.lower().split(":")[0]
-        return host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
+
+        if host == "youtu.be":
+            path = parsed.path.strip("/")
+            return bool(path) and "/" not in path
+
+        if host == "youtube.com" or host.endswith(".youtube.com"):
+            if parsed.path != "/watch":
+                return False
+            query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+            video_ids = query.get("v", [])
+            return len(video_ids) == 1 and bool(video_ids[0].strip())
+
+        return False
     except Exception:
         return False
 

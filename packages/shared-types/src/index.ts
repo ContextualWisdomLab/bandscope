@@ -1,5 +1,7 @@
-export const SUPPORTED_AUDIO_FORMATS = ["wav", "mp3", "flac", "m4a"] as const;
-export const SECTION_FORM_LABELS = [
+export /** Documented. */
+const SUPPORTED_AUDIO_FORMATS = ["wav", "mp3", "flac", "m4a"] as const;
+export /** Documented. */
+const SECTION_FORM_LABELS = [
   "intro",
   "verse",
   "pre-chorus",
@@ -12,8 +14,10 @@ export const SECTION_FORM_LABELS = [
   "handoff"
 ] as const;
 
+/** Documented. */
 export type SectionFormLabel = (typeof SECTION_FORM_LABELS)[number];
 
+/** Documented. */
 export type ProjectSummary = {
   id: string;
   title: string;
@@ -21,34 +25,44 @@ export type ProjectSummary = {
   supportedAudioFormats: readonly (typeof SUPPORTED_AUDIO_FORMATS)[number][];
 };
 
+/** Documented. */
 export type ConfidenceLevel = "low" | "medium" | "high";
+/** Documented. */
 export type ProvenanceSource = "model" | "user";
+/** Documented. */
 export type CueAnchorKind = "lyric" | "count" | "transition";
+/** Documented. */
 export type RehearsalPriority = "low" | "medium" | "high";
+/** Documented. */
 export type ExportFormat = "cue-sheet" | "chart-summary";
 
+/** Documented. */
 export type ConfidenceMarker = {
   level: ConfidenceLevel;
   source: ProvenanceSource;
   notes: string;
 };
 
+/** Documented. */
 export type CueAnchor = {
   kind: CueAnchorKind;
   value: string;
 };
 
+/** Documented. */
 export type RangeSummary = {
   lowestNote: string;
   highestNote: string;
 };
 
+/** Documented. */
 export type RehearsalHarmony = {
   chord: string;
   functionLabel: string;
   source: ProvenanceSource;
 };
 
+/** Documented. */
 export type ManualOverride =
   {
     field: "harmony";
@@ -56,6 +70,7 @@ export type ManualOverride =
     source: "user";
   };
 
+/** Documented. */
 export type RehearsalRole = {
   id: string;
   name: string;
@@ -68,22 +83,35 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   manualOverrides: ManualOverride[];
+  overlapWarnings: string[];
 };
 
+/** Documented. */
+export type PartGraphNode = {
+  role_id: string;
+  is_active: boolean;
+  handoff_to: string[];
+  handoff_from: string[];
+};
+
+/** Documented. */
 export type RehearsalSection = {
   id: string;
   label: SectionFormLabel;
   groove: string;
   confidence: ConfidenceMarker;
   roles: RehearsalRole[];
+  partGraph: PartGraphNode[];
 };
 
+/** Documented. */
 export type ExportSummary = {
   format: ExportFormat;
   headline: string;
   focusSections: string[];
 };
 
+/** Documented. */
 export type RehearsalSong = {
   id: string;
   title: string;
@@ -91,10 +119,14 @@ export type RehearsalSong = {
   exportSummary: ExportSummary;
 };
 
+/** Documented. */
 export type AnalysisSourceKind = "demo" | "local_audio";
+/** Documented. */
 export type AnalysisJobState = "queued" | "running" | "succeeded" | "failed";
+/** Documented. */
 export type AnalysisJobErrorCode = "invalid_request" | "not_found" | "engine_unavailable";
 
+/** Documented. */
 export type LocalAudioSource = {
   sourcePath: string;
   fileName: string;
@@ -102,6 +134,7 @@ export type LocalAudioSource = {
   fileSizeBytes: number;
 };
 
+/** Documented. */
 export type ProjectBootstrapSummary = {
   projectId: string;
   sourceMode: "reference";
@@ -111,6 +144,7 @@ export type ProjectBootstrapSummary = {
   source: LocalAudioSource;
 };
 
+/** Documented. */
 export type AnalysisJobRequest =
   | {
       sourceKind: "demo";
@@ -124,11 +158,13 @@ export type AnalysisJobRequest =
       roleFocus: string[];
     };
 
+/** Documented. */
 export type AnalysisJobError = {
   code: AnalysisJobErrorCode;
   message: string;
 };
 
+/** Documented. */
 export type AnalysisJobStatus = {
   jobId: string;
   state: AnalysisJobState;
@@ -139,6 +175,7 @@ export type AnalysisJobStatus = {
   error?: AnalysisJobError;
 };
 
+/** Documented. */
 export type AnalysisJobSnapshot = {
   jobId: string;
   request: AnalysisJobRequest;
@@ -159,22 +196,27 @@ const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
 const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
 
+/** Documented. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Documented. */
 function isDenseArray(value: unknown): value is unknown[] {
   return Array.isArray(value) && Array.from({ length: value.length }, (_, index) => index in value).every(Boolean);
 }
 
+/** Documented. */
 function isOneOf<T extends string>(options: readonly T[], value: unknown): value is T {
   return typeof value === "string" && options.includes(value as T);
 }
 
+/** Documented. */
 function invalidField(path: string): string {
   return `Invalid rehearsal song contract: invalid field '${path}'`;
 }
 
+/** Documented. */
 function unexpectedKey(value: Record<string, unknown>, allowedKeys: readonly string[], path: string): string | null {
   for (const key of Object.keys(value)) {
     if (!allowedKeys.includes(key)) {
@@ -224,7 +266,10 @@ const demoRehearsalSongSeed: RehearsalSong = {
           rehearsalPriority: "high",
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
-          manualOverrides: []
+          manualOverrides: [],
+          overlapWarnings: [
+            "Density warning: competing with Keyboard Left Hand in low register."
+          ]
         },
         {
           id: "keys-right",
@@ -251,7 +296,10 @@ const demoRehearsalSongSeed: RehearsalSong = {
           rehearsalPriority: "high",
           simplification: "Drop the top extension if the chorus turnaround still feels busy.",
           setupNote: "Keep the patch bright enough to stay over the guitars.",
-          manualOverrides: []
+          manualOverrides: [],
+          overlapWarnings: [
+            "Melodic overlap: top notes conflict with Lead Vocal range."
+          ]
         },
         {
           id: "lead-vocal",
@@ -288,8 +336,16 @@ const demoRehearsalSongSeed: RehearsalSong = {
               },
               source: "user"
             }
+          ],
+          overlapWarnings: [
+            "Melodic overlap: competing with Keyboard 1 Right Hand."
           ]
         }
+      ],
+      partGraph: [
+        { role_id: "bass-guitar", is_active: true, handoff_to: ["lead-vocal"], handoff_from: [] },
+        { role_id: "keys-right", is_active: true, handoff_to: [], handoff_from: [] },
+        { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: ["bass-guitar"] }
       ]
     }
   ],
@@ -300,6 +356,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
   }
 };
 
+/** Documented. */
 export function createDefaultProjectSummary(input: {
   id: string;
   title: string;
@@ -312,10 +369,12 @@ export function createDefaultProjectSummary(input: {
   };
 }
 
+/** Documented. */
 export function createDemoRehearsalSong(): RehearsalSong {
   return structuredClone(demoRehearsalSongSeed);
 }
 
+/** Documented. */
 export function createDemoAnalysisJobRequest(): AnalysisJobRequest {
   return {
     sourceKind: "demo",
@@ -324,6 +383,7 @@ export function createDemoAnalysisJobRequest(): AnalysisJobRequest {
   };
 }
 
+/** Documented. */
 export function createProjectBootstrapSummary(input: {
   projectId: string;
   projectRoot: string;
@@ -341,6 +401,7 @@ export function createProjectBootstrapSummary(input: {
   };
 }
 
+/** Documented. */
 function validateProjectBootstrapSummary(value: unknown): string | null {
   if (!isRecord(value)) {
     return "Invalid project bootstrap summary: invalid field 'root'";
@@ -374,6 +435,7 @@ function validateProjectBootstrapSummary(value: unknown): string | null {
   return null;
 }
 
+/** Documented. */
 export function parseProjectBootstrapSummary(value: unknown): ProjectBootstrapSummary {
   const validationError = validateProjectBootstrapSummary(value);
   if (validationError) {
@@ -383,6 +445,7 @@ export function parseProjectBootstrapSummary(value: unknown): ProjectBootstrapSu
   return structuredClone(value as ProjectBootstrapSummary);
 }
 
+/** Documented. */
 function validateLocalAudioSource(value: unknown): string | null {
   if (!isRecord(value)) {
     return "Invalid local audio source: invalid field 'root'";
@@ -409,6 +472,7 @@ function validateLocalAudioSource(value: unknown): string | null {
   return null;
 }
 
+/** Documented. */
 export function parseLocalAudioSource(value: unknown): LocalAudioSource {
   const validationError = validateLocalAudioSource(value);
   if (validationError) {
@@ -418,6 +482,7 @@ export function parseLocalAudioSource(value: unknown): LocalAudioSource {
   return structuredClone(value as LocalAudioSource);
 }
 
+/** Documented. */
 export function createAnalysisJobStatus(input:
   | {
       jobId: string;
@@ -464,6 +529,7 @@ export function createAnalysisJobStatus(input:
   return status;
 }
 
+/** Documented. */
 function validateAnalysisJobRequest(value: unknown): string | null {
   if (!isRecord(value)) {
     return "Invalid analysis job request: invalid field 'root'";
@@ -501,6 +567,7 @@ function validateAnalysisJobRequest(value: unknown): string | null {
   return null;
 }
 
+/** Documented. */
 export function parseAnalysisJobRequest(value: unknown): AnalysisJobRequest {
   const validationError = validateAnalysisJobRequest(value);
   if (validationError) {
@@ -510,6 +577,7 @@ export function parseAnalysisJobRequest(value: unknown): AnalysisJobRequest {
   return structuredClone(value as AnalysisJobRequest);
 }
 
+/** Documented. */
 function validateAnalysisJobError(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -528,6 +596,7 @@ function validateAnalysisJobError(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateAnalysisJobStatus(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
@@ -579,10 +648,12 @@ function validateAnalysisJobStatus(value: unknown): string | null {
   return null;
 }
 
+/** Documented. */
 export function isAnalysisJobStatus(value: unknown): value is AnalysisJobStatus {
   return validateAnalysisJobStatus(value) === null;
 }
 
+/** Documented. */
 function validateConfidenceMarker(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -604,6 +675,7 @@ function validateConfidenceMarker(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateCueAnchor(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -622,6 +694,7 @@ function validateCueAnchor(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRangeSummary(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -640,6 +713,7 @@ function validateRangeSummary(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRehearsalHarmony(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -661,6 +735,7 @@ function validateRehearsalHarmony(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateManualOverride(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -688,6 +763,7 @@ function validateManualOverride(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRehearsalRole(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -705,7 +781,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "rehearsalPriority",
       "simplification",
       "setupNote",
-      "manualOverrides"
+      "manualOverrides",
+      "overlapWarnings"
     ],
     path
   );
@@ -760,15 +837,59 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       return overrideError;
     }
   }
+  if (!isDenseArray(value.overlapWarnings)) {
+    return invalidField(`${path}.overlapWarnings`);
+  }
+  for (const [index, warning] of value.overlapWarnings.entries()) {
+    if (typeof warning !== "string") {
+      return invalidField(`${path}.overlapWarnings[${index}]`);
+    }
+  }
 
   return null;
 }
 
+/** Documented. */
+function validatePartGraphNode(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["role_id", "is_active", "handoff_to", "handoff_from"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.role_id !== "string") {
+    return invalidField(`${path}.role_id`);
+  }
+  if (typeof value.is_active !== "boolean") {
+    return invalidField(`${path}.is_active`);
+  }
+  if (!isDenseArray(value.handoff_to)) {
+    return invalidField(`${path}.handoff_to`);
+  }
+  for (const [index, handoff] of value.handoff_to.entries()) {
+    if (typeof handoff !== "string") {
+      return invalidField(`${path}.handoff_to[${index}]`);
+    }
+  }
+  if (!isDenseArray(value.handoff_from)) {
+    return invalidField(`${path}.handoff_from`);
+  }
+  for (const [index, handoff] of value.handoff_from.entries()) {
+    if (typeof handoff !== "string") {
+      return invalidField(`${path}.handoff_from[${index}]`);
+    }
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateRehearsalSection(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
-  const extraKey = unexpectedKey(value, ["id", "label", "groove", "confidence", "roles"], path);
+  const extraKey = unexpectedKey(value, ["id", "label", "groove", "confidence", "roles", "partGraph"], path);
   if (extraKey) {
     return extraKey;
   }
@@ -797,9 +918,20 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
     }
   }
 
+  if (!isDenseArray(value.partGraph)) {
+    return invalidField(`${path}.partGraph`);
+  }
+  for (const [index, node] of value.partGraph.entries()) {
+    const nodeError = validatePartGraphNode(node, `${path}.partGraph[${index}]`);
+    if (nodeError) {
+      return nodeError;
+    }
+  }
+
   return null;
 }
 
+/** Documented. */
 function validateExportSummary(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -826,6 +958,7 @@ function validateExportSummary(value: unknown, path: string): string | null {
   return null;
 }
 
+/** Documented. */
 function validateRehearsalSong(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
@@ -853,10 +986,12 @@ function validateRehearsalSong(value: unknown): string | null {
   return validateExportSummary(value.exportSummary, "exportSummary");
 }
 
+/** Documented. */
 export function isRehearsalSong(value: unknown): value is RehearsalSong {
   return validateRehearsalSong(value) === null;
 }
 
+/** Documented. */
 export function parseRehearsalSong(value: unknown): RehearsalSong {
   const validationError = validateRehearsalSong(value);
   if (validationError) {

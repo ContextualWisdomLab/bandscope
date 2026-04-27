@@ -5,6 +5,7 @@ interface ConfidenceBadgeProps {
   level: ConfidenceLevel;
 }
 
+/** Documented. */
 export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
   const t = createTranslator(detectPreferredLocale());
   
