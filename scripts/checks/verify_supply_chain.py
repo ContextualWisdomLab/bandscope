@@ -151,6 +151,11 @@ def verify_workflow_coverage() -> list[str]:
             for token in ["develop", "main", "push", "schedule", "ossf-scorecard"]
             if token not in scorecard
         )
+        if "main" in scorecard and "ossf/scorecard-action" in scorecard:
+            if "github.event.repository.default_branch" not in scorecard:
+                missing.append(
+                    "ossf scorecard workflow must guard Scorecard execution to the repository default branch"
+                )
     return missing
 
 
