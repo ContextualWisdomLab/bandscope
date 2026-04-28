@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-04-29
+
+### Fixed
+- Published release assets through a tag-driven draft release flow so immutable GitHub Releases include desktop installers, checksums, SBOM, and supplemental inventory before publication.
+- Added a supply-chain regression guard that rejects post-publication release asset uploads.
+
 ## [0.1.2] - 2026-04-29
 
 ### Changed
