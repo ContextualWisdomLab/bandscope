@@ -3,6 +3,9 @@ import type { RehearsalSong } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { generateCueSheetCsv, generateChartSummaryJson, sanitizeFilename } from "../../lib/export";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
+import { Download } from "lucide-react";
 
 interface WorkspaceProps {
   song: RehearsalSong;
@@ -55,41 +58,51 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
   };
 
   return (
-    <div style={{ marginTop: "32px", padding: "24px", border: "1px solid #e8e8e8", borderRadius: "12px", backgroundColor: "#fff" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-        <div>
-          <h2 style={{ fontSize: "1.8em", margin: "0 0 8px 0" }}>{song.title}</h2>
-          <p style={{ color: "#666", margin: "0 0 16px 0" }}>{song.exportSummary?.headline || ""}</p>
-        </div>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button 
-            type="button" 
-            onClick={handleExportCueSheet}
-            style={{ padding: "6px 12px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#fff", border: "1px solid #d9d9d9" }}
-          >
-            Export Cue Sheet (CSV)
-          </button>
-          <button 
-            type="button" 
-            onClick={handleExportChart}
-            style={{ padding: "6px 12px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#fff", border: "1px solid #d9d9d9" }}
-          >
-            Export Chart (JSON)
-          </button>
-        </div>
-      </header>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out fill-mode-both">
+      <Card className="border-zinc-200 shadow-sm bg-white overflow-hidden">
+        <CardHeader className="bg-zinc-50/50 border-b border-zinc-100 flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6">
+          <div className="space-y-1.5">
+            <h2 className="text-3xl font-bold tracking-tight text-zinc-900">{song.title}</h2>
+            <CardDescription className="text-base font-medium text-zinc-500">
+              {song.exportSummary?.headline || "Rehearsal Workspace"}
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportCueSheet}
+              className="bg-white hover:bg-zinc-50 shadow-sm"
+            >
+              <Download className="w-4 h-4 mr-2 text-zinc-500" />
+              Export Cue Sheet (CSV)
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportChart}
+              className="bg-white hover:bg-zinc-50 shadow-sm"
+            >
+              <Download className="w-4 h-4 mr-2 text-zinc-500" />
+              Export Chart (JSON)
+            </Button>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="p-6 md:p-8 space-y-8 bg-zinc-50/30">
+          <RoleSwitcher 
+            roles={allRoles} 
+            activeRole={activeRole} 
+            onRoleChange={setActiveRole} 
+          />
 
-      <RoleSwitcher 
-        roles={allRoles} 
-        activeRole={activeRole} 
-        onRoleChange={setActiveRole} 
-      />
-
-      <SectionRoadmap 
-        song={song} 
-        activeRole={activeRole} 
-        onSongUpdate={onSongUpdate}
-      />
+          <SectionRoadmap 
+            song={song} 
+            activeRole={activeRole} 
+            onSongUpdate={onSongUpdate}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Users } from "lucide-react";
 
 interface RoleSwitcherProps {
   roles: { id: string; name: string }[];
@@ -11,41 +13,34 @@ export function RoleSwitcher({ roles, activeRole, onRoleChange }: RoleSwitcherPr
   const t = createTranslator(detectPreferredLocale());
 
   return (
-    <div style={{ margin: "16px 0" }}>
-      <strong style={{ marginRight: "16px" }}>{t("roleSwitcherTitle")}:</strong>
-      <button
-        type="button"
-        onClick={() => onRoleChange(null)}
-        style={{
-          marginRight: "8px",
-          padding: "4px 12px",
-          borderRadius: "16px",
-          border: "1px solid #ccc",
-          backgroundColor: activeRole === null ? "#1890ff" : "#fff",
-          color: activeRole === null ? "#fff" : "#333",
-          cursor: "pointer",
-        }}
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 py-2">
+      <div className="flex items-center text-sm font-semibold text-zinc-700 whitespace-nowrap">
+        <Users className="w-4 h-4 mr-2" />
+        {t("roleSwitcherTitle")}
+      </div>
+      <Tabs 
+        value={activeRole === null ? "all" : activeRole} 
+        onValueChange={(val) => onRoleChange(val === "all" ? null : val)}
+        className="w-full sm:w-auto"
       >
-        {t("allRoles")}
-      </button>
-      {roles.map((role) => (
-        <button
-          key={role.id}
-          type="button"
-          onClick={() => onRoleChange(role.id)}
-          style={{
-            marginRight: "8px",
-            padding: "4px 12px",
-            borderRadius: "16px",
-            border: "1px solid #ccc",
-            backgroundColor: activeRole === role.id ? "#1890ff" : "#fff",
-            color: activeRole === role.id ? "#fff" : "#333",
-            cursor: "pointer",
-          }}
-        >
-          {role.name}
-        </button>
-      ))}
+        <TabsList className="h-10 p-1 flex-wrap h-auto sm:h-10 justify-start w-full sm:w-auto bg-zinc-200/50">
+          <TabsTrigger 
+            value="all" 
+            className="rounded-md px-4 data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm"
+          >
+            {t("allRoles")}
+          </TabsTrigger>
+          {roles.map((role) => (
+            <TabsTrigger
+              key={role.id}
+              value={role.id}
+              className="rounded-md px-4 data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm"
+            >
+              {role.name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
     </div>
   );
 }

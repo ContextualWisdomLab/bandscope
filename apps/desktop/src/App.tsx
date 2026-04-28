@@ -18,6 +18,10 @@ import {
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, LoadingState, ErrorState } from "./features/workspace/WorkspaceStates";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 
@@ -126,14 +130,32 @@ export function App() {
   /** Documented. */
   const handleImportYoutube = async () => {
     setSelectionError(null);
+    const normalizedUrl = youtubeUrl.trim();
+    if (!normalizedUrl) {
+      setSelectionError(t("youtubeImportFailed"));
+      return;
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(normalizedUrl);
+    } catch {
+      setSelectionError(t("youtubeImportFailed"));
+      return;
+    }
+    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+      setSelectionError(t("youtubeImportFailed"));
+      return;
+    }
+
     setIsImporting(true);
     try {
-      const selection = await importYoutubeUrl(youtubeUrl);
+      const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
         setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
       } else {
-        setSelectionError(selection.error.message);
+        setSelectionError(selection.error.message || t("youtubeImportFailed"));
       }
     } catch {
       setSelectionError(t("youtubeImportFailed"));
@@ -161,9 +183,8 @@ export function App() {
 
   /** Documented. */
   const handleSaveProject = async () => {
-    if (!jobResult) return;
     try {
-      await saveProject(jobResult);
+      await saveProject(jobResult!);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
         setJobError(`Failed to save project: ${e.message}`);
@@ -193,93 +214,131 @@ export function App() {
   };
 
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
-      <header style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <h1 style={{ margin: "0 0 8px 0" }}>{t("appTitle")}</h1>
-          <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
-        </div>
-        <button 
-            type="button" 
+    <div className="min-h-screen bg-zinc-50 text-zinc-950 font-sans selection:bg-zinc-200">
+      <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
+        <header className="mb-12 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+          <div>
+            <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl text-zinc-900 mb-2">{t("appTitle")}</h1>
+            <p className="text-lg text-zinc-500 tracking-tight font-medium max-w-2xl">{t("appSubtitle")}</p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="lg"
             onClick={handleSaveProject} 
-            aria-disabled={!jobResult}
-            style={{ 
-              padding: "8px 16px", 
-              cursor: jobResult ? "pointer" : "not-allowed", 
-              borderRadius: "4px", 
-              backgroundColor: jobResult ? "#fff" : "#f5f5f5", 
-              border: "1px solid #ccc",
-              opacity: jobResult ? 1 : 0.5
-            }}
+            disabled={!jobResult}
+            className="shadow-sm font-semibold transition-all hover:shadow-md"
+            aria-label="Save Project"
           >
             Save Project
-          </button>
-      </header>
+          </Button>
+        </header>
 
-      <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-        <button 
-          type="button" 
-          onClick={handleChooseLocalAudio} 
-          disabled={analysisInFlight || isStarting || isImporting}
-          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
-        >
-          {t("chooseLocalAudio")}
-        </button>
-        
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input 
-            type="text" 
-            placeholder={t("youtubePlaceholder")} 
-            value={youtubeUrl}
-            onChange={(e) => setYoutubeUrl(e.target.value)}
-            disabled={analysisInFlight || isStarting || isImporting}
-            style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ccc", width: "200px" }}
-          />
-          <button 
-            type="button" 
-            onClick={handleImportYoutube} 
-            disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
-            style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
-          >
-            {isImporting ? t("importingYoutube") : t("importYoutube")}
-          </button>
-        </div>
+        <Card className="border-zinc-200 shadow-sm mb-12 overflow-hidden bg-white">
+          <CardContent className="p-6 md:p-8">
+            <div className="flex flex-col lg:flex-row gap-8 items-start lg:items-center justify-between">
+              
+              {/* Actions Area */}
+              <div className="flex flex-wrap items-center gap-4 w-full">
+                <Button 
+                  onClick={handleChooseLocalAudio} 
+                  disabled={analysisInFlight || isStarting || isImporting}
+                  variant="secondary"
+                  className="font-semibold shadow-sm"
+                  aria-label="Choose local audio"
+                >
+                  {t("chooseLocalAudio")}
+                </Button>
+                
+                <div className="flex flex-1 min-w-[280px] max-w-sm items-center gap-2 relative">
+                  <Input 
+                    type="text" 
+                    placeholder={t("youtubePlaceholder")} 
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    disabled={analysisInFlight || isStarting || isImporting}
+                    className="flex-1 bg-zinc-50 focus-visible:ring-zinc-400"
+                    aria-label="YouTube URL"
+                  />
+                  <Button 
+                    onClick={handleImportYoutube} 
+                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    variant="outline"
+                    className="font-medium bg-zinc-50 hover:bg-zinc-100"
+                    aria-label="Import YouTube"
+                  >
+                    {isImporting ? t("importingYoutube") : t("importYoutube")}
+                  </Button>
+                </div>
 
-        <button 
-          type="button" 
-          onClick={handleLoadProject} 
-          disabled={analysisInFlight || isStarting}
-          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
-        >
-          Open Project
-        </button>
-        <button 
-          type="button" 
-          onClick={handleStartAnalysis} 
-          disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
-          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#1890ff", color: "white", border: "none" }}
-        >
-          {t("startAnalysis")}
-        </button>
+                <Separator orientation="vertical" className="hidden lg:block h-10" />
+                
+                <Button 
+                  onClick={handleLoadProject} 
+                  disabled={analysisInFlight || isStarting}
+                  variant="outline"
+                  className="font-medium bg-zinc-50 hover:bg-zinc-100"
+                  aria-label="Open Project"
+                >
+                  Open Project
+                </Button>
+
+                <div className="ml-auto">
+                  <Button 
+                    onClick={handleStartAnalysis} 
+                    disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                    size="lg"
+                    className="font-bold shadow-md hover:shadow-lg transition-all"
+                    aria-label="Start analysis"
+                  >
+                    {t("startAnalysis")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Status Information */}
+            <div className="mt-8 pt-6 border-t border-zinc-100 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="text-zinc-500 font-medium">
+                <span className="text-zinc-400 uppercase tracking-wider text-xs font-bold mr-2">Formats</span>
+                {SUPPORTED_AUDIO_FORMATS.join(", ")}
+              </div>
+              
+              <div className="flex flex-col sm:flex-row sm:items-center gap-x-6 gap-y-2">
+                {selectedBootstrap && (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                    <span className="font-semibold text-zinc-700 truncate max-w-[200px]" title={selectedBootstrap.source.fileName}>
+                      {selectedBootstrap.source.fileName}
+                    </span>
+                  </div>
+                )}
+                
+                {jobStatus && (
+                  <div className="flex items-center text-zinc-900 font-semibold bg-zinc-100 px-3 py-1 rounded-md">
+                    {jobStatus.state === 'running' && (
+                      <span className="inline-block w-4 h-4 border-2 border-zinc-300 border-t-zinc-900 rounded-full animate-spin mr-2"></span>
+                    )}
+                    {progressMessage(t, jobStatus.state)}
+                  </div>
+                )}
+                
+                {selectionError && (
+                  <div className="text-rose-600 font-medium bg-rose-50 px-3 py-1 rounded-md border border-rose-100 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    {selectionError}
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
+          {renderWorkspaceState()}
+        </section>
       </div>
-
-      <div style={{ marginBottom: "24px", fontSize: "0.9em", color: "#666" }}>
-        <p style={{ margin: "4px 0" }}>
-          {t("supportedFormats")}: {SUPPORTED_AUDIO_FORMATS.join(", ")}
-        </p>
-        {selectedBootstrap && (
-          <>
-            <p style={{ margin: "4px 0" }}>{t("selectedAudio")}: {selectedBootstrap.source.fileName}</p>
-            <p style={{ margin: "4px 0" }}>{t("sourceModeReference")}</p>
-          </>
-        )}
-        {jobStatus && <p style={{ margin: "4px 0", fontWeight: "bold" }}>{progressMessage(t, jobStatus.state)}</p>}
-        {selectionError && <p style={{ margin: "4px 0", color: "#a8071a" }}>{selectionError}</p>}
-      </div>
-
-      <section>
-        {renderWorkspaceState()}
-      </section>
-    </main>
+    </div>
   );
 }

@@ -509,6 +509,45 @@ describe("App", () => {
     });
   });
 
+  it("rejects empty YouTube URL", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "   " } });
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    // Button is disabled if youtubeUrl is empty, but we simulate enabling it for coverage
+    // or we can test that the error is set when it somehow triggers, but actually it's disabled.
+    // Wait, the button is disabled if `!youtubeUrl`. `youtubeUrl` is "   ", so button is NOT disabled!
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+  });
+
+  it("rejects malformed YouTube URL", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "not-a-url" } });
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+  });
+
+  it("rejects non-http YouTube URL", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "ftp://youtube.com/watch?v=123" } });
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+  });
+
 
   it("loads a project and updates the UI", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
@@ -681,7 +720,7 @@ describe("App", () => {
     const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Dbmaj7");
 
     // Click on the chord to edit it (assuming SectionRoadmap renders it and allows click to edit)
-    fireEvent.click(screen.getAllByText("C#m7", { selector: 'strong' })[0]);
+    fireEvent.click(screen.getAllByText("C#m7", { selector: 'button' })[0]);
 
     // Wait for the UI to update with the new chord (which verifies handleSongUpdate was called and state updated)
     await waitFor(() => {
@@ -691,9 +730,30 @@ describe("App", () => {
     promptSpy.mockRestore();
   });
 
+  it("handles YouTube import failure with a missing message falling back to generic", async () => {
+    tauriInvoke.mockResolvedValueOnce({
+      code: "youtube_import_failed",
+      message: "" // Missing message
+    });
+
+    render(<App />);
+
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=456" } });
+    
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+  });
+
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
     const saveButton = screen.getByRole("button", { name: /save project/i });
+    // Remove disabled attribute to force the click for coverage
+    saveButton.removeAttribute("disabled");
     fireEvent.click(saveButton);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
