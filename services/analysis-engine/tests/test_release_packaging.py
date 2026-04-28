@@ -65,7 +65,18 @@ def test_find_installer_packages_returns_dmg(
     )
 
     monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "aarch64-apple-darwin")
-    dmg_path = tmp_path / "apps" / "desktop" / "src-tauri" / "target" / "aarch64-apple-darwin" / "release" / "bundle" / "dmg" / "Test.dmg"
+    dmg_path = (
+        tmp_path
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "aarch64-apple-darwin"
+        / "release"
+        / "bundle"
+        / "dmg"
+        / "Test.dmg"
+    )
     dmg_path.parent.mkdir(parents=True)
     dmg_path.write_bytes(b"dmg")
 
@@ -85,8 +96,30 @@ def test_find_installer_packages_returns_exe_and_msi(
     monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
     monkeypatch.setattr(packaging.platform, "system", lambda: "Darwin")
 
-    exe_path = tmp_path / "apps" / "desktop" / "src-tauri" / "target" / "x86_64-pc-windows-msvc" / "release" / "bundle" / "nsis" / "Test.exe"
-    msi_path = tmp_path / "apps" / "desktop" / "src-tauri" / "target" / "x86_64-pc-windows-msvc" / "release" / "bundle" / "msi" / "Test.msi"
+    exe_path = (
+        tmp_path
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "x86_64-pc-windows-msvc"
+        / "release"
+        / "bundle"
+        / "nsis"
+        / "Test.exe"
+    )
+    msi_path = (
+        tmp_path
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "x86_64-pc-windows-msvc"
+        / "release"
+        / "bundle"
+        / "msi"
+        / "Test.msi"
+    )
     exe_path.parent.mkdir(parents=True)
     exe_path.write_bytes(b"exe")
     msi_path.parent.mkdir(parents=True)
