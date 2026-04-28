@@ -315,7 +315,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 artifacts/*.manifest.txt --clobber
+        run: gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 artifacts/*.manifest.txt --clobber --repo ${{ github.repository }}
 
   attach-macos-release-artifact:
     name: release-artifact / macos
@@ -336,4 +336,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 artifacts/*.manifest.txt --clobber
+        run: gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 artifacts/*.manifest.txt --clobber --repo ${{ github.repository }}
