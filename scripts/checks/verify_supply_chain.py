@@ -119,7 +119,6 @@ def verify_workflow_coverage() -> list[str]:
         "main",
         "pull_request",
         "push",
-        "release:",
         "tags:",
         "windows-2025",
         "windows-11-arm",
@@ -127,13 +126,16 @@ def verify_workflow_coverage() -> list[str]:
         "macos-15",
         "gate / build / windows",
         "gate / build / macos",
-        "release-artifact / macos",
-        "release-artifact / windows",
+        "release-artifact / publish",
         "ubuntu-latest",
         "bandscope-windows-amd64-${{ github.sha }}",
         "bandscope-windows-arm64-${{ github.sha }}",
         "bandscope-macos-amd64-${{ github.sha }}",
         "bandscope-macos-arm64-${{ github.sha }}",
+        "bandscope-release-sbom-${{ github.sha }}",
+        "gh release create",
+        "--draft",
+        "--verify-tag",
         "Get-MpComputerStatus",
     ]:
         if build and token not in build:
@@ -159,6 +161,25 @@ def verify_workflow_coverage() -> list[str]:
     return missing
 
 
+def verify_immutable_release_upload_policy() -> list[str]:
+    """Return workflow violations that mutate immutable releases after publication."""
+    violations: list[str] = []
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for path in workflow_paths:
+        content = path.read_text(encoding="utf-8")
+        if "release:" not in content or "published" not in content:
+            continue
+        if "gh release upload" not in content:
+            continue
+        violations.append(
+            f"{path}: release published workflows must not upload GitHub Release assets; "
+            "immutable releases require draft-before-publish asset attachment"
+        )
+    return violations
+
+
 def main() -> int:
     """Return a failing exit code when supply-chain controls are incomplete."""
     violations: list[str] = []
@@ -166,6 +187,7 @@ def main() -> int:
     violations.extend(verify_pinned_actions())
     violations.extend(verify_dependabot_coverage())
     violations.extend(verify_workflow_coverage())
+    violations.extend(verify_immutable_release_upload_policy())
 
     if violations:
         print("Supply-chain verification failed:")
