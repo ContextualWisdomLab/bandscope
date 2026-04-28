@@ -1,7 +1,20 @@
 ## [Unreleased]
-- Implemented rehearsal workspace design (Issue #107)
 
 # Changelog
+
+## [0.1.1] - 2026-04-28
+
+### Added
+- Implemented rehearsal workspace design (Issue #107)
+- Add capo and tuning detection heuristics (Issue #103)
+- Add bandit security scan workflow
+
+### Fixed
+- Upgrade pytest to 9.0.3 to fix GHSA-6w46-j5rx-g56g
+- Resolve npm audit vulnerabilities
+- Fix ruff import sorting and formatting errors
+- Add missing docstrings to tests
+- Fix test configuration and typing issues
 
 ## [0.1.0] - 2026-03-27
 

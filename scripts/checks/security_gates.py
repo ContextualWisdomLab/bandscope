@@ -27,7 +27,7 @@ RULES = [
 ]
 
 TARGET_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".sh", ".yml", ".yaml"}
-EXCLUDED_PARTS = {"node_modules", ".venv", "dist", "coverage", "target"}
+EXCLUDED_PARTS = {"node_modules", ".venv", "dist", "coverage", "target", ".worktrees"}
 SELF_PATH = Path("scripts/checks/security_gates.py")
 
 
