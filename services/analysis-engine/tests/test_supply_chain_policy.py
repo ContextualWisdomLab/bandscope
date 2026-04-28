@@ -113,3 +113,57 @@ jobs:
         "ossf scorecard workflow must guard Scorecard execution to the repository default branch"
         in violations
     )
+
+
+def test_supply_chain_check_rejects_release_published_asset_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure immutable releases are not mutated after publication."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_immutable_release_upload"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "sbom.yml").write_text(
+        """
+name: sbom
+on:
+  release:
+    types:
+      - published
+jobs:
+  release-sbom:
+    steps:
+      - name: Attach SBOM to GitHub Release
+        run: gh release upload "$RELEASE_TAG" bandscope-sbom.cdx.json --clobber
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    assert hasattr(supply_chain, "verify_immutable_release_upload_policy")
+    violations = supply_chain.verify_immutable_release_upload_policy()
+
+    assert (
+        ".github/workflows/sbom.yml: release published workflows must not upload GitHub "
+        "Release assets; immutable releases require draft-before-publish asset attachment"
+    ) in violations
+
+
+def test_supply_chain_check_accepts_immutable_release_safe_workflows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure checked-in workflows avoid release-published asset mutation."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_immutable_release_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    monkeypatch.chdir(repo_root)
+
+    assert hasattr(supply_chain, "verify_immutable_release_upload_policy")
+    violations = supply_chain.verify_immutable_release_upload_policy()
+
+    assert not violations
