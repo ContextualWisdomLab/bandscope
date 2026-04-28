@@ -1,6 +1,15 @@
+# Changelog
+
 ## [Unreleased]
 
-# Changelog
+## [0.1.2] - 2026-04-29
+
+### Changed
+- Aligned the packaged desktop app version with the release package metadata.
+
+### Fixed
+- Stabilized YouTube import fallback behavior in browser and desktop dev paths.
+- Guarded OSSF Scorecard execution so release-branch pushes skip unsupported non-default branch runs cleanly.
 
 ## [0.1.1] - 2026-04-28
 

@@ -1,0 +1,43 @@
+"""Tests for repository release metadata consistency."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+
+def repo_root() -> Path:
+    """Return the repository root from the analysis-engine test directory."""
+    return Path(__file__).resolve().parents[3]
+
+
+def root_package_version() -> str:
+    """Return the root package version used for release tagging."""
+    package_json = json.loads((repo_root() / "package.json").read_text(encoding="utf-8"))
+    return str(package_json["version"])
+
+
+def test_package_lock_release_version_matches_root_package() -> None:
+    """Ensure the lockfile release metadata cannot drift from package.json."""
+    package_lock = json.loads((repo_root() / "package-lock.json").read_text(encoding="utf-8"))
+
+    assert package_lock["version"] == root_package_version()
+    assert package_lock["packages"][""]["version"] == root_package_version()
+
+
+def test_tauri_release_version_matches_root_package() -> None:
+    """Ensure the installable desktop app reports the release version."""
+    tauri_config = json.loads(
+        (repo_root() / "apps" / "desktop" / "src-tauri" / "tauri.conf.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert tauri_config["version"] == root_package_version()
+
+
+def test_changelog_contains_root_package_release_entry() -> None:
+    """Ensure release branches document the package version being shipped."""
+    changelog = (repo_root() / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert f"## [{root_package_version()}]" in changelog
