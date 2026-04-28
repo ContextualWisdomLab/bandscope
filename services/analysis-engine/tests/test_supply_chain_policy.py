@@ -74,3 +74,42 @@ def test_supply_chain_check_accepts_repo_multi_arch_workflow(
     assert (
         "build workflow should not rely on macos-latest for architecture coverage" not in violations
     )
+
+
+def test_supply_chain_check_requires_ossf_default_branch_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure OSSF Scorecard is not invoked on non-default release branches."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_guard"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        """
+name: ossf-scorecard
+on:
+  push:
+    branches:
+      - develop
+      - main
+  schedule:
+    - cron: '30 1 * * 1'
+jobs:
+  analysis:
+    name: ossf-scorecard
+    steps:
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard workflow must guard Scorecard execution to the repository default branch"
+        in violations
+    )
