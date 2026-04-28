@@ -1,5 +1,6 @@
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 
+/** Documented. */
 export function EmptyState() {
   const t = createTranslator(detectPreferredLocale());
   return (
@@ -10,6 +11,7 @@ export function EmptyState() {
   );
 }
 
+/** Documented. */
 export function LoadingState() {
   const t = createTranslator(detectPreferredLocale());
   return (
@@ -20,6 +22,7 @@ export function LoadingState() {
   );
 }
 
+/** Documented. */
 export function ErrorState({ error }: { error?: string }) {
   const t = createTranslator(detectPreferredLocale());
   return (

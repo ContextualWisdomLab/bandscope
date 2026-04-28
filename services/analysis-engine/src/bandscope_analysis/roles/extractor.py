@@ -8,6 +8,7 @@ from typing import Any
 from .model import (
     CueAnchorKind,
     PartGraphNode,
+    RangeSummary,
     RehearsalPriority,
     RehearsalRole,
     RoleExtractionResult,
@@ -30,18 +31,67 @@ class RoleExtractor:
     def extract(
         self,
         sections: list[Any],
-        _audio_features: dict[str, Any] | None = None,
+        audio_features: dict[str, Any] | None = None,
     ) -> RoleExtractionResult:
         """Extract roles and their topology per section.
 
         Args:
             sections: List of section dicts (must contain 'id').
-            _audio_features: Optional audio features to inform extraction.
+            audio_features: Optional audio features to inform extraction.
 
         Returns:
             RoleExtractionResult containing topologies and notes.
         """
         topologies: list[SectionRoleTopology] = []
+
+        features = audio_features or {}
+        stems = features.get("stems", {})
+        sr = features.get("sr", 22050)
+
+        vocal_range: RangeSummary = {"lowestNote": "G#3", "highestNote": "C#5"}
+        vocal_chord = "C#m7"
+        bass_range: RangeSummary = {"lowestNote": "C#2", "highestNote": "E3"}
+        bass_chord = "C#m7"
+
+        # If we have real audio stems, extract real ranges and chords
+        if stems:
+            try:
+                from ..chords.chord_recognizer import ChordRecognizer
+                from ..ranges.pitch_tracker import PitchTracker
+
+                pitch_tracker = PitchTracker()
+                chord_recognizer = ChordRecognizer()
+
+                if "vocals" in stems:
+                    p_res = pitch_tracker.track(stems["vocals"], sr=sr)
+                    if p_res:
+                        vocal_range = {
+                            "lowestNote": p_res["lowest_note"] or "",
+                            "highestNote": p_res["highest_note"] or "",
+                        }
+
+                if "bass" in stems:
+                    p_res = pitch_tracker.track(stems["bass"], sr=sr)
+                    if p_res:
+                        bass_range = {
+                            "lowestNote": p_res["lowest_note"] or "",
+                            "highestNote": p_res["highest_note"] or "",
+                        }
+                    c_res = chord_recognizer.recognize(stems["bass"], sr=sr)
+                    if c_res and len(c_res) > 0:
+                        # Use the most common chord or first chord
+                        valid_chords = [c["chord"] for c in c_res if c["chord"] != "N"]
+                        if valid_chords:
+                            bass_chord = valid_chords[0]
+
+                if "other" in stems:
+                    c_res = chord_recognizer.recognize(stems["other"], sr=sr)
+                    if c_res and len(c_res) > 0:
+                        valid_chords = [c["chord"] for c in c_res if c["chord"] != "N"]
+                        if valid_chords:
+                            vocal_chord = valid_chords[0]
+            except Exception as e:
+                logger.warning("Failed to extract features from stems: %s", e)
 
         # Simple mock implementation for testing/demonstration purposes
         for i, section in enumerate(sections):
@@ -55,17 +105,20 @@ class RoleExtractor:
             else:
                 section_id = section.get("id", f"section-{i}")
 
-            # Create a mock bass role
             bass_role: RehearsalRole = {
                 "id": "bass-guitar",
                 "name": "Bass Guitar",
                 "roleType": RoleType.INSTRUMENT,
-                "harmony": {"chord": "C#m7", "functionLabel": "vi pedal anchor", "source": "model"},
+                "harmony": {
+                    "chord": bass_chord,
+                    "functionLabel": "vi pedal anchor",
+                    "source": "model",
+                },
                 "cue": {
                     "kind": CueAnchorKind.TRANSITION,
                     "value": "Hold through the pickup before the downbeat.",
                 },
-                "range": {"lowestNote": "C#2", "highestNote": "E3"},
+                "range": bass_range,
                 "confidence": {
                     "level": "medium",
                     "source": "model",
@@ -73,7 +126,7 @@ class RoleExtractor:
                 },
                 "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
                 "simplification": "Stay on roots if the chorus entrance gets muddy.",
-                "setupNote": get_setup_note("Bass Guitar", ["C#m7"])
+                "setupNote": get_setup_note("Bass Guitar", [bass_chord])
                 or "Keep the attack short so the verse breathes.",
                 "manualOverrides": [],
                 "overlapWarnings": [
@@ -140,12 +193,12 @@ class RoleExtractor:
                 "name": "Lead Vocal",
                 "roleType": RoleType.VOCAL,
                 "harmony": {
-                    "chord": "C#m7",
+                    "chord": vocal_chord,
                     "functionLabel": "vi melodic pull",
                     "source": "model",
                 },
                 "cue": {"kind": CueAnchorKind.LYRIC, "value": "city lights"},
-                "range": {"lowestNote": "G#3", "highestNote": "C#5"},
+                "range": vocal_range,
                 "confidence": {
                     "level": "high",
                     "source": "user",
@@ -153,7 +206,7 @@ class RoleExtractor:
                 },
                 "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
                 "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
-                "setupNote": get_setup_note("Lead Vocal", ["C#m7"])
+                "setupNote": get_setup_note("Lead Vocal", [vocal_chord])
                 or "Watch the breath before the last line of the verse.",
                 "manualOverrides": [
                     {

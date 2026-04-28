@@ -7,6 +7,8 @@ BandScope is a local-first desktop app. Treat every file, URL, metadata field, p
 ## Reporting vulnerabilities
 
 - Prefer GitHub private vulnerability reporting or a GitHub Security Advisory draft when the repository has that feature enabled.
+- For secure reporting of any vulnerability, please email `seonghobae@example.com` or open a [Private Vulnerability Report](https://github.com/seonghobae/bandscope/security/advisories/new) securely.
+- We expect vulnerability disclosure timelines to follow coordinated practices, generally providing a 90 days expectation to fix before public disclosure.
 - If private reporting is not yet enabled, treat repository bootstrap as incomplete and escalate to the repository owner to enable it before public release.
 
 ## Source of truth

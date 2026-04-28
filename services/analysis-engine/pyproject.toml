@@ -8,15 +8,19 @@ version = "0.1.0"
 description = "BandScope local-first analysis engine"
 requires-python = ">=3.12"
 dependencies = [
+    "librosa>=0.11.0",
+    "numba<0.63.0",
+    "soundfile>=0.13.1",
     "yt-dlp>=2026.3.17",
 ]
 
 [dependency-groups]
 dev = [
+  "bandit>=1.7.7",
   "mypy>=1.15.0",
-  "pytest>=8.3.5",
+  "pytest>=9.0.3",
   "pytest-cov>=6.0.0",
-  "ruff>=0.11.0"
+  "ruff>=0.11.0",
 ]
 
 [tool.hatch.build.targets.wheel]

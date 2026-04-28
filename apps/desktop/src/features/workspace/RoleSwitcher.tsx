@@ -6,6 +6,7 @@ interface RoleSwitcherProps {
   onRoleChange: (roleId: string | null) => void;
 }
 
+/** Documented. */
 export function RoleSwitcher({ roles, activeRole, onRoleChange }: RoleSwitcherProps) {
   const t = createTranslator(detectPreferredLocale());
 

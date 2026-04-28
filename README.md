@@ -40,7 +40,7 @@ If GitHub-specific execution is required and no repo exists yet, treat that as b
 
 ## Current Status
 
-The core implementation backlog (Issue #26) has been successfully completed. BandScope now features a functioning local-first workflow, including audio intake, Python-based offline analysis, section/role extraction, manual user overrides, and CSV/JSON cue-sheet exports. The repository maintains 100% measured test coverage and 100% measured docstring coverage for the `services/analysis-engine` package and `apps/desktop` frontend components. TODO: Expand CI coverage threshold enforcement to all future sub-packages.
+The core implementation backlog (Issue #26) has been successfully completed. BandScope now features a functioning local-first workflow, including audio intake, Python-based offline analysis, section/role extraction, manual user overrides, and CSV/JSON cue-sheet exports. The repository maintains 100% measured test coverage and 100% measured docstring coverage for the `services/analysis-engine` package and `apps/desktop` frontend components. 
 
 ## Workspace layout
 

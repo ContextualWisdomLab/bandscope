@@ -1,8 +1,7 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 REQUIRED_FILES = [
     Path("package-lock.json"),
@@ -42,16 +41,10 @@ def verify_pinned_actions() -> list[str]:
         Path(".github/workflows").glob("*.yaml")
     )
     for path in workflow_paths:
-        for idx, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for idx, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if "uses:" not in line:
                 continue
-            if (
-                PINNED_ACTION.match(line)
-                or LOCAL_ACTION.match(line)
-                or DOCKER_ACTION.match(line)
-            ):
+            if PINNED_ACTION.match(line) or LOCAL_ACTION.match(line) or DOCKER_ACTION.match(line):
                 continue
             violations.append(f"{path}:{idx} -> workflow action must be pinned by SHA")
     return violations
@@ -95,9 +88,7 @@ def verify_workflow_coverage() -> list[str]:
     for token in ["develop", "main", "pull_request"]:
         if review and token not in review:
             missing.append(f"dependency review workflow missing trigger token: {token}")
-    audit = read_workflow(
-        Path(".github/workflows/security-audit.yml"), "security audit", missing
-    )
+    audit = read_workflow(Path(".github/workflows/security-audit.yml"), "security audit", missing)
     for token in ["develop", "main", "pull_request", "push"]:
         if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
@@ -122,9 +113,7 @@ def verify_workflow_coverage() -> list[str]:
     for token in ["develop", "main", "pull_request", "push", "secret-scan-gate"]:
         if secret_scan and token not in secret_scan:
             missing.append(f"secret scan workflow missing token: {token}")
-    build = read_workflow(
-        Path(".github/workflows/build-baseline.yml"), "build baseline", missing
-    )
+    build = read_workflow(Path(".github/workflows/build-baseline.yml"), "build baseline", missing)
     for token in [
         "develop",
         "main",
@@ -150,13 +139,9 @@ def verify_workflow_coverage() -> list[str]:
         if build and token not in build:
             missing.append(f"build workflow missing token: {token}")
     if build and "windows-latest" in build:
-        missing.append(
-            "build workflow should not rely on windows-latest for architecture coverage"
-        )
+        missing.append("build workflow should not rely on windows-latest for architecture coverage")
     if build and "macos-latest" in build:
-        missing.append(
-            "build workflow should not rely on macos-latest for architecture coverage"
-        )
+        missing.append("build workflow should not rely on macos-latest for architecture coverage")
     scorecard = read_workflow(
         Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
     )

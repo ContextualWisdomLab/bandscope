@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from conftest import load_module
 
 
@@ -55,7 +56,9 @@ def test_release_packaging_derives_artifact_identity_from_target_triple(
     }
 
 
-def test_expected_binary_path_uses_target_triple_when_provided(monkeypatch, tmp_path: Path) -> None:
+def test_expected_binary_path_uses_target_triple_when_provided(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Ensure target triples redirect packaging to the expected Tauri output path."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_target"
@@ -103,7 +106,7 @@ def test_expected_binary_path_derives_windows_extension_from_target_triple(
     )
 
 
-def test_release_packaging_maps_darwin_to_macos(monkeypatch) -> None:
+def test_release_packaging_maps_darwin_to_macos(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure Darwin hosts map to the repository's canonical macOS label."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_platform"
@@ -115,7 +118,9 @@ def test_release_packaging_maps_darwin_to_macos(monkeypatch) -> None:
     assert packaging.normalized_platform() == "macos"
 
 
-def test_release_packaging_main_writes_arch_specific_manifest(monkeypatch, tmp_path: Path) -> None:
+def test_release_packaging_main_writes_arch_specific_manifest(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Ensure the packaging entry point writes an architecture-aware manifest."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_main"
