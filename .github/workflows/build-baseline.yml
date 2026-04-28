@@ -87,17 +87,15 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: cargo +stable build --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target $env:BANDSCOPE_TARGET_TRIPLE
+        working-directory: apps/desktop
+        run: npx @tauri-apps/cli build --target $env:BANDSCOPE_TARGET_TRIPLE
       - name: Package Windows amd64 artifact
         run: python scripts/release/package_desktop_artifact.py
       - name: Upload Windows amd64 artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: bandscope-windows-amd64-${{ github.sha }}
-          path: |
-            artifacts/*.zip
-            artifacts/*.sha256
-            artifacts/*.manifest.txt
+          path: artifacts/*
 
   build-windows-arm64:
     name: build / windows / arm64
@@ -168,17 +166,15 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: cargo +stable build --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target $env:BANDSCOPE_TARGET_TRIPLE
+        working-directory: apps/desktop
+        run: npx @tauri-apps/cli build --target $env:BANDSCOPE_TARGET_TRIPLE
       - name: Package Windows arm64 artifact
         run: python scripts/release/package_desktop_artifact.py
       - name: Upload Windows arm64 artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: bandscope-windows-arm64-${{ github.sha }}
-          path: |
-            artifacts/*.zip
-            artifacts/*.sha256
-            artifacts/*.manifest.txt
+          path: artifacts/*
 
   gate-windows:
     name: gate / build / windows
@@ -226,17 +222,15 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: cargo +stable build --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target "$BANDSCOPE_TARGET_TRIPLE"
+        working-directory: apps/desktop
+        run: npx @tauri-apps/cli build --target "$BANDSCOPE_TARGET_TRIPLE"
       - name: Package macOS amd64 artifact
         run: python3 scripts/release/package_desktop_artifact.py
       - name: Upload macOS amd64 artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: bandscope-macos-amd64-${{ github.sha }}
-          path: |
-            artifacts/*.zip
-            artifacts/*.sha256
-            artifacts/*.manifest.txt
+          path: artifacts/*
 
   build-macos-arm64:
     name: build / macos / arm64
@@ -274,17 +268,15 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: cargo +stable build --manifest-path apps/desktop/src-tauri/Cargo.toml --release --locked --target "$BANDSCOPE_TARGET_TRIPLE"
+        working-directory: apps/desktop
+        run: npx @tauri-apps/cli build --target "$BANDSCOPE_TARGET_TRIPLE"
       - name: Package macOS arm64 artifact
         run: python3 scripts/release/package_desktop_artifact.py
       - name: Upload macOS arm64 artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: bandscope-macos-arm64-${{ github.sha }}
-          path: |
-            artifacts/*.zip
-            artifacts/*.sha256
-            artifacts/*.manifest.txt
+          path: artifacts/*
 
   gate-macos:
     name: gate / build / macos
@@ -315,7 +307,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 artifacts/*.manifest.txt --clobber --repo ${{ github.repository }}
+        run: gh release upload "$RELEASE_TAG" artifacts/* --clobber --repo ${{ github.repository }}
 
   attach-macos-release-artifact:
     name: release-artifact / macos
@@ -336,4 +328,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" artifacts/*.zip artifacts/*.sha256 artifacts/*.manifest.txt --clobber --repo ${{ github.repository }}
+        run: gh release upload "$RELEASE_TAG" artifacts/* --clobber --repo ${{ github.repository }}
