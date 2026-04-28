@@ -1,6 +1,6 @@
 {
-  "appTitle": "BandScope 부트스트랩",
-  "appSubtitle": "GitHub 거버넌스를 갖춘 로컬 우선 데스크톱 분석 기준선",
+  "appTitle": "BandScope",
+  "appSubtitle": "합주 준비를 위한 로컬-퍼스트 분석 도구",
   "homeCard": "홈 기준선이 연결되었습니다.",
   "playerCard": "플레이어 기준선이 연결되었습니다.",
   "chordsCard": "코드 분석 기준선이 연결되었습니다.",
