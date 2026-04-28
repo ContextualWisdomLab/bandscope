@@ -84,9 +84,7 @@ def test_find_installer_packages_returns_dmg(
     assert installers == [dmg_path]
 
 
-def test_find_installer_packages_returns_exe_and_msi(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_find_installer_packages_returns_exe_and_msi(monkeypatch, tmp_path: Path) -> None:
     """Ensure find_installer_packages finds exe and msi files."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_windows_target"
@@ -152,7 +150,7 @@ def test_release_packaging_main_writes_arch_specific_manifest(
     script_path = repo_root / "scripts" / "release" / "package_desktop_artifact.py"
     script_path.parent.mkdir(parents=True)
     script_path.write_text("# placeholder", encoding="utf-8")
-    
+
     dmg_path = (
         repo_root
         / "apps"
