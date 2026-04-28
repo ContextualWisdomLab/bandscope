@@ -87,10 +87,10 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     
     if bundle_dir.exists():
         # macOS DMG
-        installers.extend(bundle_dir.glob("dmg/*.dmg"))
+        installers.extend(bundle_dir.rglob("*.dmg"))
         # Windows EXE/MSI
-        installers.extend(bundle_dir.glob("nsis/*.exe"))
-        installers.extend(bundle_dir.glob("msi/*.msi"))
+        installers.extend(bundle_dir.rglob("*.exe"))
+        installers.extend(bundle_dir.rglob("*.msi"))
         
     return installers
 
