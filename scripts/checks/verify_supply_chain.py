@@ -1,8 +1,7 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 REQUIRED_FILES = [
     Path("package-lock.json"),
@@ -28,6 +27,9 @@ REQUIRED_FILES = [
 PINNED_ACTION = re.compile(r"^\s*-?\s*uses:\s+[^@\s]+@[0-9a-f]{40}(\s+#.*)?$")
 LOCAL_ACTION = re.compile(r"^\s*-?\s*uses:\s+\./")
 DOCKER_ACTION = re.compile(r"^\s*-?\s*uses:\s+docker://")
+NPX_PACKAGE = re.compile(
+    r"\bnpx\s+(?![^#\n]*--no-install)(?P<package>@[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|[A-Za-z0-9_.-]+)\b"
+)
 
 
 def verify_required_files() -> list[str]:
@@ -42,16 +44,10 @@ def verify_pinned_actions() -> list[str]:
         Path(".github/workflows").glob("*.yaml")
     )
     for path in workflow_paths:
-        for idx, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for idx, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if "uses:" not in line:
                 continue
-            if (
-                PINNED_ACTION.match(line)
-                or LOCAL_ACTION.match(line)
-                or DOCKER_ACTION.match(line)
-            ):
+            if PINNED_ACTION.match(line) or LOCAL_ACTION.match(line) or DOCKER_ACTION.match(line):
                 continue
             violations.append(f"{path}:{idx} -> workflow action must be pinned by SHA")
     return violations
@@ -95,9 +91,7 @@ def verify_workflow_coverage() -> list[str]:
     for token in ["develop", "main", "pull_request"]:
         if review and token not in review:
             missing.append(f"dependency review workflow missing trigger token: {token}")
-    audit = read_workflow(
-        Path(".github/workflows/security-audit.yml"), "security audit", missing
-    )
+    audit = read_workflow(Path(".github/workflows/security-audit.yml"), "security audit", missing)
     for token in ["develop", "main", "pull_request", "push"]:
         if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
@@ -122,15 +116,12 @@ def verify_workflow_coverage() -> list[str]:
     for token in ["develop", "main", "pull_request", "push", "secret-scan-gate"]:
         if secret_scan and token not in secret_scan:
             missing.append(f"secret scan workflow missing token: {token}")
-    build = read_workflow(
-        Path(".github/workflows/build-baseline.yml"), "build baseline", missing
-    )
+    build = read_workflow(Path(".github/workflows/build-baseline.yml"), "build baseline", missing)
     for token in [
         "develop",
         "main",
         "pull_request",
         "push",
-        "release:",
         "tags:",
         "windows-2025",
         "windows-11-arm",
@@ -138,25 +129,24 @@ def verify_workflow_coverage() -> list[str]:
         "macos-15",
         "gate / build / windows",
         "gate / build / macos",
-        "release-artifact / macos",
-        "release-artifact / windows",
+        "release-artifact / publish",
         "ubuntu-latest",
         "bandscope-windows-amd64-${{ github.sha }}",
         "bandscope-windows-arm64-${{ github.sha }}",
         "bandscope-macos-amd64-${{ github.sha }}",
         "bandscope-macos-arm64-${{ github.sha }}",
+        "bandscope-release-sbom-${{ github.sha }}",
+        "gh release create",
+        "--draft",
+        "--verify-tag",
         "Get-MpComputerStatus",
     ]:
         if build and token not in build:
             missing.append(f"build workflow missing token: {token}")
     if build and "windows-latest" in build:
-        missing.append(
-            "build workflow should not rely on windows-latest for architecture coverage"
-        )
+        missing.append("build workflow should not rely on windows-latest for architecture coverage")
     if build and "macos-latest" in build:
-        missing.append(
-            "build workflow should not rely on macos-latest for architecture coverage"
-        )
+        missing.append("build workflow should not rely on macos-latest for architecture coverage")
     scorecard = read_workflow(
         Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
     )
@@ -166,7 +156,50 @@ def verify_workflow_coverage() -> list[str]:
             for token in ["develop", "main", "push", "schedule", "ossf-scorecard"]
             if token not in scorecard
         )
+        if "main" in scorecard and "ossf/scorecard-action" in scorecard:
+            if "github.event.repository.default_branch" not in scorecard:
+                missing.append(
+                    "ossf scorecard workflow must guard Scorecard execution to the repository default branch"
+                )
     return missing
+
+
+def verify_immutable_release_upload_policy() -> list[str]:
+    """Return workflow violations that mutate immutable releases after publication."""
+    violations: list[str] = []
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for path in workflow_paths:
+        content = path.read_text(encoding="utf-8")
+        if "release:" not in content or "published" not in content:
+            continue
+        if "gh release upload" not in content:
+            continue
+        violations.append(
+            f"{path}: release published workflows must not upload GitHub Release assets; "
+            "immutable releases require draft-before-publish asset attachment"
+        )
+    return violations
+
+
+def verify_workflow_npx_policy() -> list[str]:
+    """Return workflow npx invocations that can fetch mutable npm packages."""
+    violations: list[str] = []
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for path in workflow_paths:
+        for idx, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            package_match = NPX_PACKAGE.search(line)
+            if package_match is None:
+                continue
+            package = package_match.group("package")
+            violations.append(
+                f"{path}:{idx} -> workflow npx package execution must use "
+                f"npm exec or npx --no-install: {package}"
+            )
+    return violations
 
 
 def main() -> int:
@@ -176,6 +209,8 @@ def main() -> int:
     violations.extend(verify_pinned_actions())
     violations.extend(verify_dependabot_coverage())
     violations.extend(verify_workflow_coverage())
+    violations.extend(verify_immutable_release_upload_policy())
+    violations.extend(verify_workflow_npx_policy())
 
     if violations:
         print("Supply-chain verification failed:")

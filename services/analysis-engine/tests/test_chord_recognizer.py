@@ -1,5 +1,6 @@
 """Tests for the chord recognizer module."""
 
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -19,10 +20,24 @@ def test_chord_recognizer_unvoiced_audio() -> None:
     recognizer = ChordRecognizer()
     # Create random noise
     np.random.seed(42)
-    y = np.random.randn(22050 * 2) * 0.1
+    y = np.random.randn(22050 * 3) * 0.1
     result = recognizer.recognize(y, sr=22050)
     # Could be N (No chord) or empty
     assert all(chord["chord"] in ("N", "Unknown", "") for chord in result) if result else True
+
+
+def test_chord_recognizer_short_audio_does_not_emit_fft_warnings() -> None:
+    """Short clips should not leak librosa FFT-size warnings."""
+    recognizer = ChordRecognizer()
+    np.random.seed(42)
+    y = np.random.randn(22050) * 0.1
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = recognizer.recognize(y, sr=22050)
+
+    assert isinstance(result, list)
+    assert not [warning for warning in caught if "n_fft=1024" in str(warning.message)]
 
 
 def test_chord_recognizer_c_major_chord() -> None:
@@ -44,40 +59,40 @@ def test_chord_recognizer_c_major_chord() -> None:
     assert "C" in identified_chords or "C:maj" in identified_chords
 
 
-def test_chord_recognizer_hpss_exception():
+def test_chord_recognizer_hpss_exception() -> None:
     """Test for test_chord_recognizer_hpss_exception."""
     recognizer = ChordRecognizer()
-    y = np.random.randn(22050)
+    y = np.random.randn(22050 * 3)
 
     with patch("librosa.effects.hpss", side_effect=Exception("HPSS Error")):
         chords = recognizer.recognize(y, sr=22050)
         assert isinstance(chords, list)
 
 
-def test_chord_recognizer_chroma_cqt_exception():
+def test_chord_recognizer_chroma_cqt_exception() -> None:
     """Test for test_chord_recognizer_chroma_cqt_exception."""
     recognizer = ChordRecognizer()
-    y = np.random.randn(22050)
+    y = np.random.randn(22050 * 3)
 
     with patch("librosa.feature.chroma_cqt", side_effect=Exception("CQT Error")):
         chords = recognizer.recognize(y, sr=22050)
         assert chords == []
 
 
-def test_chord_recognizer_rms_exception():
+def test_chord_recognizer_rms_exception() -> None:
     """Test for test_chord_recognizer_rms_exception."""
     recognizer = ChordRecognizer()
-    y = np.random.randn(22050)
+    y = np.random.randn(22050 * 3)
 
     with patch("librosa.feature.rms", side_effect=Exception("RMS Error")):
         chords = recognizer.recognize(y, sr=22050)
         assert isinstance(chords, list)
 
 
-def test_chord_recognizer_rms_padding():
+def test_chord_recognizer_rms_padding() -> None:
     """Test for test_chord_recognizer_rms_padding."""
     recognizer = ChordRecognizer()
-    y = np.random.randn(22050)
+    y = np.random.randn(22050 * 3)
 
     # Mock RMS to return something shorter than chromagram
     def mock_rms(*args, **kwargs):
@@ -88,10 +103,10 @@ def test_chord_recognizer_rms_padding():
         assert isinstance(chords, list)
 
 
-def test_chord_recognizer_empty_chromagram():
+def test_chord_recognizer_empty_chromagram() -> None:
     """Test for test_chord_recognizer_empty_chromagram."""
     recognizer = ChordRecognizer()
-    y = np.random.randn(22050)
+    y = np.random.randn(22050 * 3)
 
     # Mock chroma_cqt to return empty array
     with patch("librosa.feature.chroma_cqt", return_value=np.array([])):
@@ -99,10 +114,10 @@ def test_chord_recognizer_empty_chromagram():
         assert chords == []
 
 
-def test_chord_recognizer_rms_longer():
+def test_chord_recognizer_rms_longer() -> None:
     """Test for test_chord_recognizer_rms_longer."""
     recognizer = ChordRecognizer()
-    y = np.random.randn(22050)
+    y = np.random.randn(22050 * 3)
 
     # Mock RMS to return something longer than chromagram
     def mock_rms(*args, **kwargs):
@@ -114,11 +129,11 @@ def test_chord_recognizer_rms_longer():
         assert isinstance(chords, list)
 
 
-def test_chord_recognizer_changing_chords():
+def test_chord_recognizer_changing_chords() -> None:
     """Test for test_chord_recognizer_changing_chords."""
     recognizer = ChordRecognizer()
     sr = 22050
-    t1 = np.linspace(0, 2.0, sr * 2, endpoint=False)
+    t1 = np.linspace(0, 1.5, int(sr * 1.5), endpoint=False)
     # C major
     y1 = (
         np.sin(2 * np.pi * 261.63 * t1)
@@ -126,7 +141,7 @@ def test_chord_recognizer_changing_chords():
         + np.sin(2 * np.pi * 392.00 * t1)
     ) / 3.0
 
-    t2 = np.linspace(0, 2.0, sr * 2, endpoint=False)
+    t2 = np.linspace(0, 1.5, int(sr * 1.5), endpoint=False)
     # G major: G4 (392.00Hz), B4 (493.88Hz), D5 (587.33Hz)
     y2 = (
         np.sin(2 * np.pi * 392.00 * t2)

@@ -1,10 +1,11 @@
 """Tests for temporal analysis module."""
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
-import soundfile as sf
+import soundfile as sf  # type: ignore
 
 from bandscope_analysis.temporal import TemporalAnalyzer
 
@@ -45,11 +46,41 @@ def test_temporal_analyzer_basic(dummy_audio_file: Path) -> None:
 def test_temporal_analyzer_file_not_found() -> None:
     """Test that analyzer raises appropriate error for missing files."""
     analyzer = TemporalAnalyzer()
-    with pytest.raises(ValueError, match="Temporal analysis failed"):
+    with pytest.raises(FileNotFoundError, match="Audio file not found"):
         analyzer.analyze("nonexistent_file.wav")
 
 
-def test_temporal_analyzer_invalid_y_type(monkeypatch, tmp_path):
+def test_temporal_analyzer_missing_file_does_not_call_decoder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing paths should fail before librosa tries fallback decoders."""
+    import librosa
+
+    load_mock = Mock(side_effect=AssertionError("librosa.load should not be called"))
+    monkeypatch.setattr(librosa, "load", load_mock)
+
+    analyzer = TemporalAnalyzer()
+    with pytest.raises(FileNotFoundError, match="Audio file not found"):
+        analyzer.analyze("nonexistent_file.wav")
+    load_mock.assert_not_called()
+
+
+def test_temporal_analyzer_directory_does_not_call_decoder(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Directory paths should fail before librosa tries fallback decoders."""
+    import librosa
+
+    load_mock = Mock(side_effect=AssertionError("librosa.load should not be called"))
+    monkeypatch.setattr(librosa, "load", load_mock)
+
+    with pytest.raises(ValueError, match="Temporal analysis failed"):
+        TemporalAnalyzer().analyze(tmp_path)
+    load_mock.assert_not_called()
+
+
+def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Ensure temporal analyzer raises ValueError if librosa returns non-ndarray."""
     import librosa
 
@@ -63,8 +94,5 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch, tmp_path):
     test_wav = tmp_path / "test.wav"
     test_wav.write_bytes(b"dummy")
 
-    analyzer = TemporalAnalyzer()
-    import pytest
-
     with pytest.raises(ValueError, match="Expected numpy array"):
-        analyzer.analyze(test_wav)
+        TemporalAnalyzer().analyze(test_wav)

@@ -359,6 +359,10 @@ describe("shared type helpers", () => {
         {
           id: "verse-1",
           label: "verse",
+          timeRange: {
+            start: 10,
+            end: 30
+          },
           confidence: {
             level: "medium",
             source: "model"
@@ -634,6 +638,55 @@ describe("shared type helpers", () => {
         message: "sections[0].groove",
         payload: createInvalidSong((song) => {
           (song.sections[0] as RehearsalSong["sections"][number]).groove = 4 as never;
+        })
+      },
+      {
+        message: "sections[0].timeRange",
+        payload: createInvalidSong((song) => {
+          (song.sections[0] as unknown as Record<string, unknown>).timeRange = null;
+        })
+      },
+      {
+        message: "sections[0].timeRange.extraField",
+        payload: createInvalidSong((song) => {
+          (song.sections[0]!.timeRange as unknown as Record<string, unknown>).extraField = true;
+        })
+      },
+      {
+        message: "sections[0].timeRange.start",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.start = -1;
+        })
+      },
+      {
+        message: "sections[0].timeRange.start",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.start = 10.5;
+        })
+      },
+      {
+        message: "sections[0].timeRange.end",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.end = 10;
+        })
+      },
+      {
+        message: "sections[0].timeRange.end",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.end = 30.5;
+        })
+      },
+      {
+        message: "sections[0].timeRange.start",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.start = 4_294_967_296;
+          song.sections[0]!.timeRange.end = 4_294_967_297;
+        })
+      },
+      {
+        message: "sections[0].timeRange.end",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.end = 4_294_967_296;
         })
       },
       {

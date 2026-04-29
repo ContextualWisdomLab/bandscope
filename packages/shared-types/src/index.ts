@@ -13,6 +13,8 @@ const SECTION_FORM_LABELS = [
   "stop",
   "handoff"
 ] as const;
+export /** Documented. */
+const MAX_SECTION_TIME_SECONDS = 4_294_967_295;
 
 /** Documented. */
 export type SectionFormLabel = (typeof SECTION_FORM_LABELS)[number];
@@ -104,10 +106,17 @@ export type PartGraphNode = {
 };
 
 /** Documented. */
+export type SectionTimeRange = {
+  start: number;
+  end: number;
+};
+
+/** Documented. */
 export type RehearsalSection = {
   id: string;
   label: SectionFormLabel;
   groove: string;
+  timeRange: SectionTimeRange;
   confidence: ConfidenceMarker;
   roles: RehearsalRole[];
   partGraph: PartGraphNode[];
@@ -241,7 +250,6 @@ const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as cons
 const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
 const PACK_STATES = ["queued", "analyzing", "ready", "failed"] as const;
 
-
 /** Documented. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -281,6 +289,10 @@ const demoRehearsalSongSeed: RehearsalSong = {
       id: "verse-1",
       label: "verse",
       groove: "Straight eighths with a late snare feel",
+      timeRange: {
+        start: 10,
+        end: 30
+      },
       confidence: {
         level: "medium",
         source: "model",
@@ -968,11 +980,30 @@ function validatePartGraphNode(value: unknown, path: string): string | null {
 }
 
 /** Documented. */
+function validateSectionTimeRange(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["start", "end"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.start !== "number" || !Number.isFinite(value.start) || !Number.isInteger(value.start) || value.start < 0 || value.start > MAX_SECTION_TIME_SECONDS) {
+    return invalidField(`${path}.start`);
+  }
+  if (typeof value.end !== "number" || !Number.isFinite(value.end) || !Number.isInteger(value.end) || value.end <= value.start || value.end > MAX_SECTION_TIME_SECONDS) {
+    return invalidField(`${path}.end`);
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateRehearsalSection(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
-  const extraKey = unexpectedKey(value, ["id", "label", "groove", "confidence", "roles", "partGraph"], path);
+  const extraKey = unexpectedKey(value, ["id", "label", "groove", "timeRange", "confidence", "roles", "partGraph"], path);
   if (extraKey) {
     return extraKey;
   }
@@ -984,6 +1015,11 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
   }
   if (typeof value.groove !== "string") {
     return invalidField(`${path}.groove`);
+  }
+
+  const timeRangeError = validateSectionTimeRange(value.timeRange, `${path}.timeRange`);
+  if (timeRangeError) {
+    return timeRangeError;
   }
 
   const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);

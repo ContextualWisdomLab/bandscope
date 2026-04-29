@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from conftest import load_module
 
 
-def test_supply_chain_check_requires_multi_arch_runner_labels(monkeypatch, tmp_path: Path) -> None:
+def test_supply_chain_check_requires_multi_arch_runner_labels(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Ensure missing multi-arch workflow tokens are reported as violations."""
     supply_chain = load_module("scripts/checks/verify_supply_chain.py", "verify_supply_chain")
 
@@ -52,7 +55,9 @@ jobs:
     assert "build workflow missing token: Get-MpComputerStatus" in violations
 
 
-def test_supply_chain_check_accepts_repo_multi_arch_workflow(monkeypatch) -> None:
+def test_supply_chain_check_accepts_repo_multi_arch_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Ensure the checked-in multi-arch workflow satisfies the baseline policy."""
     supply_chain = load_module("scripts/checks/verify_supply_chain.py", "verify_supply_chain_repo")
     repo_root = Path(__file__).resolve().parents[3]
@@ -69,3 +74,133 @@ def test_supply_chain_check_accepts_repo_multi_arch_workflow(monkeypatch) -> Non
     assert (
         "build workflow should not rely on macos-latest for architecture coverage" not in violations
     )
+
+
+def test_supply_chain_check_requires_ossf_default_branch_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure OSSF Scorecard is not invoked on non-default release branches."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_guard"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        """
+name: ossf-scorecard
+on:
+  push:
+    branches:
+      - develop
+      - main
+  schedule:
+    - cron: '30 1 * * 1'
+jobs:
+  analysis:
+    name: ossf-scorecard
+    steps:
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard workflow must guard Scorecard execution to the repository default branch"
+        in violations
+    )
+
+
+def test_supply_chain_check_rejects_release_published_asset_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure immutable releases are not mutated after publication."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_immutable_release_upload"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "sbom.yml").write_text(
+        """
+name: sbom
+on:
+  release:
+    types:
+      - published
+jobs:
+  release-sbom:
+    steps:
+      - name: Attach SBOM to GitHub Release
+        run: gh release upload "$RELEASE_TAG" bandscope-sbom.cdx.json --clobber
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    assert hasattr(supply_chain, "verify_immutable_release_upload_policy")
+    violations = supply_chain.verify_immutable_release_upload_policy()
+
+    assert (
+        ".github/workflows/sbom.yml: release published workflows must not upload GitHub "
+        "Release assets; immutable releases require draft-before-publish asset attachment"
+    ) in violations
+
+
+def test_supply_chain_check_accepts_immutable_release_safe_workflows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure checked-in workflows avoid release-published asset mutation."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_immutable_release_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    monkeypatch.chdir(repo_root)
+
+    assert hasattr(supply_chain, "verify_immutable_release_upload_policy")
+    violations = supply_chain.verify_immutable_release_upload_policy()
+
+    assert not violations
+
+
+def test_supply_chain_check_rejects_bare_workflow_npx_package_fetch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure workflow package execution cannot rely on bare npx package lookup."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_npx_policy"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        run: npx @tauri-apps/cli build --target x86_64-pc-windows-msvc
+        """.strip(),
+        encoding="utf-8",
+    )
+    (tmp_path / "package-lock.json").write_text(
+        '{"packages":{"node_modules/@tauri-apps/cli":{"version":"2.10.1"}}}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    assert hasattr(supply_chain, "verify_workflow_npx_policy")
+    violations = supply_chain.verify_workflow_npx_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml:6 -> workflow npx package execution "
+        "must use npm exec or npx --no-install: @tauri-apps/cli"
+    ) in violations

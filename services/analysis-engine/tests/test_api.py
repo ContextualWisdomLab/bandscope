@@ -2,6 +2,7 @@
 
 from bandscope_analysis.api import (
     build_demo_rehearsal_song,
+    build_section_time_range,
     get_analysis_status,
     run_analysis_job,
     validate_analysis_job_request,
@@ -205,8 +206,23 @@ def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
     song = build_demo_rehearsal_song()
 
     assert song["title"] == "Late Night Set"
+    assert song["sections"][0]["timeRange"] == {"start": 10, "end": 30}
     assert song["sections"][0]["roles"][0]["id"] == "bass-guitar"
     assert song["sections"][0]["roles"][4]["manualOverrides"][0]["value"]["source"] == "user"
+
+
+def test_build_section_time_range_matches_desktop_bounds() -> None:
+    """Ensure Python output cannot exceed the shared Rust u32 timing contract."""
+    assert build_section_time_range(10, 30) == {"start": 10, "end": 30}
+
+    cases = [(-1, 30), (10, 10), (10.5, 30), (10, 4_294_967_296)]
+    for start, end in cases:
+        try:
+            build_section_time_range(start, end)  # type: ignore[arg-type]
+        except ValueError as error:
+            assert "timeRange" in str(error)
+        else:
+            raise AssertionError(f"Expected ValueError for {start!r}..{end!r}")
 
 
 def test_run_analysis_job_returns_success_and_failure_envelopes() -> None:
