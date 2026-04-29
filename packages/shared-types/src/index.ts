@@ -1078,6 +1078,37 @@ function validateExportSummary(value: unknown, path: string): string | null {
 }
 
 /** Documented. */
+function legacySectionTimeRange(index: number): SectionTimeRange {
+  return {
+    start: index,
+    end: index + 1
+  };
+}
+
+/** Documented. */
+function migrateLegacySectionTimeRanges(value: unknown): unknown {
+  if (!isRecord(value) || !isDenseArray(value.sections)) {
+    return value;
+  }
+
+  const migrated = structuredClone(value) as Record<string, unknown> & {
+    sections: unknown[];
+  };
+  migrated.sections = migrated.sections.map((section, index) => {
+    if (!isRecord(section) || section.timeRange !== undefined) {
+      return section;
+    }
+
+    return {
+      ...section,
+      timeRange: legacySectionTimeRange(index)
+    };
+  });
+
+  return migrated;
+}
+
+/** Documented. */
 function validateRehearsalSong(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
@@ -1112,12 +1143,13 @@ export function isRehearsalSong(value: unknown): value is RehearsalSong {
 
 /** Documented. */
 export function parseRehearsalSong(value: unknown): RehearsalSong {
-  const validationError = validateRehearsalSong(value);
+  const migratedValue = migrateLegacySectionTimeRanges(value);
+  const validationError = validateRehearsalSong(migratedValue);
   if (validationError) {
     throw new Error(validationError);
   }
 
-  return structuredClone(value as RehearsalSong);
+  return structuredClone(migratedValue as RehearsalSong);
 }
 
 

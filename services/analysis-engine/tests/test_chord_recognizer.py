@@ -37,7 +37,7 @@ def test_chord_recognizer_short_audio_does_not_emit_fft_warnings() -> None:
         result = recognizer.recognize(y, sr=22050)
 
     assert isinstance(result, list)
-    assert not [warning for warning in caught if "n_fft=1024" in str(warning.message)]
+    assert not [warning for warning in caught if "n_fft" in str(warning.message)]
 
 
 def test_chord_recognizer_c_major_chord() -> None:

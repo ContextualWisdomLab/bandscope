@@ -75,7 +75,7 @@ def test_temporal_analyzer_directory_does_not_call_decoder(
     load_mock = Mock(side_effect=AssertionError("librosa.load should not be called"))
     monkeypatch.setattr(librosa, "load", load_mock)
 
-    with pytest.raises(ValueError, match="Temporal analysis failed"):
+    with pytest.raises(FileNotFoundError, match="Audio file not found"):
         TemporalAnalyzer().analyze(tmp_path)
     load_mock.assert_not_called()
 

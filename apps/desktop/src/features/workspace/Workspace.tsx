@@ -37,7 +37,7 @@ function SongStructure({ sections }: { sections: RehearsalSong["sections"] }) {
         className="overflow-x-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,35,0.96),rgba(2,6,23,0.98))]"
         aria-label="Scrollable song structure timeline"
       >
-        <div className="grid min-w-[720px]" style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(8rem, 1fr))` }}>
+        <div className="grid min-w-[720px]" style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}>
           {sections.map((section) => (
             <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
               <p className="text-sm font-black text-white">

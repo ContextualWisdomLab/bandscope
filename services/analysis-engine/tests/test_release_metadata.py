@@ -36,6 +36,13 @@ def test_tauri_release_version_matches_root_package() -> None:
     assert tauri_config["version"] == root_package_version()
 
 
+def test_version_file_matches_root_package() -> None:
+    """Ensure the plain VERSION source cannot drift from release metadata."""
+    version_file = (repo_root() / "VERSION").read_text(encoding="utf-8").strip()
+
+    assert version_file == root_package_version()
+
+
 def test_changelog_contains_root_package_release_entry() -> None:
     """Ensure release branches document the package version being shipped."""
     changelog = (repo_root() / "CHANGELOG.md").read_text(encoding="utf-8")

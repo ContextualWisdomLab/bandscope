@@ -127,6 +127,82 @@ def test_find_installer_packages_returns_exe_and_msi(monkeypatch, tmp_path: Path
     assert set(installers) == {exe_path, msi_path}
 
 
+def test_find_installer_packages_ignores_unexpected_nested_executables(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure installer discovery is limited to Tauri's expected bundle folders."""
+    packaging = load_module(
+        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_nested"
+    )
+
+    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
+    expected_path = (
+        tmp_path
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "x86_64-pc-windows-msvc"
+        / "release"
+        / "bundle"
+        / "nsis"
+        / "Installer.exe"
+    )
+    stray_path = expected_path.parents[1] / "tools" / "helper.exe"
+    expected_path.parent.mkdir(parents=True)
+    expected_path.write_bytes(b"installer")
+    stray_path.parent.mkdir(parents=True)
+    stray_path.write_bytes(b"helper")
+
+    assert packaging.find_installer_packages(tmp_path) == [expected_path]
+
+
+def test_release_packaging_main_keeps_same_extension_installers_unique(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure duplicate installer extensions do not overwrite each other."""
+    packaging = load_module(
+        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_duplicate_ext"
+    )
+    repo_root = tmp_path / "repo"
+    script_path = repo_root / "scripts" / "release" / "package_desktop_artifact.py"
+    script_path.parent.mkdir(parents=True)
+    script_path.write_text("# placeholder", encoding="utf-8")
+
+    nsis_path = (
+        repo_root
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "x86_64-pc-windows-msvc"
+        / "release"
+        / "bundle"
+        / "nsis"
+    )
+    first_path = nsis_path / "Setup.exe"
+    second_path = nsis_path / "Setup-Web.exe"
+    nsis_path.mkdir(parents=True)
+    first_path.write_bytes(b"first")
+    second_path.write_bytes(b"second")
+
+    monkeypatch.setattr(packaging, "__file__", str(script_path))
+    monkeypatch.setenv("GITHUB_SHA", "abcdef1234567890")
+    monkeypatch.setenv("BANDSCOPE_ARTIFACT_OS", "windows")
+    monkeypatch.setenv("BANDSCOPE_ARTIFACT_ARCH", "amd64")
+    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
+
+    assert packaging.main() == 0
+
+    archives = sorted((repo_root / "artifacts").glob("*.exe"))
+    assert [archive.name for archive in archives] == [
+        "bandscope-windows-amd64-abcdef123456-Setup-Web.exe",
+        "bandscope-windows-amd64-abcdef123456-Setup.exe",
+    ]
+    assert archives[0].read_bytes() == b"second"
+    assert archives[1].read_bytes() == b"first"
+
+
 def test_release_packaging_maps_darwin_to_macos(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure Darwin hosts map to the repository's canonical macOS label."""
     packaging = load_module(

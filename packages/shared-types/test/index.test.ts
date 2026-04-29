@@ -18,6 +18,7 @@ import {
   type AnalysisJobRequest,
   type LocalAudioSource,
   type RehearsalSong,
+  MAX_SECTION_TIME_SECONDS,
   SUPPORTED_AUDIO_FORMATS
 } from "../src/index";
 
@@ -471,6 +472,12 @@ describe("shared type helpers", () => {
 
     expect(parsed.sections[0]?.roles).toHaveLength(2);
     expect(song.sections[0]?.roles).toHaveLength(3);
+    const legacySong = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacySong.sections[0]!.timeRange;
+    const migrated = parseRehearsalSong(legacySong);
+    expect(migrated.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
     expect(() => parseRehearsalSong(null)).toThrow("Invalid rehearsal song contract");
     expect(() => parseRehearsalSong({
       id: "bad",
@@ -679,14 +686,14 @@ describe("shared type helpers", () => {
       {
         message: "sections[0].timeRange.start",
         payload: createInvalidSong((song) => {
-          song.sections[0]!.timeRange.start = 4_294_967_296;
-          song.sections[0]!.timeRange.end = 4_294_967_297;
+          song.sections[0]!.timeRange.start = MAX_SECTION_TIME_SECONDS + 1;
+          song.sections[0]!.timeRange.end = MAX_SECTION_TIME_SECONDS + 2;
         })
       },
       {
         message: "sections[0].timeRange.end",
         payload: createInvalidSong((song) => {
-          song.sections[0]!.timeRange.end = 4_294_967_296;
+          song.sections[0]!.timeRange.end = MAX_SECTION_TIME_SECONDS + 1;
         })
       },
       {

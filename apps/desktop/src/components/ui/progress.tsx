@@ -1,6 +1,7 @@
 "use client"
 
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress"
+import { Children } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -11,6 +12,8 @@ function Progress({
   value,
   ...props
 }: ProgressPrimitive.Root.Props) {
+  const hasCustomChildren = Children.count(children) > 0
+
   return (
     <ProgressPrimitive.Root
       value={value}
@@ -19,9 +22,11 @@ function Progress({
       {...props}
     >
       {children}
-      <ProgressTrack>
-        <ProgressIndicator />
-      </ProgressTrack>
+      {!hasCustomChildren && (
+        <ProgressTrack>
+          <ProgressIndicator />
+        </ProgressTrack>
+      )}
     </ProgressPrimitive.Root>
   )
 }

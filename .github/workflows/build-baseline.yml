@@ -344,10 +344,27 @@ jobs:
             echo "Release $RELEASE_TAG already exists; immutable release assets must be attached before publication."
             exit 1
           fi
+          shopt -s nullglob
+          release_assets=(
+            artifacts/*windows-amd64*.exe
+            artifacts/*windows-amd64*.msi
+            artifacts/*windows-amd64*.sha256
+            artifacts/*windows-amd64*.manifest.txt
+            artifacts/*windows-arm64*.exe
+            artifacts/*windows-arm64*.msi
+            artifacts/*windows-arm64*.sha256
+            artifacts/*windows-arm64*.manifest.txt
+            artifacts/*macos-amd64*.dmg
+            artifacts/*macos-amd64*.sha256
+            artifacts/*macos-amd64*.manifest.txt
+            artifacts/*macos-arm64*.dmg
+            artifacts/*macos-arm64*.sha256
+            artifacts/*macos-arm64*.manifest.txt
+            bandscope-sbom.cdx.json
+            supply-chain/supplemental-component-inventory.json
+          )
           gh release create "$RELEASE_TAG" \
-            artifacts/* \
-            bandscope-sbom.cdx.json \
-            supply-chain/supplemental-component-inventory.json \
+            "${release_assets[@]}" \
             --draft \
             --generate-notes \
             --title "BandScope ${RELEASE_TAG#v}" \

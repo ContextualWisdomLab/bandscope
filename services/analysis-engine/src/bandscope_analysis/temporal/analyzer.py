@@ -34,16 +34,14 @@ class TemporalAnalyzer:
         Returns:
             TemporalFeatures containing BPM and beat grids.
         """
-        path_str = str(audio_path)
-        if not Path(audio_path).exists():
+        audio_file = Path(audio_path)
+        path_str = str(audio_file)
+        if not audio_file.exists() or not audio_file.is_file():
             raise FileNotFoundError(f"Audio file not found: {path_str}")
 
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
-            if not Path(audio_path).is_file():
-                raise FileNotFoundError(path_str)
-
             import warnings
 
             with warnings.catch_warnings():

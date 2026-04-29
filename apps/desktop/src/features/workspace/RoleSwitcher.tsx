@@ -8,6 +8,27 @@ interface RoleSwitcherProps {
   onRoleChange: (roleId: string | null) => void;
 }
 
+const ALL_ROLES_VALUE = "__bandscope_all_roles__";
+const ROLE_VALUE_PREFIX = "role:";
+
+/** Documented. */
+function roleTabValue(roleId: string): string {
+  return `${ROLE_VALUE_PREFIX}${roleId}`;
+}
+
+/** Documented. */
+function tabValueToRoleId(value: string): string | null {
+  if (value === ALL_ROLES_VALUE) {
+    return null;
+  }
+
+  if (value.startsWith(ROLE_VALUE_PREFIX)) {
+    return value.slice(ROLE_VALUE_PREFIX.length);
+  }
+
+  return value;
+}
+
 /** Documented. */
 export function RoleSwitcher({ roles, activeRole, onRoleChange }: RoleSwitcherProps) {
   const t = createTranslator(detectPreferredLocale());
@@ -19,22 +40,22 @@ export function RoleSwitcher({ roles, activeRole, onRoleChange }: RoleSwitcherPr
         {t("roleSwitcherTitle")}
       </div>
       <Tabs
-        value={activeRole === null ? "all" : activeRole}
-        onValueChange={(val) => onRoleChange(val === "all" ? null : val)}
+        value={activeRole === null ? ALL_ROLES_VALUE : roleTabValue(activeRole)}
+        onValueChange={(val) => onRoleChange(tabValueToRoleId(val))}
         className="w-full sm:w-auto"
       >
         <TabsList className="h-auto w-full flex-wrap justify-start border border-white/10 bg-white/[0.05] p-1 sm:h-10 sm:w-auto">
           <TabsTrigger
-            value="all"
-            className="rounded-md px-4 text-slate-300 data-[state=active]:bg-cyan-300 data-[state=active]:text-slate-950 data-[state=active]:shadow-[0_8px_24px_rgba(34,211,238,0.24)]"
+            value={ALL_ROLES_VALUE}
+            className="rounded-md px-4 text-slate-300 data-active:bg-cyan-300 data-active:text-slate-950 data-active:shadow-[0_8px_24px_rgba(34,211,238,0.24)]"
           >
             {t("allRoles")}
           </TabsTrigger>
           {roles.map((role) => (
             <TabsTrigger
               key={role.id}
-              value={role.id}
-              className="rounded-md px-4 text-slate-300 data-[state=active]:bg-cyan-300 data-[state=active]:text-slate-950 data-[state=active]:shadow-[0_8px_24px_rgba(34,211,238,0.24)]"
+              value={roleTabValue(role.id)}
+              className="rounded-md px-4 text-slate-300 data-active:bg-cyan-300 data-active:text-slate-950 data-active:shadow-[0_8px_24px_rgba(34,211,238,0.24)]"
             >
               {role.name}
             </TabsTrigger>

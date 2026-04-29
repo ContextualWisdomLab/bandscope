@@ -30,6 +30,11 @@ DOCKER_ACTION = re.compile(r"^\s*-?\s*uses:\s+docker://")
 NPX_PACKAGE = re.compile(
     r"\bnpx\s+(?![^#\n]*--no-install)(?P<package>@[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|[A-Za-z0-9_.-]+)\b"
 )
+OSSF_DEFAULT_BRANCH_PUBLISH_GUARD = (
+    "publish_results: ${{ github.ref == format('refs/heads/{0}', "
+    "github.event.repository.default_branch) }}"
+)
+RELEASE_BROAD_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*(?:\s|\\|$)")
 
 
 def verify_required_files() -> list[str]:
@@ -161,6 +166,10 @@ def verify_workflow_coverage() -> list[str]:
                 missing.append(
                     "ossf scorecard workflow must guard Scorecard execution to the repository default branch"
                 )
+            if "publish_results:" in scorecard and OSSF_DEFAULT_BRANCH_PUBLISH_GUARD not in scorecard:
+                missing.append(
+                    "ossf scorecard publish_results must use the repository default branch guard"
+                )
     return missing
 
 
@@ -202,6 +211,32 @@ def verify_workflow_npx_policy() -> list[str]:
     return violations
 
 
+def verify_release_asset_allowlist_policy() -> list[str]:
+    """Return release workflows that upload arbitrary artifact directory contents."""
+    violations: list[str] = []
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for path in workflow_paths:
+        content = path.read_text(encoding="utf-8")
+        if "gh release create" not in content:
+            continue
+        in_release_create = False
+        for line in content.splitlines():
+            if "gh release create" in line:
+                in_release_create = True
+            if not in_release_create:
+                continue
+            if RELEASE_BROAD_ARTIFACT_GLOB.search(line):
+                violations.append(
+                    f"{path}: release asset upload must use an explicit allowlist, not artifacts/*"
+                )
+                break
+            if not line.rstrip().endswith("\\"):
+                in_release_create = False
+    return violations
+
+
 def main() -> int:
     """Return a failing exit code when supply-chain controls are incomplete."""
     violations: list[str] = []
@@ -210,6 +245,7 @@ def main() -> int:
     violations.extend(verify_dependabot_coverage())
     violations.extend(verify_workflow_coverage())
     violations.extend(verify_immutable_release_upload_policy())
+    violations.extend(verify_release_asset_allowlist_policy())
     violations.extend(verify_workflow_npx_policy())
 
     if violations:

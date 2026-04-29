@@ -127,12 +127,6 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                               : "text-cyan-100"
                           }`}
                           onClick={() => handleChordEdit(section.id, role)}
-                          onKeyDown={(e) => {
-                            if (onSongUpdate && (e.key === "Enter" || e.key === " ")) {
-                              e.preventDefault();
-                              handleChordEdit(section.id, role);
-                            }
-                          }}
                           title={onSongUpdate ? "Click to edit chord" : undefined}
                           disabled={!onSongUpdate}
                         >

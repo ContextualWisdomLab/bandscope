@@ -115,6 +115,47 @@ jobs:
     )
 
 
+def test_supply_chain_check_rejects_hardcoded_ossf_publish_results_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard publish settings follow the repository default branch."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_publish"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        """
+name: ossf-scorecard
+on:
+  push:
+    branches:
+      - develop
+      - main
+  schedule:
+    - cron: '30 1 * * 1'
+jobs:
+  analysis:
+    name: ossf-scorecard
+    steps:
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        with:
+          publish_results: ${{ github.ref == 'refs/heads/develop' }}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard publish_results must use the repository default branch guard" in violations
+    )
+
+
 def test_supply_chain_check_rejects_release_published_asset_upload(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -169,6 +210,46 @@ def test_supply_chain_check_accepts_immutable_release_safe_workflows(
     assert not violations
 
 
+def test_supply_chain_check_rejects_release_artifact_wildcard_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure draft-release creation cannot attach arbitrary files from artifacts/."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_release_allowlist"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: |
+          windows_amd64=(artifacts/*windows-amd64*)
+      - name: Create draft release with complete assets, then publish
+        run: |
+          gh release create "$RELEASE_TAG" \
+            artifacts/* \
+            bandscope-sbom.cdx.json \
+            --draft
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    assert hasattr(supply_chain, "verify_release_asset_allowlist_policy")
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use an explicit "
+        "allowlist, not artifacts/*" in violations
+    )
+
+
 def test_supply_chain_check_rejects_bare_workflow_npx_package_fetch(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -200,7 +281,8 @@ jobs:
     assert hasattr(supply_chain, "verify_workflow_npx_policy")
     violations = supply_chain.verify_workflow_npx_policy()
 
-    assert (
-        ".github/workflows/build-baseline.yml:6 -> workflow npx package execution "
-        "must use npm exec or npx --no-install: @tauri-apps/cli"
-    ) in violations
+    assert any(
+        "workflow npx package execution must use npm exec or npx --no-install: @tauri-apps/cli"
+        in violation
+        for violation in violations
+    )

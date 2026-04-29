@@ -180,8 +180,13 @@ export function App() {
           setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
         }
       } catch {
-        setJobStatus(null);
         setJobError(t("analysisCouldNotStart"));
+        setJobStatus((currentStatus) =>
+          currentStatus?.jobId === jobStatus.jobId &&
+          (currentStatus.state === "queued" || currentStatus.state === "running")
+            ? { ...currentStatus }
+            : currentStatus
+        );
       }
     }, ANALYSIS_POLL_INTERVAL_MS);
 

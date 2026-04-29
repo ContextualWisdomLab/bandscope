@@ -6,6 +6,13 @@ const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
 
+type TauriWindow = Window & {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI_INVOKE__?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+};
+
+const tauriWindow = window as TauriWindow;
+
 vi.mock("./lib/analysis", async (importActual) => {
   const actual = await importActual<typeof import("./lib/analysis")>();
 
@@ -16,23 +23,6 @@ vi.mock("./lib/analysis", async (importActual) => {
       sourceLabel: "Late Night Set",
       roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
     }),
-    selectLocalAudioSource: async () => {
-      const response = await tauriInvoke("select_local_audio_source", undefined);
-      if (response?.code) {
-        return { ok: false, error: response };
-      }
-
-      return { ok: true, bootstrap: response };
-    },
-    startAnalysisJob: (request: unknown) => tauriInvoke("start_analysis_job", { request }),
-    getAnalysisJobStatus: (jobId: string) => tauriInvoke("get_analysis_job_status", { jobId }),
-    importYoutubeUrl: async (url: string) => {
-      const response = await tauriInvoke("import_youtube_url", { url });
-      if (response?.code) {
-        return { ok: false, error: response };
-      }
-      return { ok: true, bootstrap: response };
-    },
     loadProject: () => mockLoadProject(),
     saveProject: (song: unknown) => mockSaveProject(song)
   };
@@ -124,11 +114,58 @@ function succeededResult() {
   };
 }
 
+function bootstrapResponse(overrides: Record<string, unknown> = {}) {
+  const source = {
+    sourcePath: "/Users/test/Music/late-night-set.wav",
+    fileName: "late-night-set.wav",
+    extension: "wav",
+    fileSizeBytes: 1024000
+  };
+  const { source: sourceOverride, ...restOverrides } = overrides;
+
+  return {
+    projectId: "project-1",
+    sourceMode: "reference",
+    projectRoot: "/tmp/bandscope/projects/project-1",
+    cacheRoot: "/tmp/bandscope/cache/project-1",
+    tempRoot: "/tmp/bandscope/temp/project-1",
+    ...restOverrides,
+    source: {
+      ...source,
+      ...((sourceOverride as Record<string, unknown> | undefined) ?? {})
+    }
+  };
+}
+
+function jobStatusResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    jobId: "job-1",
+    state: "queued",
+    requestedAt: "2026-03-12T00:00:00.000Z",
+    updatedAt: "2026-03-12T00:00:00.000Z",
+    progressLabel: "Queued for analysis",
+    ...overrides
+  };
+}
+
+function failedJobStatus(jobId: string, message: string) {
+  return jobStatusResponse({
+    jobId,
+    state: "failed",
+    error: {
+      code: "engine_unavailable",
+      message
+    }
+  });
+}
+
 describe("App", () => {
   beforeEach(() => {
     tauriInvoke.mockReset();
     mockLoadProject.mockReset();
     mockSaveProject.mockReset();
+    delete tauriWindow.__TAURI_INTERNALS__;
+    tauriWindow.__TAURI_INVOKE__ = tauriInvoke;
   });
 
   it("renders the rehearsal cockpit shell before analysis starts", () => {
@@ -220,26 +257,12 @@ describe("App", () => {
 
   it("selects a local audio source and starts a local-audio analysis job", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        projectRoot: "/tmp/bandscope/projects/project-1",
-        cacheRoot: "/tmp/bandscope/cache/project-1",
-        tempRoot: "/tmp/bandscope/temp/project-1",
-        source: {
-          sourcePath: "/Users/test/Music/late-night-set.wav",
-          fileName: "late-night-set.wav",
-          extension: "wav",
-          fileSizeBytes: 1024000
-        }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-local-1",
         state: "queued",
-        requestedAt: "2026-03-12T00:00:00.000Z",
-        updatedAt: "2026-03-12T00:00:00.000Z",
         progressLabel: "Queued for analysis"
-      })
+      }))
       .mockResolvedValueOnce(succeededResult());
 
     render(<App />);
@@ -265,10 +288,7 @@ describe("App", () => {
   });
 
   it("shows a safe file-intake error for unsupported local audio selection", async () => {
-    tauriInvoke.mockResolvedValueOnce({
-      code: "unsupported_file",
-      message: "Choose a WAV, MP3, FLAC, or M4A file to start analysis."
-    });
+    tauriInvoke.mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."));
 
     render(<App />);
 
@@ -282,7 +302,7 @@ describe("App", () => {
   });
 
   it("falls back to generic local-audio error copy when selection omits a message", async () => {
-    tauriInvoke.mockResolvedValueOnce({
+    tauriInvoke.mockRejectedValueOnce({
       code: "unsupported_file"
     });
 
@@ -297,10 +317,7 @@ describe("App", () => {
   });
 
   it("preserves safe file-read failure copy from the intake bridge", async () => {
-    tauriInvoke.mockResolvedValueOnce({
-      code: "invalid_request",
-      message: "Could not read the selected audio file."
-    });
+    tauriInvoke.mockRejectedValueOnce(new Error("Could not read the selected audio file."));
 
     render(<App />);
 
@@ -314,26 +331,12 @@ describe("App", () => {
 
   it("starts an analysis job and renders the returned rehearsal result", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        projectRoot: "/tmp/bandscope/projects/project-1",
-        cacheRoot: "/tmp/bandscope/cache/project-1",
-        tempRoot: "/tmp/bandscope/temp/project-1",
-        source: {
-          sourcePath: "/Users/test/Music/late-night-set.wav",
-          fileName: "late-night-set.wav",
-          extension: "wav",
-          fileSizeBytes: 1024000
-        }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-1",
         state: "queued",
-        requestedAt: "2026-03-12T00:00:00.000Z",
-        updatedAt: "2026-03-12T00:00:00.000Z",
         progressLabel: "Queued for analysis"
-      })
+      }))
       .mockResolvedValueOnce(succeededResult());
 
     render(<App />);
@@ -366,20 +369,13 @@ describe("App", () => {
 
   it("shows a safe failed status when the job poll returns an error", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-2",
-        state: "running"
-      })
-      .mockResolvedValueOnce({
-        jobId: "job-2",
-        state: "failed",
-        error: { message: "Analysis engine is unavailable." }
-      });
+        state: "running",
+        progressLabel: "Running analysis"
+      }))
+      .mockResolvedValueOnce(failedJobStatus("job-2", "Analysis engine is unavailable."));
 
     render(<App />);
 
@@ -396,15 +392,12 @@ describe("App", () => {
 
   it("falls back to a generic failure message when the engine omits details", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-3",
-        state: "running"
-      })
+        state: "running",
+        progressLabel: "Running analysis"
+      }))
       .mockResolvedValueOnce({
         jobId: "job-3",
         state: "failed",
@@ -423,18 +416,16 @@ describe("App", () => {
     });
   });
 
-  it("shows a generic failure when polling rejects", async () => {
+  it("keeps polling the active job when one polling request rejects", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-4",
-        state: "running"
-      })
-      .mockRejectedValueOnce(new Error("transport down"));
+        state: "running",
+        progressLabel: "Running analysis"
+      }))
+      .mockRejectedValueOnce(new Error("transport down"))
+      .mockResolvedValueOnce(succeededResult());
 
     render(<App />);
 
@@ -446,15 +437,15 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/analysis could not start/i)).toBeTruthy();
     });
+    expect(screen.getByRole("button", { name: /start analysis/i }).hasAttribute("disabled")).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
   });
 
   it("shows a generic failure when starting the job rejects", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
+      .mockResolvedValueOnce(bootstrapResponse())
       .mockRejectedValueOnce(new Error("invoke failed"));
 
     render(<App />);
@@ -471,16 +462,8 @@ describe("App", () => {
 
   it("shows the direct failure message when start returns a failed job", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
-        jobId: "job-5",
-        state: "failed",
-        error: { message: "Analysis queue is full. Please wait for a running job to finish." }
-      });
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(failedJobStatus("job-5", "Analysis queue is full. Please wait for a running job to finish."));
 
     render(<App />);
 
@@ -496,11 +479,7 @@ describe("App", () => {
 
   it("falls back to generic text when start returns a failed job without details", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
+      .mockResolvedValueOnce(bootstrapResponse())
       .mockResolvedValueOnce({
         jobId: "job-6",
         state: "failed"
@@ -520,11 +499,7 @@ describe("App", () => {
 
   it("renders the result immediately when start returns a succeeded job", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
+      .mockResolvedValueOnce(bootstrapResponse())
       .mockResolvedValueOnce(succeededResult());
 
     render(<App />);
@@ -570,10 +545,7 @@ describe("App", () => {
   });
 
   it("handles YouTube import failure with a message", async () => {
-    tauriInvoke.mockResolvedValueOnce({
-      code: "youtube_import_failed",
-      message: "This video is age restricted."
-    });
+    tauriInvoke.mockRejectedValueOnce(new Error("This video is age restricted."));
 
     render(<App />);
 
@@ -600,7 +572,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Network Error/i)).toBeTruthy();
     });
   });
 
@@ -865,10 +837,7 @@ describe("App", () => {
   });
 
   it("handles YouTube import failure with a missing message falling back to generic", async () => {
-    tauriInvoke.mockResolvedValueOnce({
-      code: "youtube_import_failed",
-      message: "" // Missing message
-    });
+    tauriInvoke.mockRejectedValueOnce(new Error(""));
 
     render(<App />);
 
