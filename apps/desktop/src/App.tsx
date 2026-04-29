@@ -1,29 +1,62 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  AudioWaveform,
+  CircleHelp,
+  Clock3,
+  CloudOff,
+  FileMusic,
+  FolderOpen,
+  Gauge,
+  Home,
+  KeyRound,
+  ListMusic,
+  Music2,
+  Play,
+  Save,
+  Settings,
+  SlidersHorizontal,
+  Sparkles,
+  Star,
+  Upload,
+  Users,
+  Wand2
+} from "lucide-react";
 import {
   SUPPORTED_AUDIO_FORMATS,
-  type AnalysisJobStatus,
   type AnalysisJobRequest,
+  type AnalysisJobStatus,
   type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
 import {
   createDefaultAnalysisRequest,
   getAnalysisJobStatus,
-  selectLocalAudioSource,
   importYoutubeUrl,
-  startAnalysisJob,
+  isSupportedYoutubeUrl,
   loadProject,
-  saveProject
+  saveProject,
+  selectLocalAudioSource,
+  startAnalysisJob
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
-import { EmptyState, LoadingState, ErrorState } from "./features/workspace/WorkspaceStates";
+import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
+
+const NAV_ITEMS = [
+  { label: "Workspace", icon: Home, active: true },
+  { label: "Import", icon: Upload, active: false },
+  { label: "Export", icon: Save, active: false },
+  { label: "Sections", icon: ListMusic, active: false },
+  { label: "Roles", icon: Users, active: false },
+  { label: "Stem Lab", icon: AudioWaveform, active: false },
+  { label: "Cues", icon: Sparkles, active: false },
+  { label: "Transpose", icon: SlidersHorizontal, active: false },
+  { label: "Notes", icon: FileMusic, active: false }
+] as const;
 
 /** Documented. */
 function progressMessage(
@@ -43,6 +76,71 @@ function progressMessage(
 }
 
 /** Documented. */
+function MetricCard({
+  icon,
+  label,
+  value,
+  detail,
+  accent = "text-cyan-300"
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+  accent?: string;
+}) {
+  return (
+    <article className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/65 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-300/40">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_35%)] opacity-60 transition group-hover:opacity-100" />
+      <div className="relative flex items-start gap-3">
+        <div className={`rounded-xl bg-white/5 p-2 ${accent}`}>{icon}</div>
+        <div>
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-white">{value}</p>
+          <p className="mt-1 text-sm text-slate-400">{detail}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Documented. */
+function ConfidenceMetric({ song }: { song: RehearsalSong | null }) {
+  const sectionCount = song?.sections.length ?? 0;
+  const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
+  const lowestConfidence = song?.sections.reduce<RehearsalSong["sections"][number]["confidence"]["level"] | null>(
+    (current, section) => {
+      if (!current || confidenceOrder[section.confidence.level] < confidenceOrder[current]) {
+        return section.confidence.level;
+      }
+      return current;
+    },
+    null
+  );
+  const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : "Ready";
+  const detail = sectionCount > 0 ? `${sectionCount} section${sectionCount === 1 ? "" : "s"}` : "Local analysis";
+
+  return (
+    <MetricCard
+      icon={<Gauge className="size-5" aria-hidden="true" />}
+      label="Confidence"
+      value={confidence}
+      detail={detail}
+      accent="text-emerald-300"
+    />
+  );
+}
+
+/** Documented. */
+function priorityLabel(song: RehearsalSong | null): string {
+  const firstFocus = song?.exportSummary?.focusSections?.[0];
+  if (firstFocus) {
+    return firstFocus;
+  }
+  return song?.sections?.[0]?.label ?? "Pick track";
+}
+
+/** Documented. */
 export function App() {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
@@ -54,7 +152,7 @@ export function App() {
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
-  
+
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
     ? {
@@ -136,14 +234,7 @@ export function App() {
       return;
     }
 
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(normalizedUrl);
-    } catch {
-      setSelectionError(t("youtubeImportFailed"));
-      return;
-    }
-    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+    if (!isSupportedYoutubeUrl(normalizedUrl)) {
       setSelectionError(t("youtubeImportFailed"));
       return;
     }
@@ -214,130 +305,231 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-950 font-sans selection:bg-zinc-200">
-      <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
-        <header className="mb-12 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl text-zinc-900 mb-2">{t("appTitle")}</h1>
-            <p className="text-lg text-zinc-500 tracking-tight font-medium max-w-2xl">{t("appSubtitle")}</p>
-          </div>
-          <Button 
-            variant="outline" 
-            size="lg"
-            onClick={handleSaveProject} 
-            disabled={!jobResult}
-            className="shadow-sm font-semibold transition-all hover:shadow-md"
-            aria-label="Save Project"
-          >
-            Save Project
-          </Button>
-        </header>
+    <div className="min-h-screen overflow-x-hidden bg-[#020713] text-slate-100 selection:bg-cyan-300/30">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
+      <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px]" />
 
-        <Card className="border-zinc-200 shadow-sm mb-12 overflow-hidden bg-white">
-          <CardContent className="p-6 md:p-8">
-            <div className="flex flex-col lg:flex-row gap-8 items-start lg:items-center justify-between">
-              
-              {/* Actions Area */}
-              <div className="flex flex-wrap items-center gap-4 w-full">
-                <Button 
-                  onClick={handleChooseLocalAudio} 
+      <div className="relative flex min-h-screen">
+        <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-slate-950/72 px-5 py-5 shadow-[24px_0_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex lg:flex-col">
+          <div className="mb-7 flex items-center gap-2" aria-hidden="true">
+            <span className="size-3 rounded-full bg-red-400" />
+            <span className="size-3 rounded-full bg-amber-300" />
+            <span className="size-3 rounded-full bg-emerald-400" />
+          </div>
+
+          <div className="mb-9 flex items-center gap-3">
+            <div className="grid size-11 place-items-center rounded-2xl border border-cyan-300/50 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.35)]">
+              <AudioWaveform className="size-6 text-cyan-300" aria-hidden="true" />
+            </div>
+            <div className="text-2xl font-black tracking-tight">
+              Band<span className="text-cyan-300">Scope</span>
+            </div>
+          </div>
+
+          <nav aria-label="Primary rehearsal views" className="space-y-2">
+            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
+              <button
+                key={label}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                aria-disabled={active ? undefined : true}
+                disabled={!active}
+                title={active ? undefined : "Coming soon"}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                  active
+                    ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
+                    : "cursor-not-allowed text-slate-500 opacity-70"
+                }`}
+              >
+                <Icon className="size-5" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="mt-auto space-y-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                <CloudOff className="size-4 text-cyan-300" aria-hidden="true" />
+                Local-first
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Local project data stays on this device. YouTube import contacts the source provider only when you choose it.
+              </p>
+              <div className="mt-3 h-14 overflow-hidden rounded-xl bg-[linear-gradient(90deg,rgba(34,211,238,.12),rgba(124,58,237,.12))]">
+                <div className="flex h-full items-end gap-0.5 px-2 pb-1" aria-hidden="true">
+                  {Array.from({ length: 34 }).map((_, index) => (
+                    <span
+                      key={index}
+                      className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"
+                      style={{ height: `${14 + ((index * 19) % 38)}px` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-slate-400">
+              <button type="button" aria-label="Settings coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <Settings className="size-5" aria-hidden="true" />
+              </button>
+              <button type="button" aria-label="Help coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <CircleHelp className="size-5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
+          <nav aria-label="Compact rehearsal views" className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
+            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
+              <button
+                key={label}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                aria-label={`${label} compact view`}
+                aria-disabled={active ? undefined : true}
+                disabled={!active}
+                title={active ? undefined : "Coming soon"}
+                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold ${
+                  active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
+                }`}
+              >
+                <Icon className="size-4" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          <header className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
+            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
+            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
+            <ConfidenceMetric song={jobResult} />
+            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(jobResult)} detail={jobResult?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
+          </header>
+
+          <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+            <div className="grid gap-4 2xl:grid-cols-[1.4fr_minmax(0,1fr)_auto] 2xl:items-center">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.26em] text-cyan-300">
+                  {jobResult ? "READY • REHEARSAL" : "SYNCED • LOCAL"}
+                </p>
+                <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                  {jobResult ? "Rehearsal Console" : "Workspace Home"}
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                  {jobResult?.exportSummary?.headline ?? "Turn a song into a practical rehearsal view."}
+                </p>
+              </div>
+
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center 2xl:grid-cols-[auto_1fr]">
+                <Button
+                  onClick={handleChooseLocalAudio}
                   disabled={analysisInFlight || isStarting || isImporting}
                   variant="secondary"
-                  className="font-semibold shadow-sm"
+                  className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
                   aria-label="Choose local audio"
                 >
+                  <Upload className="mr-2 size-4" aria-hidden="true" />
                   {t("chooseLocalAudio")}
                 </Button>
-                
-                <div className="flex flex-1 min-w-[280px] max-w-sm items-center gap-2 relative">
-                  <Input 
-                    type="text" 
-                    placeholder={t("youtubePlaceholder")} 
+
+                <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
+                  <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
+                  <Input
+                    type="text"
+                    placeholder={t("youtubePlaceholder")}
                     value={youtubeUrl}
                     onChange={(e) => setYoutubeUrl(e.target.value)}
                     disabled={analysisInFlight || isStarting || isImporting}
-                    className="flex-1 bg-zinc-50 focus-visible:ring-zinc-400"
+                    className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                     aria-label="YouTube URL"
                   />
-                  <Button 
-                    onClick={handleImportYoutube} 
+                  <Button
+                    onClick={handleImportYoutube}
                     disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
                     variant="outline"
-                    className="font-medium bg-zinc-50 hover:bg-zinc-100"
+                    className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                     aria-label="Import YouTube"
                   >
                     {isImporting ? t("importingYoutube") : t("importYoutube")}
                   </Button>
                 </div>
+              </div>
 
-                <Separator orientation="vertical" className="hidden lg:block h-10" />
-                
-                <Button 
-                  onClick={handleLoadProject} 
+              <div className="flex flex-wrap justify-start gap-2 2xl:justify-end">
+                <Button
+                  onClick={handleLoadProject}
                   disabled={analysisInFlight || isStarting}
                   variant="outline"
-                  className="font-medium bg-zinc-50 hover:bg-zinc-100"
+                  className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label="Open Project"
                 >
+                  <FolderOpen className="mr-2 size-4" aria-hidden="true" />
                   Open Project
                 </Button>
-
-                <div className="ml-auto">
-                  <Button 
-                    onClick={handleStartAnalysis} 
-                    disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
-                    size="lg"
-                    className="font-bold shadow-md hover:shadow-lg transition-all"
-                    aria-label="Start analysis"
-                  >
-                    {t("startAnalysis")}
-                  </Button>
-                </div>
+                <Button
+                  onClick={jobResult ? handleSaveProject : undefined}
+                  disabled={!jobResult}
+                  variant="outline"
+                  className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                  aria-label="Save Project"
+                >
+                  <Save className="mr-2 size-4" aria-hidden="true" />
+                  Save Project
+                </Button>
+                <Button
+                  onClick={handleStartAnalysis}
+                  disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                  size="lg"
+                  className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
+                  aria-label="Start analysis"
+                >
+                  <Play className="mr-2 size-4 fill-current" aria-hidden="true" />
+                  {t("startAnalysis")}
+                </Button>
               </div>
             </div>
 
-            {/* Status Information */}
-            <div className="mt-8 pt-6 border-t border-zinc-100 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="text-zinc-500 font-medium">
-                <span className="text-zinc-400 uppercase tracking-wider text-xs font-bold mr-2">Formats</span>
+            <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 text-sm text-slate-400 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <span className="mr-2 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">Formats</span>
                 {SUPPORTED_AUDIO_FORMATS.join(", ")}
               </div>
-              
-              <div className="flex flex-col sm:flex-row sm:items-center gap-x-6 gap-y-2">
+
+              <div className="flex flex-wrap items-center gap-3">
                 {selectedBootstrap && (
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-                    <span className="font-semibold text-zinc-700 truncate max-w-[200px]" title={selectedBootstrap.source.fileName}>
-                      {selectedBootstrap.source.fileName}
-                    </span>
+                  <div className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 font-semibold text-emerald-200" title={selectedBootstrap.source.fileName}>
+                    {selectedBootstrap.source.fileName}
                   </div>
                 )}
-                
+
                 {jobStatus && (
-                  <div className="flex items-center text-zinc-900 font-semibold bg-zinc-100 px-3 py-1 rounded-md">
-                    {jobStatus.state === 'running' && (
-                      <span className="inline-block w-4 h-4 border-2 border-zinc-300 border-t-zinc-900 rounded-full animate-spin mr-2"></span>
-                    )}
+                  <div
+                    className="inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 font-semibold text-cyan-100"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    {jobStatus.state === "running" && <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-cyan-100/30 border-t-cyan-200" />}
                     {progressMessage(t, jobStatus.state)}
                   </div>
                 )}
-                
+
                 {selectionError && (
-                  <div className="text-rose-600 font-medium bg-rose-50 px-3 py-1 rounded-md border border-rose-100 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
+                  <div className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
                     {selectionError}
                   </div>
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </section>
 
-        <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-          {renderWorkspaceState()}
-        </section>
+          <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
+            {renderWorkspaceState()}
+          </section>
+        </main>
       </div>
     </div>
   );

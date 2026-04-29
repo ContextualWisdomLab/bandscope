@@ -62,7 +62,7 @@ function getInvoke(): TauriInvoke | null {
 }
 
 /** Documented. */
-function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
+export function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
   if (typeof rawUrl !== "string") {
     return false;
   }
@@ -85,8 +85,8 @@ function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
   }
 
   if (host === "youtube.com" || host.endsWith(".youtube.com")) {
-    const videoIds = parsedUrl.searchParams.getAll("v").filter((value) => value.trim().length > 0);
-    return parsedUrl.pathname === "/watch" && videoIds.length === 1;
+    const videoIds = parsedUrl.searchParams.getAll("v");
+    return parsedUrl.pathname === "/watch" && videoIds.length === 1 && videoIds[0]!.trim().length > 0;
   }
 
   return false;
@@ -243,6 +243,16 @@ export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobSt
 
 /** Documented. */
 export async function importYoutubeUrl(url: string): Promise<LocalAudioSelectionResult> {
+  if (!isSupportedYoutubeUrl(url)) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Only standard YouTube URLs are supported."
+      }
+    };
+  }
+
   try {
     const response = await invokeAnalysis("import_youtube_url", { url });
     return {

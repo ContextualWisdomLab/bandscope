@@ -77,4 +77,34 @@ describe("analysis bridge", () => {
     });
     expect(selection.ok).toBe(true);
   });
+
+  it("rejects unsupported YouTube URLs before crossing the Tauri bridge", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn();
+
+    const selection = await importYoutubeUrl("http://youtube.com/watch?v=4ozX4yFUC34");
+
+    expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Only standard YouTube URLs are supported."
+      }
+    });
+  });
+
+  it("rejects duplicate YouTube video identifiers before crossing the Tauri bridge", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn();
+
+    const selection = await importYoutubeUrl("https://youtube.com/watch?v=4ozX4yFUC34&v=");
+
+    expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Only standard YouTube URLs are supported."
+      }
+    });
+  });
 });
