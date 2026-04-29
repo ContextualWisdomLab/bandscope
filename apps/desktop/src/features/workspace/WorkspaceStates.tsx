@@ -6,13 +6,13 @@ import { Loader2, Music, AlertCircle } from "lucide-react";
 export function EmptyState() {
   const t = createTranslator(detectPreferredLocale());
   return (
-    <Card className="border-dashed border-2 bg-transparent shadow-none">
+    <Card className="border-2 border-dashed border-cyan-300/20 bg-slate-950/50 shadow-[0_18px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
       <CardContent className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="rounded-full bg-zinc-100 p-6 mb-6 text-zinc-400 border border-zinc-200 shadow-sm">
-          <Music className="w-10 h-10" />
+        <div className="mb-6 rounded-full border border-cyan-300/30 bg-cyan-300/10 p-6 text-cyan-200 shadow-[0_0_38px_rgba(34,211,238,0.18)]">
+          <Music className="size-10" aria-hidden="true" />
         </div>
-        <h3 className="text-xl font-semibold text-zinc-900 mb-2">Ready to Analyze</h3>
-        <p className="text-zinc-500 max-w-sm">{t("workspaceEmptyState")}</p>
+        <h3 className="mb-2 text-xl font-black text-white">Ready to Analyze</h3>
+        <p className="max-w-sm text-slate-400">{t("workspaceEmptyState")}</p>
       </CardContent>
     </Card>
   );
@@ -22,11 +22,17 @@ export function EmptyState() {
 export function LoadingState() {
   const t = createTranslator(detectPreferredLocale());
   return (
-    <Card className="border-zinc-200 bg-white">
+    <Card
+      className="border-cyan-300/20 bg-slate-950/75 shadow-[0_18px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-busy="true"
+    >
       <CardContent className="flex flex-col items-center justify-center py-24 text-center">
-        <Loader2 className="w-12 h-12 animate-spin text-zinc-400 mb-6" />
-        <h3 className="text-xl font-semibold text-zinc-900 mb-2">Analyzing Audio</h3>
-        <p className="text-zinc-500 max-w-sm animate-pulse">{t("workspaceLoadingState")}</p>
+        <Loader2 className="mb-6 size-12 animate-spin text-cyan-300" aria-hidden="true" />
+        <h3 className="mb-2 text-xl font-black text-white">Analyzing Audio</h3>
+        <p className="max-w-sm animate-pulse text-slate-400">{t("workspaceLoadingState")}</p>
       </CardContent>
     </Card>
   );
@@ -36,13 +42,13 @@ export function LoadingState() {
 export function ErrorState({ error }: { error?: string }) {
   const t = createTranslator(detectPreferredLocale());
   return (
-    <Card className="border-rose-200 bg-rose-50 shadow-sm">
+    <Card className="border-rose-300/30 bg-rose-950/40 shadow-[0_18px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl" role="alert" aria-live="assertive" aria-atomic="true">
       <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="rounded-full bg-rose-100 p-4 mb-4 text-rose-600 shadow-sm border border-rose-200">
-          <AlertCircle className="w-8 h-8" />
+        <div className="mb-4 rounded-full border border-rose-300/30 bg-rose-300/10 p-4 text-rose-200 shadow-sm">
+          <AlertCircle className="size-8" aria-hidden="true" />
         </div>
-        <h3 className="text-lg font-semibold text-rose-900 mb-2">{t("workspaceErrorState")}</h3>
-        {error && <p className="text-rose-700 bg-rose-100/50 px-4 py-2 rounded-md font-medium text-sm mt-2">{error}</p>}
+        <h3 className="mb-2 text-lg font-black text-rose-100">{t("workspaceErrorState")}</h3>
+        {error && <p className="mt-2 rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">{error}</p>}
       </CardContent>
     </Card>
   );

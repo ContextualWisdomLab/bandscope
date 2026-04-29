@@ -6,32 +6,37 @@ const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
 
-vi.mock("./lib/analysis", () => ({
-  createDefaultAnalysisRequest: () => ({
-    sourceKind: "demo",
-    sourceLabel: "Late Night Set",
-    roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
-  }),
-  selectLocalAudioSource: async () => {
-    const response = await tauriInvoke("select_local_audio_source", undefined);
-    if (response?.code) {
-      return { ok: false, error: response };
-    }
+vi.mock("./lib/analysis", async (importActual) => {
+  const actual = await importActual<typeof import("./lib/analysis")>();
 
-    return { ok: true, bootstrap: response };
-  },
-  startAnalysisJob: (request: unknown) => tauriInvoke("start_analysis_job", { request }),
-  getAnalysisJobStatus: (jobId: string) => tauriInvoke("get_analysis_job_status", { jobId }),
-  importYoutubeUrl: async (url: string) => {
-    const response = await tauriInvoke("import_youtube_url", { url });
-    if (response?.code) {
-      return { ok: false, error: response };
-    }
-    return { ok: true, bootstrap: response };
-  },
-  loadProject: () => mockLoadProject(),
-  saveProject: (song: unknown) => mockSaveProject(song)
-}));
+  return {
+    ...actual,
+    createDefaultAnalysisRequest: () => ({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
+    }),
+    selectLocalAudioSource: async () => {
+      const response = await tauriInvoke("select_local_audio_source", undefined);
+      if (response?.code) {
+        return { ok: false, error: response };
+      }
+
+      return { ok: true, bootstrap: response };
+    },
+    startAnalysisJob: (request: unknown) => tauriInvoke("start_analysis_job", { request }),
+    getAnalysisJobStatus: (jobId: string) => tauriInvoke("get_analysis_job_status", { jobId }),
+    importYoutubeUrl: async (url: string) => {
+      const response = await tauriInvoke("import_youtube_url", { url });
+      if (response?.code) {
+        return { ok: false, error: response };
+      }
+      return { ok: true, bootstrap: response };
+    },
+    loadProject: () => mockLoadProject(),
+    saveProject: (song: unknown) => mockSaveProject(song)
+  };
+});
 
 function succeededResult() {
   return {
@@ -46,7 +51,7 @@ function succeededResult() {
       sections: [
         {
           id: "verse-1",
-          label: "Verse 1",
+          label: "verse",
           groove: "Straight eighths with a late snare feel",
           timeRange: { start: 10, end: 30 },
           confidence: {
@@ -112,8 +117,8 @@ function succeededResult() {
       ],
       exportSummary: {
         format: "cue-sheet",
-        headline: "Start with Verse 1 entrances before the chorus lift.",
-        focusSections: ["Verse 1"]
+        headline: "Start with verse entrances before the chorus lift.",
+        focusSections: ["verse"]
       }
     }
   };
@@ -124,6 +129,93 @@ describe("App", () => {
     tauriInvoke.mockReset();
     mockLoadProject.mockReset();
     mockSaveProject.mockReset();
+  });
+
+  it("renders the rehearsal cockpit shell before analysis starts", () => {
+    render(<App />);
+
+    expect(screen.getByRole("navigation", { name: /primary rehearsal views/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Workspace Home/i })).toBeTruthy();
+    expect(screen.getByText(/SYNCED • LOCAL/i)).toBeTruthy();
+    expect(screen.getByText(/Turn a song into a practical rehearsal view\./i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
+    expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
+    expect(screen.getByText(/^Key$/i)).toBeTruthy();
+    expect(screen.getByText(/Local-first/i)).toBeTruthy();
+    expect(screen.getByText(/Local project data stays on this device/i)).toBeTruthy();
+    expect(screen.getByText(/YouTube import contacts the source provider/i)).toBeTruthy();
+  });
+
+  it("renders the loaded song as a dark rehearsal command board", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+    });
+    expect(screen.getByText(/Roles & Harmony/i)).toBeTruthy();
+    expect(screen.getByText(/Stems/i)).toBeTruthy();
+    expect(screen.getByText(/Rehearsal Priorities/i)).toBeTruthy();
+    expect(screen.getByText(/Export Cue Sheet/i)).toBeTruthy();
+  });
+
+  it("renders a rehearsal song structure timeline from real section ranges", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Song Structure/i })).toBeTruthy();
+    });
+    expect(screen.getByText(/verse · 0:10–0:30/i)).toBeTruthy();
+    expect(screen.getByText(/Rehearsal timeline/i)).toBeTruthy();
+    expect(screen.queryByText(/Mock-board/i)).toBeNull();
+    const timelineRegion = screen.getByRole("region", { name: /scrollable song structure timeline/i });
+    expect(timelineRegion.className).toContain("overflow-x-auto");
+    expect(timelineRegion.getAttribute("tabindex")).toBe("0");
+    expect(screen.queryByLabelText(/decorative waveform overview/i)).toBeNull();
+  });
+
+  it("does not show unavailable analysis metrics as detected facts", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    expect(screen.queryByText(/128 BPM/i)).toBeNull();
+    expect(screen.queryByText(/E Major/i)).toBeNull();
+    expect(screen.queryByText(/86%/i)).toBeNull();
+    expect(screen.queryByText(/entry, dropout/i)).toBeNull();
+    expect(screen.queryByText(/Preview-ready lanes/i)).toBeNull();
+    expect(screen.getAllByText(/Pending/i).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("summarizes confidence from the lowest-confidence loaded section", async () => {
+    const loadedProject = succeededResult().result;
+    loadedProject.sections.push({
+      ...loadedProject.sections[0],
+      id: "chorus-1",
+      label: "chorus",
+      confidence: { level: "high", source: "model", notes: "The chorus form is clear." }
+    });
+    mockLoadProject.mockResolvedValueOnce(loadedProject);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^Medium$/i)).toBeTruthy();
+    });
+    expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
   it("selects a local audio source and starts a local-audio analysis job", async () => {
@@ -185,6 +277,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
     });
+    expect(screen.getByRole("alert").textContent).toMatch(/choose a wav, mp3, flac, or m4a file/i);
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
   });
 
@@ -255,6 +348,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/queued for analysis/i)).toBeTruthy();
     });
+    expect(screen.getAllByRole("status").some((status) => /queued for analysis/i.test(status.textContent ?? ""))).toBe(true);
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
@@ -297,6 +391,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/analysis engine is unavailable/i)).toBeTruthy();
     });
+    expect(screen.getByRole("alert").textContent).toMatch(/analysis engine is unavailable/i);
   });
 
   it("falls back to a generic failure message when the engine omits details", async () => {
@@ -546,6 +641,45 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
     });
+  });
+
+  it("rejects non-allowlisted YouTube URL intake before invoking the bridge", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://example.com/watch?v=123" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+    expect(tauriInvoke).not.toHaveBeenCalled();
+  });
+
+  it("rejects downgraded YouTube URL intake before invoking the bridge", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "http://youtube.com/watch?v=123" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+    expect(tauriInvoke).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate YouTube video parameters even when one is blank", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123&v=" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+    expect(tauriInvoke).not.toHaveBeenCalled();
   });
 
 
