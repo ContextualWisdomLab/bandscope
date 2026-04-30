@@ -207,6 +207,139 @@ jobs:
     )
 
 
+def test_supply_chain_check_rejects_ossf_publish_job_run_steps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard publishing jobs satisfy OSSF uses-only restrictions."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_uses_only"
+    )
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    scorecard_action = (
+        "      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on:",
+                "  push:",
+                "    branches:",
+                "      - develop",
+                "      - main",
+                "  schedule:",
+                "    - cron: '30 1 * * 1'",
+                "jobs:",
+                "  analysis:",
+                "    name: ossf-scorecard",
+                "    steps:",
+                "      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2",
+                scorecard_action,
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "      - name: Skip OSSF Scorecard on non-default branch",
+                f"        if: github.ref != {default_branch_ref}",
+                '        run: echo "skip"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert any(
+        "ossf scorecard publishing job must only contain uses steps; split run steps "
+        "into a separate non-publishing job" in violation
+        for violation in violations
+    )
+
+
+def test_supply_chain_check_rejects_ossf_publish_run_steps_in_any_workflow(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure OSSF publishing restrictions follow Scorecard if it moves workflows."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_any_workflow"
+    )
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    scorecard_action = (
+        "      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on: push",
+                "jobs:",
+                "  analysis:",
+                "    name: ossf-scorecard",
+                "    steps:",
+                "      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2",
+                scorecard_action,
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (workflow_dir / "scorecard-security-gate.yml").write_text(
+        "\n".join(
+            [
+                "name: scorecard-security-gate",
+                "on: push",
+                "jobs:",
+                "  moved-scorecard:",
+                "    steps:",
+                scorecard_action,
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "      - name: extra diagnostics",
+                '        run: echo "this breaks OSSF publishing"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert any(
+        violation.startswith(".github/workflows/scorecard-security-gate.yml:")
+        and "ossf scorecard publishing job must only contain uses steps" in violation
+        for violation in violations
+    )
+
+
+def test_supply_chain_check_accepts_repo_ossf_publish_restrictions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure checked-in OSSF Scorecard workflow follows publish restrictions."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    monkeypatch.chdir(repo_root)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert not any("ossf scorecard" in violation for violation in violations)
+
+
 def test_supply_chain_check_rejects_release_published_asset_upload(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

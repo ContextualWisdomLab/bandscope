@@ -39,6 +39,10 @@ OSSF_DEFAULT_BRANCH_PUBLISH_GUARD = (
     "publish_results: ${{ github.ref == format('refs/heads/{0}', "
     "github.event.repository.default_branch) }}"
 )
+OSSF_PUBLISH_USES_ONLY_VIOLATION = (
+    "ossf scorecard publishing job must only contain uses steps; split run steps "
+    "into a separate non-publishing job"
+)
 RELEASE_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*")
 RELEASE_ASSET_VALIDATOR = (
     "scripts/release/select_release_assets.py --output release-assets.txt"
@@ -248,6 +252,60 @@ def read_workflow(path: Path, label: str, missing: list[str]) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def ossf_scorecard_publish_restriction_violations(
+    content: str, path: Path | None = None
+) -> list[str]:
+    """Return OSSF publishing job violations that GitHub cannot publish."""
+    violations: list[str] = []
+    current_job_lines: list[str] = []
+    current_job_start_line = 0
+    in_jobs = False
+
+    def evaluate_job(job_lines: list[str], start_line: int) -> None:
+        if not job_lines:
+            return
+        job_content = "\n".join(job_lines)
+        if "ossf/scorecard-action" not in job_content:
+            return
+        if "publish_results:" not in job_content:
+            return
+        has_run_step = any(
+            stripped.startswith("run:") or re.match(r"^-\s+run:", stripped)
+            for stripped in (line.strip() for line in job_lines)
+        )
+        if has_run_step:
+            if path is None:
+                violations.append(OSSF_PUBLISH_USES_ONLY_VIOLATION)
+            else:
+                violations.append(
+                    f"{path}:{start_line or 1} -> {OSSF_PUBLISH_USES_ONLY_VIOLATION}"
+                )
+
+    for idx, line in enumerate(content.splitlines(), start=1):
+        indent = len(line) - len(line.lstrip(" "))
+        stripped = line.strip()
+        if indent == 0 and stripped == "jobs:":
+            in_jobs = True
+            continue
+        if not in_jobs:
+            continue
+        if indent == 0 and stripped:
+            evaluate_job(current_job_lines, current_job_start_line)
+            current_job_lines = []
+            current_job_start_line = 0
+            in_jobs = False
+            continue
+        if indent == 2 and stripped.endswith(":") and not stripped.startswith("-"):
+            evaluate_job(current_job_lines, current_job_start_line)
+            current_job_lines = [line]
+            current_job_start_line = idx
+            continue
+        current_job_lines.append(line)
+
+    evaluate_job(current_job_lines, current_job_start_line)
+    return violations
+
+
 def verify_workflow_coverage() -> list[str]:
     """Return workflow trigger and artifact coverage violations."""
     missing: list[str] = []
@@ -351,6 +409,15 @@ def verify_workflow_coverage() -> list[str]:
                 missing.append(
                     "ossf scorecard publish_results must use the repository default branch guard"
                 )
+        workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+            Path(".github/workflows").glob("*.yaml")
+        )
+        for workflow_path in workflow_paths:
+            missing.extend(
+                ossf_scorecard_publish_restriction_violations(
+                    workflow_path.read_text(encoding="utf-8"), workflow_path
+                )
+            )
     return missing
 
 
