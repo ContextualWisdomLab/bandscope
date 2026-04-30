@@ -419,6 +419,75 @@ checksum = "wrong-owner"
     ) in violations
 
 
+def test_supply_chain_check_rejects_mixed_owner_legacy_rust_rand_exception(
+    tmp_path: Path,
+) -> None:
+    """Ensure a valid legacy chain does not exempt unrelated rand owners."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_mixed_owner"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "tauri-utils"
+version = "2.8.3"
+dependencies = [
+ "kuchikiki 0.8.8-speedreader",
+]
+
+[[package]]
+name = "kuchikiki"
+version = "0.8.8-speedreader"
+dependencies = [
+ "selectors 0.24.0",
+]
+
+[[package]]
+name = "selectors"
+version = "0.24.0"
+dependencies = [
+ "phf_codegen 0.8.0",
+]
+
+[[package]]
+name = "phf_codegen"
+version = "0.8.0"
+dependencies = [
+ "phf_generator 0.8.0",
+]
+
+[[package]]
+name = "phf_generator"
+version = "0.8.0"
+dependencies = [
+ "rand 0.7.3",
+]
+
+[[package]]
+name = "bad-owner"
+version = "1.0.0"
+dependencies = [
+ "rand 0.7.3",
+]
+
+[[package]]
+name = "rand"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "legacy-exception"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
+        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+    ) in violations
+
+
 def test_supply_chain_check_accepts_repo_rust_rand_patch() -> None:
     """Ensure the checked-in Rust lockfile keeps rand on the patched 0.8 line."""
     supply_chain = load_module(

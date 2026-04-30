@@ -672,6 +672,10 @@ def rust_dependency_advisory_violations(
     legacy_exception_allowed = cargo_lock_has_dependency_chain(
         package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN
     )
+    expected_legacy_owner = RUST_RAND_LEGACY_EXCEPTION_CHAIN[-2]
+    legacy_rand_owners = cargo_lock_dependency_owners(
+        package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN[-1]
+    )
     current_name = ""
     for line in [*lockfile.read_text(encoding="utf-8").splitlines(), "[[package]]"]:
         stripped = line.strip()
@@ -692,7 +696,7 @@ def rust_dependency_advisory_violations(
         if current_name != "rand":
             continue
         if version == RUST_RAND_LEGACY_EXCEPTION_VERSION:
-            if legacy_exception_allowed:
+            if legacy_exception_allowed and legacy_rand_owners == {expected_legacy_owner}:
                 continue
             violations.append(
                 f"{lockfile}: rand {version} matches the legacy exception version "
@@ -747,7 +751,44 @@ def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
             continue
         if in_dependencies and stripped.startswith('"'):
             current_dependencies.append(stripped.strip('",'))
-    return packages
+    return cargo_lock_normalized_package_dependencies(packages)
+
+
+def cargo_lock_normalized_package_dependencies(
+    package_dependencies: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    """Return dependency tokens normalized to exact package keys when possible."""
+    package_keys_by_name: dict[str, list[str]] = {}
+    for package_key in package_dependencies:
+        package_name = package_key.rsplit(" ", maxsplit=1)[0]
+        package_keys_by_name.setdefault(package_name, []).append(package_key)
+
+    normalized: dict[str, list[str]] = {}
+    for package_key, dependency_tokens in package_dependencies.items():
+        normalized_tokens: list[str] = []
+        for dependency_token in dependency_tokens:
+            dependency = dependency_token.strip()
+            if dependency in package_dependencies:
+                normalized_tokens.append(dependency)
+                continue
+            matching_package_keys = package_keys_by_name.get(dependency, [])
+            if len(matching_package_keys) == 1:
+                normalized_tokens.append(matching_package_keys[0])
+                continue
+            normalized_tokens.append(dependency)
+        normalized[package_key] = normalized_tokens
+    return normalized
+
+
+def cargo_lock_dependency_owners(
+    package_dependencies: dict[str, list[str]], dependency: str
+) -> set[str]:
+    """Return package keys that directly reference the target dependency key."""
+    return {
+        owner
+        for owner, dependency_tokens in package_dependencies.items()
+        if dependency in dependency_tokens
+    }
 
 
 def cargo_lock_has_dependency_chain(
@@ -765,8 +806,7 @@ def cargo_dependency_targets_package(
 ) -> bool:
     """Return whether an owner package depends on the target package key."""
     dependency_tokens = package_dependencies.get(owner, [])
-    dependency_name = dependency.rsplit(" ", maxsplit=1)[0]
-    return dependency in dependency_tokens or dependency_name in dependency_tokens
+    return dependency in dependency_tokens
 
 
 def main() -> int:
