@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import re
 from pathlib import Path
 
@@ -87,6 +88,34 @@ def test_build_baseline_upload_artifact_pins_are_consistent() -> None:
 
     assert pins
     assert len(set(pins)) == 1
+
+
+def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> None:
+    """Ensure patched Python advisories are not left as stale audit ignores."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "security-audit.yml").read_text(
+        encoding="utf-8"
+    )
+    dependency_policy = (repo_root / "docs" / "security" / "dependency-policy.md").read_text(
+        encoding="utf-8"
+    )
+    python_lockfile = (repo_root / "services" / "analysis-engine" / "uv.lock").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--ignore-vuln GHSA-5239-wwwm-4pmq" not in workflow
+    assert "uv run --project services/analysis-engine --with pip-audit==2.8.0" in workflow
+    assert "pip-audit --local --strict" in workflow
+    assert "Pygments <2.20.0" in dependency_policy
+    assert "pip-audit --local --strict" in dependency_policy
+    tomllib = importlib.import_module("tomllib")
+    lock = tomllib.loads(python_lockfile)
+    packages = lock.get("package", [])
+    pygments = [package for package in packages if package.get("name") == "pygments"]
+
+    assert len(pygments) == 1
+    assert pygments[0].get("version") == "2.20.0"
+    assert all(package.get("version") != "2.19.2" for package in pygments)
 
 
 def test_supply_chain_check_requires_ossf_default_branch_guard(
