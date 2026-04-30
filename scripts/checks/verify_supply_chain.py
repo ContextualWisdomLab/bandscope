@@ -1,5 +1,6 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
+import ast
 import re
 import shlex
 from pathlib import Path
@@ -676,18 +677,9 @@ def rust_dependency_advisory_violations(
     legacy_rand_owners = cargo_lock_dependency_owners(
         package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN[-1]
     )
-    current_name = ""
-    for line in [*lockfile.read_text(encoding="utf-8").splitlines(), "[[package]]"]:
-        stripped = line.strip()
-        if stripped == "[[package]]":
-            current_name = ""
-            continue
-        if stripped.startswith("name = "):
-            current_name = stripped.partition("=")[2].strip().strip('"')
-            continue
-        if not stripped.startswith("version = "):
-            continue
-        version = stripped.partition("=")[2].strip().strip('"')
+    for package in cargo_lock_packages(lockfile):
+        current_name = str(package.get("name", ""))
+        version = str(package.get("version", ""))
         if current_name == "fastrand" and version == RUST_FASTRAND_YANKED_VERSION:
             violations.append(
                 f"{lockfile}: fastrand {version} is yanked and must stay updated"
@@ -733,39 +725,84 @@ def rust_dependency_advisory_violations(
 def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
     """Return Cargo package keys and dependency tokens from a lockfile."""
     packages: dict[str, list[str]] = {}
-    current_name = ""
-    current_version = ""
-    current_dependencies: list[str] = []
+    for package in cargo_lock_packages(lockfile):
+        current_name = str(package.get("name", ""))
+        current_version = str(package.get("version", ""))
+        if not current_name or not current_version:
+            continue
+        dependencies = package.get("dependencies", [])
+        if not isinstance(dependencies, list):
+            dependencies = []
+        packages[f"{current_name} {current_version}"] = [
+            str(dependency).strip() for dependency in dependencies
+        ]
+    return cargo_lock_normalized_package_dependencies(packages)
+
+
+def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
+    """Return Cargo package tables from supported lockfile TOML forms."""
+    packages: list[dict[str, object]] = []
+    current_package: dict[str, object] | None = None
     in_dependencies = False
+    dependency_tokens: list[str] = []
 
     def store_current_package() -> None:
-        if current_name and current_version:
-            packages[f"{current_name} {current_version}"] = current_dependencies.copy()
+        if current_package is not None:
+            if in_dependencies:
+                current_package["dependencies"] = dependency_tokens.copy()
+            packages.append(current_package.copy())
 
     for line in [*lockfile.read_text(encoding="utf-8").splitlines(), "[[package]]"]:
         stripped = line.strip()
+        if not stripped:
+            continue
         if stripped == "[[package]]":
             store_current_package()
-            current_name = ""
-            current_version = ""
-            current_dependencies = []
+            current_package = {}
             in_dependencies = False
+            dependency_tokens = []
             continue
-        if stripped.startswith("name = "):
-            current_name = stripped.partition("=")[2].strip().strip('"')
+        if current_package is None:
             continue
-        if stripped.startswith("version = "):
-            current_version = stripped.partition("=")[2].strip().strip('"')
+        if in_dependencies:
+            if stripped == "]":
+                current_package["dependencies"] = dependency_tokens.copy()
+                in_dependencies = False
+                continue
+            if stripped.startswith('"'):
+                dependency_tokens.append(stripped.strip('",'))
             continue
-        if stripped == "dependencies = [":
-            in_dependencies = True
+        key, separator, value = stripped.partition("=")
+        if not separator:
             continue
-        if in_dependencies and stripped == "]":
-            in_dependencies = False
+        normalized_key = key.strip()
+        normalized_value = value.strip()
+        if normalized_key == "dependencies":
+            if normalized_value == "[":
+                in_dependencies = True
+                dependency_tokens = []
+                continue
+            current_package["dependencies"] = parse_cargo_lock_string_list(
+                normalized_value
+            )
             continue
-        if in_dependencies and stripped.startswith('"'):
-            current_dependencies.append(stripped.strip('",'))
-    return cargo_lock_normalized_package_dependencies(packages)
+        if normalized_key in {"name", "version"}:
+            current_package[normalized_key] = parse_cargo_lock_scalar(normalized_value)
+    return packages
+
+
+def parse_cargo_lock_string_list(value: str) -> list[str]:
+    """Return strings from an inline Cargo.lock dependency array."""
+    parsed_value = ast.literal_eval(value)
+    if not isinstance(parsed_value, list):
+        return []
+    return [str(item).strip() for item in parsed_value]
+
+
+def parse_cargo_lock_scalar(value: str) -> str:
+    """Return a scalar Cargo.lock TOML value as text."""
+    parsed_value = ast.literal_eval(value)
+    return str(parsed_value)
 
 
 def cargo_lock_normalized_package_dependencies(
