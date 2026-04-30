@@ -89,6 +89,27 @@ def test_build_baseline_upload_artifact_pins_are_consistent() -> None:
     assert len(set(pins)) == 1
 
 
+def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> None:
+    """Ensure patched Python advisories are not left as stale audit ignores."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "security-audit.yml").read_text(
+        encoding="utf-8"
+    )
+    dependency_policy = (repo_root / "docs" / "security" / "dependency-policy.md").read_text(
+        encoding="utf-8"
+    )
+    python_lockfile = (repo_root / "services" / "analysis-engine" / "uv.lock").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--ignore-vuln GHSA-5239-wwwm-4pmq" not in workflow
+    assert "uv run --project services/analysis-engine --with pip-audit==2.8.0" in workflow
+    assert "Pygments <2.20.0" in dependency_policy
+    assert "pip-audit --local --strict" in dependency_policy
+    assert 'name = "pygments"\nversion = "2.20.0"' in python_lockfile
+    assert 'name = "pygments"\nversion = "2.19.2"' not in python_lockfile
+
+
 def test_supply_chain_check_requires_ossf_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
