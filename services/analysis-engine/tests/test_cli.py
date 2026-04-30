@@ -218,8 +218,7 @@ def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            if "bandscope_analysis.cli" in sys.modules:
-                del sys.modules["bandscope_analysis.cli"]
+            monkeypatch.delitem(sys.modules, "bandscope_analysis.cli", raising=False)
             runpy.run_module("bandscope_analysis.cli", run_name="__main__")
     except SystemExit as exit_signal:
         assert exit_signal.code == 0

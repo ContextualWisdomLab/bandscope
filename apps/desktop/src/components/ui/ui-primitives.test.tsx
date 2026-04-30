@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { buttonVariants } from "./button";
 import { Progress, ProgressTrack } from "./progress";
+import { ScrollBar } from "./scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "./tabs";
 
 describe("UI primitives", () => {
@@ -42,5 +43,17 @@ describe("UI primitives", () => {
     expect(list?.className).toContain("group-data-[orientation=vertical]/tabs:flex-col");
     expect(trigger?.className).toContain("group-data-[orientation=vertical]/tabs:justify-start");
     expect(trigger?.className).not.toContain("group-data-vertical/tabs");
+  });
+
+  it("uses selectors that match the rendered scroll bar orientation attribute", () => {
+    const scrollbar = ScrollBar({ orientation: "horizontal" }) as {
+      props: { className: string; "data-orientation": string };
+    };
+
+    expect(scrollbar.props["data-orientation"]).toBe("horizontal");
+    expect(scrollbar.props.className).toContain("data-[orientation=horizontal]:h-2.5");
+    expect(scrollbar.props.className).toContain("data-[orientation=vertical]:h-full");
+    expect(scrollbar.props.className).not.toContain("data-horizontal:h-2.5");
+    expect(scrollbar.props.className).not.toContain("data-vertical:h-full");
   });
 });

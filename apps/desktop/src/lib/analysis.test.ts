@@ -3,7 +3,7 @@ import { importYoutubeUrl } from "./analysis";
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
-  __TAURI_INVOKE__?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+  __TAURI_INVOKE__?: unknown;
 };
 
 const tauriWindow = window as TauriWindow;
@@ -78,6 +78,14 @@ describe("analysis bridge", () => {
     expect(selection.ok).toBe(true);
   });
 
+  it("ignores a non-function Tauri v1 invoke shim", async () => {
+    (window as unknown as { __TAURI_INVOKE__?: unknown }).__TAURI_INVOKE__ = "not-callable";
+
+    const selection = await importYoutubeUrl("https://youtu.be/4ozX4yFUC34");
+
+    expect(selection.ok).toBe(true);
+  });
+
   it("rejects unsupported YouTube URLs before crossing the Tauri bridge", async () => {
     tauriWindow.__TAURI_INVOKE__ = vi.fn();
 
@@ -97,6 +105,26 @@ describe("analysis bridge", () => {
     tauriWindow.__TAURI_INVOKE__ = vi.fn();
 
     const selection = await importYoutubeUrl("https://youtube.com/watch?v=4ozX4yFUC34&v=");
+
+    expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Only standard YouTube URLs are supported."
+      }
+    });
+  });
+
+  it.each([
+    "https://youtube.com/watch?v=too-short",
+    "https://youtube.com/watch?v=4ozX4yFUC3!",
+    "https://youtu.be/too-short",
+    "https://youtu.be/4ozX4yFUC3!"
+  ])("rejects malformed YouTube video identifiers before crossing the Tauri bridge", async (url) => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn();
+
+    const selection = await importYoutubeUrl(url);
 
     expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
     expect(selection).toEqual({

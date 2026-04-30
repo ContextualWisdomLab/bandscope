@@ -15,7 +15,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use tauri::Manager;
+use tauri::{Manager, Runtime};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[derive(Clone)]
@@ -345,7 +345,11 @@ fn next_project_id(state: &AppState) -> String {
     )
 }
 
-fn app_owned_root(app: &tauri::AppHandle, kind: &str, project_id: &str) -> Result<PathBuf, String> {
+fn app_owned_root<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    kind: &str,
+    project_id: &str,
+) -> Result<PathBuf, String> {
     let base_root = match kind {
         "projects" => app
             .path()
@@ -821,7 +825,7 @@ fn get_analysis_job_status(job_id: String, state: tauri::State<'_, AppState>) ->
 
 #[tauri::command]
 fn select_local_audio_source(
-    app: tauri::AppHandle,
+    app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
 ) -> Result<ProjectBootstrapSummaryPayload, String> {
     let path = FileDialog::new()
@@ -850,7 +854,7 @@ fn select_local_audio_source(
 #[tauri::command]
 async fn import_youtube_url(
     url: String,
-    app: tauri::AppHandle,
+    app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
 ) -> Result<ProjectBootstrapSummaryPayload, String> {
     if !is_supported_youtube_url(&url) {
@@ -946,18 +950,34 @@ fn is_supported_youtube_url(url: &str) -> bool {
             Some(s) => s.filter(|segment| !segment.is_empty()),
             None => return false,
         };
-        return segments.next().is_some() && segments.next().is_none();
+        let Some(video_id) = segments.next() else {
+            return false;
+        };
+        return is_youtube_video_id(video_id) && segments.next().is_none();
     }
 
     if host == "youtube.com" || host.ends_with(".youtube.com") {
-        return parsed_url.path() == "/watch"
-            && parsed_url.query_pairs().filter(|(k, _)| k == "v").count() == 1
-            && parsed_url
-                .query_pairs()
-                .any(|(k, v)| k == "v" && !v.trim().is_empty());
+        if parsed_url.path() != "/watch" {
+            return false;
+        }
+        let mut video_ids = parsed_url
+            .query_pairs()
+            .filter(|(key, _)| key == "v")
+            .map(|(_, value)| value);
+        return match (video_ids.next(), video_ids.next()) {
+            (Some(video_id), None) => is_youtube_video_id(video_id.as_ref()),
+            _ => false,
+        };
     }
 
     false
+}
+
+fn is_youtube_video_id(value: &str) -> bool {
+    value.len() == 11
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
 }
 
 fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
@@ -1124,6 +1144,27 @@ mod tests {
             .expect_err("legacy sections without timing should fail closed");
 
         assert!(error.contains("timeRange"));
+    }
+
+    #[test]
+    fn youtube_url_validation_requires_exact_video_ids() {
+        assert!(is_supported_youtube_url(
+            "https://youtube.com/watch?v=abc123DEF45"
+        ));
+        assert!(is_supported_youtube_url("https://youtu.be/abc123DEF45"));
+
+        assert!(!is_supported_youtube_url(
+            "https://youtube.com/watch?v=abc123"
+        ));
+        assert!(!is_supported_youtube_url(
+            "https://youtube.com/watch?v=abc123DEF4!"
+        ));
+        assert!(!is_supported_youtube_url("https://youtube.com/watch"));
+        assert!(!is_supported_youtube_url(
+            "https://youtube.com/watch?v=abc123DEF45&v=def456GHI78"
+        ));
+        assert!(!is_supported_youtube_url("https://youtu.be/abc123"));
+        assert!(!is_supported_youtube_url("https://youtu.be/abc123DEF4!"));
     }
 
     #[test]

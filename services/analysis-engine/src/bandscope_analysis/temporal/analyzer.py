@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 # Standard sample rate for BandScope analysis
 TARGET_SR = 44100
+KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
+    (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
+    (FutureWarning, r".*Numba.*", r".*numba.*"),
+)
 
 
 class TemporalAnalyzer:
@@ -42,11 +47,16 @@ class TemporalAnalyzer:
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
-            import warnings
-
             with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=DeprecationWarning)
-                warnings.simplefilter("ignore", category=FutureWarning)
+                # Keep the loader's known third-party churn quiet without hiding
+                # unrelated decoder warnings that tests and callers should see.
+                for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
+                    warnings.filterwarnings(
+                        "ignore",
+                        category=category,
+                        message=message,
+                        module=module,
+                    )
                 # Load audio, converting to mono and standardizing sample rate
                 y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
 

@@ -35,6 +35,7 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   "Could not prepare the local cache workspace.",
   "Could not prepare the local temp workspace."
 ]);
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
 /** Documented. */
 export type LocalAudioSelectionResult =
@@ -54,7 +55,7 @@ function getInvoke(): TauriInvoke | null {
   }
 
   // Detect the legacy test/dev shim.
-  if (window.__TAURI_INVOKE__) {
+  if (typeof window.__TAURI_INVOKE__ === "function") {
     return window.__TAURI_INVOKE__;
   }
 
@@ -81,12 +82,12 @@ export function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
   const host = parsedUrl.hostname.toLowerCase();
   if (host === "youtu.be") {
     const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
-    return pathSegments.length === 1;
+    return pathSegments.length === 1 && YOUTUBE_VIDEO_ID_PATTERN.test(pathSegments[0]!);
   }
 
   if (host === "youtube.com" || host.endsWith(".youtube.com")) {
     const videoIds = parsedUrl.searchParams.getAll("v");
-    return parsedUrl.pathname === "/watch" && videoIds.length === 1 && videoIds[0]!.trim().length > 0;
+    return parsedUrl.pathname === "/watch" && videoIds.length === 1 && YOUTUBE_VIDEO_ID_PATTERN.test(videoIds[0]!);
   }
 
   return false;

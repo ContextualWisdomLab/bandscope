@@ -26,6 +26,8 @@
   "confidenceLevelHigh": "믿고 가져가도 됨",
   "provenanceSourceModel": "자동 추정",
   "provenanceSourceUser": "사용자 확인",
+  "workspaceReadyToAnalyzeTitle": "분석 준비 완료",
+  "workspaceAnalyzingAudioTitle": "오디오 분석 중",
   "workspaceEmptyState": "합주할 곡의 오디오 파일을 선택해주세요.",
   "workspaceLoadingState": "곡의 폼과 악기별 역할을 분석하고 있습니다...",
   "workspaceErrorState": "분석 중 오류가 발생했습니다. 다시 시도해주세요.",

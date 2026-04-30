@@ -20,13 +20,13 @@ def test_release_packaging_includes_architecture_in_artifact_identity(
     monkeypatch.setenv("BANDSCOPE_ARTIFACT_OS", "windows")
     monkeypatch.setenv("BANDSCOPE_ARTIFACT_ARCH", "arm64")
 
-    artifact = packaging.artifact_identity("installer.dmg")
+    artifact = packaging.artifact_identity("installer.exe")
 
     assert artifact == {
         "platform": "windows",
         "arch": "arm64",
-        "archive_name": "bandscope-windows-arm64-abcdef123456.dmg",
-        "manifest_name": "bandscope-windows-arm64-abcdef123456.dmg.manifest.txt",
+        "archive_name": "bandscope-windows-arm64-abcdef123456.exe",
+        "manifest_name": "bandscope-windows-arm64-abcdef123456.exe.manifest.txt",
     }
 
 

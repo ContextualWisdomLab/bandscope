@@ -535,13 +535,15 @@ describe("App", () => {
     render(<App />);
 
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=123" } });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
 
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(tauriInvoke).toHaveBeenCalledWith("import_youtube_url", { url: "https://youtube.com/watch?v=123" });
+      expect(tauriInvoke).toHaveBeenCalledWith("import_youtube_url", {
+        url: "https://youtube.com/watch?v=abc123DEF45"
+      });
       expect(screen.getByText(/youtube\.wav/i)).toBeTruthy();
     });
   });
@@ -552,7 +554,7 @@ describe("App", () => {
     render(<App />);
 
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=456" } });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=def456GHI78" } });
 
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);
@@ -568,7 +570,7 @@ describe("App", () => {
     render(<App />);
 
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=789" } });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=ghi789JKL01" } });
 
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);
@@ -608,7 +610,7 @@ describe("App", () => {
   it("rejects non-http YouTube URL", async () => {
     render(<App />);
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "ftp://youtube.com/watch?v=123" } });
+    fireEvent.change(input, { target: { value: "ftp://youtube.com/watch?v=abc123DEF45" } });
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);
 
@@ -620,7 +622,7 @@ describe("App", () => {
   it("rejects non-allowlisted YouTube URL intake before invoking the bridge", async () => {
     render(<App />);
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://example.com/watch?v=123" } });
+    fireEvent.change(input, { target: { value: "https://example.com/watch?v=abc123DEF45" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
@@ -633,7 +635,7 @@ describe("App", () => {
   it("rejects downgraded YouTube URL intake before invoking the bridge", async () => {
     render(<App />);
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "http://youtube.com/watch?v=123" } });
+    fireEvent.change(input, { target: { value: "http://youtube.com/watch?v=abc123DEF45" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
@@ -646,7 +648,7 @@ describe("App", () => {
   it("rejects duplicate YouTube video parameters even when one is blank", async () => {
     render(<App />);
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123&v=" } });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45&v=" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
@@ -844,7 +846,7 @@ describe("App", () => {
     render(<App />);
 
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=456" } });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=def456GHI78" } });
 
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);

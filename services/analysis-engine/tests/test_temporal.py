@@ -1,5 +1,6 @@
 """Tests for temporal analysis module."""
 
+import warnings
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -96,3 +97,36 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
 
     with pytest.raises(ValueError, match="Expected numpy array"):
         TemporalAnalyzer().analyze(test_wav)
+
+
+def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Unrelated decoder warnings should remain visible to tests and callers."""
+    import librosa
+
+    test_wav = tmp_path / "test.wav"
+    test_wav.write_bytes(b"dummy")
+
+    def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
+        warnings.warn("unrelated downstream warning", FutureWarning, stacklevel=2)
+        return np.zeros(1024, dtype=float), 44100
+
+    monkeypatch.setattr(librosa, "load", fake_load)
+    monkeypatch.setattr(librosa, "get_duration", lambda *, y, sr: 1.0)
+    monkeypatch.setattr(
+        librosa.beat,
+        "beat_track",
+        lambda *, y, sr: (np.array([120.0]), np.array([0, 1, 2, 3])),
+    )
+    monkeypatch.setattr(
+        librosa,
+        "frames_to_time",
+        lambda frames, *, sr: np.array([0.0, 0.5, 1.0, 1.5]),
+    )
+
+    with pytest.warns(FutureWarning, match="unrelated downstream warning"):
+        features = TemporalAnalyzer().analyze(test_wav)
+
+    assert features["bpm"] == 120.0

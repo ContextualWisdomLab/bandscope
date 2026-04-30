@@ -337,7 +337,8 @@ def verify_workflow_coverage() -> list[str]:
         if "ossf/scorecard-action" in scorecard:
             if "github.event.repository.default_branch" not in scorecard:
                 missing.append(
-                    "ossf scorecard workflow must guard Scorecard execution to the repository default branch"
+                    "ossf scorecard workflow must guard Scorecard execution to "
+                    "the repository default branch"
                 )
             if (
                 "publish_results:" in scorecard
@@ -406,19 +407,26 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
         step_working_directory: str | None = None
         step_uses_workspace_exec = False
 
-        def record_step_violation() -> None:
+        def record_step_violation(
+            current_step_working_directory: str | None,
+            job_default_directory: str,
+            default_directory: str,
+            uses_workspace_exec: bool,
+            workflow_path: Path,
+        ) -> None:
             effective_working_directory = (
-                step_working_directory
-                if step_working_directory is not None
-                else current_job_default_directory or workflow_default_directory
+                current_step_working_directory
+                if current_step_working_directory is not None
+                else job_default_directory or default_directory
             )
             if (
-                step_uses_workspace_exec
+                uses_workspace_exec
                 and effective_working_directory
                 and effective_working_directory not in root_working_directories
             ):
                 violations.append(
-                    f"{path}: workflow npm exec --workspace commands must run from the repository root"
+                    f"{workflow_path}: workflow npm exec --workspace commands "
+                    "must run from the repository root"
                 )
 
         for line in [
@@ -470,7 +478,13 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
                 and stripped.endswith(":")
                 and not stripped.startswith("-")
             ):
-                record_step_violation()
+                record_step_violation(
+                    step_working_directory,
+                    current_job_default_directory,
+                    workflow_default_directory,
+                    step_uses_workspace_exec,
+                    path,
+                )
                 current_job_indent = indent
                 current_job_default_directory = ""
                 job_defaults_indent = None
@@ -496,7 +510,13 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
                 continue
 
             if re.match(r"^-\s+(name|uses|run):", stripped):
-                record_step_violation()
+                record_step_violation(
+                    step_working_directory,
+                    current_job_default_directory,
+                    workflow_default_directory,
+                    step_uses_workspace_exec,
+                    path,
+                )
                 step_working_directory = None
                 step_uses_workspace_exec = False
 

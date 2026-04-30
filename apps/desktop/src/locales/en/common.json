@@ -26,6 +26,8 @@
   "confidenceLevelHigh": "Ready to trust",
   "provenanceSourceModel": "Auto-detected",
   "provenanceSourceUser": "User-confirmed",
+  "workspaceReadyToAnalyzeTitle": "Ready to Analyze",
+  "workspaceAnalyzingAudioTitle": "Analyzing Audio",
   "workspaceEmptyState": "Choose an audio file to prepare for your rehearsal.",
   "workspaceLoadingState": "Analyzing the song's form and instrument roles...",
   "workspaceErrorState": "An error occurred during analysis. Please try again.",
