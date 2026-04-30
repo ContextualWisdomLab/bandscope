@@ -105,6 +105,7 @@ def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> No
 
     assert "--ignore-vuln GHSA-5239-wwwm-4pmq" not in workflow
     assert "uv run --project services/analysis-engine --with pip-audit==2.8.0" in workflow
+    assert "pip-audit --local --strict" in workflow
     assert "Pygments <2.20.0" in dependency_policy
     assert "pip-audit --local --strict" in dependency_policy
     tomllib = importlib.import_module("tomllib")
