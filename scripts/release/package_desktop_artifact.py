@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import hashlib
 import os
 import platform
-import zipfile
+import re
+import shutil
+from collections import Counter
+from pathlib import Path
 
 
 def sha256_file(path: Path) -> str:
@@ -61,100 +63,94 @@ def resolved_artifact_target() -> tuple[str, str]:
     return normalized_platform(), normalized_architecture()
 
 
-def artifact_identity() -> dict[str, str]:
+def artifact_identity(filename: str) -> dict[str, str]:
     """Build the archive and manifest names for the current artifact target."""
     git_sha = os.environ.get("GITHUB_SHA", "local")[:12]
     target_platform, target_arch = resolved_artifact_target()
     suffix = f"bandscope-{target_platform}-{target_arch}-{git_sha}"
+    ext = Path(filename).suffix
     return {
         "platform": target_platform,
         "arch": target_arch,
-        "archive_name": f"{suffix}.zip",
-        "manifest_name": f"{suffix}.manifest.txt",
+        "archive_name": f"{suffix}{ext}",
+        "manifest_name": f"{suffix}{ext}.manifest.txt",
     }
 
 
-def expected_binary_path(repo_root: Path) -> Path:
-    """Return the expected desktop binary path for the selected target triple."""
+def archive_safe_stem(path: Path) -> str:
+    """Return a stable, filename-safe stem for same-extension installer names."""
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", path.stem).strip("-._")
+    return stem or "installer"
+
+
+def find_installer_packages(repo_root: Path) -> list[Path]:
+    """Find built Tauri installers (DMG, EXE, MSI)."""
     target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE")
-    if target_triple and "windows" in target_triple:
-        system = "windows"
-    elif target_triple and "apple-darwin" in target_triple:
-        system = "macos"
-    else:
-        system = normalized_platform()
-    binary_name = (
-        "bandscope-desktop.exe" if system == "windows" else "bandscope-desktop"
-    )
     target_root = repo_root / "apps" / "desktop" / "src-tauri" / "target"
     if target_triple:
         target_root = target_root / target_triple
-    return target_root / "release" / binary_name
+
+    bundle_dir = target_root / "release" / "bundle"
+    installers = []
+
+    if bundle_dir.exists():
+        for subdirectory, pattern in [("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
+            installers.extend(
+                installer
+                for installer in sorted((bundle_dir / subdirectory).glob(pattern))
+                if installer.is_file() and not installer.is_symlink()
+            )
+
+    return sorted(installers)
 
 
 def main() -> int:
-    """Package the desktop binary, frontend assets, and metadata into a zip archive."""
+    """Find the built installer packages, rename them, and calculate checksums."""
     repo_root = Path(__file__).resolve().parents[2]
-    binary_path = expected_binary_path(repo_root)
-    frontend_dist = repo_root / "apps" / "desktop" / "dist"
     output_dir = repo_root / "artifacts"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if not binary_path.exists():
-        raise FileNotFoundError(f"Missing built binary: {binary_path}")
-    if not frontend_dist.exists():
-        raise FileNotFoundError(f"Missing frontend dist directory: {frontend_dist}")
+    installers = find_installer_packages(repo_root)
+    if not installers:
+        raise FileNotFoundError("Could not find any built installers (DMG/EXE) in target/release/bundle/")
 
-    metadata_paths = [
-        repo_root / "services" / "analysis-engine" / "uv.lock",
-        repo_root / "package-lock.json",
-        repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock",
-        repo_root / "supply-chain" / "supplemental-component-inventory.json",
-    ]
-    missing_metadata = [str(path) for path in metadata_paths if not path.exists()]
-    if missing_metadata:
-        missing_list = ", ".join(missing_metadata)
-        raise FileNotFoundError(f"Missing release metadata files: {missing_list}")
+    suffix_counts = Counter(path.suffix.lower() for path in installers)
+    for installer_path in installers:
+        identity = artifact_identity(installer_path.name)
+        archive_name = identity["archive_name"]
 
-    identity = artifact_identity()
-    archive_name = identity["archive_name"]
-    archive_path = output_dir / archive_name
+        if suffix_counts[installer_path.suffix.lower()] > 1:
+            archive_base = Path(archive_name)
+            archive_name = f"{archive_base.stem}-{archive_safe_stem(installer_path)}{archive_base.suffix}"
 
-    with zipfile.ZipFile(
-        archive_path, "w", compression=zipfile.ZIP_DEFLATED
-    ) as archive:
-        archive.write(binary_path, arcname=f"bin/{binary_path.name}")
-        for path in frontend_dist.rglob("*"):
-            if path.is_file():
-                archive.write(
-                    path,
-                    arcname=str(Path("frontend") / path.relative_to(frontend_dist)),
-                )
-        for extra_path in metadata_paths:
-            archive.write(extra_path, arcname=str(Path("metadata") / extra_path.name))
+        archive_path = output_dir / archive_name
+        shutil.copy2(installer_path, archive_path)
 
-    checksum_path = output_dir / f"{archive_name}.sha256"
-    checksum_path.write_text(
-        f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8"
-    )
+        checksum_path = output_dir / f"{archive_name}.sha256"
+        checksum_path.write_text(f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8")
 
-    manifest_path = output_dir / identity["manifest_name"]
-    manifest_path.write_text(
-        "\n".join(
-            [
-                f"platform={identity['platform']}",
-                f"arch={identity['arch']}",
-                f"target_triple={os.environ.get('BANDSCOPE_TARGET_TRIPLE', 'native')}",
-                f"binary={binary_path.name}",
-                f"archive={archive_name}",
-                f"checksum={checksum_path.name}",
-            ]
+        manifest_path = output_dir / (
+            f"{archive_name}.manifest.txt"
+            if suffix_counts[installer_path.suffix.lower()] > 1
+            else identity["manifest_name"]
         )
-        + "\n",
-        encoding="utf-8",
-    )
+        manifest_path.write_text(
+            "\n".join(
+                [
+                    f"platform={identity['platform']}",
+                    f"arch={identity['arch']}",
+                    f"target_triple={os.environ.get('BANDSCOPE_TARGET_TRIPLE', 'native')}",
+                    f"original_file={installer_path.name}",
+                    f"archive={archive_name}",
+                    f"checksum={checksum_path.name}",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
-    print(str(archive_path.relative_to(repo_root)))
+        print(f"Packaged {installer_path.name} to artifacts/{archive_name}")
+
     return 0
 
 

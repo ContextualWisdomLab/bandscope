@@ -8,6 +8,8 @@ from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 
+MAX_SECTION_TIME_SECONDS = 4_294_967_295
+
 
 class AnalysisJobRequest(TypedDict):
     """Typed orchestration request payload accepted by the analysis engine."""
@@ -99,12 +101,20 @@ class PartGraphNodePayload(TypedDict):
     handoff_from: list[str]
 
 
+class SectionTimeRangePayload(TypedDict):
+    """Typed timing range payload nested inside rehearsal sections."""
+
+    start: int
+    end: int
+
+
 class RehearsalSectionPayload(TypedDict):
     """Typed rehearsal section payload nested inside songs."""
 
     id: str
     label: str
     groove: str
+    timeRange: SectionTimeRangePayload
     confidence: ConfidencePayload
     roles: list[RehearsalRolePayload]
     partGraph: list[PartGraphNodePayload]
@@ -137,6 +147,26 @@ class AnalysisJobStatus(TypedDict):
     progressLabel: NotRequired[str]
     result: NotRequired[RehearsalSong]
     error: NotRequired[AnalysisJobError]
+
+
+def build_section_time_range(start: object, end: object) -> SectionTimeRangePayload:
+    """Build a section time range that matches the shared Rust u32 timing contract."""
+    if (
+        not isinstance(start, int)
+        or isinstance(start, bool)
+        or start < 0
+        or start > MAX_SECTION_TIME_SECONDS
+    ):
+        raise ValueError("Invalid section timeRange: invalid field 'start'")
+    if (
+        not isinstance(end, int)
+        or isinstance(end, bool)
+        or end <= start
+        or end > MAX_SECTION_TIME_SECONDS
+    ):
+        raise ValueError("Invalid section timeRange: invalid field 'end'")
+
+    return {"start": start, "end": end}
 
 
 def get_analysis_status() -> HealthReport:
@@ -238,6 +268,7 @@ def build_demo_rehearsal_song() -> RehearsalSong:
                 "id": verse_section["id"],
                 "label": verse_section["form_label"],
                 "groove": verse_section["groove"],
+                "timeRange": build_section_time_range(10, 30),
                 "confidence": {
                     "level": "medium",
                     "source": "model",
