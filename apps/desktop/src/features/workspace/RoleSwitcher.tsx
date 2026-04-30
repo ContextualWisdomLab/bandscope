@@ -2,8 +2,14 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users } from "lucide-react";
 
+/** Renderable role option accepted by the role tab allowlist. */
+export interface RehearsalRoleOption {
+  id: string;
+  name: string;
+}
+
 interface RoleSwitcherProps {
-  roles: { id: string; name: string }[];
+  roles: RehearsalRoleOption[];
   activeRole: string | null;
   onRoleChange: (roleId: string | null) => void;
 }
@@ -17,16 +23,17 @@ function roleTabValue(roleId: string): string {
 }
 
 /** Documented. */
-function tabValueToRoleId(value: string): string | null {
+export function tabValueToRoleId(value: string, roles: RehearsalRoleOption[]): string | null {
   if (value === ALL_ROLES_VALUE) {
     return null;
   }
 
-  if (value.startsWith(ROLE_VALUE_PREFIX)) {
-    return value.slice(ROLE_VALUE_PREFIX.length);
+  if (!value.startsWith(ROLE_VALUE_PREFIX)) {
+    return null;
   }
 
-  return value;
+  const roleId = value.slice(ROLE_VALUE_PREFIX.length);
+  return roles.some((role) => role.id === roleId) ? roleId : null;
 }
 
 /** Documented. */
@@ -41,7 +48,7 @@ export function RoleSwitcher({ roles, activeRole, onRoleChange }: RoleSwitcherPr
       </div>
       <Tabs
         value={activeRole === null ? ALL_ROLES_VALUE : roleTabValue(activeRole)}
-        onValueChange={(val) => onRoleChange(tabValueToRoleId(val))}
+        onValueChange={(val) => onRoleChange(tabValueToRoleId(val, roles))}
         className="w-full sm:w-auto"
       >
         <TabsList className="h-auto w-full flex-wrap justify-start border border-white/10 bg-white/[0.05] p-1 sm:h-10 sm:w-auto">

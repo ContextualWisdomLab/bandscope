@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 import { buttonVariants } from "./button";
 import { Progress, ProgressTrack } from "./progress";
@@ -43,6 +44,14 @@ describe("UI primitives", () => {
     expect(list?.className).toContain("group-data-[orientation=vertical]/tabs:flex-col");
     expect(trigger?.className).toContain("group-data-[orientation=vertical]/tabs:justify-start");
     expect(trigger?.className).not.toContain("group-data-vertical/tabs");
+  });
+
+  it("passes orientation to the underlying tab primitive", () => {
+    const tabRoot = Tabs({ orientation: "vertical" }) as ReactElement<{
+      orientation?: string;
+    }>;
+
+    expect(tabRoot.props.orientation).toBe("vertical");
   });
 
   it("uses selectors that match the rendered scroll bar orientation attribute", () => {

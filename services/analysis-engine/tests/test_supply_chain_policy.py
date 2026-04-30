@@ -382,6 +382,39 @@ jobs:
     )
 
 
+def test_supply_chain_check_rejects_versioned_workflow_npx_package_fetch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure npx package specs with explicit versions cannot bypass policy."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_versioned_npx"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        run: npx @tauri-apps/cli@2.10.1 build --target x86_64-pc-windows-msvc
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_npx_policy()
+
+    expected_violation = (
+        "workflow npx package execution must use npm exec or npx --no-install: "
+        "@tauri-apps/cli@2.10.1"
+    )
+    assert any(expected_violation in violation for violation in violations)
+
+
 @pytest.mark.parametrize(
     "npx_command",
     [
@@ -662,6 +695,43 @@ jobs:
     monkeypatch.chdir(tmp_path)
 
     assert hasattr(supply_chain, "verify_workflow_workspace_exec_policy")
+    violations = supply_chain.verify_workflow_workspace_exec_policy()
+
+    expected_violation = (
+        ".github/workflows/build-baseline.yml: workflow npm exec --workspace commands must "
+        "run from the repository root"
+    )
+    assert expected_violation in violations
+
+
+def test_supply_chain_check_rejects_multiline_workspace_exec_from_nested_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure multiline npm workspace commands cannot hide nested directories."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_multiline_workspace_exec",
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        working-directory: apps/desktop
+        run: |
+          npm exec \
+            --workspace @bandscope/desktop -- tauri build --target x86_64-pc-windows-msvc
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
     violations = supply_chain.verify_workflow_workspace_exec_policy()
 
     expected_violation = (

@@ -91,7 +91,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <ConfidenceBadge level={section.confidence.level} />
               </div>
               <div className="flex items-center text-sm font-medium text-slate-300">
-                <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">Groove</span>
+                <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
             </CardHeader>
@@ -122,7 +122,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">Chord</span>
+                        <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionChordLabel")}</span>
                         <button
                           type="button"
                           aria-label={editChordLabel(role, section.label)}
@@ -152,7 +152,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
                       <div className="space-y-2">
                         <div className="text-sm font-medium leading-snug text-slate-200">
-                          <span className="mb-0.5 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">Cue</span>
+                          <span className="mb-0.5 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionCueLabel")}</span>
                           {role.cue.value}
                         </div>
 

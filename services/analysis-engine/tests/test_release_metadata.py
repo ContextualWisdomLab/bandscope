@@ -8,7 +8,19 @@ from pathlib import Path
 
 def repo_root() -> Path:
     """Return the repository root from the analysis-engine test directory."""
-    return Path(__file__).resolve().parents[3]
+    start = Path(__file__).resolve()
+    for parent in start.parents:
+        if (parent / "package.json").is_file() and (parent / "services").is_dir():
+            return parent
+    raise RuntimeError(f"Could not locate repository root from {start}")
+
+
+def test_repo_root_walks_to_repository_marker() -> None:
+    """Ensure release metadata tests do not rely on fixed directory depth."""
+    root = repo_root()
+
+    assert (root / "package.json").is_file()
+    assert (root / "services" / "analysis-engine").is_dir()
 
 
 def root_package_version() -> str:

@@ -215,7 +215,15 @@ def test_build_section_time_range_matches_desktop_bounds() -> None:
     """Ensure Python output cannot exceed the shared Rust u32 timing contract."""
     assert build_section_time_range(10, 30) == {"start": 10, "end": 30}
 
-    cases = [(-1, 30), (10, 10), (10.5, 30), (10, 4_294_967_296), (True, 30), (10, False)]
+    cases = [
+        (-1, 30),
+        (10, 10),
+        (10.5, 30),
+        (4_294_967_296, 4_294_967_297),
+        (10, 4_294_967_296),
+        (True, 30),
+        (10, False),
+    ]
     for start, end in cases:
         try:
             build_section_time_range(start, end)  # type: ignore[arg-type]

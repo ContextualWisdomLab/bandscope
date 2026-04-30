@@ -28,7 +28,10 @@ REQUIRED_FILES = [
 PINNED_ACTION = re.compile(r"^\s*-?\s*uses:\s+[^@\s]+@[0-9a-f]{40}(\s+#.*)?$")
 LOCAL_ACTION = re.compile(r"^\s*-?\s*uses:\s+\./")
 DOCKER_ACTION = re.compile(r"^\s*-?\s*uses:\s+docker://")
-PACKAGE_SPEC = re.compile(r"^@?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?$")
+PACKAGE_SPEC = re.compile(
+    r"^(?:@[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|[A-Za-z0-9_.-]+)"
+    r"(?:@[A-Za-z0-9_.~^<>=*-]+)?$"
+)
 NPX_FLAG_OPTIONS = {"-y", "--yes", "--ignore-existing", "--quiet"}
 NPX_PACKAGE_OPTIONS = {"-p", "--package"}
 NPX_VALUE_OPTIONS = {"-c", "--call", "--shell"}
@@ -41,6 +44,7 @@ RELEASE_ASSET_VALIDATOR = (
     "scripts/release/select_release_assets.py --output release-assets.txt"
 )
 RELEASE_ASSET_MAPFILE = "mapfile -t release_assets < release-assets.txt"
+WORKSPACE_EXEC_PATTERN = re.compile(r"\bnpm\s+exec\s+--workspace\b")
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -396,6 +400,12 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
     root_working_directories = {"", ".", "./", "${{ github.workspace }}"}
 
     for path in workflow_paths:
+        content = path.read_text(encoding="utf-8")
+        workspace_exec_lines = {
+            line_number
+            for line_number, logical_line in logical_workflow_lines(content)
+            if WORKSPACE_EXEC_PATTERN.search(logical_line)
+        }
         workflow_default_directory = ""
         current_job_default_directory = ""
         current_job_indent: int | None = None
@@ -429,10 +439,8 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
                     "must run from the repository root"
                 )
 
-        for line in [
-            *path.read_text(encoding="utf-8").splitlines(),
-            "      - name: sentinel",
-        ]:
+        lines_with_sentinel = [*content.splitlines(), "      - name: sentinel"]
+        for line_number, line in enumerate(lines_with_sentinel, start=1):
             indent = len(line) - len(line.lstrip(" "))
             stripped = line.strip()
             if not stripped:
@@ -522,7 +530,10 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
 
             if stripped.startswith("working-directory:"):
                 step_working_directory = yaml_scalar_value(stripped)
-            if "npm exec --workspace" in stripped:
+            if (
+                WORKSPACE_EXEC_PATTERN.search(stripped)
+                or line_number in workspace_exec_lines
+            ):
                 step_uses_workspace_exec = True
 
     return violations

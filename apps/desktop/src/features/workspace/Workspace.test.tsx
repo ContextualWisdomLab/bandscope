@@ -1,10 +1,23 @@
 import { render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { Workspace } from "./Workspace";
 import { EmptyState, LoadingState } from "./WorkspaceStates";
 
+const originalLanguage = navigator.language;
+
+function setNavigatorLanguage(language: string) {
+  Object.defineProperty(navigator, "language", {
+    configurable: true,
+    value: language
+  });
+}
+
 describe("Workspace", () => {
+  afterEach(() => {
+    setNavigatorLanguage(originalLanguage);
+  });
+
   it("keeps the song-structure grid valid when a project has no sections", () => {
     const song = createDemoRehearsalSong();
     song.sections = [];
@@ -30,23 +43,29 @@ describe("Workspace", () => {
   });
 
   it("localizes empty and loading state titles", () => {
-    const originalLanguage = navigator.language;
-    Object.defineProperty(navigator, "language", {
-      configurable: true,
-      value: "ko-KR"
-    });
-
-    try {
-      render(<EmptyState />);
-      render(<LoadingState />);
-    } finally {
-      Object.defineProperty(navigator, "language", {
-        configurable: true,
-        value: originalLanguage
-      });
-    }
+    setNavigatorLanguage("ko-KR");
+    render(<EmptyState />);
+    render(<LoadingState />);
 
     expect(screen.getByRole("heading", { name: "분석 준비 완료" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "오디오 분석 중" })).toBeTruthy();
+  });
+
+  it("localizes workspace navigation and rehearsal labels", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    song.exportSummary = {
+      ...song.exportSummary,
+      headline: ""
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText("오늘의 합주 지도")).toBeTruthy();
+    expect(screen.getByText("합주 작업 공간")).toBeTruthy();
+    expect(screen.getByText("곡 타임라인")).toBeTruthy();
+    expect(screen.getByText("스템")).toBeTruthy();
+    expect(screen.getByText("합주 우선순위")).toBeTruthy();
+    expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
 });

@@ -690,6 +690,9 @@ describe("App", () => {
 
     // Should not show error, should remain in empty state
     await waitFor(() => {
+      expect(mockLoadProject).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
       expect(screen.queryByText(/Failed to load project/i)).toBeNull();
     });
   });
@@ -711,6 +714,9 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
 
+    await waitFor(() => {
+      expect(mockLoadProject).toHaveBeenCalledTimes(1);
+    });
     await waitFor(() => {
       expect(screen.queryByText(/Failed to load project/i)).toBeNull();
     });
@@ -772,6 +778,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
+      expect(mockSaveProject).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
       expect(screen.queryByText(/Failed to save project/i)).toBeNull();
     });
   });
@@ -811,6 +820,9 @@ describe("App", () => {
     // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
+    await waitFor(() => {
+      expect(mockSaveProject).toHaveBeenCalledTimes(1);
+    });
     await waitFor(() => {
       expect(screen.queryByText(/Failed to save project/i)).toBeNull();
     });

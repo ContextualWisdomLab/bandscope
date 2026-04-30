@@ -882,21 +882,18 @@ async fn import_youtube_url(
     args.push("--out-dir".into());
     args.push(cache_root.to_string_lossy().into_owned());
 
-    let spawn_result = tokio::time::timeout(
-        YOUTUBE_IMPORT_TIMEOUT,
-        tauri::async_runtime::spawn_blocking(move || {
-            Command::new(program)
-                .args(args)
-                .current_dir(working_dir)
-                .output()
-        }),
-    )
-    .await;
-
-    let output = spawn_result
-        .map_err(|_| "YouTube import timed out.".to_string())?
-        .map_err(|_| "Failed to execute YouTube import process.".to_string())?
-        .map_err(|_| "Failed to start YouTube import process.".to_string())?;
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        let mut command = Command::new(program);
+        command.args(args).current_dir(working_dir);
+        wait_for_process_output(
+            command,
+            YOUTUBE_IMPORT_TIMEOUT,
+            ANALYSIS_WAIT_POLL,
+            "YouTube import timed out.",
+        )
+    })
+    .await
+    .map_err(|_| "Failed to execute YouTube import process.".to_string())??;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout)
@@ -916,12 +913,8 @@ async fn import_youtube_url(
             };
             store_bootstrap_source(&state, summary.clone());
             return Ok(summary);
-        } else {
-            return Err(format!(
-                "YouTube import reported ok but missing metadata: {}",
-                parsed.to_string()
-            ));
         }
+        return Err(youtube_missing_metadata_error(&parsed));
     }
 
     if let Some(err) = parsed.get("error") {
@@ -971,6 +964,48 @@ fn is_supported_youtube_url(url: &str) -> bool {
     }
 
     false
+}
+
+fn youtube_missing_metadata_error(_parsed: &Value) -> String {
+    "YouTube import reported ok but missing metadata.".to_string()
+}
+
+fn wait_for_process_output(
+    mut command: Command,
+    timeout: Duration,
+    poll_interval: Duration,
+    timeout_message: &str,
+) -> Result<std::process::Output, String> {
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| "Failed to start YouTube import process.".to_string())?;
+    let deadline = Instant::now() + timeout;
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string());
+            }
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(timeout_message.to_string());
+                }
+                thread::sleep(poll_interval);
+            }
+            Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("Failed to execute YouTube import process.".to_string());
+            }
+        }
+    }
 }
 
 fn is_youtube_video_id(value: &str) -> bool {
@@ -1165,6 +1200,46 @@ mod tests {
         ));
         assert!(!is_supported_youtube_url("https://youtu.be/abc123"));
         assert!(!is_supported_youtube_url("https://youtu.be/abc123DEF4!"));
+    }
+
+    #[test]
+    fn youtube_missing_metadata_error_does_not_expose_payload() {
+        let parsed = json!({
+            "ok": true,
+            "filepath": "/Users/someone/private-song.m4a",
+            "metadata": null
+        });
+
+        let message = youtube_missing_metadata_error(&parsed);
+
+        assert_eq!(message, "YouTube import reported ok but missing metadata.");
+        assert!(!message.contains("private-song"));
+        assert!(!message.contains("filepath"));
+    }
+
+    #[test]
+    fn youtube_process_timeout_kills_and_reaps_child() {
+        if std::env::var_os("BANDSCOPE_TEST_CHILD_SLEEP").is_some() {
+            thread::sleep(Duration::from_secs(5));
+            return;
+        }
+
+        let current_test_binary = std::env::current_exe().expect("test binary should resolve");
+        let mut command = Command::new(current_test_binary);
+        command
+            .env("BANDSCOPE_TEST_CHILD_SLEEP", "1")
+            .arg("--exact")
+            .arg("tests::youtube_process_timeout_kills_and_reaps_child")
+            .arg("--nocapture");
+
+        let result = wait_for_process_output(
+            command,
+            Duration::from_millis(50),
+            Duration::from_millis(5),
+            "YouTube import timed out.",
+        );
+
+        assert_eq!(result.expect_err("slow child should time out"), "YouTube import timed out.");
     }
 
     #[test]

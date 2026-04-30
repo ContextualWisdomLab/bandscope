@@ -3,6 +3,7 @@ import type { RehearsalSong } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
+import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -23,13 +24,15 @@ function formatTimelineTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+type Translator = ReturnType<typeof createTranslator>;
+
 /** Documented. */
-function SongStructure({ sections }: { sections: RehearsalSong["sections"] }) {
+function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-black uppercase tracking-[0.24em] text-slate-200">Song Structure</h3>
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Rehearsal timeline</span>
+        <h3 className="text-sm font-black uppercase tracking-[0.24em] text-slate-200">{t("workspaceSongStructureLabel")}</h3>
+        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{t("workspaceRehearsalTimelineLabel")}</span>
       </div>
 
       <div
@@ -73,6 +76,7 @@ function SongStructure({ sections }: { sections: RehearsalSong["sections"] }) {
 /** Documented. */
 export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
   const allRoles = useMemo(() => {
@@ -125,10 +129,10 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
         <CardHeader className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))] p-5 pb-6 md:p-7">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
-              <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">Tonight&apos;s rehearsal map</p>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">{t("workspaceRehearsalMapLabel")}</p>
               <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">{song.title}</h2>
               <CardDescription className="text-base font-medium text-slate-300">
-              {song.exportSummary?.headline || "Rehearsal Workspace"}
+              {song.exportSummary?.headline || t("workspaceRehearsalFallback")}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -157,31 +161,31 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
         <CardContent className="space-y-6 bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.86))] p-5 md:p-7">
           <div className="grid gap-4 lg:grid-cols-4">
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 lg:col-span-2">
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">Song Timeline</p>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">{t("workspaceSongTimelineLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
                 {song.sections.length} section{song.sections.length === 1 ? "" : "s"} mapped with groove, role cues, and chord confidence notes.
               </p>
             </section>
 
             <section className="rounded-2xl border border-violet-300/20 bg-violet-300/[0.06] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-violet-200">Stems</p>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-violet-200">{t("workspaceStemsLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">Stem lanes will appear when separation results are available.</p>
             </section>
 
             <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">Rehearsal Priorities</p>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
                 Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
               </p>
             </section>
           </div>
 
-          <SongStructure sections={song.sections} />
+          <SongStructure sections={song.sections} t={t} />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-300">Roles & Harmony</p>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-300">{t("workspaceRolesHarmonyLabel")}</p>
                 <p className="mt-1 text-sm text-slate-400">Filter the board by player or vocal role without losing the full form context.</p>
               </div>
               <RoleSwitcher

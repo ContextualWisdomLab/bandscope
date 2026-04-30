@@ -26,6 +26,9 @@ describe("SectionRoadmap", () => {
     render(<SectionRoadmap song={song} activeRole={null} />);
 
     expect(screen.getByText("더 많은 구간은 옆으로 스크롤하세요 →")).toBeTruthy();
+    expect(screen.getAllByText("그루브").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("코드").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("큐").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("우선순위: high").length).toBeGreaterThan(0);
     expect(screen.getByText("사용자")).toBeTruthy();
   });
