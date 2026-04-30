@@ -540,7 +540,7 @@ checksum = "legacy-exception"
 def test_supply_chain_check_reports_non_numeric_rust_rand_versions(
     tmp_path: Path,
 ) -> None:
-    """Ensure non-stable rand versions are reported instead of crashing."""
+    """Ensure non-standard rand versions are reported instead of crashing."""
     supply_chain = load_module(
         "scripts/checks/verify_supply_chain.py",
         "verify_supply_chain_rust_rand_non_numeric_version",
@@ -553,6 +553,12 @@ name = "rand"
 version = "0.9.3-alpha.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "non-stable"
+
+[[package]]
+name = "rand"
+version = "0.8.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "extra-numeric-segment"
 """.strip(),
         encoding="utf-8",
     )
@@ -561,6 +567,9 @@ checksum = "non-stable"
 
     assert (
         f"{lockfile}: rand 0.9.3-alpha.1 has a non-numeric version segment for GHSA-cq8v-f236-94qc"
+    ) in violations
+    assert (
+        f"{lockfile}: rand 0.8.6.1 has a non-standard extra version segment for GHSA-cq8v-f236-94qc"
     ) in violations
 
 

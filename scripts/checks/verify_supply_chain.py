@@ -3,6 +3,7 @@
 import ast
 import re
 import shlex
+from itertools import pairwise
 from pathlib import Path
 
 REQUIRED_FILES = [
@@ -697,16 +698,22 @@ def rust_dependency_advisory_violations(
             )
             continue
         parsed_parts: list[int] = []
-        for part in version.split(".")[:3]:
-            try:
-                parsed_parts.append(int(part))
-            except ValueError:
-                violations.append(
-                    f"{lockfile}: rand {version} has a non-numeric version segment "
-                    f"for {RUST_RAND_ADVISORY_ID}"
-                )
-                break
-        if len(parsed_parts) != min(3, len(version.split("."))):
+        segments = version.split(".")
+        if any(not segment.isdecimal() for segment in segments):
+            violations.append(
+                f"{lockfile}: rand {version} has a non-numeric version segment "
+                f"for {RUST_RAND_ADVISORY_ID}"
+            )
+            continue
+        if len(segments) > 3:
+            violations.append(
+                f"{lockfile}: rand {version} has a non-standard extra version segment "
+                f"for {RUST_RAND_ADVISORY_ID}"
+            )
+            continue
+        for part in segments:
+            parsed_parts.append(int(part))
+        if len(parsed_parts) != len(segments):
             continue
         while len(parsed_parts) < 3:
             parsed_parts.append(0)
@@ -856,7 +863,7 @@ def cargo_lock_has_dependency_chain(
     """Return whether Cargo dependencies contain the exact package chain."""
     return all(
         cargo_dependency_targets_package(package_dependencies, owner, dependency)
-        for owner, dependency in zip(package_chain, package_chain[1:])
+        for owner, dependency in pairwise(package_chain)
     )
 
 
