@@ -344,6 +344,110 @@ jobs:
     )
 
 
+@pytest.mark.parametrize(
+    "npx_command",
+    [
+        "npx -y @tauri-apps/cli build --target x86_64-pc-windows-msvc",
+        "npx -y `@tauri-apps/cli` build --target x86_64-pc-windows-msvc",
+        "npx --package @tauri-apps/cli tauri build --target x86_64-pc-windows-msvc",
+        "npx --package=@tauri-apps/cli tauri build --target x86_64-pc-windows-msvc",
+    ],
+)
+def test_supply_chain_check_rejects_workflow_npx_package_fetch_with_options(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, npx_command: str
+) -> None:
+    """Ensure npx package-fetch policy cannot be bypassed with npx options."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_npx_options_policy"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        f"""
+name: build-baseline
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        run: {npx_command}
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_npx_policy()
+
+    assert any(
+        "workflow npx package execution must use npm exec or npx --no-install: @tauri-apps/cli"
+        in violation
+        for violation in violations
+    )
+
+
+def test_supply_chain_check_allows_workflow_npx_no_install_with_options(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure no-install npx calls remain allowed even with other options."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_npx_no_install"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        run: npx --no-install -y @tauri-apps/cli build --target x86_64-pc-windows-msvc
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_npx_policy()
+
+    assert not violations
+
+
+def test_supply_chain_check_rejects_late_npx_no_install_after_package(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure --no-install only exempts calls when it is an npx option pre-package."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_late_no_install"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        run: npx @tauri-apps/cli --no-install build --target x86_64-pc-windows-msvc
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_npx_policy()
+
+    assert any(
+        "workflow npx package execution must use npm exec or npx --no-install: @tauri-apps/cli"
+        in violation
+        for violation in violations
+    )
+
+
 def test_supply_chain_check_rejects_workspace_exec_from_nested_working_directory(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

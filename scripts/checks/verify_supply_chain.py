@@ -28,7 +28,11 @@ PINNED_ACTION = re.compile(r"^\s*-?\s*uses:\s+[^@\s]+@[0-9a-f]{40}(\s+#.*)?$")
 LOCAL_ACTION = re.compile(r"^\s*-?\s*uses:\s+\./")
 DOCKER_ACTION = re.compile(r"^\s*-?\s*uses:\s+docker://")
 NPX_PACKAGE = re.compile(
-    r"\bnpx\s+(?![^#\n]*--no-install)(?P<package>@[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|[A-Za-z0-9_.-]+)\b"
+    r"\bnpx\s+"
+    r"(?!(?:(?:-y|--yes|--ignore-existing|--quiet)\s+)*--no-install\b)"
+    r"(?:(?:-y|--yes|--ignore-existing|--quiet)\s+)*"
+    r"(?:(?:--package(?:=|\s+)|-p\s+))?"
+    r"`?(?P<package>@[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|[A-Za-z0-9_.-]+)`?\b"
 )
 OSSF_DEFAULT_BRANCH_PUBLISH_GUARD = (
     "publish_results: ${{ github.ref == format('refs/heads/{0}', "
