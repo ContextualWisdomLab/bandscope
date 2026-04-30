@@ -340,6 +340,117 @@ def test_supply_chain_check_accepts_repo_ossf_publish_restrictions(
     assert not any("ossf scorecard" in violation for violation in violations)
 
 
+def test_supply_chain_check_rejects_vulnerable_rust_rand_lockfile(
+    tmp_path: Path,
+) -> None:
+    """Ensure the Rust lockfile cannot regress to vulnerable rand ranges."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_vulnerable"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "rand"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "placeholder"
+
+[[package]]
+name = "rand"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "older-api-series"
+
+[[package]]
+name = "rand"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "newer-vulnerable-api-series"
+
+[[package]]
+name = "rand"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "latest-vulnerable-api-series"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (f"{lockfile}: rand 0.8.5 is below patched 0.8.6 for GHSA-cq8v-f236-94qc") in violations
+    assert (f"{lockfile}: rand 0.9.2 is below patched 0.9.3 for GHSA-cq8v-f236-94qc") in violations
+    assert (
+        f"{lockfile}: rand 0.10.0 is below patched 0.10.1 for GHSA-cq8v-f236-94qc"
+    ) in violations
+    assert not any("rand 0.7.3" in violation for violation in violations)
+
+
+def test_supply_chain_check_accepts_repo_rust_rand_patch() -> None:
+    """Ensure the checked-in Rust lockfile keeps rand on the patched 0.8 line."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.rust_dependency_advisory_violations(
+        repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock"
+    )
+
+    assert not violations
+
+
+def test_supply_chain_check_rejects_yanked_rust_fastrand_lockfile(
+    tmp_path: Path,
+) -> None:
+    """Ensure the Rust lockfile cannot regress to yanked fastrand 2.4.0."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_fastrand_yanked"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "fastrand"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "placeholder"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert f"{lockfile}: fastrand 2.4.0 is yanked and must stay updated" in violations
+
+
+def test_supply_chain_check_accepts_repo_rust_fastrand_update() -> None:
+    """Ensure the checked-in Rust lockfile keeps fastrand off yanked 2.4.0."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_fastrand_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.rust_dependency_advisory_violations(
+        repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock"
+    )
+
+    assert not violations
+
+
+def test_supply_chain_check_requires_tracked_rust_rand_legacy_exception() -> None:
+    """Ensure the remaining legacy rand advisory is narrowly documented in audit config."""
+    repo_root = Path(__file__).resolve().parents[3]
+    audit_config = repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml"
+    content = audit_config.read_text(encoding="utf-8")
+
+    assert (
+        '"RUSTSEC-2026-0097", # rand 0.7.3: transitive via Tauri/kuchikiki phf 0.8; '
+        "remove when upstream drops the chain"
+    ) in content
+
+
 def test_supply_chain_check_rejects_release_published_asset_upload(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

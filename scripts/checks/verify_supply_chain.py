@@ -49,6 +49,14 @@ RELEASE_ASSET_VALIDATOR = (
 )
 RELEASE_ASSET_MAPFILE = "mapfile -t release_assets < release-assets.txt"
 WORKSPACE_EXEC_PATTERN = re.compile(r"\bnpm\s+exec\s+--workspace\b")
+RUST_RAND_ADVISORY_ID = "GHSA-cq8v-f236-94qc"
+RUST_RAND_LEGACY_EXCEPTION_VERSION = "0.7.3"
+RUST_RAND_PATCHED_VERSIONS = {
+    (0, 8): (0, 8, 6),
+    (0, 9): (0, 9, 3),
+    (0, 10): (0, 10, 1),
+}
+RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -645,6 +653,44 @@ def verify_release_asset_allowlist_policy() -> list[str]:
     return violations
 
 
+def rust_dependency_advisory_violations(
+    lockfile: Path = Path("apps/desktop/src-tauri/Cargo.lock"),
+) -> list[str]:
+    """Return Rust lockfile dependency versions with known required patches."""
+    violations: list[str] = []
+    current_name = ""
+    for line in [*lockfile.read_text(encoding="utf-8").splitlines(), "[[package]]"]:
+        stripped = line.strip()
+        if stripped == "[[package]]":
+            current_name = ""
+            continue
+        if stripped.startswith("name = "):
+            current_name = stripped.partition("=")[2].strip().strip('"')
+            continue
+        if not stripped.startswith("version = "):
+            continue
+        version = stripped.partition("=")[2].strip().strip('"')
+        if current_name == "fastrand" and version == RUST_FASTRAND_YANKED_VERSION:
+            violations.append(
+                f"{lockfile}: fastrand {version} is yanked and must stay updated"
+            )
+            continue
+        if current_name != "rand":
+            continue
+        if version == RUST_RAND_LEGACY_EXCEPTION_VERSION:
+            continue
+        parts = tuple(int(part) for part in version.split(".")[:3])
+        rand_series = (parts[0], parts[1])
+        patched_version = RUST_RAND_PATCHED_VERSIONS.get(rand_series)
+        if patched_version is not None and parts < patched_version:
+            patched = ".".join(str(part) for part in patched_version)
+            violations.append(
+                f"{lockfile}: rand {version} is below patched {patched} "
+                f"for {RUST_RAND_ADVISORY_ID}"
+            )
+    return violations
+
+
 def main() -> int:
     """Return a failing exit code when supply-chain controls are incomplete."""
     violations: list[str] = []
@@ -656,6 +702,7 @@ def main() -> int:
     violations.extend(verify_release_asset_allowlist_policy())
     violations.extend(verify_workflow_npx_policy())
     violations.extend(verify_workflow_workspace_exec_policy())
+    violations.extend(rust_dependency_advisory_violations())
 
     if violations:
         print("Supply-chain verification failed:")
