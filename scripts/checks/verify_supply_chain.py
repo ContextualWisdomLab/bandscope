@@ -1,7 +1,9 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
+import ast
 import re
 import shlex
+from itertools import pairwise
 from pathlib import Path
 
 REQUIRED_FILES = [
@@ -49,6 +51,22 @@ RELEASE_ASSET_VALIDATOR = (
 )
 RELEASE_ASSET_MAPFILE = "mapfile -t release_assets < release-assets.txt"
 WORKSPACE_EXEC_PATTERN = re.compile(r"\bnpm\s+exec\s+--workspace\b")
+RUST_RAND_ADVISORY_ID = "GHSA-cq8v-f236-94qc"
+RUST_RAND_LEGACY_EXCEPTION_VERSION = "0.7.3"
+RUST_RAND_PATCHED_VERSIONS = {
+    (0, 8): (0, 8, 6),
+    (0, 9): (0, 9, 3),
+    (0, 10): (0, 10, 1),
+}
+RUST_RAND_LEGACY_EXCEPTION_CHAIN = (
+    "tauri-utils 2.8.3",
+    "kuchikiki 0.8.8-speedreader",
+    "selectors 0.24.0",
+    "phf_codegen 0.8.0",
+    "phf_generator 0.8.0",
+    "rand 0.7.3",
+)
+RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -645,6 +663,218 @@ def verify_release_asset_allowlist_policy() -> list[str]:
     return violations
 
 
+def rust_dependency_advisory_violations(
+    lockfile: Path = Path("apps/desktop/src-tauri/Cargo.lock"),
+) -> list[str]:
+    """Return Rust lockfile dependency versions with known required patches."""
+    violations: list[str] = []
+    if not lockfile.exists():
+        return [f"Cargo.lock missing: {lockfile}"]
+    package_dependencies = cargo_lock_package_dependencies(lockfile)
+    legacy_exception_allowed = cargo_lock_has_dependency_chain(
+        package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN
+    )
+    expected_legacy_owner = RUST_RAND_LEGACY_EXCEPTION_CHAIN[-2]
+    legacy_rand_owners = cargo_lock_dependency_owners(
+        package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN[-1]
+    )
+    for package in cargo_lock_packages(lockfile):
+        current_name = str(package.get("name", ""))
+        version = str(package.get("version", ""))
+        if current_name == "fastrand" and version == RUST_FASTRAND_YANKED_VERSION:
+            violations.append(
+                f"{lockfile}: fastrand {version} is yanked and must stay updated"
+            )
+            continue
+        if current_name != "rand":
+            continue
+        if version == RUST_RAND_LEGACY_EXCEPTION_VERSION:
+            if legacy_exception_allowed and legacy_rand_owners == {expected_legacy_owner}:
+                continue
+            violations.append(
+                f"{lockfile}: rand {version} matches the legacy exception version "
+                "but does not have the documented Tauri/kuchikiki owner chain "
+                f"for {RUST_RAND_ADVISORY_ID}"
+            )
+            continue
+        parsed_parts: list[int] = []
+        segments = version.split(".")
+        if any(not segment.isdecimal() for segment in segments):
+            violations.append(
+                f"{lockfile}: rand {version} has a non-numeric version segment "
+                f"for {RUST_RAND_ADVISORY_ID}"
+            )
+            continue
+        if len(segments) > 3:
+            violations.append(
+                f"{lockfile}: rand {version} has a non-standard extra version segment "
+                f"for {RUST_RAND_ADVISORY_ID}"
+            )
+            continue
+        for part in segments:
+            parsed_parts.append(int(part))
+        if len(parsed_parts) != len(segments):
+            continue
+        while len(parsed_parts) < 3:
+            parsed_parts.append(0)
+        parts = tuple(parsed_parts[:3])
+        rand_series = (parts[0], parts[1])
+        if rand_series == (0, 7):
+            violations.append(
+                f"{lockfile}: rand {version} is not allowed for "
+                f"{RUST_RAND_ADVISORY_ID}; only rand "
+                f"{RUST_RAND_LEGACY_EXCEPTION_VERSION} on the documented "
+                "legacy owner chain is temporarily allowed"
+            )
+            continue
+        patched_version = RUST_RAND_PATCHED_VERSIONS.get(rand_series)
+        if patched_version is not None and parts < patched_version:
+            patched = ".".join(str(part) for part in patched_version)
+            violations.append(
+                f"{lockfile}: rand {version} is below patched {patched} "
+                f"for {RUST_RAND_ADVISORY_ID}"
+            )
+    return violations
+
+
+def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
+    """Return Cargo package keys and dependency tokens from a lockfile."""
+    packages: dict[str, list[str]] = {}
+    for package in cargo_lock_packages(lockfile):
+        current_name = str(package.get("name", ""))
+        current_version = str(package.get("version", ""))
+        if not current_name or not current_version:
+            continue
+        dependencies = package.get("dependencies", [])
+        if not isinstance(dependencies, list):
+            dependencies = []
+        packages[f"{current_name} {current_version}"] = [
+            str(dependency).strip() for dependency in dependencies
+        ]
+    return cargo_lock_normalized_package_dependencies(packages)
+
+
+def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
+    """Return Cargo package tables from supported lockfile TOML forms."""
+    packages: list[dict[str, object]] = []
+    current_package: dict[str, object] | None = None
+    in_dependencies = False
+    dependency_tokens: list[str] = []
+
+    def store_current_package() -> None:
+        if current_package is not None:
+            if in_dependencies:
+                current_package["dependencies"] = dependency_tokens.copy()
+            packages.append(current_package.copy())
+
+    for line in [*lockfile.read_text(encoding="utf-8").splitlines(), "[[package]]"]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped == "[[package]]":
+            store_current_package()
+            current_package = {}
+            in_dependencies = False
+            dependency_tokens = []
+            continue
+        if current_package is None:
+            continue
+        if in_dependencies:
+            if stripped == "]":
+                current_package["dependencies"] = dependency_tokens.copy()
+                in_dependencies = False
+                continue
+            if stripped.startswith('"'):
+                dependency_tokens.append(stripped.strip('",'))
+            continue
+        key, separator, value = stripped.partition("=")
+        if not separator:
+            continue
+        normalized_key = key.strip()
+        normalized_value = value.strip()
+        if normalized_key == "dependencies":
+            if normalized_value == "[":
+                in_dependencies = True
+                dependency_tokens = []
+                continue
+            current_package["dependencies"] = parse_cargo_lock_string_list(
+                normalized_value
+            )
+            continue
+        if normalized_key in {"name", "version"}:
+            current_package[normalized_key] = parse_cargo_lock_scalar(normalized_value)
+    return packages
+
+
+def parse_cargo_lock_string_list(value: str) -> list[str]:
+    """Return strings from an inline Cargo.lock dependency array."""
+    parsed_value = ast.literal_eval(value)
+    if not isinstance(parsed_value, list):
+        return []
+    return [str(item).strip() for item in parsed_value]
+
+
+def parse_cargo_lock_scalar(value: str) -> str:
+    """Return a scalar Cargo.lock TOML value as text."""
+    parsed_value = ast.literal_eval(value)
+    return str(parsed_value)
+
+
+def cargo_lock_normalized_package_dependencies(
+    package_dependencies: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    """Return dependency tokens normalized to exact package keys when possible."""
+    package_keys_by_name: dict[str, list[str]] = {}
+    for package_key in package_dependencies:
+        package_name = package_key.rsplit(" ", maxsplit=1)[0]
+        package_keys_by_name.setdefault(package_name, []).append(package_key)
+
+    normalized: dict[str, list[str]] = {}
+    for package_key, dependency_tokens in package_dependencies.items():
+        normalized_tokens: list[str] = []
+        for dependency_token in dependency_tokens:
+            dependency = dependency_token.strip()
+            if dependency in package_dependencies:
+                normalized_tokens.append(dependency)
+                continue
+            matching_package_keys = package_keys_by_name.get(dependency, [])
+            if len(matching_package_keys) == 1:
+                normalized_tokens.append(matching_package_keys[0])
+                continue
+            normalized_tokens.append(dependency)
+        normalized[package_key] = normalized_tokens
+    return normalized
+
+
+def cargo_lock_dependency_owners(
+    package_dependencies: dict[str, list[str]], dependency: str
+) -> set[str]:
+    """Return package keys that directly reference the target dependency key."""
+    return {
+        owner
+        for owner, dependency_tokens in package_dependencies.items()
+        if dependency in dependency_tokens
+    }
+
+
+def cargo_lock_has_dependency_chain(
+    package_dependencies: dict[str, list[str]], package_chain: tuple[str, ...]
+) -> bool:
+    """Return whether Cargo dependencies contain the exact package chain."""
+    return all(
+        cargo_dependency_targets_package(package_dependencies, owner, dependency)
+        for owner, dependency in pairwise(package_chain)
+    )
+
+
+def cargo_dependency_targets_package(
+    package_dependencies: dict[str, list[str]], owner: str, dependency: str
+) -> bool:
+    """Return whether an owner package depends on the target package key."""
+    dependency_tokens = package_dependencies.get(owner, [])
+    return dependency in dependency_tokens
+
+
 def main() -> int:
     """Return a failing exit code when supply-chain controls are incomplete."""
     violations: list[str] = []
@@ -656,6 +886,7 @@ def main() -> int:
     violations.extend(verify_release_asset_allowlist_policy())
     violations.extend(verify_workflow_npx_policy())
     violations.extend(verify_workflow_workspace_exec_policy())
+    violations.extend(rust_dependency_advisory_violations())
 
     if violations:
         print("Supply-chain verification failed:")

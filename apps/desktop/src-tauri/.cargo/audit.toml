@@ -17,5 +17,6 @@ ignore = [
     "RUSTSEC-2025-0080", # unic-common: unmaintained
     "RUSTSEC-2025-0100", # unic-ucd-ident: unmaintained
     "RUSTSEC-2025-0098", # unic-ucd-version: unmaintained
-    "RUSTSEC-2024-0429"  # glib: unsoundness in VariantStrIter
+    "RUSTSEC-2024-0429", # glib: unsoundness in VariantStrIter
+    "RUSTSEC-2026-0097", # rand 0.7.3: transitive via Tauri/kuchikiki phf 0.8; remove when upstream drops the chain
 ]
