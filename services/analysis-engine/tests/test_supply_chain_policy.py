@@ -286,3 +286,55 @@ jobs:
         in violation
         for violation in violations
     )
+
+
+def test_supply_chain_check_rejects_workspace_exec_from_nested_working_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure npm workspace commands execute from the repository root in workflows."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_workspace_exec"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        working-directory: apps/desktop
+        run: npm exec --workspace @bandscope/desktop -- tauri build --target x86_64-pc-windows-msvc
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    assert hasattr(supply_chain, "verify_workflow_workspace_exec_policy")
+    violations = supply_chain.verify_workflow_workspace_exec_policy()
+
+    expected_violation = (
+        ".github/workflows/build-baseline.yml: workflow npm exec --workspace commands must "
+        "run from the repository root"
+    )
+    assert expected_violation in violations
+
+
+def test_supply_chain_check_accepts_repo_workspace_exec_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure checked-in workflows run npm workspace execution from the root."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_workspace_exec_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    monkeypatch.chdir(repo_root)
+
+    assert hasattr(supply_chain, "verify_workflow_workspace_exec_policy")
+    violations = supply_chain.verify_workflow_workspace_exec_policy()
+
+    assert not violations

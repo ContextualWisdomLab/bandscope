@@ -15,12 +15,21 @@ interface SectionRoadmapProps {
 
 /** Documented. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
-  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
+
+  /** Documented. */
+  const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
+    return t("chordEditAriaLabel")
+      .replace("{roleName}", role.name)
+      .replace("{sectionLabel}", sectionLabel)
+      .replace("{chord}", role.harmony.chord);
+  };
 
   /** Documented. */
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;
-    const newChord = window.prompt("Enter new chord:", role.harmony.chord);
+    const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
     if (newChord !== null && newChord.trim() !== "" && newChord !== role.harmony.chord) {
       const updatedSong = structuredClone(song);
       const section = updatedSong.sections.find(s => s.id === sectionId);
@@ -65,7 +74,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
           <Music2 className="mr-2 size-5 text-cyan-300" aria-hidden="true" />
           {t("sectionRoadmapTitle")}
         </h2>
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Scroll for more sections →</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t("sectionRoadmapScrollHint")}</span>
       </div>
 
       <div className="hide-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6 pt-2">
@@ -106,7 +115,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           </Badge>
                         )}
                       </div>
-                      <div title={`Priority: ${role.rehearsalPriority}`} className="rounded-full border border-white/10 bg-white/10 p-1 shadow-sm">
+                      <div title={`${t("priorityLabel")}: ${role.rehearsalPriority}`} className="rounded-full border border-white/10 bg-white/10 p-1 shadow-sm">
                         {getPriorityIcon(role.rehearsalPriority)}
                       </div>
                     </div>
@@ -116,7 +125,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">Chord</span>
                         <button
                           type="button"
-                          aria-label={`Edit chord for ${role.name} in ${section.label}, current ${role.harmony.chord}`}
+                          aria-label={editChordLabel(role, section.label)}
                           className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors ${
                             onSongUpdate
                               ? "cursor-pointer hover:bg-white/10"
@@ -127,14 +136,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                               : "text-cyan-100"
                           }`}
                           onClick={() => handleChordEdit(section.id, role)}
-                          title={onSongUpdate ? "Click to edit chord" : undefined}
+                          title={onSongUpdate ? t("chordEditTitle") : undefined}
                           disabled={!onSongUpdate}
                         >
                           {role.harmony.chord}
                         </button>
                         {role.harmony.source === "user" && (
                           <Badge variant="secondary" className="h-4 bg-indigo-300/20 px-1 text-[0.6rem] text-indigo-100 hover:bg-indigo-300/20">
-                            User
+                            {t("harmonySourceUserBadge")}
                           </Badge>
                         )}
                       </div>

@@ -398,11 +398,11 @@ describe("App", () => {
         state: "running",
         progressLabel: "Running analysis"
       }))
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-3",
         state: "failed",
         error: { code: "engine_unavailable" }
-      });
+      }));
 
     render(<App />);
 
@@ -435,8 +435,10 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/analysis could not start/i)).toBeTruthy();
+      expect(tauriInvoke).toHaveBeenCalledTimes(3);
     });
+    expect(screen.queryByText(/analysis could not start/i)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("button", { name: /start analysis/i }).hasAttribute("disabled")).toBe(true);
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
@@ -480,10 +482,10 @@ describe("App", () => {
   it("falls back to generic text when start returns a failed job without details", async () => {
     tauriInvoke
       .mockResolvedValueOnce(bootstrapResponse())
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-6",
         state: "failed"
-      });
+      }));
 
     render(<App />);
 

@@ -211,6 +211,43 @@ def verify_workflow_npx_policy() -> list[str]:
     return violations
 
 
+def verify_workflow_workspace_exec_policy() -> list[str]:
+    """Return workflow npm workspace invocations that run from nested directories."""
+    violations: list[str] = []
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    root_working_directories = {"", ".", "./", "${{ github.workspace }}"}
+
+    for path in workflow_paths:
+        step_working_directory = ""
+        step_uses_workspace_exec = False
+
+        def record_step_violation() -> None:
+            if (
+                step_uses_workspace_exec
+                and step_working_directory
+                and step_working_directory not in root_working_directories
+            ):
+                violations.append(
+                    f"{path}: workflow npm exec --workspace commands must run from the repository root"
+                )
+
+        for line in [*path.read_text(encoding="utf-8").splitlines(), "      - name: sentinel"]:
+            stripped = line.strip()
+            if re.match(r"^-\s+(name|uses|run):", stripped):
+                record_step_violation()
+                step_working_directory = ""
+                step_uses_workspace_exec = False
+
+            if stripped.startswith("working-directory:"):
+                step_working_directory = stripped.partition(":")[2].strip().strip('"\'')
+            if "npm exec --workspace" in stripped:
+                step_uses_workspace_exec = True
+
+    return violations
+
+
 def verify_release_asset_allowlist_policy() -> list[str]:
     """Return release workflows that upload arbitrary artifact directory contents."""
     violations: list[str] = []
@@ -247,6 +284,7 @@ def main() -> int:
     violations.extend(verify_immutable_release_upload_policy())
     violations.extend(verify_release_asset_allowlist_policy())
     violations.extend(verify_workflow_npx_policy())
+    violations.extend(verify_workflow_workspace_exec_policy())
 
     if violations:
         print("Supply-chain verification failed:")

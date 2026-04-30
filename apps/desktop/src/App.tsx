@@ -179,8 +179,25 @@ export function App() {
         if (nextStatus.state === "failed") {
           setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
         }
-      } catch {
-        setJobError(t("analysisCouldNotStart"));
+      } catch (error) {
+        if (error instanceof Error && error.message === "Invalid analysis job status response") {
+          const fallbackMessage = t("analysisCouldNotStart");
+          setJobError(fallbackMessage);
+          setJobStatus((currentStatus) =>
+            currentStatus?.jobId === jobStatus.jobId
+              ? {
+                  ...currentStatus,
+                  state: "failed",
+                  error: {
+                    code: "engine_unavailable",
+                    message: fallbackMessage
+                  }
+                }
+              : currentStatus
+          );
+          return;
+        }
+
         setJobStatus((currentStatus) =>
           currentStatus?.jobId === jobStatus.jobId &&
           (currentStatus.state === "queued" || currentStatus.state === "running")

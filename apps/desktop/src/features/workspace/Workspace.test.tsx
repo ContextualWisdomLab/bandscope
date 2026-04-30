@@ -10,10 +10,21 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    const timelineRegion = screen.getByRole("region", { name: /scrollable song structure timeline/i });
-    const grid = timelineRegion.querySelector(".grid") as HTMLElement | null;
+    const grid = screen.getByTestId("song-structure-grid");
 
-    expect(grid?.style.gridTemplateColumns).not.toContain("repeat(0");
-    expect(grid?.style.gridTemplateColumns).toContain("repeat(1");
+    expect(grid.style.gridTemplateColumns).not.toContain("repeat(0");
+    expect(grid.style.gridTemplateColumns).toContain("repeat(1");
+  });
+
+  it("falls back to safe timeline text for malformed section times", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0].timeRange = {
+      start: Number.NaN,
+      end: Number.POSITIVE_INFINITY
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 });
