@@ -21,7 +21,7 @@ Treat every supply-chain warning as evidence to classify, fix, or track. The goa
    - Python: `uv tree --project services/analysis-engine --package <package>`
    - Strix/security scans: link the finding ID, affected file/path, rule name, run URL, and current-head SHA
 4. Add a failing regression guard first when repo code can prevent recurrence.
-5. Fix the root cause. For GitHub Actions Node.js runtime deprecation warnings, trace the exact action owner/ref first. If the action is repo-owned, meaning a local `.github/actions/` path or an action maintained in this repository or organization, update the action runtime or action code in the owned source. If the action is repo-selected external code, upgrade to a maintained action ref and pin it to a specific commit SHA. Do not use broad log filtering, generic quiet flags, or gate removal.
+5. Fix the root cause. For GitHub Actions Node.js runtime deprecation warnings, trace the exact action owner/ref first. If the workflow uses a local action path such as `./.github/actions/...` or another `./` path, update the local action runtime or action code in place. If the workflow uses any non-local `owner/repo@ref` action, including actions maintained by this organization, upgrade it to a maintained ref and pin it to an immutable commit SHA. Do not use broad log filtering, generic quiet flags, or gate removal.
 6. If no maintained fix exists, document the owner chain and create or link a follow-up issue with acceptance criteria and Security Notes.
 7. Re-run the original warning command plus the smallest relevant policy/test command.
 8. For PR review warnings, push the fix and re-check robot review/check evidence instead of dismissing the review.
