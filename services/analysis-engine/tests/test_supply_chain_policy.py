@@ -380,6 +380,66 @@ checksum = "latest-vulnerable-api-series"
     ) in violations
 
 
+def test_supply_chain_check_rejects_non_exception_rust_rand_0_7_lockfile(
+    tmp_path: Path,
+) -> None:
+    """Ensure only the documented legacy rand 0.7.3 exception can pass."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_0_7"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+version = "0.7.4"
+name = "rand"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "unexpected-legacy-series"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.4 is not allowed for GHSA-cq8v-f236-94qc; "
+        "only rand 0.7.3 on the documented legacy owner chain is temporarily allowed"
+    ) in violations
+
+
+def test_supply_chain_check_handles_version_first_and_inline_dependency_fixtures(
+    tmp_path: Path,
+) -> None:
+    """Ensure valid Cargo.lock key order and inline dependencies stay guarded."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_rand_format_variants",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+version = "1.0.0"
+name = "bad-owner"
+dependencies = ["rand 0.7.3"]
+
+[[package]]
+version = "0.7.3"
+name = "rand"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "version-first-inline-owner"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
+        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+    ) in violations
+
+
 def test_supply_chain_check_reports_missing_rust_lockfile(tmp_path: Path) -> None:
     """Ensure missing Cargo.lock is reported as a supply-chain violation."""
     supply_chain = load_module(

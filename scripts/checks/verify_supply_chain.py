@@ -712,6 +712,14 @@ def rust_dependency_advisory_violations(
             parsed_parts.append(0)
         parts = tuple(parsed_parts[:3])
         rand_series = (parts[0], parts[1])
+        if rand_series == (0, 7):
+            violations.append(
+                f"{lockfile}: rand {version} is not allowed for "
+                f"{RUST_RAND_ADVISORY_ID}; only rand "
+                f"{RUST_RAND_LEGACY_EXCEPTION_VERSION} on the documented "
+                "legacy owner chain is temporarily allowed"
+            )
+            continue
         patched_version = RUST_RAND_PATCHED_VERSIONS.get(rand_series)
         if patched_version is not None and parts < patched_version:
             patched = ".".join(str(part) for part in patched_version)
