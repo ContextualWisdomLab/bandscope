@@ -68,7 +68,7 @@ def select_release_assets(repo_root: Path, git_sha: str | None = None) -> list[s
     selected_artifacts: list[str] = []
 
     for artifact_path in sorted(artifacts_dir.iterdir(), key=lambda path: path.name):
-        if not artifact_path.is_file():
+        if artifact_path.is_symlink() or not artifact_path.is_file():
             raise ValueError(f"unexpected release artifact path: {artifact_path.name}")
 
         match = pattern.fullmatch(artifact_path.name)
@@ -108,7 +108,10 @@ def select_release_assets(repo_root: Path, git_sha: str | None = None) -> list[s
         if installer_name not in installer_names:
             raise ValueError(f"sidecar without installer: {installer_name}")
 
-    return [*sorted(selected_artifacts), *(path.as_posix() for path in RELEASE_METADATA)]
+    return [
+        *sorted(selected_artifacts),
+        *(path.as_posix() for path in RELEASE_METADATA),
+    ]
 
 
 def write_asset_list(output_path: Path, assets: Iterable[str]) -> None:

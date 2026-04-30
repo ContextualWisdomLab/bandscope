@@ -82,6 +82,35 @@ def test_select_release_assets_rejects_stray_artifact_file(tmp_path: Path) -> No
         selector.select_release_assets(tmp_path, git_sha=sha)
 
 
+def test_select_release_assets_rejects_symlink_artifact(tmp_path: Path) -> None:
+    """Fail closed when a release artifact is a symlink rather than a regular file."""
+    selector = load_module(
+        "scripts/release/select_release_assets.py", "select_release_assets_symlink"
+    )
+    sha = "abc123def456"
+    _write_release_metadata(tmp_path)
+    linked_archive = f"bandscope-windows-amd64-{sha}.exe"
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir(parents=True)
+    symlink_target = tmp_path / "payload.exe"
+    symlink_target.write_text("payload", encoding="utf-8")
+    (artifacts / linked_archive).symlink_to(symlink_target)
+    (artifacts / f"{linked_archive}.sha256").write_text(f"0  {linked_archive}\n", encoding="utf-8")
+    (artifacts / f"{linked_archive}.manifest.txt").write_text(
+        f"platform=windows\narch=amd64\narchive={linked_archive}\n",
+        encoding="utf-8",
+    )
+    for platform, arch, suffix in [
+        ("windows", "arm64", ".exe"),
+        ("macos", "amd64", ".dmg"),
+        ("macos", "arm64", ".dmg"),
+    ]:
+        _write_installer(tmp_path, platform, arch, sha, suffix)
+
+    with pytest.raises(ValueError, match="unexpected release artifact path"):
+        selector.select_release_assets(tmp_path, git_sha=sha)
+
+
 def test_select_release_assets_requires_installer_sidecars(tmp_path: Path) -> None:
     """Reject installers missing their checksum or manifest sidecars."""
     selector = load_module(

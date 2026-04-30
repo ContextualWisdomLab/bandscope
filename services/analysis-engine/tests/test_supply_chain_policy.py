@@ -115,6 +115,44 @@ jobs:
     )
 
 
+def test_supply_chain_check_requires_ossf_guard_without_main_branch_token(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard guard validation cannot be bypassed by omitting main."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_guard_no_main"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        """
+name: ossf-scorecard
+on:
+  push:
+    branches:
+      - develop
+  schedule:
+    - cron: '30 1 * * 1'
+jobs:
+  analysis:
+    name: ossf-scorecard
+    steps:
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard workflow must guard Scorecard execution to the repository default branch"
+        in violations
+    )
+
+
 def test_supply_chain_check_rejects_hardcoded_ossf_publish_results_branch(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -446,6 +484,152 @@ jobs:
         in violation
         for violation in violations
     )
+
+
+def test_supply_chain_check_rejects_multiline_workflow_npx_package_fetch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure multiline run blocks cannot hide npx package fetches."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_multiline_npx"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        run: |
+          npx \\
+            @tauri-apps/cli build --target x86_64-pc-windows-msvc
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_npx_policy()
+
+    assert any(
+        "workflow npx package execution must use npm exec or npx --no-install: @tauri-apps/cli"
+        in violation
+        for violation in violations
+    )
+
+
+def test_supply_chain_check_rejects_release_create_explicit_asset_arguments(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure validated release creates cannot add hand-written asset paths."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_release_explicit_asset"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create draft release with complete assets, then publish
+        run: |
+          mapfile -t release_assets < release-assets.txt
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            artifacts/debug.log \
+            --draft
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use an explicit "
+        "allowlist, not artifacts/*" in violations
+    )
+
+
+def test_supply_chain_check_rejects_workspace_exec_with_workflow_default_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure workflow defaults.run.working-directory cannot hide nested workspace exec."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_workflow_default_dir"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+defaults:
+  run:
+    working-directory: apps/desktop
+jobs:
+  build:
+    steps:
+      - name: Build native shell
+        run: npm exec --workspace @bandscope/desktop -- tauri build
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_workspace_exec_policy()
+
+    expected_violation = (
+        ".github/workflows/build-baseline.yml: workflow npm exec --workspace commands must "
+        "run from the repository root"
+    )
+    assert expected_violation in violations
+
+
+def test_supply_chain_check_rejects_workspace_exec_with_job_default_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure job defaults.run.working-directory cannot hide nested workspace exec."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_job_default_dir"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  build:
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - name: Build native shell
+        run: npm exec --workspace @bandscope/desktop -- tauri build
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_workspace_exec_policy()
+
+    expected_violation = (
+        ".github/workflows/build-baseline.yml: workflow npm exec --workspace commands must "
+        "run from the repository root"
+    )
+    assert expected_violation in violations
 
 
 def test_supply_chain_check_rejects_workspace_exec_from_nested_working_directory(
