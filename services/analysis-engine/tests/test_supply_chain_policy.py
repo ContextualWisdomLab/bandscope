@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import re
 from pathlib import Path
 
@@ -87,6 +88,34 @@ def test_build_baseline_upload_artifact_pins_are_consistent() -> None:
 
     assert pins
     assert len(set(pins)) == 1
+
+
+def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> None:
+    """Ensure patched Python advisories are not left as stale audit ignores."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "security-audit.yml").read_text(
+        encoding="utf-8"
+    )
+    dependency_policy = (repo_root / "docs" / "security" / "dependency-policy.md").read_text(
+        encoding="utf-8"
+    )
+    python_lockfile = (repo_root / "services" / "analysis-engine" / "uv.lock").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--ignore-vuln GHSA-5239-wwwm-4pmq" not in workflow
+    assert "uv run --project services/analysis-engine --with pip-audit==2.8.0" in workflow
+    assert "pip-audit --local --strict" in workflow
+    assert "Pygments <2.20.0" in dependency_policy
+    assert "pip-audit --local --strict" in dependency_policy
+    tomllib = importlib.import_module("tomllib")
+    lock = tomllib.loads(python_lockfile)
+    packages = lock.get("package", [])
+    pygments = [package for package in packages if package.get("name") == "pygments"]
+
+    assert len(pygments) == 1
+    assert pygments[0].get("version") == "2.20.0"
+    assert all(package.get("version") != "2.19.2" for package in pygments)
 
 
 def test_supply_chain_check_requires_ossf_default_branch_guard(
@@ -205,6 +234,505 @@ jobs:
     assert (
         "ossf scorecard publish_results must use the repository default branch guard" in violations
     )
+
+
+def test_supply_chain_check_rejects_ossf_publish_job_run_steps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard publishing jobs satisfy OSSF uses-only restrictions."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_uses_only"
+    )
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    scorecard_action = (
+        "      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on:",
+                "  push:",
+                "    branches:",
+                "      - develop",
+                "      - main",
+                "  schedule:",
+                "    - cron: '30 1 * * 1'",
+                "jobs:",
+                "  analysis:",
+                "    name: ossf-scorecard",
+                "    steps:",
+                "      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2",
+                scorecard_action,
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "      - name: Skip OSSF Scorecard on non-default branch",
+                f"        if: github.ref != {default_branch_ref}",
+                '        run: echo "skip"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert any(
+        "ossf scorecard publishing job must only contain uses steps; split run steps "
+        "into a separate non-publishing job" in violation
+        for violation in violations
+    )
+
+
+def test_supply_chain_check_rejects_ossf_publish_run_steps_in_any_workflow(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure OSSF publishing restrictions follow Scorecard if it moves workflows."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_any_workflow"
+    )
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    scorecard_action = (
+        "      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on: push",
+                "jobs:",
+                "  analysis:",
+                "    name: ossf-scorecard",
+                "    steps:",
+                "      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2",
+                scorecard_action,
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (workflow_dir / "scorecard-security-gate.yml").write_text(
+        "\n".join(
+            [
+                "name: scorecard-security-gate",
+                "on: push",
+                "jobs:",
+                "  moved-scorecard:",
+                "    steps:",
+                scorecard_action,
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "      - name: extra diagnostics",
+                '        run: echo "this breaks OSSF publishing"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert any(
+        violation.startswith(".github/workflows/scorecard-security-gate.yml:")
+        and "ossf scorecard publishing job must only contain uses steps" in violation
+        for violation in violations
+    )
+
+
+def test_supply_chain_check_accepts_repo_ossf_publish_restrictions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure checked-in OSSF Scorecard workflow follows publish restrictions."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    monkeypatch.chdir(repo_root)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert not any("ossf scorecard" in violation for violation in violations)
+
+
+def test_supply_chain_check_rejects_vulnerable_rust_rand_lockfile(
+    tmp_path: Path,
+) -> None:
+    """Ensure the Rust lockfile cannot regress to vulnerable rand ranges."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_vulnerable"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "rand"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "placeholder"
+
+[[package]]
+name = "rand"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "newer-vulnerable-api-series"
+
+[[package]]
+name = "rand"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "latest-vulnerable-api-series"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (f"{lockfile}: rand 0.8.5 is below patched 0.8.6 for GHSA-cq8v-f236-94qc") in violations
+    assert (f"{lockfile}: rand 0.9.2 is below patched 0.9.3 for GHSA-cq8v-f236-94qc") in violations
+    assert (
+        f"{lockfile}: rand 0.10.0 is below patched 0.10.1 for GHSA-cq8v-f236-94qc"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_non_exception_rust_rand_0_7_lockfile(
+    tmp_path: Path,
+) -> None:
+    """Ensure only the documented legacy rand 0.7.3 exception can pass."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_0_7"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+version = "0.7.4"
+name = "rand"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "unexpected-legacy-series"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.4 is not allowed for GHSA-cq8v-f236-94qc; "
+        "only rand 0.7.3 on the documented legacy owner chain is temporarily allowed"
+    ) in violations
+
+
+def test_supply_chain_check_handles_version_first_and_inline_dependency_fixtures(
+    tmp_path: Path,
+) -> None:
+    """Ensure valid Cargo.lock key order and inline dependencies stay guarded."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_rand_format_variants",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+version = "1.0.0"
+name = "bad-owner"
+dependencies = ["rand 0.7.3"]
+
+[[package]]
+version = "0.7.3"
+name = "rand"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "version-first-inline-owner"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
+        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+    ) in violations
+
+
+def test_supply_chain_check_reports_missing_rust_lockfile(tmp_path: Path) -> None:
+    """Ensure missing Cargo.lock is reported as a supply-chain violation."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_lock_missing"
+    )
+    lockfile = tmp_path / "missing" / "Cargo.lock"
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert f"Cargo.lock missing: {lockfile}" in violations
+
+
+def test_supply_chain_check_rejects_unowned_legacy_rust_rand_exception(
+    tmp_path: Path,
+) -> None:
+    """Ensure rand 0.7.3 is exempt only on the documented Tauri owner chain."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_unowned"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+version = "0.7.3"
+name = "rand"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "wrong-owner"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
+        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_inline_dependency_legacy_rust_rand_owner(
+    tmp_path: Path,
+) -> None:
+    """Ensure inline dependency arrays are included in legacy owner checks."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_rand_inline_owner",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "tauri-utils"
+version = "2.8.3"
+dependencies = ["kuchikiki 0.8.8-speedreader"]
+
+[[package]]
+name = "kuchikiki"
+version = "0.8.8-speedreader"
+dependencies = ["selectors 0.24.0"]
+
+[[package]]
+name = "selectors"
+version = "0.24.0"
+dependencies = ["phf_codegen 0.8.0"]
+
+[[package]]
+name = "phf_codegen"
+version = "0.8.0"
+dependencies = ["phf_generator 0.8.0"]
+
+[[package]]
+name = "phf_generator"
+version = "0.8.0"
+dependencies = ["rand 0.7.3"]
+
+[[package]]
+name = "bad-owner"
+version = "1.0.0"
+dependencies = ["rand 0.7.3"]
+
+[[package]]
+name = "rand"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "legacy-exception"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
+        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+    ) in violations
+
+
+def test_supply_chain_check_reports_non_numeric_rust_rand_versions(
+    tmp_path: Path,
+) -> None:
+    """Ensure non-standard rand versions are reported instead of crashing."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_rand_non_numeric_version",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "rand"
+version = "0.9.3-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "non-stable"
+
+[[package]]
+name = "rand"
+version = "0.8.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "extra-numeric-segment"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.9.3-alpha.1 has a non-numeric version segment for GHSA-cq8v-f236-94qc"
+    ) in violations
+    assert (
+        f"{lockfile}: rand 0.8.6.1 has a non-standard extra version segment for GHSA-cq8v-f236-94qc"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_mixed_owner_legacy_rust_rand_exception(
+    tmp_path: Path,
+) -> None:
+    """Ensure a valid legacy chain does not exempt unrelated rand owners."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_mixed_owner"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "tauri-utils"
+version = "2.8.3"
+dependencies = [
+ "kuchikiki 0.8.8-speedreader",
+]
+
+[[package]]
+name = "kuchikiki"
+version = "0.8.8-speedreader"
+dependencies = [
+ "selectors 0.24.0",
+]
+
+[[package]]
+name = "selectors"
+version = "0.24.0"
+dependencies = [
+ "phf_codegen 0.8.0",
+]
+
+[[package]]
+name = "phf_codegen"
+version = "0.8.0"
+dependencies = [
+ "phf_generator 0.8.0",
+]
+
+[[package]]
+name = "phf_generator"
+version = "0.8.0"
+dependencies = [
+ "rand 0.7.3",
+]
+
+[[package]]
+name = "bad-owner"
+version = "1.0.0"
+dependencies = [
+ "rand 0.7.3",
+]
+
+[[package]]
+name = "rand"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "legacy-exception"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
+        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+    ) in violations
+
+
+def test_supply_chain_check_accepts_repo_rust_rand_patch() -> None:
+    """Ensure the checked-in Rust lockfile keeps rand on the patched 0.8 line."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.rust_dependency_advisory_violations(
+        repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock"
+    )
+
+    assert not violations
+
+
+def test_supply_chain_check_rejects_yanked_rust_fastrand_lockfile(
+    tmp_path: Path,
+) -> None:
+    """Ensure the Rust lockfile cannot regress to yanked fastrand 2.4.0."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_fastrand_yanked"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "fastrand"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "placeholder"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert f"{lockfile}: fastrand 2.4.0 is yanked and must stay updated" in violations
+
+
+def test_supply_chain_check_accepts_repo_rust_fastrand_update() -> None:
+    """Ensure the checked-in Rust lockfile keeps fastrand off yanked 2.4.0."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_fastrand_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.rust_dependency_advisory_violations(
+        repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock"
+    )
+
+    assert not violations
+
+
+def test_supply_chain_check_requires_tracked_rust_rand_legacy_exception() -> None:
+    """Ensure the remaining legacy rand advisory is narrowly documented in audit config."""
+    repo_root = Path(__file__).resolve().parents[3]
+    audit_config = repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml"
+    content = audit_config.read_text(encoding="utf-8")
+
+    assert (
+        '"RUSTSEC-2026-0097", # rand 0.7.3: transitive via Tauri/kuchikiki phf 0.8; '
+        "remove when upstream drops the chain"
+    ) in content
 
 
 def test_supply_chain_check_rejects_release_published_asset_upload(
