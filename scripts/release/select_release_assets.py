@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Iterable
 
@@ -142,7 +143,7 @@ def main() -> int:
     try:
         assets = select_release_assets(args.repo_root, git_sha=args.git_sha)
     except ValueError as exc:
-        print(f"Release asset validation failed: {exc}")
+        print(f"Release asset validation failed: {exc}", file=sys.stderr)
         return 1
 
     if args.output is not None:

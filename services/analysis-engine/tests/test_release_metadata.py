@@ -60,3 +60,22 @@ def test_changelog_contains_root_package_release_entry() -> None:
     changelog = (repo_root() / "CHANGELOG.md").read_text(encoding="utf-8")
 
     assert f"## [{root_package_version()}]" in changelog
+
+
+def test_changelog_level_three_headings_are_surrounded_by_blank_lines() -> None:
+    """Ensure changelog subsections stay compatible with Markdown heading lint."""
+    lines = (repo_root() / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+
+    for index, line in enumerate(lines[:-1]):
+        if line.startswith("### "):
+            assert lines[index + 1] == "", f"missing blank line after {line!r}"
+
+
+def test_rollout_plan_treats_github_releases_as_distribution_channel() -> None:
+    """Ensure release trust comes from verification evidence, not the hosting channel."""
+    plan = (repo_root() / "docs" / "plans" / "2026-04-28-pr-159-rollout.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "GitHub Releases serves as the trusted source" not in plan
+    assert "GitHub Releases is a distribution channel" in plan

@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
@@ -949,7 +949,7 @@ fn is_supported_youtube_url(url: &str) -> bool {
         return is_youtube_video_id(video_id) && segments.next().is_none();
     }
 
-    if host == "youtube.com" || host.ends_with(".youtube.com") {
+    if host == "youtube.com" || host == "www.youtube.com" {
         if parsed_url.path() != "/watch" {
             return false;
         }
@@ -982,19 +982,51 @@ fn wait_for_process_output(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|_| "Failed to start YouTube import process.".to_string())?;
+    let Some(stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("Failed to execute YouTube import process.".to_string());
+    };
+    let Some(stderr) = child.stderr.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("Failed to execute YouTube import process.".to_string());
+    };
+    let stdout_reader = thread::spawn(move || {
+        let mut reader = stdout;
+        let mut buffer = Vec::new();
+        reader.read_to_end(&mut buffer).map(|_| buffer)
+    });
+    let stderr_reader = thread::spawn(move || {
+        let mut reader = stderr;
+        let mut buffer = Vec::new();
+        reader.read_to_end(&mut buffer).map(|_| buffer)
+    });
     let deadline = Instant::now() + timeout;
 
     loop {
         match child.try_wait() {
-            Ok(Some(_status)) => {
-                return child
-                    .wait_with_output()
-                    .map_err(|_| "Failed to execute YouTube import process.".to_string());
+            Ok(Some(status)) => {
+                let stdout = stdout_reader
+                    .join()
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?;
+                let stderr = stderr_reader
+                    .join()
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?;
+                return Ok(std::process::Output {
+                    status,
+                    stdout,
+                    stderr,
+                });
             }
             Ok(None) => {
                 if Instant::now() >= deadline {
                     let _ = child.kill();
                     let _ = child.wait();
+                    let _ = stdout_reader.join();
+                    let _ = stderr_reader.join();
                     return Err(timeout_message.to_string());
                 }
                 thread::sleep(poll_interval);
@@ -1002,6 +1034,8 @@ fn wait_for_process_output(
             Err(_) => {
                 let _ = child.kill();
                 let _ = child.wait();
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
                 return Err("Failed to execute YouTube import process.".to_string());
             }
         }
@@ -1186,8 +1220,14 @@ mod tests {
         assert!(is_supported_youtube_url(
             "https://youtube.com/watch?v=abc123DEF45"
         ));
+        assert!(is_supported_youtube_url(
+            "https://www.youtube.com/watch?v=abc123DEF45"
+        ));
         assert!(is_supported_youtube_url("https://youtu.be/abc123DEF45"));
 
+        assert!(!is_supported_youtube_url(
+            "https://evil.youtube.com/watch?v=abc123DEF45"
+        ));
         assert!(!is_supported_youtube_url(
             "https://youtube.com/watch?v=abc123"
         ));
@@ -1240,6 +1280,40 @@ mod tests {
         );
 
         assert_eq!(result.expect_err("slow child should time out"), "YouTube import timed out.");
+    }
+
+    #[test]
+    fn youtube_process_output_drains_large_stdout_and_stderr_before_exit() {
+        if std::env::var_os("BANDSCOPE_TEST_CHILD_LARGE_OUTPUT").is_some() {
+            let chunk = vec![b'x'; 1024 * 1024];
+            std::io::stdout()
+                .write_all(&chunk)
+                .expect("child stdout should accept test bytes");
+            std::io::stderr()
+                .write_all(&chunk)
+                .expect("child stderr should accept test bytes");
+            return;
+        }
+
+        let current_test_binary = std::env::current_exe().expect("test binary should resolve");
+        let mut command = Command::new(current_test_binary);
+        command
+            .env("BANDSCOPE_TEST_CHILD_LARGE_OUTPUT", "1")
+            .arg("--exact")
+            .arg("tests::youtube_process_output_drains_large_stdout_and_stderr_before_exit")
+            .arg("--nocapture");
+
+        let output = wait_for_process_output(
+            command,
+            Duration::from_secs(2),
+            Duration::from_millis(5),
+            "YouTube import timed out.",
+        )
+        .expect("large child output should be drained before timeout");
+
+        assert!(output.status.success());
+        assert!(output.stdout.len() >= 1024 * 1024);
+        assert!(output.stderr.len() >= 1024 * 1024);
     }
 
     #[test]

@@ -12,7 +12,7 @@ function Progress({
   value,
   ...props
 }: ProgressPrimitive.Root.Props) {
-  const hasCustomChildren = Children.count(children) > 0
+  const hasCustomChildren = Children.toArray(children).length > 0
 
   return (
     <ProgressPrimitive.Root

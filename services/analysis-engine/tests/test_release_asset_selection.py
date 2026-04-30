@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -180,3 +181,20 @@ def test_select_release_assets_requires_installer_sidecars(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="missing checksum"):
         selector.select_release_assets(tmp_path, git_sha=sha)
+
+
+def test_select_release_assets_cli_writes_validation_errors_to_stderr(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Ensure CLI failures cannot corrupt stdout asset lists."""
+    selector = load_module(
+        "scripts/release/select_release_assets.py", "select_release_assets_cli_stderr"
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["select_release_assets.py"])
+
+    assert selector.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Release asset validation failed:" in captured.err

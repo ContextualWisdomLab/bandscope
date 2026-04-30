@@ -6,6 +6,7 @@ import {
   createDemoRehearsalSong,
   isRehearsalSong,
   isAnalysisJobStatus,
+  parseAnalysisJobStatus,
   parseLocalAudioSource,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
@@ -93,6 +94,19 @@ describe("shared type helpers", () => {
       extraField: true
     })).toThrow("extraField");
     expect(isAnalysisJobStatus(status)).toBe(true);
+    const legacyResult = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacyResult.sections[0]!.timeRange;
+    const legacyStatus = {
+      jobId: "job-legacy",
+      state: "succeeded",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      result: legacyResult
+    };
+    expect(isAnalysisJobStatus(legacyStatus)).toBe(false);
+    expect(parseAnalysisJobStatus(legacyStatus).result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
     expect(failedStatus).toEqual({
       jobId: "job-failed",
       state: "failed",
@@ -956,6 +970,24 @@ describe("shared type helpers", () => {
     expect(parseSongRehearsalPack(validPack)).toEqual(validPack);
     expect(isRehearsalWorkspace(validWorkspace)).toBe(true);
     expect(parseRehearsalWorkspace(validWorkspace)).toEqual(validWorkspace);
+
+    const legacyNestedSong = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacyNestedSong.sections[0]!.timeRange;
+    const legacyNestedPack = {
+      ...validPack,
+      song: legacyNestedSong as unknown as RehearsalSong
+    };
+    const parsedLegacyPack = parseSongRehearsalPack(legacyNestedPack);
+    const parsedLegacyWorkspace = parseRehearsalWorkspace({
+      ...validWorkspace,
+      songs: [legacyNestedPack]
+    });
+
+    expect(parsedLegacyPack.song.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+    expect(isRehearsalWorkspace({ ...validWorkspace, songs: [legacyNestedPack] })).toBe(false);
+    expect(parsedLegacyWorkspace.songs[0]?.song?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
 
     // Invalid packs
     expect(() => parseSongRehearsalPack({ ...validPack, packState: "invalid" })).toThrow("packState");

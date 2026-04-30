@@ -94,6 +94,7 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
     () => song.sections.flatMap((section) => section.roles).find((role) => role.id === activeRole),
     [activeRole, song]
   );
+  const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -205,8 +206,8 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
                   <Button type="button" disabled title="Coming soon" variant="outline" className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400">Solo / mute others</Button>
                   <Button
                     type="button"
-                    disabled={!activeRole.toLowerCase().includes("bass")}
-                    title={activeRole.toLowerCase().includes("bass") ? "Transcribe part" : "Transcription is currently optimized for Bass. More instruments coming soon."}
+                    disabled={!canTranscribeBass}
+                    title={canTranscribeBass ? "Transcribe part" : `${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
                     variant="outline"
                     className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
                   >

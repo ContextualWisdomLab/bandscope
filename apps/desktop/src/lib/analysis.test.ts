@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { importYoutubeUrl } from "./analysis";
+import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { getAnalysisJobStatus, importYoutubeUrl } from "./analysis";
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -55,6 +56,21 @@ describe("analysis bridge", () => {
     });
   });
 
+  it("rejects non-standard YouTube subdomains before crossing the Tauri bridge", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn();
+
+    const selection = await importYoutubeUrl("https://evil.youtube.com/watch?v=4ozX4yFUC34");
+
+    expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Only standard YouTube URLs are supported."
+      }
+    });
+  });
+
   it("uses the Tauri v1 invoke shim when it is available", async () => {
     tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
       projectId: "native-youtube-project",
@@ -76,6 +92,24 @@ describe("analysis bridge", () => {
       url: "https://youtu.be/4ozX4yFUC34"
     });
     expect(selection.ok).toBe(true);
+  });
+
+  it("normalizes legacy analysis job status responses before returning them", async () => {
+    const legacyResult = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacyResult.sections[0]!.timeRange;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
+      jobId: "job-legacy",
+      state: "succeeded",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      result: legacyResult
+    });
+
+    const status = await getAnalysisJobStatus("job-legacy");
+
+    expect(status.result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
   });
 
   it("ignores a non-function Tauri v1 invoke shim", async () => {

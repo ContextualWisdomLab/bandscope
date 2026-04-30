@@ -157,6 +157,35 @@ def test_find_installer_packages_ignores_unexpected_nested_executables(
     assert packaging.find_installer_packages(tmp_path) == [expected_path]
 
 
+def test_find_installer_packages_ignores_symlink_installers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure installer discovery does not package symlink targets."""
+    packaging = load_module(
+        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_symlink"
+    )
+
+    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
+    installer_path = (
+        tmp_path
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "x86_64-pc-windows-msvc"
+        / "release"
+        / "bundle"
+        / "nsis"
+        / "Installer.exe"
+    )
+    installer_path.parent.mkdir(parents=True)
+    symlink_target = tmp_path / "outside-installer.exe"
+    symlink_target.write_bytes(b"external")
+    installer_path.symlink_to(symlink_target)
+
+    assert packaging.find_installer_packages(tmp_path) == []
+
+
 def test_release_packaging_main_keeps_same_extension_installers_unique(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

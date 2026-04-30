@@ -4,7 +4,7 @@ import {
   createDemoAnalysisJobRequest,
   createDemoRehearsalSong,
   createProjectBootstrapSummary,
-  isAnalysisJobStatus,
+  parseAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
@@ -85,7 +85,7 @@ export function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
     return pathSegments.length === 1 && YOUTUBE_VIDEO_ID_PATTERN.test(pathSegments[0]!);
   }
 
-  if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+  if (host === "youtube.com" || host === "www.youtube.com") {
     const videoIds = parsedUrl.searchParams.getAll("v");
     return parsedUrl.pathname === "/watch" && videoIds.length === 1 && YOUTUBE_VIDEO_ID_PATTERN.test(videoIds[0]!);
   }
@@ -227,19 +227,21 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
   const response = await invokeAnalysis("start_analysis_job", {
     request: parsedRequest
   });
-  if (!isAnalysisJobStatus(response)) {
+  try {
+    return parseAnalysisJobStatus(response);
+  } catch {
     throw new Error("Invalid analysis job status response");
   }
-  return response;
 }
 
 /** Documented. */
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
-  if (!isAnalysisJobStatus(response)) {
+  try {
+    return parseAnalysisJobStatus(response);
+  } catch {
     throw new Error("Invalid analysis job status response");
   }
-  return response;
 }
 
 /** Documented. */

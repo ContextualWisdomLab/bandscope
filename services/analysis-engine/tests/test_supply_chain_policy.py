@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -74,6 +75,18 @@ def test_supply_chain_check_accepts_repo_multi_arch_workflow(
     assert (
         "build workflow should not rely on macos-latest for architecture coverage" not in violations
     )
+
+
+def test_build_baseline_upload_artifact_pins_are_consistent() -> None:
+    """Ensure all upload-artifact steps use the same reviewed SHA pin."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "build-baseline.yml").read_text(
+        encoding="utf-8"
+    )
+    pins = re.findall(r"actions/upload-artifact@([A-Fa-f0-9]{40})", workflow)
+
+    assert pins
+    assert len(set(pins)) == 1
 
 
 def test_supply_chain_check_requires_ossf_default_branch_guard(

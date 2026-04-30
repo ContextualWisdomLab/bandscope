@@ -1,6 +1,7 @@
-import { render } from "@testing-library/react";
-import type { ReactElement } from "react";
+import { render, waitFor } from "@testing-library/react";
+import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { describe, expect, it } from "vitest";
+import { badgeVariants } from "./badge";
 import { buttonVariants } from "./button";
 import { Progress, ProgressTrack } from "./progress";
 import { ScrollBar } from "./scroll-area";
@@ -14,6 +15,15 @@ describe("UI primitives", () => {
     expect(className).not.toContain("[a]:hover:bg-primary/80");
   });
 
+  it("applies badge hover states to the rendered anchor badge", () => {
+    expect(badgeVariants({ variant: "default" })).toContain("[a&]:hover:bg-primary/80");
+    expect(badgeVariants({ variant: "secondary" })).toContain("[a&]:hover:bg-secondary/80");
+    expect(badgeVariants({ variant: "destructive" })).toContain("[a&]:hover:bg-destructive/20");
+    expect(badgeVariants({ variant: "outline" })).toContain("[a&]:hover:bg-muted");
+    expect(badgeVariants({ variant: "outline" })).toContain("[a&]:hover:text-muted-foreground");
+    expect(badgeVariants({ variant: "default" })).not.toContain("[a]:hover:bg-primary/80");
+  });
+
   it("renders only custom progress children when supplied", () => {
     const { container } = render(
       <Progress value={50}>
@@ -23,6 +33,13 @@ describe("UI primitives", () => {
 
     expect(container.querySelectorAll('[data-slot="progress-track"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="custom-track"]')).toBeTruthy();
+  });
+
+  it("renders default progress chrome when children are only conditional booleans", () => {
+    const { container } = render(<Progress value={50}>{false}</Progress>);
+
+    expect(container.querySelectorAll('[data-slot="progress-track"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-slot="progress-indicator"]')).toHaveLength(1);
   });
 
   it("uses selectors that match the rendered tab orientation attribute", () => {
@@ -47,22 +64,30 @@ describe("UI primitives", () => {
   });
 
   it("passes orientation to the underlying tab primitive", () => {
-    const tabRoot = Tabs({ orientation: "vertical" }) as ReactElement<{
-      orientation?: string;
-    }>;
+    const { container } = render(<Tabs orientation="vertical" />);
 
-    expect(tabRoot.props.orientation).toBe("vertical");
+    expect(container.querySelector('[data-slot="tabs"]')?.getAttribute("data-orientation")).toBe("vertical");
   });
 
-  it("uses selectors that match the rendered scroll bar orientation attribute", () => {
-    const scrollbar = ScrollBar({ orientation: "horizontal" }) as {
-      props: { className: string; "data-orientation": string };
-    };
+  it("uses selectors that match the rendered scroll bar orientation attribute", async () => {
+    const { container } = render(
+      <ScrollAreaPrimitive.Root>
+        <ScrollAreaPrimitive.Viewport>Scrollable content</ScrollAreaPrimitive.Viewport>
+        <ScrollBar orientation="horizontal" keepMounted />
+      </ScrollAreaPrimitive.Root>
+    );
+    const scrollbar = await waitFor(() => {
+      const element = container.querySelector('[data-slot="scroll-area-scrollbar"]');
+      if (!element) {
+        throw new Error("scrollbar should render inside a scroll area root");
+      }
+      return element;
+    });
 
-    expect(scrollbar.props["data-orientation"]).toBe("horizontal");
-    expect(scrollbar.props.className).toContain("data-[orientation=horizontal]:h-2.5");
-    expect(scrollbar.props.className).toContain("data-[orientation=vertical]:h-full");
-    expect(scrollbar.props.className).not.toContain("data-horizontal:h-2.5");
-    expect(scrollbar.props.className).not.toContain("data-vertical:h-full");
+    expect(scrollbar.getAttribute("data-orientation")).toBe("horizontal");
+    expect(scrollbar.className).toContain("data-[orientation=horizontal]:h-2.5");
+    expect(scrollbar.className).toContain("data-[orientation=vertical]:h-full");
+    expect(scrollbar.className).not.toContain("data-horizontal:h-2.5");
+    expect(scrollbar.className).not.toContain("data-vertical:h-full");
   });
 });

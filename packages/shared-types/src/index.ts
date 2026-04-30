@@ -250,6 +250,18 @@ const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as cons
 const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
 const PACK_STATES = ["queued", "analyzing", "ready", "failed"] as const;
 
+type ValidationOptions = {
+  acceptLegacySectionTimeRanges: boolean;
+};
+
+const STRICT_VALIDATION_OPTIONS: ValidationOptions = {
+  acceptLegacySectionTimeRanges: false
+};
+
+const LEGACY_VALIDATION_OPTIONS: ValidationOptions = {
+  acceptLegacySectionTimeRanges: true
+};
+
 /** Documented. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -655,7 +667,10 @@ function validateAnalysisJobError(value: unknown, path: string): string | null {
 }
 
 /** Documented. */
-function validateAnalysisJobStatus(value: unknown): string | null {
+function validateAnalysisJobStatus(
+  value: unknown,
+  options: ValidationOptions = STRICT_VALIDATION_OPTIONS
+): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
   }
@@ -685,7 +700,7 @@ function validateAnalysisJobStatus(value: unknown): string | null {
     return invalidField("progressLabel");
   }
   if (value.result !== undefined) {
-    const resultError = validateRehearsalSong(value.result);
+    const resultError = validateRehearsalSong(value.result, options);
     if (resultError) {
       return resultError;
     }
@@ -709,6 +724,20 @@ function validateAnalysisJobStatus(value: unknown): string | null {
 /** Documented. */
 export function isAnalysisJobStatus(value: unknown): value is AnalysisJobStatus {
   return validateAnalysisJobStatus(value) === null;
+}
+
+/** Documented. */
+export function parseAnalysisJobStatus(value: unknown): AnalysisJobStatus {
+  const validationError = validateAnalysisJobStatus(value, LEGACY_VALIDATION_OPTIONS);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  const parsed = structuredClone(value as AnalysisJobStatus);
+  if (parsed.result !== undefined) {
+    parsed.result = parseRehearsalSong(parsed.result);
+  }
+  return parsed;
 }
 
 /** Documented. */
@@ -1109,31 +1138,37 @@ function migrateLegacySectionTimeRanges(value: unknown): unknown {
 }
 
 /** Documented. */
-function validateRehearsalSong(value: unknown): string | null {
-  if (!isRecord(value)) {
+function validateRehearsalSong(
+  value: unknown,
+  options: ValidationOptions = STRICT_VALIDATION_OPTIONS
+): string | null {
+  const normalized = options.acceptLegacySectionTimeRanges
+    ? migrateLegacySectionTimeRanges(value)
+    : value;
+  if (!isRecord(normalized)) {
     return invalidField("root");
   }
-  const extraKey = unexpectedKey(value, ["id", "title", "sections", "exportSummary"], "");
+  const extraKey = unexpectedKey(normalized, ["id", "title", "sections", "exportSummary"], "");
   if (extraKey) {
     return extraKey;
   }
-  if (typeof value.id !== "string") {
+  if (typeof normalized.id !== "string") {
     return invalidField("id");
   }
-  if (typeof value.title !== "string") {
+  if (typeof normalized.title !== "string") {
     return invalidField("title");
   }
-  if (!isDenseArray(value.sections)) {
+  if (!isDenseArray(normalized.sections)) {
     return invalidField("sections");
   }
-  for (const [index, section] of value.sections.entries()) {
+  for (const [index, section] of normalized.sections.entries()) {
     const sectionError = validateRehearsalSection(section, `sections[${index}]`);
     if (sectionError) {
       return sectionError;
     }
   }
 
-  return validateExportSummary(value.exportSummary, "exportSummary");
+  return validateExportSummary(normalized.exportSummary, "exportSummary");
 }
 
 /** Documented. */
@@ -1154,7 +1189,11 @@ export function parseRehearsalSong(value: unknown): RehearsalSong {
 
 
 /** Documented. */
-function validateSongRehearsalPack(value: unknown, path: string): string | null {
+function validateSongRehearsalPack(
+  value: unknown,
+  path: string,
+  options: ValidationOptions = STRICT_VALIDATION_OPTIONS
+): string | null {
   if (!isRecord(value)) return invalidField(path);
   
   if (typeof value.id !== "string") return invalidField(`${path}.id`);
@@ -1170,7 +1209,7 @@ function validateSongRehearsalPack(value: unknown, path: string): string | null 
     const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "song"], path);
     if (extraKey) return extraKey;
     if (value.song === undefined) return invalidField(`${path}.song`);
-    const songError = validateRehearsalSong(value.song);
+    const songError = validateRehearsalSong(value.song, options);
     if (songError) return songError;
   } else if (value.packState === "failed") {
     const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "error"], path);
@@ -1184,13 +1223,20 @@ function validateSongRehearsalPack(value: unknown, path: string): string | null 
 
 /** Documented. */
 export function parseSongRehearsalPack(value: unknown): SongRehearsalPack {
-  const validationError = validateSongRehearsalPack(value, "root");
+  const validationError = validateSongRehearsalPack(value, "root", LEGACY_VALIDATION_OPTIONS);
   if (validationError) throw new Error(validationError);
-  return structuredClone(value as SongRehearsalPack);
+  const parsed = structuredClone(value as SongRehearsalPack);
+  if (parsed.packState === "ready") {
+    parsed.song = parseRehearsalSong(parsed.song);
+  }
+  return parsed;
 }
 
 /** Documented. */
-function validateRehearsalWorkspace(value: unknown): string | null {
+function validateRehearsalWorkspace(
+  value: unknown,
+  options: ValidationOptions = STRICT_VALIDATION_OPTIONS
+): string | null {
   if (!isRecord(value)) return invalidField("root");
   const extraKey = unexpectedKey(value, ["id", "title", "songs", "workspaceVersion"], "");
   if (extraKey) return extraKey;
@@ -1200,7 +1246,7 @@ function validateRehearsalWorkspace(value: unknown): string | null {
   if (!isDenseArray(value.songs)) return invalidField("songs");
   
   for (const [index, song] of value.songs.entries()) {
-    const packError = validateSongRehearsalPack(song, `songs[${index}]`);
+    const packError = validateSongRehearsalPack(song, `songs[${index}]`, options);
     if (packError) return packError;
   }
   return null;
@@ -1213,7 +1259,13 @@ export function isRehearsalWorkspace(value: unknown): value is RehearsalWorkspac
 
 /** Documented. */
 export function parseRehearsalWorkspace(value: unknown): RehearsalWorkspace {
-  const validationError = validateRehearsalWorkspace(value);
+  const validationError = validateRehearsalWorkspace(value, LEGACY_VALIDATION_OPTIONS);
   if (validationError) throw new Error(validationError);
-  return structuredClone(value as RehearsalWorkspace);
+  const parsed = structuredClone(value as RehearsalWorkspace);
+  parsed.songs = parsed.songs.map((pack) => (
+    pack.packState === "ready"
+      ? { ...pack, song: parseRehearsalSong(pack.song) }
+      : pack
+  ));
+  return parsed;
 }
