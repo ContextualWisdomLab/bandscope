@@ -56,6 +56,14 @@ RUST_RAND_PATCHED_VERSIONS = {
     (0, 9): (0, 9, 3),
     (0, 10): (0, 10, 1),
 }
+RUST_RAND_LEGACY_EXCEPTION_CHAIN = (
+    "tauri-utils 2.8.3",
+    "kuchikiki 0.8.8-speedreader",
+    "selectors 0.24.0",
+    "phf_codegen 0.8.0",
+    "phf_generator 0.8.0",
+    "rand 0.7.3",
+)
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
@@ -658,6 +666,12 @@ def rust_dependency_advisory_violations(
 ) -> list[str]:
     """Return Rust lockfile dependency versions with known required patches."""
     violations: list[str] = []
+    if not lockfile.exists():
+        return [f"Cargo.lock missing: {lockfile}"]
+    package_dependencies = cargo_lock_package_dependencies(lockfile)
+    legacy_exception_allowed = cargo_lock_has_dependency_chain(
+        package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN
+    )
     current_name = ""
     for line in [*lockfile.read_text(encoding="utf-8").splitlines(), "[[package]]"]:
         stripped = line.strip()
@@ -678,6 +692,13 @@ def rust_dependency_advisory_violations(
         if current_name != "rand":
             continue
         if version == RUST_RAND_LEGACY_EXCEPTION_VERSION:
+            if legacy_exception_allowed:
+                continue
+            violations.append(
+                f"{lockfile}: rand {version} matches the legacy exception version "
+                "but does not have the documented Tauri/kuchikiki owner chain "
+                f"for {RUST_RAND_ADVISORY_ID}"
+            )
             continue
         parts = tuple(int(part) for part in version.split(".")[:3])
         rand_series = (parts[0], parts[1])
@@ -689,6 +710,63 @@ def rust_dependency_advisory_violations(
                 f"for {RUST_RAND_ADVISORY_ID}"
             )
     return violations
+
+
+def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
+    """Return Cargo package keys and dependency tokens from a lockfile."""
+    packages: dict[str, list[str]] = {}
+    current_name = ""
+    current_version = ""
+    current_dependencies: list[str] = []
+    in_dependencies = False
+
+    def store_current_package() -> None:
+        if current_name and current_version:
+            packages[f"{current_name} {current_version}"] = current_dependencies.copy()
+
+    for line in [*lockfile.read_text(encoding="utf-8").splitlines(), "[[package]]"]:
+        stripped = line.strip()
+        if stripped == "[[package]]":
+            store_current_package()
+            current_name = ""
+            current_version = ""
+            current_dependencies = []
+            in_dependencies = False
+            continue
+        if stripped.startswith("name = "):
+            current_name = stripped.partition("=")[2].strip().strip('"')
+            continue
+        if stripped.startswith("version = "):
+            current_version = stripped.partition("=")[2].strip().strip('"')
+            continue
+        if stripped == "dependencies = [":
+            in_dependencies = True
+            continue
+        if in_dependencies and stripped == "]":
+            in_dependencies = False
+            continue
+        if in_dependencies and stripped.startswith('"'):
+            current_dependencies.append(stripped.strip('",'))
+    return packages
+
+
+def cargo_lock_has_dependency_chain(
+    package_dependencies: dict[str, list[str]], package_chain: tuple[str, ...]
+) -> bool:
+    """Return whether Cargo dependencies contain the exact package chain."""
+    return all(
+        cargo_dependency_targets_package(package_dependencies, owner, dependency)
+        for owner, dependency in zip(package_chain, package_chain[1:])
+    )
+
+
+def cargo_dependency_targets_package(
+    package_dependencies: dict[str, list[str]], owner: str, dependency: str
+) -> bool:
+    """Return whether an owner package depends on the target package key."""
+    dependency_tokens = package_dependencies.get(owner, [])
+    dependency_name = dependency.rsplit(" ", maxsplit=1)[0]
+    return dependency in dependency_tokens or dependency_name in dependency_tokens
 
 
 def main() -> int:

@@ -358,12 +358,6 @@ checksum = "placeholder"
 
 [[package]]
 name = "rand"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "older-api-series"
-
-[[package]]
-name = "rand"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "newer-vulnerable-api-series"
@@ -384,7 +378,45 @@ checksum = "latest-vulnerable-api-series"
     assert (
         f"{lockfile}: rand 0.10.0 is below patched 0.10.1 for GHSA-cq8v-f236-94qc"
     ) in violations
-    assert not any("rand 0.7.3" in violation for violation in violations)
+
+
+def test_supply_chain_check_reports_missing_rust_lockfile(tmp_path: Path) -> None:
+    """Ensure missing Cargo.lock is reported as a supply-chain violation."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_lock_missing"
+    )
+    lockfile = tmp_path / "missing" / "Cargo.lock"
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert f"Cargo.lock missing: {lockfile}" in violations
+
+
+def test_supply_chain_check_rejects_unowned_legacy_rust_rand_exception(
+    tmp_path: Path,
+) -> None:
+    """Ensure rand 0.7.3 is exempt only on the documented Tauri owner chain."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_unowned"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "rand"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "wrong-owner"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
+        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+    ) in violations
 
 
 def test_supply_chain_check_accepts_repo_rust_rand_patch() -> None:
