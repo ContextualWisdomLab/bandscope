@@ -442,8 +442,7 @@ checksum = "non-stable"
     violations = supply_chain.rust_dependency_advisory_violations(lockfile)
 
     assert (
-        f"{lockfile}: rand 0.9.3-alpha.1 has a non-numeric version segment "
-        "for GHSA-cq8v-f236-94qc"
+        f"{lockfile}: rand 0.9.3-alpha.1 has a non-numeric version segment for GHSA-cq8v-f236-94qc"
     ) in violations
 
 
