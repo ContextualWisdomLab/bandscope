@@ -111,6 +111,57 @@ def test_select_release_assets_rejects_symlink_artifact(tmp_path: Path) -> None:
         selector.select_release_assets(tmp_path, git_sha=sha)
 
 
+def test_select_release_assets_rejects_symlink_metadata(tmp_path: Path) -> None:
+    """Fail closed when required release metadata is a symlink."""
+    selector = load_module(
+        "scripts/release/select_release_assets.py", "select_release_assets_symlink_metadata"
+    )
+    sha = "abc123def456"
+    sbom_target = tmp_path / "sbom-target.json"
+    sbom_target.write_text("{}", encoding="utf-8")
+    (tmp_path / "bandscope-sbom.cdx.json").symlink_to(sbom_target)
+    inventory = tmp_path / "supply-chain" / "supplemental-component-inventory.json"
+    inventory.parent.mkdir(parents=True)
+    inventory.write_text("{}", encoding="utf-8")
+    for platform, arch, suffix in [
+        ("windows", "amd64", ".exe"),
+        ("windows", "arm64", ".exe"),
+        ("macos", "amd64", ".dmg"),
+        ("macos", "arm64", ".dmg"),
+    ]:
+        _write_installer(tmp_path, platform, arch, sha, suffix)
+
+    with pytest.raises(ValueError, match="missing release asset"):
+        selector.select_release_assets(tmp_path, git_sha=sha)
+
+
+def test_select_release_assets_rejects_unsanctioned_archive_suffix(tmp_path: Path) -> None:
+    """Fail closed when an archive adds an unapproved suffix after the SHA."""
+    selector = load_module(
+        "scripts/release/select_release_assets.py", "select_release_assets_debug_suffix"
+    )
+    sha = "abc123def456"
+    _write_release_metadata(tmp_path)
+    for platform, arch, suffix in [
+        ("windows", "amd64", ".exe"),
+        ("windows", "arm64", ".exe"),
+        ("macos", "amd64", ".dmg"),
+        ("macos", "arm64", ".dmg"),
+    ]:
+        _write_installer(tmp_path, platform, arch, sha, suffix)
+    debug_archive = f"bandscope-windows-amd64-{sha}-debug.exe"
+    artifacts = tmp_path / "artifacts"
+    (artifacts / debug_archive).write_text("debug", encoding="utf-8")
+    (artifacts / f"{debug_archive}.sha256").write_text(f"0  {debug_archive}\n", encoding="utf-8")
+    (artifacts / f"{debug_archive}.manifest.txt").write_text(
+        f"platform=windows\narch=amd64\narchive={debug_archive}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unexpected release artifact"):
+        selector.select_release_assets(tmp_path, git_sha=sha)
+
+
 def test_select_release_assets_requires_installer_sidecars(tmp_path: Path) -> None:
     """Reject installers missing their checksum or manifest sidecars."""
     selector = load_module(

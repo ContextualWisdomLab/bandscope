@@ -25,7 +25,6 @@ def _artifact_pattern(git_sha: str) -> re.Pattern[str]:
     short_sha = re.escape(git_sha[:12])
     return re.compile(
         rf"^bandscope-(?P<platform>windows|macos)-(?P<arch>amd64|arm64)-{short_sha}"
-        r"(?:-[A-Za-z0-9._-]+)?"
         r"(?P<installer_suffix>\.(?:exe|msi|dmg))"
         r"(?P<sidecar>\.sha256|\.manifest\.txt)?$"
     )
@@ -41,7 +40,7 @@ def _installer_name_for_artifact(filename: str) -> str:
 
 def _ensure_file(path: Path) -> None:
     """Raise if a required release asset path is missing or not a file."""
-    if not path.is_file():
+    if path.is_symlink() or not path.is_file():
         raise ValueError(f"missing release asset: {path.as_posix()}")
 
 

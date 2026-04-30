@@ -28,13 +28,10 @@ REQUIRED_FILES = [
 PINNED_ACTION = re.compile(r"^\s*-?\s*uses:\s+[^@\s]+@[0-9a-f]{40}(\s+#.*)?$")
 LOCAL_ACTION = re.compile(r"^\s*-?\s*uses:\s+\./")
 DOCKER_ACTION = re.compile(r"^\s*-?\s*uses:\s+docker://")
-NPX_PACKAGE = re.compile(
-    r"\bnpx\s+"
-    r"(?!(?:(?:-y|--yes|--ignore-existing|--quiet)\s+)*--no-install\b)"
-    r"(?:(?:-y|--yes|--ignore-existing|--quiet)\s+)*"
-    r"(?:(?:--package(?:=|\s+)|-p\s+))?"
-    r"`?(?P<package>@[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+|[A-Za-z0-9_.-]+)`?\b"
-)
+PACKAGE_SPEC = re.compile(r"^@?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?$")
+NPX_FLAG_OPTIONS = {"-y", "--yes", "--ignore-existing", "--quiet"}
+NPX_PACKAGE_OPTIONS = {"-p", "--package"}
+NPX_VALUE_OPTIONS = {"-c", "--call", "--shell"}
 OSSF_DEFAULT_BRANCH_PUBLISH_GUARD = (
     "publish_results: ${{ github.ref == format('refs/heads/{0}', "
     "github.event.repository.default_branch) }}"
@@ -85,6 +82,59 @@ def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
 def yaml_scalar_value(stripped_line: str) -> str:
     """Return a simple YAML scalar value after the first colon."""
     return stripped_line.partition(":")[2].strip().strip("\"'")
+
+
+def clean_package_token(token: str) -> str:
+    """Return a normalized package token stripped of shell quoting wrappers."""
+    return token.strip().strip("`").strip()
+
+
+def npx_package_from_command(command: str) -> str | None:
+    """Return the package fetched by an unsafe npx command, when present."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+
+    for npx_index, token in enumerate(tokens):
+        if token != "npx":
+            continue
+        no_install = False
+        idx = npx_index + 1
+        while idx < len(tokens):
+            current = tokens[idx]
+            if current == "--no-install":
+                no_install = True
+                idx += 1
+                continue
+            if current in NPX_FLAG_OPTIONS:
+                idx += 1
+                continue
+            if current in NPX_PACKAGE_OPTIONS:
+                if idx + 1 >= len(tokens):
+                    return None
+                package = clean_package_token(tokens[idx + 1])
+                return None if no_install else package
+            if current.startswith("--package="):
+                package = clean_package_token(current.partition("=")[2])
+                return None if no_install else package
+            if current.startswith("-p") and current != "-p":
+                package = clean_package_token(current[2:])
+                return None if no_install else package
+            if current in NPX_VALUE_OPTIONS:
+                idx += 2
+                continue
+            if current.startswith("--") and "=" in current:
+                idx += 1
+                continue
+            if current.startswith("-"):
+                idx += 1
+                continue
+            package = clean_package_token(current)
+            if PACKAGE_SPEC.fullmatch(package) is None:
+                return None
+            return None if no_install else package
+    return None
 
 
 def release_asset_allowlist_violation(path: Path) -> str:
@@ -326,10 +376,9 @@ def verify_workflow_npx_policy() -> list[str]:
     )
     for path in workflow_paths:
         for idx, line in logical_workflow_lines(path.read_text(encoding="utf-8")):
-            package_match = NPX_PACKAGE.search(line)
-            if package_match is None:
+            package = npx_package_from_command(line)
+            if package is None:
                 continue
-            package = package_match.group("package")
             violations.append(
                 f"{path}:{idx} -> workflow npx package execution must use "
                 f"npm exec or npx --no-install: {package}"

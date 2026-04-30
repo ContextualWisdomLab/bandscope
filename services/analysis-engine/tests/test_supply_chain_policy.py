@@ -387,8 +387,12 @@ jobs:
     [
         "npx -y @tauri-apps/cli build --target x86_64-pc-windows-msvc",
         "npx -y `@tauri-apps/cli` build --target x86_64-pc-windows-msvc",
+        "npx '@tauri-apps/cli' build --target x86_64-pc-windows-msvc",
+        'npx "@tauri-apps/cli" build --target x86_64-pc-windows-msvc',
         "npx --package @tauri-apps/cli tauri build --target x86_64-pc-windows-msvc",
         "npx --package=@tauri-apps/cli tauri build --target x86_64-pc-windows-msvc",
+        "npx -p @tauri-apps/cli tauri build --target x86_64-pc-windows-msvc",
+        "npx -p@tauri-apps/cli tauri build --target x86_64-pc-windows-msvc",
     ],
 )
 def test_supply_chain_check_rejects_workflow_npx_package_fetch_with_options(
