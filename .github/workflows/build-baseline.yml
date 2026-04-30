@@ -315,21 +315,7 @@ jobs:
             bandscope-sbom.cdx.json
             supply-chain/supplemental-component-inventory.json
       - name: Validate release asset set
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          test -f bandscope-sbom.cdx.json
-          test -f supply-chain/supplemental-component-inventory.json
-          windows_amd64=(artifacts/*windows-amd64*)
-          windows_arm64=(artifacts/*windows-arm64*)
-          macos_amd64=(artifacts/*macos-amd64*)
-          macos_arm64=(artifacts/*macos-arm64*)
-          checksums=(artifacts/*.sha256)
-          (( ${#windows_amd64[@]} > 0 ))
-          (( ${#windows_arm64[@]} > 0 ))
-          (( ${#macos_amd64[@]} > 0 ))
-          (( ${#macos_arm64[@]} > 0 ))
-          (( ${#checksums[@]} > 0 ))
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
       - name: Create draft release with complete assets, then publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -340,25 +326,8 @@ jobs:
             echo "Release $RELEASE_TAG already exists; immutable release assets must be attached before publication."
             exit 1
           fi
-          shopt -s nullglob
-          release_assets=(
-            artifacts/*windows-amd64*.exe
-            artifacts/*windows-amd64*.msi
-            artifacts/*windows-amd64*.sha256
-            artifacts/*windows-amd64*.manifest.txt
-            artifacts/*windows-arm64*.exe
-            artifacts/*windows-arm64*.msi
-            artifacts/*windows-arm64*.sha256
-            artifacts/*windows-arm64*.manifest.txt
-            artifacts/*macos-amd64*.dmg
-            artifacts/*macos-amd64*.sha256
-            artifacts/*macos-amd64*.manifest.txt
-            artifacts/*macos-arm64*.dmg
-            artifacts/*macos-arm64*.sha256
-            artifacts/*macos-arm64*.manifest.txt
-            bandscope-sbom.cdx.json
-            supply-chain/supplemental-component-inventory.json
-          )
+          mapfile -t release_assets < release-assets.txt
+          (( ${#release_assets[@]} > 0 ))
           gh release create "$RELEASE_TAG" \
             "${release_assets[@]}" \
             --draft \

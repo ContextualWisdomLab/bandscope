@@ -34,7 +34,9 @@ OSSF_DEFAULT_BRANCH_PUBLISH_GUARD = (
     "publish_results: ${{ github.ref == format('refs/heads/{0}', "
     "github.event.repository.default_branch) }}"
 )
-RELEASE_BROAD_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*(?:\s|\\|$)")
+RELEASE_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*")
+RELEASE_ASSET_VALIDATOR = "scripts/release/select_release_assets.py --output release-assets.txt"
+RELEASE_ASSET_MAPFILE = "mapfile -t release_assets < release-assets.txt"
 
 
 def verify_required_files() -> list[str]:
@@ -258,13 +260,29 @@ def verify_release_asset_allowlist_policy() -> list[str]:
         content = path.read_text(encoding="utf-8")
         if "gh release create" not in content:
             continue
+        if RELEASE_ASSET_VALIDATOR not in content or RELEASE_ASSET_MAPFILE not in content:
+            violations.append(
+                f"{path}: release asset upload must use scripts/release/select_release_assets.py"
+            )
         in_release_create = False
+        in_release_assets = False
         for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("release_assets=("):
+                in_release_assets = True
+            if in_release_assets and RELEASE_ARTIFACT_GLOB.search(line):
+                violations.append(
+                    f"{path}: release asset upload must use an explicit allowlist, not artifacts/*"
+                )
+                break
+            if in_release_assets and stripped == ")":
+                in_release_assets = False
+
             if "gh release create" in line:
                 in_release_create = True
             if not in_release_create:
                 continue
-            if RELEASE_BROAD_ARTIFACT_GLOB.search(line):
+            if RELEASE_ARTIFACT_GLOB.search(line):
                 violations.append(
                     f"{path}: release asset upload must use an explicit allowlist, not artifacts/*"
                 )

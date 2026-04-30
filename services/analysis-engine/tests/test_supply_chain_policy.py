@@ -250,6 +250,62 @@ jobs:
     )
 
 
+def test_supply_chain_check_rejects_release_asset_array_globs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure release asset arrays cannot allow matching stray platform files."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_release_array_globs"
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Create draft release with complete assets, then publish
+        run: |
+          release_assets=(
+            artifacts/*windows-amd64*.exe
+            artifacts/*windows-amd64*.sha256
+            bandscope-sbom.cdx.json
+          )
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use an explicit "
+        "allowlist, not artifacts/*" in violations
+    )
+
+
+def test_supply_chain_check_accepts_repo_release_asset_allowlist_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure checked-in release publishing uses the strict asset allowlist."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_release_allowlist_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    monkeypatch.chdir(repo_root)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert not violations
+
+
 def test_supply_chain_check_rejects_bare_workflow_npx_package_fetch(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
