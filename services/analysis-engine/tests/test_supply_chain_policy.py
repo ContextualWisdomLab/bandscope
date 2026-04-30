@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import importlib
 from pathlib import Path
 
 import pytest
@@ -106,8 +107,14 @@ def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> No
     assert "uv run --project services/analysis-engine --with pip-audit==2.8.0" in workflow
     assert "Pygments <2.20.0" in dependency_policy
     assert "pip-audit --local --strict" in dependency_policy
-    assert 'name = "pygments"\nversion = "2.20.0"' in python_lockfile
-    assert 'name = "pygments"\nversion = "2.19.2"' not in python_lockfile
+    tomllib = importlib.import_module("tomllib")
+    lock = tomllib.loads(python_lockfile)
+    packages = lock.get("package", [])
+    pygments = [package for package in packages if package.get("name") == "pygments"]
+
+    assert len(pygments) == 1
+    assert pygments[0].get("version") == "2.20.0"
+    assert all(package.get("version") != "2.19.2" for package in pygments)
 
 
 def test_supply_chain_check_requires_ossf_default_branch_guard(
