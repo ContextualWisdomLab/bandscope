@@ -704,7 +704,21 @@ def rust_dependency_advisory_violations(
                 f"for {RUST_RAND_ADVISORY_ID}"
             )
             continue
-        parts = tuple(int(part) for part in version.split(".")[:3])
+        parsed_parts: list[int] = []
+        for part in version.split(".")[:3]:
+            try:
+                parsed_parts.append(int(part))
+            except ValueError:
+                violations.append(
+                    f"{lockfile}: rand {version} has a non-numeric version segment "
+                    f"for {RUST_RAND_ADVISORY_ID}"
+                )
+                break
+        if len(parsed_parts) != min(3, len(version.split("."))):
+            continue
+        while len(parsed_parts) < 3:
+            parsed_parts.append(0)
+        parts = tuple(parsed_parts[:3])
         rand_series = (parts[0], parts[1])
         patched_version = RUST_RAND_PATCHED_VERSIONS.get(rand_series)
         if patched_version is not None and parts < patched_version:
