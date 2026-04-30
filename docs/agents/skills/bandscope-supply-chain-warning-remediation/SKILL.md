@@ -1,6 +1,6 @@
 ---
 name: bandscope-supply-chain-warning-remediation
-description: Use when BandScope verification, CI, GitHub Actions, Dependabot, OSSF Scorecard, cargo audit, npm audit, CodeQL, security gates, or PR review emits warnings, deprecations, notices, or supply-chain failures.
+description: Use when BandScope verification, CI, GitHub Actions, Dependabot, OSSF Scorecard, cargo audit, npm audit, CodeQL, Strix, security gates, or PR review emits warnings, deprecations, notices, or supply-chain failures.
 ---
 
 # BandScope Supply-Chain Warning Remediation
@@ -19,8 +19,9 @@ Treat every supply-chain warning as evidence to classify, fix, or track. The goa
    - Rust/Tauri: `cargo tree -i <crate> --manifest-path apps/desktop/src-tauri/Cargo.toml`
    - npm: `npm explain <package>`
    - Python: `uv tree --project services/analysis-engine --package <package>`
+   - Strix/security scans: link the finding ID, affected file/path, rule name, run URL, and current-head SHA
 4. Add a failing regression guard first when repo code can prevent recurrence.
-5. Fix the root cause. Do not use broad log filtering, generic quiet flags, or gate removal.
+5. Fix the root cause. For GitHub Actions Node.js runtime deprecation warnings, trace the exact action owner/ref first. If the workflow uses a local action path such as `./.github/actions/...` or another `./` path, update the local action runtime or action code in place. If the workflow uses any non-local `owner/repo@ref` action, including actions maintained by this organization, upgrade it to a maintained ref that is actively released, receives security patches, and supports the required Node.js runtime, then pin it to an immutable commit SHA. Do not use broad log filtering, generic quiet flags, or gate removal.
 6. If no maintained fix exists, document the owner chain and create or link a follow-up issue with acceptance criteria and Security Notes.
 7. Re-run the original warning command plus the smallest relevant policy/test command.
 8. For PR review warnings, push the fix and re-check robot review/check evidence instead of dismissing the review.
@@ -33,6 +34,8 @@ Treat every supply-chain warning as evidence to classify, fix, or track. The goa
 - Direct dependency changes require lockfile updates and the dependency admission rationale defined in `docs/security/dependency-policy.md`.
 - For transitive Rust/Tauri vulnerabilities, prefer minimal lockfile updates. If blocked upstream, record the exact crate chain and patched-version status.
 - Treat `+deprecated` Cargo version metadata as a tracked dependency signal, not automatically as a compiler warning.
+- GitHub/platform-owned action warnings, such as `github/dependabot-action@<sha>`, are evidence to track with the run URL, action owner/ref, and follow-up owner; do not treat them as merge blockers when no repo-controlled fix exists. If a platform warning only reports an unpinned ref like `github/dependabot-action@main`, track it as an exception signal rather than an allowed default. Repo-selected actions still follow the SHA pinning rule in `docs/security/dependency-policy.md`.
+- Strix findings, including issue #192 context, are actionable remediation signals, but do not automatically block merges based only on a Strix label or tool name. Fix the finding, rebut it with file-level evidence, or split a follow-up issue with acceptance criteria and Security Notes.
 - Every supply-chain PR or issue update must include Security Notes.
 
 ## Verification Commands
