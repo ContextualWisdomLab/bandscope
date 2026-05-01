@@ -14,10 +14,15 @@ EXPECTED_MEMBER = "results.sarif"
 def resolve_artifact_zip(source: Path) -> Path:
     """Return the artifact ZIP file from a file path or single-ZIP directory."""
     if source.is_file():
+        ensure_non_symlink_path(source, path_kind="artifact path")
         return source
     if not source.is_dir():
         raise ValueError(f"artifact source does not exist: {source}")
-    candidates = sorted(path for path in source.iterdir() if path.suffix == ".zip")
+    ensure_non_symlink_path(source, path_kind="artifact path")
+    candidates: list[Path] = []
+    for path in sorted(candidate for candidate in source.iterdir() if candidate.suffix == ".zip"):
+        ensure_non_symlink_path(path, path_kind="artifact path")
+        candidates.append(path)
     if len(candidates) != 1:
         raise ValueError(
             f"expected exactly one Scorecard artifact zip in {source}, found {len(candidates)}"
@@ -39,7 +44,7 @@ def validate_member(member: zipfile.ZipInfo) -> None:
         raise ValueError(f"unexpected artifact member: {member.filename}")
 
 
-def ensure_non_symlink_path(path: Path) -> None:
+def ensure_non_symlink_path(path: Path, *, path_kind: str = "output path") -> None:
     """Raise when any existing component in ``path`` is a symlink."""
     absolute_path = path.absolute()
     existing_components = [absolute_path]
@@ -50,7 +55,7 @@ def ensure_non_symlink_path(path: Path) -> None:
         except FileNotFoundError:
             continue
         if stat.S_ISLNK(metadata.st_mode):
-            raise ValueError(f"symlinked output path is not allowed: {component}")
+            raise ValueError(f"symlinked {path_kind} is not allowed: {component}")
 
 
 def write_new_file_without_following_symlinks(target: Path, data: bytes) -> None:

@@ -1217,6 +1217,95 @@ def test_scorecard_artifact_extractor_extracts_expected_sarif(tmp_path: Path) ->
     assert extracted == output_dir / "results.sarif"
     assert extracted.read_text(encoding="utf-8") == '{"version":"2.1.0","runs":[]}'
 
+    artifact_dir = tmp_path / "scorecard-artifact"
+    artifact_dir.mkdir()
+    directory_source_zip = artifact_dir / "results.sarif.zip"
+    with zipfile.ZipFile(directory_source_zip, "w") as archive:
+        archive.writestr("results.sarif", '{"version":"2.1.0","runs":[{}]}')
+
+    directory_output_dir = tmp_path / "directory-scorecard-sarif"
+    directory_extracted = extractor.extract_scorecard_artifact(
+        artifact_dir, directory_output_dir
+    )
+
+    assert directory_extracted == directory_output_dir / "results.sarif"
+    assert (
+        directory_extracted.read_text(encoding="utf-8")
+        == '{"version":"2.1.0","runs":[{}]}'
+    )
+
+    empty_artifact_dir = tmp_path / "empty-scorecard-artifact"
+    empty_artifact_dir.mkdir()
+    with pytest.raises(ValueError, match="expected exactly one Scorecard artifact zip"):
+        extractor.extract_scorecard_artifact(empty_artifact_dir, tmp_path / "empty-output")
+
+    multi_artifact_dir = tmp_path / "multi-scorecard-artifact"
+    multi_artifact_dir.mkdir()
+    with zipfile.ZipFile(multi_artifact_dir / "first.zip", "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    with zipfile.ZipFile(multi_artifact_dir / "second.zip", "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    with pytest.raises(ValueError, match="expected exactly one Scorecard artifact zip"):
+        extractor.extract_scorecard_artifact(multi_artifact_dir, tmp_path / "multi-output")
+
+
+def test_scorecard_artifact_extractor_rejects_symlink_artifact_zip(
+    tmp_path: Path,
+) -> None:
+    """Ensure input artifact paths are not followed through symlinks."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_input_symlink",
+    )
+    real_zip = tmp_path / "real-scorecard-results.zip"
+    with zipfile.ZipFile(real_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    symlink_zip = tmp_path / "ossf-scorecard-results.zip"
+    symlink_zip.symlink_to(real_zip)
+
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        extractor.extract_scorecard_artifact(symlink_zip, tmp_path / "scorecard-sarif")
+
+
+def test_scorecard_artifact_extractor_rejects_symlink_zip_in_artifact_directory(
+    tmp_path: Path,
+) -> None:
+    """Ensure directory inputs reject symlinked ZIP candidates and fail closed."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_directory_symlink",
+    )
+    artifact_dir = tmp_path / "scorecard-artifact"
+    artifact_dir.mkdir()
+    real_zip = tmp_path / "real-scorecard-results.zip"
+    with zipfile.ZipFile(real_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    (artifact_dir / "results.sarif.zip").symlink_to(real_zip)
+
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
+
+
+def test_scorecard_artifact_extractor_rejects_mixed_symlink_zip_directory(
+    tmp_path: Path,
+) -> None:
+    """Ensure any symlinked ZIP candidate taints directory artifact input."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_mixed_directory_symlink",
+    )
+    artifact_dir = tmp_path / "scorecard-artifact"
+    artifact_dir.mkdir()
+    with zipfile.ZipFile(artifact_dir / "results.sarif.zip", "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    real_zip = tmp_path / "real-scorecard-results.zip"
+    with zipfile.ZipFile(real_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    (artifact_dir / "shadow.zip").symlink_to(real_zip)
+
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
+
 
 def test_scorecard_artifact_extractor_rejects_path_traversal(tmp_path: Path) -> None:
     """Ensure malformed Scorecard artifacts cannot escape the extraction directory."""
