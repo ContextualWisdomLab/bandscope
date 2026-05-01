@@ -395,7 +395,9 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
                 stripped = stripped[2:].strip()
             indent = len(step_line) - len(step_line.lstrip(" "))
             if run_indent is None:
-                if stripped.startswith("run:") and (indent > step_indent or is_step_start):
+                if stripped.startswith("run:") and (
+                    indent > step_indent or is_step_start
+                ):
                     run_indent = indent
                     command_lines.append(stripped.partition(":")[2].strip())
                 continue
@@ -606,7 +608,9 @@ def scorecard_artifact_download_decompression_violations(content: str) -> list[s
                 stripped = stripped[2:].strip()
             indent = len(step_line) - len(step_line.lstrip(" "))
             if run_indent is None:
-                if stripped.startswith("run:") and (indent > step_indent or is_step_start):
+                if stripped.startswith("run:") and (
+                    indent > step_indent or is_step_start
+                ):
                     run_indent = indent
                     command_lines.append(stripped.partition(":")[2].strip())
                 continue
@@ -644,7 +648,9 @@ def scorecard_artifact_download_decompression_violations(content: str) -> list[s
 
         job_content = workflow_job_content(index)
         job_step_blocks = [
-            block for block in step_blocks if workflow_job_content(block[0]) == job_content
+            block
+            for block in step_blocks
+            if workflow_job_content(block[0]) == job_content
         ]
         later_steps = [
             (block_indent, block_lines)

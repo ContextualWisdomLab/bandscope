@@ -1224,15 +1224,10 @@ def test_scorecard_artifact_extractor_extracts_expected_sarif(tmp_path: Path) ->
         archive.writestr("results.sarif", '{"version":"2.1.0","runs":[{}]}')
 
     directory_output_dir = tmp_path / "directory-scorecard-sarif"
-    directory_extracted = extractor.extract_scorecard_artifact(
-        artifact_dir, directory_output_dir
-    )
+    directory_extracted = extractor.extract_scorecard_artifact(artifact_dir, directory_output_dir)
 
     assert directory_extracted == directory_output_dir / "results.sarif"
-    assert (
-        directory_extracted.read_text(encoding="utf-8")
-        == '{"version":"2.1.0","runs":[{}]}'
-    )
+    assert directory_extracted.read_text(encoding="utf-8") == '{"version":"2.1.0","runs":[{}]}'
 
     empty_artifact_dir = tmp_path / "empty-scorecard-artifact"
     empty_artifact_dir.mkdir()

@@ -20,7 +20,9 @@ def resolve_artifact_zip(source: Path) -> Path:
         raise ValueError(f"artifact source does not exist: {source}")
     ensure_non_symlink_path(source, path_kind="artifact path")
     candidates: list[Path] = []
-    for path in sorted(candidate for candidate in source.iterdir() if candidate.suffix == ".zip"):
+    for path in sorted(
+        candidate for candidate in source.iterdir() if candidate.suffix == ".zip"
+    ):
         ensure_non_symlink_path(path, path_kind="artifact path")
         candidates.append(path)
     if len(candidates) != 1:
