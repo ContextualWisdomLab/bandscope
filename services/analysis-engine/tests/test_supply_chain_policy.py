@@ -1006,6 +1006,45 @@ checksum = "app-root-direct-path"
     ) in violations
 
 
+def test_supply_chain_check_rejects_tauri_direct_rust_glib_owner(
+    tmp_path: Path,
+) -> None:
+    """Ensure Tauri ancestry alone does not allow a direct glib shortcut."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_glib_tauri_direct_owner",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "bandscope-desktop"
+version = "0.1.0"
+dependencies = ["tauri 2.11.0"]
+
+[[package]]
+name = "tauri"
+version = "2.11.0"
+dependencies = ["glib 0.18.5"]
+
+[[package]]
+name = "glib"
+version = "0.18.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "tauri-direct-owner"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: glib 0.18.5 matches the legacy exception version but "
+        "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
+        "for RUSTSEC-2024-0429"
+    ) in violations
+
+
 def test_supply_chain_check_rejects_tauri_reachable_unexpected_rust_glib_owner(
     tmp_path: Path,
 ) -> None:

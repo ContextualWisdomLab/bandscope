@@ -695,6 +695,9 @@ def rust_dependency_advisory_violations(
     legacy_glib_ancestors = cargo_lock_dependency_ancestors(
         package_dependencies, RUST_GLIB_LEGACY_EXCEPTION_PACKAGE
     )
+    legacy_glib_direct_owners = cargo_lock_dependency_owners(
+        package_dependencies, RUST_GLIB_LEGACY_EXCEPTION_PACKAGE
+    )
     for package in cargo_lock_packages(lockfile):
         current_name = str(package.get("name", ""))
         version = str(package.get("version", ""))
@@ -711,6 +714,7 @@ def rust_dependency_advisory_violations(
                         version,
                         package_dependencies,
                         legacy_glib_ancestors,
+                        legacy_glib_direct_owners,
                         glib_exception_owned_packages,
                     )
                 )
@@ -766,12 +770,16 @@ def rust_glib_advisory_violations(
     version: str,
     package_dependencies: dict[str, list[str]],
     legacy_glib_ancestors: set[str],
+    legacy_glib_direct_owners: set[str],
     glib_exception_owned_packages: set[str],
 ) -> list[str]:
     """Return violations for vulnerable glib versions outside the Tauri GTK stack."""
     if version == RUST_GLIB_LEGACY_EXCEPTION_VERSION:
         if glib_legacy_exception_owners_are_allowed(
-            package_dependencies, legacy_glib_ancestors, glib_exception_owned_packages
+            package_dependencies,
+            legacy_glib_ancestors,
+            glib_exception_owned_packages,
+            legacy_glib_direct_owners,
         ):
             return []
         return [
@@ -804,6 +812,7 @@ def glib_legacy_exception_owners_are_allowed(
     package_dependencies: dict[str, list[str]],
     legacy_glib_ancestors: set[str],
     glib_exception_owned_packages: set[str],
+    legacy_glib_direct_owners: set[str],
 ) -> bool:
     """Return whether every glib ancestor matches the documented GTK/WebKit stack."""
     if not legacy_glib_ancestors:
@@ -811,6 +820,11 @@ def glib_legacy_exception_owners_are_allowed(
     ancestor_names = {
         ancestor.rsplit(" ", maxsplit=1)[0] for ancestor in legacy_glib_ancestors
     }
+    direct_owner_names = {
+        owner.rsplit(" ", maxsplit=1)[0] for owner in legacy_glib_direct_owners
+    }
+    if not direct_owner_names <= RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES:
+        return False
     off_chain_ancestors = legacy_glib_ancestors - glib_exception_owned_packages
     allowed_app_roots = {
         ancestor
