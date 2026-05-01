@@ -676,6 +676,34 @@ def test_scorecard_sarif_normalizer_skips_malformed_locations(tmp_path: Path) ->
     assert physical_location["artifactLocation"]["uri"] == (".github/workflows/ossf-scorecard.yml")
 
 
+def test_scorecard_sarif_normalizer_skips_malformed_containers(
+    tmp_path: Path,
+) -> None:
+    """Ensure non-list SARIF containers do not crash normalization."""
+    normalizer = load_module(
+        "scripts/checks/normalize_scorecard_sarif.py",
+        "normalize_scorecard_sarif_malformed_containers",
+    )
+    cases = [
+        {"version": "2.1.0", "runs": None},
+        {"version": "2.1.0", "runs": {"results": []}},
+        {"version": "2.1.0", "runs": [{"results": None}]},
+        {"version": "2.1.0", "runs": [{"results": {"locations": []}}]},
+        {"version": "2.1.0", "runs": [{"results": [{"locations": None}]}]},
+        {"version": "2.1.0", "runs": [{"results": [{"locations": {}}]}]},
+    ]
+
+    for index, sarif in enumerate(cases):
+        source = tmp_path / f"results-{index}.sarif"
+        target = tmp_path / f"normalized-results-{index}.sarif"
+        source.write_text(json.dumps(sarif), encoding="utf-8")
+
+        rewritten = normalizer.normalize_scorecard_sarif(source, target)
+
+        assert rewritten == 0
+        assert json.loads(target.read_text(encoding="utf-8")) == sarif
+
+
 def test_supply_chain_check_rejects_vulnerable_rust_rand_lockfile(
     tmp_path: Path,
 ) -> None:

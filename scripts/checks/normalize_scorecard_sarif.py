@@ -16,13 +16,21 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
     rewritten = 0
 
     runs = sarif.get("runs", []) if isinstance(sarif, dict) else []
+    if not isinstance(runs, list):
+        runs = []
     for run in runs:
         if not isinstance(run, dict):
             continue
-        for result in run.get("results", []):
+        results = run.get("results", [])
+        if not isinstance(results, list):
+            continue
+        for result in results:
             if not isinstance(result, dict):
                 continue
-            for location in result.get("locations", []):
+            locations = result.get("locations", [])
+            if not isinstance(locations, list):
+                continue
+            for location in locations:
                 if not isinstance(location, dict):
                     continue
                 physical_location = location.get("physicalLocation")
