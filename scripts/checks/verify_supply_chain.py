@@ -360,11 +360,52 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
     if "github/codeql-action/upload-sarif" not in content:
         return []
 
-    violations: list[str] = []
-    has_normalizer_step = OSSF_SARIF_NORMALIZER in content
+    def upload_step_sarif_file(step_lines: list[str], step_indent: int) -> str | None:
+        with_indent: int | None = None
+        for step_line in step_lines:
+            raw_stripped = step_line.strip().partition("#")[0].strip()
+            stripped = raw_stripped
+            is_step_start = stripped.startswith("- ")
+            if is_step_start:
+                stripped = stripped[2:].strip()
+            indent = len(step_line) - len(step_line.lstrip(" "))
+            if with_indent is None:
+                if stripped == "with:" and (indent > step_indent or is_step_start):
+                    with_indent = indent
+                continue
+            if stripped and indent <= with_indent:
+                break
+            if stripped.startswith("sarif_file:") and indent > with_indent:
+                return stripped.partition(":")[2].partition("#")[0].strip().strip("'\"")
+        return None
+
+    def workflow_job_content(line_index: int) -> str:
+        job_start = 0
+        for reverse_index in range(line_index, -1, -1):
+            candidate = lines[reverse_index]
+            candidate_without_comment = candidate.strip().partition("#")[0].strip()
+            if len(candidate) - len(
+                candidate.lstrip(" ")
+            ) == 2 and candidate_without_comment.endswith(":"):
+                job_start = reverse_index
+                break
+        job_end = len(lines)
+        for forward_index in range(job_start + 1, len(lines)):
+            candidate = lines[forward_index]
+            candidate_without_comment = candidate.strip().partition("#")[0].strip()
+            if len(candidate) - len(
+                candidate.lstrip(" ")
+            ) == 2 and candidate_without_comment.endswith(":"):
+                job_end = forward_index
+                break
+        return "\n".join(lines[job_start:job_end])
+
     lines = content.splitlines()
+
+    step_blocks: list[tuple[int, int, list[str]]] = []
     for index, line in enumerate(lines):
-        if "uses:" not in line or "github/codeql-action/upload-sarif" not in line:
+        stripped = line.strip()
+        if not stripped.startswith("- "):
             continue
         step_indent = len(line) - len(line.lstrip(" "))
         step_lines = [line]
@@ -374,17 +415,42 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
             if following_stripped.startswith("- ") and following_indent <= step_indent:
                 break
             step_lines.append(following_line)
-        step_content = "\n".join(step_lines)
-        if not any(
-            scorecard_sarif_token in step_content
-            for scorecard_sarif_token in [
-                OSSF_NORMALIZED_SARIF_UPLOAD,
-                "sarif_file: results.sarif",
-                "sarif_file: scorecard-sarif/results.sarif",
-            ]
+        step_blocks.append((index, step_indent, step_lines))
+
+    has_normalizer_step = any(
+        any(
+            line.strip().partition("#")[0].strip().startswith("run:")
+            for line in step_lines
+        )
+        and OSSF_SARIF_NORMALIZER
+        in "\n".join(line.partition("#")[0] for line in step_lines)
+        for _, _, step_lines in step_blocks
+    )
+
+    violations: list[str] = []
+    for index, step_indent, step_lines in step_blocks:
+        if "github/codeql-action/upload-sarif" not in "\n".join(
+            line.partition("#")[0] for line in step_lines
         ):
             continue
-        if has_normalizer_step and OSSF_NORMALIZED_SARIF_UPLOAD in step_content:
+        sarif_file = upload_step_sarif_file(step_lines, step_indent)
+        job_content = workflow_job_content(index)
+        job_content_without_comments = "\n".join(
+            line.partition("#")[0] for line in job_content.splitlines()
+        )
+        scorecard_sarif_upload = sarif_file == OSSF_NORMALIZED_SARIF or (
+            sarif_file is not None
+            and (
+                "scorecard" in sarif_file
+                or (
+                    sarif_file == "results.sarif"
+                    and "ossf/scorecard-action" in job_content_without_comments
+                )
+            )
+        )
+        if not scorecard_sarif_upload:
+            continue
+        if has_normalizer_step and sarif_file == OSSF_NORMALIZED_SARIF:
             continue
         violations.append(
             "ossf scorecard SARIF upload must normalize repository-level "
