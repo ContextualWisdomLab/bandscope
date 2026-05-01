@@ -510,6 +510,51 @@ def test_scorecard_sarif_normalizer_preserves_file_locations(tmp_path: Path) -> 
     assert "properties" not in location
 
 
+def test_scorecard_sarif_normalizer_skips_malformed_locations(tmp_path: Path) -> None:
+    """Ensure malformed Scorecard SARIF arrays do not crash normalization."""
+    normalizer = load_module(
+        "scripts/checks/normalize_scorecard_sarif.py", "normalize_scorecard_sarif_malformed"
+    )
+    source = tmp_path / "results.sarif"
+    target = tmp_path / "normalized-results.sarif"
+    source.write_text(
+        json.dumps(
+            {
+                "version": "2.1.0",
+                "runs": [
+                    "not-a-run",
+                    {
+                        "results": [
+                            "not-a-result",
+                            {
+                                "ruleId": "Token-Permissions",
+                                "locations": [
+                                    "not-a-location",
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": "no file associated with this alert"
+                                            }
+                                        }
+                                    },
+                                ],
+                            },
+                        ]
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rewritten = normalizer.normalize_scorecard_sarif(source, target)
+    normalized = json.loads(target.read_text(encoding="utf-8"))
+    physical_location = normalized["runs"][1]["results"][1]["locations"][1]["physicalLocation"]
+
+    assert rewritten == 1
+    assert physical_location["artifactLocation"]["uri"] == (".github/workflows/ossf-scorecard.yml")
+
+
 def test_supply_chain_check_rejects_vulnerable_rust_rand_lockfile(
     tmp_path: Path,
 ) -> None:
