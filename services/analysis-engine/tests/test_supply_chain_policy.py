@@ -465,6 +465,7 @@ def test_scorecard_sarif_normalizer_replaces_repository_level_placeholder(
     assert location["artifactLocation"]["uri"] == ".github/workflows/ossf-scorecard.yml"
     assert location["region"]["startLine"] == 1
     assert location["properties"]["bandscopeOriginalUri"] == ("no file associated with this alert")
+    assert location["properties"]["bandscopeRepositoryLevelFinding"] is True
 
 
 def test_scorecard_sarif_normalizer_preserves_file_locations(tmp_path: Path) -> None:
@@ -553,6 +554,81 @@ def test_scorecard_sarif_normalizer_fills_existing_region_start_line(
 
     assert rewritten == 1
     assert physical_location["region"]["startLine"] == 1
+
+
+def test_scorecard_sarif_normalizer_repairs_invalid_region_start_lines(
+    tmp_path: Path,
+) -> None:
+    """Ensure invalid repository-level SARIF region startLine values become valid."""
+    normalizer = load_module(
+        "scripts/checks/normalize_scorecard_sarif.py",
+        "normalize_scorecard_sarif_invalid_region",
+    )
+    source = tmp_path / "results.sarif"
+    target = tmp_path / "normalized-results.sarif"
+    source.write_text(
+        json.dumps(
+            {
+                "version": "2.1.0",
+                "runs": [
+                    {
+                        "results": [
+                            {
+                                "ruleId": "Token-Permissions",
+                                "locations": [
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": "no file associated with this alert"
+                                            },
+                                            "region": {"startLine": 0},
+                                        }
+                                    },
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": "no file associated with this alert"
+                                            },
+                                            "region": {"startLine": None},
+                                        }
+                                    },
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": "no file associated with this alert"
+                                            },
+                                            "region": {"startLine": "7"},
+                                        }
+                                    },
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": "no file associated with this alert"
+                                            },
+                                            "region": {"startLine": 3},
+                                        }
+                                    },
+                                ],
+                            }
+                        ]
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rewritten = normalizer.normalize_scorecard_sarif(source, target)
+    normalized = json.loads(target.read_text(encoding="utf-8"))
+    locations = normalized["runs"][0]["results"][0]["locations"]
+
+    assert rewritten == 4
+    assert [location["physicalLocation"]["region"]["startLine"] for location in locations] == [
+        1,
+        1,
+        1,
+        3,
+    ]
 
 
 def test_scorecard_sarif_normalizer_skips_malformed_locations(tmp_path: Path) -> None:

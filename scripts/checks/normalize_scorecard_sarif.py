@@ -38,7 +38,9 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
                 if not isinstance(region, dict):
                     region = {}
                     physical_location["region"] = region
-                region.setdefault("startLine", 1)
+                start_line = region.get("startLine")
+                if type(start_line) is not int or start_line < 1:
+                    region["startLine"] = 1
                 properties = physical_location.setdefault("properties", {})
                 if isinstance(properties, dict):
                     properties["bandscopeOriginalUri"] = (
