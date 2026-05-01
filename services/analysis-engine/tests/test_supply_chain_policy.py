@@ -1202,6 +1202,280 @@ def test_supply_chain_check_accepts_repo_scorecard_download_decompression_guard(
     assert not any("skip-decompress" in violation for violation in violations)
 
 
+def test_supply_chain_check_rejects_release_artifact_download_action_decompression(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure release artifact downloads avoid action-owned ZIP decompression."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_release_download_decompression_guard",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        "\n".join(
+            [
+                "name: build-baseline",
+                "on:",
+                "  push:",
+                "    branches: [develop, main]",
+                "    tags: ['v*']",
+                "jobs:",
+                "  publish-immutable-release:",
+                "    name: release-artifact / publish",
+                "    steps:",
+                "      - uses: actions/download-artifact@"
+                "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          pattern: bandscope-*-${{ github.sha }}",
+                "          path: artifacts",
+                "          merge-multiple: true",
+                "      - name: Validate release asset set",
+                "        run: >-",
+                "          python3 scripts/release/select_release_assets.py",
+                "          --output release-assets.txt",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "release artifact download must use skip-decompress: true and "
+        "repo-owned extraction before asset validation"
+    ) in violations
+
+
+def test_supply_chain_check_accepts_repo_release_artifact_download_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure checked-in release downloads use repo-owned artifact extraction."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_release_download_decompression_repo",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    monkeypatch.chdir(repo_root)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert not any("release artifact download must use" in violation for violation in violations)
+
+
+@pytest.mark.parametrize(
+    "spoof_line",
+    [
+        "        if: ${{ false }}",
+        "        continue-on-error: true",
+        '        continue-on-error: "true"',
+        "        continue-on-error: ${{ true }}",
+    ],
+)
+def test_supply_chain_check_rejects_non_blocking_release_extractor_spoofs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, spoof_line: str
+) -> None:
+    """Ensure skipped or non-blocking extractor steps cannot satisfy the guard."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_release_download_non_blocking_spoof_guard",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        "\n".join(
+            [
+                "name: build-baseline",
+                "jobs:",
+                "  publish-immutable-release:",
+                "    name: release-artifact / publish",
+                "    steps:",
+                "      - uses: actions/download-artifact@"
+                "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          pattern: bandscope-*-${{ github.sha }}",
+                "          path: downloaded-artifacts",
+                "          skip-decompress: true",
+                "      - name: Spoof release artifact extraction",
+                spoof_line,
+                "        run: >-",
+                "          python3 scripts/release/extract_release_artifacts.py",
+                "          downloaded-artifacts",
+                "          artifacts",
+                "      - name: Validate release asset set",
+                "        run: >-",
+                "          python3 scripts/release/select_release_assets.py",
+                "          --output release-assets.txt",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "release artifact download must use skip-decompress: true and "
+        "repo-owned extraction before asset validation"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_release_download_env_skip_decompress_spoof(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure skip-decompress must be scoped under download-artifact with."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_release_download_env_skip_decompress_spoof",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        "\n".join(
+            [
+                "name: build-baseline",
+                "jobs:",
+                "  publish-immutable-release:",
+                "    name: release-artifact / publish",
+                "    steps:",
+                "      - uses: actions/download-artifact@"
+                "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          pattern: bandscope-*-${{ github.sha }}",
+                "          path: downloaded-artifacts",
+                "        env:",
+                "          skip-decompress: true",
+                "      - name: Extract release artifacts with repo-owned validation",
+                "        run: >-",
+                "          python3 scripts/release/extract_release_artifacts.py",
+                "          downloaded-artifacts",
+                "          artifacts",
+                "      - name: Validate release asset set",
+                "        run: >-",
+                "          python3 scripts/release/select_release_assets.py",
+                "          --output release-assets.txt",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "release artifact download must use skip-decompress: true and "
+        "repo-owned extraction before asset validation"
+    ) in violations
+
+
+def test_release_artifact_extractor_restores_expected_release_files(
+    tmp_path: Path,
+) -> None:
+    """Ensure release artifact ZIPs extract only allowlisted artifact files."""
+    extractor = load_module(
+        "scripts/release/extract_release_artifacts.py", "extract_release_artifacts"
+    )
+    artifact_dir = tmp_path / "downloaded-artifacts"
+    artifact_dir.mkdir()
+    output_dir = tmp_path / "artifacts"
+    source_zip = artifact_dir / "bandscope-windows-amd64.zip"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("bandscope-windows-amd64-abcdef123456.exe", "installer")
+        archive.writestr("bandscope-windows-amd64-abcdef123456.exe.sha256", "digest")
+        archive.writestr("bandscope-windows-amd64-abcdef123456.exe.manifest.txt", "manifest")
+
+    extracted = extractor.extract_release_artifacts(artifact_dir, output_dir)
+
+    assert extracted == [
+        output_dir / "bandscope-windows-amd64-abcdef123456.exe",
+        output_dir / "bandscope-windows-amd64-abcdef123456.exe.manifest.txt",
+        output_dir / "bandscope-windows-amd64-abcdef123456.exe.sha256",
+    ]
+    assert (output_dir / "bandscope-windows-amd64-abcdef123456.exe").read_text(
+        encoding="utf-8"
+    ) == "installer"
+
+
+def test_release_artifact_extractor_rejects_unsafe_members(tmp_path: Path) -> None:
+    """Ensure release artifact extraction rejects paths outside the allowlist."""
+    extractor = load_module(
+        "scripts/release/extract_release_artifacts.py",
+        "extract_release_artifacts_rejects_unsafe_members",
+    )
+    artifact_dir = tmp_path / "downloaded-artifacts"
+    artifact_dir.mkdir()
+    with zipfile.ZipFile(artifact_dir / "poison.zip", "w") as archive:
+        archive.writestr("../poison.sh", "owned")
+
+    with pytest.raises(ValueError, match="unexpected release artifact member"):
+        extractor.extract_release_artifacts(artifact_dir, tmp_path / "artifacts")
+
+
+def test_release_artifact_extractor_rejects_oversized_members(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure oversized release artifacts fail closed and remove partial files."""
+    extractor = load_module(
+        "scripts/release/extract_release_artifacts.py",
+        "extract_release_artifacts_rejects_oversized_members",
+    )
+    monkeypatch.setattr(extractor, "MAX_RELEASE_ARTIFACT_BYTES", 4)
+    artifact_dir = tmp_path / "downloaded-artifacts"
+    artifact_dir.mkdir()
+    with zipfile.ZipFile(artifact_dir / "bandscope-windows-amd64.zip", "w") as archive:
+        archive.writestr("bandscope-windows-amd64-abcdef123456.exe", "installer")
+    output_dir = tmp_path / "artifacts"
+
+    with pytest.raises(ValueError, match="release artifact member too large"):
+        extractor.extract_release_artifacts(artifact_dir, output_dir)
+
+    assert not (output_dir / "bandscope-windows-amd64-abcdef123456.exe").exists()
+
+
+def test_release_artifact_extractor_rejects_oversized_total_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure many small release artifact members cannot exceed the total cap."""
+    extractor = load_module(
+        "scripts/release/extract_release_artifacts.py",
+        "extract_release_artifacts_rejects_oversized_total",
+    )
+    monkeypatch.setattr(extractor, "MAX_RELEASE_ARTIFACT_BYTES", 8)
+    monkeypatch.setattr(extractor, "MAX_TOTAL_RELEASE_ARTIFACT_BYTES", 8)
+    artifact_dir = tmp_path / "downloaded-artifacts"
+    artifact_dir.mkdir()
+    with zipfile.ZipFile(artifact_dir / "bandscope-windows-amd64.zip", "w") as archive:
+        archive.writestr("bandscope-windows-amd64-abcdef123456.exe", "1234")
+        archive.writestr("bandscope-windows-amd64-fedcba654321.exe", "56789")
+
+    with pytest.raises(ValueError, match="release artifact bundle too large"):
+        extractor.extract_release_artifacts(artifact_dir, tmp_path / "artifacts")
+
+
+def test_release_artifact_extractor_rejects_too_many_members(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure artifact ZIPs cannot contain unbounded allowlist-shaped files."""
+    extractor = load_module(
+        "scripts/release/extract_release_artifacts.py",
+        "extract_release_artifacts_rejects_too_many_members",
+    )
+    monkeypatch.setattr(extractor, "MAX_RELEASE_ARTIFACT_FILES", 1)
+    artifact_dir = tmp_path / "downloaded-artifacts"
+    artifact_dir.mkdir()
+    with zipfile.ZipFile(artifact_dir / "bandscope-windows-amd64.zip", "w") as archive:
+        archive.writestr("bandscope-windows-amd64-abcdef123456.exe", "installer")
+        archive.writestr("bandscope-windows-amd64-abcdef123456.exe.sha256", "digest")
+
+    with pytest.raises(ValueError, match="too many release artifact files"):
+        extractor.extract_release_artifacts(artifact_dir, tmp_path / "artifacts")
+
+
 def test_scorecard_artifact_extractor_extracts_expected_sarif(tmp_path: Path) -> None:
     """Ensure the repo-owned extractor restores results.sarif from zipped artifacts."""
     extractor = load_module(
