@@ -7,8 +7,11 @@ import os
 import stat
 import zipfile
 from pathlib import Path
+from typing import IO
 
 EXPECTED_MEMBER = "results.sarif"
+MAX_SARIF_BYTES = 10 * 1024 * 1024
+READ_CHUNK_BYTES = 64 * 1024
 
 
 def resolve_artifact_zip(source: Path) -> Path:
@@ -44,6 +47,8 @@ def validate_member(member: zipfile.ZipInfo) -> None:
         or stat.S_ISLNK(unix_mode)
     ):
         raise ValueError(f"unexpected artifact member: {member.filename}")
+    if member.file_size > MAX_SARIF_BYTES:
+        raise ValueError(f"artifact member too large: {member.filename}")
 
 
 def ensure_non_symlink_path(path: Path, *, path_kind: str = "output path") -> None:
@@ -60,14 +65,25 @@ def ensure_non_symlink_path(path: Path, *, path_kind: str = "output path") -> No
             raise ValueError(f"symlinked {path_kind} is not allowed: {component}")
 
 
-def write_new_file_without_following_symlinks(target: Path, data: bytes) -> None:
-    """Write ``data`` to a new file without following an existing symlink."""
+def write_new_file_without_following_symlinks(
+    target: Path, source_file: IO[bytes]
+) -> None:
+    """Stream-write to a new file without following an existing symlink."""
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     fd = os.open(target, flags, 0o600)
-    with os.fdopen(fd, "wb") as target_file:
-        target_file.write(data)
+    written = 0
+    try:
+        with os.fdopen(fd, "wb") as target_file:
+            while chunk := source_file.read(READ_CHUNK_BYTES):
+                written += len(chunk)
+                if written > MAX_SARIF_BYTES:
+                    raise ValueError("artifact member too large")
+                target_file.write(chunk)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
 
 
 def extract_scorecard_artifact(source: Path, output_dir: Path) -> Path:
@@ -84,7 +100,8 @@ def extract_scorecard_artifact(source: Path, output_dir: Path) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         ensure_non_symlink_path(output_dir)
         target = output_dir / EXPECTED_MEMBER
-        write_new_file_without_following_symlinks(target, archive.read(member))
+        with archive.open(member) as source_file:
+            write_new_file_without_following_symlinks(target, source_file)
         return target
 
 

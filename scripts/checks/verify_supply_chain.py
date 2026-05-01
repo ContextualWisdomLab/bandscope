@@ -112,6 +112,39 @@ RELEASE_CREATE_VALUE_FLAGS = {
     "--title",
 }
 RELEASE_CREATE_ALLOWED_ASSET_TOKENS = {"${release_assets[@]}", "${release_assets[*]}"}
+WorkflowStepBlock = tuple[int, int, list[str]]
+
+
+def workflow_step_blocks(lines: list[str]) -> list[WorkflowStepBlock]:
+    """Return YAML step blocks nested under a workflow ``steps:`` parent."""
+    step_blocks: list[WorkflowStepBlock] = []
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("- "):
+            continue
+        step_indent = len(line) - len(line.lstrip(" "))
+        if step_indent < 6:
+            continue
+        has_steps_parent = False
+        for previous_line in reversed(lines[:index]):
+            previous_stripped = previous_line.strip().partition("#")[0].strip()
+            previous_indent = len(previous_line) - len(previous_line.lstrip(" "))
+            if previous_indent >= step_indent:
+                continue
+            if previous_stripped == "steps:":
+                has_steps_parent = True
+            break
+        if not has_steps_parent:
+            continue
+        step_lines = [line]
+        for following_line in lines[index + 1 :]:
+            following_stripped = following_line.strip()
+            following_indent = len(following_line) - len(following_line.lstrip(" "))
+            if following_stripped.startswith("- ") and following_indent <= step_indent:
+                break
+            step_lines.append(following_line)
+        step_blocks.append((index, step_indent, step_lines))
+    return step_blocks
 
 
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
@@ -456,33 +489,7 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
 
     lines = content.splitlines()
 
-    step_blocks: list[tuple[int, int, list[str]]] = []
-    for index, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped.startswith("- "):
-            continue
-        step_indent = len(line) - len(line.lstrip(" "))
-        if step_indent < 6:
-            continue
-        has_steps_parent = False
-        for previous_line in reversed(lines[:index]):
-            previous_stripped = previous_line.strip().partition("#")[0].strip()
-            previous_indent = len(previous_line) - len(previous_line.lstrip(" "))
-            if previous_indent >= step_indent:
-                continue
-            if previous_stripped == "steps:":
-                has_steps_parent = True
-            break
-        if not has_steps_parent:
-            continue
-        step_lines = [line]
-        for following_line in lines[index + 1 :]:
-            following_stripped = following_line.strip()
-            following_indent = len(following_line) - len(following_line.lstrip(" "))
-            if following_stripped.startswith("- ") and following_indent <= step_indent:
-                break
-            step_lines.append(following_line)
-        step_blocks.append((index, step_indent, step_lines))
+    step_blocks = workflow_step_blocks(lines)
 
     violations: list[str] = []
     for index, step_indent, step_lines in step_blocks:
@@ -548,33 +555,7 @@ def scorecard_artifact_download_decompression_violations(content: str) -> list[s
         return []
 
     lines = content.splitlines()
-    step_blocks: list[tuple[int, int, list[str]]] = []
-    for index, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped.startswith("- "):
-            continue
-        step_indent = len(line) - len(line.lstrip(" "))
-        if step_indent < 6:
-            continue
-        has_steps_parent = False
-        for previous_line in reversed(lines[:index]):
-            previous_stripped = previous_line.strip().partition("#")[0].strip()
-            previous_indent = len(previous_line) - len(previous_line.lstrip(" "))
-            if previous_indent >= step_indent:
-                continue
-            if previous_stripped == "steps:":
-                has_steps_parent = True
-            break
-        if not has_steps_parent:
-            continue
-        step_lines = [line]
-        for following_line in lines[index + 1 :]:
-            following_stripped = following_line.strip()
-            following_indent = len(following_line) - len(following_line.lstrip(" "))
-            if following_stripped.startswith("- ") and following_indent <= step_indent:
-                break
-            step_lines.append(following_line)
-        step_blocks.append((index, step_indent, step_lines))
+    step_blocks = workflow_step_blocks(lines)
 
     def workflow_job_content(line_index: int) -> str:
         job_start = 0

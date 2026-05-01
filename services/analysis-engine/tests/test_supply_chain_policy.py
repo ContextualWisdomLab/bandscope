@@ -1388,6 +1388,27 @@ def test_scorecard_artifact_extractor_rejects_existing_target_symlink(
     assert outside_target.read_text(encoding="utf-8") == "outside"
 
 
+def test_scorecard_artifact_extractor_rejects_oversized_results_sarif(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure oversized Scorecard SARIF artifacts fail before extraction."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_oversized",
+    )
+    monkeypatch.setattr(extractor, "MAX_SARIF_BYTES", 1)
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    output_dir = tmp_path / "scorecard-sarif"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+
+    with pytest.raises(ValueError, match="artifact member too large"):
+        extractor.extract_scorecard_artifact(source_zip, output_dir)
+
+    assert not (output_dir / "results.sarif").exists()
+
+
 def test_scorecard_sarif_normalizer_replaces_repository_level_placeholder(
     tmp_path: Path,
 ) -> None:
