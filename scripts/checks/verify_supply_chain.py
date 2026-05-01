@@ -52,20 +52,29 @@ RELEASE_ASSET_VALIDATOR = (
 RELEASE_ASSET_MAPFILE = "mapfile -t release_assets < release-assets.txt"
 WORKSPACE_EXEC_PATTERN = re.compile(r"\bnpm\s+exec\s+--workspace\b")
 RUST_RAND_ADVISORY_ID = "GHSA-cq8v-f236-94qc"
-RUST_RAND_LEGACY_EXCEPTION_VERSION = "0.7.3"
+RUST_RAND_RETIRED_LEGACY_VERSION = "0.7.3"
 RUST_RAND_PATCHED_VERSIONS = {
     (0, 8): (0, 8, 6),
     (0, 9): (0, 9, 3),
     (0, 10): (0, 10, 1),
 }
-RUST_RAND_LEGACY_EXCEPTION_CHAIN = (
-    "tauri-utils 2.8.3",
-    "kuchikiki 0.8.8-speedreader",
-    "selectors 0.24.0",
-    "phf_codegen 0.8.0",
-    "phf_generator 0.8.0",
-    "rand 0.7.3",
-)
+RUST_GLIB_ADVISORY_ID = "RUSTSEC-2024-0429"
+RUST_GLIB_LEGACY_EXCEPTION_VERSION = "0.18.5"
+RUST_GLIB_PATCHED_VERSION = (0, 20, 0)
+RUST_GLIB_LEGACY_ROOT_NAME = "tauri"
+RUST_GLIB_LEGACY_EXCEPTION_PACKAGE = "glib 0.18.5"
+RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES = {
+    "atk",
+    "cairo-rs",
+    "gdk",
+    "gdk-pixbuf",
+    "gio",
+    "gtk",
+    "javascriptcore-rs",
+    "pango",
+    "soup3",
+    "webkit2gtk",
+}
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
@@ -671,12 +680,11 @@ def rust_dependency_advisory_violations(
     if not lockfile.exists():
         return [f"Cargo.lock missing: {lockfile}"]
     package_dependencies = cargo_lock_package_dependencies(lockfile)
-    legacy_exception_allowed = cargo_lock_has_dependency_chain(
-        package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN
+    glib_exception_owned_packages = cargo_lock_reachable_package_keys_by_name(
+        package_dependencies, RUST_GLIB_LEGACY_ROOT_NAME
     )
-    expected_legacy_owner = RUST_RAND_LEGACY_EXCEPTION_CHAIN[-2]
-    legacy_rand_owners = cargo_lock_dependency_owners(
-        package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN[-1]
+    legacy_glib_owners = cargo_lock_dependency_owners(
+        package_dependencies, RUST_GLIB_LEGACY_EXCEPTION_PACKAGE
     )
     for package in cargo_lock_packages(lockfile):
         current_name = str(package.get("name", ""))
@@ -687,14 +695,21 @@ def rust_dependency_advisory_violations(
             )
             continue
         if current_name != "rand":
+            if current_name == "glib":
+                violations.extend(
+                    rust_glib_advisory_violations(
+                        lockfile,
+                        version,
+                        legacy_glib_owners,
+                        glib_exception_owned_packages,
+                    )
+                )
             continue
-        if version == RUST_RAND_LEGACY_EXCEPTION_VERSION:
-            if legacy_exception_allowed and legacy_rand_owners == {expected_legacy_owner}:
-                continue
+        if version == RUST_RAND_RETIRED_LEGACY_VERSION:
             violations.append(
-                f"{lockfile}: rand {version} matches the legacy exception version "
-                "but does not have the documented Tauri/kuchikiki owner chain "
-                f"for {RUST_RAND_ADVISORY_ID}"
+                f"{lockfile}: rand {version} is not allowed for "
+                f"{RUST_RAND_ADVISORY_ID}; the former legacy owner-chain "
+                "exception has been removed"
             )
             continue
         parsed_parts: list[int] = []
@@ -722,9 +737,8 @@ def rust_dependency_advisory_violations(
         if rand_series == (0, 7):
             violations.append(
                 f"{lockfile}: rand {version} is not allowed for "
-                f"{RUST_RAND_ADVISORY_ID}; only rand "
-                f"{RUST_RAND_LEGACY_EXCEPTION_VERSION} on the documented "
-                "legacy owner chain is temporarily allowed"
+                f"{RUST_RAND_ADVISORY_ID}; the former legacy owner-chain "
+                "exception has been removed"
             )
             continue
         patched_version = RUST_RAND_PATCHED_VERSIONS.get(rand_series)
@@ -735,6 +749,87 @@ def rust_dependency_advisory_violations(
                 f"for {RUST_RAND_ADVISORY_ID}"
             )
     return violations
+
+
+def rust_glib_advisory_violations(
+    lockfile: Path,
+    version: str,
+    legacy_glib_owners: set[str],
+    glib_exception_owned_packages: set[str],
+) -> list[str]:
+    """Return violations for vulnerable glib versions outside the Tauri GTK stack."""
+    if version == RUST_GLIB_LEGACY_EXCEPTION_VERSION:
+        if glib_legacy_exception_owners_are_allowed(
+            legacy_glib_owners, glib_exception_owned_packages
+        ):
+            return []
+        return [
+            f"{lockfile}: glib {version} matches the legacy exception version but "
+            "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
+            f"for {RUST_GLIB_ADVISORY_ID}"
+        ]
+
+    version_violation = unsupported_numeric_semver_violation(
+        lockfile, "glib", version, RUST_GLIB_ADVISORY_ID
+    )
+    if version_violation is not None:
+        return [version_violation]
+    parsed_version = parse_numeric_semver(version)
+    if parsed_version is None:  # Defensive; unsupported forms returned above.
+        return [
+            f"{lockfile}: glib {version} has an unsupported version form "
+            f"for {RUST_GLIB_ADVISORY_ID}"
+        ]
+    if parsed_version < RUST_GLIB_PATCHED_VERSION:
+        patched = ".".join(str(part) for part in RUST_GLIB_PATCHED_VERSION)
+        return [
+            f"{lockfile}: glib {version} is below patched {patched} "
+            f"for {RUST_GLIB_ADVISORY_ID}"
+        ]
+    return []
+
+
+def glib_legacy_exception_owners_are_allowed(
+    legacy_glib_owners: set[str], glib_exception_owned_packages: set[str]
+) -> bool:
+    """Return whether every glib owner matches the documented GTK/WebKit stack."""
+    if not legacy_glib_owners:
+        return False
+    if not legacy_glib_owners <= glib_exception_owned_packages:
+        return False
+    owner_names = {owner.rsplit(" ", maxsplit=1)[0] for owner in legacy_glib_owners}
+    return owner_names <= RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES
+
+
+def unsupported_numeric_semver_violation(
+    lockfile: Path, package_name: str, version: str, advisory_id: str
+) -> str | None:
+    """Return a violation for non-numeric or overly long Cargo version forms."""
+    segments = version.split(".")
+    if any(not segment.isdecimal() for segment in segments):
+        return (
+            f"{lockfile}: {package_name} {version} has a non-numeric version segment "
+            f"for {advisory_id}"
+        )
+    if len(segments) > 3:
+        return (
+            f"{lockfile}: {package_name} {version} has a non-standard extra version segment "
+            f"for {advisory_id}"
+        )
+    return None
+
+
+def parse_numeric_semver(version: str) -> tuple[int, int, int] | None:
+    """Return a three-part numeric semver tuple for supported Cargo versions."""
+    segments = version.split(".")
+    if any(not segment.isdecimal() for segment in segments):
+        return None
+    if len(segments) > 3:
+        return None
+    parsed_parts = [int(part) for part in segments]
+    while len(parsed_parts) < 3:
+        parsed_parts.append(0)
+    return tuple(parsed_parts[:3])
 
 
 def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
@@ -855,6 +950,35 @@ def cargo_lock_dependency_owners(
         for owner, dependency_tokens in package_dependencies.items()
         if dependency in dependency_tokens
     }
+
+
+def cargo_lock_reachable_package_keys(
+    package_dependencies: dict[str, list[str]], root_package: str
+) -> set[str]:
+    """Return package keys reachable from a root package dependency graph."""
+    reachable: set[str] = set()
+    pending = [root_package]
+    while pending:
+        current = pending.pop()
+        if current in reachable:
+            continue
+        reachable.add(current)
+        pending.extend(package_dependencies.get(current, []))
+    return reachable
+
+
+def cargo_lock_reachable_package_keys_by_name(
+    package_dependencies: dict[str, list[str]], root_package_name: str
+) -> set[str]:
+    """Return packages reachable from every package whose key has the root name."""
+    reachable: set[str] = set()
+    for package_key in package_dependencies:
+        package_name = package_key.rsplit(" ", maxsplit=1)[0]
+        if package_name == root_package_name:
+            reachable.update(
+                cargo_lock_reachable_package_keys(package_dependencies, package_key)
+            )
+    return reachable
 
 
 def cargo_lock_has_dependency_chain(

@@ -4,7 +4,8 @@
   "description": "Capability for the main BandScope window to use the analysis orchestration commands.",
   "windows": ["main"],
   "permissions": [
-    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     "allow-start-analysis-job",
     "allow-get-analysis-job-status",
     "allow-select-local-audio-source"

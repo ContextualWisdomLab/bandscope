@@ -412,7 +412,7 @@ checksum = "latest-vulnerable-api-series"
 def test_supply_chain_check_rejects_non_exception_rust_rand_0_7_lockfile(
     tmp_path: Path,
 ) -> None:
-    """Ensure only the documented legacy rand 0.7.3 exception can pass."""
+    """Ensure legacy rand 0.7.x entries cannot be reintroduced."""
     supply_chain = load_module(
         "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_0_7"
     )
@@ -432,7 +432,7 @@ checksum = "unexpected-legacy-series"
 
     assert (
         f"{lockfile}: rand 0.7.4 is not allowed for GHSA-cq8v-f236-94qc; "
-        "only rand 0.7.3 on the documented legacy owner chain is temporarily allowed"
+        "the former legacy owner-chain exception has been removed"
     ) in violations
 
 
@@ -464,8 +464,8 @@ checksum = "version-first-inline-owner"
     violations = supply_chain.rust_dependency_advisory_violations(lockfile)
 
     assert (
-        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
-        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+        f"{lockfile}: rand 0.7.3 is not allowed for GHSA-cq8v-f236-94qc; "
+        "the former legacy owner-chain exception has been removed"
     ) in violations
 
 
@@ -484,7 +484,7 @@ def test_supply_chain_check_reports_missing_rust_lockfile(tmp_path: Path) -> Non
 def test_supply_chain_check_rejects_unowned_legacy_rust_rand_exception(
     tmp_path: Path,
 ) -> None:
-    """Ensure rand 0.7.3 is exempt only on the documented Tauri owner chain."""
+    """Ensure rand 0.7.3 is rejected after retiring the owner-chain exception."""
     supply_chain = load_module(
         "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_unowned"
     )
@@ -503,15 +503,15 @@ checksum = "wrong-owner"
     violations = supply_chain.rust_dependency_advisory_violations(lockfile)
 
     assert (
-        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
-        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+        f"{lockfile}: rand 0.7.3 is not allowed for GHSA-cq8v-f236-94qc; "
+        "the former legacy owner-chain exception has been removed"
     ) in violations
 
 
 def test_supply_chain_check_rejects_inline_dependency_legacy_rust_rand_owner(
     tmp_path: Path,
 ) -> None:
-    """Ensure inline dependency arrays are included in legacy owner checks."""
+    """Ensure inline dependency arrays cannot hide retired rand owners."""
     supply_chain = load_module(
         "scripts/checks/verify_supply_chain.py",
         "verify_supply_chain_rust_rand_inline_owner",
@@ -561,8 +561,61 @@ checksum = "legacy-exception"
     violations = supply_chain.rust_dependency_advisory_violations(lockfile)
 
     assert (
-        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
-        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+        f"{lockfile}: rand 0.7.3 is not allowed for GHSA-cq8v-f236-94qc; "
+        "the former legacy owner-chain exception has been removed"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_documented_legacy_rust_rand_owner_chain(
+    tmp_path: Path,
+) -> None:
+    """Ensure the former rand 0.7.3 exception cannot be reintroduced."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_rand_retired_owner",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "tauri-utils"
+version = "2.8.3"
+dependencies = ["kuchikiki 0.8.8-speedreader"]
+
+[[package]]
+name = "kuchikiki"
+version = "0.8.8-speedreader"
+dependencies = ["selectors 0.24.0"]
+
+[[package]]
+name = "selectors"
+version = "0.24.0"
+dependencies = ["phf_codegen 0.8.0"]
+
+[[package]]
+name = "phf_codegen"
+version = "0.8.0"
+dependencies = ["phf_generator 0.8.0"]
+
+[[package]]
+name = "phf_generator"
+version = "0.8.0"
+dependencies = ["rand 0.7.3"]
+
+[[package]]
+name = "rand"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "retired-exception"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: rand 0.7.3 is not allowed for GHSA-cq8v-f236-94qc; "
+        "the former legacy owner-chain exception has been removed"
     ) in violations
 
 
@@ -605,7 +658,7 @@ checksum = "extra-numeric-segment"
 def test_supply_chain_check_rejects_mixed_owner_legacy_rust_rand_exception(
     tmp_path: Path,
 ) -> None:
-    """Ensure a valid legacy chain does not exempt unrelated rand owners."""
+    """Ensure the retired legacy chain does not exempt rand owners."""
     supply_chain = load_module(
         "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_rand_mixed_owner"
     )
@@ -666,8 +719,8 @@ checksum = "legacy-exception"
     violations = supply_chain.rust_dependency_advisory_violations(lockfile)
 
     assert (
-        f"{lockfile}: rand 0.7.3 matches the legacy exception version but does not "
-        "have the documented Tauri/kuchikiki owner chain for GHSA-cq8v-f236-94qc"
+        f"{lockfile}: rand 0.7.3 is not allowed for GHSA-cq8v-f236-94qc; "
+        "the former legacy owner-chain exception has been removed"
     ) in violations
 
 
@@ -723,16 +776,228 @@ def test_supply_chain_check_accepts_repo_rust_fastrand_update() -> None:
     assert not violations
 
 
-def test_supply_chain_check_requires_tracked_rust_rand_legacy_exception() -> None:
-    """Ensure the remaining legacy rand advisory is narrowly documented in audit config."""
+def test_supply_chain_check_rejects_tracked_rust_rand_legacy_exception() -> None:
+    """Ensure the fixed legacy rand advisory no longer has an audit exception."""
+    repo_root = Path(__file__).resolve().parents[3]
+    audit_config = repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml"
+    content = audit_config.read_text(encoding="utf-8")
+
+    assert "RUSTSEC-2026-0097" not in content
+
+
+def test_supply_chain_check_rejects_stale_rust_fxhash_exception() -> None:
+    """Ensure removed fxhash advisories no longer keep stale audit exceptions."""
+    repo_root = Path(__file__).resolve().parents[3]
+    audit_config = repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml"
+    lockfile = repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock"
+    audit_content = audit_config.read_text(encoding="utf-8")
+    lock_content = lockfile.read_text(encoding="utf-8")
+
+    assert 'name = "fxhash"' not in lock_content
+    assert "RUSTSEC-2025-0057" not in audit_content
+
+
+def test_supply_chain_check_rejects_unowned_legacy_rust_glib_exception(
+    tmp_path: Path,
+) -> None:
+    """Ensure glib 0.18.5 is exempt only on the documented Tauri GTK stack."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_glib_unowned"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "bad-owner"
+version = "1.0.0"
+dependencies = ["glib 0.18.5"]
+
+[[package]]
+name = "glib"
+version = "0.18.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "wrong-owner"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: glib 0.18.5 matches the legacy exception version but "
+        "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
+        "for RUSTSEC-2024-0429"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_mixed_owner_legacy_rust_glib_exception(
+    tmp_path: Path,
+) -> None:
+    """Ensure a valid Tauri GTK chain does not exempt unrelated glib owners."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_rust_glib_mixed_owner"
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "tauri"
+version = "2.10.3"
+dependencies = ["tauri-runtime-wry 2.10.1"]
+
+[[package]]
+name = "tauri-runtime-wry"
+version = "2.10.1"
+dependencies = ["wry 0.54.4"]
+
+[[package]]
+name = "wry"
+version = "0.54.4"
+dependencies = ["webkit2gtk 2.0.2"]
+
+[[package]]
+name = "webkit2gtk"
+version = "2.0.2"
+dependencies = ["gtk 0.18.2"]
+
+[[package]]
+name = "gtk"
+version = "0.18.2"
+dependencies = ["glib 0.18.5"]
+
+[[package]]
+name = "bad-owner"
+version = "1.0.0"
+dependencies = ["glib 0.18.5"]
+
+[[package]]
+name = "glib"
+version = "0.18.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "mixed-owner"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: glib 0.18.5 matches the legacy exception version but "
+        "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
+        "for RUSTSEC-2024-0429"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_tauri_reachable_unexpected_rust_glib_owner(
+    tmp_path: Path,
+) -> None:
+    """Ensure Tauri reachability alone does not broaden the glib exception."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_glib_tauri_bad_owner",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "tauri"
+version = "2.11.0"
+dependencies = ["bad-owner 1.0.0"]
+
+[[package]]
+name = "bad-owner"
+version = "1.0.0"
+dependencies = ["glib 0.18.5"]
+
+[[package]]
+name = "glib"
+version = "0.18.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "tauri-reachable-wrong-owner"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: glib 0.18.5 matches the legacy exception version but "
+        "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
+        "for RUSTSEC-2024-0429"
+    ) in violations
+
+
+def test_supply_chain_check_reports_non_numeric_rust_glib_versions(
+    tmp_path: Path,
+) -> None:
+    """Ensure non-standard glib versions are reported instead of passing closed."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_glib_non_numeric_version",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "glib"
+version = "0.19.3-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "non-stable"
+
+[[package]]
+name = "glib"
+version = "0.18.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "extra-numeric-segment"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: glib 0.19.3-alpha.1 has a non-numeric version segment for RUSTSEC-2024-0429"
+    ) in violations
+    assert (
+        f"{lockfile}: glib 0.18.5.1 has a non-standard extra version segment for RUSTSEC-2024-0429"
+    ) in violations
+
+
+def test_supply_chain_check_requires_tracked_rust_glib_legacy_exception() -> None:
+    """Ensure the remaining legacy glib advisory is narrowly documented."""
     repo_root = Path(__file__).resolve().parents[3]
     audit_config = repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml"
     content = audit_config.read_text(encoding="utf-8")
 
     assert (
-        '"RUSTSEC-2026-0097", # rand 0.7.3: transitive via Tauri/kuchikiki phf 0.8; '
-        "remove when upstream drops the chain"
+        '"RUSTSEC-2024-0429", # glib 0.18.5: VariantStrIter unsoundness, '
+        "transitive via Tauri/wry/webkit2gtk/gtk GTK3 stack; remove when upstream "
+        "drops or patches the chain"
     ) in content
+
+
+def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
+    """Ensure the glib exception records owner-chain scope and removal criteria."""
+    repo_root = Path(__file__).resolve().parents[3]
+    dependency_policy = repo_root / "docs" / "security" / "dependency-policy.md"
+    content = dependency_policy.read_text(encoding="utf-8")
+
+    assert "`RUSTSEC-2024-0429` for `glib 0.18.5`" in content
+    assert "VariantStrIter" in content
+    assert "Tauri/wry/webkit2gtk/gtk GTK3 stack" in content
+    assert "no compatible lockfile-only update" in content
+    assert "drops or patches the chain" in content
+
+
+def test_tauri_main_capability_uses_explicit_core_permissions() -> None:
+    """Ensure Tauri core permissions stay narrow after dependency refreshes."""
+    repo_root = Path(__file__).resolve().parents[3]
+    capability = repo_root / "apps" / "desktop" / "src-tauri" / "capabilities" / "main.json"
+    content = capability.read_text(encoding="utf-8")
+
+    assert '"core:default"' not in content
+    assert '"core:event:allow-listen"' in content
+    assert '"core:event:allow-unlisten"' in content
 
 
 def test_supply_chain_check_rejects_release_published_asset_upload(
