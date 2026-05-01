@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import json
 import re
+import stat
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -1029,6 +1031,382 @@ def test_supply_chain_check_rejects_echo_spoofed_normalizer_command(
         "ossf scorecard SARIF upload must normalize repository-level placeholder URIs "
         "before upload-sarif"
     ) in violations
+
+
+def test_supply_chain_check_requires_scorecard_download_without_action_decompression(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard downloads avoid action-owned legacy decompression paths."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_ossf_download_decompression_guard",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on: push",
+                "jobs:",
+                "  scorecard-sarif-upload:",
+                "    steps:",
+                "      - uses: ",
+                "          actions/download-artifact@"
+                "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          name: ossf-scorecard-results",
+                "          path: scorecard-sarif",
+                "      - name: Normalize repository-level Scorecard SARIF locations",
+                "        run: >-",
+                "          python3 scripts/checks/normalize_scorecard_sarif.py",
+                "          scorecard-sarif/results.sarif",
+                "          normalized-scorecard-results.sarif",
+                "      - uses: ",
+                "          github/codeql-action/upload-sarif@"
+                "95e58e9a2cdfd71adc6e0353d5c52f41a045d225",
+                "        with:",
+                "          sarif_file: normalized-scorecard-results.sarif",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard artifact download must use skip-decompress: true and "
+        "repo-owned extraction before normalization"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_commented_scorecard_decompression_tokens(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure comments cannot spoof the Scorecard artifact extraction guard."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_ossf_download_comment_spoof_guard",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on: push",
+                "jobs:",
+                "  scorecard-sarif-upload:",
+                "    steps:",
+                "      # skip-decompress: true",
+                "      # python3 scripts/checks/extract_scorecard_artifact.py",
+                "      # scorecard-artifact scorecard-sarif",
+                "      - uses: actions/download-artifact@"
+                "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          name: ossf-scorecard-results",
+                "          path: scorecard-sarif",
+                "      - name: Normalize repository-level Scorecard SARIF locations",
+                "        run: >-",
+                "          python3 scripts/checks/normalize_scorecard_sarif.py",
+                "          scorecard-sarif/results.sarif",
+                "          normalized-scorecard-results.sarif",
+                "      - uses: github/codeql-action/upload-sarif@"
+                "95e58e9a2cdfd71adc6e0353d5c52f41a045d225",
+                "        with:",
+                "          sarif_file: normalized-scorecard-results.sarif",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard artifact download must use skip-decompress: true and "
+        "repo-owned extraction before normalization"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_echo_spoofed_scorecard_extractor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure echoing the extractor command cannot satisfy artifact extraction."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_ossf_download_echo_spoof_guard",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on: push",
+                "jobs:",
+                "  scorecard-sarif-upload:",
+                "    steps:",
+                "      - uses: actions/download-artifact@"
+                "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          name: ossf-scorecard-results",
+                "          path: scorecard-artifact",
+                "          skip-decompress: true",
+                "      - name: Mention extractor without running it",
+                "        run: >-",
+                "          echo python3 scripts/checks/extract_scorecard_artifact.py",
+                "          scorecard-artifact",
+                "          scorecard-sarif",
+                "      - name: Normalize repository-level Scorecard SARIF locations",
+                "        run: >-",
+                "          python3 scripts/checks/normalize_scorecard_sarif.py",
+                "          scorecard-sarif/results.sarif",
+                "          normalized-scorecard-results.sarif",
+                "      - uses: github/codeql-action/upload-sarif@"
+                "95e58e9a2cdfd71adc6e0353d5c52f41a045d225",
+                "        with:",
+                "          sarif_file: normalized-scorecard-results.sarif",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard artifact download must use skip-decompress: true and "
+        "repo-owned extraction before normalization"
+    ) in violations
+
+
+def test_supply_chain_check_accepts_repo_scorecard_download_decompression_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure checked-in Scorecard downloads use repo-owned artifact extraction."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_ossf_download_decompression_repo",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    monkeypatch.chdir(repo_root)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert not any("skip-decompress" in violation for violation in violations)
+
+
+def test_scorecard_artifact_extractor_extracts_expected_sarif(tmp_path: Path) -> None:
+    """Ensure the repo-owned extractor restores results.sarif from zipped artifacts."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py", "extract_scorecard_artifact"
+    )
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    output_dir = tmp_path / "scorecard-sarif"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("results.sarif", '{"version":"2.1.0","runs":[]}')
+
+    extracted = extractor.extract_scorecard_artifact(source_zip, output_dir)
+
+    assert extracted == output_dir / "results.sarif"
+    assert extracted.read_text(encoding="utf-8") == '{"version":"2.1.0","runs":[]}'
+
+    artifact_dir = tmp_path / "scorecard-artifact"
+    artifact_dir.mkdir()
+    directory_source_zip = artifact_dir / "results.sarif.zip"
+    with zipfile.ZipFile(directory_source_zip, "w") as archive:
+        archive.writestr("results.sarif", '{"version":"2.1.0","runs":[{}]}')
+
+    directory_output_dir = tmp_path / "directory-scorecard-sarif"
+    directory_extracted = extractor.extract_scorecard_artifact(artifact_dir, directory_output_dir)
+
+    assert directory_extracted == directory_output_dir / "results.sarif"
+    assert directory_extracted.read_text(encoding="utf-8") == '{"version":"2.1.0","runs":[{}]}'
+
+    empty_artifact_dir = tmp_path / "empty-scorecard-artifact"
+    empty_artifact_dir.mkdir()
+    with pytest.raises(ValueError, match="expected exactly one Scorecard artifact zip"):
+        extractor.extract_scorecard_artifact(empty_artifact_dir, tmp_path / "empty-output")
+
+    multi_artifact_dir = tmp_path / "multi-scorecard-artifact"
+    multi_artifact_dir.mkdir()
+    with zipfile.ZipFile(multi_artifact_dir / "first.zip", "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    with zipfile.ZipFile(multi_artifact_dir / "second.zip", "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    with pytest.raises(ValueError, match="expected exactly one Scorecard artifact zip"):
+        extractor.extract_scorecard_artifact(multi_artifact_dir, tmp_path / "multi-output")
+
+
+def test_scorecard_artifact_extractor_rejects_symlink_artifact_zip(
+    tmp_path: Path,
+) -> None:
+    """Ensure input artifact paths are not followed through symlinks."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_input_symlink",
+    )
+    real_zip = tmp_path / "real-scorecard-results.zip"
+    with zipfile.ZipFile(real_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    symlink_zip = tmp_path / "ossf-scorecard-results.zip"
+    symlink_zip.symlink_to(real_zip)
+
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        extractor.extract_scorecard_artifact(symlink_zip, tmp_path / "scorecard-sarif")
+
+
+def test_scorecard_artifact_extractor_rejects_symlink_zip_in_artifact_directory(
+    tmp_path: Path,
+) -> None:
+    """Ensure directory inputs reject symlinked ZIP candidates and fail closed."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_directory_symlink",
+    )
+    artifact_dir = tmp_path / "scorecard-artifact"
+    artifact_dir.mkdir()
+    real_zip = tmp_path / "real-scorecard-results.zip"
+    with zipfile.ZipFile(real_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    (artifact_dir / "results.sarif.zip").symlink_to(real_zip)
+
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
+
+
+def test_scorecard_artifact_extractor_rejects_mixed_symlink_zip_directory(
+    tmp_path: Path,
+) -> None:
+    """Ensure any symlinked ZIP candidate taints directory artifact input."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_mixed_directory_symlink",
+    )
+    artifact_dir = tmp_path / "scorecard-artifact"
+    artifact_dir.mkdir()
+    with zipfile.ZipFile(artifact_dir / "results.sarif.zip", "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    real_zip = tmp_path / "real-scorecard-results.zip"
+    with zipfile.ZipFile(real_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+    (artifact_dir / "shadow.zip").symlink_to(real_zip)
+
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
+
+
+def test_scorecard_artifact_extractor_rejects_path_traversal(tmp_path: Path) -> None:
+    """Ensure malformed Scorecard artifacts cannot escape the extraction directory."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_traversal",
+    )
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("../results.sarif", "{}")
+
+    with pytest.raises(ValueError, match="unexpected artifact member"):
+        extractor.extract_scorecard_artifact(source_zip, tmp_path / "scorecard-sarif")
+
+
+def test_scorecard_artifact_extractor_rejects_zip_symlink(tmp_path: Path) -> None:
+    """Ensure symlink-like ZIP members are rejected even with the expected name."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_symlink",
+    )
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    symlink_info = zipfile.ZipInfo("results.sarif")
+    symlink_info.external_attr = (stat.S_IFLNK | 0o777) << 16
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr(symlink_info, "target")
+
+    with pytest.raises(ValueError, match="unexpected artifact member"):
+        extractor.extract_scorecard_artifact(source_zip, tmp_path / "scorecard-sarif")
+
+
+def test_scorecard_artifact_extractor_rejects_missing_results_sarif(
+    tmp_path: Path,
+) -> None:
+    """Ensure artifacts without the expected Scorecard SARIF fail closed."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_missing",
+    )
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    with zipfile.ZipFile(source_zip, "w"):
+        pass
+
+    with pytest.raises(ValueError, match="expected only results.sarif"):
+        extractor.extract_scorecard_artifact(source_zip, tmp_path / "scorecard-sarif")
+
+
+def test_scorecard_artifact_extractor_rejects_symlink_output_dir(tmp_path: Path) -> None:
+    """Ensure output directories are not followed through symlinks."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_output_dir_symlink",
+    )
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    real_output = tmp_path / "real-output"
+    real_output.mkdir()
+    symlink_output = tmp_path / "scorecard-sarif"
+    symlink_output.symlink_to(real_output, target_is_directory=True)
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+
+    with pytest.raises(ValueError, match="symlinked output path"):
+        extractor.extract_scorecard_artifact(source_zip, symlink_output)
+
+
+def test_scorecard_artifact_extractor_rejects_existing_target_symlink(
+    tmp_path: Path,
+) -> None:
+    """Ensure existing target symlinks cannot be overwritten by extraction."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_target_symlink",
+    )
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    output_dir = tmp_path / "scorecard-sarif"
+    output_dir.mkdir()
+    outside_target = tmp_path / "outside.sarif"
+    outside_target.write_text("outside", encoding="utf-8")
+    (output_dir / "results.sarif").symlink_to(outside_target)
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+
+    with pytest.raises(FileExistsError):
+        extractor.extract_scorecard_artifact(source_zip, output_dir)
+    assert outside_target.read_text(encoding="utf-8") == "outside"
+
+
+def test_scorecard_artifact_extractor_rejects_oversized_results_sarif(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure oversized Scorecard SARIF artifacts fail before extraction."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_oversized",
+    )
+    monkeypatch.setattr(extractor, "MAX_SARIF_BYTES", 1)
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    output_dir = tmp_path / "scorecard-sarif"
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+
+    with pytest.raises(ValueError, match="artifact member too large"):
+        extractor.extract_scorecard_artifact(source_zip, output_dir)
+
+    assert not (output_dir / "results.sarif").exists()
 
 
 def test_scorecard_sarif_normalizer_replaces_repository_level_placeholder(
