@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import re
 from pathlib import Path
 
@@ -367,6 +368,146 @@ def test_supply_chain_check_accepts_repo_ossf_publish_restrictions(
     violations = supply_chain.verify_workflow_coverage()
 
     assert not any("ossf scorecard" in violation for violation in violations)
+
+
+def test_supply_chain_check_rejects_unnormalized_scorecard_sarif_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard SARIF is normalized before CodeQL upload ingestion."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_ossf_sarif_guard"
+    )
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on:",
+                "  push:",
+                "    branches:",
+                "      - develop",
+                "      - main",
+                "  schedule:",
+                "    - cron: '30 1 * * 1'",
+                "jobs:",
+                "  analysis:",
+                "    name: ossf-scorecard",
+                "    steps:",
+                "      - uses: "
+                "ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3",
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "      - uses: "
+                "github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225",
+                "        with:",
+                "          sarif_file: results.sarif",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard SARIF upload must normalize repository-level placeholder URIs "
+        "before upload-sarif"
+    ) in violations
+
+
+def test_scorecard_sarif_normalizer_replaces_repository_level_placeholder(
+    tmp_path: Path,
+) -> None:
+    """Ensure repository-level Scorecard SARIF locations use upload-safe URIs."""
+    normalizer = load_module(
+        "scripts/checks/normalize_scorecard_sarif.py", "normalize_scorecard_sarif"
+    )
+    source = tmp_path / "results.sarif"
+    target = tmp_path / "normalized-results.sarif"
+    source.write_text(
+        json.dumps(
+            {
+                "version": "2.1.0",
+                "runs": [
+                    {
+                        "results": [
+                            {
+                                "ruleId": "Token-Permissions",
+                                "locations": [
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": "no file associated with this alert"
+                                            }
+                                        }
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rewritten = normalizer.normalize_scorecard_sarif(source, target)
+    normalized = json.loads(target.read_text(encoding="utf-8"))
+    location = normalized["runs"][0]["results"][0]["locations"][0]["physicalLocation"]
+
+    assert rewritten == 1
+    assert location["artifactLocation"]["uri"] == ".github/workflows/ossf-scorecard.yml"
+    assert location["region"]["startLine"] == 1
+    assert location["properties"]["bandscopeOriginalUri"] == ("no file associated with this alert")
+
+
+def test_scorecard_sarif_normalizer_preserves_file_locations(tmp_path: Path) -> None:
+    """Ensure file-associated Scorecard SARIF locations are not rewritten."""
+    normalizer = load_module(
+        "scripts/checks/normalize_scorecard_sarif.py", "normalize_scorecard_sarif_preserve"
+    )
+    source = tmp_path / "results.sarif"
+    target = tmp_path / "normalized-results.sarif"
+    source.write_text(
+        json.dumps(
+            {
+                "version": "2.1.0",
+                "runs": [
+                    {
+                        "results": [
+                            {
+                                "ruleId": "Pinned-Dependencies",
+                                "locations": [
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {"uri": ".github/workflows/ci.yml"},
+                                            "region": {"startLine": 12},
+                                        }
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rewritten = normalizer.normalize_scorecard_sarif(source, target)
+    normalized = json.loads(target.read_text(encoding="utf-8"))
+    location = normalized["runs"][0]["results"][0]["locations"][0]["physicalLocation"]
+
+    assert rewritten == 0
+    assert location["artifactLocation"]["uri"] == ".github/workflows/ci.yml"
+    assert location["region"]["startLine"] == 12
+    assert "properties" not in location
 
 
 def test_supply_chain_check_rejects_vulnerable_rust_rand_lockfile(

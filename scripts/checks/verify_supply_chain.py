@@ -45,6 +45,9 @@ OSSF_PUBLISH_USES_ONLY_VIOLATION = (
     "ossf scorecard publishing job must only contain uses steps; split run steps "
     "into a separate non-publishing job"
 )
+OSSF_SARIF_NORMALIZER = "scripts/checks/normalize_scorecard_sarif.py"
+OSSF_NORMALIZED_SARIF = "normalized-scorecard-results.sarif"
+OSSF_NORMALIZED_SARIF_UPLOAD = f"sarif_file: {OSSF_NORMALIZED_SARIF}"
 RELEASE_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*")
 RELEASE_ASSET_VALIDATOR = (
     "scripts/release/select_release_assets.py --output release-assets.txt"
@@ -452,6 +455,14 @@ def verify_workflow_coverage() -> list[str]:
             ):
                 missing.append(
                     "ossf scorecard publish_results must use the repository default branch guard"
+                )
+            if "github/codeql-action/upload-sarif" in scorecard and (
+                OSSF_SARIF_NORMALIZER not in scorecard
+                or OSSF_NORMALIZED_SARIF_UPLOAD not in scorecard
+            ):
+                missing.append(
+                    "ossf scorecard SARIF upload must normalize repository-level "
+                    "placeholder URIs before upload-sarif"
                 )
         workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
             Path(".github/workflows").glob("*.yaml")
