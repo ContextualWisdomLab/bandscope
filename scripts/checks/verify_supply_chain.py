@@ -49,7 +49,12 @@ OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION = (
     "ossf scorecard artifact download must use skip-decompress: true and "
     "repo-owned extraction before normalization"
 )
+RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION = (
+    "release artifact download must use skip-decompress: true and "
+    "repo-owned extraction before asset validation"
+)
 OSSF_ARTIFACT_EXTRACTOR = "scripts/checks/extract_scorecard_artifact.py"
+RELEASE_ARTIFACT_EXTRACTOR = "scripts/release/extract_release_artifacts.py"
 OSSF_SARIF_NORMALIZER = "scripts/checks/normalize_scorecard_sarif.py"
 OSSF_NORMALIZED_SARIF = "normalized-scorecard-results.sarif"
 OSSF_NORMALIZED_SARIF_UPLOAD = f"sarif_file: {OSSF_NORMALIZED_SARIF}"
@@ -190,6 +195,29 @@ def step_run_command_from_block(step_lines: list[str], step_indent: int) -> str:
             break
         command_lines.append(stripped)
     return "\n".join(command_lines)
+
+
+def step_with_value_from_block(
+    step_lines: list[str], step_indent: int, key: str
+) -> str | None:
+    """Return a workflow step ``with`` value for ``key`` when scoped under with."""
+    with_indent: int | None = None
+    key_pattern = re.compile(rf"^\s*{re.escape(key)}\s*:\s*(?P<value>.*?)\s*$")
+    for step_line in step_lines:
+        stripped = step_line.partition("#")[0].rstrip()
+        if not stripped.strip():
+            continue
+        indent = len(step_line) - len(step_line.lstrip(" "))
+        if with_indent is None:
+            if indent > step_indent and stripped.strip() == "with:":
+                with_indent = indent
+            continue
+        if indent <= with_indent:
+            break
+        match = key_pattern.match(stripped)
+        if match:
+            return match.group("value").strip().strip("'\"")
+    return None
 
 
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
@@ -576,13 +604,16 @@ def scorecard_artifact_download_decompression_violations(content: str) -> list[s
         )
 
     violations: list[str] = []
-    for index, _, step_lines in step_blocks:
+    for index, block_indent, step_lines in step_blocks:
         step_content = "\n".join(line.partition("#")[0] for line in step_lines)
         if "actions/download-artifact" not in step_content:
             continue
         if "ossf-scorecard-results" not in step_content:
             continue
-        if "skip-decompress: true" not in step_content:
+        if (
+            step_with_value_from_block(step_lines, block_indent, "skip-decompress")
+            != "true"
+        ):
             violations.append(OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION)
             continue
 
@@ -629,6 +660,102 @@ def scorecard_artifact_download_decompression_violations(content: str) -> list[s
             continue
     if violations:
         return [OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION]
+    return []
+
+
+def release_artifact_download_decompression_violations(content: str) -> list[str]:
+    """Return release downloads that rely on action-owned ZIP decompression."""
+    content_without_comments = "\n".join(
+        line.partition("#")[0] for line in content.splitlines()
+    )
+    if "actions/download-artifact" not in content_without_comments:
+        return []
+    if "bandscope-*-${{ github.sha }}" not in content_without_comments:
+        return []
+
+    lines = content.splitlines()
+    step_blocks = workflow_step_blocks(lines)
+
+    def invokes_release_extractor(command: str) -> bool:
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            tokens = re.split(r"\s+", command)
+        cleaned_tokens = [token.strip("'\"") for token in tokens if token.strip("'\"")]
+        if cleaned_tokens and cleaned_tokens[0] in {">", ">-", "|", "|-"}:
+            cleaned_tokens = cleaned_tokens[1:]
+        return (
+            len(cleaned_tokens) == 4
+            and cleaned_tokens[0] in {"python", "python3"}
+            and cleaned_tokens[1] == RELEASE_ARTIFACT_EXTRACTOR
+            and cleaned_tokens[2] == "downloaded-artifacts"
+            and cleaned_tokens[3] == "artifacts"
+        )
+
+    def is_blocking_required_step(block_lines: list[str]) -> bool:
+        step_content = "\n".join(line.partition("#")[0] for line in block_lines)
+        return not re.search(
+            r"^\s+continue-on-error\s*:", step_content, flags=re.MULTILINE
+        ) and not re.search(r"^\s+if\s*:", step_content, flags=re.MULTILINE)
+
+    violations: list[str] = []
+    for index, block_indent, step_lines in step_blocks:
+        step_content = "\n".join(line.partition("#")[0] for line in step_lines)
+        if "actions/download-artifact" not in step_content:
+            continue
+        if "bandscope-*-${{ github.sha }}" not in step_content:
+            continue
+        if (
+            step_with_value_from_block(step_lines, block_indent, "skip-decompress")
+            != "true"
+        ):
+            violations.append(RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+
+        job_content = workflow_job_content_for_step(lines, index)
+        job_step_blocks = [
+            block
+            for block in step_blocks
+            if workflow_job_content_for_step(lines, block[0]) == job_content
+        ]
+        later_steps = [
+            (block_indent, block_lines)
+            for block_index, block_indent, block_lines in job_step_blocks
+            if block_index > index
+        ]
+        extractor_step_position = next(
+            (
+                position
+                for position, (block_indent, block_lines) in enumerate(later_steps)
+                if invokes_release_extractor(
+                    step_run_command_from_block(block_lines, block_indent)
+                )
+                and is_blocking_required_step(block_lines)
+            ),
+            None,
+        )
+        validator_step_position = next(
+            (
+                position
+                for position, (block_indent, block_lines) in enumerate(later_steps)
+                if (
+                    RELEASE_ASSET_VALIDATOR
+                    in step_run_command_from_block(block_lines, block_indent)
+                )
+            ),
+            None,
+        )
+        if extractor_step_position is None:
+            violations.append(RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+        if (
+            validator_step_position is not None
+            and extractor_step_position > validator_step_position
+        ):
+            violations.append(RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+    if violations:
+        return [RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION]
     return []
 
 
@@ -713,6 +840,14 @@ def verify_workflow_coverage() -> list[str]:
         missing.append(
             "build workflow should not rely on macos-latest for architecture coverage"
         )
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for workflow_path in workflow_paths:
+        workflow_content = workflow_path.read_text(encoding="utf-8")
+        missing.extend(
+            release_artifact_download_decompression_violations(workflow_content)
+        )
     scorecard = read_workflow(
         Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
     )
@@ -735,9 +870,6 @@ def verify_workflow_coverage() -> list[str]:
                 missing.append(
                     "ossf scorecard publish_results must use the repository default branch guard"
                 )
-        workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
-            Path(".github/workflows").glob("*.yaml")
-        )
         for workflow_path in workflow_paths:
             workflow_content = workflow_path.read_text(encoding="utf-8")
             missing.extend(
