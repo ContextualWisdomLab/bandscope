@@ -655,7 +655,8 @@ def test_scorecard_sarif_normalizer_skips_malformed_locations(tmp_path: Path) ->
                                         "physicalLocation": {
                                             "artifactLocation": {
                                                 "uri": "no file associated with this alert"
-                                            }
+                                            },
+                                            "properties": "not-properties",
                                         }
                                     },
                                 ],
@@ -674,6 +675,7 @@ def test_scorecard_sarif_normalizer_skips_malformed_locations(tmp_path: Path) ->
 
     assert rewritten == 1
     assert physical_location["artifactLocation"]["uri"] == (".github/workflows/ossf-scorecard.yml")
+    assert physical_location["properties"]["bandscopeRepositoryLevelFinding"] is True
 
 
 def test_scorecard_sarif_normalizer_skips_malformed_containers(

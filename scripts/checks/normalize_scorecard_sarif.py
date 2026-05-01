@@ -49,12 +49,14 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
                 start_line = region.get("startLine")
                 if type(start_line) is not int or start_line < 1:
                     region["startLine"] = 1
-                properties = physical_location.setdefault("properties", {})
-                if isinstance(properties, dict):
-                    properties["bandscopeOriginalUri"] = (
-                        SCORECARD_REPOSITORY_PLACEHOLDER_URI
-                    )
-                    properties["bandscopeRepositoryLevelFinding"] = True
+                properties = physical_location.get("properties")
+                if not isinstance(properties, dict):
+                    properties = {}
+                    physical_location["properties"] = properties
+                properties["bandscopeOriginalUri"] = (
+                    SCORECARD_REPOSITORY_PLACEHOLDER_URI
+                )
+                properties["bandscopeRepositoryLevelFinding"] = True
                 rewritten += 1
 
     target.write_text(
