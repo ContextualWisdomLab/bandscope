@@ -84,6 +84,14 @@ RUST_GLIB_LEGACY_ALLOWED_ANCESTOR_NAMES = RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES | 
     "wry",
 }
 RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES = {"bandscope-desktop"}
+RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
+    RUST_GLIB_LEGACY_ROOT_NAME,
+    "tauri-runtime-wry",
+    "wry",
+    "webkit2gtk",
+    "gtk",
+    "glib",
+)
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
@@ -861,7 +869,37 @@ def glib_allowed_app_roots_reach_glib_through_tauri(
         }
         if glib_reaching_dependency_names != {RUST_GLIB_LEGACY_ROOT_NAME}:
             return False
+        if not cargo_lock_has_named_dependency_path(
+            package_dependencies, app_root, RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES
+        ):
+            return False
     return True
+
+
+def cargo_lock_has_named_dependency_path(
+    package_dependencies: dict[str, list[str]],
+    root_package: str,
+    package_names: tuple[str, ...],
+) -> bool:
+    """Return whether a dependency path contains package names in order."""
+    pending: list[tuple[str, int, frozenset[str]]] = [(root_package, 0, frozenset())]
+    while pending:
+        current, matched_count, seen = pending.pop()
+        if current in seen:
+            continue
+        current_name = current.rsplit(" ", maxsplit=1)[0]
+        next_matched_count = matched_count
+        if (
+            matched_count < len(package_names)
+            and current_name == package_names[matched_count]
+        ):
+            next_matched_count += 1
+            if next_matched_count == len(package_names):
+                return True
+        next_seen = seen | {current}
+        for dependency in package_dependencies.get(current, []):
+            pending.append((dependency, next_matched_count, next_seen))
+    return False
 
 
 def unsupported_numeric_semver_violation(
