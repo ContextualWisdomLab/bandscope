@@ -34,7 +34,11 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
                 if artifact_location.get("uri") != SCORECARD_REPOSITORY_PLACEHOLDER_URI:
                     continue
                 artifact_location["uri"] = SCORECARD_WORKFLOW_URI
-                physical_location.setdefault("region", {"startLine": 1})
+                region = physical_location.get("region")
+                if not isinstance(region, dict):
+                    region = {}
+                    physical_location["region"] = region
+                region.setdefault("startLine", 1)
                 properties = physical_location.setdefault("properties", {})
                 if isinstance(properties, dict):
                     properties["bandscopeOriginalUri"] = (
