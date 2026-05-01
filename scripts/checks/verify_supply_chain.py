@@ -45,6 +45,9 @@ OSSF_PUBLISH_USES_ONLY_VIOLATION = (
     "ossf scorecard publishing job must only contain uses steps; split run steps "
     "into a separate non-publishing job"
 )
+OSSF_SARIF_NORMALIZER = "scripts/checks/normalize_scorecard_sarif.py"
+OSSF_NORMALIZED_SARIF = "normalized-scorecard-results.sarif"
+OSSF_NORMALIZED_SARIF_UPLOAD = f"sarif_file: {OSSF_NORMALIZED_SARIF}"
 RELEASE_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*")
 RELEASE_ASSET_VALIDATOR = (
     "scripts/release/select_release_assets.py --output release-assets.txt"
@@ -350,6 +353,170 @@ def ossf_scorecard_publish_restriction_violations(
     return violations
 
 
+def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
+    """Return Scorecard SARIF upload steps that bypass the normalizer output."""
+    if "ossf/scorecard-action" not in content:
+        return []
+    if "github/codeql-action/upload-sarif" not in content:
+        return []
+
+    def upload_step_sarif_file(step_lines: list[str], step_indent: int) -> str | None:
+        with_indent: int | None = None
+        for step_line in step_lines:
+            raw_stripped = step_line.strip().partition("#")[0].strip()
+            stripped = raw_stripped
+            is_step_start = stripped.startswith("- ")
+            if is_step_start:
+                stripped = stripped[2:].strip()
+            indent = len(step_line) - len(step_line.lstrip(" "))
+            if with_indent is None:
+                if stripped == "with:" and (indent > step_indent or is_step_start):
+                    with_indent = indent
+                continue
+            if stripped and indent <= with_indent:
+                break
+            if stripped.startswith("sarif_file:") and indent > with_indent:
+                return stripped.partition(":")[2].partition("#")[0].strip().strip("'\"")
+        return None
+
+    def step_run_command(step_lines: list[str], step_indent: int) -> str:
+        run_indent: int | None = None
+        command_lines: list[str] = []
+        for step_line in step_lines:
+            raw_stripped = step_line.strip().partition("#")[0].strip()
+            stripped = raw_stripped
+            is_step_start = stripped.startswith("- ")
+            if is_step_start:
+                stripped = stripped[2:].strip()
+            indent = len(step_line) - len(step_line.lstrip(" "))
+            if run_indent is None:
+                if stripped.startswith("run:") and (indent > step_indent or is_step_start):
+                    run_indent = indent
+                    command_lines.append(stripped.partition(":")[2].strip())
+                continue
+            if stripped and indent <= run_indent:
+                break
+            command_lines.append(stripped)
+        return "\n".join(command_lines)
+
+    def normalizer_output_file(command: str) -> str | None:
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            tokens = re.split(r"\s+", command)
+        cleaned_tokens = [token.strip("'\"") for token in tokens if token.strip("'\"")]
+        if cleaned_tokens and cleaned_tokens[0] in {">", ">-", "|", "|-"}:
+            cleaned_tokens = cleaned_tokens[1:]
+        if len(cleaned_tokens) < 4:
+            return None
+        if cleaned_tokens[0] not in {"python", "python3"}:
+            return None
+        if cleaned_tokens[1] != OSSF_SARIF_NORMALIZER:
+            return None
+        positional_args = cleaned_tokens[2:]
+        if len(positional_args) < 2:
+            return None
+        return positional_args[1]
+
+    def workflow_job_content(line_index: int) -> str:
+        job_start = 0
+        for reverse_index in range(line_index, -1, -1):
+            candidate = lines[reverse_index]
+            candidate_without_comment = candidate.strip().partition("#")[0].strip()
+            if len(candidate) - len(
+                candidate.lstrip(" ")
+            ) == 2 and candidate_without_comment.endswith(":"):
+                job_start = reverse_index
+                break
+        job_end = len(lines)
+        for forward_index in range(job_start + 1, len(lines)):
+            candidate = lines[forward_index]
+            candidate_without_comment = candidate.strip().partition("#")[0].strip()
+            if len(candidate) - len(
+                candidate.lstrip(" ")
+            ) == 2 and candidate_without_comment.endswith(":"):
+                job_end = forward_index
+                break
+        return "\n".join(lines[job_start:job_end])
+
+    def workflow_job_step_blocks(line_index: int) -> list[tuple[int, int, list[str]]]:
+        job_content = workflow_job_content(line_index)
+        return [
+            block
+            for block in step_blocks
+            if workflow_job_content(block[0]) == job_content
+        ]
+
+    lines = content.splitlines()
+
+    step_blocks: list[tuple[int, int, list[str]]] = []
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("- "):
+            continue
+        step_indent = len(line) - len(line.lstrip(" "))
+        step_lines = [line]
+        for following_line in lines[index + 1 :]:
+            following_stripped = following_line.strip()
+            following_indent = len(following_line) - len(following_line.lstrip(" "))
+            if following_stripped.startswith("- ") and following_indent <= step_indent:
+                break
+            step_lines.append(following_line)
+        step_blocks.append((index, step_indent, step_lines))
+
+    violations: list[str] = []
+    for index, step_indent, step_lines in step_blocks:
+        if "github/codeql-action/upload-sarif" not in "\n".join(
+            line.partition("#")[0] for line in step_lines
+        ):
+            continue
+        sarif_file = upload_step_sarif_file(step_lines, step_indent)
+        job_content = workflow_job_content(index)
+        job_content_without_comments = "\n".join(
+            line.partition("#")[0] for line in job_content.splitlines()
+        )
+        job_blocks = workflow_job_step_blocks(index)
+        normalizer_run_commands = [
+            step_run_command(normalizer_step_lines, normalizer_step_indent)
+            for _, normalizer_step_indent, normalizer_step_lines in job_blocks
+        ]
+        normalizer_outputs = {
+            output
+            for command in normalizer_run_commands
+            if (output := normalizer_output_file(command)) is not None
+        }
+        job_has_scorecard_artifact_source = (
+            "ossf/scorecard-action" in job_content_without_comments
+            or (
+                "actions/download-artifact" in job_content_without_comments
+                and "ossf-scorecard-results" in job_content_without_comments
+            )
+        )
+        scorecard_sarif_upload = sarif_file == OSSF_NORMALIZED_SARIF or (
+            sarif_file is not None
+            and (
+                "scorecard" in sarif_file
+                or (
+                    sarif_file == "results.sarif"
+                    and "ossf/scorecard-action" in job_content_without_comments
+                )
+            )
+        )
+        if not scorecard_sarif_upload:
+            continue
+        if (
+            job_has_scorecard_artifact_source
+            and sarif_file is not None
+            and sarif_file in normalizer_outputs
+        ):
+            continue
+        violations.append(
+            "ossf scorecard SARIF upload must normalize repository-level "
+            "placeholder URIs before upload-sarif"
+        )
+    return violations
+
+
 def verify_workflow_coverage() -> list[str]:
     """Return workflow trigger and artifact coverage violations."""
     missing: list[str] = []
@@ -457,9 +624,13 @@ def verify_workflow_coverage() -> list[str]:
             Path(".github/workflows").glob("*.yaml")
         )
         for workflow_path in workflow_paths:
+            workflow_content = workflow_path.read_text(encoding="utf-8")
+            missing.extend(
+                scorecard_sarif_upload_normalization_violations(workflow_content)
+            )
             missing.extend(
                 ossf_scorecard_publish_restriction_violations(
-                    workflow_path.read_text(encoding="utf-8"), workflow_path
+                    workflow_content, workflow_path
                 )
             )
     return missing
