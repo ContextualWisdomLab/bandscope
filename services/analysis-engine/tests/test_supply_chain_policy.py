@@ -837,6 +837,200 @@ def test_supply_chain_check_accepts_colocated_generic_non_scorecard_sarif_upload
     assert not any("ossf scorecard SARIF upload" in violation for violation in violations)
 
 
+def test_supply_chain_check_rejects_mismatched_scorecard_normalizer_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure upload-sarif only accepts the same normalized file the job produced."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_ossf_sarif_mismatched_normalizer_output",
+    )
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on:",
+                "  push:",
+                "    branches:",
+                "      - develop",
+                "      - main",
+                "  schedule:",
+                "    - cron: '30 1 * * 1'",
+                "jobs:",
+                "  scorecard:",
+                "    steps:",
+                "      - uses: "
+                "ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3",
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "      - uses: "
+                "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+                "        with:",
+                "          name: ossf-scorecard-results",
+                "          path: results.sarif",
+                "  scorecard-sarif-upload:",
+                "    steps:",
+                "      - uses: "
+                "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          name: ossf-scorecard-results",
+                "          path: scorecard-sarif",
+                "      - name: Normalize repository-level Scorecard SARIF locations",
+                "        run: >-",
+                "          python3 scripts/checks/normalize_scorecard_sarif.py",
+                "          normalized-scorecard-results.sarif",
+                "          other-normalized-scorecard-results.sarif",
+                "      - uses: "
+                "github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225",
+                "        with:",
+                "          sarif_file: normalized-scorecard-results.sarif",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard SARIF upload must normalize repository-level placeholder URIs "
+        "before upload-sarif"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_shell_spoofed_normalizer_output(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure shell tokens after the normalizer target cannot spoof output matching."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_ossf_sarif_shell_spoofed_output",
+    )
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on:",
+                "  push:",
+                "    branches:",
+                "      - develop",
+                "      - main",
+                "  schedule:",
+                "    - cron: '30 1 * * 1'",
+                "jobs:",
+                "  scorecard:",
+                "    steps:",
+                "      - uses: "
+                "ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3",
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "  scorecard-sarif-upload:",
+                "    steps:",
+                "      - uses: "
+                "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          name: ossf-scorecard-results",
+                "      - name: Normalize repository-level Scorecard SARIF locations",
+                "        run: >-",
+                "          python3 scripts/checks/normalize_scorecard_sarif.py",
+                "          scorecard-sarif/results.sarif",
+                "          other-normalized-scorecard-results.sarif",
+                "          && cp other-normalized-scorecard-results.sarif",
+                "          normalized-scorecard-results.sarif",
+                "      - uses: "
+                "github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225",
+                "        with:",
+                "          sarif_file: normalized-scorecard-results.sarif",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard SARIF upload must normalize repository-level placeholder URIs "
+        "before upload-sarif"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_echo_spoofed_normalizer_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure mentioning the normalizer in a non-executing command is rejected."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_ossf_sarif_echo_spoofed_normalizer",
+    )
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on:",
+                "  push:",
+                "    branches:",
+                "      - develop",
+                "      - main",
+                "  schedule:",
+                "    - cron: '30 1 * * 1'",
+                "jobs:",
+                "  scorecard:",
+                "    steps:",
+                "      - uses: "
+                "ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3",
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "  scorecard-sarif-upload:",
+                "    steps:",
+                "      - uses: "
+                "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          name: ossf-scorecard-results",
+                "      - name: Mention normalizer without running it",
+                "        run: >-",
+                "          echo python3 scripts/checks/normalize_scorecard_sarif.py",
+                "          scorecard-sarif/results.sarif",
+                "          normalized-scorecard-results.sarif",
+                "      - uses: "
+                "github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225",
+                "        with:",
+                "          sarif_file: normalized-scorecard-results.sarif",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard SARIF upload must normalize repository-level placeholder URIs "
+        "before upload-sarif"
+    ) in violations
+
+
 def test_scorecard_sarif_normalizer_replaces_repository_level_placeholder(
     tmp_path: Path,
 ) -> None:
