@@ -947,6 +947,65 @@ checksum = "shared-intermediate"
     ) in violations
 
 
+def test_supply_chain_check_rejects_app_root_direct_rust_glib_path(
+    tmp_path: Path,
+) -> None:
+    """Ensure the app root reaches legacy glib only through the Tauri chain."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_glib_app_root_direct_path",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "bandscope-desktop"
+version = "0.1.0"
+dependencies = ["tauri 2.11.0", "gtk 0.18.2"]
+
+[[package]]
+name = "tauri"
+version = "2.11.0"
+dependencies = ["tauri-runtime-wry 2.11.0"]
+
+[[package]]
+name = "tauri-runtime-wry"
+version = "2.11.0"
+dependencies = ["wry 0.55.0"]
+
+[[package]]
+name = "wry"
+version = "0.55.0"
+dependencies = ["webkit2gtk 2.0.2"]
+
+[[package]]
+name = "webkit2gtk"
+version = "2.0.2"
+dependencies = ["gtk 0.18.2"]
+
+[[package]]
+name = "gtk"
+version = "0.18.2"
+dependencies = ["glib 0.18.5"]
+
+[[package]]
+name = "glib"
+version = "0.18.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "app-root-direct-path"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: glib 0.18.5 matches the legacy exception version but "
+        "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
+        "for RUSTSEC-2024-0429"
+    ) in violations
+
+
 def test_supply_chain_check_rejects_tauri_reachable_unexpected_rust_glib_owner(
     tmp_path: Path,
 ) -> None:

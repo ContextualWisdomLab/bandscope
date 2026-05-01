@@ -709,6 +709,7 @@ def rust_dependency_advisory_violations(
                     rust_glib_advisory_violations(
                         lockfile,
                         version,
+                        package_dependencies,
                         legacy_glib_ancestors,
                         glib_exception_owned_packages,
                     )
@@ -763,13 +764,14 @@ def rust_dependency_advisory_violations(
 def rust_glib_advisory_violations(
     lockfile: Path,
     version: str,
+    package_dependencies: dict[str, list[str]],
     legacy_glib_ancestors: set[str],
     glib_exception_owned_packages: set[str],
 ) -> list[str]:
     """Return violations for vulnerable glib versions outside the Tauri GTK stack."""
     if version == RUST_GLIB_LEGACY_EXCEPTION_VERSION:
         if glib_legacy_exception_owners_are_allowed(
-            legacy_glib_ancestors, glib_exception_owned_packages
+            package_dependencies, legacy_glib_ancestors, glib_exception_owned_packages
         ):
             return []
         return [
@@ -799,7 +801,9 @@ def rust_glib_advisory_violations(
 
 
 def glib_legacy_exception_owners_are_allowed(
-    legacy_glib_ancestors: set[str], glib_exception_owned_packages: set[str]
+    package_dependencies: dict[str, list[str]],
+    legacy_glib_ancestors: set[str],
+    glib_exception_owned_packages: set[str],
 ) -> bool:
     """Return whether every glib ancestor matches the documented GTK/WebKit stack."""
     if not legacy_glib_ancestors:
@@ -807,18 +811,43 @@ def glib_legacy_exception_owners_are_allowed(
     ancestor_names = {
         ancestor.rsplit(" ", maxsplit=1)[0] for ancestor in legacy_glib_ancestors
     }
+    off_chain_ancestors = legacy_glib_ancestors - glib_exception_owned_packages
     allowed_app_roots = {
         ancestor
-        for ancestor in legacy_glib_ancestors
+        for ancestor in off_chain_ancestors
         if ancestor.rsplit(" ", maxsplit=1)[0]
         in RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES
     }
-    if not legacy_glib_ancestors <= (glib_exception_owned_packages | allowed_app_roots):
+    if off_chain_ancestors != allowed_app_roots:
+        return False
+    if not glib_allowed_app_roots_reach_glib_through_tauri(
+        package_dependencies, allowed_app_roots
+    ):
         return False
     return ancestor_names <= (
         RUST_GLIB_LEGACY_ALLOWED_ANCESTOR_NAMES
         | RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES
     )
+
+
+def glib_allowed_app_roots_reach_glib_through_tauri(
+    package_dependencies: dict[str, list[str]], allowed_app_roots: set[str]
+) -> bool:
+    """Return whether app roots reach legacy glib only through Tauri."""
+    for app_root in allowed_app_roots:
+        glib_reaching_dependencies = {
+            dependency
+            for dependency in package_dependencies.get(app_root, [])
+            if RUST_GLIB_LEGACY_EXCEPTION_PACKAGE
+            in cargo_lock_reachable_package_keys(package_dependencies, dependency)
+        }
+        glib_reaching_dependency_names = {
+            dependency.rsplit(" ", maxsplit=1)[0]
+            for dependency in glib_reaching_dependencies
+        }
+        if glib_reaching_dependency_names != {RUST_GLIB_LEGACY_ROOT_NAME}:
+            return False
+    return True
 
 
 def unsupported_numeric_semver_violation(
