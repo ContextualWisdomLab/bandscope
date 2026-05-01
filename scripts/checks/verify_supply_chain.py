@@ -353,6 +353,46 @@ def ossf_scorecard_publish_restriction_violations(
     return violations
 
 
+def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
+    """Return Scorecard SARIF upload steps that bypass the normalizer output."""
+    if "ossf/scorecard-action" not in content:
+        return []
+    if "github/codeql-action/upload-sarif" not in content:
+        return []
+
+    violations: list[str] = []
+    has_normalizer_step = OSSF_SARIF_NORMALIZER in content
+    lines = content.splitlines()
+    for index, line in enumerate(lines):
+        if "uses:" not in line or "github/codeql-action/upload-sarif" not in line:
+            continue
+        step_indent = len(line) - len(line.lstrip(" "))
+        step_lines = [line]
+        for following_line in lines[index + 1 :]:
+            following_stripped = following_line.strip()
+            following_indent = len(following_line) - len(following_line.lstrip(" "))
+            if following_stripped.startswith("- ") and following_indent <= step_indent:
+                break
+            step_lines.append(following_line)
+        step_content = "\n".join(step_lines)
+        if not any(
+            scorecard_sarif_token in step_content
+            for scorecard_sarif_token in [
+                OSSF_NORMALIZED_SARIF_UPLOAD,
+                "sarif_file: results.sarif",
+                "sarif_file: scorecard-sarif/results.sarif",
+            ]
+        ):
+            continue
+        if has_normalizer_step and OSSF_NORMALIZED_SARIF_UPLOAD in step_content:
+            continue
+        violations.append(
+            "ossf scorecard SARIF upload must normalize repository-level "
+            "placeholder URIs before upload-sarif"
+        )
+    return violations
+
+
 def verify_workflow_coverage() -> list[str]:
     """Return workflow trigger and artifact coverage violations."""
     missing: list[str] = []
@@ -456,21 +496,17 @@ def verify_workflow_coverage() -> list[str]:
                 missing.append(
                     "ossf scorecard publish_results must use the repository default branch guard"
                 )
-            if "github/codeql-action/upload-sarif" in scorecard and (
-                OSSF_SARIF_NORMALIZER not in scorecard
-                or OSSF_NORMALIZED_SARIF_UPLOAD not in scorecard
-            ):
-                missing.append(
-                    "ossf scorecard SARIF upload must normalize repository-level "
-                    "placeholder URIs before upload-sarif"
-                )
         workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
             Path(".github/workflows").glob("*.yaml")
         )
         for workflow_path in workflow_paths:
+            workflow_content = workflow_path.read_text(encoding="utf-8")
+            missing.extend(
+                scorecard_sarif_upload_normalization_violations(workflow_content)
+            )
             missing.extend(
                 ossf_scorecard_publish_restriction_violations(
-                    workflow_path.read_text(encoding="utf-8"), workflow_path
+                    workflow_content, workflow_path
                 )
             )
     return missing
