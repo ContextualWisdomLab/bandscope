@@ -888,6 +888,65 @@ checksum = "mixed-owner"
     ) in violations
 
 
+def test_supply_chain_check_rejects_shared_intermediate_rust_glib_owner(
+    tmp_path: Path,
+) -> None:
+    """Ensure a non-Tauri root cannot hide behind a shared GTK owner."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_rust_glib_shared_intermediate_owner",
+    )
+    lockfile = tmp_path / "Cargo.lock"
+    lockfile.write_text(
+        """
+[[package]]
+name = "tauri"
+version = "2.11.0"
+dependencies = ["tauri-runtime-wry 2.11.0"]
+
+[[package]]
+name = "tauri-runtime-wry"
+version = "2.11.0"
+dependencies = ["wry 0.55.0"]
+
+[[package]]
+name = "wry"
+version = "0.55.0"
+dependencies = ["webkit2gtk 2.0.2"]
+
+[[package]]
+name = "webkit2gtk"
+version = "2.0.2"
+dependencies = ["gtk 0.18.2"]
+
+[[package]]
+name = "bad-root"
+version = "1.0.0"
+dependencies = ["gtk 0.18.2"]
+
+[[package]]
+name = "gtk"
+version = "0.18.2"
+dependencies = ["glib 0.18.5"]
+
+[[package]]
+name = "glib"
+version = "0.18.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "shared-intermediate"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_dependency_advisory_violations(lockfile)
+
+    assert (
+        f"{lockfile}: glib 0.18.5 matches the legacy exception version but "
+        "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
+        "for RUSTSEC-2024-0429"
+    ) in violations
+
+
 def test_supply_chain_check_rejects_tauri_reachable_unexpected_rust_glib_owner(
     tmp_path: Path,
 ) -> None:
@@ -996,6 +1055,8 @@ def test_tauri_main_capability_uses_explicit_core_permissions() -> None:
     content = capability.read_text(encoding="utf-8")
 
     assert '"core:default"' not in content
+    assert '"core:event:allow-emit"' not in content
+    assert '"core:event:allow-emit-to"' not in content
     assert '"core:event:allow-listen"' in content
     assert '"core:event:allow-unlisten"' in content
 

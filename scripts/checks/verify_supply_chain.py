@@ -75,6 +75,15 @@ RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES = {
     "soup3",
     "webkit2gtk",
 }
+RUST_GLIB_LEGACY_ALLOWED_ANCESTOR_NAMES = RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES | {
+    "muda",
+    "tao",
+    RUST_GLIB_LEGACY_ROOT_NAME,
+    "tauri-runtime",
+    "tauri-runtime-wry",
+    "wry",
+}
+RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES = {"bandscope-desktop"}
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
@@ -683,7 +692,7 @@ def rust_dependency_advisory_violations(
     glib_exception_owned_packages = cargo_lock_reachable_package_keys_by_name(
         package_dependencies, RUST_GLIB_LEGACY_ROOT_NAME
     )
-    legacy_glib_owners = cargo_lock_dependency_owners(
+    legacy_glib_ancestors = cargo_lock_dependency_ancestors(
         package_dependencies, RUST_GLIB_LEGACY_EXCEPTION_PACKAGE
     )
     for package in cargo_lock_packages(lockfile):
@@ -700,7 +709,7 @@ def rust_dependency_advisory_violations(
                     rust_glib_advisory_violations(
                         lockfile,
                         version,
-                        legacy_glib_owners,
+                        legacy_glib_ancestors,
                         glib_exception_owned_packages,
                     )
                 )
@@ -754,13 +763,13 @@ def rust_dependency_advisory_violations(
 def rust_glib_advisory_violations(
     lockfile: Path,
     version: str,
-    legacy_glib_owners: set[str],
+    legacy_glib_ancestors: set[str],
     glib_exception_owned_packages: set[str],
 ) -> list[str]:
     """Return violations for vulnerable glib versions outside the Tauri GTK stack."""
     if version == RUST_GLIB_LEGACY_EXCEPTION_VERSION:
         if glib_legacy_exception_owners_are_allowed(
-            legacy_glib_owners, glib_exception_owned_packages
+            legacy_glib_ancestors, glib_exception_owned_packages
         ):
             return []
         return [
@@ -790,15 +799,26 @@ def rust_glib_advisory_violations(
 
 
 def glib_legacy_exception_owners_are_allowed(
-    legacy_glib_owners: set[str], glib_exception_owned_packages: set[str]
+    legacy_glib_ancestors: set[str], glib_exception_owned_packages: set[str]
 ) -> bool:
-    """Return whether every glib owner matches the documented GTK/WebKit stack."""
-    if not legacy_glib_owners:
+    """Return whether every glib ancestor matches the documented GTK/WebKit stack."""
+    if not legacy_glib_ancestors:
         return False
-    if not legacy_glib_owners <= glib_exception_owned_packages:
+    ancestor_names = {
+        ancestor.rsplit(" ", maxsplit=1)[0] for ancestor in legacy_glib_ancestors
+    }
+    allowed_app_roots = {
+        ancestor
+        for ancestor in legacy_glib_ancestors
+        if ancestor.rsplit(" ", maxsplit=1)[0]
+        in RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES
+    }
+    if not legacy_glib_ancestors <= (glib_exception_owned_packages | allowed_app_roots):
         return False
-    owner_names = {owner.rsplit(" ", maxsplit=1)[0] for owner in legacy_glib_owners}
-    return owner_names <= RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES
+    return ancestor_names <= (
+        RUST_GLIB_LEGACY_ALLOWED_ANCESTOR_NAMES
+        | RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES
+    )
 
 
 def unsupported_numeric_semver_violation(
@@ -829,7 +849,7 @@ def parse_numeric_semver(version: str) -> tuple[int, int, int] | None:
     parsed_parts = [int(part) for part in segments]
     while len(parsed_parts) < 3:
         parsed_parts.append(0)
-    return tuple(parsed_parts[:3])
+    return parsed_parts[0], parsed_parts[1], parsed_parts[2]
 
 
 def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
@@ -950,6 +970,26 @@ def cargo_lock_dependency_owners(
         for owner, dependency_tokens in package_dependencies.items()
         if dependency in dependency_tokens
     }
+
+
+def cargo_lock_dependency_ancestors(
+    package_dependencies: dict[str, list[str]], dependency: str
+) -> set[str]:
+    """Return every package key that can reach the target dependency key."""
+    reverse_dependencies: dict[str, set[str]] = {}
+    for package_key, dependency_tokens in package_dependencies.items():
+        for dependency_token in dependency_tokens:
+            reverse_dependencies.setdefault(dependency_token, set()).add(package_key)
+
+    ancestors: set[str] = set()
+    pending = list(reverse_dependencies.get(dependency, set()))
+    while pending:
+        current = pending.pop()
+        if current in ancestors:
+            continue
+        ancestors.add(current)
+        pending.extend(reverse_dependencies.get(current, set()))
+    return ancestors
 
 
 def cargo_lock_reachable_package_keys(
