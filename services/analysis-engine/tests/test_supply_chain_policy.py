@@ -1264,6 +1264,46 @@ def test_scorecard_artifact_extractor_rejects_missing_results_sarif(
         extractor.extract_scorecard_artifact(source_zip, tmp_path / "scorecard-sarif")
 
 
+def test_scorecard_artifact_extractor_rejects_symlink_output_dir(tmp_path: Path) -> None:
+    """Ensure output directories are not followed through symlinks."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_output_dir_symlink",
+    )
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    real_output = tmp_path / "real-output"
+    real_output.mkdir()
+    symlink_output = tmp_path / "scorecard-sarif"
+    symlink_output.symlink_to(real_output, target_is_directory=True)
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+
+    with pytest.raises(ValueError, match="symlinked output path"):
+        extractor.extract_scorecard_artifact(source_zip, symlink_output)
+
+
+def test_scorecard_artifact_extractor_rejects_existing_target_symlink(
+    tmp_path: Path,
+) -> None:
+    """Ensure existing target symlinks cannot be overwritten by extraction."""
+    extractor = load_module(
+        "scripts/checks/extract_scorecard_artifact.py",
+        "extract_scorecard_artifact_target_symlink",
+    )
+    source_zip = tmp_path / "ossf-scorecard-results.zip"
+    output_dir = tmp_path / "scorecard-sarif"
+    output_dir.mkdir()
+    outside_target = tmp_path / "outside.sarif"
+    outside_target.write_text("outside", encoding="utf-8")
+    (output_dir / "results.sarif").symlink_to(outside_target)
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("results.sarif", "{}")
+
+    with pytest.raises(FileExistsError):
+        extractor.extract_scorecard_artifact(source_zip, output_dir)
+    assert outside_target.read_text(encoding="utf-8") == "outside"
+
+
 def test_scorecard_sarif_normalizer_replaces_repository_level_placeholder(
     tmp_path: Path,
 ) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import stat
 import zipfile
 from pathlib import Path
@@ -38,6 +39,30 @@ def validate_member(member: zipfile.ZipInfo) -> None:
         raise ValueError(f"unexpected artifact member: {member.filename}")
 
 
+def ensure_non_symlink_path(path: Path) -> None:
+    """Raise when any existing component in ``path`` is a symlink."""
+    absolute_path = path.absolute()
+    existing_components = [absolute_path]
+    existing_components.extend(absolute_path.parents)
+    for component in reversed(existing_components):
+        try:
+            metadata = os.lstat(component)
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError(f"symlinked output path is not allowed: {component}")
+
+
+def write_new_file_without_following_symlinks(target: Path, data: bytes) -> None:
+    """Write ``data`` to a new file without following an existing symlink."""
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(target, flags, 0o600)
+    with os.fdopen(fd, "wb") as target_file:
+        target_file.write(data)
+
+
 def extract_scorecard_artifact(source: Path, output_dir: Path) -> Path:
     """Extract exactly ``results.sarif`` into ``output_dir`` and return its path."""
     artifact_zip = resolve_artifact_zip(source)
@@ -48,9 +73,11 @@ def extract_scorecard_artifact(source: Path, output_dir: Path) -> Path:
         if [member.filename for member in members] != [EXPECTED_MEMBER]:
             raise ValueError("expected only results.sarif in Scorecard artifact")
         member = members[0]
+        ensure_non_symlink_path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
+        ensure_non_symlink_path(output_dir)
         target = output_dir / EXPECTED_MEMBER
-        target.write_bytes(archive.read(member))
+        write_new_file_without_following_symlinks(target, archive.read(member))
         return target
 
 
