@@ -193,6 +193,36 @@ jobs:
     assert violations == []
 
 
+def test_supply_chain_check_ignores_run_step_checkout_reference(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure run-step checkout text does not trigger guard enforcement."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_run_step_checkout_reference",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ci.yml").write_text(
+        """
+name: ci
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_checkout_default_branch_guard()
+
+    assert violations == []
+
+
 def test_supply_chain_check_rejects_run_step_checkout_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -253,6 +283,44 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
   unguarded:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_checkout_default_branch_guard()
+
+    assert violations == [
+        ".github/workflows/ci.yml: workflows using actions/checkout must set "
+        "workflow-level GIT_CONFIG_* init.defaultBranch env to avoid Git "
+        "initial-branch warnings"
+    ]
+
+
+def test_supply_chain_check_rejects_top_level_nested_env_checkout_default_branch_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure nested top-level env maps cannot satisfy the checkout warning guard."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_top_level_nested_env_checkout_default_branch_guard",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ci.yml").write_text(
+        """
+name: ci
+env:
+  CONFIGS:
+    GIT_CONFIG_COUNT: "1"
+    GIT_CONFIG_KEY_0: init.defaultBranch
+    GIT_CONFIG_VALUE_0: develop
+jobs:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

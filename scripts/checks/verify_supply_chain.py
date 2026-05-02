@@ -406,12 +406,20 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
         line_without_comment = line.partition("#")[0].rstrip()
         if line_without_comment != "env:":
             continue
+        child_indent: int | None = None
         for env_line in lines[index + 1 :]:
             env_line_without_comment = env_line.partition("#")[0].rstrip()
             if not env_line_without_comment.strip():
                 continue
-            if not env_line_without_comment.startswith(" "):
+            indent = len(env_line_without_comment) - len(
+                env_line_without_comment.lstrip(" ")
+            )
+            if indent == 0:
                 break
+            if child_indent is None:
+                child_indent = indent
+            if indent != child_indent:
+                continue
             match = re.match(
                 r"^\s+([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$",
                 env_line_without_comment,
@@ -427,15 +435,19 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
 def verify_checkout_default_branch_guard() -> list[str]:
     """Return checkout workflows missing the Git default-branch warning guard."""
     violations: list[str] = []
+    checkout_uses_pattern = re.compile(
+        r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@"
+    )
     workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
         Path(".github/workflows").glob("*.yaml")
     )
     for path in workflow_paths:
         content = path.read_text(encoding="utf-8")
-        content_without_comments = "\n".join(
-            line.partition("#")[0] for line in content.splitlines()
+        has_checkout = any(
+            checkout_uses_pattern.search(line.partition("#")[0])
+            for line in content.splitlines()
         )
-        if "actions/checkout@" not in content_without_comments:
+        if not has_checkout:
             continue
         env = workflow_top_level_env(content)
         if all(
