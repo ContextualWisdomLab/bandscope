@@ -53,6 +53,15 @@ RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION = (
     "release artifact download must use skip-decompress: true and "
     "repo-owned extraction before asset validation"
 )
+CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION = (
+    "workflows using actions/checkout must set workflow-level "
+    "GIT_CONFIG_* init.defaultBranch env to avoid Git initial-branch warnings"
+)
+CHECKOUT_DEFAULT_BRANCH_GUARD_ENV = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "init.defaultBranch",
+    "GIT_CONFIG_VALUE_0": "develop",
+}
 OSSF_ARTIFACT_EXTRACTOR = "scripts/checks/extract_scorecard_artifact.py"
 RELEASE_ARTIFACT_EXTRACTOR = "scripts/release/extract_release_artifacts.py"
 OSSF_SARIF_NORMALIZER = "scripts/checks/normalize_scorecard_sarif.py"
@@ -386,6 +395,67 @@ def verify_pinned_actions() -> list[str]:
             ):
                 continue
             violations.append(f"{path}:{idx} -> workflow action must be pinned by SHA")
+    return violations
+
+
+def workflow_top_level_env(content: str) -> dict[str, str]:
+    """Return the simple top-level env mapping from a GitHub Actions workflow."""
+    env: dict[str, str] = {}
+    lines = content.splitlines()
+    for index, line in enumerate(lines):
+        line_without_comment = line.partition("#")[0].rstrip()
+        if line_without_comment != "env:":
+            continue
+        child_indent: int | None = None
+        for env_line in lines[index + 1 :]:
+            env_line_without_comment = env_line.partition("#")[0].rstrip()
+            if not env_line_without_comment.strip():
+                continue
+            indent = len(env_line_without_comment) - len(
+                env_line_without_comment.lstrip(" ")
+            )
+            if indent == 0:
+                break
+            if child_indent is None:
+                child_indent = indent
+            if indent != child_indent:
+                continue
+            match = re.match(
+                r"^\s+([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$",
+                env_line_without_comment,
+            )
+            if match is None:
+                continue
+            value = match.group(2).strip().strip('"\'')
+            env[match.group(1)] = value
+        break
+    return env
+
+
+def verify_checkout_default_branch_guard() -> list[str]:
+    """Return checkout workflows missing the Git default-branch warning guard."""
+    violations: list[str] = []
+    checkout_uses_pattern = re.compile(
+        r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@"
+    )
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for path in workflow_paths:
+        content = path.read_text(encoding="utf-8")
+        has_checkout = any(
+            checkout_uses_pattern.search(line.partition("#")[0])
+            for line in content.splitlines()
+        )
+        if not has_checkout:
+            continue
+        env = workflow_top_level_env(content)
+        if all(
+            env.get(key) == value
+            for key, value in CHECKOUT_DEFAULT_BRANCH_GUARD_ENV.items()
+        ):
+            continue
+        violations.append(f"{path}: {CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}")
     return violations
 
 
@@ -1546,6 +1616,7 @@ def main() -> int:
     violations: list[str] = []
     violations.extend(f"missing file: {item}" for item in verify_required_files())
     violations.extend(verify_pinned_actions())
+    violations.extend(verify_checkout_default_branch_guard())
     violations.extend(verify_dependabot_coverage())
     violations.extend(verify_workflow_coverage())
     violations.extend(verify_immutable_release_upload_policy())
