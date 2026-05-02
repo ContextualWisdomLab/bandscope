@@ -403,17 +403,22 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
     env: dict[str, str] = {}
     lines = content.splitlines()
     for index, line in enumerate(lines):
-        if line != "env:":
+        line_without_comment = line.partition("#")[0].rstrip()
+        if line_without_comment != "env:":
             continue
         for env_line in lines[index + 1 :]:
-            if not env_line.strip() or env_line.lstrip().startswith("#"):
+            env_line_without_comment = env_line.partition("#")[0].rstrip()
+            if not env_line_without_comment.strip():
                 continue
-            if not env_line.startswith(" "):
+            if not env_line_without_comment.startswith(" "):
                 break
-            match = re.match(r"^\s{2}([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$", env_line)
+            match = re.match(
+                r"^\s+([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$",
+                env_line_without_comment,
+            )
             if match is None:
                 continue
-            value = match.group(2).split(" #", 1)[0].strip().strip('"\'')
+            value = match.group(2).strip().strip('"\'')
             env[match.group(1)] = value
         break
     return env
@@ -427,7 +432,10 @@ def verify_checkout_default_branch_guard() -> list[str]:
     )
     for path in workflow_paths:
         content = path.read_text(encoding="utf-8")
-        if "actions/checkout@" not in content:
+        content_without_comments = "\n".join(
+            line.partition("#")[0] for line in content.splitlines()
+        )
+        if "actions/checkout@" not in content_without_comments:
             continue
         env = workflow_top_level_env(content)
         if all(

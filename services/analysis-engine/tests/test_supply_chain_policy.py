@@ -163,6 +163,36 @@ jobs:
     ]
 
 
+def test_supply_chain_check_ignores_commented_checkout_reference(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure commented checkout references do not trigger guard enforcement."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_commented_checkout_reference",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ci.yml").write_text(
+        """
+name: ci
+# - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - run: node --version
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_checkout_default_branch_guard()
+
+    assert violations == []
+
+
 def test_supply_chain_check_rejects_run_step_checkout_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -239,6 +269,39 @@ jobs:
         "workflow-level GIT_CONFIG_* init.defaultBranch env to avoid Git "
         "initial-branch warnings"
     ]
+
+
+def test_supply_chain_check_accepts_checkout_default_branch_guard_comments(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure top-level env comments do not break valid checkout warning guards."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_checkout_default_branch_guard_comments",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ci.yml").write_text(
+        """
+name: ci
+env: # Git subprocess defaults inherited by actions/checkout.
+  GIT_CONFIG_COUNT: "1" # one key/value pair follows
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_checkout_default_branch_guard()
+
+    assert violations == []
 
 
 def test_supply_chain_check_accepts_checkout_default_branch_guard(
