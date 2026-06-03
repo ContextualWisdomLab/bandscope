@@ -9,7 +9,7 @@ import json
 import os
 import sys
 import urllib.parse
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import yt_dlp  # type: ignore
 
@@ -46,6 +46,65 @@ def validate_url(url: str) -> bool:
         return False
 
 
+def _get_ydl_options(out_dir: str) -> Dict[str, Any]:
+    """Get standard yt-dlp options."""
+    return {
+        "format": "bestaudio/best",
+        "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
+        "quiet": True,
+        "no_warnings": True,
+        "noprogress": True,
+        "noplaylist": True,
+        "postprocessors": [{"key": "FFmpegExtractAudio"}],
+        "geo_bypass": False,
+    }
+
+
+def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
+    """Find the downloaded file, checking common extensions if needed."""
+    if os.path.exists(actual_filepath):
+        return actual_filepath
+
+    base_path = os.path.splitext(actual_filepath)[0]
+    for ext in [".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg"]:
+        if os.path.exists(base_path + ext):
+            return base_path + ext
+
+    return None
+
+
+def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
+    """Format an appropriate error response for yt-dlp DownloadError."""
+    msg = str(e).lower()
+    if (
+        "sign in" in msg
+        or "members-only" in msg
+        or "private" in msg
+        or "geo" in msg
+        or "premium" in msg
+    ):
+        return {
+            "ok": False,
+            "error": {
+                "code": "restricted_content",
+                "message": (
+                    "This video is restricted (login, paywall, or geo-blocked). "
+                    "Please use a local audio file instead."
+                ),
+            },
+        }
+    return {
+        "ok": False,
+        "error": {
+            "code": "download_failed",
+            "message": (
+                f"Failed to download audio from YouTube. "
+                f"Please use a local audio file instead. ({e})"
+            ),
+        },
+    }
+
+
 def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
     """
     Download audio from a YouTube URL to the specified directory.
@@ -66,16 +125,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             },
         }
 
-    ydl_opts: Dict[str, Any] = {
-        "format": "bestaudio/best",
-        "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
-        "quiet": True,
-        "no_warnings": True,
-        "noprogress": True,
-        "noplaylist": True,
-        "postprocessors": [{"key": "FFmpegExtractAudio"}],
-        "geo_bypass": False,
-    }
+    ydl_opts = _get_ydl_options(out_dir)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -97,27 +147,21 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                 raise Exception("Failed to extract info")
             actual_filepath = ydl.prepare_filename(info)
 
-            if not os.path.exists(actual_filepath):
-                # Try to find the file with a different extension in case of conversion
-                base_path = os.path.splitext(actual_filepath)[0]
-                for ext in [".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg"]:
-                    if os.path.exists(base_path + ext):
-                        actual_filepath = base_path + ext
-                        break
-                else:
-                    return {
-                        "ok": False,
-                        "error": {
-                            "code": "file_not_found",
-                            "message": "Downloaded file could not be found.",
-                        },
-                    }
+            found_filepath = _find_downloaded_file(actual_filepath)
+            if not found_filepath:
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "file_not_found",
+                        "message": "Downloaded file could not be found.",
+                    },
+                }
 
             if (
-                os.path.exists(actual_filepath)
-                and os.path.getsize(actual_filepath) > 50 * 1024 * 1024
+                os.path.exists(found_filepath)
+                and os.path.getsize(found_filepath) > 50 * 1024 * 1024
             ):
-                os.remove(actual_filepath)
+                os.remove(found_filepath)
                 return {
                     "ok": False,
                     "error": {
@@ -131,38 +175,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                     "id": info.get("id"),
                     "title": info.get("title"),
                     "duration": info.get("duration"),
-                    "filepath": actual_filepath,
+                    "filepath": found_filepath,
                 },
             }
     except yt_dlp.utils.DownloadError as e:
-        msg = str(e).lower()
-        if (
-            "sign in" in msg
-            or "members-only" in msg
-            or "private" in msg
-            or "geo" in msg
-            or "premium" in msg
-        ):
-            return {
-                "ok": False,
-                "error": {
-                    "code": "restricted_content",
-                    "message": (
-                        "This video is restricted (login, paywall, or geo-blocked). "
-                        "Please use a local audio file instead."
-                    ),
-                },
-            }
-        return {
-            "ok": False,
-            "error": {
-                "code": "download_failed",
-                "message": (
-                    f"Failed to download audio from YouTube. "
-                    f"Please use a local audio file instead. ({e})"
-                ),
-            },
-        }
+        return _handle_download_error(e)
     except Exception as e:
         return {"ok": False, "error": {"code": "download_error", "message": str(e)}}
 

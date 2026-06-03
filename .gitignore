@@ -15,3 +15,4 @@ registered_agents.json
 task_agent_mapping.json
 
 .worktrees/
+venv/
