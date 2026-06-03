@@ -9,16 +9,50 @@ describe("export sanitization", () => {
     expect(sanitizeFilename("")).toBe("export");
   });
 
-  it("escapes CSV fields to prevent formula injection", () => {
-    expect(escapeCsvField("=1+2")).toBe("'=1+2");
-    expect(escapeCsvField("=\n=HYPERLINK(\"http://evil\")")).toBe('"\'=\n=HYPERLINK(""http://evil"")"');
-    expect(escapeCsvField("+SUM(A1)")).toBe("'+SUM(A1)");
-    expect(escapeCsvField("-100")).toBe("'-100");
-    expect(escapeCsvField("@cmd")).toBe("'@cmd");
-    expect(escapeCsvField("Normal text")).toBe("Normal text");
-    expect(escapeCsvField("Text, with comma")).toBe('"Text, with comma"');
-    expect(escapeCsvField('Text with "quotes"')).toBe('"Text with ""quotes"""');
-    expect(escapeCsvField("Text with\rcarriage return")).toBe('"Text with\rcarriage return"');
+  describe("escapeCsvField", () => {
+    it("returns normal text as-is", () => {
+      expect(escapeCsvField("Normal text")).toBe("Normal text");
+      expect(escapeCsvField("12345")).toBe("12345");
+      expect(escapeCsvField("hello world")).toBe("hello world");
+    });
+
+    it("encloses in double quotes if it contains a comma", () => {
+      expect(escapeCsvField("Text, with comma")).toBe('"Text, with comma"');
+      expect(escapeCsvField(",Leading comma")).toBe('",Leading comma"');
+      expect(escapeCsvField("Trailing comma,")).toBe('"Trailing comma,"');
+    });
+
+    it("encloses in double quotes and escapes existing double quotes", () => {
+      expect(escapeCsvField('Text with "quotes"')).toBe('"Text with ""quotes"""');
+      expect(escapeCsvField('"Only quotes"')).toBe('"""Only quotes"""');
+    });
+
+    it("encloses in double quotes if it contains newlines or carriage returns", () => {
+      expect(escapeCsvField("Text with\nnewline")).toBe('"Text with\nnewline"');
+      expect(escapeCsvField("Text with\rcarriage return")).toBe('"Text with\rcarriage return"');
+      expect(escapeCsvField("Text with\r\nboth")).toBe('"Text with\r\nboth"');
+    });
+
+    it("prevents formula injection by prefixing =, +, -, @ with a single quote", () => {
+      expect(escapeCsvField("=1+2")).toBe("'=1+2");
+      expect(escapeCsvField("+SUM(A1)")).toBe("'+SUM(A1)");
+      expect(escapeCsvField("-100")).toBe("'-100");
+      expect(escapeCsvField("@cmd")).toBe("'@cmd");
+    });
+
+    it("handles combined scenarios: formula injection with structural characters", () => {
+      expect(escapeCsvField("=\n=HYPERLINK(\"http://evil\")")).toBe('"\'=\n=HYPERLINK(""http://evil"")"');
+      expect(escapeCsvField('=A1+", trailing"')).toBe('"\'=A1+"", trailing"""');
+      expect(escapeCsvField("@some,value")).toBe('"\'@some,value"');
+    });
+
+    it("handles edge cases: empty string, single character", () => {
+      expect(escapeCsvField("")).toBe("");
+      expect(escapeCsvField("=")).toBe("'=");
+      expect(escapeCsvField(",")).toBe('","');
+      expect(escapeCsvField('"')).toBe('""""');
+      expect(escapeCsvField(" ")).toBe(" ");
+    });
   });
 });
 
