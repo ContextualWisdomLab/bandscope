@@ -1,8 +1,8 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
-import ast
 import re
 import shlex
+import tomllib
 from itertools import pairwise
 from pathlib import Path
 
@@ -426,7 +426,7 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
             )
             if match is None:
                 continue
-            value = match.group(2).strip().strip('"\'')
+            value = match.group(2).strip().strip("\"'")
             env[match.group(1)] = value
         break
     return env
@@ -435,9 +435,7 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
 def verify_checkout_default_branch_guard() -> list[str]:
     """Return checkout workflows missing the Git default-branch warning guard."""
     violations: list[str] = []
-    checkout_uses_pattern = re.compile(
-        r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@"
-    )
+    checkout_uses_pattern = re.compile(r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@")
     workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
         Path(".github/workflows").glob("*.yaml")
     )
@@ -1495,16 +1493,22 @@ def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
 
 def parse_cargo_lock_string_list(value: str) -> list[str]:
     """Return strings from an inline Cargo.lock dependency array."""
-    parsed_value = ast.literal_eval(value)
-    if not isinstance(parsed_value, list):
+    try:
+        parsed_value = tomllib.loads(f"v = {value}")["v"]
+        if not isinstance(parsed_value, list):
+            return []
+        return [str(item).strip() for item in parsed_value]
+    except Exception:
         return []
-    return [str(item).strip() for item in parsed_value]
 
 
 def parse_cargo_lock_scalar(value: str) -> str:
     """Return a scalar Cargo.lock TOML value as text."""
-    parsed_value = ast.literal_eval(value)
-    return str(parsed_value)
+    try:
+        parsed_value = tomllib.loads(f"v = {value}")["v"]
+        return str(parsed_value)
+    except Exception:
+        return ""
 
 
 def cargo_lock_normalized_package_dependencies(
