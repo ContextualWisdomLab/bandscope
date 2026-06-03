@@ -9,6 +9,22 @@ describe("export sanitization", () => {
     expect(sanitizeFilename("")).toBe("export");
   });
 
+  it("handles directory traversal attempts", () => {
+    expect(sanitizeFilename("../../../etc/passwd")).toBe("_________etc_passwd");
+    expect(sanitizeFilename("..\\..\\windows\\system32")).toBe("______windows_system32");
+  });
+
+  it("handles Windows reserved characters", () => {
+    expect(sanitizeFilename("<>:\"/\\|?*")).toBe("_________");
+    expect(sanitizeFilename("file<name>with:reserved\"chars")).toBe("file_name_with_reserved_chars");
+  });
+
+  it("handles whitespace correctly", () => {
+    expect(sanitizeFilename("   ")).toBe("export");
+    expect(sanitizeFilename("\t\n")).toBe("export");
+    expect(sanitizeFilename("  leading and trailing  ")).toBe("leading and trailing");
+  });
+
   it("escapes CSV fields to prevent formula injection", () => {
     expect(escapeCsvField("=1+2")).toBe("'=1+2");
     expect(escapeCsvField("=\n=HYPERLINK(\"http://evil\")")).toBe('"\'=\n=HYPERLINK(""http://evil"")"');
