@@ -67,6 +67,29 @@ def test_download_youtube_audio_success(
     assert result["metadata"]["duration"] == 60
     assert result["metadata"]["filepath"] == "/tmp/123.webm"
 
+    # Assert that YoutubeDL was initialized with the correct options
+    mock_ydl_class.assert_called_once()
+    called_opts = mock_ydl_class.call_args[0][0]
+    assert called_opts["format"] == "bestaudio/best"
+    assert called_opts["quiet"] is True
+    assert called_opts["no_warnings"] is True
+    assert called_opts["noprogress"] is True
+    assert called_opts["noplaylist"] is True
+    assert called_opts["geo_bypass"] is False
+    assert called_opts["postprocessors"] == [{"key": "FFmpegExtractAudio"}]
+    assert "%(id)s.%(ext)s" in called_opts["outtmpl"]
+
+    # Verify extract_info was called twice correctly: once for metadata, once for download
+    from unittest.mock import call
+
+    assert mock_ydl.extract_info.call_count == 2
+    mock_ydl.extract_info.assert_has_calls(
+        [
+            call("https://youtube.com/watch?v=123", download=False),
+            call("https://youtube.com/watch?v=123", download=True),
+        ]
+    )
+
 
 @patch("bandscope_analysis.youtube.os.path.getsize")
 @patch("bandscope_analysis.youtube.os.path.exists")
