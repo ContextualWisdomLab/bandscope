@@ -121,6 +121,9 @@ class ChordRecognizer:
         current_chord = None
         start_frame = 0
 
+        # Vectorize the variance calculation over frames
+        chroma_vars = np.var(chromagram, axis=0)
+
         for i, match in enumerate(best_matches):
             chord_label = self.chord_labels[match]
 
@@ -133,7 +136,7 @@ class ChordRecognizer:
             # or if the RMS energy is really low.
             # However, since dot product normalization makes noise match *something*,
             # we can look at the variance of the chromagram frame.
-            chroma_var = np.var(chromagram[:, i])
+            chroma_var = chroma_vars[i]
             if max_sim < 0.3 or rms_val < 0.01 or chroma_var < 0.02:
                 chord_label = "N"
 
