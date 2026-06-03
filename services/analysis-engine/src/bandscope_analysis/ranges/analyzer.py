@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
+from ..sections.utils import validate_section
 from .model import (
     RangeAnalysisResult,
     RangeInfo,
@@ -184,15 +185,7 @@ class RangeAnalyzer:
         summaries: list[SectionRangeSummary] = []
 
         for i, section in enumerate(sections):
-            if not isinstance(section, dict):
-                logger.warning(
-                    "Invalid section format at index %d; expected dict, got %s",
-                    i,
-                    type(section).__name__,
-                )
-                section_id = f"section-{i}"
-            else:
-                section_id = section.get("id", f"section-{i}")
+            section_id = validate_section(section, i, logger)
 
             section_roles = (roles_by_section or {}).get(section_id, [])
             ranges: list[RangeInfo] = []

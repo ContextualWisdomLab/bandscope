@@ -15,6 +15,7 @@ from .model import (
     RoleType,
     SectionRoleTopology,
 )
+from ..sections.utils import validate_section
 from .priority import calculate_rehearsal_priority
 from .tuning import get_setup_note
 
@@ -101,15 +102,7 @@ class RoleExtractor:
 
         # Simple mock implementation for testing/demonstration purposes
         for i, section in enumerate(sections):
-            if not isinstance(section, dict):
-                logger.warning(
-                    "Invalid section format at index %d; expected dict, got %s",
-                    i,
-                    type(section).__name__,
-                )
-                section_id = f"section-{i}"
-            else:
-                section_id = section.get("id", f"section-{i}")
+            section_id = validate_section(section, i, logger)
 
             bass_role: RehearsalRole = {
                 "id": "bass-guitar",
