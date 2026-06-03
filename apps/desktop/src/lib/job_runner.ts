@@ -34,6 +34,8 @@ const mockWorkspace: RehearsalWorkspace = {
   workspaceVersion: 1
 };
 
+const mockSongsMap = new Map<string, typeof mockWorkspace.songs[number]>();
+
 type MockListener = (event: { payload: unknown }) => void;
 const mockListeners = new Set<MockListener>();
 
@@ -54,17 +56,19 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   if (command === "enqueue_song") {
     const request = args?.request as AnalysisJobRequest;
     const packId = `pack-${Date.now()}`;
-    mockWorkspace.songs.push({
+    const newPack = {
       id: packId,
-      packState: "queued",
+      packState: "queued" as const,
       sourceLabel: request.sourceKind === "local_audio" ? request.sourceLabel : "Demo Song",
-      engineState: "queued"
-    });
+      engineState: "queued" as const
+    } as typeof mockWorkspace.songs[number];
+    mockWorkspace.songs.push(newPack);
+    mockSongsMap.set(packId, newPack);
     triggerMockUpdate();
     
     // Simulate processing
     setTimeout(() => {
-      const pack = mockWorkspace.songs.find(p => p.id === packId);
+      const pack = mockSongsMap.get(packId);
       if (pack) {
         pack.packState = "analyzing";
         pack.engineState = "running";
@@ -83,7 +87,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   
   if (command === "retry_song") {
     const jobId = args?.jobId as string;
-    const pack = mockWorkspace.songs.find(p => p.id === jobId);
+    const pack = mockSongsMap.get(jobId);
     if (pack) {
       pack.packState = "queued";
       pack.engineState = "queued";
@@ -92,7 +96,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
       
       // Simulate processing
       setTimeout(() => {
-        const p = mockWorkspace.songs.find(s => s.id === jobId);
+        const p = mockSongsMap.get(jobId);
         if (p) {
           p.packState = "analyzing";
           p.engineState = "running";
@@ -111,6 +115,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   if (command === "cancel_song") {
     const jobId = args?.jobId as string;
     mockWorkspace.songs = mockWorkspace.songs.filter(p => p.id !== jobId);
+    mockSongsMap.delete(jobId);
     triggerMockUpdate();
     return;
   }
