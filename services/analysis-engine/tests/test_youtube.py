@@ -30,6 +30,31 @@ def test_validate_url() -> None:
     assert validate_url("https://youtube.com/watch?v=123&v=") is False
 
 
+def test_validate_url_edge_cases() -> None:
+    """Test URL validation edge cases and potential bypasses."""
+    # IP address bypass attempts
+    assert validate_url("https://127.0.0.1/watch?v=123") is False
+    assert validate_url("https://[::1]/watch?v=123") is False
+
+    # User info bypass attempts
+    assert validate_url("https://youtube.com@evil.com/watch?v=123") is False
+    assert validate_url("https://youtube.com@youtu.be/123") is False
+    assert validate_url("https://user:pass@youtube.com/watch?v=123") is False
+
+    # Subdomain/Suffix trickery
+    assert validate_url("https://youtube.com.evil.com/watch?v=123") is False
+    assert validate_url("https://evil-youtube.com/watch?v=123") is False
+
+    # Path/Query trickery
+    assert validate_url("https://evil.com/youtube.com/watch?v=123") is False
+    assert validate_url("https://evil.com?youtube.com/watch?v=123") is False
+    assert validate_url("https://evil.com#youtube.com/watch?v=123") is False
+
+    # Valid localized subdomains and ports
+    assert validate_url("https://kr.youtube.com/watch?v=123") is True
+    assert validate_url("https://youtube.com:443/watch?v=123") is True
+
+
 def test_download_youtube_audio_invalid_url() -> None:
     """Test downloading with an invalid URL."""
     result = download_youtube_audio("https://vimeo.com/123", "/tmp")
