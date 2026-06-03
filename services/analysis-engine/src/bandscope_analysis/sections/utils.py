@@ -1,5 +1,8 @@
+"""Utility functions for section processing."""
+
 import logging
 from typing import Any
+
 
 def validate_section(section: Any, index: int, logger: logging.Logger) -> str:
     """Validates a section dictionary and returns its ID.
