@@ -57,7 +57,7 @@ class ChordRecognizer:
         """Separate harmonic component from audio."""
         try:
             y_harmonic, _ = librosa.effects.hpss(y)
-            return y_harmonic
+            return np.asarray(y_harmonic)
         except Exception:
             return y
 
@@ -81,7 +81,7 @@ class ChordRecognizer:
 
         # Optional: apply temporal smoothing to chromagram to reduce noise
         chromagram = librosa.decompose.nn_filter(chromagram, aggregate=np.median, metric="cosine")
-        return chromagram
+        return np.asarray(chromagram)
 
     def _calculate_rms(self, y: np.ndarray, chromagram_len: int) -> np.ndarray:
         """Calculate RMS energy to detect silence/noise."""
@@ -94,7 +94,7 @@ class ChordRecognizer:
                 rms = rms[:chromagram_len]
         except Exception:
             rms = np.ones(chromagram_len)
-        return rms
+        return np.asarray(rms)
 
     def _build_chord_segments(
         self, similarity: np.ndarray, rms: np.ndarray, chromagram: np.ndarray, sr: int
