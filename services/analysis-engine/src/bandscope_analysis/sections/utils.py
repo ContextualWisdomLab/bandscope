@@ -22,4 +22,4 @@ def validate_section(section: Any, index: int, logger: logging.Logger) -> str:
             type(section).__name__,
         )
         return f"section-{index}"
-    return section.get("id", f"section-{index}")
+    return str(section.get("id", f"section-{index}"))

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from ..sections.utils import validate_section
 from .model import (
     CueAnchorKind,
     PartGraphNode,
@@ -15,7 +16,6 @@ from .model import (
     RoleType,
     SectionRoleTopology,
 )
-from ..sections.utils import validate_section
 from .priority import calculate_rehearsal_priority
 from .tuning import get_setup_note
 
