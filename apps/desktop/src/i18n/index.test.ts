@@ -28,7 +28,7 @@ describe("i18n", () => {
     it("returns 'en' when navigator is undefined", () => {
       const originalNavigator = globalThis.navigator;
       // @ts-expect-error - simulating missing navigator
-      delete (globalThis as any).navigator;
+      delete (globalThis as unknown as { navigator?: Navigator }).navigator;
 
       expect(detectPreferredLocale()).toBe("en");
 
