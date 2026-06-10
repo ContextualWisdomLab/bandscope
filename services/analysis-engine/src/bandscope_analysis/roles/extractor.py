@@ -99,6 +99,151 @@ class RoleExtractor:
             except Exception as e:
                 logger.warning("Failed to extract features from stems: %s", e)
 
+        # Pre-compute mock roles outside the loop to avoid N+1 redundant work
+        bass_role: RehearsalRole = {
+            "id": "bass-guitar",
+            "name": "Bass Guitar",
+            "roleType": RoleType.INSTRUMENT,
+            "harmony": {
+                "chord": bass_chord,
+                "functionLabel": "vi pedal anchor",
+                "source": "model",
+            },
+            "cue": {
+                "kind": CueAnchorKind.TRANSITION,
+                "value": "Hold through the pickup before the downbeat.",
+            },
+            "range": bass_range,
+            "confidence": {
+                "level": "medium",
+                "source": "model",
+                "notes": "Watch the slide into the turnaround.",
+            },
+            "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
+            "simplification": "Stay on roots if the chorus entrance gets muddy.",
+            "setupNote": get_setup_note("Bass Guitar", [bass_chord])
+            or "Keep the attack short so the verse breathes.",
+            "manualOverrides": [],
+            "overlapWarnings": [
+                "Density warning: competing with Keyboard Left Hand in low register."
+            ],
+        }
+
+        keys_left_role: RehearsalRole = {
+            "id": "keys-left",
+            "name": "Keyboard 1 Left Hand",
+            "roleType": RoleType.HAND,
+            "harmony": {
+                "chord": "C#",
+                "functionLabel": "Root reinforcement",
+                "source": "model",
+            },
+            "cue": {
+                "kind": CueAnchorKind.TRANSITION,
+                "value": "Lock in with bass pedal.",
+            },
+            "range": {"lowestNote": "C#2", "highestNote": "C#3"},
+            "confidence": {
+                "level": "low",
+                "source": "model",
+                "notes": "Muddy frequency range, difficult to clearly separate from bass.",
+            },
+            "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
+            "simplification": "Omit if bass is covering the lower register.",
+            "setupNote": get_setup_note("Keyboard", ["C#"])
+            or "Use a darker patch to avoid clashing with right hand.",
+            "manualOverrides": [],
+            "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
+        }
+
+        keys_role: RehearsalRole = {
+            "id": "keys-right",
+            "name": "Keyboard 1 Right Hand",
+            "roleType": RoleType.HAND,
+            "harmony": {
+                "chord": "Emaj7",
+                "functionLabel": "Imaj7 color",
+                "source": "model",
+            },
+            "cue": {
+                "kind": CueAnchorKind.COUNT,
+                "value": "Enter on beat 2 after the pickup.",
+            },
+            "range": {"lowestNote": "B3", "highestNote": "G#5"},
+            "confidence": {
+                "level": "medium",
+                "source": "model",
+                "notes": "Top note voicing may need a quick ear check.",
+            },
+            "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
+            "simplification": "Drop top extension if the chorus turnaround feels busy.",
+            "setupNote": get_setup_note("Keyboard", ["Emaj7"])
+            or "Keep the patch bright enough to stay over the guitars.",
+            "manualOverrides": [],
+            "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
+        }
+
+        vocal_role: RehearsalRole = {
+            "id": "lead-vocal",
+            "name": "Lead Vocal",
+            "roleType": RoleType.VOCAL,
+            "harmony": {
+                "chord": vocal_chord,
+                "functionLabel": "vi melodic pull",
+                "source": "model",
+            },
+            "cue": {"kind": CueAnchorKind.LYRIC, "value": "city lights"},
+            "range": vocal_range,
+            "confidence": {
+                "level": "high",
+                "source": "user",
+                "notes": "Singer confirmed the pickup phrasing in rehearsal notes.",
+            },
+            "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
+            "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
+            "setupNote": get_setup_note("Lead Vocal", [vocal_chord])
+            or "Watch the breath before the last line of the verse.",
+            "manualOverrides": [
+                {
+                    "field": "harmony",
+                    "value": {
+                        "chord": "C#m11",
+                        "functionLabel": "vi suspended lift",
+                        "source": "user",
+                    },
+                    "source": "user",
+                }
+            ],
+            "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
+        }
+
+        acoustic_guitar_role: RehearsalRole = {
+            "id": "acoustic-guitar",
+            "name": "Acoustic Guitar",
+            "roleType": RoleType.INSTRUMENT,
+            "harmony": {
+                "chord": "Eb",
+                "functionLabel": "I",
+                "source": "model",
+            },
+            "cue": {"kind": CueAnchorKind.TRANSITION, "value": "Strum on the downbeat."},
+            "range": {"lowestNote": "E2", "highestNote": "C#5"},
+            "confidence": {
+                "level": "medium",
+                "source": "model",
+                "notes": "Standard open chords detected.",
+            },
+            "rehearsalPriority": RehearsalPriority.MEDIUM,
+            "simplification": "Simplify strumming pattern if rushing.",
+            "setupNote": get_setup_note("Acoustic Guitar", ["Eb", "Bb", "Fm", "Ab"])
+            or "Check tuning.",
+            "manualOverrides": [],
+            "overlapWarnings": [],
+        }
+
+        for role in [bass_role, keys_left_role, keys_role, vocal_role, acoustic_guitar_role]:
+            role["rehearsalPriority"] = calculate_rehearsal_priority(role)
+
         # Simple mock implementation for testing/demonstration purposes
         for i, section in enumerate(sections):
             if not isinstance(section, dict):
@@ -110,150 +255,6 @@ class RoleExtractor:
                 section_id = f"section-{i}"
             else:
                 section_id = section.get("id", f"section-{i}")
-
-            bass_role: RehearsalRole = {
-                "id": "bass-guitar",
-                "name": "Bass Guitar",
-                "roleType": RoleType.INSTRUMENT,
-                "harmony": {
-                    "chord": bass_chord,
-                    "functionLabel": "vi pedal anchor",
-                    "source": "model",
-                },
-                "cue": {
-                    "kind": CueAnchorKind.TRANSITION,
-                    "value": "Hold through the pickup before the downbeat.",
-                },
-                "range": bass_range,
-                "confidence": {
-                    "level": "medium",
-                    "source": "model",
-                    "notes": "Watch the slide into the turnaround.",
-                },
-                "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
-                "simplification": "Stay on roots if the chorus entrance gets muddy.",
-                "setupNote": get_setup_note("Bass Guitar", [bass_chord])
-                or "Keep the attack short so the verse breathes.",
-                "manualOverrides": [],
-                "overlapWarnings": [
-                    "Density warning: competing with Keyboard Left Hand in low register."
-                ],
-            }
-
-            keys_left_role: RehearsalRole = {
-                "id": "keys-left",
-                "name": "Keyboard 1 Left Hand",
-                "roleType": RoleType.HAND,
-                "harmony": {
-                    "chord": "C#",
-                    "functionLabel": "Root reinforcement",
-                    "source": "model",
-                },
-                "cue": {
-                    "kind": CueAnchorKind.TRANSITION,
-                    "value": "Lock in with bass pedal.",
-                },
-                "range": {"lowestNote": "C#2", "highestNote": "C#3"},
-                "confidence": {
-                    "level": "low",
-                    "source": "model",
-                    "notes": "Muddy frequency range, difficult to clearly separate from bass.",
-                },
-                "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
-                "simplification": "Omit if bass is covering the lower register.",
-                "setupNote": get_setup_note("Keyboard", ["C#"])
-                or "Use a darker patch to avoid clashing with right hand.",
-                "manualOverrides": [],
-                "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
-            }
-
-            keys_role: RehearsalRole = {
-                "id": "keys-right",
-                "name": "Keyboard 1 Right Hand",
-                "roleType": RoleType.HAND,
-                "harmony": {
-                    "chord": "Emaj7",
-                    "functionLabel": "Imaj7 color",
-                    "source": "model",
-                },
-                "cue": {
-                    "kind": CueAnchorKind.COUNT,
-                    "value": "Enter on beat 2 after the pickup.",
-                },
-                "range": {"lowestNote": "B3", "highestNote": "G#5"},
-                "confidence": {
-                    "level": "medium",
-                    "source": "model",
-                    "notes": "Top note voicing may need a quick ear check.",
-                },
-                "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
-                "simplification": "Drop top extension if the chorus turnaround feels busy.",
-                "setupNote": get_setup_note("Keyboard", ["Emaj7"])
-                or "Keep the patch bright enough to stay over the guitars.",
-                "manualOverrides": [],
-                "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
-            }
-
-            vocal_role: RehearsalRole = {
-                "id": "lead-vocal",
-                "name": "Lead Vocal",
-                "roleType": RoleType.VOCAL,
-                "harmony": {
-                    "chord": vocal_chord,
-                    "functionLabel": "vi melodic pull",
-                    "source": "model",
-                },
-                "cue": {"kind": CueAnchorKind.LYRIC, "value": "city lights"},
-                "range": vocal_range,
-                "confidence": {
-                    "level": "high",
-                    "source": "user",
-                    "notes": "Singer confirmed the pickup phrasing in rehearsal notes.",
-                },
-                "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
-                "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
-                "setupNote": get_setup_note("Lead Vocal", [vocal_chord])
-                or "Watch the breath before the last line of the verse.",
-                "manualOverrides": [
-                    {
-                        "field": "harmony",
-                        "value": {
-                            "chord": "C#m11",
-                            "functionLabel": "vi suspended lift",
-                            "source": "user",
-                        },
-                        "source": "user",
-                    }
-                ],
-                "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
-            }
-
-            acoustic_guitar_role: RehearsalRole = {
-                "id": "acoustic-guitar",
-                "name": "Acoustic Guitar",
-                "roleType": RoleType.INSTRUMENT,
-                "harmony": {
-                    "chord": "Eb",
-                    "functionLabel": "I",
-                    "source": "model",
-                },
-                "cue": {"kind": CueAnchorKind.TRANSITION, "value": "Strum on the downbeat."},
-                "range": {"lowestNote": "E2", "highestNote": "C#5"},
-                "confidence": {
-                    "level": "medium",
-                    "source": "model",
-                    "notes": "Standard open chords detected.",
-                },
-                "rehearsalPriority": RehearsalPriority.MEDIUM,
-                "simplification": "Simplify strumming pattern if rushing.",
-                "setupNote": get_setup_note("Acoustic Guitar", ["Eb", "Bb", "Fm", "Ab"])
-                or "Check tuning.",
-                "manualOverrides": [],
-                "overlapWarnings": [],
-            }
-
-            for role in [bass_role, keys_left_role, keys_role, vocal_role, acoustic_guitar_role]:
-                role["rehearsalPriority"] = calculate_rehearsal_priority(role)
 
             active_roles = [bass_role, acoustic_guitar_role]
 
