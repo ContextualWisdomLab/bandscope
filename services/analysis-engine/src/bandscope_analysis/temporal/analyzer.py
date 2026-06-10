@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -41,20 +42,21 @@ class TemporalAnalyzer:
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
-            file_size = path.stat().st_size
-            if file_size > MAX_AUDIO_FILE_BYTES:
-                raise ValueError(
-                    f"Audio file is too large for temporal analysis: {file_size} bytes "
-                    f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
-                )
+            with path.open("rb") as fileobj:
+                file_size = os.fstat(fileobj.fileno()).st_size
+                if file_size > MAX_AUDIO_FILE_BYTES:
+                    raise ValueError(
+                        f"Audio file is too large for temporal analysis: {file_size} bytes "
+                        f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
+                    )
 
-            # Load audio, converting to mono and standardizing sample rate
-            y, sr = librosa.load(
-                path_str,
-                sr=TARGET_SR,
-                mono=True,
-                duration=MAX_ANALYSIS_DURATION_SECONDS,
-            )
+                # Load audio, converting to mono and standardizing sample rate
+                y, sr = librosa.load(
+                    fileobj,
+                    sr=TARGET_SR,
+                    mono=True,
+                    duration=MAX_ANALYSIS_DURATION_SECONDS,
+                )
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):
