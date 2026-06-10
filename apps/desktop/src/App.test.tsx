@@ -6,32 +6,27 @@ const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
 
-vi.mock("./lib/analysis", () => ({
-  createDefaultAnalysisRequest: () => ({
-    sourceKind: "demo",
-    sourceLabel: "Late Night Set",
-    roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
-  }),
-  selectLocalAudioSource: async () => {
-    const response = await tauriInvoke("select_local_audio_source", undefined);
-    if (response?.code) {
-      return { ok: false, error: response };
-    }
+type TauriWindow = Window & {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI_INVOKE__?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+};
 
-    return { ok: true, bootstrap: response };
-  },
-  startAnalysisJob: (request: unknown) => tauriInvoke("start_analysis_job", { request }),
-  getAnalysisJobStatus: (jobId: string) => tauriInvoke("get_analysis_job_status", { jobId }),
-  importYoutubeUrl: async (url: string) => {
-    const response = await tauriInvoke("import_youtube_url", { url });
-    if (response?.code) {
-      return { ok: false, error: response };
-    }
-    return { ok: true, bootstrap: response };
-  },
-  loadProject: () => mockLoadProject(),
-  saveProject: (song: unknown) => mockSaveProject(song)
-}));
+const tauriWindow = window as TauriWindow;
+
+vi.mock("./lib/analysis", async (importActual) => {
+  const actual = await importActual<typeof import("./lib/analysis")>();
+
+  return {
+    ...actual,
+    createDefaultAnalysisRequest: () => ({
+      sourceKind: "demo",
+      sourceLabel: "Late Night Set",
+      roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
+    }),
+    loadProject: () => mockLoadProject(),
+    saveProject: (song: unknown) => mockSaveProject(song)
+  };
+});
 
 function succeededResult() {
   return {
@@ -46,7 +41,7 @@ function succeededResult() {
       sections: [
         {
           id: "verse-1",
-          label: "Verse 1",
+          label: "verse",
           groove: "Straight eighths with a late snare feel",
           timeRange: { start: 10, end: 30 },
           confidence: {
@@ -112,11 +107,56 @@ function succeededResult() {
       ],
       exportSummary: {
         format: "cue-sheet",
-        headline: "Start with Verse 1 entrances before the chorus lift.",
-        focusSections: ["Verse 1"]
+        headline: "Start with verse entrances before the chorus lift.",
+        focusSections: ["verse"]
       }
     }
   };
+}
+
+function bootstrapResponse(overrides: Record<string, unknown> = {}) {
+  const source = {
+    sourcePath: "/Users/test/Music/late-night-set.wav",
+    fileName: "late-night-set.wav",
+    extension: "wav",
+    fileSizeBytes: 1024000
+  };
+  const { source: sourceOverride, ...restOverrides } = overrides;
+
+  return {
+    projectId: "project-1",
+    sourceMode: "reference",
+    projectRoot: "/tmp/bandscope/projects/project-1",
+    cacheRoot: "/tmp/bandscope/cache/project-1",
+    tempRoot: "/tmp/bandscope/temp/project-1",
+    ...restOverrides,
+    source: {
+      ...source,
+      ...((sourceOverride as Record<string, unknown> | undefined) ?? {})
+    }
+  };
+}
+
+function jobStatusResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    jobId: "job-1",
+    state: "queued",
+    requestedAt: "2026-03-12T00:00:00.000Z",
+    updatedAt: "2026-03-12T00:00:00.000Z",
+    progressLabel: "Queued for analysis",
+    ...overrides
+  };
+}
+
+function failedJobStatus(jobId: string, message: string) {
+  return jobStatusResponse({
+    jobId,
+    state: "failed",
+    error: {
+      code: "engine_unavailable",
+      message
+    }
+  });
 }
 
 describe("App", () => {
@@ -124,30 +164,105 @@ describe("App", () => {
     tauriInvoke.mockReset();
     mockLoadProject.mockReset();
     mockSaveProject.mockReset();
+    delete tauriWindow.__TAURI_INTERNALS__;
+    tauriWindow.__TAURI_INVOKE__ = tauriInvoke;
+  });
+
+  it("renders the rehearsal cockpit shell before analysis starts", () => {
+    render(<App />);
+
+    expect(screen.getByRole("navigation", { name: /primary rehearsal views/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Workspace Home/i })).toBeTruthy();
+    expect(screen.getByText(/SYNCED • LOCAL/i)).toBeTruthy();
+    expect(screen.getByText(/Turn a song into a practical rehearsal view\./i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
+    expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
+    expect(screen.getByText(/^Key$/i)).toBeTruthy();
+    expect(screen.getByText(/Local-first/i)).toBeTruthy();
+    expect(screen.getByText(/Local project data stays on this device/i)).toBeTruthy();
+    expect(screen.getByText(/YouTube import contacts the source provider/i)).toBeTruthy();
+  });
+
+  it("renders the loaded song as a dark rehearsal command board", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+    });
+    expect(screen.getByText(/Roles & Harmony/i)).toBeTruthy();
+    expect(screen.getByText(/Stems/i)).toBeTruthy();
+    expect(screen.getByText(/Rehearsal Priorities/i)).toBeTruthy();
+    expect(screen.getByText(/Export Cue Sheet/i)).toBeTruthy();
+  });
+
+  it("renders a rehearsal song structure timeline from real section ranges", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Song Structure/i })).toBeTruthy();
+    });
+    expect(screen.getByText(/verse · 0:10–0:30/i)).toBeTruthy();
+    expect(screen.getByText(/Rehearsal timeline/i)).toBeTruthy();
+    expect(screen.queryByText(/Mock-board/i)).toBeNull();
+    const timelineRegion = screen.getByRole("region", { name: /scrollable song structure timeline/i });
+    expect(timelineRegion.className).toContain("overflow-x-auto");
+    expect(timelineRegion.getAttribute("tabindex")).toBe("0");
+    expect(screen.queryByLabelText(/decorative waveform overview/i)).toBeNull();
+  });
+
+  it("does not show unavailable analysis metrics as detected facts", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    expect(screen.queryByText(/128 BPM/i)).toBeNull();
+    expect(screen.queryByText(/E Major/i)).toBeNull();
+    expect(screen.queryByText(/86%/i)).toBeNull();
+    expect(screen.queryByText(/entry, dropout/i)).toBeNull();
+    expect(screen.queryByText(/Preview-ready lanes/i)).toBeNull();
+    expect(screen.getAllByText(/Pending/i).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("summarizes confidence from the lowest-confidence loaded section", async () => {
+    const loadedProject = succeededResult().result;
+    loadedProject.sections.push({
+      ...loadedProject.sections[0],
+      id: "chorus-1",
+      label: "chorus",
+      confidence: { level: "high", source: "model", notes: "The chorus form is clear." }
+    });
+    mockLoadProject.mockResolvedValueOnce(loadedProject);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^Medium$/i)).toBeTruthy();
+    });
+    expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
   it("selects a local audio source and starts a local-audio analysis job", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        projectRoot: "/tmp/bandscope/projects/project-1",
-        cacheRoot: "/tmp/bandscope/cache/project-1",
-        tempRoot: "/tmp/bandscope/temp/project-1",
-        source: {
-          sourcePath: "/Users/test/Music/late-night-set.wav",
-          fileName: "late-night-set.wav",
-          extension: "wav",
-          fileSizeBytes: 1024000
-        }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-local-1",
         state: "queued",
-        requestedAt: "2026-03-12T00:00:00.000Z",
-        updatedAt: "2026-03-12T00:00:00.000Z",
         progressLabel: "Queued for analysis"
-      })
+      }))
       .mockResolvedValueOnce(succeededResult());
 
     render(<App />);
@@ -173,10 +288,7 @@ describe("App", () => {
   });
 
   it("shows a safe file-intake error for unsupported local audio selection", async () => {
-    tauriInvoke.mockResolvedValueOnce({
-      code: "unsupported_file",
-      message: "Choose a WAV, MP3, FLAC, or M4A file to start analysis."
-    });
+    tauriInvoke.mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."));
 
     render(<App />);
 
@@ -185,11 +297,12 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
     });
+    expect(screen.getByRole("alert").textContent).toMatch(/choose a wav, mp3, flac, or m4a file/i);
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
   });
 
   it("falls back to generic local-audio error copy when selection omits a message", async () => {
-    tauriInvoke.mockResolvedValueOnce({
+    tauriInvoke.mockRejectedValueOnce({
       code: "unsupported_file"
     });
 
@@ -204,10 +317,7 @@ describe("App", () => {
   });
 
   it("preserves safe file-read failure copy from the intake bridge", async () => {
-    tauriInvoke.mockResolvedValueOnce({
-      code: "invalid_request",
-      message: "Could not read the selected audio file."
-    });
+    tauriInvoke.mockRejectedValueOnce(new Error("Could not read the selected audio file."));
 
     render(<App />);
 
@@ -221,30 +331,16 @@ describe("App", () => {
 
   it("starts an analysis job and renders the returned rehearsal result", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        projectRoot: "/tmp/bandscope/projects/project-1",
-        cacheRoot: "/tmp/bandscope/cache/project-1",
-        tempRoot: "/tmp/bandscope/temp/project-1",
-        source: {
-          sourcePath: "/Users/test/Music/late-night-set.wav",
-          fileName: "late-night-set.wav",
-          extension: "wav",
-          fileSizeBytes: 1024000
-        }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-1",
         state: "queued",
-        requestedAt: "2026-03-12T00:00:00.000Z",
-        updatedAt: "2026-03-12T00:00:00.000Z",
         progressLabel: "Queued for analysis"
-      })
+      }))
       .mockResolvedValueOnce(succeededResult());
 
     render(<App />);
-    
+
     fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
     await waitFor(() => {
       expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
@@ -255,6 +351,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/queued for analysis/i)).toBeTruthy();
     });
+    expect(screen.getAllByRole("status").some((status) => /queued for analysis/i.test(status.textContent ?? ""))).toBe(true);
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
@@ -272,20 +369,13 @@ describe("App", () => {
 
   it("shows a safe failed status when the job poll returns an error", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-2",
-        state: "running"
-      })
-      .mockResolvedValueOnce({
-        jobId: "job-2",
-        state: "failed",
-        error: { message: "Analysis engine is unavailable." }
-      });
+        state: "running",
+        progressLabel: "Running analysis"
+      }))
+      .mockResolvedValueOnce(failedJobStatus("job-2", "Analysis engine is unavailable."));
 
     render(<App />);
 
@@ -297,24 +387,22 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/analysis engine is unavailable/i)).toBeTruthy();
     });
+    expect(screen.getByRole("alert").textContent).toMatch(/analysis engine is unavailable/i);
   });
 
   it("falls back to a generic failure message when the engine omits details", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-3",
-        state: "running"
-      })
-      .mockResolvedValueOnce({
+        state: "running",
+        progressLabel: "Running analysis"
+      }))
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-3",
         state: "failed",
         error: { code: "engine_unavailable" }
-      });
+      }));
 
     render(<App />);
 
@@ -328,18 +416,16 @@ describe("App", () => {
     });
   });
 
-  it("shows a generic failure when polling rejects", async () => {
+  it("keeps polling the active job when one polling request rejects", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-4",
-        state: "running"
-      })
-      .mockRejectedValueOnce(new Error("transport down"));
+        state: "running",
+        progressLabel: "Running analysis"
+      }))
+      .mockRejectedValueOnce(new Error("transport down"))
+      .mockResolvedValueOnce(succeededResult());
 
     render(<App />);
 
@@ -349,17 +435,19 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/analysis could not start/i)).toBeTruthy();
+      expect(tauriInvoke).toHaveBeenCalledTimes(3);
+    });
+    expect(screen.queryByText(/analysis could not start/i)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: /start analysis/i }).hasAttribute("disabled")).toBe(true);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
   });
 
   it("shows a generic failure when starting the job rejects", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
+      .mockResolvedValueOnce(bootstrapResponse())
       .mockRejectedValueOnce(new Error("invoke failed"));
 
     render(<App />);
@@ -376,16 +464,8 @@ describe("App", () => {
 
   it("shows the direct failure message when start returns a failed job", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
-        jobId: "job-5",
-        state: "failed",
-        error: { message: "Analysis queue is full. Please wait for a running job to finish." }
-      });
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(failedJobStatus("job-5", "Analysis queue is full. Please wait for a running job to finish."));
 
     render(<App />);
 
@@ -401,15 +481,11 @@ describe("App", () => {
 
   it("falls back to generic text when start returns a failed job without details", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
         jobId: "job-6",
         state: "failed"
-      });
+      }));
 
     render(<App />);
 
@@ -425,11 +501,7 @@ describe("App", () => {
 
   it("renders the result immediately when start returns a succeeded job", async () => {
     tauriInvoke
-      .mockResolvedValueOnce({
-        projectId: "project-1",
-        sourceMode: "reference",
-        source: { fileName: "late-night-set.wav" }
-      })
+      .mockResolvedValueOnce(bootstrapResponse())
       .mockResolvedValueOnce(succeededResult());
 
     render(<App />);
@@ -463,28 +535,27 @@ describe("App", () => {
     render(<App />);
 
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=123" } });
-    
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(tauriInvoke).toHaveBeenCalledWith("import_youtube_url", { url: "https://youtube.com/watch?v=123" });
+      expect(tauriInvoke).toHaveBeenCalledWith("import_youtube_url", {
+        url: "https://youtube.com/watch?v=abc123DEF45"
+      });
       expect(screen.getByText(/youtube\.wav/i)).toBeTruthy();
     });
   });
 
   it("handles YouTube import failure with a message", async () => {
-    tauriInvoke.mockResolvedValueOnce({
-      code: "youtube_import_failed",
-      message: "This video is age restricted."
-    });
+    tauriInvoke.mockRejectedValueOnce(new Error("This video is age restricted."));
 
     render(<App />);
 
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=456" } });
-    
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=def456GHI78" } });
+
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);
 
@@ -499,14 +570,92 @@ describe("App", () => {
     render(<App />);
 
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=789" } });
-    
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=ghi789JKL01" } });
+
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Network Error/i)).toBeTruthy();
+    });
+  });
+
+  it("rejects empty YouTube URL", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "   " } });
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    // Button is disabled if youtubeUrl is empty, but we simulate enabling it for coverage
+    // or we can test that the error is set when it somehow triggers, but actually it's disabled.
+    // Wait, the button is disabled if `!youtubeUrl`. `youtubeUrl` is "   ", so button is NOT disabled!
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+  });
+
+  it("rejects malformed YouTube URL", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "not-a-url" } });
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
     });
+  });
+
+  it("rejects non-http YouTube URL", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "ftp://youtube.com/watch?v=abc123DEF45" } });
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+  });
+
+  it("rejects non-allowlisted YouTube URL intake before invoking the bridge", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://example.com/watch?v=abc123DEF45" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+    expect(tauriInvoke).not.toHaveBeenCalled();
+  });
+
+  it("rejects downgraded YouTube URL intake before invoking the bridge", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "http://youtube.com/watch?v=abc123DEF45" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+    expect(tauriInvoke).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate YouTube video parameters even when one is blank", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45&v=" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+    expect(tauriInvoke).not.toHaveBeenCalled();
   });
 
 
@@ -541,6 +690,9 @@ describe("App", () => {
 
     // Should not show error, should remain in empty state
     await waitFor(() => {
+      expect(mockLoadProject).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
       expect(screen.queryByText(/Failed to load project/i)).toBeNull();
     });
   });
@@ -563,6 +715,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
 
     await waitFor(() => {
+      expect(mockLoadProject).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
       expect(screen.queryByText(/Failed to load project/i)).toBeNull();
     });
   });
@@ -578,7 +733,7 @@ describe("App", () => {
     });
 
     mockSaveProject.mockResolvedValueOnce(undefined);
-    
+
     // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
@@ -598,7 +753,7 @@ describe("App", () => {
     });
 
     mockSaveProject.mockRejectedValueOnce(new Error("Permission denied"));
-    
+
     // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
@@ -618,10 +773,13 @@ describe("App", () => {
     });
 
     mockSaveProject.mockRejectedValueOnce(new Error("User cancelled"));
-    
+
     // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
+    await waitFor(() => {
+      expect(mockSaveProject).toHaveBeenCalledTimes(1);
+    });
     await waitFor(() => {
       expect(screen.queryByText(/Failed to save project/i)).toBeNull();
     });
@@ -638,7 +796,7 @@ describe("App", () => {
     });
 
     mockSaveProject.mockRejectedValueOnce("Disk full");
-    
+
     // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
@@ -658,10 +816,13 @@ describe("App", () => {
     });
 
     mockSaveProject.mockRejectedValueOnce("User cancelled");
-    
+
     // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
+    await waitFor(() => {
+      expect(mockSaveProject).toHaveBeenCalledTimes(1);
+    });
     await waitFor(() => {
       expect(screen.queryByText(/Failed to save project/i)).toBeNull();
     });
@@ -681,7 +842,7 @@ describe("App", () => {
     const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Dbmaj7");
 
     // Click on the chord to edit it (assuming SectionRoadmap renders it and allows click to edit)
-    fireEvent.click(screen.getAllByText("C#m7", { selector: 'strong' })[0]);
+    fireEvent.click(screen.getAllByText("C#m7", { selector: 'button' })[0]);
 
     // Wait for the UI to update with the new chord (which verifies handleSongUpdate was called and state updated)
     await waitFor(() => {
@@ -691,9 +852,27 @@ describe("App", () => {
     promptSpy.mockRestore();
   });
 
+  it("handles YouTube import failure with a missing message falling back to generic", async () => {
+    tauriInvoke.mockRejectedValueOnce(new Error(""));
+
+    render(<App />);
+
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=def456GHI78" } });
+
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
+  });
+
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
     const saveButton = screen.getByRole("button", { name: /save project/i });
+    // Remove disabled attribute to force the click for coverage
+    saveButton.removeAttribute("disabled");
     fireEvent.click(saveButton);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });

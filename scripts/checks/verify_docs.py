@@ -1,8 +1,6 @@
 """Verify that required repository documentation files and references exist."""
 
 from pathlib import Path
-import sys
-
 
 REQUIRED_PATHS = [
     Path("README.md"),

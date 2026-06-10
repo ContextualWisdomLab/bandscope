@@ -99,10 +99,16 @@ Exceptions are allowed only when no patched version exists and the advisory is n
 - exceptions must be encoded in repo-controlled workflow/config (not ad-hoc local commands)
 - exceptions must be reviewed and removed once a patched version becomes available
 
-Current controlled exception:
+Current controlled exceptions:
 
-- `GHSA-5239-wwwm-4pmq` (`Pygments <=2.19.2`) in Python dev/test dependency path; no patched version is available at this time, impact is low/local-access ReDoS, and BandScope does not expose Pygments parsing on untrusted runtime input paths. The CI `security-audit` workflow applies a targeted ignore for this advisory only.
-- Cargo audit warnings for legacy `gtk3`, `glib`, and `fxhash` vulnerabilities (e.g. `RUSTSEC-2024-0413`, `RUSTSEC-2024-0429`, `RUSTSEC-2025-0057`) inherited through Tauri v2 `wry`/`webkit2gtk` integration are explicitly allowed. These are deep framework dependencies with no alternative, so they are documented exceptions and ignored by default.
+- No Python vulnerability exceptions are active. `GHSA-5239-wwwm-4pmq` (`Pygments <2.20.0`) was removed by locking `Pygments` to `2.20.0`; the CI `security-audit` workflow must run `pip-audit --local --strict` against the synced `uv` environment without a targeted ignore for that advisory.
+- Cargo audit warnings for legacy `gtk3` vulnerabilities (e.g. `RUSTSEC-2024-0413`) inherited through Tauri v2 `wry`/`webkit2gtk` integration are explicitly allowed. These are deep framework dependencies with no alternative, so they are documented exceptions and ignored by default.
+- `RUSTSEC-2024-0429` for `glib 0.18.5` is allowed only for the `VariantStrIter` advisory inherited through the Tauri/wry/webkit2gtk/gtk GTK3 stack. There is no compatible lockfile-only update that moves this stack to patched `glib >=0.20.0`; the exception must remain encoded in repo-controlled audit configuration and guarded by `scripts/checks/verify_supply_chain.py`, and it must be removed when upstream drops or patches the chain.
+
+Retired third-party deprecation and advisory signal:
+
+- `proc-macro-hack v0.5.20+deprecated`, `RUSTSEC-2025-0057` for `fxhash`, and `RUSTSEC-2026-0097` for legacy `rand 0.7.3` were removed by a compatible Tauri lockfile refresh that moved `tauri` to `2.11.0` and `tauri-utils` to `2.9.0`, dropping the `kuchikiki`/`selectors`/`phf 0.8` owner chain. Do not reintroduce this chain or restore the `RUSTSEC-2026-0097` Cargo audit exception; `scripts/checks/verify_supply_chain.py` rejects any future `rand 0.7.x` lockfile entry.
+- Yanked `fastrand 2.4.0` was transiently inherited through target-specific `wry`/`dom_query` HTML parsing dependencies and must stay updated to `2.4.1` or newer in `apps/desktop/src-tauri/Cargo.lock`; `scripts/checks/verify_supply_chain.py` guards against reintroducing the yanked version.
 
 ## Required checks intent
 

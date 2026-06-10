@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 # Standard sample rate for BandScope analysis
 TARGET_SR = 44100
+KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
+    (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
+    (FutureWarning, r".*Numba.*", r".*numba.*"),
+)
 
 
 class TemporalAnalyzer:
@@ -34,12 +39,26 @@ class TemporalAnalyzer:
         Returns:
             TemporalFeatures containing BPM and beat grids.
         """
-        path_str = str(audio_path)
+        audio_file = Path(audio_path)
+        path_str = str(audio_file)
+        if not audio_file.exists() or not audio_file.is_file():
+            raise FileNotFoundError(f"Audio file not found: {path_str}")
+
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
-            # Load audio, converting to mono and standardizing sample rate
-            y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
+            with warnings.catch_warnings():
+                # Keep the loader's known third-party churn quiet without hiding
+                # unrelated decoder warnings that tests and callers should see.
+                for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
+                    warnings.filterwarnings(
+                        "ignore",
+                        category=category,
+                        message=message,
+                        module=module,
+                    )
+                # Load audio, converting to mono and standardizing sample rate
+                y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):
