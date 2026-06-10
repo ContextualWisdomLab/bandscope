@@ -57,10 +57,11 @@ These controls are expressed by repo workflows and are expected to be connected 
 ## Release evidence baseline
 
 - CycloneDX JSON SBOM must be uploaded as a GitHub Actions artifact
-- CycloneDX JSON SBOM must be attached to the GitHub Release when the workflow runs on a Release event
-- `supply-chain/supplemental-component-inventory.json` must be uploaded as a GitHub Actions artifact and attached to the GitHub Release on Release events
-- packaged desktop artifacts and checksums should remain traceable from the same release record when the release workflow emits them
+- CycloneDX JSON SBOM must be attached to the GitHub Release before publication by the tag-driven draft release flow
+- `supply-chain/supplemental-component-inventory.json` must be uploaded as a GitHub Actions artifact and attached to the GitHub Release before publication
+- packaged desktop artifacts and checksums must remain traceable from the same release record when the release workflow emits them
 - release artifacts should include explicit OS/arch naming for Windows amd64, Windows arm64, macOS amd64, and macOS arm64
+- workflows must not attach assets in response to `release: published`; immutable releases reject post-publication mutation
 
 ## Enforcement note
 
