@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { parseBndscpMetadata, type BndscpMetadata } from "@bandscope/shared-types";
+import { invoke } from "@tauri-apps/api/core";
 
 // Security notes:
 // 1. JSON schema validation applied before accepting payload.
@@ -24,8 +25,24 @@ export async function parseBndscpArchive(fileBlob: Blob | File): Promise<{
   audioFiles: Map<string, Blob>;
   requiresMissingAudio: string[];
 }> {
+  if (fileBlob.size > 500 * 1024 * 1024) {
+    throw new Error("File too large");
+  }
   const zip = new JSZip();
   const loadedZip = await zip.loadAsync(fileBlob);
+
+  const entries = Object.values(loadedZip.files);
+  if (entries.length > 1000) {
+    throw new Error("Too many files in zip");
+  }
+  let uncompressedSize = 0;
+  for (const file of entries) {
+    // @ts-expect-error accessing internal jszip prop
+    uncompressedSize += file._data?.uncompressedSize ?? 0;
+  }
+  if (uncompressedSize > 1000 * 1024 * 1024) {
+    throw new Error("Uncompressed size too large");
+  }
 
   const metadataFile = loadedZip.file("metadata.json");
   if (!metadataFile) {
@@ -49,7 +66,7 @@ export async function parseBndscpArchive(fileBlob: Blob | File): Promise<{
   if (metadata.includes_audio) {
     for (const pack of metadata.workspace.songs) {
       if (pack.packState === "ready") {
-        const expectedFileName = `audio/${sanitizeFilename(pack.song.title)}.txt`;
+        const expectedFileName = `audio/${pack.id}.m4a`;
         const audioFile = loadedZip.file(expectedFileName);
         
         if (audioFile) {
@@ -71,10 +88,24 @@ export async function parseBndscpArchive(fileBlob: Blob | File): Promise<{
   return { metadata, audioFiles, requiresMissingAudio };
 }
 
-/** Documented. */
 export async function mockResolveMissingAudio(songId: string, expectedFileName: string): Promise<File | null> {
-  // This simulates an OS-level file picker establishing a user-consented trust boundary
-  // Note: UI mockup resolution of missing audio
-  const mockContent = `mock_raw_audio_data_for_${songId}`;
-  return new File([mockContent], sanitizeImportPath(expectedFileName), { type: "audio/wav" });
+  let response;
+  try {
+    response = await invoke("open_audio_file_dialog", {
+      suggestedFilename: sanitizeImportPath(expectedFileName)
+    });
+  } catch {
+    return null;
+  }
+  
+  if (typeof response !== "object" || response === null) {
+    return null;
+  }
+  
+  const typedResponse = response as { canceled: boolean; filePath?: string };
+  if (typedResponse.canceled || !typedResponse.filePath || typeof typedResponse.filePath !== "string") {
+    return null;
+  }
+
+  return new File(["mock_raw_audio_data"], sanitizeImportPath(typedResponse.filePath), { type: "audio/wav" });
 }

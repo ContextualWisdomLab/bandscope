@@ -80,7 +80,7 @@ export async function generateBndscpArchive(
 
   const metadata: BndscpMetadata = {
     workspace,
-    analysis_engine_version: "1.1.0", // mock version
+    analysis_engine_version: process.env.ANALYSIS_ENGINE_VERSION || "1.1.0", // mock version
     includes_audio: includeAudio
   };
 
@@ -92,7 +92,7 @@ export async function generateBndscpArchive(
       for (const song of workspace.songs) {
         if (song.packState === "ready") {
           // Mocking the 64kbps mixdown audio file since compression is handled by python engine
-          audioFolder.file(`${sanitizeFilename(song.song.title)}.txt`, "MOCK_COMPRESSED_AUDIO_DATA");
+          audioFolder.file(`${song.id}.m4a`, "MOCK_COMPRESSED_AUDIO_DATA");
         }
       }
     }

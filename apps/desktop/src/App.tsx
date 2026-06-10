@@ -64,8 +64,16 @@ export function App() {
   useEffect(() => {
     let unmounted = false;
     let unlistenFn: (() => void) | undefined;
+    const updateMissingAudio = (ws: RehearsalWorkspace) => {
+      const missing = ws.songs.filter(s => s.packState === "missing_audio").map(s => s.id);
+      setMissingAudio(missing);
+    };
+
     const unlistenPromise = subscribeToWorkspaceUpdates((ws) => {
-      if (!unmounted) setWorkspace(ws);
+      if (!unmounted) {
+        setWorkspace(ws);
+        updateMissingAudio(ws);
+      }
     });
     
     unlistenPromise.then(u => {
@@ -77,7 +85,10 @@ export function App() {
     });
 
     getWorkspaceState().then(ws => {
-      if (!unmounted && ws) setWorkspace(ws);
+      if (!unmounted && ws) {
+        setWorkspace(ws);
+        updateMissingAudio(ws);
+      }
     });
 
     return () => {
@@ -192,7 +203,7 @@ export function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${workspace.title.replace(/\\s+/g, "_") || "workspace"}.bndscp`;
+      a.download = `${workspace.title.replace(/\s+/g, "_") || "workspace"}.bndscp`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -243,7 +254,7 @@ export function App() {
           sourceLabel: file.name,
           roleFocus: defaultRequest.roleFocus
         });
-        setMissingAudio(prev => prev.filter(id => id !== packId));
+        // missingAudio will be updated by workspace state
       }
     } catch (e) {
       setWorkspaceError(`Failed to resolve audio: ${e instanceof Error ? e.message : "Unknown error"}`);
