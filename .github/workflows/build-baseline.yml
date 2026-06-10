@@ -46,6 +46,7 @@ jobs:
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "0.8.6"
+          enable-cache: false
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal
       - name: Add Windows target
@@ -123,6 +124,7 @@ jobs:
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "0.8.6"
+          enable-cache: false
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal
       - name: Add Windows arm target
@@ -211,6 +213,7 @@ jobs:
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "0.8.6"
+          enable-cache: false
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal
       - name: Add macOS Intel target
@@ -256,6 +259,7 @@ jobs:
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           version: "0.8.6"
+          enable-cache: false
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal
       - name: Add macOS arm target
