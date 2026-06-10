@@ -5,6 +5,7 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 """
 
 import argparse
+import glob
 import json
 import os
 import sys
@@ -100,9 +101,9 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             if not os.path.exists(actual_filepath):
                 # Try to find the file with a different extension in case of conversion
                 base_path = os.path.splitext(actual_filepath)[0]
-                for ext in [".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg"]:
-                    if os.path.exists(base_path + ext):
-                        actual_filepath = base_path + ext
+                for match in glob.iglob(glob.escape(base_path) + ".*"):
+                    if match.endswith((".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg")):
+                        actual_filepath = match
                         break
                 else:
                     return {

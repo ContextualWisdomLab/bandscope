@@ -88,18 +88,16 @@ def test_download_youtube_audio_converted_extension(
     mock_ydl.extract_info.return_value = mock_info
     mock_ydl.prepare_filename.return_value = "/tmp/123.webm"
 
-    # os.path.exists returns False for .webm, but True for .opus
-    def exists_side_effect(path: str) -> bool:
-        """Mock exists function to simulate converted extension file presence."""
-        return path == "/tmp/123.opus"
-
-    mock_exists.side_effect = exists_side_effect
+    mock_exists.return_value = False
     mock_getsize.return_value = 10 * 1024 * 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    with patch("bandscope_analysis.youtube.glob.iglob") as mock_iglob:
+        mock_iglob.return_value = iter(["/tmp/123.opus"])
 
-    assert result["ok"] is True
-    assert result["metadata"]["filepath"] == "/tmp/123.opus"
+        result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+
+        assert result["ok"] is True
+        assert result["metadata"]["filepath"] == "/tmp/123.opus"
 
 
 @patch("bandscope_analysis.youtube.os.path.exists")
