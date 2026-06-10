@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { type RehearsalSong } from "@bandscope/shared-types";
 
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
@@ -29,7 +30,7 @@ vi.mock("./lib/analysis", async (importActual) => {
 });
 
 
-function wrapInWorkspace(song: any) {
+function wrapInWorkspace(song: RehearsalSong) {
   return {
     id: "ws-test",
     title: song.title || "Untitled",

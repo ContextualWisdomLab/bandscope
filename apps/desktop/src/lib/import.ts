@@ -13,11 +13,6 @@ export function sanitizeImportPath(filePath: string): string {
   return filePath.split(/[/\\]/).pop() || "unknown";
 }
 
-/** Documented. */
-function sanitizeFilename(title: string): string {
-  // Matches export.ts logic
-  return title.replace(/[^a-zA-Z0-9_\-\s]/g, "_").trim() || "export";
-}
 
 /** Documented. */
 export async function parseBndscpArchive(fileBlob: Blob | File): Promise<{
@@ -88,6 +83,7 @@ export async function parseBndscpArchive(fileBlob: Blob | File): Promise<{
   return { metadata, audioFiles, requiresMissingAudio };
 }
 
+/** Documented. */
 export async function mockResolveMissingAudio(songId: string, expectedFileName: string): Promise<File | null> {
   let response;
   try {

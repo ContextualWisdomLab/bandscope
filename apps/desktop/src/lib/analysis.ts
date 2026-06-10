@@ -7,13 +7,11 @@ import {
   parseAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
-  parseRehearsalSong,
   parseRehearsalWorkspace,
   type AnalysisJobError,
   type AnalysisJobRequest,
   type AnalysisJobStatus,
   type ProjectBootstrapSummary,
-  type RehearsalSong,
   type RehearsalWorkspace
 } from "@bandscope/shared-types";
 
