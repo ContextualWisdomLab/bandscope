@@ -80,6 +80,7 @@ def main() -> int:
     # Validate request
     try:
         from bandscope_analysis.api import validate_analysis_job_request
+
         validate_analysis_job_request(request)
         is_valid = True
     except Exception:
@@ -105,6 +106,7 @@ def main() -> int:
                 logging.info(f"Performing stem separation on {audio_path}...")
                 # We do not swallow exceptions here per code review
                 import librosa
+
                 from bandscope_analysis.separation.audio_separator import AudioStemSeparator
 
                 # Load only the first 10 seconds for the CLI proof to prevent hanging
