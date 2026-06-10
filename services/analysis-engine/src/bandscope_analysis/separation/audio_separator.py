@@ -62,7 +62,7 @@ class AudioStemSeparator:
             if not sha256_hash.hexdigest().startswith(expected_prefix):
                 raise RuntimeError("Model checksum mismatch")
 
-            self._model = load_model(model_file)
+            self._model = load_model(model_file)  # type: ignore[no-untyped-call]
             if self._model:
                 self._model.eval()
         return self._model
