@@ -24,9 +24,10 @@ export function parseDeepLink(uri: string): ParsedDeepLink | null {
   if (!match) {
     return null;
   }
+  const [, songId, sectionId] = match;
+  if (!songId || !sectionId) {
+    return null;
+  }
 
-  return {
-    songId: match[1],
-    sectionId: match[2],
-  };
+  return { songId, sectionId };
 }

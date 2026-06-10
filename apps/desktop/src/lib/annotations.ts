@@ -18,8 +18,14 @@ export function mergeAnnotations(existing: Annotation[] = [], incoming: Annotati
     }
   }
 
-  // Sort by timestamp to maintain log order
-  merged.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-  return merged;
+  const mergedWithIndex = merged.map((item, index) => ({ item, index }));
+  mergedWithIndex.sort((a, b) => {
+    const ta = Date.parse(a.item.timestamp);
+    const tb = Date.parse(b.item.timestamp);
+    const tsa = Number.isFinite(ta) ? ta : 0;
+    const tsb = Number.isFinite(tb) ? tb : 0;
+    if (tsa !== tsb) return tsa - tsb;
+    return a.index - b.index;
+  });
+  return mergedWithIndex.map(x => x.item);
 }

@@ -10,10 +10,10 @@ Band leaders need to communicate specific simplification requirements ("play roo
 ## Scope
 - **Assignment Semantics**: Allow assigning specific roles to specific band members within the shared workspace.
 - **Contextual Comments**: Enable adding text annotations directly to specific sections or roles in the `SongRehearsalPack` (e.g., "Simplify bassline in Chorus 2").
-- **Approvals & Status**: Let band members mark their assigned parts as "Ready" or "Needs Help."
-- **Cloud Sync Backbone**: Introduce an opt-in cloud synchronization mechanism to replace local file sharing, allowing real-time or near-real-time updates to the rehearsal workspace.
 
 ## Out of Scope
+- **Approvals & Status**: Let band members mark their assigned parts as "Ready" or "Needs Help."
+- **Cloud Sync Backbone**: Introduce an opt-in cloud synchronization mechanism to replace local file sharing, allowing real-time or near-real-time updates to the rehearsal workspace.
 - Built-in audio/video calling.
 - Complex branching/version control of rehearsal workspaces.
 - Deep integration with external task managers (Jira, Trello).

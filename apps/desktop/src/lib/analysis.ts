@@ -7,11 +7,13 @@ import {
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
+  parseRehearsalWorkspace,
   type AnalysisJobError,
   type AnalysisJobRequest,
   type AnalysisJobStatus,
   type ProjectBootstrapSummary,
-  type RehearsalSong
+  type RehearsalSong,
+  type RehearsalWorkspace
 } from "@bandscope/shared-types";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -196,13 +198,13 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
 }
 
 /** Documented. */
-export async function saveProject(song: RehearsalSong): Promise<void> {
-  const parsedSong = parseRehearsalSong(song);
-  await invokeAnalysis("save_project", { payload: parsedSong });
+export async function saveProject(workspace: RehearsalWorkspace): Promise<void> {
+  const parsedWorkspace = parseRehearsalWorkspace(workspace);
+  await invokeAnalysis("save_project", { payload: parsedWorkspace });
 }
 
 /** Documented. */
-export async function loadProject(): Promise<RehearsalSong> {
+export async function loadProject(): Promise<RehearsalWorkspace> {
   const response = await invokeAnalysis("load_project");
-  return parseRehearsalSong(response);
+  return parseRehearsalWorkspace(response);
 }

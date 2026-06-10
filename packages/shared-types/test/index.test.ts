@@ -944,7 +944,7 @@ describe("shared type helpers", () => {
       song: { id: "demo-song", title: "Demo", sections: [], exportSummary: {format:"cue-sheet", focusSections:[], headline:""} },
       engineState: "succeeded"
     };
-    const validAnnotation = { id: "1", timestamp: 0, text: "t", sectionId: "s1", roleId: "r1" };
+    const validAnnotation = { id: "1", timestamp: "1970-01-01T00:00:00.000Z", text: "t", sectionId: "s1", roleId: "r1" };
     expect(() => parseSongRehearsalPack({ ...validPack, packState: "ready", annotations: [{...validAnnotation, extra: 1}] })).toThrow("extra");
     expect(() => parseSongRehearsalPack({ ...validPack, packState: "ready", annotations: [{...validAnnotation, id: 1}] })).toThrow("id");
   });

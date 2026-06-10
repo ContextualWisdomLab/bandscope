@@ -181,20 +181,9 @@ export function App() {
    * Handles loading an existing project from disk.
    */
   const handleLoadProject = async () => {
-    // TODO: loadProject needs to be updated to return a RehearsalWorkspace instead of RehearsalSong (Issue #xx)
     try {
-      const song = await loadProject();
-      setWorkspace({
-        id: "loaded-ws",
-        title: "Loaded Workspace",
-        workspaceVersion: 1,
-        songs: [{
-          id: "loaded-pack",
-          packState: "ready",
-          sourceLabel: song.title,
-          song: song
-        }]
-      });
+      const loadedWorkspace = await loadProject();
+      setWorkspace(loadedWorkspace);
       setWorkspaceError(null);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
@@ -207,13 +196,9 @@ export function App() {
    * Handles saving the current project to disk.
    */
   const handleSaveProject = async () => {
-    // Note: saveProject needs to be updated to accept a RehearsalWorkspace.
-    // For now we just save the first ready song.
     if (!workspace) return;
-    const readyPack = workspace.songs.find(s => s.packState === "ready");
-    if (!readyPack || !("song" in readyPack)) return;
     try {
-      await saveProject(readyPack.song);
+      await saveProject(workspace);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
         setWorkspaceError(`Failed to save project: ${e.message}`);
@@ -354,7 +339,11 @@ export function App() {
                   if (pack) {
                     pack.annotations = mergeAnnotations(pack.annotations, [ann]);
                     setWorkspace(updatedWorkspace);
-                    // In a real app we might also sync back to disk here
+                    saveProject(updatedWorkspace).catch(e => {
+                      if (e instanceof Error && e.message !== "User cancelled") {
+                        setWorkspaceError(`Failed to auto-save annotations: ${e.message}`);
+                      }
+                    });
                   }
                 }
               }}

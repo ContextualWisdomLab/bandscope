@@ -1139,17 +1139,17 @@ function validateAnnotation(value: unknown, path: string): string | null {
   if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["id", "timestamp", "text", "sectionId", "roleId"], path);
   if (extraKey) return extraKey;
-  if (typeof value.id !== "string") return invalidField(`${path}.id`);
-  if (typeof value.timestamp !== "string") return invalidField(`${path}.timestamp`);
-  if (typeof value.text !== "string") return invalidField(`${path}.text`);
-  if (typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
-  if (value.roleId !== undefined && typeof value.roleId !== "string") return invalidField(`${path}.roleId`);
+  if (typeof value.id !== "string" || value.id.trim().length === 0) return invalidField(`${path}.id`);
+  if (typeof value.timestamp !== "string" || isNaN(Date.parse(value.timestamp))) return invalidField(`${path}.timestamp`);
+  if (typeof value.text !== "string" || value.text.trim().length === 0) return invalidField(`${path}.text`);
+  if (typeof value.sectionId !== "string" || value.sectionId.trim().length === 0) return invalidField(`${path}.sectionId`);
+  if (value.roleId !== undefined && (typeof value.roleId !== "string" || value.roleId.trim().length === 0)) return invalidField(`${path}.roleId`);
   return null;
 }
 
 /** Documented. */
 export function validateBandScopeUri(uri: string): boolean {
-  return /^bandscope:\/\/song\/[a-zA-Z0-9-]+\/section\/[a-zA-Z0-9-]+$/.test(uri);
+  return /^bandscope:\/\/song\/[a-zA-Z0-9-]{1,64}\/section\/[a-zA-Z0-9-]{1,64}$/.test(uri);
 }
 
 /** Documented. */
