@@ -48,7 +48,9 @@ class AudioStemSeparator:
             model_file = cache_dir / f"{expected_prefix}-ba3fe64a.th"
 
             if not model_file.exists():
-                raise RuntimeError(f"Pre-provisioned model {self.model_name} not found at {model_file}")
+                raise RuntimeError(
+                    f"Pre-provisioned model {self.model_name} not found at {model_file}"
+                )
 
             # Verify checksum
             sha256_hash = hashlib.sha256()

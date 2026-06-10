@@ -26,7 +26,14 @@ def mock_demucs_model():
 @mock.patch("hashlib.sha256")
 @mock.patch("builtins.open", new_callable=mock.mock_open)
 def test_audio_stem_separator(
-    mock_open_file, mock_sha256, mock_exists, mock_load_model, mock_apply_model, mock_convert_audio, mock_logger, mock_demucs_model
+    mock_open_file,
+    mock_sha256,
+    mock_exists,
+    mock_load_model,
+    mock_apply_model,
+    mock_convert_audio,
+    mock_logger,
+    mock_demucs_model,
 ):
     """Test that the AudioStemSeparator correctly coordinates the mock Demucs model."""
     import torch
