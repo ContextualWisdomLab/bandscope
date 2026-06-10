@@ -1,4 +1,5 @@
-import type { RehearsalSong } from "@bandscope/shared-types";
+import JSZip from "jszip";
+import type { RehearsalSong, RehearsalWorkspace, BndscpMetadata } from "@bandscope/shared-types";
 
 // Security notes:
 // 1. Filename sanitization to prevent directory traversal or invalid characters.
@@ -69,3 +70,34 @@ export function generateChartSummaryJson(song: RehearsalSong): string {
   };
   return JSON.stringify(summary, null, 2);
 }
+
+/** Documented. */
+export async function generateBndscpArchive(
+  workspace: RehearsalWorkspace,
+  includeAudio: boolean
+): Promise<Blob> {
+  const zip = new JSZip();
+
+  const metadata: BndscpMetadata = {
+    workspace,
+    analysis_engine_version: process.env.ANALYSIS_ENGINE_VERSION || "1.1.0", // mock version
+    includes_audio: includeAudio
+  };
+
+  zip.file("metadata.json", JSON.stringify(metadata, null, 2));
+
+  if (includeAudio) {
+    const audioFolder = zip.folder("audio");
+    if (audioFolder) {
+      for (const song of workspace.songs) {
+        if (song.packState === "ready") {
+          // Mocking the 64kbps mixdown audio file since compression is handled by python engine
+          audioFolder.file(`${song.id}.m4a`, "MOCK_COMPRESSED_AUDIO_DATA");
+        }
+      }
+    }
+  }
+
+  return await zip.generateAsync({ type: "blob" });
+}
+

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeFilename, escapeCsvField, generateCueSheetCsv, generateChartSummaryJson } from "./export";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import { sanitizeFilename, escapeCsvField, generateCueSheetCsv, generateChartSummaryJson, generateBndscpArchive } from "./export";
+import type { RehearsalSong, RehearsalWorkspace } from "@bandscope/shared-types";
+import JSZip from "jszip";
 
 describe("export sanitization", () => {
   it("sanitizes filename correctly", () => {
@@ -78,5 +79,70 @@ describe("export generation", () => {
     const jsonStr = generateChartSummaryJson(mockSongNoHeadline);
     const parsed = JSON.parse(jsonStr);
     expect(parsed.headline).toBe("");
+  });
+});
+
+describe("generateBndscpArchive", () => {
+  it("generates zip archive with metadata and audio text mock", async () => {
+    const mockWorkspace: RehearsalWorkspace = {
+      id: "ws1",
+      title: "My WS",
+      workspaceVersion: 1,
+      songs: [
+        {
+          id: "pack1",
+          packState: "ready",
+          sourceLabel: "song1.wav",
+          song: {
+            id: "s1",
+            title: "My Song",
+            sections: [],
+            exportSummary: { format: "cue-sheet", headline: "", focusSections: [] }
+          }
+        },
+        {
+          id: "pack2",
+          packState: "failed",
+          sourceLabel: "song2.wav",
+          error: { code: "not_found", message: "Error" }
+        }
+      ]
+    };
+    
+    const blobWithAudio = await generateBndscpArchive(mockWorkspace, true);
+    expect(blobWithAudio).toBeInstanceOf(Blob);
+    
+    const zip = new JSZip();
+    const loadedZip = await zip.loadAsync(blobWithAudio);
+    
+    const metadataStr = await loadedZip.file("metadata.json")?.async("string");
+    expect(metadataStr).toBeDefined();
+    const metadata = JSON.parse(metadataStr!);
+    expect(metadata.includes_audio).toBe(true);
+    expect(metadata.workspace.id).toBe("ws1");
+    
+    const audioText = await loadedZip.file("audio/pack1.m4a")?.async("string");
+    expect(audioText).toBe("MOCK_COMPRESSED_AUDIO_DATA");
+  });
+
+  it("generates zip archive without audio", async () => {
+    const mockWorkspace: RehearsalWorkspace = {
+      id: "ws1",
+      title: "My WS",
+      workspaceVersion: 1,
+      songs: []
+    };
+    
+    const blobWithoutAudio = await generateBndscpArchive(mockWorkspace, false);
+    
+    const zip = new JSZip();
+    const loadedZip = await zip.loadAsync(blobWithoutAudio);
+    
+    const metadataStr = await loadedZip.file("metadata.json")?.async("string");
+    const metadata = JSON.parse(metadataStr!);
+    expect(metadata.includes_audio).toBe(false);
+    
+    const allFiles = Object.keys(loadedZip.files);
+    expect(allFiles).not.toContain("audio/My_Song.txt");
   });
 });
