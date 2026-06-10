@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 # Standard sample rate for BandScope analysis
 TARGET_SR = 44100
+KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
+    (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
+    (FutureWarning, r".*Numba.*", r".*numba.*"),
+)
 
 
 class TemporalAnalyzer:
@@ -46,6 +50,17 @@ class TemporalAnalyzer:
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
                 warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
+                
+                # Keep the loader's known third-party churn quiet without hiding
+                # unrelated decoder warnings that tests and callers should see.
+                for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
+                    warnings.filterwarnings(
+                        "ignore",
+                        category=category,
+                        message=message,
+                        module=module,
+                    )
+                # Load audio, converting to mono and standardizing sample rate
                 y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
 
             # Ensure it's a 1D float array for librosa
