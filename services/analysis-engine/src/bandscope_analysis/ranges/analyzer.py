@@ -53,22 +53,19 @@ def _parse_note(note: str) -> tuple[str, int]:
     """
     if not note:
         return ("C", 4)
-    # Find the boundary between note name and octave number by scanning
-    # from the end of the string. Octave digits appear at the tail.
-    for i in range(len(note) - 1, -1, -1):
-        if note[i].isdigit() or (note[i] == "-" and i < len(note) - 1):
-            # Still in the octave portion; continue scanning left.
-            pass
-        else:
-            # Found the last non-digit character; split here.
-            name = note[: i + 1]
-            octave_str = note[i + 1 :]
-            is_negative_octave = octave_str.startswith("-") and octave_str[1:].isdigit()
-            if octave_str and (octave_str.isdigit() or is_negative_octave):
-                return (name, int(octave_str))
-            return (name, 4)
-    # Entire string was digits (edge case); return as-is with default octave.
-    return (note, 4)
+    import re
+    
+    match = re.match(r"^([A-Ga-g](?:#|b|sharp|flat)?)(.*)$", note)
+    if not match:
+        return (note, 4)
+        
+    name, octave_str = match.groups()
+    if octave_str == "":
+        return (name, 4)
+    if octave_str == "-" or not re.match(r"^-?\d+$", octave_str):
+        return (name, 4)
+        
+    return (name, int(octave_str))
 
 
 def _note_to_midi(note: str) -> int:
