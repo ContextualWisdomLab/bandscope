@@ -6,6 +6,7 @@ import {
   createDemoRehearsalSong,
   isRehearsalSong,
   isAnalysisJobStatus,
+  parseAnalysisJobStatus,
   parseLocalAudioSource,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
@@ -21,6 +22,7 @@ import {
   type AnalysisJobRequest,
   type LocalAudioSource,
   type RehearsalSong,
+  MAX_SECTION_TIME_SECONDS,
   SUPPORTED_AUDIO_FORMATS
 } from "../src/index";
 
@@ -95,6 +97,19 @@ describe("shared type helpers", () => {
       extraField: true
     })).toThrow("extraField");
     expect(isAnalysisJobStatus(status)).toBe(true);
+    const legacyResult = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacyResult.sections[0]!.timeRange;
+    const legacyStatus = {
+      jobId: "job-legacy",
+      state: "succeeded",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      result: legacyResult
+    };
+    expect(isAnalysisJobStatus(legacyStatus)).toBe(false);
+    expect(parseAnalysisJobStatus(legacyStatus).result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
     expect(failedStatus).toEqual({
       jobId: "job-failed",
       state: "failed",
@@ -362,6 +377,10 @@ describe("shared type helpers", () => {
         {
           id: "verse-1",
           label: "verse",
+          timeRange: {
+            start: 10,
+            end: 30
+          },
           confidence: {
             level: "medium",
             source: "model"
@@ -470,6 +489,12 @@ describe("shared type helpers", () => {
 
     expect(parsed.sections[0]?.roles).toHaveLength(2);
     expect(song.sections[0]?.roles).toHaveLength(3);
+    const legacySong = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacySong.sections[0]!.timeRange;
+    const migrated = parseRehearsalSong(legacySong);
+    expect(migrated.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
     expect(() => parseRehearsalSong(null)).toThrow("Invalid rehearsal song contract");
     expect(() => parseRehearsalSong({
       id: "bad",
@@ -637,6 +662,55 @@ describe("shared type helpers", () => {
         message: "sections[0].groove",
         payload: createInvalidSong((song) => {
           (song.sections[0] as RehearsalSong["sections"][number]).groove = 4 as never;
+        })
+      },
+      {
+        message: "sections[0].timeRange",
+        payload: createInvalidSong((song) => {
+          (song.sections[0] as unknown as Record<string, unknown>).timeRange = null;
+        })
+      },
+      {
+        message: "sections[0].timeRange.extraField",
+        payload: createInvalidSong((song) => {
+          (song.sections[0]!.timeRange as unknown as Record<string, unknown>).extraField = true;
+        })
+      },
+      {
+        message: "sections[0].timeRange.start",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.start = -1;
+        })
+      },
+      {
+        message: "sections[0].timeRange.start",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.start = 10.5;
+        })
+      },
+      {
+        message: "sections[0].timeRange.end",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.end = 10;
+        })
+      },
+      {
+        message: "sections[0].timeRange.end",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.end = 30.5;
+        })
+      },
+      {
+        message: "sections[0].timeRange.start",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.start = MAX_SECTION_TIME_SECONDS + 1;
+          song.sections[0]!.timeRange.end = MAX_SECTION_TIME_SECONDS + 2;
+        })
+      },
+      {
+        message: "sections[0].timeRange.end",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.timeRange.end = MAX_SECTION_TIME_SECONDS + 1;
         })
       },
       {
@@ -900,6 +974,24 @@ describe("shared type helpers", () => {
     expect(isRehearsalWorkspace(validWorkspace)).toBe(true);
     expect(parseRehearsalWorkspace(validWorkspace)).toEqual(validWorkspace);
 
+    const legacyNestedSong = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacyNestedSong.sections[0]!.timeRange;
+    const legacyNestedPack = {
+      ...validPack,
+      song: legacyNestedSong as unknown as RehearsalSong
+    };
+    const parsedLegacyPack = parseSongRehearsalPack(legacyNestedPack);
+    const parsedLegacyWorkspace = parseRehearsalWorkspace({
+      ...validWorkspace,
+      songs: [legacyNestedPack]
+    });
+
+    expect(parsedLegacyPack.song.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+    expect(isRehearsalWorkspace({ ...validWorkspace, songs: [legacyNestedPack] })).toBe(false);
+    expect(parsedLegacyWorkspace.songs[0]?.song?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+
     // Invalid packs
     expect(() => parseSongRehearsalPack({ ...validPack, packState: "invalid" })).toThrow("packState");
     expect(() => parseSongRehearsalPack({ ...validPack, extraField: true })).toThrow("extraField");
@@ -937,7 +1029,6 @@ describe("shared type helpers", () => {
     expect(() => parseSongRehearsalPack({ ...validPack, id: 123 })).toThrow("id");
     expect(() => parseSongRehearsalPack({ ...validPack, sourceLabel: 123 })).toThrow("sourceLabel");
   });
-
   it("validates BndscpMetadata", () => {
     const validWorkspace: RehearsalWorkspace = {
       id: "ws-1",

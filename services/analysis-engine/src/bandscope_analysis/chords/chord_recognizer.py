@@ -73,9 +73,18 @@ class ChordRecognizer:
         except Exception:
             y_harmonic = y
 
-        # Extract chromagram
+        # Extract chromagram. CQT is better for harmony, but librosa warns on short clips after
+        # recursive downsampling; STFT keeps those clips warning-free and still returns chroma.
         try:
-            chromagram = librosa.feature.chroma_cqt(y=y_harmonic, sr=sr)
+            if len(y_harmonic) <= sr * 2:
+                chromagram = librosa.feature.chroma_stft(
+                    y=y_harmonic,
+                    sr=sr,
+                    n_fft=min(2048, len(y_harmonic)),
+                    hop_length=512,
+                )
+            else:
+                chromagram = librosa.feature.chroma_cqt(y=y_harmonic, sr=sr)
         except Exception:
             return []
 

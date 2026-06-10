@@ -1,4 +1,4 @@
-"""Test ML role analysis module."""
+"""Tests for the ML role extraction module."""
 
 from unittest.mock import patch
 
@@ -7,7 +7,7 @@ import numpy as np
 from bandscope_analysis.roles.extractor import RoleExtractor
 
 
-def test_role_extractor_with_audio_features():
+def test_role_extractor_with_audio_features() -> None:
     """Test for test_role_extractor_with_audio_features."""
     extractor = RoleExtractor()
     sections = [{"id": "intro"}]
@@ -64,7 +64,7 @@ def test_role_extractor_with_audio_features():
         assert bass_role["harmony"]["chord"] == "Emaj"
 
 
-def test_role_extractor_with_audio_features_empty_results():
+def test_role_extractor_with_audio_features_empty_results() -> None:
     """Test for test_role_extractor_with_audio_features_empty_results."""
     extractor = RoleExtractor()
     sections = [{"id": "intro"}]
@@ -99,7 +99,7 @@ def test_role_extractor_with_audio_features_empty_results():
         assert vocal_role["harmony"]["chord"] == "C#m7"
 
 
-def test_role_extractor_with_audio_features_exception():
+def test_role_extractor_with_audio_features_exception() -> None:
     """Test for test_role_extractor_with_audio_features_exception."""
     extractor = RoleExtractor()
     sections = [{"id": "intro"}]

@@ -3,7 +3,8 @@ import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
   createDemoRehearsalSong,
-  isAnalysisJobStatus,
+  createProjectBootstrapSummary,
+  parseAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
@@ -18,6 +19,9 @@ type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<
 
 declare global {
   interface Window {
+    __TAURI_INTERNALS__?: {
+      invoke?: unknown;
+    };
     __TAURI_INVOKE__?: TauriInvoke;
   }
 }
@@ -31,6 +35,7 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   "Could not prepare the local cache workspace.",
   "Could not prepare the local temp workspace."
 ]);
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
 /** Documented. */
 export type LocalAudioSelectionResult =
@@ -43,7 +48,49 @@ function getInvoke(): TauriInvoke | null {
     return null;
   }
 
-  return window.__TAURI_INVOKE__ ?? invoke;
+  // Detect Tauri v2 only when its invoke bridge is actually available.
+  const tauriInternals = window.__TAURI_INTERNALS__;
+  if (tauriInternals && typeof tauriInternals.invoke === "function") {
+    return invoke;
+  }
+
+  // Detect the legacy test/dev shim.
+  if (typeof window.__TAURI_INVOKE__ === "function") {
+    return window.__TAURI_INVOKE__;
+  }
+
+  return null;
+}
+
+/** Documented. */
+export function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
+  if (typeof rawUrl !== "string") {
+    return false;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsedUrl.protocol !== "https:") {
+    return false;
+  }
+
+  const host = parsedUrl.hostname.toLowerCase();
+  if (host === "youtu.be") {
+    const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
+    return pathSegments.length === 1 && YOUTUBE_VIDEO_ID_PATTERN.test(pathSegments[0]!);
+  }
+
+  if (host === "youtube.com" || host === "www.youtube.com") {
+    const videoIds = parsedUrl.searchParams.getAll("v");
+    return parsedUrl.pathname === "/watch" && videoIds.length === 1 && YOUTUBE_VIDEO_ID_PATTERN.test(videoIds[0]!);
+  }
+
+  return false;
 }
 
 /** Documented. */
@@ -95,6 +142,26 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
 
   if (command === "save_project") {
     return;
+  }
+
+  if (command === "import_youtube_url") {
+    if (!isSupportedYoutubeUrl(args?.url)) {
+      throw new Error("Only standard YouTube URLs are supported.");
+    }
+
+    const projectId = "browser-youtube-project";
+    return createProjectBootstrapSummary({
+      projectId,
+      projectRoot: `browser://bandscope/projects/${projectId}`,
+      cacheRoot: `browser://bandscope/cache/${projectId}`,
+      tempRoot: `browser://bandscope/temp/${projectId}`,
+      source: {
+        sourcePath: `browser://bandscope/temp/${projectId}/youtube-preview.m4a`,
+        fileName: "youtube-preview.m4a",
+        extension: "m4a",
+        fileSizeBytes: 1
+      }
+    });
   }
 
   if (command === "load_project") {
@@ -160,23 +227,35 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
   const response = await invokeAnalysis("start_analysis_job", {
     request: parsedRequest
   });
-  if (!isAnalysisJobStatus(response)) {
+  try {
+    return parseAnalysisJobStatus(response);
+  } catch {
     throw new Error("Invalid analysis job status response");
   }
-  return response;
 }
 
 /** Documented. */
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
-  if (!isAnalysisJobStatus(response)) {
+  try {
+    return parseAnalysisJobStatus(response);
+  } catch {
     throw new Error("Invalid analysis job status response");
   }
-  return response;
 }
 
 /** Documented. */
 export async function importYoutubeUrl(url: string): Promise<LocalAudioSelectionResult> {
+  if (!isSupportedYoutubeUrl(url)) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Only standard YouTube URLs are supported."
+      }
+    };
+  }
+
   try {
     const response = await invokeAnalysis("import_youtube_url", { url });
     return {
@@ -184,7 +263,7 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       bootstrap: parseProjectBootstrapSummary(response)
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : (typeof error === 'string' ? error : "YouTube import failed.");
+    const message = error instanceof Error ? error.message : (typeof error === "string" ? error : "YouTube import failed.");
     return {
       ok: false,
       error: {
