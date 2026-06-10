@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,10 @@ logger = logging.getLogger(__name__)
 TARGET_SR = 44100
 MAX_AUDIO_FILE_BYTES = 100 * 1024 * 1024  # 100 MiB
 MAX_ANALYSIS_DURATION_SECONDS = 15 * 60  # 15 minutes
+KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
+    (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
+    (FutureWarning, r".*Numba.*", r".*numba.*"),
+)
 
 
 class TemporalAnalyzer:
@@ -39,6 +44,9 @@ class TemporalAnalyzer:
         """
         path = Path(audio_path)
         path_str = str(path)
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(f"Audio file not found: {path_str}")
+
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
@@ -50,13 +58,23 @@ class TemporalAnalyzer:
                         f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
                     )
 
-                # Load audio, converting to mono and standardizing sample rate
-                y, sr = librosa.load(
-                    fileobj,
-                    sr=TARGET_SR,
-                    mono=True,
-                    duration=MAX_ANALYSIS_DURATION_SECONDS,
-                )
+                with warnings.catch_warnings():
+                    # Keep the loader's known third-party churn quiet without hiding
+                    # unrelated decoder warnings that tests and callers should see.
+                    for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
+                        warnings.filterwarnings(
+                            "ignore",
+                            category=category,
+                            message=message,
+                            module=module,
+                        )
+                    # Load audio, converting to mono and standardizing sample rate
+                    y, sr = librosa.load(
+                        fileobj,
+                        sr=TARGET_SR,
+                        mono=True,
+                        duration=MAX_ANALYSIS_DURATION_SECONDS,
+                    )
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):

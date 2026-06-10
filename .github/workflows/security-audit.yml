@@ -13,6 +13,11 @@ on:
 permissions:
   contents: read
 
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+
 jobs:
   audit:
     name: security-audit
@@ -35,12 +40,8 @@ jobs:
         run: npm audit --workspaces --audit-level=high
       - name: Sync Python dependencies
         run: uv sync --project services/analysis-engine --group dev --frozen
-      - name: Export Python lock for audit
-        working-directory: services/analysis-engine
-        run: uv export --frozen --no-emit-project --format requirements-txt --no-hashes --output-file requirements-audit.txt
       - name: Audit Python dependencies
-        working-directory: services/analysis-engine
-        run: uvx pip-audit==2.8.0 -r requirements-audit.txt --strict --ignore-vuln GHSA-5239-wwwm-4pmq
+        run: uv run --project services/analysis-engine --with pip-audit==2.8.0 pip-audit --local --strict
       - name: Install stable Rust toolchain
         run: rustup toolchain install stable --profile minimal
       - name: Install cargo-audit

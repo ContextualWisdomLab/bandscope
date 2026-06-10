@@ -4,7 +4,7 @@ from bandscope_analysis.sections.extractor import extract_sections
 from bandscope_analysis.sections.model import CueAnchorStrategy
 
 
-def test_extract_sections_with_lyrics():
+def test_extract_sections_with_lyrics() -> None:
     """Verify section extraction behavior when lyrical cues are present."""
     arrangement = [
         {"label": "intro", "groove": "heavy"},
@@ -50,7 +50,7 @@ def test_extract_sections_with_lyrics():
     assert sections[3]["cue_anchor"]["strategy"] == CueAnchorStrategy.COUNT.value
 
 
-def test_extract_sections_count_based():
+def test_extract_sections_count_based() -> None:
     """Verify section extraction behavior when no lyrical cues are present."""
     arrangement = [{"label": "intro"}, {"label": "verse"}, {"label": "chorus"}]
 
@@ -65,7 +65,7 @@ def test_extract_sections_count_based():
         assert section["cue_anchor"]["value"] == "Enter on beat 1 of bar 1"
 
 
-def test_extract_sections_unrecognized_label():
+def test_extract_sections_unrecognized_label() -> None:
     """Verify section extraction properly tags unrecognized labels with low confidence."""
     arrangement = [{"label": "guitar solo"}, {"label": "random part"}]
 
