@@ -1,8 +1,8 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
-import ast
 import re
 import shlex
+import tomllib
 from itertools import pairwise
 from pathlib import Path
 
@@ -1495,7 +1495,10 @@ def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
 
 def parse_cargo_lock_string_list(value: str) -> list[str]:
     """Return strings from an inline Cargo.lock dependency array."""
-    parsed_value = ast.literal_eval(value)
+    try:
+        parsed_value = tomllib.loads(f"v={value}")["v"]
+    except tomllib.TOMLDecodeError:
+        return []
     if not isinstance(parsed_value, list):
         return []
     return [str(item).strip() for item in parsed_value]
@@ -1503,7 +1506,10 @@ def parse_cargo_lock_string_list(value: str) -> list[str]:
 
 def parse_cargo_lock_scalar(value: str) -> str:
     """Return a scalar Cargo.lock TOML value as text."""
-    parsed_value = ast.literal_eval(value)
+    try:
+        parsed_value = tomllib.loads(f"v={value}")["v"]
+    except tomllib.TOMLDecodeError:
+        return str(value)
     return str(parsed_value)
 
 
