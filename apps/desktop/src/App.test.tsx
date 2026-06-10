@@ -28,6 +28,21 @@ vi.mock("./lib/analysis", async (importActual) => {
   };
 });
 
+
+function wrapInWorkspace(song: any) {
+  return {
+    id: "ws-test",
+    title: song.title || "Untitled",
+    workspaceVersion: 1,
+    songs: [{
+      id: "pack-test",
+      packState: "ready",
+      song: song,
+      sourceLabel: "Test Source"
+    }]
+  };
+}
+
 function succeededResult() {
   return {
     jobId: "job-1",
@@ -186,7 +201,7 @@ describe("App", () => {
   });
 
   it("renders the loaded song as a dark rehearsal command board", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
@@ -201,7 +216,7 @@ describe("App", () => {
   });
 
   it("renders a rehearsal song structure timeline from real section ranges", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
@@ -219,7 +234,7 @@ describe("App", () => {
   });
 
   it("does not show unavailable analysis metrics as detected facts", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
@@ -244,7 +259,7 @@ describe("App", () => {
       label: "chorus",
       confidence: { level: "high", source: "model", notes: "The chorus form is clear." }
     });
-    mockLoadProject.mockResolvedValueOnce(loadedProject);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(loadedProject));
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
@@ -660,7 +675,7 @@ describe("App", () => {
 
 
   it("loads a project and updates the UI", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
@@ -723,7 +738,7 @@ describe("App", () => {
   });
 
   it("saves a project successfully", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     // Load first to get jobResult populated
@@ -738,12 +753,23 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
-      expect(mockSaveProject).toHaveBeenCalledWith(succeededResult().result);
+      expect(mockSaveProject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: expect.any(String),
+          title: expect.any(String),
+          workspaceVersion: 1,
+          songs: expect.arrayContaining([
+            expect.objectContaining({
+              song: succeededResult().result
+            })
+          ])
+        })
+      );
     });
   });
 
   it("handles saving a project failure gracefully", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     // Load first to get jobResult populated
@@ -763,7 +789,7 @@ describe("App", () => {
   });
 
   it("ignores cancellation when saving a project with Error object", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     // Load first to get jobResult populated
@@ -786,7 +812,7 @@ describe("App", () => {
   });
 
   it("handles saving a project failure with string error gracefully", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     // Load first to get jobResult populated
@@ -806,7 +832,7 @@ describe("App", () => {
   });
 
   it("ignores cancellation when saving a project with string error", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     // Load first to get jobResult populated
@@ -829,7 +855,7 @@ describe("App", () => {
   });
 
   it("handles song update from workspace", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    mockLoadProject.mockResolvedValueOnce(wrapInWorkspace(succeededResult().result));
     render(<App />);
 
     // Load first to get jobResult populated

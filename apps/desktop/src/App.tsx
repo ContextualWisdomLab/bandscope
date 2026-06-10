@@ -26,7 +26,8 @@ import {
   type AnalysisJobRequest,
   type AnalysisJobStatus,
   type ProjectBootstrapSummary,
-  type RehearsalSong
+  type RehearsalSong,
+  type RehearsalWorkspace
 } from "@bandscope/shared-types";
 import {
   createDefaultAnalysisRequest,
@@ -145,7 +146,7 @@ export function App() {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
   const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
-  const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
+  const [jobResult, setJobResult] = useState<RehearsalWorkspace | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
@@ -173,7 +174,18 @@ export function App() {
         const nextStatus = await getAnalysisJobStatus(jobStatus.jobId);
         setJobStatus(nextStatus);
         if (nextStatus.state === "succeeded" && nextStatus.result) {
-          setJobResult(nextStatus.result);
+          const workspace: RehearsalWorkspace = {
+            id: "ws-" + Date.now(),
+            title: nextStatus.result.title || "Untitled",
+            workspaceVersion: 1,
+            songs: [{
+              id: "pack-" + Date.now(),
+              packState: "ready",
+              song: nextStatus.result,
+              sourceLabel: selectedRequest.sourceLabel
+            }]
+          };
+          setJobResult(workspace);
           setJobError(null);
         }
         if (nextStatus.state === "failed") {
@@ -220,7 +232,18 @@ export function App() {
       const nextStatus = await startAnalysisJob(selectedRequest);
       setJobStatus(nextStatus);
       if (nextStatus.state === "succeeded" && nextStatus.result) {
-        setJobResult(nextStatus.result);
+        const workspace: RehearsalWorkspace = {
+            id: "ws-" + Date.now(),
+            title: nextStatus.result.title || "Untitled",
+            workspaceVersion: 1,
+            songs: [{
+              id: "pack-" + Date.now(),
+              packState: "ready",
+              song: nextStatus.result,
+              sourceLabel: selectedRequest.sourceLabel
+            }]
+        };
+        setJobResult(workspace);
       }
       if (nextStatus.state === "failed") {
         setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
@@ -280,8 +303,8 @@ export function App() {
   /** Documented. */
   const handleLoadProject = async () => {
     try {
-      const song = await loadProject();
-      setJobResult(song);
+      const workspace = await loadProject();
+      setJobResult(workspace);
       setJobError(null);
       setSelectedBootstrap(null);
       setJobStatus(null);
@@ -309,7 +332,16 @@ export function App() {
 
   /** Documented. */
   const handleSongUpdate = (updatedSong: RehearsalSong) => {
-    setJobResult(updatedSong);
+    if (jobResult) {
+      setJobResult({
+        ...jobResult,
+        songs: jobResult.songs.map(p => 
+          p.packState === "ready" && p.song.id === updatedSong.id 
+            ? { ...p, song: updatedSong } 
+            : p
+        )
+      });
+    }
   };
 
   /** Documented. */
@@ -320,8 +352,16 @@ export function App() {
     if (analysisInFlight || isStarting) {
       return <LoadingState />;
     }
-    if (jobResult) {
-      return <Workspace song={jobResult} onSongUpdate={handleSongUpdate} />;
+    if (jobResult && jobResult.songs.length > 0) {
+      const firstReady = jobResult.songs.find(p => p.packState === "ready");
+      if (firstReady && firstReady.packState === "ready") {
+        return (
+          <Workspace
+            song={firstReady.song}
+            onSongUpdate={handleSongUpdate}
+          />
+        );
+      }
     }
     return <EmptyState />;
   };
@@ -423,27 +463,33 @@ export function App() {
             ))}
           </nav>
 
-          <header className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
-            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
-            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
-            <ConfidenceMetric song={jobResult} />
-            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(jobResult)} detail={jobResult?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
-          </header>
+          {(() => {
+            const firstReadyPack = jobResult?.songs.find(p => p.packState === "ready");
+            const firstReadySong = firstReadyPack && firstReadyPack.packState === "ready" ? firstReadyPack.song : null;
+            
+            return (
+              <>
+                <header className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
+                  <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
+                  <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
+                  <ConfidenceMetric song={firstReadySong} />
+                  <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(firstReadySong)} detail={firstReadySong?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
+                </header>
 
-          <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
-            <div className="grid gap-4 2xl:grid-cols-[1.4fr_minmax(0,1fr)_auto] 2xl:items-center">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.26em] text-cyan-300">
-                  {jobResult ? "READY • REHEARSAL" : "SYNCED • LOCAL"}
-                </p>
-                <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                  {jobResult ? "Rehearsal Console" : "Workspace Home"}
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                  {jobResult?.exportSummary?.headline ?? "Turn a song into a practical rehearsal view."}
-                </p>
-              </div>
+                <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+                  <div className="grid gap-4 2xl:grid-cols-[1.4fr_minmax(0,1fr)_auto] 2xl:items-center">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.26em] text-cyan-300">
+                        {jobResult ? "READY • REHEARSAL" : "SYNCED • LOCAL"}
+                      </p>
+                      <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                        {jobResult ? "Rehearsal Console" : "Workspace Home"}
+                      </h1>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                        {firstReadySong?.exportSummary?.headline ?? "Turn a song into a practical rehearsal view."}
+                      </p>
+                    </div>
 
               <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center 2xl:grid-cols-[auto_1fr]">
                 <Button
@@ -547,6 +593,9 @@ export function App() {
               </div>
             </div>
           </section>
+              </>
+            );
+          })()}
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
             {renderWorkspaceState()}
