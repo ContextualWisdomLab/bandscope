@@ -50,6 +50,18 @@ def test_calculate_priority_with_setup_note() -> None:
     assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.MEDIUM
 
 
+def test_calculate_priority_with_simplification() -> None:
+    """Test that having a simplification yields MEDIUM priority even if confidence is high."""
+    role = {
+        "confidence": {"level": "high"},
+        "overlapWarnings": [],
+        "manualOverrides": [],
+        "setupNote": "",
+        "simplification": "Simplify to quarter notes",
+    }
+    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.MEDIUM
+
+
 def test_calculate_priority_low() -> None:
     """Test that high confidence with no warnings or notes yields LOW priority."""
     role = {
