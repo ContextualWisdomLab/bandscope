@@ -133,6 +133,7 @@ def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> N
         return np.zeros(44100, dtype=float), 44100
 
     monkeypatch.setattr(librosa, "load", fake_load)
+
     def fake_beat_track(y, sr):
         return np.array([120.0]), np.array([0])
 
@@ -143,6 +144,7 @@ def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> N
     analyzer.analyze(test_wav)
 
     from bandscope_analysis.temporal.analyzer import MAX_ANALYSIS_DURATION_SECONDS
+
     assert captured_kwargs["duration"] == MAX_ANALYSIS_DURATION_SECONDS
 
 
