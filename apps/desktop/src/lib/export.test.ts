@@ -121,7 +121,7 @@ describe("generateBndscpArchive", () => {
     expect(metadata.includes_audio).toBe(true);
     expect(metadata.workspace.id).toBe("ws1");
     
-    const audioText = await loadedZip.file("audio/My Song.txt")?.async("string");
+    const audioText = await loadedZip.file("audio/pack1.m4a")?.async("string");
     expect(audioText).toBe("MOCK_COMPRESSED_AUDIO_DATA");
   });
 

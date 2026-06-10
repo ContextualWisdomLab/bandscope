@@ -1,7 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { parseBndscpArchive, mockResolveMissingAudio, sanitizeImportPath } from "./import";
 import JSZip from "jszip";
 import type { BndscpMetadata } from "@bandscope/shared-types";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(async (cmd, args) => {
+    if (cmd === "open_audio_file_dialog") {
+      return { canceled: false, filePath: args?.suggestedFilename };
+    }
+  })
+}));
 
 describe("sanitizeImportPath", () => {
   it("strips path traversal attempts", () => {
@@ -17,7 +25,7 @@ describe("parseBndscpArchive", () => {
     const zip = new JSZip();
     zip.file("metadata.json", JSON.stringify(metadata));
     if (includeAudioFile) {
-      zip.file("audio/Test Song.txt", "mock_data");
+      zip.file("audio/s1.m4a", "mock_data");
     }
     return zip.generateAsync({ type: "blob" });
   };
