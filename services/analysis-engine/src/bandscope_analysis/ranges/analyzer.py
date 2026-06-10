@@ -54,17 +54,17 @@ def _parse_note(note: str) -> tuple[str, int]:
     if not note:
         return ("C", 4)
     import re
-    
+
     match = re.match(r"^([A-Ga-g](?:#|b|sharp|flat)?)(.*)$", note)
     if not match:
         return (note, 4)
-        
+
     name, octave_str = match.groups()
     if octave_str == "":
         return (name, 4)
     if octave_str == "-" or not re.match(r"^-?\d+$", octave_str):
         return (name, 4)
-        
+
     return (name, int(octave_str))
 
 
