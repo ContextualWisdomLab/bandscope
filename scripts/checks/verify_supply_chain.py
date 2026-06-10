@@ -426,7 +426,7 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
             )
             if match is None:
                 continue
-            value = match.group(2).strip().strip('"\'')
+            value = match.group(2).strip().strip("\"'")
             env[match.group(1)] = value
         break
     return env
@@ -435,9 +435,7 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
 def verify_checkout_default_branch_guard() -> list[str]:
     """Return checkout workflows missing the Git default-branch warning guard."""
     violations: list[str] = []
-    checkout_uses_pattern = re.compile(
-        r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@"
-    )
+    checkout_uses_pattern = re.compile(r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@")
     workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
         Path(".github/workflows").glob("*.yaml")
     )
@@ -1554,13 +1552,11 @@ def cargo_lock_dependency_ancestors(
             reverse_dependencies.setdefault(dependency_token, set()).add(package_key)
 
     ancestors: set[str] = set()
-    pending = list(reverse_dependencies.get(dependency, set()))
+    pending = set(reverse_dependencies.get(dependency, set()))
     while pending:
         current = pending.pop()
-        if current in ancestors:
-            continue
         ancestors.add(current)
-        pending.extend(reverse_dependencies.get(current, set()))
+        pending.update(reverse_dependencies.get(current, set()) - ancestors)
     return ancestors
 
 
@@ -1569,13 +1565,11 @@ def cargo_lock_reachable_package_keys(
 ) -> set[str]:
     """Return package keys reachable from a root package dependency graph."""
     reachable: set[str] = set()
-    pending = [root_package]
+    pending = {root_package}
     while pending:
         current = pending.pop()
-        if current in reachable:
-            continue
         reachable.add(current)
-        pending.extend(package_dependencies.get(current, []))
+        pending.update(set(package_dependencies.get(current, [])) - reachable)
     return reachable
 
 
