@@ -66,6 +66,6 @@ jobs:
           python3 scripts/checks/normalize_scorecard_sarif.py
           scorecard-sarif/results.sarif
           normalized-scorecard-results.sarif
-      - uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.35.2 peeled commit; SHA pinning retained as supply-chain attack mitigation.
+      - uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2 peeled commit; SHA pinning retained as supply-chain attack mitigation.
         with:
           sarif_file: normalized-scorecard-results.sarif
