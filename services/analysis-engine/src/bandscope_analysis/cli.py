@@ -35,6 +35,7 @@ def main() -> int:
     input_data = sys.stdin.read().strip()
 
     # Check if there are command line arguments (fallback for manual testing)
+    separate_stems = "--separate-stems" in sys.argv
     if len(sys.argv) > 1:
         if sys.argv[1] == "--status":
             json.dump(get_analysis_status(), sys.stdout)
@@ -74,27 +75,36 @@ def main() -> int:
 
     request = payload.get("request")
 
-    # Temporary: Inject temporal analyzer call if it's a local file, just to prove it works
-    # before full orchestrator integration
-    if (
-        isinstance(request, dict)
-        and request.get("sourceKind") == "local_audio"
-        and "localSource" in request
-    ):
-        audio_path = request["localSource"].get("sourcePath")
-        if audio_path:
-            logging.info(f"Extracting temporal features from {audio_path}...")
-            try:
-                temporal_analyzer = TemporalAnalyzer()
-                features = temporal_analyzer.analyze(audio_path)
-                logging.info(f"Extracted BPM: {features['bpm']}")
-            except Exception as e:
-                logging.warning(f"Temporal analysis failed, continuing with mock: {e}")
+    requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-            logging.info(f"Performing stem separation on {audio_path}...")
-            try:
+    # Validate request
+    try:
+        from bandscope_analysis.api import validate_analysis_job_request
+        validate_analysis_job_request(request)
+        is_valid = True
+    except Exception:
+        is_valid = False
+
+    stems = None
+    if is_valid and separate_stems:
+        if (
+            isinstance(request, dict)
+            and request.get("sourceKind") == "local_audio"
+            and "localSource" in request
+        ):
+            audio_path = request["localSource"].get("sourcePath")
+            if audio_path:
+                logging.info(f"Extracting temporal features from {audio_path}...")
+                try:
+                    temporal_analyzer = TemporalAnalyzer()
+                    features = temporal_analyzer.analyze(audio_path)
+                    logging.info(f"Extracted BPM: {features['bpm']}")
+                except Exception as e:
+                    logging.warning(f"Temporal analysis failed, continuing with mock: {e}")
+
+                logging.info(f"Performing stem separation on {audio_path}...")
+                # We do not swallow exceptions here per code review
                 import librosa
-
                 from bandscope_analysis.separation.audio_separator import AudioStemSeparator
 
                 # Load only the first 10 seconds for the CLI proof to prevent hanging
@@ -102,11 +112,8 @@ def main() -> int:
                 separator = AudioStemSeparator()
                 stems = separator.separate_audio(y, sample_rate=int(sr), segment_seconds=2.0)
                 logging.info(f"Successfully extracted {len(stems)} stems: {list(stems.keys())}")
-            except Exception as e:
-                logging.warning(f"Stem separation failed, continuing with mock: {e}")
 
-    requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    response = run_analysis_job(job_id, request, requested_at)
+    response = run_analysis_job(job_id, request, requested_at, stems=stems)
     json.dump(response, sys.stdout)
     return 0
 

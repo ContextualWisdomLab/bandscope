@@ -406,10 +406,15 @@ def test_cli_main_temporal_analyzer_and_separator_mock_success(monkeypatch) -> N
         def analyze(self, path):
             return {"bpm": 120.0, "beats": []}
 
+    calls = {"librosa_load": 0, "separate_audio": 0}
+
     class FakeAudioStemSeparator:
         def separate_audio(self, audio, sample_rate, segment_seconds=2.0):
             import numpy as np
 
+            calls["separate_audio"] += 1
+            assert sample_rate == 44100
+            assert segment_seconds == 2.0
             return {
                 "vocals": np.zeros((2, 100), dtype=np.float32),
                 "drums": np.zeros((2, 100), dtype=np.float32),
@@ -420,7 +425,78 @@ def test_cli_main_temporal_analyzer_and_separator_mock_success(monkeypatch) -> N
     def fake_librosa_load(path, sr, mono, duration):
         import numpy as np
 
+        calls["librosa_load"] += 1
+        assert path == "/valid/path.wav"
+        assert sr == 44100
+        assert mono is False
+        assert duration == 10.0
         return np.zeros((2, 100), dtype=np.float32), sr
+
+    import librosa
+
+    monkeypatch.setattr(librosa, "load", fake_librosa_load)
+    import bandscope_analysis.separation.audio_separator
+
+    monkeypatch.setattr(
+        bandscope_analysis.separation.audio_separator,
+        "AudioStemSeparator",
+        FakeAudioStemSeparator,
+    )
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--separate-stems"])
+
+    assert cli.main() == 0
+    res = json.loads(stdout.getvalue())
+    assert res["jobId"] == "job-audio-success-sep"
+    assert calls["librosa_load"] == 1
+    assert calls["separate_audio"] == 1
+
+
+def test_cli_main_temporal_analyzer_and_separator_mock_skipped(monkeypatch) -> None:
+    """Ensure stem separation is skipped if --separate-stems is not provided."""
+    import io
+    import json
+
+    from bandscope_analysis import cli
+
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-audio-skip-sep",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "p1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/valid/path.wav",
+                        "fileName": "test.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 100,
+                    },
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    class FakeAnalyzerSuccess:
+        def analyze(self, path):
+            return {"bpm": 120.0, "beats": []}
+
+    calls = {"librosa_load": 0, "separate_audio": 0}
+
+    class FakeAudioStemSeparator:
+        def separate_audio(self, audio, sample_rate, segment_seconds=2.0):
+            calls["separate_audio"] += 1
+            return {}
+
+    def fake_librosa_load(path, sr, mono, duration):
+        calls["librosa_load"] += 1
+        return None, sr
 
     import librosa
 
@@ -440,4 +516,6 @@ def test_cli_main_temporal_analyzer_and_separator_mock_success(monkeypatch) -> N
 
     assert cli.main() == 0
     res = json.loads(stdout.getvalue())
-    assert res["jobId"] == "job-audio-success-sep"
+    assert res["jobId"] == "job-audio-skip-sep"
+    assert calls["librosa_load"] == 0
+    assert calls["separate_audio"] == 0

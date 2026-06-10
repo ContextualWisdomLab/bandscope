@@ -255,7 +255,7 @@ def build_demo_rehearsal_song() -> RehearsalSong:
     }
 
 
-def run_analysis_job(job_id: str, payload: object, requested_at: str) -> AnalysisJobStatus:
+def run_analysis_job(job_id: str, payload: object, requested_at: str, stems: dict[str, Any] | None = None) -> AnalysisJobStatus:
     """Return a structured orchestration response for a validated analysis job."""
     try:
         request = validate_analysis_job_request(payload)

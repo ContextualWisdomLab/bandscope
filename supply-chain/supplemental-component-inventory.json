@@ -16,6 +16,8 @@
       "name": "htdemucs",
       "version": "demucs-v4.0",
       "sourceUrl": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/f7e0c4bc-ba3fe64a.th",
+      "checksumAlgorithm": "sha256",
+      "checksum": "f7e0c4bc",
       "license": "MIT",
       "storagePath": "~/.cache/torch/hub/checkpoints/",
       "releaseUsage": "Used by analysis-engine for spectral source separation (stems)."

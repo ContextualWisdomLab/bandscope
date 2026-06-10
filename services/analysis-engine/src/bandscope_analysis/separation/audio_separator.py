@@ -36,11 +36,30 @@ class AudioStemSeparator:
         self._model = None
 
     def _load_model(self) -> Any:
-        from demucs.pretrained import get_model
+        import hashlib
+        from pathlib import Path
+        from demucs.states import load_model
 
         if self._model is None:
             logger.info("Loading demucs model '%s'...", self.model_name)
-            self._model = get_model(self.model_name)
+            
+            cache_dir = Path.home() / ".cache" / "torch" / "hub" / "checkpoints"
+            expected_prefix = "f7e0c4bc"
+            model_file = cache_dir / f"{expected_prefix}-ba3fe64a.th"
+
+            if not model_file.exists():
+                raise RuntimeError(f"Pre-provisioned model {self.model_name} not found at {model_file}")
+
+            # Verify checksum
+            sha256_hash = hashlib.sha256()
+            with open(model_file, "rb") as f:
+                for chunk in iter(lambda: f.read(4096 * 1024), b""):
+                    sha256_hash.update(chunk)
+            
+            if not sha256_hash.hexdigest().startswith(expected_prefix):
+                raise RuntimeError("Model checksum mismatch")
+
+            self._model = load_model(model_file)
             if self._model:
                 self._model.eval()
         return self._model

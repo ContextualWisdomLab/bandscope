@@ -21,15 +21,21 @@ def mock_demucs_model():
 @mock.patch("bandscope_analysis.separation.audio_separator.logger")
 @mock.patch("demucs.audio.convert_audio")
 @mock.patch("demucs.apply.apply_model")
-@mock.patch("demucs.pretrained.get_model")
+@mock.patch("demucs.states.load_model")
+@mock.patch("pathlib.Path.exists", return_value=True)
+@mock.patch("hashlib.sha256")
+@mock.patch("builtins.open", new_callable=mock.mock_open)
 def test_audio_stem_separator(
-    mock_get_model, mock_apply_model, mock_convert_audio, mock_logger, mock_demucs_model
+    mock_open_file, mock_sha256, mock_exists, mock_load_model, mock_apply_model, mock_convert_audio, mock_logger, mock_demucs_model
 ):
     """Test that the AudioStemSeparator correctly coordinates the mock Demucs model."""
     import torch
 
     # Setup mocks
-    mock_get_model.return_value = mock_demucs_model
+    mock_hash = mock.MagicMock()
+    mock_hash.hexdigest.return_value = "f7e0c4bc_fake_hash"
+    mock_sha256.return_value = mock_hash
+    mock_load_model.return_value = mock_demucs_model
 
     # fake convert_audio output (channels, samples)
     # convert_audio returns the tensor directly
@@ -49,8 +55,14 @@ def test_audio_stem_separator(
     result = separator.separate_audio(audio_data, sample_rate=22050, segment_seconds=2.0)
 
     # Assertions
-    mock_get_model.assert_called_once_with("fake_model")
+    mock_load_model.assert_called_once()
     mock_apply_model.assert_called_once()
+    kwargs = mock_apply_model.call_args.kwargs
+    assert kwargs["split"] is True
+    assert kwargs["segment"] == 2.0
+    assert kwargs["overlap"] == 0.25
+    assert kwargs["shifts"] == 1
+    assert kwargs["progress"] is False
 
     # Verify the results match the model sources
     assert set(result.keys()) == {"drums", "bass", "other", "vocals"}
@@ -60,14 +72,17 @@ def test_audio_stem_separator(
 
     # Check that model gets loaded only once
     separator.separate_audio(audio_data, sample_rate=22050, segment_seconds=2.0)
-    assert mock_get_model.call_count == 1
+    assert mock_load_model.call_count == 1
     assert mock_apply_model.call_count == 2
 
 
 @mock.patch("bandscope_analysis.separation.audio_separator.logger")
 @mock.patch("demucs.audio.convert_audio")
 @mock.patch("demucs.apply.apply_model")
-@mock.patch("demucs.pretrained.get_model")
+@mock.patch("demucs.states.load_model")
+@mock.patch("pathlib.Path.exists", return_value=True)
+@mock.patch("hashlib.sha256")
+@mock.patch("builtins.open", new_callable=mock.mock_open)
 @mock.patch("torch.from_numpy")
 @mock.patch("torch.cuda.is_available")
 @mock.patch("torch.backends.mps.is_available")
@@ -75,7 +90,10 @@ def test_audio_stem_separator_device(
     mock_mps,
     mock_cuda,
     mock_from_numpy,
-    mock_get_model,
+    mock_open_file,
+    mock_sha256,
+    mock_exists,
+    mock_load_model,
     mock_apply_model,
     mock_convert_audio,
     mock_logger,
@@ -86,7 +104,10 @@ def test_audio_stem_separator_device(
     # By mocking torch.from_numpy and convert_audio, we prevent real tensors
     # from being created, thus avoiding actual PyTorch .to("cuda") calls
     # that would fail on machines compiled without CUDA.
-    mock_get_model.return_value = mock_demucs_model
+    mock_hash = mock.MagicMock()
+    mock_hash.hexdigest.return_value = "f7e0c4bc_fake_hash"
+    mock_sha256.return_value = mock_hash
+    mock_load_model.return_value = mock_demucs_model
 
     mock_tensor = mock.MagicMock()
     mock_from_numpy.return_value.float.return_value = mock_tensor
