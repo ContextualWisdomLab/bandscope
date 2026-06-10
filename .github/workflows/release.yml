@@ -40,6 +40,7 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
+          enable-cache: false
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal
       - name: Install node dependencies

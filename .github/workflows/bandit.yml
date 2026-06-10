@@ -28,6 +28,7 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
+          enable-cache: false
       - name: Sync Python dependencies
         run: uv sync --project services/analysis-engine --group dev --frozen
       - name: Run Bandit

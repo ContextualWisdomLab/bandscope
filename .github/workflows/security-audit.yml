@@ -35,6 +35,7 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
+          enable-cache: false
       - name: Install node dependencies
         run: npm ci
       - name: Audit npm dependencies
