@@ -1,167 +1,274 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  AudioWaveform,
+  CircleHelp,
+  Clock3,
+  CloudOff,
+  FileMusic,
+  FolderOpen,
+  Gauge,
+  Home,
+  KeyRound,
+  ListMusic,
+  Music2,
+  Play,
+  Save,
+  Settings,
+  SlidersHorizontal,
+  Sparkles,
+  Star,
+  Upload,
+  Users,
+  Wand2
+} from "lucide-react";
 import {
   SUPPORTED_AUDIO_FORMATS,
-  type RehearsalWorkspace,
-  type SongRehearsalPack
+  type AnalysisJobRequest,
+  type AnalysisJobStatus,
+  type ProjectBootstrapSummary,
+  type RehearsalSong
 } from "@bandscope/shared-types";
 import {
   createDefaultAnalysisRequest,
-  selectLocalAudioSource,
+  getAnalysisJobStatus,
   importYoutubeUrl,
+  isSupportedYoutubeUrl,
   loadProject,
-  saveProject
+  saveProject,
+  selectLocalAudioSource,
+  startAnalysisJob
 } from "./lib/analysis";
-import {
-  enqueueSong,
-  subscribeToWorkspaceUpdates,
-  getWorkspaceState
-} from "./lib/job_runner";
 import { createTranslator, detectPreferredLocale } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
-import { EmptyState } from "./features/workspace/WorkspaceStates";
-import { parseDeepLink } from "./lib/deepLink";
-import { mergeAnnotations } from "./lib/annotations";
+import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-/**
- * Returns a translated progress message for a given pack state.
- */
+const ANALYSIS_POLL_INTERVAL_MS = 250;
+
+const NAV_ITEMS = [
+  { label: "Workspace", icon: Home, active: true },
+  { label: "Import", icon: Upload, active: false },
+  { label: "Export", icon: Save, active: false },
+  { label: "Sections", icon: ListMusic, active: false },
+  { label: "Roles", icon: Users, active: false },
+  { label: "Stem Lab", icon: AudioWaveform, active: false },
+  { label: "Cues", icon: Sparkles, active: false },
+  { label: "Transpose", icon: SlidersHorizontal, active: false },
+  { label: "Notes", icon: FileMusic, active: false }
+] as const;
+
+/** Documented. */
 function progressMessage(
   t: ReturnType<typeof createTranslator>,
-  state: SongRehearsalPack["packState"]
+  state: AnalysisJobStatus["state"]
 ): string {
   switch (state) {
     case "queued":
       return t("analysisStateQueued");
-    case "analyzing":
+    case "running":
       return t("analysisStateRunning");
-    case "ready":
+    case "succeeded":
       return t("analysisStateSucceeded");
     case "failed":
       return t("analysisStateFailed");
-    default:
-      return "";
   }
 }
 
-/**
- * Main application component for the BandScope desktop app.
- */
+/** Documented. */
+function MetricCard({
+  icon,
+  label,
+  value,
+  detail,
+  accent = "text-cyan-300"
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+  accent?: string;
+}) {
+  return (
+    <article className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/65 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-300/40">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_35%)] opacity-60 transition group-hover:opacity-100" />
+      <div className="relative flex items-start gap-3">
+        <div className={`rounded-xl bg-white/5 p-2 ${accent}`}>{icon}</div>
+        <div>
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-white">{value}</p>
+          <p className="mt-1 text-sm text-slate-400">{detail}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Documented. */
+function ConfidenceMetric({ song }: { song: RehearsalSong | null }) {
+  const sectionCount = song?.sections.length ?? 0;
+  const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
+  const lowestConfidence = song?.sections.reduce<RehearsalSong["sections"][number]["confidence"]["level"] | null>(
+    (current, section) => {
+      if (!current || confidenceOrder[section.confidence.level] < confidenceOrder[current]) {
+        return section.confidence.level;
+      }
+      return current;
+    },
+    null
+  );
+  const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : "Ready";
+  const detail = sectionCount > 0 ? `${sectionCount} section${sectionCount === 1 ? "" : "s"}` : "Local analysis";
+
+  return (
+    <MetricCard
+      icon={<Gauge className="size-5" aria-hidden="true" />}
+      label="Confidence"
+      value={confidence}
+      detail={detail}
+      accent="text-emerald-300"
+    />
+  );
+}
+
+/** Documented. */
+function priorityLabel(song: RehearsalSong | null): string {
+  const firstFocus = song?.exportSummary?.focusSections?.[0];
+  if (firstFocus) {
+    return firstFocus;
+  }
+  return song?.sections?.[0]?.label ?? "Pick track";
+}
+
+/** Documented. */
 export function App() {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
-  
-  const [workspace, setWorkspace] = useState<RehearsalWorkspace | null>(null);
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
-  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
-
-  const [isStarting] = useState(false);
+  const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
+  const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
+  const [jobError, setJobError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
-  const [selectionError, setSelectionError] = useState<string | null>(null);
 
-  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
+  const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
+  const selectedRequest: AnalysisJobRequest = selectedBootstrap
+    ? {
+        sourceKind: "local_audio",
+        projectId: selectedBootstrap.projectId,
+        sourceLabel: selectedBootstrap.source.fileName,
+        roleFocus: defaultRequest.roleFocus
+      }
+    : defaultRequest;
 
   useEffect(() => {
-    let unmounted = false;
-    let unlistenFn: (() => void) | undefined;
-    const unlistenPromise = subscribeToWorkspaceUpdates((ws) => {
-      if (!unmounted) setWorkspace(ws);
-    });
-    
-    unlistenPromise.then(u => {
-      if (!unmounted) {
-        unlistenFn = u;
-      } else if (u) {
-        u();
-      }
-    });
+    if (!jobStatus || (jobStatus.state !== "queued" && jobStatus.state !== "running")) {
+      return;
+    }
 
-    getWorkspaceState().then(ws => {
-      if (!unmounted && ws) {
-        setWorkspace(ws);
-        
-        // Check for deep link on load
-        if (window.location.hash.startsWith("#bandscope://")) {
-          const uri = window.location.hash.slice(1);
-          const parsed = parseDeepLink(uri);
-          if (parsed) {
-            const targetPack = ws.songs.find(s => "song" in s && s.song?.id === parsed.songId);
-            if (targetPack) {
-              setSelectedPackId(targetPack.id);
-            } else {
-              setDeepLinkError("Song not found. Ask the leader to share the .bndscp file first");
-            }
-          }
-          window.location.hash = ""; // Clear hash after processing
+    const timer = window.setTimeout(async () => {
+      try {
+        const nextStatus = await getAnalysisJobStatus(jobStatus.jobId);
+        setJobStatus(nextStatus);
+        if (nextStatus.state === "succeeded" && nextStatus.result) {
+          setJobResult(nextStatus.result);
+          setJobError(null);
         }
-      }
-    });
-
-    /**
-     * Handle hash changes for deep linking
-     */
-    const handleHashChange = () => {
-      if (window.location.hash.startsWith("#bandscope://")) {
-        const uri = window.location.hash.slice(1);
-        const parsed = parseDeepLink(uri);
-        if (parsed && workspace) {
-          const targetPack = workspace.songs.find(s => "song" in s && s.song?.id === parsed.songId);
-          if (targetPack) {
-            setSelectedPackId(targetPack.id);
-            setDeepLinkError(null);
-          } else {
-            setDeepLinkError("Song not found. Ask the leader to share the .bndscp file first");
-          }
+        if (nextStatus.state === "failed") {
+          setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
         }
-        window.location.hash = ""; // Clear hash after processing
+      } catch (error) {
+        if (error instanceof Error && error.message === "Invalid analysis job status response") {
+          const fallbackMessage = t("analysisCouldNotStart");
+          setJobError(fallbackMessage);
+          setJobStatus((currentStatus) =>
+            currentStatus?.jobId === jobStatus.jobId
+              ? {
+                  ...currentStatus,
+                  state: "failed",
+                  error: {
+                    code: "engine_unavailable",
+                    message: fallbackMessage
+                  }
+                }
+              : currentStatus
+          );
+          return;
+        }
+
+        setJobStatus((currentStatus) =>
+          currentStatus?.jobId === jobStatus.jobId &&
+          (currentStatus.state === "queued" || currentStatus.state === "running")
+            ? { ...currentStatus }
+            : currentStatus
+        );
       }
-    };
-    window.addEventListener("hashchange", handleHashChange);
+    }, ANALYSIS_POLL_INTERVAL_MS);
 
-    return () => {
-      unmounted = true;
-      window.removeEventListener("hashchange", handleHashChange);
-      if (unlistenFn) unlistenFn();
-      else unlistenPromise.then(u => u && u());
-    };
-  }, [workspace]);
+    return () => window.clearTimeout(timer);
+  }, [jobStatus, t]);
 
-  /**
-   * Handles selecting a local audio file and enqueueing a new song analysis job.
-   */
+  /** Documented. */
+  const handleStartAnalysis = async () => {
+    setJobError(null);
+    setJobResult(null);
+    setJobStatus(null);
+    setIsStarting(true);
+    try {
+      const nextStatus = await startAnalysisJob(selectedRequest);
+      setJobStatus(nextStatus);
+      if (nextStatus.state === "succeeded" && nextStatus.result) {
+        setJobResult(nextStatus.result);
+      }
+      if (nextStatus.state === "failed") {
+        setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
+      }
+    } catch {
+      setJobStatus(null);
+      setJobError(t("analysisCouldNotStart"));
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  /** Documented. */
   const handleChooseLocalAudio = async () => {
     setSelectionError(null);
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
-      enqueueSong({
-        sourceKind: "local_audio",
-        projectId: selection.bootstrap.projectId,
-        sourceLabel: selection.bootstrap.source.fileName,
-        roleFocus: defaultRequest.roleFocus
-      }).catch(err => setSelectionError(err instanceof Error ? err.message : "Failed to enqueue song"));
+      setSelectedBootstrap(selection.bootstrap);
       return;
     }
+
+    setSelectedBootstrap(null);
     setSelectionError(selection.error.message || t("unsupportedLocalAudio"));
+    setJobStatus(null);
   };
 
-  /**
-   * Handles importing a YouTube URL for analysis.
-   */
+  /** Documented. */
   const handleImportYoutube = async () => {
     setSelectionError(null);
+    const normalizedUrl = youtubeUrl.trim();
+    if (!normalizedUrl) {
+      setSelectionError(t("youtubeImportFailed"));
+      return;
+    }
+
+    if (!isSupportedYoutubeUrl(normalizedUrl)) {
+      setSelectionError(t("youtubeImportFailed"));
+      return;
+    }
+
     setIsImporting(true);
     try {
-      const selection = await importYoutubeUrl(youtubeUrl);
+      const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
-        enqueueSong({
-          sourceKind: "local_audio",
-          projectId: selection.bootstrap.projectId,
-          sourceLabel: "YouTube Import",
-          roleFocus: defaultRequest.roleFocus
-        });
+        setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
       } else {
-        setSelectionError(selection.error.message);
+        setSelectionError(selection.error.message || t("youtubeImportFailed"));
       }
     } catch {
       setSelectionError(t("youtubeImportFailed"));
@@ -170,189 +277,282 @@ export function App() {
     }
   };
 
-  /**
-   * Handles enqueueing a default demo song.
-   */
-  const handleDemoSong = () => {
-    enqueueSong(defaultRequest).catch(err => setSelectionError(err instanceof Error ? err.message : "Failed to enqueue song"));
-  };
-
-  /**
-   * Handles loading an existing project from disk.
-   */
+  /** Documented. */
   const handleLoadProject = async () => {
     try {
-      const loadedWorkspace = await loadProject();
-      setWorkspace(loadedWorkspace);
-      setWorkspaceError(null);
+      const song = await loadProject();
+      setJobResult(song);
+      setJobError(null);
+      setSelectedBootstrap(null);
+      setJobStatus(null);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
-        setWorkspaceError(`Failed to load project: ${e.message}`);
+        setJobError(`Failed to load project: ${e.message}`);
+      } else if (typeof e === "string" && e !== "User cancelled") {
+        setJobError(`Failed to load project: ${e}`);
       }
     }
   };
 
-  /**
-   * Handles saving the current project to disk.
-   */
+  /** Documented. */
   const handleSaveProject = async () => {
-    if (!workspace) return;
     try {
-      await saveProject(workspace);
+      await saveProject(jobResult!);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
-        setWorkspaceError(`Failed to save project: ${e.message}`);
+        setJobError(`Failed to save project: ${e.message}`);
+      } else if (typeof e === "string" && e !== "User cancelled") {
+        setJobError(`Failed to save project: ${e}`);
       }
     }
   };
 
-  /**
-   * Renders the list of songs in the current workspace.
-   */
-  const renderWorkspaceList = () => {
-    if (!workspace) return <EmptyState />;
-    
-    return (
-      <div style={{ marginBottom: "24px" }}>
-        <h3>Songs in Workspace</h3>
-        {workspace.songs.map(pack => (
-          <div key={pack.id} style={{ display: "flex", justifyContent: "space-between", padding: "12px", border: "1px solid #eee", marginBottom: "8px", borderRadius: "4px" }}>
-            <div>
-              <strong>{pack.sourceLabel}</strong>
-              <span style={{ marginLeft: "12px", color: pack.packState === "failed" ? "red" : "gray" }}>
-                {progressMessage(t, pack.packState)}
-              </span>
-              {pack.packState === "failed" && "error" in pack && <div style={{ color: "red", fontSize: "0.8em" }}>{pack.error.message}</div>}
-            </div>
-            <div>
-              {pack.packState === "ready" && (
-                <button onClick={() => setSelectedPackId(pack.id)}>Open Rehearsal Pack</button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+  /** Documented. */
+  const handleSongUpdate = (updatedSong: RehearsalSong) => {
+    setJobResult(updatedSong);
   };
 
-  const selectedPack = workspace?.songs.find(s => s.id === selectedPackId);
+  /** Documented. */
+  const renderWorkspaceState = () => {
+    if (jobError) {
+      return <ErrorState error={jobError} />;
+    }
+    if (analysisInFlight || isStarting) {
+      return <LoadingState />;
+    }
+    if (jobResult) {
+      return <Workspace song={jobResult} onSongUpdate={handleSongUpdate} />;
+    }
+    return <EmptyState />;
+  };
 
   return (
-    <main style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
-      <header style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <h1 style={{ margin: "0 0 8px 0" }}>{workspace?.title || t("appTitle")}</h1>
-          <p style={{ color: "#666", margin: "0" }}>{t("appSubtitle")}</p>
-        </div>
-        <button 
-            type="button" 
-            onClick={handleSaveProject} 
-            aria-disabled={!workspace}
-            style={{ 
-              padding: "8px 16px", 
-              cursor: workspace ? "pointer" : "not-allowed", 
-              borderRadius: "4px", 
-              backgroundColor: workspace ? "#fff" : "#f5f5f5", 
-              border: "1px solid #ccc",
-              opacity: workspace ? 1 : 0.5
-            }}
-          >
-            Save Project
-          </button>
-      </header>
+    <div className="min-h-screen overflow-x-hidden bg-[#020713] text-slate-100 selection:bg-cyan-300/30">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
+      <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px]" />
 
-      <div style={{ marginBottom: "24px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-        <button 
-          type="button" 
-          onClick={handleChooseLocalAudio} 
-          disabled={isStarting || isImporting}
-          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
-        >
-          {t("chooseLocalAudio")}
-        </button>
-        
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input 
-            type="text" 
-            placeholder={t("youtubePlaceholder")} 
-            value={youtubeUrl}
-            onChange={(e) => setYoutubeUrl(e.target.value)}
-            disabled={isStarting || isImporting}
-            style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ccc", width: "200px" }}
-          />
-          <button 
-            type="button" 
-            onClick={handleImportYoutube} 
-            disabled={!youtubeUrl || isStarting || isImporting}
-            style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
-          >
-            {isImporting ? t("importingYoutube") : t("importYoutube")}
-          </button>
-        </div>
-
-        <button 
-          type="button" 
-          onClick={handleLoadProject} 
-          disabled={isStarting}
-          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px" }}
-        >
-          Open Project
-        </button>
-
-        <button 
-          type="button" 
-          onClick={handleDemoSong} 
-          disabled={isStarting || isImporting}
-          style={{ padding: "8px 16px", cursor: "pointer", borderRadius: "4px", backgroundColor: "#1890ff", color: "white", border: "none" }}
-        >
-          Add Demo Song
-        </button>
-      </div>
-
-      <div style={{ marginBottom: "24px", fontSize: "0.9em", color: "#666" }}>
-        <p style={{ margin: "4px 0" }}>
-          {t("supportedFormats")}: {SUPPORTED_AUDIO_FORMATS.join(", ")}
-        </p>
-        {selectionError && <p style={{ margin: "4px 0", color: "#a8071a" }}>{selectionError}</p>}
-        {workspaceError && <p style={{ margin: "4px 0", color: "#a8071a" }}>{workspaceError}</p>}
-        {deepLinkError && (
-          <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#fff1f0", border: "1px solid #ffa39e", borderRadius: "8px", textAlign: "center" }}>
-            <p style={{ margin: "0 0 12px 0", color: "#a8071a", fontWeight: "bold" }}>{deepLinkError}</p>
-            <button onClick={() => setDeepLinkError(null)} style={{ padding: "6px 12px", cursor: "pointer", borderRadius: "4px", border: "1px solid #d9d9d9", backgroundColor: "#fff" }}>
-              Dismiss
-            </button>
+      <div className="relative flex min-h-screen">
+        <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-slate-950/72 px-5 py-5 shadow-[24px_0_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex lg:flex-col">
+          <div className="mb-7 flex items-center gap-2" aria-hidden="true">
+            <span className="size-3 rounded-full bg-red-400" />
+            <span className="size-3 rounded-full bg-amber-300" />
+            <span className="size-3 rounded-full bg-emerald-400" />
           </div>
-        )}
-      </div>
 
-      <section>
-        {selectedPack && selectedPack.packState === "ready" && "song" in selectedPack ? (
-          <div>
-            <button onClick={() => setSelectedPackId(null)} style={{ marginBottom: "16px" }}>&larr; Back to Workspace</button>
-            <Workspace 
-              song={selectedPack.song} 
-              annotations={selectedPack.annotations}
-              onAddAnnotation={(ann) => {
-                if (workspace) {
-                  const updatedWorkspace = structuredClone(workspace);
-                  const pack = updatedWorkspace.songs.find(s => s.id === selectedPack.id);
-                  if (pack) {
-                    pack.annotations = mergeAnnotations(pack.annotations, [ann]);
-                    setWorkspace(updatedWorkspace);
-                    saveProject(updatedWorkspace).catch(e => {
-                      if (e instanceof Error && e.message !== "User cancelled") {
-                        setWorkspaceError(`Failed to auto-save annotations: ${e.message}`);
-                      }
-                    });
-                  }
-                }
-              }}
-            />
+          <div className="mb-9 flex items-center gap-3">
+            <div className="grid size-11 place-items-center rounded-2xl border border-cyan-300/50 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.35)]">
+              <AudioWaveform className="size-6 text-cyan-300" aria-hidden="true" />
+            </div>
+            <div className="text-2xl font-black tracking-tight">
+              Band<span className="text-cyan-300">Scope</span>
+            </div>
           </div>
-        ) : (
-          renderWorkspaceList()
-        )}
-      </section>
-    </main>
+
+          <nav aria-label="Primary rehearsal views" className="space-y-2">
+            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
+              <button
+                key={label}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                aria-disabled={active ? undefined : true}
+                disabled={!active}
+                title={active ? undefined : "Coming soon"}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                  active
+                    ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
+                    : "cursor-not-allowed text-slate-500 opacity-70"
+                }`}
+              >
+                <Icon className="size-5" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="mt-auto space-y-5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+                <CloudOff className="size-4 text-cyan-300" aria-hidden="true" />
+                Local-first
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Local project data stays on this device. YouTube import contacts the source provider only when you choose it.
+              </p>
+              <div className="mt-3 h-14 overflow-hidden rounded-xl bg-[linear-gradient(90deg,rgba(34,211,238,.12),rgba(124,58,237,.12))]">
+                <div className="flex h-full items-end gap-0.5 px-2 pb-1" aria-hidden="true">
+                  {Array.from({ length: 34 }).map((_, index) => (
+                    <span
+                      key={index}
+                      className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"
+                      style={{ height: `${14 + ((index * 19) % 38)}px` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-slate-400">
+              <button type="button" aria-label="Settings coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <Settings className="size-5" aria-hidden="true" />
+              </button>
+              <button type="button" aria-label="Help coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <CircleHelp className="size-5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
+          <nav aria-label="Compact rehearsal views" className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
+            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
+              <button
+                key={label}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                aria-label={`${label} compact view`}
+                aria-disabled={active ? undefined : true}
+                disabled={!active}
+                title={active ? undefined : "Coming soon"}
+                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold ${
+                  active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
+                }`}
+              >
+                <Icon className="size-4" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          <header className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
+            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
+            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
+            <ConfidenceMetric song={jobResult} />
+            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(jobResult)} detail={jobResult?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
+          </header>
+
+          <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+            <div className="grid gap-4 2xl:grid-cols-[1.4fr_minmax(0,1fr)_auto] 2xl:items-center">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.26em] text-cyan-300">
+                  {jobResult ? "READY • REHEARSAL" : "SYNCED • LOCAL"}
+                </p>
+                <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                  {jobResult ? "Rehearsal Console" : "Workspace Home"}
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                  {jobResult?.exportSummary?.headline ?? "Turn a song into a practical rehearsal view."}
+                </p>
+              </div>
+
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center 2xl:grid-cols-[auto_1fr]">
+                <Button
+                  onClick={handleChooseLocalAudio}
+                  disabled={analysisInFlight || isStarting || isImporting}
+                  variant="secondary"
+                  className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
+                  aria-label="Choose local audio"
+                >
+                  <Upload className="mr-2 size-4" aria-hidden="true" />
+                  {t("chooseLocalAudio")}
+                </Button>
+
+                <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
+                  <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
+                  <Input
+                    type="text"
+                    placeholder={t("youtubePlaceholder")}
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    disabled={analysisInFlight || isStarting || isImporting}
+                    className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
+                    aria-label="YouTube URL"
+                  />
+                  <Button
+                    onClick={handleImportYoutube}
+                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    variant="outline"
+                    className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                    aria-label="Import YouTube"
+                  >
+                    {isImporting ? t("importingYoutube") : t("importYoutube")}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap justify-start gap-2 2xl:justify-end">
+                <Button
+                  onClick={handleLoadProject}
+                  disabled={analysisInFlight || isStarting}
+                  variant="outline"
+                  className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                  aria-label="Open Project"
+                >
+                  <FolderOpen className="mr-2 size-4" aria-hidden="true" />
+                  Open Project
+                </Button>
+                <Button
+                  onClick={jobResult ? handleSaveProject : undefined}
+                  disabled={!jobResult}
+                  variant="outline"
+                  className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                  aria-label="Save Project"
+                >
+                  <Save className="mr-2 size-4" aria-hidden="true" />
+                  Save Project
+                </Button>
+                <Button
+                  onClick={handleStartAnalysis}
+                  disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                  size="lg"
+                  className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
+                  aria-label="Start analysis"
+                >
+                  <Play className="mr-2 size-4 fill-current" aria-hidden="true" />
+                  {t("startAnalysis")}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 text-sm text-slate-400 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <span className="mr-2 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">Formats</span>
+                {SUPPORTED_AUDIO_FORMATS.join(", ")}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {selectedBootstrap && (
+                  <div className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 font-semibold text-emerald-200" title={selectedBootstrap.source.fileName}>
+                    {selectedBootstrap.source.fileName}
+                  </div>
+                )}
+
+                {jobStatus && (
+                  <div
+                    className="inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 font-semibold text-cyan-100"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    {jobStatus.state === "running" && <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-cyan-100/30 border-t-cyan-200" />}
+                    {progressMessage(t, jobStatus.state)}
+                  </div>
+                )}
+
+                {selectionError && (
+                  <div className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                    {selectionError}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
+            {renderWorkspaceState()}
+          </section>
+        </main>
+      </div>
+    </div>
   );
 }
