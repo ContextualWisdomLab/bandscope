@@ -116,7 +116,7 @@ requires-dist = [
     { name = "librosa", specifier = ">=0.11.0" },
     { name = "numba", specifier = "<0.63.0" },
     { name = "soundfile", specifier = ">=0.13.1" },
-    { name = "urllib3", specifier = "==2.7.0" },
+    { name = "urllib3", specifier = ">=2.7.0" },
     { name = "yt-dlp", specifier = ">=2026.3.17" },
 ]
 
