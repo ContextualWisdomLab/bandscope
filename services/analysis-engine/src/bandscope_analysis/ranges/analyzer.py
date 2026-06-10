@@ -56,7 +56,7 @@ def _parse_note(note: str) -> tuple[str, int]:
     # Find the boundary between note name and octave number by scanning
     # from the end of the string. Octave digits appear at the tail.
     for i in range(len(note) - 1, -1, -1):
-        if note[i].isdigit() or (note[i] == "-" and i == len(note) - 1):
+        if note[i].isdigit() or (note[i] == "-" and i < len(note) - 1):
             # Still in the octave portion; continue scanning left.
             pass
         else:
