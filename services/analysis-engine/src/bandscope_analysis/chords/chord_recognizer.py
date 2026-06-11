@@ -53,16 +53,16 @@ class ChordRecognizer:
             labels.append(f"{note}m")  # Minor
         return labels
 
-    def _extract_chromagram(self, y: np.ndarray, sr: int) -> np.ndarray | None:
-        """Extract chromagram from audio."""
-        # Compute harmonic harmonic-percussive separation (optional but helps)
+    def _separate_harmonic(self, y: np.ndarray) -> np.ndarray:
+        """Separate harmonic component from audio."""
         try:
             y_harmonic, _ = librosa.effects.hpss(y)
+            return np.asarray(y_harmonic)
         except Exception:
-            y_harmonic = y
+            return y
 
-        # Extract chromagram. CQT is better for harmony, but librosa warns on short clips after
-        # recursive downsampling; STFT keeps those clips warning-free and still returns chroma.
+    def _extract_chromagram(self, y_harmonic: np.ndarray, sr: int) -> np.ndarray | None:
+        """Extract and smooth chromagram."""
         try:
             if len(y_harmonic) <= sr * 2:
                 chromagram = librosa.feature.chroma_stft(
@@ -80,24 +80,25 @@ class ChordRecognizer:
             return None
 
         # Optional: apply temporal smoothing to chromagram to reduce noise
-        return librosa.decompose.nn_filter(chromagram, aggregate=np.median, metric="cosine")
+        chromagram = librosa.decompose.nn_filter(chromagram, aggregate=np.median, metric="cosine")
+        return np.asarray(chromagram)
 
-    def _calculate_rms(self, y: np.ndarray, n_frames: int) -> np.ndarray:
+    def _calculate_rms(self, y: np.ndarray, chromagram_len: int) -> np.ndarray:
         """Calculate RMS energy to detect silence/noise."""
         try:
             rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=512)[0]
             # Match RMS length to chromagram length
-            if len(rms) < n_frames:
-                rms = np.pad(rms, (0, n_frames - len(rms)), mode="edge")
+            if len(rms) < chromagram_len:
+                rms = np.pad(rms, (0, chromagram_len - len(rms)), mode="edge")
             else:
-                rms = rms[:n_frames]
+                rms = rms[:chromagram_len]
         except Exception:
-            rms = np.ones(n_frames)
+            rms = np.ones(chromagram_len)
         return np.asarray(rms)
 
     def _match_templates(self, chromagram: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Match chromagram to templates and return similarities and best match indices."""
-        # Compare chromagram frames to templates using dot product
+        # Compare chromagram frames to templates using dot product.
         # chromagram shape: (12, n_frames)
         # templates shape: (24, 12)
         # similarity shape: (24, n_frames)
@@ -129,6 +130,8 @@ class ChordRecognizer:
             # For noise, the max similarity is usually lower, but to be robust
             # we should check if the chromagram is too flat (e.g. low variance)
             # or if the RMS energy is really low.
+            # However, since dot product normalization makes noise match *something*,
+            # we can look at the variance of the chromagram frame.
             chroma_var = np.var(chromagram[:, i])
             if max_sim < 0.3 or rms_val < 0.01 or chroma_var < 0.02:
                 chord_label = "N"
@@ -174,7 +177,9 @@ class ChordRecognizer:
         if len(y) == 0:
             return []
 
-        chromagram = self._extract_chromagram(y, sr)
+        y_harmonic = self._separate_harmonic(y)
+        chromagram = self._extract_chromagram(y_harmonic, sr)
+
         if chromagram is None:
             return []
 
