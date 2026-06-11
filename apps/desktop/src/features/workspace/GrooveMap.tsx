@@ -1,12 +1,17 @@
+import { memo, useMemo } from "react";
 import type { TranscriptionNote } from "@bandscope/shared-types";
 
+/** Documented. */
 interface GrooveMapProps {
   notes?: TranscriptionNote[];
   isLoading?: boolean;
 }
 
 /** Documented. */
-export function GrooveMap({ notes, isLoading }: GrooveMapProps) {
+export /**
+ *
+ */
+const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMapProps) {
   if (isLoading) {
     return (
       <div
@@ -48,9 +53,20 @@ export function GrooveMap({ notes, isLoading }: GrooveMapProps) {
   }
 
   // Find max offset to determine timeline width
-  const maxTime = Math.max(...notes.map(n => n.offset), 10);
+  const maxTime = useMemo(() => {
+    return notes.reduce((max, n) => Math.max(max, n.offset), 10);
+  }, [notes]);
+
   // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
-  const uniquePitches = Array.from(new Set(notes.map(n => n.pitch))).sort();
+  const uniquePitches = useMemo(() => {
+    return Array.from(new Set(notes.map(n => n.pitch))).sort();
+  }, [notes]);
+
+  const pitchIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    uniquePitches.forEach((pitch, index) => map.set(pitch, index));
+    return map;
+  }, [uniquePitches]);
 
   return (
     <div
@@ -94,7 +110,7 @@ export function GrooveMap({ notes, isLoading }: GrooveMapProps) {
 
         {/* Render note blocks */}
         {notes.map((note, index) => {
-          const pitchIndex = uniquePitches.indexOf(note.pitch);
+          const pitchIndex = pitchIndexMap.get(note.pitch) ?? 0;
           const leftPercent = (note.onset / maxTime) * 100;
           const widthPercent = ((note.offset - note.onset) / maxTime) * 100;
 
@@ -118,4 +134,4 @@ export function GrooveMap({ notes, isLoading }: GrooveMapProps) {
       </div>
     </div>
   );
-}
+});

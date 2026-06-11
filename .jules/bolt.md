@@ -1,0 +1,3 @@
+## 2024-06-11 - Memoize GrooveMap and optimize note rendering
+**Learning:** Found a performance bottleneck related to rendering transcription notes in `GrooveMap`. Using the spread operator (`...`) on large arrays to calculate `maxTime` can cause call stack limits (`RangeError: maximum call stack size exceeded`). Also `indexOf` operations inside `notes.map` result in O(N^2) complexity, causing performance issues.
+**Action:** Replaced spread operators with `.reduce` and used `useMemo` to memoize expensive computations. Replaced the O(N) `indexOf` operation in the rendering loop with an O(1) Map cache lookup for pitch indexes, ensuring fast performance for large datasets.
