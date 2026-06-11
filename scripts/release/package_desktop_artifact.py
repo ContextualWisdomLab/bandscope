@@ -94,7 +94,7 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     installers = []
 
     if bundle_dir.exists():
-        for subdirectory, pattern in [("macos", "*.app"), ("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
+        for subdirectory, pattern in [("macos", "*.app"), ("nsis", "*.exe"), ("msi", "*.msi")]:
             installers.extend(
                 installer
                 for installer in sorted((bundle_dir / subdirectory).glob(pattern))

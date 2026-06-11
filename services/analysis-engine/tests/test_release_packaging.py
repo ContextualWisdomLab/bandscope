@@ -65,7 +65,7 @@ def test_find_installer_packages_returns_dmg(
     )
 
     monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "aarch64-apple-darwin")
-    dmg_path = (
+    app_path = (
         tmp_path
         / "apps"
         / "desktop"
@@ -74,14 +74,14 @@ def test_find_installer_packages_returns_dmg(
         / "aarch64-apple-darwin"
         / "release"
         / "bundle"
-        / "dmg"
-        / "Test.dmg"
+        / "macos"
+        / "Test.app"
     )
-    dmg_path.parent.mkdir(parents=True)
-    dmg_path.write_bytes(b"dmg")
+    app_path.parent.mkdir(parents=True)
+    app_path.write_bytes(b"dmg")
 
     installers = packaging.find_installer_packages(tmp_path)
-    assert installers == [dmg_path]
+    assert installers == [app_path]
 
 
 def test_find_installer_packages_returns_exe_and_msi(monkeypatch, tmp_path: Path) -> None:
@@ -256,7 +256,7 @@ def test_release_packaging_main_writes_arch_specific_manifest(
     script_path.parent.mkdir(parents=True)
     script_path.write_text("# placeholder", encoding="utf-8")
 
-    dmg_path = (
+    app_path = (
         repo_root
         / "apps"
         / "desktop"
@@ -265,11 +265,11 @@ def test_release_packaging_main_writes_arch_specific_manifest(
         / "aarch64-apple-darwin"
         / "release"
         / "bundle"
-        / "dmg"
-        / "App.dmg"
+        / "macos"
+        / "App.app"
     )
-    dmg_path.parent.mkdir(parents=True)
-    dmg_path.write_bytes(b"dmg")
+    app_path.parent.mkdir(parents=True)
+    app_path.write_bytes(b"dmg")
 
     monkeypatch.setattr(packaging, "__file__", str(script_path))
     monkeypatch.setenv("GITHUB_SHA", "1234567890abcdef")
@@ -278,7 +278,7 @@ def test_release_packaging_main_writes_arch_specific_manifest(
     monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "aarch64-apple-darwin")
 
     assert packaging.main() == 0
-    manifest_path = repo_root / "artifacts" / "bandscope-macos-arm64-1234567890ab.dmg.manifest.txt"
+    manifest_path = repo_root / "artifacts" / "bandscope-macos-arm64-1234567890ab.app.manifest.txt"
 
     assert manifest_path.exists()
     assert "platform=macos" in manifest_path.read_text(encoding="utf-8")
