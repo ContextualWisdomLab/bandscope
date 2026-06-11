@@ -221,7 +221,13 @@ def test_download_youtube_audio_size_exceeded(
 
 def test_main_block(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """Test the CLI entry point."""
-    test_args = ["youtube.py", "--url", "https://youtube.com/watch?v=abc123DEF45", "--out-dir", "/tmp"]
+    test_args = [
+        "youtube.py",
+        "--url",
+        "https://youtube.com/watch?v=abc123DEF45",
+        "--out-dir",
+        "/tmp",
+    ]
     monkeypatch.setattr(sys, "argv", test_args)
 
     import bandscope_analysis.youtube
@@ -249,7 +255,13 @@ def test_module_execution(
 
     import bandscope_analysis.youtube
 
-    test_args = ["youtube.py", "--url", "https://youtube.com/watch?v=abc123DEF45", "--out-dir", "/tmp"]
+    test_args = [
+        "youtube.py",
+        "--url",
+        "https://youtube.com/watch?v=abc123DEF45",
+        "--out-dir",
+        "/tmp",
+    ]
     monkeypatch.setattr(sys, "argv", test_args)
 
     # Mock yt_dlp so runpy doesn't actually download
