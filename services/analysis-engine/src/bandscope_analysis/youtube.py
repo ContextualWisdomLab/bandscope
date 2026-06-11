@@ -37,7 +37,7 @@ def validate_url(url: str) -> bool:
             path = parsed.path.strip("/")
             return bool(YOUTUBE_VIDEO_ID_PATTERN.match(path))
 
-        if host == "youtube.com" or host.endswith(".youtube.com"):
+        if host in {"youtube.com", "www.youtube.com"}:
             if parsed.path != "/watch":
                 return False
             query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)

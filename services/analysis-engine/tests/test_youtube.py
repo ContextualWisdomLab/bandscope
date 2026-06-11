@@ -15,10 +15,11 @@ def test_validate_url() -> None:
     assert validate_url("https://youtube.com/watch?v=abc123DEF45") is True
     assert validate_url("https://youtu.be/abc123DEF45") is True
     assert validate_url("https://www.youtube.com/watch?v=abc123DEF45") is True
-    assert validate_url("https://m.youtube.com/watch?v=abc123DEF45") is True
-    assert validate_url("https://music.youtube.com/watch?v=abc123DEF45") is True
     assert validate_url("https://www.youtube.com/watch?v=abc123DEF45&t=10") is True
 
+    assert validate_url("https://m.youtube.com/watch?v=abc123DEF45") is False
+    assert validate_url("https://music.youtube.com/watch?v=abc123DEF45") is False
+    assert validate_url("https://evil.youtube.com/watch?v=abc123DEF45") is False
     assert validate_url("https://youtube.com/watch?v=123") is False
     assert validate_url("https://youtu.be/123") is False
     assert validate_url("http://youtube.com/watch?v=abc123DEF45") is False
