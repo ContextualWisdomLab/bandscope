@@ -42,7 +42,7 @@ def validate_url(url: str) -> bool:
             return len(video_ids) == 1 and bool(video_ids[0].strip())
 
         return False
-    except Exception:
+    except ValueError:
         return False
 
 
