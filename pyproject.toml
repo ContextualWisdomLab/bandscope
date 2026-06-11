@@ -3,9 +3,7 @@ name = "bandscope-workspace"
 version = "0.1.0"
 description = "BandScope public GitHub workspace baseline"
 requires-python = ">=3.12"
-dependencies = [
-    "urllib3>=2.7.0",
-]
+dependencies = []
 
 [tool.bandscope]
 analysis_service_path = "services/analysis-engine"

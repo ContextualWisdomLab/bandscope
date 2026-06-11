@@ -1,4 +1,3 @@
-# Ignore yt-dlp test credentials in shahid.py
 services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/shahid.py
 services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/go.py
 services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/nbc.py
