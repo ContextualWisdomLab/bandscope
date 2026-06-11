@@ -39,9 +39,52 @@ jobs:
           owner="${GH_REPO%/*}"
           repo="${GH_REPO#*/}"
 
+          gh_output_retry() {
+            local attempt
+            local err
+            local max_attempts=4
+            local output
+            local status
+
+            for attempt in $(seq 1 "$max_attempts"); do
+              err="$(mktemp)"
+              set +e
+              output="$("$@" 2>"$err")"
+              status="$?"
+              set -e
+
+              if [[ "$status" -eq 0 ]]; then
+                rm -f "$err"
+                printf '%s\n' "$output"
+                return 0
+              fi
+
+              if [[ "$attempt" -eq "$max_attempts" ]]; then
+                if [[ -n "$output" ]]; then
+                  printf 'stdout:\n%s\n' "$output" >&2
+                fi
+                if [[ -s "$err" ]]; then
+                  cat "$err" >&2
+                fi
+                rm -f "$err"
+                return "$status"
+              fi
+
+              echo "GitHub command failed on attempt $attempt/$max_attempts; retrying..." >&2
+              if [[ -n "$output" ]]; then
+                printf 'stdout:\n%s\n' "$output" >&2
+              fi
+              if [[ -s "$err" ]]; then
+                cat "$err" >&2
+              fi
+              rm -f "$err"
+              sleep "$((attempt * 2))"
+            done
+          }
+
           unresolved_threads() {
             local pr="$1"
-            gh api graphql \
+            gh_output_retry gh api graphql \
               -f owner="$owner" \
               -f repo="$repo" \
               -F number="$pr" \
@@ -62,28 +105,41 @@ jobs:
 
           required_checks_passed() {
             local pr="$1"
+            local attempt
             local check_error
             local checks_json
             local check_status
+            local max_attempts=4
             local non_passing
-            check_error="$(mktemp)"
 
-            set +e
-            checks_json="$(gh pr checks "$pr" --required --json name,bucket,state 2>"$check_error")"
-            check_status="$?"
-            set -e
+            for attempt in $(seq 1 "$max_attempts"); do
+              check_error="$(mktemp)"
+              set +e
+              checks_json="$(gh pr checks "$pr" --required --json name,bucket,state 2>"$check_error")"
+              check_status="$?"
+              set -e
 
-            if [[ "$check_status" -ne 0 ]]; then
+              if [[ "$check_status" -eq 0 ]]; then
+                rm -f "$check_error"
+                break
+              fi
+
               if [[ "$check_status" -eq 8 ]]; then
                 echo "PR #$pr required checks are still pending."
-              else
-                echo "PR #$pr required checks could not be read:"
-                cat "$check_error"
+                rm -f "$check_error"
+                return 1
               fi
+
+              echo "PR #$pr required checks could not be read on attempt $attempt/$max_attempts:"
+              cat "$check_error"
               rm -f "$check_error"
-              return 1
-            fi
-            rm -f "$check_error"
+
+              if [[ "$attempt" -eq "$max_attempts" ]]; then
+                return 1
+              fi
+
+              sleep "$((attempt * 2))"
+            done
 
             non_passing="$(jq '[.[] | select(.bucket != "pass")] | length' <<<"$checks_json")"
             if [[ "$non_passing" -ne 0 ]]; then
@@ -104,7 +160,10 @@ jobs:
             local has_marker
             marker="<!-- bandscope-pr-review-merge-scheduler:${head} -->"
 
-            has_marker="$(gh pr view "$pr" --json comments --jq --arg marker "$marker" 'any(.comments[]?; .body | contains($marker))')"
+            if ! has_marker="$(gh_output_retry gh pr view "$pr" --json comments --jq --arg marker "$marker" 'any(.comments[]?; .body | contains($marker))')"; then
+              echo "PR #$pr comments could not be read; skipping scheduler review request for this pass."
+              return 0
+            fi
             if [[ "$has_marker" == "true" ]]; then
               echo "PR #$pr already has a scheduler review request for $head."
               return 0
@@ -114,10 +173,12 @@ jobs:
               "$marker" \
               "@coderabbitai review" \
               "Scheduled PR review/merge pass found zero unresolved review threads, but this head is not approved yet (${review}). Please review this current head so the normal merge gate can decide it.")"
-            gh pr comment "$pr" --body "$body"
+            if ! gh_output_retry gh pr comment "$pr" --body "$body"; then
+              echo "PR #$pr scheduler review request could not be posted; skipping for this pass."
+            fi
           }
 
-          prs_json="$(gh pr list \
+          prs_json="$(gh_output_retry gh pr list \
             --base "$DEFAULT_BRANCH" \
             --state open \
             --limit "$MAX_PRS" \
@@ -132,7 +193,10 @@ jobs:
 
             echo "Inspecting PR #$pr: $title"
 
-            unresolved="$(unresolved_threads "$pr")"
+            if ! unresolved="$(unresolved_threads "$pr")"; then
+              echo "PR #$pr review threads could not be read after retries; skipping this pass."
+              continue
+            fi
             if [[ "$unresolved" -ne 0 ]]; then
               echo "PR #$pr has $unresolved unresolved review thread(s); leaving it for code fixes."
               continue
