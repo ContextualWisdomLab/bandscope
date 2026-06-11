@@ -64,7 +64,8 @@ def test_download_youtube_audio_success(
     mock_exists.return_value = True
     mock_getsize.return_value = 10 * 1024 * 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    input_url = "https://youtube.com/watch?v=abc123DEF45"
+    result = download_youtube_audio(input_url, "/tmp")
 
     assert result["ok"] is True
     assert result["metadata"]["id"] == "abc123DEF45"
@@ -90,8 +91,8 @@ def test_download_youtube_audio_success(
     assert mock_ydl.extract_info.call_count == 2
     mock_ydl.extract_info.assert_has_calls(
         [
-            call("https://youtube.com/watch?v=123", download=False),
-            call("https://youtube.com/watch?v=123", download=True),
+            call(input_url, download=False),
+            call(input_url, download=True),
         ]
     )
 
