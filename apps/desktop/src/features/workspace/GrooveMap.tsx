@@ -1,6 +1,8 @@
 import { memo, useMemo } from "react";
 import type { TranscriptionNote } from "@bandscope/shared-types";
 
+const EMPTY_NOTES: TranscriptionNote[] = [];
+
 /** Documented. */
 interface GrooveMapProps {
   notes?: TranscriptionNote[];
@@ -9,6 +11,23 @@ interface GrooveMapProps {
 
 /** Documented. */
 export const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMapProps) {
+  const renderedNotes = notes ?? EMPTY_NOTES;
+  // Find max offset to determine timeline width
+  const maxTime = useMemo(() => {
+    return renderedNotes.reduce((max, n) => Math.max(max, n.offset), 10);
+  }, [renderedNotes]);
+
+  // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
+  const uniquePitches = useMemo(() => {
+    return Array.from(new Set(renderedNotes.map(n => n.pitch))).sort();
+  }, [renderedNotes]);
+
+  const pitchIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    uniquePitches.forEach((pitch, index) => map.set(pitch, index));
+    return map;
+  }, [uniquePitches]);
+
   if (isLoading) {
     return (
       <div
@@ -30,7 +49,7 @@ export const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMap
     );
   }
 
-  if (!notes || notes.length === 0) {
+  if (renderedNotes.length === 0) {
     return (
       <div
         style={{
@@ -49,22 +68,6 @@ export const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMap
     );
   }
 
-  // Find max offset to determine timeline width
-  const maxTime = useMemo(() => {
-    return notes.reduce((max, n) => Math.max(max, n.offset), 10);
-  }, [notes]);
-
-  // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
-  const uniquePitches = useMemo(() => {
-    return Array.from(new Set(notes.map(n => n.pitch))).sort();
-  }, [notes]);
-
-  const pitchIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    uniquePitches.forEach((pitch, index) => map.set(pitch, index));
-    return map;
-  }, [uniquePitches]);
-
   return (
     <div
       style={{
@@ -79,7 +82,7 @@ export const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMap
       aria-label="Groove Map Transcription"
     >
       <div className="sr-only" style={{ position: "absolute", left: "-9999px" }}>
-        Transcription complete. {notes.length} notes analyzed.
+        Transcription complete. {renderedNotes.length} notes analyzed.
       </div>
       
       <div style={{ position: "relative", minWidth: "100%", height: `${uniquePitches.length * 40}px` }}>
@@ -106,7 +109,7 @@ export const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMap
         ))}
 
         {/* Render note blocks */}
-        {notes.map((note, index) => {
+        {renderedNotes.map((note, index) => {
           const pitchIndex = pitchIndexMap.get(note.pitch) ?? 0;
           const leftPercent = (note.onset / maxTime) * 100;
           const widthPercent = ((note.offset - note.onset) / maxTime) * 100;
