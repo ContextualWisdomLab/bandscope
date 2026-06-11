@@ -1,8 +1,6 @@
 import { memo, useMemo } from "react";
 import type { TranscriptionNote } from "@bandscope/shared-types";
 
-const EMPTY_NOTES: TranscriptionNote[] = [];
-
 /** Documented. */
 interface GrooveMapProps {
   notes?: TranscriptionNote[];
@@ -10,24 +8,12 @@ interface GrooveMapProps {
 }
 
 /** Documented. */
-function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
-  const renderedNotes = notes ?? EMPTY_NOTES;
-  // Find max offset to determine timeline width
-  const maxTime = useMemo(() => {
-    return renderedNotes.reduce((max, n) => Math.max(max, n.offset), 10);
-  }, [renderedNotes]);
-
-  // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
-  const uniquePitches = useMemo(() => {
-    return Array.from(new Set(renderedNotes.map(n => n.pitch))).sort();
-  }, [renderedNotes]);
-
-  const pitchIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    uniquePitches.forEach((pitch, index) => map.set(pitch, index));
-    return map;
-  }, [uniquePitches]);
-
+export /**
+ *
+ */
+const GrooveMap = memo(
+  /** Documented. */
+  function GrooveMap({ notes, isLoading }: GrooveMapProps) {
   if (isLoading) {
     return (
       <div
@@ -49,7 +35,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
     );
   }
 
-  if (renderedNotes.length === 0) {
+  if (!notes || notes.length === 0) {
     return (
       <div
         style={{
@@ -68,6 +54,22 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
     );
   }
 
+  // Find max offset to determine timeline width
+  const maxTime = useMemo(() => {
+    return notes.reduce((max, n) => Math.max(max, n.offset), 10);
+  }, [notes]);
+
+  // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
+  const uniquePitches = useMemo(() => {
+    return Array.from(new Set(notes.map(n => n.pitch))).sort();
+  }, [notes]);
+
+  const pitchIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    uniquePitches.forEach((pitch, index) => map.set(pitch, index));
+    return map;
+  }, [uniquePitches]);
+
   return (
     <div
       style={{
@@ -82,7 +84,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
       aria-label="Groove Map Transcription"
     >
       <div className="sr-only" style={{ position: "absolute", left: "-9999px" }}>
-        Transcription complete. {renderedNotes.length} notes analyzed.
+        Transcription complete. {notes.length} notes analyzed.
       </div>
       
       <div style={{ position: "relative", minWidth: "100%", height: `${uniquePitches.length * 40}px` }}>
@@ -109,7 +111,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
         ))}
 
         {/* Render note blocks */}
-        {renderedNotes.map((note, index) => {
+        {notes.map((note, index) => {
           const pitchIndex = pitchIndexMap.get(note.pitch) ?? 0;
           const leftPercent = (note.onset / maxTime) * 100;
           const widthPercent = ((note.offset - note.onset) / maxTime) * 100;
@@ -134,8 +136,4 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
       </div>
     </div>
   );
-}
-
-const GrooveMap = memo(GrooveMapComponent);
-
-export { GrooveMap };
+});
