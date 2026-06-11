@@ -45,6 +45,28 @@ OSSF_PUBLISH_USES_ONLY_VIOLATION = (
     "ossf scorecard publishing job must only contain uses steps; split run steps "
     "into a separate non-publishing job"
 )
+OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION = (
+    "ossf scorecard artifact download must use skip-decompress: true and "
+    "repo-owned extraction before normalization"
+)
+RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION = (
+    "release artifact download must use skip-decompress: true and "
+    "repo-owned extraction before asset validation"
+)
+CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION = (
+    "workflows using actions/checkout must set workflow-level "
+    "GIT_CONFIG_* init.defaultBranch env to avoid Git initial-branch warnings"
+)
+CHECKOUT_DEFAULT_BRANCH_GUARD_ENV = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "init.defaultBranch",
+    "GIT_CONFIG_VALUE_0": "develop",
+}
+OSSF_ARTIFACT_EXTRACTOR = "scripts/checks/extract_scorecard_artifact.py"
+RELEASE_ARTIFACT_EXTRACTOR = "scripts/release/extract_release_artifacts.py"
+OSSF_SARIF_NORMALIZER = "scripts/checks/normalize_scorecard_sarif.py"
+OSSF_NORMALIZED_SARIF = "normalized-scorecard-results.sarif"
+OSSF_NORMALIZED_SARIF_UPLOAD = f"sarif_file: {OSSF_NORMALIZED_SARIF}"
 RELEASE_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*")
 RELEASE_ASSET_VALIDATOR = (
     "scripts/release/select_release_assets.py --output release-assets.txt"
@@ -52,19 +74,45 @@ RELEASE_ASSET_VALIDATOR = (
 RELEASE_ASSET_MAPFILE = "mapfile -t release_assets < release-assets.txt"
 WORKSPACE_EXEC_PATTERN = re.compile(r"\bnpm\s+exec\s+--workspace\b")
 RUST_RAND_ADVISORY_ID = "GHSA-cq8v-f236-94qc"
-RUST_RAND_LEGACY_EXCEPTION_VERSION = "0.7.3"
+RUST_RAND_RETIRED_LEGACY_VERSION = "0.7.3"
 RUST_RAND_PATCHED_VERSIONS = {
     (0, 8): (0, 8, 6),
     (0, 9): (0, 9, 3),
     (0, 10): (0, 10, 1),
 }
-RUST_RAND_LEGACY_EXCEPTION_CHAIN = (
-    "tauri-utils 2.8.3",
-    "kuchikiki 0.8.8-speedreader",
-    "selectors 0.24.0",
-    "phf_codegen 0.8.0",
-    "phf_generator 0.8.0",
-    "rand 0.7.3",
+RUST_GLIB_ADVISORY_ID = "RUSTSEC-2024-0429"
+RUST_GLIB_LEGACY_EXCEPTION_VERSION = "0.18.5"
+RUST_GLIB_PATCHED_VERSION = (0, 20, 0)
+RUST_GLIB_LEGACY_ROOT_NAME = "tauri"
+RUST_GLIB_LEGACY_EXCEPTION_PACKAGE = "glib 0.18.5"
+RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES = {
+    "atk",
+    "cairo-rs",
+    "gdk",
+    "gdk-pixbuf",
+    "gio",
+    "gtk",
+    "javascriptcore-rs",
+    "pango",
+    "soup3",
+    "webkit2gtk",
+}
+RUST_GLIB_LEGACY_ALLOWED_ANCESTOR_NAMES = RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES | {
+    "muda",
+    "tao",
+    RUST_GLIB_LEGACY_ROOT_NAME,
+    "tauri-runtime",
+    "tauri-runtime-wry",
+    "wry",
+}
+RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES = {"bandscope-desktop"}
+RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
+    RUST_GLIB_LEGACY_ROOT_NAME,
+    "tauri-runtime-wry",
+    "wry",
+    "webkit2gtk",
+    "gtk",
+    "glib",
 )
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RELEASE_CREATE_VALUE_FLAGS = {
@@ -78,6 +126,107 @@ RELEASE_CREATE_VALUE_FLAGS = {
     "--title",
 }
 RELEASE_CREATE_ALLOWED_ASSET_TOKENS = {"${release_assets[@]}", "${release_assets[*]}"}
+WorkflowStepBlock = tuple[int, int, list[str]]
+
+
+def workflow_step_blocks(lines: list[str]) -> list[WorkflowStepBlock]:
+    """Return YAML step blocks nested under a workflow ``steps:`` parent."""
+    step_blocks: list[WorkflowStepBlock] = []
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("- "):
+            continue
+        step_indent = len(line) - len(line.lstrip(" "))
+        if step_indent < 6:
+            continue
+        has_steps_parent = False
+        for previous_line in reversed(lines[:index]):
+            previous_stripped = previous_line.strip().partition("#")[0].strip()
+            previous_indent = len(previous_line) - len(previous_line.lstrip(" "))
+            if previous_indent >= step_indent:
+                continue
+            if previous_stripped == "steps:":
+                has_steps_parent = True
+            break
+        if not has_steps_parent:
+            continue
+        step_lines = [line]
+        for following_line in lines[index + 1 :]:
+            following_stripped = following_line.strip()
+            following_indent = len(following_line) - len(following_line.lstrip(" "))
+            if following_stripped.startswith("- ") and following_indent <= step_indent:
+                break
+            step_lines.append(following_line)
+        step_blocks.append((index, step_indent, step_lines))
+    return step_blocks
+
+
+def workflow_job_content_for_step(lines: list[str], line_index: int) -> str:
+    """Return the workflow job block containing ``line_index``."""
+    job_start = 0
+    for reverse_index in range(line_index, -1, -1):
+        candidate = lines[reverse_index]
+        candidate_without_comment = candidate.strip().partition("#")[0].strip()
+        if len(candidate) - len(
+            candidate.lstrip(" ")
+        ) == 2 and candidate_without_comment.endswith(":"):
+            job_start = reverse_index
+            break
+    job_end = len(lines)
+    for forward_index in range(job_start + 1, len(lines)):
+        candidate = lines[forward_index]
+        candidate_without_comment = candidate.strip().partition("#")[0].strip()
+        if len(candidate) - len(
+            candidate.lstrip(" ")
+        ) == 2 and candidate_without_comment.endswith(":"):
+            job_end = forward_index
+            break
+    return "\n".join(lines[job_start:job_end])
+
+
+def step_run_command_from_block(step_lines: list[str], step_indent: int) -> str:
+    """Return a workflow step run command with comments and YAML wrappers removed."""
+    run_indent: int | None = None
+    command_lines: list[str] = []
+    for step_line in step_lines:
+        raw_stripped = step_line.strip().partition("#")[0].strip()
+        stripped = raw_stripped
+        is_step_start = stripped.startswith("- ")
+        if is_step_start:
+            stripped = stripped[2:].strip()
+        indent = len(step_line) - len(step_line.lstrip(" "))
+        if run_indent is None:
+            if stripped.startswith("run:") and (indent > step_indent or is_step_start):
+                run_indent = indent
+                command_lines.append(stripped.partition(":")[2].strip())
+            continue
+        if stripped and indent <= run_indent:
+            break
+        command_lines.append(stripped)
+    return "\n".join(command_lines)
+
+
+def step_with_value_from_block(
+    step_lines: list[str], step_indent: int, key: str
+) -> str | None:
+    """Return a workflow step ``with`` value for ``key`` when scoped under with."""
+    with_indent: int | None = None
+    key_pattern = re.compile(rf"^\s*{re.escape(key)}\s*:\s*(?P<value>.*?)\s*$")
+    for step_line in step_lines:
+        stripped = step_line.partition("#")[0].rstrip()
+        if not stripped.strip():
+            continue
+        indent = len(step_line) - len(step_line.lstrip(" "))
+        if with_indent is None:
+            if indent > step_indent and stripped.strip() == "with:":
+                with_indent = indent
+            continue
+        if indent <= with_indent:
+            break
+        match = key_pattern.match(stripped)
+        if match:
+            return match.group("value").strip().strip("'\"")
+    return None
 
 
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
@@ -249,6 +398,67 @@ def verify_pinned_actions() -> list[str]:
     return violations
 
 
+def workflow_top_level_env(content: str) -> dict[str, str]:
+    """Return the simple top-level env mapping from a GitHub Actions workflow."""
+    env: dict[str, str] = {}
+    lines = content.splitlines()
+    for index, line in enumerate(lines):
+        line_without_comment = line.partition("#")[0].rstrip()
+        if line_without_comment != "env:":
+            continue
+        child_indent: int | None = None
+        for env_line in lines[index + 1 :]:
+            env_line_without_comment = env_line.partition("#")[0].rstrip()
+            if not env_line_without_comment.strip():
+                continue
+            indent = len(env_line_without_comment) - len(
+                env_line_without_comment.lstrip(" ")
+            )
+            if indent == 0:
+                break
+            if child_indent is None:
+                child_indent = indent
+            if indent != child_indent:
+                continue
+            match = re.match(
+                r"^\s+([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$",
+                env_line_without_comment,
+            )
+            if match is None:
+                continue
+            value = match.group(2).strip().strip('"\'')
+            env[match.group(1)] = value
+        break
+    return env
+
+
+def verify_checkout_default_branch_guard() -> list[str]:
+    """Return checkout workflows missing the Git default-branch warning guard."""
+    violations: list[str] = []
+    checkout_uses_pattern = re.compile(
+        r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@"
+    )
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for path in workflow_paths:
+        content = path.read_text(encoding="utf-8")
+        has_checkout = any(
+            checkout_uses_pattern.search(line.partition("#")[0])
+            for line in content.splitlines()
+        )
+        if not has_checkout:
+            continue
+        env = workflow_top_level_env(content)
+        if all(
+            env.get(key) == value
+            for key, value in CHECKOUT_DEFAULT_BRANCH_GUARD_ENV.items()
+        ):
+            continue
+        violations.append(f"{path}: {CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}")
+    return violations
+
+
 def verify_dependabot_coverage() -> list[str]:
     """Return missing Dependabot ecosystems from the repo configuration."""
     path = Path(".github/dependabot.yml")
@@ -322,6 +532,301 @@ def ossf_scorecard_publish_restriction_violations(
 
     evaluate_job(current_job_lines, current_job_start_line)
     return violations
+
+
+def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
+    """Return Scorecard SARIF upload steps that bypass the normalizer output."""
+    if "ossf/scorecard-action" not in content:
+        return []
+    if "github/codeql-action/upload-sarif" not in content:
+        return []
+
+    def upload_step_sarif_file(step_lines: list[str], step_indent: int) -> str | None:
+        with_indent: int | None = None
+        for step_line in step_lines:
+            raw_stripped = step_line.strip().partition("#")[0].strip()
+            stripped = raw_stripped
+            is_step_start = stripped.startswith("- ")
+            if is_step_start:
+                stripped = stripped[2:].strip()
+            indent = len(step_line) - len(step_line.lstrip(" "))
+            if with_indent is None:
+                if stripped == "with:" and (indent > step_indent or is_step_start):
+                    with_indent = indent
+                continue
+            if stripped and indent <= with_indent:
+                break
+            if stripped.startswith("sarif_file:") and indent > with_indent:
+                return stripped.partition(":")[2].partition("#")[0].strip().strip("'\"")
+        return None
+
+    def normalizer_output_file(command: str) -> str | None:
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            tokens = re.split(r"\s+", command)
+        cleaned_tokens = [token.strip("'\"") for token in tokens if token.strip("'\"")]
+        if cleaned_tokens and cleaned_tokens[0] in {">", ">-", "|", "|-"}:
+            cleaned_tokens = cleaned_tokens[1:]
+        if len(cleaned_tokens) < 4:
+            return None
+        if cleaned_tokens[0] not in {"python", "python3"}:
+            return None
+        if cleaned_tokens[1] != OSSF_SARIF_NORMALIZER:
+            return None
+        positional_args = cleaned_tokens[2:]
+        if len(positional_args) < 2:
+            return None
+        return positional_args[1]
+
+    def workflow_job_step_blocks(line_index: int) -> list[tuple[int, int, list[str]]]:
+        job_content = workflow_job_content_for_step(lines, line_index)
+        return [
+            block
+            for block in step_blocks
+            if workflow_job_content_for_step(lines, block[0]) == job_content
+        ]
+
+    lines = content.splitlines()
+
+    step_blocks = workflow_step_blocks(lines)
+
+    violations: list[str] = []
+    for index, step_indent, step_lines in step_blocks:
+        if "github/codeql-action/upload-sarif" not in "\n".join(
+            line.partition("#")[0] for line in step_lines
+        ):
+            continue
+        sarif_file = upload_step_sarif_file(step_lines, step_indent)
+        job_content = workflow_job_content_for_step(lines, index)
+        job_content_without_comments = "\n".join(
+            line.partition("#")[0] for line in job_content.splitlines()
+        )
+        job_blocks = workflow_job_step_blocks(index)
+        normalizer_run_commands = [
+            step_run_command_from_block(normalizer_step_lines, normalizer_step_indent)
+            for _, normalizer_step_indent, normalizer_step_lines in job_blocks
+        ]
+        normalizer_outputs = {
+            output
+            for command in normalizer_run_commands
+            if (output := normalizer_output_file(command)) is not None
+        }
+        job_has_scorecard_artifact_source = (
+            "ossf/scorecard-action" in job_content_without_comments
+            or (
+                "actions/download-artifact" in job_content_without_comments
+                and "ossf-scorecard-results" in job_content_without_comments
+            )
+        )
+        scorecard_sarif_upload = sarif_file == OSSF_NORMALIZED_SARIF or (
+            sarif_file is not None
+            and (
+                "scorecard" in sarif_file
+                or (
+                    sarif_file == "results.sarif"
+                    and "ossf/scorecard-action" in job_content_without_comments
+                )
+            )
+        )
+        if not scorecard_sarif_upload:
+            continue
+        if (
+            job_has_scorecard_artifact_source
+            and sarif_file is not None
+            and sarif_file in normalizer_outputs
+        ):
+            continue
+        violations.append(
+            "ossf scorecard SARIF upload must normalize repository-level "
+            "placeholder URIs before upload-sarif"
+        )
+    return violations
+
+
+def scorecard_artifact_download_decompression_violations(content: str) -> list[str]:
+    """Return Scorecard downloads that rely on action-owned ZIP decompression."""
+    content_without_comments = "\n".join(
+        line.partition("#")[0] for line in content.splitlines()
+    )
+    if "actions/download-artifact" not in content_without_comments:
+        return []
+    if "ossf-scorecard-results" not in content_without_comments:
+        return []
+
+    lines = content.splitlines()
+    step_blocks = workflow_step_blocks(lines)
+
+    def invokes_scorecard_extractor(command: str) -> bool:
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            tokens = re.split(r"\s+", command)
+        cleaned_tokens = [token.strip("'\"") for token in tokens if token.strip("'\"")]
+        if cleaned_tokens and cleaned_tokens[0] in {">", ">-", "|", "|-"}:
+            cleaned_tokens = cleaned_tokens[1:]
+        return (
+            len(cleaned_tokens) == 4
+            and cleaned_tokens[0] in {"python", "python3"}
+            and cleaned_tokens[1] == OSSF_ARTIFACT_EXTRACTOR
+            and cleaned_tokens[2] == "scorecard-artifact"
+            and cleaned_tokens[3] == "scorecard-sarif"
+        )
+
+    violations: list[str] = []
+    for index, block_indent, step_lines in step_blocks:
+        step_content = "\n".join(line.partition("#")[0] for line in step_lines)
+        if "actions/download-artifact" not in step_content:
+            continue
+        if "ossf-scorecard-results" not in step_content:
+            continue
+        if (
+            step_with_value_from_block(step_lines, block_indent, "skip-decompress")
+            != "true"
+        ):
+            violations.append(OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+
+        job_content = workflow_job_content_for_step(lines, index)
+        job_step_blocks = [
+            block
+            for block in step_blocks
+            if workflow_job_content_for_step(lines, block[0]) == job_content
+        ]
+        later_steps = [
+            (block_indent, block_lines)
+            for block_index, block_indent, block_lines in job_step_blocks
+            if block_index > index
+        ]
+        extractor_step_position = next(
+            (
+                position
+                for position, (block_indent, block_lines) in enumerate(later_steps)
+                if invokes_scorecard_extractor(
+                    step_run_command_from_block(block_lines, block_indent)
+                )
+            ),
+            None,
+        )
+        normalizer_step_position = next(
+            (
+                position
+                for position, (block_indent, block_lines) in enumerate(later_steps)
+                if (
+                    OSSF_SARIF_NORMALIZER
+                    in step_run_command_from_block(block_lines, block_indent)
+                )
+            ),
+            None,
+        )
+        if extractor_step_position is None:
+            violations.append(OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+        if (
+            normalizer_step_position is not None
+            and extractor_step_position > normalizer_step_position
+        ):
+            violations.append(OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+    if violations:
+        return [OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION]
+    return []
+
+
+def release_artifact_download_decompression_violations(content: str) -> list[str]:
+    """Return release downloads that rely on action-owned ZIP decompression."""
+    content_without_comments = "\n".join(
+        line.partition("#")[0] for line in content.splitlines()
+    )
+    if "actions/download-artifact" not in content_without_comments:
+        return []
+    if "bandscope-*-${{ github.sha }}" not in content_without_comments:
+        return []
+
+    lines = content.splitlines()
+    step_blocks = workflow_step_blocks(lines)
+
+    def invokes_release_extractor(command: str) -> bool:
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            tokens = re.split(r"\s+", command)
+        cleaned_tokens = [token.strip("'\"") for token in tokens if token.strip("'\"")]
+        if cleaned_tokens and cleaned_tokens[0] in {">", ">-", "|", "|-"}:
+            cleaned_tokens = cleaned_tokens[1:]
+        return (
+            len(cleaned_tokens) == 4
+            and cleaned_tokens[0] in {"python", "python3"}
+            and cleaned_tokens[1] == RELEASE_ARTIFACT_EXTRACTOR
+            and cleaned_tokens[2] == "downloaded-artifacts"
+            and cleaned_tokens[3] == "artifacts"
+        )
+
+    def is_blocking_required_step(block_lines: list[str]) -> bool:
+        step_content = "\n".join(line.partition("#")[0] for line in block_lines)
+        return not re.search(
+            r"^\s+continue-on-error\s*:", step_content, flags=re.MULTILINE
+        ) and not re.search(r"^\s+if\s*:", step_content, flags=re.MULTILINE)
+
+    violations: list[str] = []
+    for index, block_indent, step_lines in step_blocks:
+        step_content = "\n".join(line.partition("#")[0] for line in step_lines)
+        if "actions/download-artifact" not in step_content:
+            continue
+        if "bandscope-*-${{ github.sha }}" not in step_content:
+            continue
+        if (
+            step_with_value_from_block(step_lines, block_indent, "skip-decompress")
+            != "true"
+        ):
+            violations.append(RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+
+        job_content = workflow_job_content_for_step(lines, index)
+        job_step_blocks = [
+            block
+            for block in step_blocks
+            if workflow_job_content_for_step(lines, block[0]) == job_content
+        ]
+        later_steps = [
+            (block_indent, block_lines)
+            for block_index, block_indent, block_lines in job_step_blocks
+            if block_index > index
+        ]
+        extractor_step_position = next(
+            (
+                position
+                for position, (block_indent, block_lines) in enumerate(later_steps)
+                if invokes_release_extractor(
+                    step_run_command_from_block(block_lines, block_indent)
+                )
+                and is_blocking_required_step(block_lines)
+            ),
+            None,
+        )
+        validator_step_position = next(
+            (
+                position
+                for position, (block_indent, block_lines) in enumerate(later_steps)
+                if (
+                    RELEASE_ASSET_VALIDATOR
+                    in step_run_command_from_block(block_lines, block_indent)
+                )
+            ),
+            None,
+        )
+        if extractor_step_position is None:
+            violations.append(RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+        if (
+            validator_step_position is not None
+            and extractor_step_position > validator_step_position
+        ):
+            violations.append(RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION)
+            continue
+    if violations:
+        return [RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION]
+    return []
 
 
 def verify_workflow_coverage() -> list[str]:
@@ -405,6 +910,14 @@ def verify_workflow_coverage() -> list[str]:
         missing.append(
             "build workflow should not rely on macos-latest for architecture coverage"
         )
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for workflow_path in workflow_paths:
+        workflow_content = workflow_path.read_text(encoding="utf-8")
+        missing.extend(
+            release_artifact_download_decompression_violations(workflow_content)
+        )
     scorecard = read_workflow(
         Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
     )
@@ -427,13 +940,17 @@ def verify_workflow_coverage() -> list[str]:
                 missing.append(
                     "ossf scorecard publish_results must use the repository default branch guard"
                 )
-        workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
-            Path(".github/workflows").glob("*.yaml")
-        )
         for workflow_path in workflow_paths:
+            workflow_content = workflow_path.read_text(encoding="utf-8")
+            missing.extend(
+                scorecard_sarif_upload_normalization_violations(workflow_content)
+            )
+            missing.extend(
+                scorecard_artifact_download_decompression_violations(workflow_content)
+            )
             missing.extend(
                 ossf_scorecard_publish_restriction_violations(
-                    workflow_path.read_text(encoding="utf-8"), workflow_path
+                    workflow_content, workflow_path
                 )
             )
     return missing
@@ -671,12 +1188,14 @@ def rust_dependency_advisory_violations(
     if not lockfile.exists():
         return [f"Cargo.lock missing: {lockfile}"]
     package_dependencies = cargo_lock_package_dependencies(lockfile)
-    legacy_exception_allowed = cargo_lock_has_dependency_chain(
-        package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN
+    glib_exception_owned_packages = cargo_lock_reachable_package_keys_by_name(
+        package_dependencies, RUST_GLIB_LEGACY_ROOT_NAME
     )
-    expected_legacy_owner = RUST_RAND_LEGACY_EXCEPTION_CHAIN[-2]
-    legacy_rand_owners = cargo_lock_dependency_owners(
-        package_dependencies, RUST_RAND_LEGACY_EXCEPTION_CHAIN[-1]
+    legacy_glib_ancestors = cargo_lock_dependency_ancestors(
+        package_dependencies, RUST_GLIB_LEGACY_EXCEPTION_PACKAGE
+    )
+    legacy_glib_direct_owners = cargo_lock_dependency_owners(
+        package_dependencies, RUST_GLIB_LEGACY_EXCEPTION_PACKAGE
     )
     for package in cargo_lock_packages(lockfile):
         current_name = str(package.get("name", ""))
@@ -687,14 +1206,23 @@ def rust_dependency_advisory_violations(
             )
             continue
         if current_name != "rand":
+            if current_name == "glib":
+                violations.extend(
+                    rust_glib_advisory_violations(
+                        lockfile,
+                        version,
+                        package_dependencies,
+                        legacy_glib_ancestors,
+                        legacy_glib_direct_owners,
+                        glib_exception_owned_packages,
+                    )
+                )
             continue
-        if version == RUST_RAND_LEGACY_EXCEPTION_VERSION:
-            if legacy_exception_allowed and legacy_rand_owners == {expected_legacy_owner}:
-                continue
+        if version == RUST_RAND_RETIRED_LEGACY_VERSION:
             violations.append(
-                f"{lockfile}: rand {version} matches the legacy exception version "
-                "but does not have the documented Tauri/kuchikiki owner chain "
-                f"for {RUST_RAND_ADVISORY_ID}"
+                f"{lockfile}: rand {version} is not allowed for "
+                f"{RUST_RAND_ADVISORY_ID}; the former legacy owner-chain "
+                "exception has been removed"
             )
             continue
         parsed_parts: list[int] = []
@@ -722,9 +1250,8 @@ def rust_dependency_advisory_violations(
         if rand_series == (0, 7):
             violations.append(
                 f"{lockfile}: rand {version} is not allowed for "
-                f"{RUST_RAND_ADVISORY_ID}; only rand "
-                f"{RUST_RAND_LEGACY_EXCEPTION_VERSION} on the documented "
-                "legacy owner chain is temporarily allowed"
+                f"{RUST_RAND_ADVISORY_ID}; the former legacy owner-chain "
+                "exception has been removed"
             )
             continue
         patched_version = RUST_RAND_PATCHED_VERSIONS.get(rand_series)
@@ -735,6 +1262,166 @@ def rust_dependency_advisory_violations(
                 f"for {RUST_RAND_ADVISORY_ID}"
             )
     return violations
+
+
+def rust_glib_advisory_violations(
+    lockfile: Path,
+    version: str,
+    package_dependencies: dict[str, list[str]],
+    legacy_glib_ancestors: set[str],
+    legacy_glib_direct_owners: set[str],
+    glib_exception_owned_packages: set[str],
+) -> list[str]:
+    """Return violations for vulnerable glib versions outside the Tauri GTK stack."""
+    if version == RUST_GLIB_LEGACY_EXCEPTION_VERSION:
+        if glib_legacy_exception_owners_are_allowed(
+            package_dependencies,
+            legacy_glib_ancestors,
+            glib_exception_owned_packages,
+            legacy_glib_direct_owners,
+        ):
+            return []
+        return [
+            f"{lockfile}: glib {version} matches the legacy exception version but "
+            "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
+            f"for {RUST_GLIB_ADVISORY_ID}"
+        ]
+
+    version_violation = unsupported_numeric_semver_violation(
+        lockfile, "glib", version, RUST_GLIB_ADVISORY_ID
+    )
+    if version_violation is not None:
+        return [version_violation]
+    parsed_version = parse_numeric_semver(version)
+    if parsed_version is None:  # Defensive; unsupported forms returned above.
+        return [
+            f"{lockfile}: glib {version} has an unsupported version form "
+            f"for {RUST_GLIB_ADVISORY_ID}"
+        ]
+    if parsed_version < RUST_GLIB_PATCHED_VERSION:
+        patched = ".".join(str(part) for part in RUST_GLIB_PATCHED_VERSION)
+        return [
+            f"{lockfile}: glib {version} is below patched {patched} "
+            f"for {RUST_GLIB_ADVISORY_ID}"
+        ]
+    return []
+
+
+def glib_legacy_exception_owners_are_allowed(
+    package_dependencies: dict[str, list[str]],
+    legacy_glib_ancestors: set[str],
+    glib_exception_owned_packages: set[str],
+    legacy_glib_direct_owners: set[str],
+) -> bool:
+    """Return whether every glib ancestor matches the documented GTK/WebKit stack."""
+    if not legacy_glib_ancestors:
+        return False
+    ancestor_names = {
+        ancestor.rsplit(" ", maxsplit=1)[0] for ancestor in legacy_glib_ancestors
+    }
+    direct_owner_names = {
+        owner.rsplit(" ", maxsplit=1)[0] for owner in legacy_glib_direct_owners
+    }
+    if not direct_owner_names <= RUST_GLIB_LEGACY_DIRECT_OWNER_NAMES:
+        return False
+    off_chain_ancestors = legacy_glib_ancestors - glib_exception_owned_packages
+    allowed_app_roots = {
+        ancestor
+        for ancestor in off_chain_ancestors
+        if ancestor.rsplit(" ", maxsplit=1)[0]
+        in RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES
+    }
+    if off_chain_ancestors != allowed_app_roots:
+        return False
+    if not glib_allowed_app_roots_reach_glib_through_tauri(
+        package_dependencies, allowed_app_roots
+    ):
+        return False
+    return ancestor_names <= (
+        RUST_GLIB_LEGACY_ALLOWED_ANCESTOR_NAMES
+        | RUST_GLIB_LEGACY_ALLOWED_APP_ROOT_NAMES
+    )
+
+
+def glib_allowed_app_roots_reach_glib_through_tauri(
+    package_dependencies: dict[str, list[str]], allowed_app_roots: set[str]
+) -> bool:
+    """Return whether app roots reach legacy glib only through Tauri."""
+    for app_root in allowed_app_roots:
+        glib_reaching_dependencies = {
+            dependency
+            for dependency in package_dependencies.get(app_root, [])
+            if RUST_GLIB_LEGACY_EXCEPTION_PACKAGE
+            in cargo_lock_reachable_package_keys(package_dependencies, dependency)
+        }
+        glib_reaching_dependency_names = {
+            dependency.rsplit(" ", maxsplit=1)[0]
+            for dependency in glib_reaching_dependencies
+        }
+        if glib_reaching_dependency_names != {RUST_GLIB_LEGACY_ROOT_NAME}:
+            return False
+        if not cargo_lock_has_named_dependency_path(
+            package_dependencies, app_root, RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES
+        ):
+            return False
+    return True
+
+
+def cargo_lock_has_named_dependency_path(
+    package_dependencies: dict[str, list[str]],
+    root_package: str,
+    package_names: tuple[str, ...],
+) -> bool:
+    """Return whether a dependency path contains package names in order."""
+    pending: list[tuple[str, int, frozenset[str]]] = [(root_package, 0, frozenset())]
+    while pending:
+        current, matched_count, seen = pending.pop()
+        if current in seen:
+            continue
+        current_name = current.rsplit(" ", maxsplit=1)[0]
+        next_matched_count = matched_count
+        if (
+            matched_count < len(package_names)
+            and current_name == package_names[matched_count]
+        ):
+            next_matched_count += 1
+            if next_matched_count == len(package_names):
+                return True
+        next_seen = seen | {current}
+        for dependency in package_dependencies.get(current, []):
+            pending.append((dependency, next_matched_count, next_seen))
+    return False
+
+
+def unsupported_numeric_semver_violation(
+    lockfile: Path, package_name: str, version: str, advisory_id: str
+) -> str | None:
+    """Return a violation for non-numeric or overly long Cargo version forms."""
+    segments = version.split(".")
+    if any(not segment.isdecimal() for segment in segments):
+        return (
+            f"{lockfile}: {package_name} {version} has a non-numeric version segment "
+            f"for {advisory_id}"
+        )
+    if len(segments) > 3:
+        return (
+            f"{lockfile}: {package_name} {version} has a non-standard extra version segment "
+            f"for {advisory_id}"
+        )
+    return None
+
+
+def parse_numeric_semver(version: str) -> tuple[int, int, int] | None:
+    """Return a three-part numeric semver tuple for supported Cargo versions."""
+    segments = version.split(".")
+    if any(not segment.isdecimal() for segment in segments):
+        return None
+    if len(segments) > 3:
+        return None
+    parsed_parts = [int(part) for part in segments]
+    while len(parsed_parts) < 3:
+        parsed_parts.append(0)
+    return parsed_parts[0], parsed_parts[1], parsed_parts[2]
 
 
 def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
@@ -857,6 +1544,55 @@ def cargo_lock_dependency_owners(
     }
 
 
+def cargo_lock_dependency_ancestors(
+    package_dependencies: dict[str, list[str]], dependency: str
+) -> set[str]:
+    """Return every package key that can reach the target dependency key."""
+    reverse_dependencies: dict[str, set[str]] = {}
+    for package_key, dependency_tokens in package_dependencies.items():
+        for dependency_token in dependency_tokens:
+            reverse_dependencies.setdefault(dependency_token, set()).add(package_key)
+
+    ancestors: set[str] = set()
+    pending = list(reverse_dependencies.get(dependency, set()))
+    while pending:
+        current = pending.pop()
+        if current in ancestors:
+            continue
+        ancestors.add(current)
+        pending.extend(reverse_dependencies.get(current, set()))
+    return ancestors
+
+
+def cargo_lock_reachable_package_keys(
+    package_dependencies: dict[str, list[str]], root_package: str
+) -> set[str]:
+    """Return package keys reachable from a root package dependency graph."""
+    reachable: set[str] = set()
+    pending = [root_package]
+    while pending:
+        current = pending.pop()
+        if current in reachable:
+            continue
+        reachable.add(current)
+        pending.extend(package_dependencies.get(current, []))
+    return reachable
+
+
+def cargo_lock_reachable_package_keys_by_name(
+    package_dependencies: dict[str, list[str]], root_package_name: str
+) -> set[str]:
+    """Return packages reachable from every package whose key has the root name."""
+    reachable: set[str] = set()
+    for package_key in package_dependencies:
+        package_name = package_key.rsplit(" ", maxsplit=1)[0]
+        if package_name == root_package_name:
+            reachable.update(
+                cargo_lock_reachable_package_keys(package_dependencies, package_key)
+            )
+    return reachable
+
+
 def cargo_lock_has_dependency_chain(
     package_dependencies: dict[str, list[str]], package_chain: tuple[str, ...]
 ) -> bool:
@@ -880,6 +1616,7 @@ def main() -> int:
     violations: list[str] = []
     violations.extend(f"missing file: {item}" for item in verify_required_files())
     violations.extend(verify_pinned_actions())
+    violations.extend(verify_checkout_default_branch_guard())
     violations.extend(verify_dependabot_coverage())
     violations.extend(verify_workflow_coverage())
     violations.extend(verify_immutable_release_upload_policy())
