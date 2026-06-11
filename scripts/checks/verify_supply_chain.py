@@ -2,9 +2,12 @@
 
 import re
 import shlex
-import tomllib
 from itertools import pairwise
 from pathlib import Path
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 compatibility
+    import tomli as tomllib
 
 REQUIRED_FILES = [
     Path("package-lock.json"),
