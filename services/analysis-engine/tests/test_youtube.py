@@ -275,7 +275,7 @@ def test_module_execution(
 @patch("bandscope_analysis.youtube.urllib.parse.urlparse")
 def test_validate_url_exception(mock_urlparse: MagicMock) -> None:
     """Test URL validation exception handling."""
-    mock_urlparse.side_effect = Exception("Test exception")
+    mock_urlparse.side_effect = ValueError("Test exception")
     assert validate_url("https://youtube.com/watch?v=123") is False
 
 
