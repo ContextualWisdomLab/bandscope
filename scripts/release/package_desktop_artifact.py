@@ -94,7 +94,7 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     installers = []
 
     if bundle_dir.exists():
-        for subdirectory, pattern in [("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
+        for subdirectory, pattern in [("macos", "*.app"), ("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
             installers.extend(
                 installer
                 for installer in sorted((bundle_dir / subdirectory).glob(pattern))
@@ -112,7 +112,7 @@ def main() -> int:
 
     installers = find_installer_packages(repo_root)
     if not installers:
-        raise FileNotFoundError("Could not find any built installers (DMG/EXE) in target/release/bundle/")
+        raise FileNotFoundError("Could not find any built installers (APP/EXE) in target/release/bundle/")
 
     suffix_counts = Counter(path.suffix.lower() for path in installers)
     for installer_path in installers:
