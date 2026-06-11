@@ -1,10 +1,11 @@
 """Pitch tracker using librosa's pYIN or YIN algorithm."""
 
 import logging
-from typing import Optional, TypedDict
+from typing import Any, Optional, TypedDict
 
 import librosa
 import numpy as np
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class TrackedPitchRange(TypedDict):
 class PitchTracker:
     """Extracts lowest and highest notes from audio data."""
 
-    def track(self, y: np.ndarray, sr: int = 22050) -> TrackedPitchRange:
+    def track(self, y: NDArray[np.floating[Any]], sr: int = 22050) -> TrackedPitchRange:
         """
         Track pitch in an audio array and return the lowest/highest note.
 

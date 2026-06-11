@@ -1,9 +1,10 @@
 """Chord recognizer using librosa's chromagrams."""
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import librosa
 import numpy as np
+from numpy.typing import NDArray
 
 
 class TrackedChord(TypedDict):
@@ -24,7 +25,7 @@ class ChordRecognizer:
         self.templates = self._build_templates()
         self.chord_labels = self._build_labels()
 
-    def _build_templates(self) -> np.ndarray:
+    def _build_templates(self) -> NDArray[np.floating[Any]]:
         """Build chromagram templates for 24 major and minor chords."""
         templates = np.zeros((24, 12))
         for i in range(12):
@@ -53,7 +54,7 @@ class ChordRecognizer:
             labels.append(f"{note}m")  # Minor
         return labels
 
-    def recognize(self, y: np.ndarray, sr: int = 22050) -> list[TrackedChord]:
+    def recognize(self, y: NDArray[np.floating[Any]], sr: int = 22050) -> list[TrackedChord]:
         """
         Recognize chords in an audio array using chromagrams.
 

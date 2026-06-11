@@ -459,6 +459,103 @@ def test_cli_main_temporal_analyzer_and_separator_mock_success(monkeypatch) -> N
     assert calls["separate_audio"] == 1
 
 
+def test_cli_main_separator_skips_invalid_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure invalid requests do not enter the stem separation path."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-audio-invalid-sep",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--separate-stems"])
+
+    assert cli.main() == 0
+    res = json.loads(stdout.getvalue())
+    assert res["jobId"] == "job-audio-invalid-sep"
+    assert res["state"] == "failed"
+
+
+def test_cli_main_separator_continues_after_temporal_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure stem separation still runs when the optional temporal probe fails."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-audio-temporal-fail-sep",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "p1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/valid/path.wav",
+                        "fileName": "test.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 100,
+                    },
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+    calls = {"librosa_load": 0, "separate_audio": 0}
+
+    class FakeAnalyzerFailure:
+        def analyze(self, path):
+            raise RuntimeError("mocked temporal failure")
+
+    class FakeAudioStemSeparator:
+        def separate_audio(self, audio, sample_rate, segment_seconds=2.0):
+            import numpy as np
+
+            calls["separate_audio"] += 1
+            return {
+                "vocals": np.zeros((2, 100), dtype=np.float32),
+                "drums": np.zeros((2, 100), dtype=np.float32),
+                "bass": np.zeros((2, 100), dtype=np.float32),
+                "other": np.zeros((2, 100), dtype=np.float32),
+            }
+
+    def fake_librosa_load(path, sr, mono, duration):
+        import numpy as np
+
+        calls["librosa_load"] += 1
+        return np.zeros((2, 100), dtype=np.float32), sr
+
+    import librosa
+
+    monkeypatch.setattr(librosa, "load", fake_librosa_load)
+    import bandscope_analysis.separation.audio_separator
+
+    monkeypatch.setattr(
+        bandscope_analysis.separation.audio_separator,
+        "AudioStemSeparator",
+        FakeAudioStemSeparator,
+    )
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerFailure)
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--separate-stems"])
+
+    assert cli.main() == 0
+    res = json.loads(stdout.getvalue())
+    assert res["jobId"] == "job-audio-temporal-fail-sep"
+    assert calls["librosa_load"] == 1
+    assert calls["separate_audio"] == 1
+
+
 def test_cli_main_temporal_analyzer_and_separator_mock_skipped(monkeypatch) -> None:
     """Ensure stem separation is skipped if --separate-stems is not provided."""
     import io

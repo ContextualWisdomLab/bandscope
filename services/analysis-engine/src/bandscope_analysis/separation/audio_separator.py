@@ -6,11 +6,7 @@ import logging
 from typing import Any
 
 import numpy as np
-
-try:
-    from torch import Tensor
-except ImportError:  # pragma: no cover
-    Tensor = Any  # type: ignore
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +18,8 @@ class AudioStemSeparator:
     - Trust boundary: Audio input is passed as raw numpy arrays from a prior decoding step
       (e.g. librosa), reducing the risk of codec-based exploitation within Demucs itself.
     - Limits: Employs chunked inference (split=True) to strictly bound peak memory (OOM avoidance).
-    - Network: Downloads model weights securely to local cache on first run. Future executions
-      should ideally be offline.
+    - Network: Requires pre-provisioned model weights in the local model cache; it does not
+      download model artifacts at runtime.
     """
 
     def __init__(self, model_name: str = "htdemucs") -> None:
@@ -69,10 +65,10 @@ class AudioStemSeparator:
 
     def separate_audio(
         self,
-        audio_data: np.ndarray,
+        audio_data: NDArray[np.floating[Any]],
         sample_rate: int,
         segment_seconds: float = 10.0,
-    ) -> dict[str, np.ndarray]:
+    ) -> dict[str, NDArray[np.floating[Any]]]:
         """Perform source separation on the given audio array.
 
         Args:
@@ -134,9 +130,9 @@ class AudioStemSeparator:
 
         # stems shape: [batch, sources, channels, samples]
         # Remove batch dim
-        stems_np: np.ndarray = stems[0].cpu().numpy()
+        stems_np: NDArray[np.floating[Any]] = stems[0].cpu().numpy()
 
-        result = {}
+        result: dict[str, NDArray[np.floating[Any]]] = {}
         for idx, source_name in enumerate(model.sources):
             result[source_name] = stems_np[idx]
 
