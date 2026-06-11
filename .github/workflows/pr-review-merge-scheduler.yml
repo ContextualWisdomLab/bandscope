@@ -41,28 +41,43 @@ jobs:
 
           gh_output_retry() {
             local attempt
+            local err
             local max_attempts=4
             local output
             local status
 
             for attempt in $(seq 1 "$max_attempts"); do
+              err="$(mktemp)"
               set +e
-              output="$("$@" 2>&1)"
+              output="$("$@" 2>"$err")"
               status="$?"
               set -e
 
               if [[ "$status" -eq 0 ]]; then
+                rm -f "$err"
                 printf '%s\n' "$output"
                 return 0
               fi
 
               if [[ "$attempt" -eq "$max_attempts" ]]; then
-                printf '%s\n' "$output" >&2
+                if [[ -n "$output" ]]; then
+                  printf 'stdout:\n%s\n' "$output" >&2
+                fi
+                if [[ -s "$err" ]]; then
+                  cat "$err" >&2
+                fi
+                rm -f "$err"
                 return "$status"
               fi
 
               echo "GitHub command failed on attempt $attempt/$max_attempts; retrying..." >&2
-              printf '%s\n' "$output" >&2
+              if [[ -n "$output" ]]; then
+                printf 'stdout:\n%s\n' "$output" >&2
+              fi
+              if [[ -s "$err" ]]; then
+                cat "$err" >&2
+              fi
+              rm -f "$err"
               sleep "$((attempt * 2))"
             done
           }
