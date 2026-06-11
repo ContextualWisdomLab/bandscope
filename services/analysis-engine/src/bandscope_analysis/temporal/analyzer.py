@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 # Standard sample rate for BandScope analysis
 TARGET_SR = 44100
+MAX_AUDIO_FILE_BYTES = 50 * 1024 * 1024
+MAX_ANALYSIS_DURATION_SECONDS = 15 * 60
 KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
     (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
     (FutureWarning, r".*Numba.*", r".*numba.*"),
@@ -43,6 +45,8 @@ class TemporalAnalyzer:
         path_str = str(audio_file)
         if not audio_file.exists() or not audio_file.is_file():
             raise FileNotFoundError(f"Audio file not found: {path_str}")
+        if audio_file.stat().st_size > MAX_AUDIO_FILE_BYTES:
+            raise ValueError("Audio file exceeds the 50MB analysis limit.")
 
         logger.info(f"Loading and decoding audio: {path_str}")
 
@@ -58,7 +62,12 @@ class TemporalAnalyzer:
                         module=module,
                     )
                 # Load audio, converting to mono and standardizing sample rate
-                y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
+                y, sr = librosa.load(
+                    path_str,
+                    sr=TARGET_SR,
+                    mono=True,
+                    duration=MAX_ANALYSIS_DURATION_SECONDS,
+                )
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):
