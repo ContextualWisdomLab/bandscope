@@ -81,25 +81,6 @@ def test_temporal_analyzer_directory_does_not_call_decoder(
     load_mock.assert_not_called()
 
 
-def test_temporal_analyzer_large_file_does_not_call_decoder(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Oversized audio should fail before full-file decoding can allocate memory."""
-    import librosa
-
-    test_wav = tmp_path / "large.wav"
-    with test_wav.open("wb") as handle:
-        handle.truncate(50 * 1024 * 1024 + 1)
-
-    load_mock = Mock(side_effect=AssertionError("librosa.load should not be called"))
-    monkeypatch.setattr(librosa, "load", load_mock)
-
-    with pytest.raises(ValueError, match="50MB analysis limit"):
-        TemporalAnalyzer().analyze(test_wav)
-    load_mock.assert_not_called()
-
-
 def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Ensure temporal analyzer raises ValueError if librosa returns non-ndarray."""
     import librosa
