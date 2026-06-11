@@ -8,10 +8,7 @@ interface GrooveMapProps {
 }
 
 /** Documented. */
-export /**
- *
- */
-const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMapProps) {
+export const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMapProps) {
   if (isLoading) {
     return (
       <div
