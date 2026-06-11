@@ -2,9 +2,11 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   type RehearsalWorkspace,
+  type SongRehearsalPack,
   type AnalysisJobRequest,
   parseRehearsalWorkspace,
-  isRehearsalWorkspace
+  isRehearsalWorkspace,
+  createDemoRehearsalSong
 } from "@bandscope/shared-types";
 
 /** Documented. */
@@ -54,28 +56,30 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   if (command === "enqueue_song") {
     const request = args?.request as AnalysisJobRequest;
     const packId = `pack-${Date.now()}`;
-    mockWorkspace.songs.push({
+    const pack: SongRehearsalPack = {
       id: packId,
       packState: "queued",
       sourceLabel: request.sourceKind === "local_audio" ? request.sourceLabel : "Demo Song",
       engineState: "queued"
-    });
+    };
+    mockWorkspace.songs.push(pack);
     triggerMockUpdate();
     
     // Simulate processing
     setTimeout(() => {
-      const pack = mockWorkspace.songs.find(p => p.id === packId);
-      if (pack) {
-        pack.packState = "analyzing";
-        pack.engineState = "running";
+      pack.packState = "analyzing";
+      pack.engineState = "running";
+      triggerMockUpdate();
+
+      setTimeout(() => {
+        // We use Object.assign to mutate the cached pack reference, avoiding an O(N) lookup.
+        Object.assign(pack, {
+          packState: "ready",
+          engineState: "succeeded",
+          song: createDemoRehearsalSong()
+        });
         triggerMockUpdate();
-        
-        setTimeout(() => {
-          pack.packState = "ready";
-          pack.engineState = "succeeded";
-          triggerMockUpdate();
-        }, 2000);
-      }
+      }, 2000);
     }, 1000);
     
     return;
@@ -92,17 +96,17 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
       
       // Simulate processing
       setTimeout(() => {
-        const p = mockWorkspace.songs.find(s => s.id === jobId);
-        if (p) {
-          p.packState = "analyzing";
-          p.engineState = "running";
+        pack.packState = "analyzing";
+        pack.engineState = "running";
+        triggerMockUpdate();
+        setTimeout(() => {
+          Object.assign(pack, {
+            packState: "ready",
+            engineState: "succeeded",
+            song: createDemoRehearsalSong()
+          });
           triggerMockUpdate();
-          setTimeout(() => {
-            p.packState = "ready";
-            p.engineState = "succeeded";
-            triggerMockUpdate();
-          }, 2000);
-        }
+        }, 2000);
       }, 1000);
     }
     return;
