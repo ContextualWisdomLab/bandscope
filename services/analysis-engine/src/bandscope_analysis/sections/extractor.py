@@ -1,5 +1,6 @@
 """Pipeline logic for extracting section candidates from song arrangements."""
 
+import re
 from typing import Any, Dict, List, Literal
 
 from .anchors import count_based_anchor, lyric_phrase_anchor
@@ -9,16 +10,21 @@ from .model import (
     SectionExtractionResult,
 )
 
+# Sort by length descending to match longest possible prefix first if needed,
+# though ALL_SECTION_LABELS currently are distinct.
+_sorted_labels = sorted(ALL_SECTION_LABELS, key=len, reverse=True)
+_LABEL_PREFIX_PATTERN = re.compile(
+    r"^(" + "|".join(re.escape(label) for label in _sorted_labels) + r")"
+)
+
 
 def _normalize_label(raw_label: str) -> str:
     """Normalize a string to a SectionLabel if possible."""
     normalized = str(raw_label).lower().strip()
     # Handle variations (e.g. "verse 1" -> "verse")
-    # Sort by length descending to match longest possible prefix first if needed,
-    # but here ALL_SECTION_LABELS works fine since they are distinct
-    for label in ALL_SECTION_LABELS:
-        if normalized.startswith(label):
-            return label
+    match = _LABEL_PREFIX_PATTERN.match(normalized)
+    if match:
+        return match.group(1)
     return normalized
 
 
