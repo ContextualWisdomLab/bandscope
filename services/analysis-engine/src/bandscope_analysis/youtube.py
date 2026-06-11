@@ -45,7 +45,7 @@ def validate_url(url: str) -> bool:
             return len(video_ids) == 1 and bool(YOUTUBE_VIDEO_ID_PATTERN.match(video_ids[0]))
 
         return False
-    except Exception:
+    except ValueError:
         return False
 
 
