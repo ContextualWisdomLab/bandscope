@@ -12,22 +12,23 @@ from bandscope_analysis.youtube import download_youtube_audio, validate_url
 
 def test_validate_url() -> None:
     """Test URL validation."""
-    assert validate_url("https://youtube.com/watch?v=123") is True
-    assert validate_url("https://youtu.be/123") is True
-    assert validate_url("https://www.youtube.com/watch?v=123") is True
-    assert validate_url("https://m.youtube.com/watch?v=123") is True
-    assert validate_url("https://music.youtube.com/watch?v=123") is True
-    assert validate_url("https://www.youtube.com/watch?v=123&t=10") is True
-    assert validate_url("http://youtube.com/watch?v=123") is False
+    assert validate_url("https://youtube.com/watch?v=abc123DEF45") is True
+    assert validate_url("https://youtu.be/abc123DEF45") is True
+    assert validate_url("https://www.youtube.com/watch?v=abc123DEF45") is True
+    assert validate_url("https://www.youtube.com/watch?v=abc123DEF45&t=10") is True
+    assert validate_url("https://m.youtube.com/watch?v=abc123DEF45") is False
+    assert validate_url("https://music.youtube.com/watch?v=abc123DEF45") is False
+    assert validate_url("https://evil.youtube.com/watch?v=abc123DEF45") is False
+    assert validate_url("http://youtube.com/watch?v=abc123DEF45") is False
     assert validate_url("https://vimeo.com/123") is False
     assert validate_url("https://youtube.com/redirect?q=https://example.com") is False
     assert validate_url("https://www.youtube.com/redirect?q=https://example.com") is False
     assert validate_url("https://youtube.com/watch?v=") is False
     assert validate_url("https://youtu.be/") is False
-    assert validate_url("https://youtu.be/123/extra") is False
-    assert validate_url("https://youtube.com/watch?v=123&v=456") is False
+    assert validate_url("https://youtu.be/abc123DEF45/extra") is False
+    assert validate_url("https://youtube.com/watch?v=abc123DEF45&v=456") is False
     assert validate_url("https://youtube.com/watch?v=&v=456") is False
-    assert validate_url("https://youtube.com/watch?v=123&v=") is False
+    assert validate_url("https://youtube.com/watch?v=abc123DEF45&v=") is False
 
 
 def test_download_youtube_audio_invalid_url() -> None:
@@ -59,7 +60,7 @@ def test_download_youtube_audio_success(
     mock_exists.return_value = True
     mock_getsize.return_value = 10 * 1024 * 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is True
     assert result["metadata"]["id"] == "123"
@@ -94,7 +95,7 @@ def test_download_youtube_audio_converted_extension(
     with patch("bandscope_analysis.youtube.glob.iglob") as mock_iglob:
         mock_iglob.return_value = iter(["/tmp/123.opus"])
 
-        result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+        result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
         assert result["ok"] is True
         assert result["metadata"]["filepath"] == "/tmp/123.opus"
@@ -119,7 +120,7 @@ def test_download_youtube_audio_file_not_found(
     mock_ydl.prepare_filename.return_value = "/tmp/123.webm"
     mock_exists.return_value = False
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "file_not_found"
@@ -133,7 +134,7 @@ def test_download_youtube_audio_info_none(mock_ydl_class: MagicMock) -> None:
 
     mock_ydl.extract_info.return_value = None
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "download_error"
@@ -148,7 +149,7 @@ def test_download_youtube_audio_restricted(mock_ydl_class: MagicMock) -> None:
 
     mock_ydl.extract_info.side_effect = yt_dlp.utils.DownloadError("Sign in to confirm")
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "restricted_content"
@@ -163,7 +164,7 @@ def test_download_youtube_audio_generic_download_error(mock_ydl_class: MagicMock
 
     mock_ydl.extract_info.side_effect = yt_dlp.utils.DownloadError("Some random network error")
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "download_failed"
@@ -175,7 +176,7 @@ def test_download_youtube_audio_exception(mock_ydl_class: MagicMock) -> None:
     """Test when an unexpected exception occurs."""
     mock_ydl_class.side_effect = ValueError("Unexpected explosion")
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "download_error"
@@ -189,7 +190,7 @@ def test_download_youtube_audio_duration_exceeded(mock_ydl_class: MagicMock) -> 
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
     mock_ydl.extract_info.return_value = {"id": "123", "duration": 16 * 60}
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
     assert result["ok"] is False
     assert result["error"]["code"] == "duration_exceeded"
 
@@ -212,7 +213,7 @@ def test_download_youtube_audio_size_exceeded(
     mock_exists.return_value = True
     mock_getsize.return_value = 51 * 1024 * 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
     assert result["ok"] is False
     assert result["error"]["code"] == "size_exceeded"
     mock_remove.assert_called_with("/tmp/123.m4a")
@@ -220,7 +221,7 @@ def test_download_youtube_audio_size_exceeded(
 
 def test_main_block(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """Test the CLI entry point."""
-    test_args = ["youtube.py", "--url", "https://youtube.com/watch?v=123", "--out-dir", "/tmp"]
+    test_args = ["youtube.py", "--url", "https://youtube.com/watch?v=abc123DEF45", "--out-dir", "/tmp"]
     monkeypatch.setattr(sys, "argv", test_args)
 
     import bandscope_analysis.youtube
@@ -248,7 +249,7 @@ def test_module_execution(
 
     import bandscope_analysis.youtube
 
-    test_args = ["youtube.py", "--url", "https://youtube.com/watch?v=123", "--out-dir", "/tmp"]
+    test_args = ["youtube.py", "--url", "https://youtube.com/watch?v=abc123DEF45", "--out-dir", "/tmp"]
     monkeypatch.setattr(sys, "argv", test_args)
 
     # Mock yt_dlp so runpy doesn't actually download
@@ -276,7 +277,7 @@ def test_module_execution(
 def test_validate_url_exception(mock_urlparse: MagicMock) -> None:
     """Test URL validation exception handling."""
     mock_urlparse.side_effect = ValueError("Test exception")
-    assert validate_url("https://youtube.com/watch?v=123") is False
+    assert validate_url("https://youtube.com/watch?v=abc123DEF45") is False
 
 
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
@@ -288,7 +289,7 @@ def test_download_youtube_audio_second_info_none(mock_ydl_class: MagicMock) -> N
     # First call (download=False) returns info, second call (download=True) returns None
     mock_ydl.extract_info.side_effect = [{"duration": 60}, None]
 
-    result = download_youtube_audio("https://youtube.com/watch?v=123", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "download_error"
