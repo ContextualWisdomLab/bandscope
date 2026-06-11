@@ -55,9 +55,9 @@ def test_validate_url_edge_cases() -> None:
     assert validate_url("https://evil.com?youtube.com/watch?v=123") is False
     assert validate_url("https://evil.com#youtube.com/watch?v=123") is False
 
-    # Valid localized subdomains and ports
-    assert validate_url("https://kr.youtube.com/watch?v=123") is True
-    assert validate_url("https://youtube.com:443/watch?v=123") is True
+    # Allowlist behavior and explicit default ports
+    assert validate_url("https://kr.youtube.com/watch?v=abc123DEF45") is False
+    assert validate_url("https://youtube.com:443/watch?v=abc123DEF45") is True
 
 
 def test_download_youtube_audio_invalid_url() -> None:
