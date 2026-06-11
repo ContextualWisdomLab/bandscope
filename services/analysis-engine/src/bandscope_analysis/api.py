@@ -9,6 +9,8 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
+MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
+MAX_DURATION_SECONDS = 3600  # 1 hour
 
 
 class AnalysisJobRequest(TypedDict):
@@ -28,6 +30,7 @@ class LocalAudioSource(TypedDict):
     fileName: str
     extension: Literal["wav", "mp3", "flac", "m4a"]
     fileSizeBytes: int
+    durationSeconds: NotRequired[float]
 
 
 class AnalysisJobError(TypedDict):
@@ -215,7 +218,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         raise ValueError("Invalid analysis job request: invalid field 'localSource'")
     if not isinstance(local_source, dict):
         raise ValueError("Invalid analysis job request: invalid field 'localSource'")
-    allowed_local_keys = {"sourcePath", "fileName", "extension", "fileSizeBytes"}
+    allowed_local_keys = {"sourcePath", "fileName", "extension", "fileSizeBytes", "durationSeconds"}
     for key in local_source:
         if key not in allowed_local_keys:
             raise ValueError(f"Invalid analysis job request: invalid field 'localSource.{key}'")
@@ -223,6 +226,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     file_name = local_source.get("fileName")
     extension = local_source.get("extension")
     file_size_bytes = local_source.get("fileSizeBytes")
+    duration_seconds = local_source.get("durationSeconds")
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
     if not isinstance(file_name, str) or not file_name.strip():
@@ -231,18 +235,30 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.extension'")
     if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
+    if file_size_bytes > MAX_FILE_SIZE_BYTES:
+        raise ValueError(f"Invalid analysis job request: file size {file_size_bytes} exceeds maximum {MAX_FILE_SIZE_BYTES}")
+    
+    if duration_seconds is not None:
+        if not isinstance(duration_seconds, (int, float)) or duration_seconds <= 0:
+            raise ValueError("Invalid analysis job request: invalid field 'localSource.durationSeconds'")
+        if duration_seconds > MAX_DURATION_SECONDS:
+            raise ValueError(f"Invalid analysis job request: duration {duration_seconds} exceeds maximum {MAX_DURATION_SECONDS}")
+
+    local_source_dict: LocalAudioSource = {
+        "sourcePath": source_path,
+        "fileName": file_name,
+        "extension": extension,
+        "fileSizeBytes": file_size_bytes,
+    }
+    if duration_seconds is not None:
+        local_source_dict["durationSeconds"] = float(duration_seconds)
 
     return {
         "sourceKind": source_kind,
         "sourceLabel": source_label,
         "roleFocus": role_focus,
         "projectId": project_id,
-        "localSource": {
-            "sourcePath": source_path,
-            "fileName": file_name,
-            "extension": extension,
-            "fileSizeBytes": file_size_bytes,
-        },
+        "localSource": local_source_dict,
     }
 
 
