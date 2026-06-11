@@ -96,16 +96,26 @@ class ChordRecognizer:
             rms = np.ones(chromagram_len)
         return np.asarray(rms)
 
-    def _build_chord_segments(
-        self, similarity: np.ndarray, rms: np.ndarray, chromagram: np.ndarray, sr: int
-    ) -> list[TrackedChord]:
-        """Build chord segments from similarity matrix."""
-        # Find the best matching chord template for each frame
+    def _match_templates(self, chromagram: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Match chromagram to templates and return similarities and best match indices."""
+        # Compare chromagram frames to templates using dot product.
+        # chromagram shape: (12, n_frames)
+        # templates shape: (24, 12)
+        # similarity shape: (24, n_frames)
+        similarity = np.dot(self.templates, chromagram)
         best_matches = np.argmax(similarity, axis=0)
+        return similarity, best_matches
 
-        # Convert frames to time segments
+    def _create_chord_segments(
+        self,
+        chromagram: np.ndarray,
+        similarity: np.ndarray,
+        best_matches: np.ndarray,
+        rms: np.ndarray,
+        sr: int,
+    ) -> list[TrackedChord]:
+        """Convert frame-level chord predictions into time segments."""
         frames = librosa.frames_to_time(np.arange(chromagram.shape[1] + 1), sr=sr)
-
         chords: list[TrackedChord] = []
         current_chord = None
         start_frame = 0
@@ -174,5 +184,6 @@ class ChordRecognizer:
             return []
 
         rms = self._calculate_rms(y, chromagram.shape[1])
-        similarity = np.dot(self.templates, chromagram)
-        return self._build_chord_segments(similarity, rms, chromagram, sr)
+        similarity, best_matches = self._match_templates(chromagram)
+
+        return self._create_chord_segments(chromagram, similarity, best_matches, rms, sr)
