@@ -97,7 +97,7 @@ def test_chord_analyzer_roles_missing_harmony() -> None:
     roles_by_section = {
         "verse-1": [
             {"id": "bass", "name": "Bass"},
-            {"id": "vocal", "harmony": "not-a-dict"},
+            {"id": "vocal", "harmony": "not-a-dict"},  # type: ignore
         ]
     }
     result = analyzer.analyze(sections, roles_by_section)
@@ -134,28 +134,28 @@ def test_chord_analysis_result_structure() -> None:
     assert "analysis_notes" in result
 
 
-def test_detect_capo_standard():
+def test_detect_capo_standard() -> None:
     """Test standard tuning and no capo."""
     result = detect_capo_and_tuning(["G", "D", "Em", "C"])
     assert result["capo"] == 0
     assert result["tuning"] == "Standard"
 
 
-def test_detect_capo_fret1():
+def test_detect_capo_fret1() -> None:
     """Test capo detection for flat keys."""
     result = detect_capo_and_tuning(["Eb", "Bb", "Fm", "Ab"])
     assert result["capo"] == 1
     assert result["tuning"] == "Standard"
 
 
-def test_detect_capo_empty():
+def test_detect_capo_empty() -> None:
     """Test empty chord list."""
     result = detect_capo_and_tuning([])
     assert result["capo"] is None
     assert result["tuning"] == "Standard"
 
 
-def test_detect_drop_d():
+def test_detect_drop_d() -> None:
     """Test drop D tuning."""
     result = detect_capo_and_tuning(["D5", "G5", "A5"])
     assert result["capo"] == 0

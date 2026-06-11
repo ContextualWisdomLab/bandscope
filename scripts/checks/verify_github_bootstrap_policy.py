@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 REQUIRED_PATH = Path("docs/workflow/github-bootstrap-execution-policy.md")
 REQUIRED_REFERENCES = {
     Path("README.md"): ["docs/workflow/github-bootstrap-execution-policy.md"],
