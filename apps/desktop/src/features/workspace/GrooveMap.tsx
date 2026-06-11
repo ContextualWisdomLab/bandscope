@@ -10,7 +10,7 @@ interface GrooveMapProps {
 }
 
 /** Documented. */
-export const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMapProps) {
+function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
   const renderedNotes = notes ?? EMPTY_NOTES;
   // Find max offset to determine timeline width
   const maxTime = useMemo(() => {
@@ -134,4 +134,8 @@ export const GrooveMap = memo(function GrooveMap({ notes, isLoading }: GrooveMap
       </div>
     </div>
   );
-});
+}
+
+const GrooveMap = memo(GrooveMapComponent);
+
+export { GrooveMap };
