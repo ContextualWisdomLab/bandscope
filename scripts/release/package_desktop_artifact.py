@@ -84,7 +84,7 @@ def archive_safe_stem(path: Path) -> str:
 
 
 def find_installer_packages(repo_root: Path) -> list[Path]:
-    """Find built Tauri installers (DMG, EXE, MSI)."""
+    """Find built Tauri installers (APP, EXE, MSI)."""
     target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE")
     target_root = repo_root / "apps" / "desktop" / "src-tauri" / "target"
     if target_triple:
@@ -112,7 +112,9 @@ def main() -> int:
 
     installers = find_installer_packages(repo_root)
     if not installers:
-        raise FileNotFoundError("Could not find any built installers (APP/EXE) in target/release/bundle/")
+        raise FileNotFoundError(
+            "Could not find any built installers (APP/EXE/MSI) in target/release/bundle/"
+        )
 
     suffix_counts = Counter(path.suffix.lower() for path in installers)
     for installer_path in installers:

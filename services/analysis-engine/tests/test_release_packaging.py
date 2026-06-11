@@ -186,6 +186,24 @@ def test_find_installer_packages_ignores_symlink_installers(
     assert packaging.find_installer_packages(tmp_path) == []
 
 
+def test_release_packaging_missing_installer_message_mentions_msi(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure the no-installer error lists every supported installer type."""
+    packaging = load_module(
+        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_no_installers"
+    )
+    repo_root = tmp_path / "repo"
+    script_path = repo_root / "scripts" / "release" / "package_desktop_artifact.py"
+    script_path.parent.mkdir(parents=True)
+    script_path.write_text("# placeholder", encoding="utf-8")
+
+    monkeypatch.setattr(packaging, "__file__", str(script_path))
+
+    with pytest.raises(FileNotFoundError, match=r"APP/EXE/MSI"):
+        packaging.main()
+
+
 def test_release_packaging_main_keeps_same_extension_installers_unique(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
