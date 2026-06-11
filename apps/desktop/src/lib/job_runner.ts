@@ -43,7 +43,7 @@ const mockListeners = new Set<MockListener>();
  * Triggers a mock workspace update to all listeners.
  */
 function triggerMockUpdate() {
-  const payload = JSON.parse(JSON.stringify(mockWorkspace));
+  const payload = structuredClone(mockWorkspace);
   mockListeners.forEach(listener => listener({ payload }));
 }
 
