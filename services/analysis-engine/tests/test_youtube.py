@@ -19,6 +19,7 @@ def test_validate_url() -> None:
 
     assert validate_url("https://m.youtube.com/watch?v=abc123DEF45") is False
     assert validate_url("https://music.youtube.com/watch?v=abc123DEF45") is False
+    assert validate_url("https://evil.youtube.com/watch?v=abc123DEF45") is False
     assert validate_url("https://youtube.com/watch?v=123") is False
     assert validate_url("https://youtu.be/123") is False
     assert validate_url("http://youtube.com/watch?v=abc123DEF45") is False
@@ -142,7 +143,7 @@ def test_download_youtube_audio_converted_extension(
     mock_ydl.extract_info.return_value = mock_info
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
 
-    # os.path.exists returns False for .webm, but True for .opus
+    # os.path.exists returns False for .webm, but True for the converted .opus.
     def exists_side_effect(path: str) -> bool:
         """Mock exists function to simulate converted extension file presence."""
         return path == "/tmp/abc123DEF45.opus"
@@ -150,10 +151,14 @@ def test_download_youtube_audio_converted_extension(
     mock_exists.side_effect = exists_side_effect
     mock_getsize.return_value = 10 * 1024 * 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    with patch("bandscope_analysis.youtube.glob.iglob") as mock_iglob:
+        mock_iglob.return_value = iter(["/tmp/abc123DEF45.opus"])
+
+        result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is True
     assert result["metadata"]["filepath"] == "/tmp/abc123DEF45.opus"
+    mock_iglob.assert_called_once_with("/tmp/abc123DEF45.*")
 
 
 @patch("bandscope_analysis.youtube.os.path.exists")
@@ -175,7 +180,10 @@ def test_download_youtube_audio_file_not_found(
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
     mock_exists.return_value = False
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    with patch("bandscope_analysis.youtube.glob.iglob") as mock_iglob:
+        mock_iglob.return_value = iter(())
+
+        result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "file_not_found"
