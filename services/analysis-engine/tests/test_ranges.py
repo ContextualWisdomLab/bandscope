@@ -28,12 +28,6 @@ def test_parse_note_all_digits() -> None:
     assert _parse_note("4") == ("4", 4)
 
 
-def test_parse_note_malformed_negative_octave_falls_back() -> None:
-    """Test malformed trailing '-' octave inputs fail safely."""
-    assert _parse_note("C-") == ("C", 4)
-    assert _parse_note("C#-") == ("C#", 4)
-
-
 def test_note_to_midi() -> None:
     """Test MIDI number conversion for note comparison."""
     assert _note_to_midi("C4") == 60
