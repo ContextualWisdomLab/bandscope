@@ -38,7 +38,7 @@ function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t
       <div
         role="region"
         tabIndex={0}
-        className="overflow-x-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,35,0.96),rgba(2,6,23,0.98))]"
+        className="overflow-x-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,35,0.96),rgba(2,6,23,0.98))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
         aria-label="Scrollable song structure timeline"
       >
         <div
