@@ -5,6 +5,7 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 """
 
 import argparse
+import glob
 import json
 import os
 import re
@@ -51,20 +52,19 @@ def validate_url(url: str) -> bool:
 
 
 def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
-    """Find the downloaded file, checking for possible extension conversions."""
-    if os.path.exists(actual_filepath):
-        return actual_filepath
-
-    base_path = os.path.splitext(actual_filepath)[0]
-    for ext in SUPPORTED_AUDIO_EXTENSIONS:
-        if os.path.exists(base_path + ext):
-            return base_path + ext
-
-    return None
+    """Find the downloaded file, including postprocessor extension changes."""
+    if not os.path.exists(actual_filepath):
+        # Try to find the file with a different extension in case of conversion
+        base_path = os.path.splitext(actual_filepath)[0]
+        for match in glob.iglob(glob.escape(base_path) + ".*"):
+            if match.endswith(SUPPORTED_AUDIO_EXTENSIONS):
+                return match
+        return None
+    return actual_filepath
 
 
 def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
-    """Map yt-dlp DownloadError to standard error response."""
+    """Map yt-dlp DownloadError to the public YouTube import error response."""
     msg = str(e).lower()
     if (
         "sign in" in msg
@@ -146,8 +146,9 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                 raise Exception("Failed to extract info")
             actual_filepath = ydl.prepare_filename(info)
 
-            resolved_filepath = _find_downloaded_file(actual_filepath)
-            if not resolved_filepath:
+            actual_filepath = _find_downloaded_file(actual_filepath)
+
+            if actual_filepath is None:
                 return {
                     "ok": False,
                     "error": {
@@ -156,9 +157,10 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                     },
                 }
 
-            actual_filepath = resolved_filepath
-
-            if os.path.getsize(actual_filepath) > 50 * 1024 * 1024:
+            if (
+                os.path.exists(actual_filepath)
+                and os.path.getsize(actual_filepath) > 50 * 1024 * 1024
+            ):
                 os.remove(actual_filepath)
                 return {
                     "ok": False,
