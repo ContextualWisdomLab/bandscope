@@ -22,3 +22,7 @@
 
 **Learning:** Instantiating dictionaries with repeated heuristic calculation calls inside a loop over many elements causes significant slowdowns.
 **Action:** Build mock role definitions once per extraction call and reuse them while constructing section topologies.
+
+## 2024-05-24 - Optimizing SongStructure with React.memo
+**Learning:** The SongStructure component re-renders needlessly during parent state changes in Workspace.
+**Action:** Use React.memo for pure presentational components to prevent unnecessary reconciliations during parent local state changes.
