@@ -53,11 +53,15 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
                 if not isinstance(properties, dict):
                     properties = {}
                     physical_location["properties"] = properties
-                properties["bandscopeOriginalUri"] = SCORECARD_REPOSITORY_PLACEHOLDER_URI
+                properties["bandscopeOriginalUri"] = (
+                    SCORECARD_REPOSITORY_PLACEHOLDER_URI
+                )
                 properties["bandscopeRepositoryLevelFinding"] = True
                 rewritten += 1
 
-    target.write_text(json.dumps(sarif, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    target.write_text(
+        json.dumps(sarif, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return rewritten
 
 
