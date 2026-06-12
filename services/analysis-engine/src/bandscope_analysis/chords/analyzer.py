@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
+from ..sections.utils import validate_section
 from .model import ChordAnalysisResult, ChordLabel, SectionChordSummary
 
 logger = logging.getLogger(__name__)
@@ -48,15 +49,7 @@ class ChordAnalyzer:
         summaries: list[SectionChordSummary] = []
 
         for i, section in enumerate(sections):
-            if not isinstance(section, dict):
-                logger.warning(
-                    "Invalid section format at index %d; expected dict, got %s",
-                    i,
-                    type(section).__name__,
-                )
-                section_id = f"section-{i}"
-            else:
-                section_id = section.get("id", f"section-{i}")
+            section_id = validate_section(section, i, logger)
 
             chords: list[ChordLabel] = []
             key_center = _DEFAULT_KEY_CENTER

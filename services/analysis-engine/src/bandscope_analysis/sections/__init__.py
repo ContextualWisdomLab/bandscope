@@ -14,6 +14,7 @@ from .model import (
     SectionExtractionResult,
     SectionLabel,
 )
+from .utils import validate_section
 
 __all__ = [
     "CueAnchor",
@@ -25,4 +26,5 @@ __all__ = [
     "count_based_anchor",
     "lyric_phrase_anchor",
     "extract_sections",
+    "validate_section",
 ]
