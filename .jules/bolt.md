@@ -1,6 +1,9 @@
+## 2023-06-10 - Caching parsed lockfile results
+
+**Learning:** Parsing Cargo.lock files repeatedly per iteration in the supply chain verification script causes significant I/O and CPU overhead.
+**Action:** Use `@functools.lru_cache` to cache parsed package dictionaries based on `Path` inputs for static checks.
 
 ## 2024-06-03 - O(1) Map Lookups for Performance
 
-**Learning:** Replacing repeated `Array.prototype.find()` searches (O(N)) with `Map.prototype.get()` (O(1)) provides massive performance benefits, especially when the lookups occur in critical paths or event loops. In this project, it reduced a 10,000-item retry benchmark from ~1400ms down to ~4ms.
-
-**Action:** Always watch out for linear array searches inside tight loops, timeouts, or frequent message handlers, and introduce a `Map` to cache and look up objects by their unique ID.
+**Learning:** Replacing repeated `Array.prototype.find()` searches (O(N)) with `Map.prototype.get()` (O(1)) provides meaningful performance benefits when lookups occur in critical paths or frequent message handlers.
+**Action:** Prefer keyed lookup caches for repeated job or event lookups, while keeping a fallback path for data that may have been initialized before the cache is populated.
