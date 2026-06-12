@@ -53,19 +53,21 @@ def _parse_note(note: str) -> tuple[str, int]:
     """
     if not note:
         return ("C", 4)
-    import re
-
-    match = re.match(r"^([A-Ga-g](?:#|b|sharp|flat)?)(.*)$", note)
-    if not match:
-        return (note, 4)
-
-    name, octave_str = match.groups()
-    if octave_str == "":
-        return (name, 4)
-    if octave_str == "-" or not re.match(r"^-?\d+$", octave_str):
-        return (name, 4)
-
-    return (name, int(octave_str))
+    # Find the boundary between note name and octave number by scanning
+    # from the end of the string. Octave digits appear at the tail.
+    for i in range(len(note) - 1, -1, -1):
+        if note[i].isdigit() or (note[i] == "-" and i == len(note) - 1):
+            # Still in the octave portion; continue scanning left.
+            pass
+        else:
+            # Found the last non-digit character; split here.
+            name = note[: i + 1]
+            octave_str = note[i + 1 :]
+            if octave_str and (octave_str.isdigit() or (octave_str[0] == "-")):
+                return (name, int(octave_str))
+            return (name, 4)
+    # Entire string was digits (edge case); return as-is with default octave.
+    return (note, 4)
 
 
 def _note_to_midi(note: str) -> int:
@@ -208,39 +210,23 @@ class RangeAnalyzer:
                         }
                     )
 
-            ranges_with_midi = []
-            for r in ranges:
-                ranges_with_midi.append(
-                    (
-                        r,
-                        _note_to_midi(r["lowestNote"]),
-                        _note_to_midi(r["highestNote"]),
-                    )
-                )
-
-            # Sort ranges by lowest note MIDI value for efficient overlap detection
-            ranges_with_midi.sort(key=lambda x: x[1])
-
             # Detect overlaps between all pairs of ranges
-            for a_idx in range(len(ranges_with_midi)):
-                r_a, midi_low_a, midi_high_a = ranges_with_midi[a_idx]
-                for b_idx in range(a_idx + 1, len(ranges_with_midi)):
-                    r_b, midi_low_b, midi_high_b = ranges_with_midi[b_idx]
-
-                    # Since ranges are sorted by lowest note, if the next range starts
-                    # after the current one ends, no further ranges will overlap
-                    if midi_low_b > midi_high_a:
-                        break
-
-                    # Check for overlap
-                    if midi_low_a <= midi_high_b and midi_low_b <= midi_high_a:
+            for a_idx in range(len(ranges)):
+                for b_idx in range(a_idx + 1, len(ranges)):
+                    r_a = ranges[a_idx]
+                    r_b = ranges[b_idx]
+                    if _ranges_overlap(
+                        r_a["lowestNote"],
+                        r_a["highestNote"],
+                        r_b["lowestNote"],
+                        r_b["highestNote"],
+                    ):
                         severity = _overlap_severity(
                             r_a["lowestNote"],
                             r_a["highestNote"],
                             r_b["lowestNote"],
                             r_b["highestNote"],
                         )
-
                         overlaps.append(
                             {
                                 "role_a": r_a["role_id"],
