@@ -59,3 +59,14 @@ def test_calculate_priority_low() -> None:
         "setupNote": "",
     }
     assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.LOW
+
+
+def test_calculate_priority_with_manual_override() -> None:
+    """Test that manual overrides yield HIGH priority."""
+    role = {
+        "confidence": {"level": "high"},
+        "overlapWarnings": [],
+        "manualOverrides": ["User corrected chord"],
+        "setupNote": "",
+    }
+    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.HIGH
