@@ -20,7 +20,7 @@ export function createTranslator(locale: Locale = "en") {
 
 /** Documented. */
 export function detectPreferredLocale(): Locale {
-  if (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("ko")) {
+  if (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("ko")) {
     return "ko";
   }
 

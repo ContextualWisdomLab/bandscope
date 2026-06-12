@@ -2,11 +2,9 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   type RehearsalWorkspace,
-  type SongRehearsalPack,
   type AnalysisJobRequest,
   parseRehearsalWorkspace,
-  isRehearsalWorkspace,
-  createDemoRehearsalSong
+  isRehearsalWorkspace
 } from "@bandscope/shared-types";
 
 /** Documented. */
@@ -36,29 +34,14 @@ const mockWorkspace: RehearsalWorkspace = {
   workspaceVersion: 1
 };
 
-const mockSongsById = new Map<string, SongRehearsalPack>();
-
 type MockListener = (event: { payload: unknown }) => void;
 const mockListeners = new Set<MockListener>();
-
-/** Documented. */
-function getMockSong(jobId: string): SongRehearsalPack | undefined {
-  const cachedPack = mockSongsById.get(jobId);
-  if (cachedPack) {
-    return cachedPack;
-  }
-  const pack = mockWorkspace.songs.find(song => song.id === jobId);
-  if (pack) {
-    mockSongsById.set(jobId, pack);
-  }
-  return pack;
-}
 
 /**
  * Triggers a mock workspace update to all listeners.
  */
 function triggerMockUpdate() {
-  const payload = structuredClone(mockWorkspace);
+  const payload = JSON.parse(JSON.stringify(mockWorkspace));
   mockListeners.forEach(listener => listener({ payload }));
 }
 
@@ -71,31 +54,28 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   if (command === "enqueue_song") {
     const request = args?.request as AnalysisJobRequest;
     const packId = `pack-${Date.now()}`;
-    const pack: SongRehearsalPack = {
+    mockWorkspace.songs.push({
       id: packId,
       packState: "queued",
       sourceLabel: request.sourceKind === "local_audio" ? request.sourceLabel : "Demo Song",
       engineState: "queued"
-    };
-    mockWorkspace.songs.push(pack);
-    mockSongsById.set(pack.id, pack);
+    });
     triggerMockUpdate();
     
     // Simulate processing
     setTimeout(() => {
-      pack.packState = "analyzing";
-      pack.engineState = "running";
-      triggerMockUpdate();
-
-      setTimeout(() => {
-        // We use Object.assign to mutate the cached pack reference, avoiding an O(N) lookup.
-        Object.assign(pack, {
-          packState: "ready",
-          engineState: "succeeded",
-          song: createDemoRehearsalSong()
-        });
+      const pack = mockWorkspace.songs.find(p => p.id === packId);
+      if (pack) {
+        pack.packState = "analyzing";
+        pack.engineState = "running";
         triggerMockUpdate();
-      }, 2000);
+
+        setTimeout(() => {
+          pack.packState = "ready";
+          pack.engineState = "succeeded";
+          triggerMockUpdate();
+        }, 2000);
+      }
     }, 1000);
     
     return;
@@ -103,7 +83,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   
   if (command === "retry_song") {
     const jobId = args?.jobId as string;
-    const pack = getMockSong(jobId);
+    const pack = mockWorkspace.songs.find(p => p.id === jobId);
     if (pack) {
       pack.packState = "queued";
       pack.engineState = "queued";
@@ -112,17 +92,17 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
       
       // Simulate processing
       setTimeout(() => {
-        pack.packState = "analyzing";
-        pack.engineState = "running";
-        triggerMockUpdate();
-        setTimeout(() => {
-          Object.assign(pack, {
-            packState: "ready",
-            engineState: "succeeded",
-            song: createDemoRehearsalSong()
-          });
+        const p = mockWorkspace.songs.find(s => s.id === jobId);
+        if (p) {
+          p.packState = "analyzing";
+          p.engineState = "running";
           triggerMockUpdate();
-        }, 2000);
+          setTimeout(() => {
+            p.packState = "ready";
+            p.engineState = "succeeded";
+            triggerMockUpdate();
+          }, 2000);
+        }
       }, 1000);
     }
     return;
@@ -131,7 +111,6 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   if (command === "cancel_song") {
     const jobId = args?.jobId as string;
     mockWorkspace.songs = mockWorkspace.songs.filter(p => p.id !== jobId);
-    mockSongsById.delete(jobId);
     triggerMockUpdate();
     return;
   }

@@ -19,8 +19,7 @@ import {
   Star,
   Upload,
   Users,
-  Wand2,
-  Loader2,
+  Wand2
 } from "lucide-react";
 import {
   SUPPORTED_AUDIO_FORMATS,
@@ -476,7 +475,6 @@ export function App() {
                     className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                     aria-label="Import YouTube"
                   >
-                    {isImporting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
                     {isImporting ? t("importingYoutube") : t("importYoutube")}
                   </Button>
                 </div>

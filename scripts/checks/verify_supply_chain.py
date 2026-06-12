@@ -1,7 +1,6 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
 import ast
-import functools
 import re
 import shlex
 from itertools import pairwise
@@ -233,28 +232,25 @@ def step_with_value_from_block(
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
     """Return workflow lines with shell backslash continuations folded."""
     logical_lines: list[tuple[int, str]] = []
-    pending_parts: list[str] = []
+    pending = ""
     pending_start = 0
     for idx, raw_line in enumerate(content.splitlines(), start=1):
         stripped = raw_line.strip()
-        if not stripped and not pending_parts:
+        if not stripped and not pending:
             continue
-
-        if not pending_parts:
-            pending_start = idx
-
-        if stripped.endswith("\\"):
-            part = stripped[:-1].rstrip()
-            if part:
-                pending_parts.append(part)
+        if pending:
+            pending = f"{pending} {stripped}"
         else:
-            pending_parts.append(stripped)
-            logical_lines.append((pending_start, " ".join(pending_parts)))
-            pending_parts.clear()
-            pending_start = 0
-
-    if pending_parts:
-        logical_lines.append((pending_start, " ".join(pending_parts)))
+            pending = stripped
+            pending_start = idx
+        if pending.endswith("\\"):
+            pending = pending[:-1].rstrip()
+            continue
+        logical_lines.append((pending_start, pending))
+        pending = ""
+        pending_start = 0
+    if pending:
+        logical_lines.append((pending_start, pending))
     return logical_lines
 
 
@@ -430,7 +426,7 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
             )
             if match is None:
                 continue
-            value = match.group(2).strip().strip("\"'")
+            value = match.group(2).strip().strip('"\'')
             env[match.group(1)] = value
         break
     return env
@@ -439,7 +435,9 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
 def verify_checkout_default_branch_guard() -> list[str]:
     """Return checkout workflows missing the Git default-branch warning guard."""
     violations: list[str] = []
-    checkout_uses_pattern = re.compile(r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@")
+    checkout_uses_pattern = re.compile(
+        r"^\s*-?\s*uses:\s*(?:[\"'])?actions/checkout@"
+    )
     workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
         Path(".github/workflows").glob("*.yaml")
     )
@@ -1426,7 +1424,6 @@ def parse_numeric_semver(version: str) -> tuple[int, int, int] | None:
     return parsed_parts[0], parsed_parts[1], parsed_parts[2]
 
 
-@functools.lru_cache
 def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
     """Return Cargo package keys and dependency tokens from a lockfile."""
     packages: dict[str, list[str]] = {}
@@ -1444,7 +1441,6 @@ def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
     return cargo_lock_normalized_package_dependencies(packages)
 
 
-@functools.lru_cache
 def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
     """Return Cargo package tables from supported lockfile TOML forms."""
     packages: list[dict[str, object]] = []

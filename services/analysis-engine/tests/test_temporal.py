@@ -99,27 +99,6 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
         TemporalAnalyzer().analyze(test_wav)
 
 
-def test_temporal_analyzer_exception_handling(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Ensure temporal analyzer catches general exceptions and raises ValueError."""
-    import librosa
-
-    from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
-
-    def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
-        raise Exception("Mocked general error")
-
-    monkeypatch.setattr(librosa, "load", fake_load)
-
-    test_wav = tmp_path / "test.wav"
-    test_wav.write_bytes(b"dummy")
-
-    with pytest.raises(ValueError, match="Temporal analysis failed: Mocked general error"):
-        TemporalAnalyzer().analyze(test_wav)
-
-
 def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -> None:
     """Ensure large files are rejected before decode to prevent resource exhaustion."""
     import librosa

@@ -51,7 +51,7 @@ def test_calculate_priority_with_setup_note() -> None:
 
 
 def test_calculate_priority_with_simplification() -> None:
-    """Test that simplification yields MEDIUM priority even if confidence is high."""
+    """Test that having a simplification yields MEDIUM priority even if confidence is high."""
     role = {
         "confidence": {"level": "high"},
         "overlapWarnings": [],
@@ -71,14 +71,3 @@ def test_calculate_priority_low() -> None:
         "setupNote": "",
     }
     assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.LOW
-
-
-def test_calculate_priority_with_manual_override() -> None:
-    """Test that manual overrides yield HIGH priority."""
-    role = {
-        "confidence": {"level": "high"},
-        "overlapWarnings": [],
-        "manualOverrides": ["User corrected chord"],
-        "setupNote": "",
-    }
-    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.HIGH

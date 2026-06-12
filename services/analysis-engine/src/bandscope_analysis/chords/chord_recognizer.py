@@ -53,16 +53,28 @@ class ChordRecognizer:
             labels.append(f"{note}m")  # Minor
         return labels
 
-    def _separate_harmonic(self, y: np.ndarray) -> np.ndarray:
-        """Separate harmonic component from audio."""
+    def recognize(self, y: np.ndarray, sr: int = 22050) -> list[TrackedChord]:
+        """
+        Recognize chords in an audio array using chromagrams.
+
+        Args:
+            y: Audio time series.
+            sr: Sampling rate.
+
+        Returns:
+            List of dictionaries containing start_time, end_time, and chord string.
+        """
+        if len(y) == 0:
+            return []
+
+        # Compute harmonic harmonic-percussive separation (optional but helps)
         try:
             y_harmonic, _ = librosa.effects.hpss(y)
-            return np.asarray(y_harmonic)
         except Exception:
-            return y
+            y_harmonic = y
 
-    def _extract_chromagram(self, y_harmonic: np.ndarray, sr: int) -> np.ndarray | None:
-        """Extract and smooth chromagram."""
+        # Extract chromagram. CQT is better for harmony, but librosa warns on short clips after
+        # recursive downsampling; STFT keeps those clips warning-free and still returns chroma.
         try:
             if len(y_harmonic) <= sr * 2:
                 chromagram = librosa.feature.chroma_stft(
@@ -74,54 +86,40 @@ class ChordRecognizer:
             else:
                 chromagram = librosa.feature.chroma_cqt(y=y_harmonic, sr=sr)
         except Exception:
-            return None
+            return []
 
         if chromagram.size == 0:
-            return None
+            return []
 
         # Optional: apply temporal smoothing to chromagram to reduce noise
         chromagram = librosa.decompose.nn_filter(chromagram, aggregate=np.median, metric="cosine")
-        return np.asarray(chromagram)
 
-    def _calculate_rms(self, y: np.ndarray, chromagram_len: int) -> np.ndarray:
-        """Calculate RMS energy to detect silence/noise."""
+        # Calculate RMS energy to detect silence/noise
         try:
             rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=512)[0]
             # Match RMS length to chromagram length
-            if len(rms) < chromagram_len:
-                rms = np.pad(rms, (0, chromagram_len - len(rms)), mode="edge")
+            if len(rms) < chromagram.shape[1]:
+                rms = np.pad(rms, (0, chromagram.shape[1] - len(rms)), mode="edge")
             else:
-                rms = rms[:chromagram_len]
+                rms = rms[: chromagram.shape[1]]
         except Exception:
-            rms = np.ones(chromagram_len)
-        return np.asarray(rms)
+            rms = np.ones(chromagram.shape[1])
 
-    def _match_templates(self, chromagram: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Match chromagram to templates and return similarities and best match indices."""
-        # Compare chromagram frames to templates using dot product.
+        # Compare chromagram frames to templates using dot product
         # chromagram shape: (12, n_frames)
         # templates shape: (24, 12)
         # similarity shape: (24, n_frames)
         similarity = np.dot(self.templates, chromagram)
-        best_matches = np.argmax(similarity, axis=0)
-        return similarity, best_matches
 
-    def _create_chord_segments(
-        self,
-        chromagram: np.ndarray,
-        similarity: np.ndarray,
-        best_matches: np.ndarray,
-        rms: np.ndarray,
-        sr: int,
-    ) -> list[TrackedChord]:
-        """Convert frame-level chord predictions into time segments."""
+        # Find the best matching chord template for each frame
+        best_matches = np.argmax(similarity, axis=0)
+
+        # Convert frames to time segments
         frames = librosa.frames_to_time(np.arange(chromagram.shape[1] + 1), sr=sr)
+
         chords: list[TrackedChord] = []
         current_chord = None
         start_frame = 0
-
-        # Vectorize the variance calculation over frames
-        chroma_vars = np.var(chromagram, axis=0)
 
         for i, match in enumerate(best_matches):
             chord_label = self.chord_labels[match]
@@ -135,7 +133,7 @@ class ChordRecognizer:
             # or if the RMS energy is really low.
             # However, since dot product normalization makes noise match *something*,
             # we can look at the variance of the chromagram frame.
-            chroma_var = chroma_vars[i]
+            chroma_var = np.var(chromagram[:, i])
             if max_sim < 0.3 or rms_val < 0.01 or chroma_var < 0.02:
                 chord_label = "N"
 
@@ -165,28 +163,3 @@ class ChordRecognizer:
             )
 
         return chords
-
-    def recognize(self, y: np.ndarray, sr: int = 22050) -> list[TrackedChord]:
-        """
-        Recognize chords in an audio array using chromagrams.
-
-        Args:
-            y: Audio time series.
-            sr: Sampling rate.
-
-        Returns:
-            List of dictionaries containing start_time, end_time, and chord string.
-        """
-        if len(y) == 0:
-            return []
-
-        y_harmonic = self._separate_harmonic(y)
-        chromagram = self._extract_chromagram(y_harmonic, sr)
-
-        if chromagram is None:
-            return []
-
-        rms = self._calculate_rms(y, chromagram.shape[1])
-        similarity, best_matches = self._match_templates(chromagram)
-
-        return self._create_chord_segments(chromagram, similarity, best_matches, rms, sr)
