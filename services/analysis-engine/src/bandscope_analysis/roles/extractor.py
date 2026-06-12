@@ -49,6 +49,7 @@ class RoleExtractor:
         sr = features.get("sr", 22050)
 
         vocal_range, vocal_chord, bass_range, bass_chord = self._extract_features(stems, sr)
+        roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range)
 
         # Simple mock implementation for testing/demonstration purposes
         for i, section in enumerate(sections):
@@ -62,7 +63,6 @@ class RoleExtractor:
             else:
                 section_id = section.get("id", f"section-{i}")
 
-            roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range)
             topology = self._build_topology(section_id, i == 0, roles)
             topologies.append(topology)
 

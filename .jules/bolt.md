@@ -17,3 +17,8 @@
 
 **Learning:** When checking for multiple potential file extensions in Python on networked/slower file systems, running multiple `os.path.exists()` in a loop creates significant overhead (N round trips).
 **Action:** Replace sequential `exists` calls with a single `glob.iglob(glob.escape(base) + ".*")` check coupled with `endswith()`. Use `glob.escape()` to avoid unintended regex expansion of characters like `[]` in directory names.
+
+## 2024-05-24 - RoleExtractor Loop N+1 Performance Optimization
+
+**Learning:** Instantiating dictionaries with repeated heuristic calculation calls inside a loop over many elements causes significant slowdowns.
+**Action:** Build mock role definitions once per extraction call and reuse them while constructing section topologies.
