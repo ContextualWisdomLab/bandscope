@@ -233,25 +233,28 @@ def step_with_value_from_block(
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
     """Return workflow lines with shell backslash continuations folded."""
     logical_lines: list[tuple[int, str]] = []
-    pending = ""
+    pending_parts: list[str] = []
     pending_start = 0
     for idx, raw_line in enumerate(content.splitlines(), start=1):
         stripped = raw_line.strip()
-        if not stripped and not pending:
+        if not stripped and not pending_parts:
             continue
-        if pending:
-            pending = f"{pending} {stripped}"
-        else:
-            pending = stripped
+
+        if not pending_parts:
             pending_start = idx
-        if pending.endswith("\\"):
-            pending = pending[:-1].rstrip()
-            continue
-        logical_lines.append((pending_start, pending))
-        pending = ""
-        pending_start = 0
-    if pending:
-        logical_lines.append((pending_start, pending))
+
+        if stripped.endswith("\\"):
+            part = stripped[:-1].rstrip()
+            if part:
+                pending_parts.append(part)
+        else:
+            pending_parts.append(stripped)
+            logical_lines.append((pending_start, " ".join(pending_parts)))
+            pending_parts.clear()
+            pending_start = 0
+
+    if pending_parts:
+        logical_lines.append((pending_start, " ".join(pending_parts)))
     return logical_lines
 
 

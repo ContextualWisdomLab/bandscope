@@ -7,3 +7,8 @@
 
 **Learning:** Replacing repeated `Array.prototype.find()` searches (O(N)) with `Map.prototype.get()` (O(1)) provides meaningful performance benefits when lookups occur in critical paths or frequent message handlers.
 **Action:** Prefer keyed lookup caches for repeated job or event lookups, while keeping a fallback path for data that may have been initialized before the cache is populated.
+
+## 2024-05-18 - String concatenation optimization
+
+**Learning:** Replacing iterative string concatenation with list accumulation followed by `" ".join(...)` avoids repeated string reallocations in tight loops.
+**Action:** Prefer list-builder patterns when folding many strings in repository verification scripts.
