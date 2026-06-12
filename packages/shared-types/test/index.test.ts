@@ -38,6 +38,34 @@ describe("shared type helpers", () => {
     });
   });
 
+  it("creates a project summary with empty strings", () => {
+    expect(
+      createDefaultProjectSummary({
+        id: "",
+        title: ""
+      })
+    ).toEqual({
+      id: "",
+      title: "",
+      status: "idle",
+      supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
+    });
+  });
+
+  it("creates a project summary with special characters in id and title", () => {
+    expect(
+      createDefaultProjectSummary({
+        id: "!@#$%^&*()",
+        title: "Song with \n special chars \t and symbols !?"
+      })
+    ).toEqual({
+      id: "!@#$%^&*()",
+      title: "Song with \n special chars \t and symbols !?",
+      status: "idle",
+      supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
+    });
+  });
+
   it("validates analysis job requests and status envelopes", () => {
     const request = createDemoAnalysisJobRequest();
     const status = createAnalysisJobStatus({

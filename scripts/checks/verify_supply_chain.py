@@ -1,10 +1,15 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
+import functools
 import re
 import shlex
-import tomllib
 from itertools import pairwise
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - local Python <3.11 fallback.
+    import tomli as tomllib
 
 REQUIRED_FILES = [
     Path("package-lock.json"),
@@ -232,25 +237,28 @@ def step_with_value_from_block(
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
     """Return workflow lines with shell backslash continuations folded."""
     logical_lines: list[tuple[int, str]] = []
-    pending = ""
+    pending_parts: list[str] = []
     pending_start = 0
     for idx, raw_line in enumerate(content.splitlines(), start=1):
         stripped = raw_line.strip()
-        if not stripped and not pending:
+        if not stripped and not pending_parts:
             continue
-        if pending:
-            pending = f"{pending} {stripped}"
-        else:
-            pending = stripped
+
+        if not pending_parts:
             pending_start = idx
-        if pending.endswith("\\"):
-            pending = pending[:-1].rstrip()
-            continue
-        logical_lines.append((pending_start, pending))
-        pending = ""
-        pending_start = 0
-    if pending:
-        logical_lines.append((pending_start, pending))
+
+        if stripped.endswith("\\"):
+            part = stripped[:-1].rstrip()
+            if part:
+                pending_parts.append(part)
+        else:
+            pending_parts.append(stripped)
+            logical_lines.append((pending_start, " ".join(pending_parts)))
+            pending_parts.clear()
+            pending_start = 0
+
+    if pending_parts:
+        logical_lines.append((pending_start, " ".join(pending_parts)))
     return logical_lines
 
 
@@ -1422,6 +1430,7 @@ def parse_numeric_semver(version: str) -> tuple[int, int, int] | None:
     return parsed_parts[0], parsed_parts[1], parsed_parts[2]
 
 
+@functools.lru_cache
 def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
     """Return Cargo package keys and dependency tokens from a lockfile."""
     packages: dict[str, list[str]] = {}
@@ -1439,6 +1448,7 @@ def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
     return cargo_lock_normalized_package_dependencies(packages)
 
 
+@functools.lru_cache
 def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
     """Return Cargo package tables from supported lockfile TOML forms."""
     packages: list[dict[str, object]] = []
@@ -1493,7 +1503,7 @@ def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
 
 def parse_cargo_lock_string_list(value: str) -> list[str]:
     """Return strings from an inline Cargo.lock dependency array."""
-    parsed_value = tomllib.loads(f"v = {value}")["v"]
+    parsed_value = parse_cargo_lock_toml_value(value)
     if not isinstance(parsed_value, list):
         return []
     return [str(item).strip() for item in parsed_value]
@@ -1501,8 +1511,18 @@ def parse_cargo_lock_string_list(value: str) -> list[str]:
 
 def parse_cargo_lock_scalar(value: str) -> str:
     """Return a scalar Cargo.lock TOML value as text."""
-    parsed_value = tomllib.loads(f"v = {value}")["v"]
+    parsed_value = parse_cargo_lock_toml_value(value)
+    if parsed_value is None:
+        return ""
     return str(parsed_value)
+
+
+def parse_cargo_lock_toml_value(value: str) -> object | None:
+    """Return a TOML value from Cargo.lock, or None when parsing fails."""
+    try:
+        return tomllib.loads(f"v = {value}")["v"]
+    except tomllib.TOMLDecodeError:
+        return None
 
 
 def cargo_lock_normalized_package_dependencies(

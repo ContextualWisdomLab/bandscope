@@ -2364,6 +2364,40 @@ checksum = "version-first-inline-owner"
     ) in violations
 
 
+def test_supply_chain_cargo_lock_parser_uses_toml_values() -> None:
+    """Ensure Cargo.lock inline values are parsed as TOML."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_cargo_parser_toml_values",
+    )
+
+    assert supply_chain.parse_cargo_lock_string_list(
+        '["rand 0.7.3", "serde"]'
+    ) == [
+        "rand 0.7.3",
+        "serde",
+    ]
+    assert supply_chain.parse_cargo_lock_string_list('"not-list"') == []
+    assert supply_chain.parse_cargo_lock_scalar('"rand"') == "rand"
+    assert supply_chain.parse_cargo_lock_scalar('"0.8.6"') == "0.8.6"
+
+
+def test_supply_chain_cargo_lock_parser_rejects_non_toml_values() -> None:
+    """Ensure malformed Cargo.lock values fail closed instead of evaluating code."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_cargo_parser_invalid_values",
+    )
+
+    assert (
+        supply_chain.parse_cargo_lock_string_list(
+            '["rand", __import__("os").system("echo pwn")]'
+        )
+        == []
+    )
+    assert supply_chain.parse_cargo_lock_scalar("{not valid") == ""
+
+
 def test_supply_chain_check_reports_missing_rust_lockfile(tmp_path: Path) -> None:
     """Ensure missing Cargo.lock is reported as a supply-chain violation."""
     supply_chain = load_module(
