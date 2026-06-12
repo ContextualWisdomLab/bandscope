@@ -126,7 +126,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         <button
                           type="button"
                           aria-label={editChordLabel(role, section.label)}
-                          className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors ${
+                          className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                             onSongUpdate
                               ? "cursor-pointer hover:bg-white/10"
                               : "cursor-default"

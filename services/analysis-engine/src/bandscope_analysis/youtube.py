@@ -5,13 +5,18 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 """
 
 import argparse
+import glob
 import json
 import os
+import re
 import sys
 import urllib.parse
 from typing import Any, Dict, Optional
 
 import yt_dlp  # type: ignore
+
+YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
+SUPPORTED_AUDIO_EXTENSIONS = (".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg")
 
 
 def validate_url(url: str) -> bool:
@@ -32,14 +37,14 @@ def validate_url(url: str) -> bool:
 
         if host == "youtu.be":
             path = parsed.path.strip("/")
-            return bool(path) and "/" not in path
+            return bool(YOUTUBE_VIDEO_ID_PATTERN.match(path))
 
-        if host == "youtube.com" or host.endswith(".youtube.com"):
+        if host in {"youtube.com", "www.youtube.com"}:
             if parsed.path != "/watch":
                 return False
             query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
             video_ids = query.get("v", [])
-            return len(video_ids) == 1 and bool(video_ids[0].strip())
+            return len(video_ids) == 1 and bool(YOUTUBE_VIDEO_ID_PATTERN.match(video_ids[0]))
 
         return False
     except ValueError:
@@ -50,9 +55,9 @@ def _find_actual_filepath(actual_filepath: str) -> Optional[str]:
     if not os.path.exists(actual_filepath):
         # Try to find the file with a different extension in case of conversion
         base_path = os.path.splitext(actual_filepath)[0]
-        for ext in [".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg"]:
-            if os.path.exists(base_path + ext):
-                return base_path + ext
+        for match in glob.iglob(glob.escape(base_path) + ".*"):
+            if match.endswith(SUPPORTED_AUDIO_EXTENSIONS):
+                return match
         return None
     return actual_filepath
 

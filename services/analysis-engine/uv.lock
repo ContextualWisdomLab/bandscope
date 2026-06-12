@@ -95,7 +95,6 @@ name = "bandscope-analysis"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "idna" },
     { name = "librosa" },
     { name = "numba" },
     { name = "soundfile" },
@@ -114,7 +113,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "idna", specifier = ">=3.15" },
     { name = "librosa", specifier = ">=0.11.0" },
     { name = "numba", specifier = "<0.63.0" },
     { name = "soundfile", specifier = ">=0.13.1" },

@@ -208,23 +208,39 @@ class RangeAnalyzer:
                         }
                     )
 
+            ranges_with_midi = []
+            for r in ranges:
+                ranges_with_midi.append(
+                    (
+                        r,
+                        _note_to_midi(r["lowestNote"]),
+                        _note_to_midi(r["highestNote"]),
+                    )
+                )
+
+            # Sort ranges by lowest note MIDI value for efficient overlap detection
+            ranges_with_midi.sort(key=lambda x: x[1])
+
             # Detect overlaps between all pairs of ranges
-            for a_idx in range(len(ranges)):
-                for b_idx in range(a_idx + 1, len(ranges)):
-                    r_a = ranges[a_idx]
-                    r_b = ranges[b_idx]
-                    if _ranges_overlap(
-                        r_a["lowestNote"],
-                        r_a["highestNote"],
-                        r_b["lowestNote"],
-                        r_b["highestNote"],
-                    ):
+            for a_idx in range(len(ranges_with_midi)):
+                r_a, midi_low_a, midi_high_a = ranges_with_midi[a_idx]
+                for b_idx in range(a_idx + 1, len(ranges_with_midi)):
+                    r_b, midi_low_b, midi_high_b = ranges_with_midi[b_idx]
+
+                    # Since ranges are sorted by lowest note, if the next range starts
+                    # after the current one ends, no further ranges will overlap
+                    if midi_low_b > midi_high_a:
+                        break
+
+                    # Check for overlap
+                    if midi_low_a <= midi_high_b and midi_low_b <= midi_high_a:
                         severity = _overlap_severity(
                             r_a["lowestNote"],
                             r_a["highestNote"],
                             r_b["lowestNote"],
                             r_b["highestNote"],
                         )
+
                         overlaps.append(
                             {
                                 "role_a": r_a["role_id"],
