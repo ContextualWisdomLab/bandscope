@@ -2371,9 +2371,7 @@ def test_supply_chain_cargo_lock_parser_uses_toml_values() -> None:
         "verify_supply_chain_cargo_parser_toml_values",
     )
 
-    assert supply_chain.parse_cargo_lock_string_list(
-        '["rand 0.7.3", "serde"]'
-    ) == [
+    assert supply_chain.parse_cargo_lock_string_list('["rand 0.7.3", "serde"]') == [
         "rand 0.7.3",
         "serde",
     ]
@@ -2390,9 +2388,7 @@ def test_supply_chain_cargo_lock_parser_rejects_non_toml_values() -> None:
     )
 
     assert (
-        supply_chain.parse_cargo_lock_string_list(
-            '["rand", __import__("os").system("echo pwn")]'
-        )
+        supply_chain.parse_cargo_lock_string_list('["rand", __import__("os").system("echo pwn")]')
         == []
     )
     assert supply_chain.parse_cargo_lock_scalar("{not valid") == ""
