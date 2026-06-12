@@ -1,6 +1,7 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
 import ast
+import functools
 import re
 import shlex
 from itertools import pairwise
@@ -1425,6 +1426,7 @@ def parse_numeric_semver(version: str) -> tuple[int, int, int] | None:
     return parsed_parts[0], parsed_parts[1], parsed_parts[2]
 
 
+@functools.lru_cache
 def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
     """Return Cargo package keys and dependency tokens from a lockfile."""
     packages: dict[str, list[str]] = {}
@@ -1442,6 +1444,7 @@ def cargo_lock_package_dependencies(lockfile: Path) -> dict[str, list[str]]:
     return cargo_lock_normalized_package_dependencies(packages)
 
 
+@functools.lru_cache
 def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
     """Return Cargo package tables from supported lockfile TOML forms."""
     packages: list[dict[str, object]] = []

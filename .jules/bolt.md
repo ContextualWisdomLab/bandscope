@@ -1,5 +1,14 @@
+## 2023-06-10 - Caching parsed lockfile results
+
+**Learning:** Parsing Cargo.lock files repeatedly per iteration in the supply chain verification script causes significant I/O and CPU overhead.
+**Action:** Use `@functools.lru_cache` to cache parsed package dictionaries based on `Path` inputs for static checks.
+
+## 2024-06-03 - O(1) Map Lookups for Performance
+
+**Learning:** Replacing repeated `Array.prototype.find()` searches (O(N)) with `Map.prototype.get()` (O(1)) provides meaningful performance benefits when lookups occur in critical paths or frequent message handlers.
+**Action:** Prefer keyed lookup caches for repeated job or event lookups, while keeping a fallback path for data that may have been initialized before the cache is populated.
+
 ## 2024-05-18 - String concatenation optimization
 
-**Learning:** When optimizing loop constructs that iteratively build strings via `f"{pending} {stripped}"`, replacing this with `[].append(stripped)` followed by `" ".join(pending_parts)` results in significantly improved execution performance, especially as line count grows (showing up to 36% improvement in large files with heavy line continuations) due to the reduced string reallocation overhead.
-
-**Action:** Whenever identifying iterative string construction operations in python scripts, I should favor the `"".join()` list-builder pattern.
+**Learning:** Replacing iterative string concatenation with list accumulation followed by `" ".join(...)` avoids repeated string reallocations in tight loops.
+**Action:** Prefer list-builder patterns when folding many strings in repository verification scripts.
