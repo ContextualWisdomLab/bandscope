@@ -194,6 +194,10 @@ def test_cli_main_handles_malformed_json(monkeypatch: pytest.MonkeyPatch) -> Non
     assert response["jobId"] == "unknown-job"
     assert response["state"] == "failed"
     assert response["error"]["code"] == "invalid_request"
+    assert (
+        "Invalid analysis job request: Expecting property name enclosed in double quotes"
+        in response["error"]["message"]
+    )
 
 
 def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:

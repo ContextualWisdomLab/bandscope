@@ -56,11 +56,11 @@ describe("shared type helpers", () => {
     expect(
       createDefaultProjectSummary({
         id: "!@#$%^&*()",
-        title: "Song with \n special chars \t and emojis 🎶"
+        title: "Song with \n special chars \t and symbols !?"
       })
     ).toEqual({
       id: "!@#$%^&*()",
-      title: "Song with \n special chars \t and emojis 🎶",
+      title: "Song with \n special chars \t and symbols !?",
       status: "idle",
       supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
     });
