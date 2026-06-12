@@ -1,3 +1,3 @@
-## 2024-05-18 - Added focus visible styles for keyboard navigation
-**Learning:** Interactive inline buttons (like the chord editor) and scrollable regions with `tabIndex={0}` do not automatically get focus visible styles, meaning keyboard users tabbing through won't know they are focused on them. Unlike central `<Button />` components which bake focus states in, these custom inline interactive elements need explicit focus styling.
-**Action:** Always add explicit focus visible styles (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300`) to custom interactive elements and scrollable regions with `tabIndex={0}` for proper keyboard accessibility.
+## 2026-06-12 - Screen reader support for non-interactive elements with icons
+**Learning:** Adding a `title` attribute to a non-interactive element like a `<div>` is often insufficient for screen readers to properly announce the context. Even if it provides a visual tooltip, an icon inside an otherwise empty `div` will be inaccessible.
+**Action:** When adding descriptive tooltips to non-interactive elements, include visually hidden text (`<span className="sr-only">`) to ensure screen readers announce the meaning accurately.
