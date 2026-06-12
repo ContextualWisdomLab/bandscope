@@ -5,6 +5,7 @@ import { App } from "./App";
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
+let mockImportYoutubeUrlError = false;
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -18,6 +19,12 @@ vi.mock("./lib/analysis", async (importActual) => {
 
   return {
     ...actual,
+    importYoutubeUrl: async (url: string) => {
+      if (mockImportYoutubeUrlError) {
+        throw new Error("Simulated component crash");
+      }
+      return actual.importYoutubeUrl(url);
+    },
     createDefaultAnalysisRequest: () => ({
       sourceKind: "demo",
       sourceLabel: "Late Night Set",
@@ -164,6 +171,7 @@ describe("App", () => {
     tauriInvoke.mockReset();
     mockLoadProject.mockReset();
     mockSaveProject.mockReset();
+    mockImportYoutubeUrlError = false;
     delete tauriWindow.__TAURI_INTERNALS__;
     tauriWindow.__TAURI_INVOKE__ = tauriInvoke;
   });
@@ -875,5 +883,21 @@ describe("App", () => {
     saveButton.removeAttribute("disabled");
     fireEvent.click(saveButton);
     expect(mockSaveProject).not.toHaveBeenCalled();
+  });
+
+  it("handles exception thrown by importYoutubeUrl itself", async () => {
+    mockImportYoutubeUrlError = true;
+
+    render(<App />);
+
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=crashing123" } });
+
+    const button = screen.getByRole("button", { name: /Import YouTube/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+    });
   });
 });

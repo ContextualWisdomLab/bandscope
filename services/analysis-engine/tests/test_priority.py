@@ -62,7 +62,7 @@ def test_calculate_priority_low() -> None:
 
 
 def test_calculate_priority_with_manual_override() -> None:
-    """Test that having manual overrides yields HIGH priority."""
+    """Test that manual overrides yield HIGH priority."""
     role = {
         "confidence": {"level": "high"},
         "overlapWarnings": [],

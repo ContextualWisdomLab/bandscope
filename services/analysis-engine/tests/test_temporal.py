@@ -99,6 +99,76 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
         TemporalAnalyzer().analyze(test_wav)
 
 
+def test_temporal_analyzer_exception_handling(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Ensure temporal analyzer catches general exceptions and raises ValueError."""
+    import librosa
+
+    from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
+
+    def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
+        raise Exception("Mocked general error")
+
+    monkeypatch.setattr(librosa, "load", fake_load)
+
+    test_wav = tmp_path / "test.wav"
+    test_wav.write_bytes(b"dummy")
+
+    with pytest.raises(ValueError, match="Temporal analysis failed: Mocked general error"):
+        TemporalAnalyzer().analyze(test_wav)
+
+
+def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -> None:
+    """Ensure large files are rejected before decode to prevent resource exhaustion."""
+    import librosa
+
+    from bandscope_analysis.temporal import analyzer as analyzer_module
+
+    test_wav = tmp_path / "large.wav"
+    test_wav.write_bytes(b"1234")
+
+    monkeypatch.setattr(analyzer_module, "MAX_AUDIO_FILE_BYTES", 1)
+
+    def fake_load(*args, **kwargs):
+        raise AssertionError("librosa.load should not be called for oversized files")
+
+    monkeypatch.setattr(librosa, "load", fake_load)
+
+    analyzer = TemporalAnalyzer()
+    with pytest.raises(ValueError, match="too large"):
+        analyzer.analyze(test_wav)
+
+
+def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> None:
+    """Ensure librosa.load receives bounded duration for safer decode behavior."""
+    import librosa
+
+    test_wav = tmp_path / "bounded.wav"
+    test_wav.write_bytes(b"1234")
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_load(path, **kwargs):
+        captured_kwargs.update(kwargs)
+        return np.zeros(44100, dtype=float), 44100
+
+    monkeypatch.setattr(librosa, "load", fake_load)
+
+    def fake_beat_track(y, sr):
+        return np.array([120.0]), np.array([0])
+
+    monkeypatch.setattr(librosa.beat, "beat_track", fake_beat_track)
+    monkeypatch.setattr(librosa, "frames_to_time", lambda frames, sr: np.array([0.0]))
+
+    analyzer = TemporalAnalyzer()
+    analyzer.analyze(test_wav)
+
+    from bandscope_analysis.temporal.analyzer import MAX_ANALYSIS_DURATION_SECONDS
+
+    assert captured_kwargs["duration"] == MAX_ANALYSIS_DURATION_SECONDS
+
+
 def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

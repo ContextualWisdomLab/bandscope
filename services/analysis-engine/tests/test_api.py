@@ -233,8 +233,8 @@ def test_build_section_time_range_matches_desktop_bounds() -> None:
             raise AssertionError(f"Expected ValueError for {start!r}..{end!r}")
 
 
-def test_run_analysis_job_returns_success_and_failure_envelopes() -> None:
-    """Ensure orchestration responses stay typed for both valid and invalid requests."""
+def test_run_analysis_job_returns_success_envelope() -> None:
+    """Ensure orchestration responses stay typed for valid requests."""
     success = run_analysis_job(
         "job-1",
         {
@@ -244,11 +244,16 @@ def test_run_analysis_job_returns_success_and_failure_envelopes() -> None:
         },
         "2026-03-12T00:00:00Z",
     )
-    failure = run_analysis_job("job-2", {"sourceKind": "demo"}, "2026-03-12T00:00:00Z")
 
     assert success["state"] == "succeeded"
     assert success["progressLabel"] == "Analysis ready for Late Night Set"
     assert success["result"]["exportSummary"]["format"] == "cue-sheet"
+
+
+def test_run_analysis_job_handles_validation_exception() -> None:
+    """Ensure invalid job requests return the expected orchestration failure envelope."""
+    failure = run_analysis_job("job-2", {"sourceKind": "demo"}, "2026-03-12T00:00:00Z")
+
     assert failure == {
         "jobId": "job-2",
         "state": "failed",
