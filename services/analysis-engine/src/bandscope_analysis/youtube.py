@@ -51,7 +51,8 @@ def validate_url(url: str) -> bool:
         return False
 
 
-def _find_actual_filepath(actual_filepath: str) -> Optional[str]:
+def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
+    """Find the downloaded file, including postprocessor extension changes."""
     if not os.path.exists(actual_filepath):
         # Try to find the file with a different extension in case of conversion
         base_path = os.path.splitext(actual_filepath)[0]
@@ -63,6 +64,7 @@ def _find_actual_filepath(actual_filepath: str) -> Optional[str]:
 
 
 def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
+    """Map yt-dlp DownloadError to the public YouTube import error response."""
     msg = str(e).lower()
     if (
         "sign in" in msg
@@ -144,7 +146,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                 raise Exception("Failed to extract info")
             actual_filepath = ydl.prepare_filename(info)
 
-            actual_filepath = _find_actual_filepath(actual_filepath)
+            actual_filepath = _find_downloaded_file(actual_filepath)
 
             if actual_filepath is None:
                 return {
