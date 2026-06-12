@@ -1,11 +1,15 @@
 """Verify that repository-controlled supply-chain controls stay in place."""
 
-import ast
 import functools
 import re
 import shlex
 from itertools import pairwise
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - local Python <3.11 fallback.
+    import tomli as tomllib
 
 REQUIRED_FILES = [
     Path("package-lock.json"),
@@ -1499,7 +1503,7 @@ def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
 
 def parse_cargo_lock_string_list(value: str) -> list[str]:
     """Return strings from an inline Cargo.lock dependency array."""
-    parsed_value = ast.literal_eval(value)
+    parsed_value = parse_cargo_lock_toml_value(value)
     if not isinstance(parsed_value, list):
         return []
     return [str(item).strip() for item in parsed_value]
@@ -1507,8 +1511,18 @@ def parse_cargo_lock_string_list(value: str) -> list[str]:
 
 def parse_cargo_lock_scalar(value: str) -> str:
     """Return a scalar Cargo.lock TOML value as text."""
-    parsed_value = ast.literal_eval(value)
+    parsed_value = parse_cargo_lock_toml_value(value)
+    if parsed_value is None:
+        return ""
     return str(parsed_value)
+
+
+def parse_cargo_lock_toml_value(value: str) -> object | None:
+    """Return a TOML value from Cargo.lock, or None when parsing fails."""
+    try:
+        return tomllib.loads(f"v = {value}")["v"]
+    except tomllib.TOMLDecodeError:
+        return None
 
 
 def cargo_lock_normalized_package_dependencies(
