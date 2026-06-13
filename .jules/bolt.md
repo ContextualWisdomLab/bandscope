@@ -22,3 +22,6 @@
 
 **Learning:** Instantiating dictionaries with repeated heuristic calculation calls inside a loop over many elements causes significant slowdowns.
 **Action:** Build mock role definitions once per extraction call and reuse them while constructing section topologies.
+## 2026-06-13 - Memoize SongStructure timeline
+**Learning:** The SongStructure timeline component renders multiple DOM nodes for sections and re-rendered unnecessarily when the active role state changed in the parent Workspace.
+**Action:** Apply React.memo to static presentational components that receive stable props (like sections) but are siblings to highly interactive state (like role filtering).
