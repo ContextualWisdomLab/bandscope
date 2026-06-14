@@ -91,7 +91,18 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
     return Array.from(roleMap.entries()).map(([id, name]) => ({ id, name }));
   }, [song]);
   const activeRoleDetails = useMemo(
-    () => song.sections.flatMap((section) => section.roles).find((role) => role.id === activeRole),
+    () => {
+      // ⚡ Bolt Performance Optimization:
+      // Replaced song.sections.flatMap(s => s.roles).find(...) with a nested for...of loop.
+      // 🎯 Why: flatMap allocates a new array in memory every time the component renders, causing unnecessary GC overhead and O(N) iteration before searching.
+      // 📊 Impact: O(1) early exit upon finding the role, completely avoiding intermediate array allocation.
+      for (const section of song.sections) {
+        for (const role of section.roles) {
+          if (role.id === activeRole) return role;
+        }
+      }
+      return undefined;
+    },
     [activeRole, song]
   );
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
