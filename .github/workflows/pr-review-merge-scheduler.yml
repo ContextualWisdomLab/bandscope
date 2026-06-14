@@ -156,14 +156,16 @@ jobs:
             local head="$2"
             local review="$3"
             local body
+            local comments_json
             local marker
             local has_marker
             marker="<!-- bandscope-pr-review-merge-scheduler:${head} -->"
 
-            if ! has_marker="$(gh_output_retry gh pr view "$pr" --json comments --jq --arg marker "$marker" 'any(.comments[]?; .body | contains($marker))')"; then
+            if ! comments_json="$(gh_output_retry gh pr view "$pr" --json comments)"; then
               echo "PR #$pr comments could not be read; skipping scheduler review request for this pass."
               return 0
             fi
+            has_marker="$(jq --arg marker "$marker" 'any(.comments[]?; .body | contains($marker))' <<<"$comments_json")"
             if [[ "$has_marker" == "true" ]]; then
               echo "PR #$pr already has a scheduler review request for $head."
               return 0
