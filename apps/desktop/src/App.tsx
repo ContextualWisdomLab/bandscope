@@ -59,6 +59,8 @@ const NAV_ITEMS = [
   { label: "Notes", icon: FileMusic, active: false }
 ] as const;
 
+const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
+
 /** Documented. */
 function progressMessage(
   t: ReturnType<typeof createTranslator>,
@@ -77,6 +79,27 @@ function progressMessage(
 }
 
 /** Documented. */
+function BandScopeMark() {
+  return (
+    <span
+      role="img"
+      aria-label="BandScope circular equalizer mark"
+      className="relative grid size-11 shrink-0 place-items-center rounded-full border border-cyan-200/45 bg-cyan-200/10 shadow-[0_0_28px_rgba(103,232,249,0.34)]"
+    >
+      <span className="absolute inset-1 rounded-full border border-teal-200/20" aria-hidden="true" />
+      <span className="flex h-8 items-end gap-0.5" aria-hidden="true">
+        {BRAND_BAR_HEIGHTS.map((height, index) => (
+          <span
+            key={`${height}-${index}`}
+            className={`w-1.5 rounded-full bg-gradient-to-t from-teal-300 via-cyan-200 to-violet-300 ${height}`}
+          />
+        ))}
+      </span>
+    </span>
+  );
+}
+
+/** Documented. */
 function MetricCard({
   icon,
   label,
@@ -91,7 +114,7 @@ function MetricCard({
   accent?: string;
 }) {
   return (
-    <article className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/65 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-300/40">
+    <article className="group relative overflow-hidden rounded-lg border border-[color:var(--bandscope-border)] bg-[var(--bandscope-surface)] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-300/40">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.16),transparent_35%)] opacity-60 transition group-hover:opacity-100" />
       <div className="relative flex items-start gap-3">
         <div className={`rounded-xl bg-white/5 p-2 ${accent}`}>{icon}</div>
@@ -328,12 +351,12 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#020713] text-slate-100 selection:bg-cyan-300/30">
+    <div className="min-h-screen overflow-x-hidden bg-[var(--bandscope-bg)] text-slate-100 selection:bg-cyan-300/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
       <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px]" />
 
       <div className="relative flex min-h-screen">
-        <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-slate-950/72 px-5 py-5 shadow-[24px_0_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex lg:flex-col">
+        <aside className="hidden w-64 shrink-0 border-r border-[color:var(--bandscope-border)] bg-[var(--bandscope-surface-strong)] px-5 py-5 shadow-[24px_0_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex lg:flex-col">
           <div className="mb-7 flex items-center gap-2" aria-hidden="true">
             <span className="size-3 rounded-full bg-red-400" />
             <span className="size-3 rounded-full bg-amber-300" />
@@ -341,11 +364,14 @@ export function App() {
           </div>
 
           <div className="mb-9 flex items-center gap-3">
-            <div className="grid size-11 place-items-center rounded-2xl border border-cyan-300/50 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.35)]">
-              <AudioWaveform className="size-6 text-cyan-300" aria-hidden="true" />
-            </div>
-            <div className="text-2xl font-black tracking-tight">
-              Band<span className="text-cyan-300">Scope</span>
+            <BandScopeMark />
+            <div>
+              <div className="text-2xl font-black tracking-tight">
+                Band<span className="text-cyan-300">Scope</span>
+              </div>
+              <div className="text-xs font-semibold uppercase text-slate-400">
+                Rehearsal cockpit
+              </div>
             </div>
           </div>
 
@@ -377,7 +403,7 @@ export function App() {
                 Local-first
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Local project data stays on this device. YouTube import contacts the source provider only when you choose it.
+                Your rehearsal map stays on this device. Project files stay local. YouTube only leaves the app when you choose import.
               </p>
               <div className="mt-3 h-14 overflow-hidden rounded-xl bg-[linear-gradient(90deg,rgba(34,211,238,.12),rgba(124,58,237,.12))]">
                 <div className="flex h-full items-end gap-0.5 px-2 pb-1" aria-hidden="true">
