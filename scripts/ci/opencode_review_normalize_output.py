@@ -16,6 +16,7 @@ def valid_control(
     expected_run_id: str,
     expected_run_attempt: str,
 ) -> dict[str, Any] | None:
+    """Return a normalized review control object when all gate fields are valid."""
     if not isinstance(value, dict):
         return None
 
@@ -74,6 +75,7 @@ def valid_control(
 
 
 def iter_json_objects(text: str) -> list[Any]:
+    """Extract JSON objects from possibly noisy OpenCode output text."""
     decoder = json.JSONDecoder()
     values: list[Any] = []
 
@@ -96,6 +98,7 @@ def iter_json_objects(text: str) -> list[Any]:
 
 
 def main(argv: list[str]) -> int:
+    """Normalize an OpenCode output file for the shell approval gate."""
     if len(argv) != 5:
         print(
             "usage: opencode_review_normalize_output.py "
