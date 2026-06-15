@@ -389,6 +389,138 @@ def test_supply_chain_check_accepts_checkout_default_branch_guard(
     assert violations == []
 
 
+def test_supply_chain_check_accepts_scorecard_step_level_checkout_default_branch_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard can avoid global env while still guarding checkout."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_scorecard_step_level_checkout_default_branch_guard",
+    )
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        """
+name: ossf-scorecard
+on:
+  push:
+    branches:
+      - develop
+jobs:
+  analysis:
+    name: ossf-scorecard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: init.defaultBranch
+          GIT_CONFIG_VALUE_0: develop
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        with:
+          publish_results: PUBLISH_GUARD
+  scorecard-sarif-upload:
+    name: scorecard-sarif-upload
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: init.defaultBranch
+          GIT_CONFIG_VALUE_0: develop
+""".strip().replace("PUBLISH_GUARD", publish_guard),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_checkout_default_branch_guard()
+
+    assert violations == []
+
+
+def test_supply_chain_check_rejects_scorecard_missing_checkout_default_branch_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard checkout steps require the step-level Git guard."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_scorecard_missing_checkout_default_branch_guard",
+    )
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        """
+name: ossf-scorecard
+on:
+  push:
+    branches:
+      - develop
+jobs:
+  analysis:
+    name: ossf-scorecard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        with:
+          publish_results: PUBLISH_GUARD
+""".strip().replace("PUBLISH_GUARD", publish_guard),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_checkout_default_branch_guard()
+
+    assert any(
+        supply_chain.OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION in violation
+        for violation in violations
+    )
+
+
+def test_supply_chain_check_ignores_scorecard_publish_mentions_in_comments(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure comment text does not make a workflow look like Scorecard publish."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_scorecard_publish_comment_mentions",
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "checkout.yml").write_text(
+        """
+name: checkout
+on:
+  pull_request:
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    steps:
+      # uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a
+      # publish_results: true
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_checkout_default_branch_guard()
+
+    assert violations == []
+
+
 def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> None:
     """Ensure patched Python advisories are not left as stale audit ignores."""
     repo_root = Path(__file__).resolve().parents[3]
@@ -532,6 +664,101 @@ jobs:
 
     assert (
         "ossf scorecard publish_results must use the repository default branch guard" in violations
+    )
+
+
+def test_supply_chain_check_rejects_scorecard_global_env_when_publishing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard publish workflows do not use workflow-level env."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_scorecard_global_env",
+    )
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        """
+name: ossf-scorecard
+on:
+  push:
+    branches:
+      - develop
+      - main
+  schedule:
+    - cron: '30 1 * * 1'
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+jobs:
+  analysis:
+    name: ossf-scorecard
+    steps:
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        with:
+          publish_results: PUBLISH_GUARD
+""".strip().replace("PUBLISH_GUARD", publish_guard),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert any(
+        "ossf scorecard publishing workflow must not contain top-level env or defaults" in violation
+        for violation in violations
+    )
+
+
+def test_supply_chain_check_rejects_scorecard_global_defaults_when_publishing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard publish workflows do not use workflow-level defaults."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_scorecard_global_defaults",
+    )
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        """
+name: ossf-scorecard
+on:
+  push:
+    branches:
+      - develop
+      - main
+  schedule:
+    - cron: '30 1 * * 1'
+defaults:
+  run:
+    shell: bash
+jobs:
+  analysis:
+    name: ossf-scorecard
+    steps:
+      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        with:
+          publish_results: PUBLISH_GUARD
+""".strip().replace("PUBLISH_GUARD", publish_guard),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert any(
+        "ossf scorecard publishing workflow must not contain top-level env or defaults" in violation
+        for violation in violations
     )
 
 
