@@ -5,11 +5,12 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    io::{Read, Write},
+    io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
+        mpsc,
         Arc, Mutex,
     },
     thread,
@@ -54,6 +55,8 @@ struct AnalysisJobRequest {
     source_label: String,
     role_focus: Vec<String>,
     local_source: Option<LocalAudioSourcePayload>,
+    cache_root: Option<String>,
+    temp_root: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -78,6 +81,26 @@ enum AnalysisJobState {
     Running,
     Succeeded,
     Failed,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AnalysisJobStage {
+    Queued,
+    Decode,
+    Separate,
+    Analyze,
+    Persist,
+    Ready,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AnalysisCacheStatus {
+    Disabled,
+    Miss,
+    Hit,
+    Stored,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -215,6 +238,12 @@ struct AnalysisJobStatus {
     updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     progress_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    progress_stage: Option<AnalysisJobStage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    progress_percent: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_status: Option<AnalysisCacheStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     result: Option<RehearsalSongPayload>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -545,6 +574,8 @@ fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
         source_label: source_label.to_string(),
         role_focus: parsed_role_focus,
         local_source,
+        cache_root: None,
+        temp_root: None,
     })
 }
 
@@ -560,6 +591,9 @@ fn failed_status(
         requested_at,
         updated_at: iso_timestamp_now(),
         progress_label: None,
+        progress_stage: None,
+        progress_percent: None,
+        cache_status: None,
         result: None,
         error: Some(AnalysisJobError {
             code,
@@ -593,12 +627,24 @@ fn lookup_bootstrap_source(
         .ok_or_else(|| "Analysis job source was not found. Choose local audio again.".to_string())
 }
 
+fn drain_analysis_status_updates(
+    state: &AppState,
+    status_rx: &mpsc::Receiver<AnalysisJobStatus>,
+    last_status: &mut Option<AnalysisJobStatus>,
+) {
+    while let Ok(status) = status_rx.try_recv() {
+        store_status(state, status.clone());
+        *last_status = Some(status);
+    }
+}
+
 fn run_analysis_engine(
+    state: AppState,
     job_id: String,
     request: AnalysisJobRequest,
     requested_at: String,
 ) -> AnalysisJobStatus {
-    let (working_dir, program, args) = analysis_command();
+    let (working_dir, program, mut args) = analysis_command();
 
     if program == MISSING_ANALYSIS_PYTHON {
         return failed_status(
@@ -608,6 +654,7 @@ fn run_analysis_engine(
             "Analysis engine is unavailable.",
         );
     }
+    args.push("--progress-jsonl".into());
 
     let mut process = match Command::new(program)
         .args(args)
@@ -629,13 +676,63 @@ fn run_analysis_engine(
     };
 
     let payload = json!({
-        "jobId": job_id,
+        "jobId": job_id.clone(),
         "request": request,
+    });
+    let Some(stdout) = process.stdout.take() else {
+        let _ = process.kill();
+        let _ = process.wait();
+        return failed_status(
+            job_id,
+            requested_at,
+            AnalysisJobErrorCode::EngineUnavailable,
+            "Analysis engine is unavailable.",
+        );
+    };
+    let Some(stderr) = process.stderr.take() else {
+        let _ = process.kill();
+        let _ = process.wait();
+        return failed_status(
+            job_id,
+            requested_at,
+            AnalysisJobErrorCode::EngineUnavailable,
+            "Analysis engine is unavailable.",
+        );
+    };
+    let (status_tx, status_rx) = mpsc::channel::<AnalysisJobStatus>();
+    let stdout_reader = thread::spawn(move || {
+        let reader = BufReader::new(stdout);
+        let mut last_status = None;
+        for line in reader.lines() {
+            let Ok(line) = line else {
+                break;
+            };
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if let Ok(status) = serde_json::from_str::<AnalysisJobStatus>(trimmed) {
+                last_status = Some(status.clone());
+                if status_tx.send(status).is_err() {
+                    break;
+                }
+            }
+        }
+        last_status
+    });
+    let stderr_reader = thread::spawn(move || {
+        let mut reader = stderr;
+        let mut buffer = Vec::new();
+        let _ = reader.read_to_end(&mut buffer);
+        buffer
     });
 
     if let Some(mut stdin) = process.stdin.take() {
         if stdin.write_all(payload.to_string().as_bytes()).is_err() {
             let _ = process.kill();
+            let _ = process.wait();
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
             return failed_status(
                 payload["jobId"]
                     .as_str()
@@ -649,13 +746,21 @@ fn run_analysis_engine(
     }
 
     let deadline = Instant::now() + ANALYSIS_PROCESS_TIMEOUT;
+    let mut last_status = None;
+    let exit_status;
     loop {
+        drain_analysis_status_updates(&state, &status_rx, &mut last_status);
         match process.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(status)) => {
+                exit_status = status;
+                break;
+            }
             Ok(None) => {
                 if Instant::now() >= deadline {
                     let _ = process.kill();
                     let _ = process.wait();
+                    let _ = stdout_reader.join();
+                    let _ = stderr_reader.join();
                     return failed_status(
                         payload["jobId"]
                             .as_str()
@@ -671,6 +776,8 @@ fn run_analysis_engine(
             Err(_) => {
                 let _ = process.kill();
                 let _ = process.wait();
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
                 return failed_status(
                     payload["jobId"]
                         .as_str()
@@ -683,23 +790,14 @@ fn run_analysis_engine(
             }
         }
     }
+    let reader_last_status = stdout_reader.join().unwrap_or(None);
+    let _ = stderr_reader.join();
+    drain_analysis_status_updates(&state, &status_rx, &mut last_status);
+    if last_status.is_none() {
+        last_status = reader_last_status;
+    }
 
-    let output = match process.wait_with_output() {
-        Ok(output) => output,
-        Err(_) => {
-            return failed_status(
-                payload["jobId"]
-                    .as_str()
-                    .unwrap_or("unknown-job")
-                    .to_string(),
-                requested_at,
-                AnalysisJobErrorCode::EngineUnavailable,
-                "Analysis engine is unavailable.",
-            )
-        }
-    };
-
-    if !output.status.success() {
+    if !exit_status.success() {
         return failed_status(
             payload["jobId"]
                 .as_str()
@@ -711,7 +809,7 @@ fn run_analysis_engine(
         );
     }
 
-    serde_json::from_slice::<AnalysisJobStatus>(&output.stdout).unwrap_or_else(|_| {
+    last_status.unwrap_or_else(|| {
         failed_status(
             payload["jobId"]
                 .as_str()
@@ -760,6 +858,8 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
             }
         };
         parsed_request.source_label = bootstrap.source.file_name.clone();
+        parsed_request.cache_root = Some(bootstrap.cache_root.clone());
+        parsed_request.temp_root = Some(bootstrap.temp_root.clone());
         parsed_request.local_source = Some(bootstrap.source);
     }
 
@@ -778,6 +878,9 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
         requested_at: requested_at.clone(),
         updated_at: requested_at.clone(),
         progress_label: Some("Queued for analysis".into()),
+        progress_stage: Some(AnalysisJobStage::Queued),
+        progress_percent: Some(0),
+        cache_status: Some(AnalysisCacheStatus::Disabled),
         result: None,
         error: None,
     };
@@ -793,11 +896,14 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
                 requested_at: requested_at.clone(),
                 updated_at: iso_timestamp_now(),
                 progress_label: Some("Running analysis".into()),
+                progress_stage: Some(AnalysisJobStage::Decode),
+                progress_percent: Some(10),
+                cache_status: None,
                 result: None,
                 error: None,
             },
         );
-        let finished = run_analysis_engine(job_id, parsed_request, requested_at);
+        let finished = run_analysis_engine(app_state.clone(), job_id, parsed_request, requested_at);
         store_status(&app_state, finished);
         release_job_slot(&app_state);
     });

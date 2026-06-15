@@ -177,6 +177,10 @@ export type AnalysisSourceKind = "demo" | "local_audio";
 /** Documented. */
 export type AnalysisJobState = "queued" | "running" | "succeeded" | "failed";
 /** Documented. */
+export type AnalysisJobStage = "queued" | "decode" | "separate" | "analyze" | "persist" | "ready";
+/** Documented. */
+export type AnalysisCacheStatus = "disabled" | "miss" | "hit" | "stored";
+/** Documented. */
 export type AnalysisJobErrorCode = "invalid_request" | "not_found" | "engine_unavailable";
 
 /** Documented. */
@@ -271,6 +275,9 @@ export type AnalysisJobStatus = {
   requestedAt: string;
   updatedAt: string;
   progressLabel?: string;
+  progressStage?: AnalysisJobStage;
+  progressPercent?: number;
+  cacheStatus?: AnalysisCacheStatus;
   result?: RehearsalSong;
   error?: AnalysisJobError;
 };
@@ -294,6 +301,8 @@ const ROLE_TYPES = ["instrument", "vocal", "hand"] as const;
 const EXPORT_FORMATS = ["cue-sheet", "chart-summary"] as const;
 const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
+const ANALYSIS_JOB_STAGES = ["queued", "decode", "separate", "analyze", "persist", "ready"] as const;
+const ANALYSIS_CACHE_STATUSES = ["disabled", "miss", "hit", "stored"] as const;
 const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
 const PACK_STATES = ["queued", "analyzing", "ready", "failed"] as const;
 const HANDOFF_ASSET_STATUSES = ["referenced", "missing"] as const;
@@ -798,6 +807,9 @@ export function createAnalysisJobStatus(input:
       jobId: string;
       state: "queued" | "running";
       progressLabel?: string;
+      progressStage?: AnalysisJobStage;
+      progressPercent?: number;
+      cacheStatus?: AnalysisCacheStatus;
       requestedAt?: string;
       updatedAt?: string;
     }
@@ -806,6 +818,9 @@ export function createAnalysisJobStatus(input:
       state: "succeeded";
       result: RehearsalSong;
       progressLabel?: string;
+      progressStage?: AnalysisJobStage;
+      progressPercent?: number;
+      cacheStatus?: AnalysisCacheStatus;
       requestedAt?: string;
       updatedAt?: string;
     }
@@ -814,6 +829,9 @@ export function createAnalysisJobStatus(input:
       state: "failed";
       error: AnalysisJobError;
       progressLabel?: string;
+      progressStage?: AnalysisJobStage;
+      progressPercent?: number;
+      cacheStatus?: AnalysisCacheStatus;
       requestedAt?: string;
       updatedAt?: string;
     }
@@ -828,6 +846,15 @@ export function createAnalysisJobStatus(input:
 
   if (input.progressLabel !== undefined) {
     status.progressLabel = input.progressLabel;
+  }
+  if (input.progressStage !== undefined) {
+    status.progressStage = input.progressStage;
+  }
+  if (input.progressPercent !== undefined) {
+    status.progressPercent = input.progressPercent;
+  }
+  if (input.cacheStatus !== undefined) {
+    status.cacheStatus = input.cacheStatus;
   }
   if ("result" in input) {
     status.result = input.result;
@@ -915,10 +942,10 @@ function validateAnalysisJobStatus(
     return invalidField("root");
   }
   const allowedKeysByState: Record<AnalysisJobState, string[]> = {
-    queued: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel"],
-    running: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel"],
-    succeeded: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "result"],
-    failed: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "error"]
+    queued: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "progressStage", "progressPercent", "cacheStatus"],
+    running: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "progressStage", "progressPercent", "cacheStatus"],
+    succeeded: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "progressStage", "progressPercent", "cacheStatus", "result"],
+    failed: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "progressStage", "progressPercent", "cacheStatus", "error"]
   };
   if (typeof value.jobId !== "string") {
     return invalidField("jobId");
@@ -938,6 +965,23 @@ function validateAnalysisJobStatus(
   }
   if (value.progressLabel !== undefined && typeof value.progressLabel !== "string") {
     return invalidField("progressLabel");
+  }
+  if (value.progressStage !== undefined && !isOneOf(ANALYSIS_JOB_STAGES, value.progressStage)) {
+    return invalidField("progressStage");
+  }
+  if (
+    value.progressPercent !== undefined &&
+    (
+      typeof value.progressPercent !== "number" ||
+      !Number.isInteger(value.progressPercent) ||
+      value.progressPercent < 0 ||
+      value.progressPercent > 100
+    )
+  ) {
+    return invalidField("progressPercent");
+  }
+  if (value.cacheStatus !== undefined && !isOneOf(ANALYSIS_CACHE_STATUSES, value.cacheStatus)) {
+    return invalidField("cacheStatus");
   }
   if (value.result !== undefined) {
     const resultError = validateRehearsalSong(value.result, options);

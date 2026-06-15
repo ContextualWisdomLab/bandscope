@@ -377,6 +377,36 @@ describe("App", () => {
     });
   });
 
+  it("shows the engine stage label and accessible progress value while analysis runs", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-progress-1",
+        state: "running",
+        progressLabel: "Separating stems... (45%)",
+        progressStage: "separate",
+        progressPercent: 45,
+        cacheStatus: "miss"
+      }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/separating stems/i)).toBeTruthy();
+    });
+    expect(screen.getByRole("progressbar", { name: /analysis progress/i })).toHaveAttribute(
+      "aria-valuenow",
+      "45"
+    );
+  });
+
   it("keeps handoff metadata tied to the source that produced the current result", async () => {
     const originalCreateObjectUrl = URL.createObjectURL;
     const originalRevokeObjectUrl = URL.revokeObjectURL;

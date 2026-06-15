@@ -27,6 +27,12 @@ declare global {
 }
 
 const browserJobStore = new Map<string, AnalysisJobStatus>();
+const BROWSER_PROGRESS_STEPS = [
+  { progressLabel: "Decoding audio", progressStage: "decode", progressPercent: 20 },
+  { progressLabel: "Separating stems... (45%)", progressStage: "separate", progressPercent: 45 },
+  { progressLabel: "Building rehearsal cues", progressStage: "analyze", progressPercent: 70 },
+  { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
+] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
@@ -106,7 +112,10 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     const queued = createAnalysisJobStatus({
       jobId,
       state: "queued",
-      progressLabel: "Queued for analysis"
+      progressLabel: "Queued for analysis",
+      progressStage: "queued",
+      progressPercent: 0,
+      cacheStatus: "disabled"
     });
     browserJobStore.set(jobId, queued);
     return queued;
@@ -129,10 +138,30 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
         }
       });
     }
+    if (existing.state === "queued" || existing.state === "running") {
+      const currentPercent = existing.progressPercent ?? 0;
+      const nextStep = BROWSER_PROGRESS_STEPS.find((step) => step.progressPercent > currentPercent);
+      if (nextStep) {
+        const running = createAnalysisJobStatus({
+          jobId,
+          state: "running",
+          requestedAt: existing.requestedAt,
+          progressLabel: nextStep.progressLabel,
+          progressStage: nextStep.progressStage,
+          progressPercent: nextStep.progressPercent,
+          cacheStatus: "disabled"
+        });
+        browserJobStore.set(jobId, running);
+        return running;
+      }
+    }
     const succeeded = createAnalysisJobStatus({
       jobId,
       state: "succeeded",
       progressLabel: "Analysis ready",
+      progressStage: "ready",
+      progressPercent: 100,
+      cacheStatus: "disabled",
       requestedAt: existing.requestedAt,
       result: createDemoRehearsalSong()
     });
