@@ -1,10 +1,13 @@
 """Tests for the public analysis-engine API helpers."""
 
 from bandscope_analysis.api import (
+    _load_cached_analysis,
+    _store_cached_analysis,
     build_demo_rehearsal_song,
     build_section_time_range,
     get_analysis_status,
     run_analysis_job,
+    run_analysis_job_updates,
     validate_analysis_job_request,
 )
 
@@ -47,6 +50,8 @@ def test_validate_analysis_job_request_accepts_local_audio_payload() -> None:
                 "extension": "wav",
                 "fileSizeBytes": 1024000,
             },
+            "cacheRoot": "/tmp/bandscope/cache/project-1",
+            "tempRoot": "/tmp/bandscope/temp/project-1",
         }
     ) == {
         "sourceKind": "local_audio",
@@ -59,6 +64,8 @@ def test_validate_analysis_job_request_accepts_local_audio_payload() -> None:
             "extension": "wav",
             "fileSizeBytes": 1024000,
         },
+        "cacheRoot": "/tmp/bandscope/cache/project-1",
+        "tempRoot": "/tmp/bandscope/temp/project-1",
     }
 
 
@@ -190,6 +197,56 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [], "extra": True},
             "extra",
         ),
+        (
+            {
+                "sourceKind": "demo",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "cacheRoot": "/tmp/bandscope/cache",
+            },
+            "cacheRoot",
+        ),
+        (
+            {
+                "sourceKind": "demo",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "tempRoot": "/tmp/bandscope/temp",
+            },
+            "tempRoot",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "cacheRoot": " ",
+            },
+            "cacheRoot",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "tempRoot": [],
+            },
+            "tempRoot",
+        ),
     ]
 
     for payload, message in cases:
@@ -287,3 +344,91 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
 
     assert success["state"] == "succeeded"
     assert success["progressLabel"] == "Analysis ready for late-night-set.wav"
+
+
+def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
+    """Ensure local-audio orchestration exposes stages and persists reusable cache."""
+    payload = {
+        "sourceKind": "local_audio",
+        "projectId": "project-cache",
+        "sourceLabel": "late-night-set.wav",
+        "roleFocus": ["bass-guitar"],
+        "localSource": {
+            "sourcePath": "/Users/test/Music/late-night-set.wav",
+            "fileName": "late-night-set.wav",
+            "extension": "wav",
+            "fileSizeBytes": 1024000,
+        },
+        "cacheRoot": str(tmp_path / "cache"),
+        "tempRoot": str(tmp_path / "temp"),
+    }
+
+    updates = list(run_analysis_job_updates("job-cache", payload, "2026-03-12T00:00:00Z"))
+
+    observed_progress = [
+        (update["state"], update["progressStage"], update["progressPercent"]) for update in updates
+    ]
+    assert observed_progress == [
+        ("running", "decode", 20),
+        ("running", "separate", 45),
+        ("running", "analyze", 70),
+        ("running", "persist", 90),
+        ("succeeded", "ready", 100),
+    ]
+    assert updates[-1]["cacheStatus"] == "stored"
+    assert len(list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))) == 1
+
+    cached_updates = list(run_analysis_job_updates("job-cache-2", payload, "2026-03-12T00:00:00Z"))
+
+    assert cached_updates[-1]["state"] == "succeeded"
+    assert cached_updates[-1]["progressStage"] == "ready"
+    assert cached_updates[-1]["progressPercent"] == 100
+    assert cached_updates[-1]["cacheStatus"] == "hit"
+
+
+def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
+    """Ensure malformed cache files degrade to cache misses without failing analysis."""
+    cache_path = tmp_path / "analysis-cache.json"
+
+    for content in (
+        "[]",
+        '{"schemaVersion": 999, "result": {}}',
+        '{"schemaVersion": 1, "result": []}',
+    ):
+        cache_path.write_text(content, encoding="utf-8")
+        assert _load_cached_analysis(cache_path) is None
+
+
+def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp_path) -> None:
+    """Ensure cache persistence failures do not block analysis results."""
+    demo_request = validate_analysis_job_request(
+        {
+            "sourceKind": "demo",
+            "sourceLabel": "Late Night Set",
+            "roleFocus": ["bass-guitar"],
+        }
+    )
+    assert (
+        _store_cached_analysis(
+            tmp_path / "demo-cache.json",
+            demo_request,
+            build_demo_rehearsal_song(),
+        )
+        is False
+    )
+
+    local_request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": ["bass-guitar"],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+        }
+    )
+    assert _store_cached_analysis(tmp_path, local_request, build_demo_rehearsal_song()) is False

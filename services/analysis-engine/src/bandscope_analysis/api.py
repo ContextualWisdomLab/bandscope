@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from bandscope_analysis.health import HealthReport, build_health_report
@@ -9,6 +12,11 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
+ANALYSIS_CACHE_SCHEMA_VERSION = 1
+
+AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
+AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
+AnalysisCacheStatus = Literal["disabled", "miss", "hit", "stored"]
 
 
 class AnalysisJobRequest(TypedDict):
@@ -19,6 +27,8 @@ class AnalysisJobRequest(TypedDict):
     roleFocus: list[str]
     projectId: NotRequired[str]
     localSource: NotRequired[LocalAudioSource]
+    cacheRoot: NotRequired[str]
+    tempRoot: NotRequired[str]
 
 
 class LocalAudioSource(TypedDict):
@@ -141,12 +151,23 @@ class AnalysisJobStatus(TypedDict):
     """Typed analysis job snapshot shared with the desktop orchestrator."""
 
     jobId: str
-    state: Literal["queued", "running", "succeeded", "failed"]
+    state: AnalysisJobState
     requestedAt: str
     updatedAt: str
     progressLabel: NotRequired[str]
+    progressStage: NotRequired[AnalysisJobStage]
+    progressPercent: NotRequired[int]
+    cacheStatus: NotRequired[AnalysisCacheStatus]
     result: NotRequired[RehearsalSong]
     error: NotRequired[AnalysisJobError]
+
+
+class CachedAnalysisPayload(TypedDict):
+    """Typed cached analysis payload persisted below the app-owned cache root."""
+
+    schemaVersion: int
+    source: dict[str, object]
+    result: RehearsalSong
 
 
 def build_section_time_range(start: object, end: object) -> SectionTimeRangePayload:
@@ -179,7 +200,15 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if not isinstance(payload, dict):
         raise ValueError("Invalid analysis job request: invalid field 'root'")
 
-    allowed_keys = {"sourceKind", "sourceLabel", "roleFocus", "projectId", "localSource"}
+    allowed_keys = {
+        "sourceKind",
+        "sourceLabel",
+        "roleFocus",
+        "projectId",
+        "localSource",
+        "cacheRoot",
+        "tempRoot",
+    }
     for key in payload:
         if key not in allowed_keys:
             raise ValueError(f"Invalid analysis job request: invalid field '{key}'")
@@ -188,6 +217,8 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     source_label = payload.get("sourceLabel")
     role_focus = payload.get("roleFocus")
     project_id = payload.get("projectId")
+    cache_root = payload.get("cacheRoot")
+    temp_root = payload.get("tempRoot")
 
     if source_kind not in {"demo", "local_audio"}:
         raise ValueError("Invalid analysis job request: invalid field 'sourceKind'")
@@ -203,6 +234,10 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if source_kind == "demo":
         if local_source is not None or project_id is not None:
             raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+        if cache_root is not None:
+            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+        if temp_root is not None:
+            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
         return {
             "sourceKind": source_kind,
             "sourceLabel": source_label,
@@ -232,7 +267,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
 
-    return {
+    normalized: AnalysisJobRequest = {
         "sourceKind": source_kind,
         "sourceLabel": source_label,
         "roleFocus": role_focus,
@@ -244,6 +279,16 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
             "fileSizeBytes": file_size_bytes,
         },
     }
+    if cache_root is not None:
+        if not isinstance(cache_root, str) or not cache_root.strip():
+            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+        normalized["cacheRoot"] = cache_root
+    if temp_root is not None:
+        if not isinstance(temp_root, str) or not temp_root.strip():
+            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+        normalized["tempRoot"] = temp_root
+
+    return normalized
 
 
 def build_demo_rehearsal_song() -> RehearsalSong:
@@ -286,27 +331,219 @@ def build_demo_rehearsal_song() -> RehearsalSong:
     }
 
 
-def run_analysis_job(job_id: str, payload: object, requested_at: str) -> AnalysisJobStatus:
-    """Return a structured orchestration response for a validated analysis job."""
+def _build_job_status(
+    *,
+    job_id: str,
+    state: AnalysisJobState,
+    requested_at: str,
+    progress_label: str | None = None,
+    progress_stage: AnalysisJobStage | None = None,
+    progress_percent: int | None = None,
+    cache_status: AnalysisCacheStatus | None = None,
+    result: RehearsalSong | None = None,
+    error: AnalysisJobError | None = None,
+) -> AnalysisJobStatus:
+    """Build a shared job status envelope with optional orchestration progress."""
+    status: AnalysisJobStatus = {
+        "jobId": job_id,
+        "state": state,
+        "requestedAt": requested_at,
+        "updatedAt": requested_at,
+    }
+    if progress_label is not None:
+        status["progressLabel"] = progress_label
+    if progress_stage is not None:
+        status["progressStage"] = progress_stage
+    if progress_percent is not None:
+        status["progressPercent"] = progress_percent
+    if cache_status is not None:
+        status["cacheStatus"] = cache_status
+    if result is not None:
+        status["result"] = result
+    if error is not None:
+        status["error"] = error
+    return status
+
+
+def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
+    """Return the per-track cache path for a local-audio request when caching is enabled."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+    cache_root = request.get("cacheRoot")
+    if not cache_root:
+        return None
+
+    local_source = request["localSource"]
+    key_payload = {
+        "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
+        "projectId": request.get("projectId", ""),
+        "sourcePath": local_source["sourcePath"],
+        "fileName": local_source["fileName"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
+    }
+    digest = hashlib.sha256(
+        json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
+
+
+def _load_cached_analysis(path: Path) -> RehearsalSong | None:
+    """Load a cached rehearsal result, treating malformed cache as a miss."""
+    try:
+        with path.open("r", encoding="utf-8") as cache_file:
+            payload = json.load(cache_file)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schemaVersion") != ANALYSIS_CACHE_SCHEMA_VERSION:
+        return None
+    result = payload.get("result")
+    if not isinstance(result, dict):
+        return None
+    return cast(RehearsalSong, result)
+
+
+def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: RehearsalSong) -> bool:
+    """Persist cache metadata without storing the original absolute source path."""
+    if "localSource" not in request:
+        return False
+
+    local_source = request["localSource"]
+    payload: CachedAnalysisPayload = {
+        "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
+        "source": {
+            "fileName": local_source["fileName"],
+            "extension": local_source["extension"],
+            "fileSizeBytes": local_source["fileSizeBytes"],
+        },
+        "result": result,
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = path.with_suffix(".tmp")
+        with temp_path.open("w", encoding="utf-8") as cache_file:
+            json.dump(payload, cache_file, separators=(",", ":"))
+        temp_path.replace(path)
+    except OSError:
+        return False
+    return True
+
+
+def run_analysis_job_updates(
+    job_id: str,
+    payload: object,
+    requested_at: str,
+) -> list[AnalysisJobStatus]:
+    """Return incremental orchestration status updates for an analysis job."""
     try:
         request = validate_analysis_job_request(payload)
     except ValueError as error:
-        return {
-            "jobId": job_id,
-            "state": "failed",
-            "requestedAt": requested_at,
-            "updatedAt": requested_at,
-            "error": {
-                "code": "invalid_request",
-                "message": str(error),
-            },
-        }
+        return [
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                error={
+                    "code": "invalid_request",
+                    "message": str(error),
+                },
+            )
+        ]
 
-    return {
-        "jobId": job_id,
-        "state": "succeeded",
-        "requestedAt": requested_at,
-        "updatedAt": requested_at,
-        "progressLabel": f"Analysis ready for {request['sourceLabel']}",
-        "result": build_demo_rehearsal_song(),
-    }
+    cache_path = _analysis_cache_path(request)
+    cache_status: AnalysisCacheStatus = "disabled" if cache_path is None else "miss"
+    if cache_path is not None:
+        cached_result = _load_cached_analysis(cache_path)
+        if cached_result is not None:
+            return [
+                _build_job_status(
+                    job_id=job_id,
+                    state="running",
+                    requested_at=requested_at,
+                    progress_label="Loading cached analysis",
+                    progress_stage="persist",
+                    progress_percent=95,
+                    cache_status="hit",
+                ),
+                _build_job_status(
+                    job_id=job_id,
+                    state="succeeded",
+                    requested_at=requested_at,
+                    progress_label=f"Analysis ready for {request['sourceLabel']}",
+                    progress_stage="ready",
+                    progress_percent=100,
+                    cache_status="hit",
+                    result=cached_result,
+                ),
+            ]
+
+    decode_label = (
+        "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
+    )
+    updates = [
+        _build_job_status(
+            job_id=job_id,
+            state="running",
+            requested_at=requested_at,
+            progress_label=decode_label,
+            progress_stage="decode",
+            progress_percent=20,
+            cache_status=cache_status,
+        ),
+        _build_job_status(
+            job_id=job_id,
+            state="running",
+            requested_at=requested_at,
+            progress_label="Separating stems... (45%)",
+            progress_stage="separate",
+            progress_percent=45,
+            cache_status=cache_status,
+        ),
+        _build_job_status(
+            job_id=job_id,
+            state="running",
+            requested_at=requested_at,
+            progress_label="Building rehearsal cues",
+            progress_stage="analyze",
+            progress_percent=70,
+            cache_status=cache_status,
+        ),
+    ]
+
+    result = build_demo_rehearsal_song()
+    updates.append(
+        _build_job_status(
+            job_id=job_id,
+            state="running",
+            requested_at=requested_at,
+            progress_label="Saving reusable features",
+            progress_stage="persist",
+            progress_percent=90,
+            cache_status=cache_status,
+        )
+    )
+    final_cache_status = cache_status
+    if cache_path is not None:
+        final_cache_status = (
+            "stored" if _store_cached_analysis(cache_path, request, result) else "miss"
+        )
+    updates.append(
+        _build_job_status(
+            job_id=job_id,
+            state="succeeded",
+            requested_at=requested_at,
+            progress_label=f"Analysis ready for {request['sourceLabel']}",
+            progress_stage="ready",
+            progress_percent=100,
+            cache_status=final_cache_status,
+            result=result,
+        )
+    )
+    return updates
+
+
+def run_analysis_job(job_id: str, payload: object, requested_at: str) -> AnalysisJobStatus:
+    """Return a structured orchestration response for a validated analysis job."""
+    return run_analysis_job_updates(job_id, payload, requested_at)[-1]

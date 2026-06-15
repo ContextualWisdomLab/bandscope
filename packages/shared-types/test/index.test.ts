@@ -79,7 +79,10 @@ describe("shared type helpers", () => {
     const queuedStatus = createAnalysisJobStatus({
       jobId: "job-queued",
       state: "queued",
-      progressLabel: "Queued for analysis"
+      progressLabel: "Queued for analysis",
+      progressStage: "queued",
+      progressPercent: 0,
+      cacheStatus: "disabled"
     });
     const failedStatus = createAnalysisJobStatus({
       jobId: "job-failed",
@@ -153,8 +156,37 @@ describe("shared type helpers", () => {
       state: "queued",
       requestedAt: queuedStatus.requestedAt,
       updatedAt: queuedStatus.updatedAt,
-      progressLabel: "Queued for analysis"
+      progressLabel: "Queued for analysis",
+      progressStage: "queued",
+      progressPercent: 0,
+      cacheStatus: "disabled"
     });
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "running",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:01.000Z",
+      progressLabel: "Separating stems... (45%)",
+      progressStage: "separate",
+      progressPercent: 45,
+      cacheStatus: "miss"
+    })).toBe(true);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "running",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:01.000Z",
+      progressStage: "not-a-stage",
+      progressPercent: 45
+    })).toBe(false);
+    expect(isAnalysisJobStatus({
+      jobId: "job-1",
+      state: "running",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:01.000Z",
+      progressStage: "separate",
+      progressPercent: 101
+    })).toBe(false);
     expect(isAnalysisJobStatus({
       jobId: "job-1",
       state: "failed",

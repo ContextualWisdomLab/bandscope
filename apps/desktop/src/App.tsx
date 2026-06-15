@@ -44,6 +44,7 @@ import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 
@@ -64,9 +65,13 @@ const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
 /** Documented. */
 function progressMessage(
   t: ReturnType<typeof createTranslator>,
-  state: AnalysisJobStatus["state"]
+  status: AnalysisJobStatus
 ): string {
-  switch (state) {
+  if (status.progressLabel?.trim()) {
+    return status.progressLabel;
+  }
+
+  switch (status.state) {
     case "queued":
       return t("analysisStateQueued");
     case "running":
@@ -571,13 +576,25 @@ export function App() {
 
                 {jobStatus && (
                   <div
-                    className="inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 font-semibold text-cyan-100"
+                    className="min-w-52 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 font-semibold text-cyan-100"
                     role="status"
                     aria-live="polite"
                     aria-atomic="true"
                   >
-                    {jobStatus.state === "running" && <span className="mr-2 inline-block size-4 animate-spin rounded-full border-2 border-cyan-100/30 border-t-cyan-200" />}
-                    {progressMessage(t, jobStatus.state)}
+                    <div className="flex items-center gap-2">
+                      {jobStatus.state === "running" && <span className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-cyan-100/30 border-t-cyan-200" />}
+                      <span className="min-w-0 flex-1 truncate">{progressMessage(t, jobStatus)}</span>
+                      {jobStatus.progressPercent !== undefined && (
+                        <span className="shrink-0 tabular-nums text-cyan-50/80">{jobStatus.progressPercent}%</span>
+                      )}
+                    </div>
+                    {jobStatus.progressPercent !== undefined && (
+                      <Progress
+                        aria-label="Analysis progress"
+                        value={jobStatus.progressPercent}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
                 )}
 

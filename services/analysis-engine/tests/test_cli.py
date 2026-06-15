@@ -380,3 +380,53 @@ def test_cli_main_temporal_analyzer_mock_success(monkeypatch: pytest.MonkeyPatch
     assert cli.main() == 0
     res = json.loads(stdout.getvalue())
     assert res["jobId"] == "job-audio-success"
+
+
+def test_cli_main_progress_jsonl_streams_status_updates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """Ensure Tauri can consume incremental job status updates from stdout."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-progress",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "p1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/valid/path.wav",
+                        "fileName": "test.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 100,
+                    },
+                    "cacheRoot": str(tmp_path / "cache"),
+                    "tempRoot": str(tmp_path / "temp"),
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    class FakeAnalyzerSuccess:
+        def analyze(self, path):
+            return {"bpm": 120.0, "beats": []}
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--progress-jsonl"])
+
+    assert cli.main() == 0
+    updates = [json.loads(line) for line in stdout.getvalue().splitlines()]
+    assert [update["progressStage"] for update in updates] == [
+        "decode",
+        "separate",
+        "analyze",
+        "persist",
+        "ready",
+    ]
+    assert updates[-1]["state"] == "succeeded"
+    assert updates[-1]["progressPercent"] == 100
