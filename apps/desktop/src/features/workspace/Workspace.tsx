@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -27,7 +27,7 @@ function formatTimelineTime(totalSeconds: number): string {
 type Translator = ReturnType<typeof createTranslator>;
 
 /** Documented. */
-function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -71,7 +71,7 @@ function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t
       </div>
     </section>
   );
-}
+});
 
 /** Documented. */
 export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
