@@ -1,5 +1,7 @@
 import { memo, useMemo } from "react";
 import type { TranscriptionNote } from "@bandscope/shared-types";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 const EMPTY_NOTES: TranscriptionNote[] = [];
 
@@ -33,19 +35,15 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
     return (
       <div
         aria-live="polite"
-        style={{
-          marginTop: "16px",
-          padding: "24px",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px dashed #d9d9d9",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}
+        className="mt-4 flex items-center justify-between rounded-lg border border-emerald-300/20 bg-emerald-300/[0.06] p-6"
       >
-        <span style={{ color: "#1890ff" }}>Analyzing pitch... 45%</span>
-        <button style={{ padding: "4px 8px", cursor: "pointer" }}>Cancel</button>
+        <span className="flex items-center font-medium text-emerald-100">
+          <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+          Analyzing pitch... 45%
+        </span>
+        <Button variant="outline" size="sm" className="border-emerald-300/20 bg-emerald-300/10 text-emerald-100 hover:bg-emerald-300/20 hover:text-white">
+          Cancel
+        </Button>
       </div>
     );
   }
@@ -53,16 +51,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
   if (renderedNotes.length === 0) {
     return (
       <div
-        style={{
-          marginTop: "16px",
-          padding: "24px",
-          backgroundColor: "#fafafa",
-          borderRadius: "8px",
-          border: "1px dashed #d9d9d9",
-          textAlign: "center",
-          color: "#999",
-          fontStyle: "italic"
-        }}
+        className="mt-4 rounded-lg border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm italic text-slate-400"
       >
         No transcription yet. Click to analyze bass line.
       </div>
@@ -71,15 +60,9 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
   return (
     <div
-      style={{
-        marginTop: "16px",
-        padding: "16px",
-        backgroundColor: "#2c2c2c",
-        borderRadius: "8px",
-        overflowX: "auto",
-        position: "relative"
-      }}
+      className="relative mt-4 overflow-x-auto rounded-lg bg-[#2c2c2c] p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
       role="region"
+      tabIndex={0}
       aria-label="Groove Map Transcription"
     >
       <div className="sr-only" style={{ position: "absolute", left: "-9999px" }}>
