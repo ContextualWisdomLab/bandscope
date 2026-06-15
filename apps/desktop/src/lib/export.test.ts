@@ -54,6 +54,12 @@ describe("export sanitization", () => {
       expect(escapeCsvField("+SUM(A1)")).toBe("'+SUM(A1)");
       expect(escapeCsvField("-100")).toBe("'-100");
       expect(escapeCsvField("@cmd")).toBe("'@cmd");
+
+      // Prevent bypasses using leading whitespace or newlines
+      expect(escapeCsvField(" =1+2")).toBe("' =1+2");
+      expect(escapeCsvField("\t+SUM(A1)")).toBe("'\t+SUM(A1)");
+      expect(escapeCsvField("\n-100")).toBe("\"'\n-100\"");
+      expect(escapeCsvField("\r@cmd")).toBe("\"'\r@cmd\"");
     });
 
     it("handles combined scenarios: formula injection with structural characters", () => {
