@@ -201,7 +201,9 @@ def test_download_youtube_audio_info_none(mock_ydl_class: MagicMock) -> None:
 
     assert result["ok"] is False
     assert result["error"]["code"] == "download_error"
-    assert "Failed to extract info" in result["error"]["message"]
+    assert result["error"]["message"] == (
+        "YouTube import failed. Please use a local audio file instead."
+    )
 
 
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
@@ -225,25 +227,40 @@ def test_download_youtube_audio_generic_download_error(mock_ydl_class: MagicMock
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
-    mock_ydl.extract_info.side_effect = yt_dlp.utils.DownloadError("Some random network error")
+    raw_error = (
+        "Some random network error for https://youtube.com/watch?v=abc123DEF45"
+        " with cookie=secret and /Users/test/local/path"
+    )
+    mock_ydl.extract_info.side_effect = yt_dlp.utils.DownloadError(raw_error)
 
     result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "download_failed"
-    assert "random network error" in result["error"]["message"]
+    assert result["error"]["message"] == (
+        "Failed to download audio from YouTube. Please use a local audio file instead."
+    )
+    assert raw_error not in result["error"]["message"]
+    assert "cookie=secret" not in result["error"]["message"]
+    assert "/Users/test/local/path" not in result["error"]["message"]
 
 
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
 def test_download_youtube_audio_exception(mock_ydl_class: MagicMock) -> None:
     """Test when an unexpected exception occurs."""
-    mock_ydl_class.side_effect = ValueError("Unexpected explosion")
+    raw_error = "Unexpected explosion with token=secret in /Users/test/private/path"
+    mock_ydl_class.side_effect = ValueError(raw_error)
 
     result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "download_error"
-    assert "Unexpected explosion" in result["error"]["message"]
+    assert result["error"]["message"] == (
+        "YouTube import failed. Please use a local audio file instead."
+    )
+    assert raw_error not in result["error"]["message"]
+    assert "token=secret" not in result["error"]["message"]
+    assert "/Users/test/private/path" not in result["error"]["message"]
 
 
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
@@ -368,4 +385,6 @@ def test_download_youtube_audio_second_info_none(mock_ydl_class: MagicMock) -> N
 
     assert result["ok"] is False
     assert result["error"]["code"] == "download_error"
-    assert "Failed to extract info" in result["error"]["message"]
+    assert result["error"]["message"] == (
+        "YouTube import failed. Please use a local audio file instead."
+    )

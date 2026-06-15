@@ -17,6 +17,10 @@ import yt_dlp  # type: ignore
 
 YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 SUPPORTED_AUDIO_EXTENSIONS = (".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg")
+YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
+    "Failed to download audio from YouTube. Please use a local audio file instead."
+)
+YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Please use a local audio file instead."
 
 
 def validate_url(url: str) -> bool:
@@ -87,10 +91,7 @@ def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
         "ok": False,
         "error": {
             "code": "download_failed",
-            "message": (
-                f"Failed to download audio from YouTube. "
-                f"Please use a local audio file instead. ({e})"
-            ),
+            "message": YOUTUBE_DOWNLOAD_FAILED_MESSAGE,
         },
     }
 
@@ -180,8 +181,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             }
     except yt_dlp.utils.DownloadError as e:
         return _handle_download_error(e)
-    except Exception as e:
-        return {"ok": False, "error": {"code": "download_error", "message": str(e)}}
+    except Exception:
+        return {
+            "ok": False,
+            "error": {"code": "download_error", "message": YOUTUBE_IMPORT_FAILED_MESSAGE},
+        }
 
 
 def main() -> None:
