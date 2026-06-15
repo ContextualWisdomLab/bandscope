@@ -10,6 +10,7 @@ from typing import Any, Literal, NotRequired, TypedDict, cast
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
+from bandscope_analysis.separation import AudioStemSeparator
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
@@ -291,7 +292,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     return normalized
 
 
-def build_demo_rehearsal_song() -> RehearsalSong:
+def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
     """Return the bootstrap rehearsal song payload for orchestration tests."""
 
     # Extract sections using the new pipeline
@@ -301,7 +302,7 @@ def build_demo_rehearsal_song() -> RehearsalSong:
 
     # Extract roles
     extractor = RoleExtractor()
-    role_result = extractor.extract([verse_section])
+    role_result = extractor.extract([verse_section], audio_features)
     verse_topology = role_result["topologies"][0]
     verse_roles = verse_topology["active_roles"]
 
@@ -431,6 +432,23 @@ def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: Rehe
     return True
 
 
+def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
+    """Build downstream audio features for a local-audio request."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+
+    separation_result = AudioStemSeparator().separate(request["localSource"]["sourcePath"])
+    return {
+        "stems": separation_result["stems"],
+        "sr": separation_result["sample_rate"],
+        "separation": {
+            "duration_seconds": separation_result["duration_seconds"],
+            "chunk_count": separation_result["chunk_count"],
+            "notes": separation_result["separation_notes"],
+        },
+    }
+
+
 def run_analysis_job_updates(
     job_id: str,
     payload: object,
@@ -501,6 +519,29 @@ def run_analysis_job_updates(
             progress_percent=45,
             cache_status=cache_status,
         ),
+    ]
+
+    try:
+        audio_features = _build_local_audio_features(request)
+    except (FileNotFoundError, ValueError) as error:
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                progress_label="Stem separation failed",
+                progress_stage="separate",
+                progress_percent=45,
+                cache_status=cache_status,
+                error={
+                    "code": "engine_unavailable",
+                    "message": f"Stem separation failed: {error}",
+                },
+            )
+        )
+        return updates
+
+    updates.append(
         _build_job_status(
             job_id=job_id,
             state="running",
@@ -509,10 +550,10 @@ def run_analysis_job_updates(
             progress_stage="analyze",
             progress_percent=70,
             cache_status=cache_status,
-        ),
-    ]
+        )
+    )
 
-    result = build_demo_rehearsal_song()
+    result = build_demo_rehearsal_song(audio_features)
     updates.append(
         _build_job_status(
             job_id=job_id,

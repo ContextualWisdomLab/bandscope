@@ -1,5 +1,13 @@
 """Tests for the source separation module."""
 
+import numpy as np
+import pytest
+import soundfile as sf
+
+from bandscope_analysis.separation.audio_separator import (
+    AudioSeparationConfig,
+    AudioStemSeparator,
+)
 from bandscope_analysis.separation.model import StemCategory
 from bandscope_analysis.separation.separator import StemSeparator, _categorize_role
 
@@ -123,3 +131,113 @@ def test_stem_separator_keyboard_name_match() -> None:
     roles = [{"id": "synth-1", "name": "Keyboard Part", "roleType": "instrument"}]
     result = separator.separate(roles)
     assert result["stems"][0]["category"] == "keys"
+
+
+def test_audio_stem_separator_splits_local_audio_into_chunked_stems(tmp_path) -> None:
+    """Ensure local audio is separated into downstream-consumable canonical stems."""
+    sample_rate = 8_000
+    duration_seconds = 0.8
+    samples = int(sample_rate * duration_seconds)
+    times = np.arange(samples, dtype=np.float32) / sample_rate
+    click_track = np.zeros(samples, dtype=np.float32)
+    click_track[:: sample_rate // 4] = 0.8
+    mix = (
+        0.35 * np.sin(2 * np.pi * 82.0 * times)
+        + 0.25 * np.sin(2 * np.pi * 880.0 * times)
+        + click_track
+    ).astype(np.float32)
+    audio_path = tmp_path / "rehearsal.wav"
+    sf.write(audio_path, mix, sample_rate)
+
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(
+            target_sample_rate=sample_rate,
+            chunk_duration_seconds=0.25,
+            max_duration_seconds=1.0,
+            max_file_bytes=1_000_000,
+        )
+    )
+
+    result = separator.separate(audio_path)
+
+    assert set(result["stems"]) == {"vocals", "bass", "drums", "other"}
+    assert result["sample_rate"] == sample_rate
+    assert result["duration_seconds"] == pytest.approx(duration_seconds)
+    assert result["chunk_count"] == 4
+    assert "4 chunks" in result["separation_notes"]
+    assert str(tmp_path) not in result["separation_notes"]
+    for stem in result["stems"].values():
+        assert stem.shape == (samples,)
+        assert np.isfinite(stem).all()
+    assert np.any(np.abs(result["stems"]["bass"]) > 0)
+    assert np.any(np.abs(result["stems"]["drums"]) > 0)
+
+
+def test_audio_stem_separator_rejects_missing_audio_file(tmp_path) -> None:
+    """Ensure missing local files fail before decode without leaking a full path."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(FileNotFoundError, match="Audio file not found: missing.wav"):
+        separator.separate(tmp_path / "missing.wav")
+
+
+def test_audio_stem_separator_rejects_directory_source(tmp_path) -> None:
+    """Ensure directories are not accepted as audio files."""
+    source_dir = tmp_path / "source-dir"
+    source_dir.mkdir()
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(FileNotFoundError, match="Audio file not found: source-dir"):
+        separator.separate(source_dir)
+
+
+def test_audio_stem_separator_rejects_oversized_audio_file(tmp_path) -> None:
+    """Ensure local audio intake enforces a bounded file-size limit."""
+    audio_path = tmp_path / "too-large.wav"
+    audio_path.write_bytes(b"0" * 16)
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=8)
+    )
+
+    with pytest.raises(ValueError, match="Audio file is too large for stem separation"):
+        separator.separate(audio_path)
+
+
+def test_audio_stem_separator_rejects_empty_decoder_output(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure empty decoder output fails safely."""
+    audio_path = tmp_path / "empty.wav"
+    audio_path.write_bytes(b"placeholder")
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.librosa.load",
+        lambda *args, **kwargs: (np.array([], dtype=np.float32), 8_000),
+    )
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Stem separation decode failed for empty.wav"):
+        separator.separate(audio_path)
+
+
+def test_audio_stem_separator_redacts_decoder_exceptions(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure decoder failures are surfaced without full local paths."""
+    audio_path = tmp_path / "broken.wav"
+    audio_path.write_bytes(b"placeholder")
+
+    def fail_decode(*args, **kwargs):
+        raise RuntimeError(f"decoder failed under {tmp_path}")
+
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.librosa.load",
+        fail_decode,
+    )
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Stem separation decode failed for broken.wav") as error:
+        separator.separate(audio_path)
+
+    assert str(tmp_path) not in str(error.value)
