@@ -116,6 +116,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         )}
                       </div>
                       <div title={`${t("priorityLabel")}: ${role.rehearsalPriority}`} className="rounded-full border border-white/10 bg-white/10 p-1 shadow-sm">
+                        <span className="sr-only">{`${t("priorityLabel")}: ${role.rehearsalPriority}`}</span>
                         {getPriorityIcon(role.rehearsalPriority)}
                       </div>
                     </div>
