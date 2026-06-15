@@ -1,5 +1,9 @@
 """Tests for the public analysis-engine API helpers."""
 
+from unittest.mock import patch
+
+import numpy as np
+
 from bandscope_analysis.api import (
     _load_cached_analysis,
     _store_cached_analysis,
@@ -324,26 +328,49 @@ def test_run_analysis_job_handles_validation_exception() -> None:
 
 
 def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
-    """Ensure local-audio requests reuse the bootstrap success envelope."""
-    success = run_analysis_job(
-        "job-3",
-        {
-            "sourceKind": "local_audio",
-            "projectId": "project-1",
-            "sourceLabel": "late-night-set.wav",
-            "roleFocus": ["bass-guitar"],
-            "localSource": {
-                "sourcePath": "/Users/test/Music/late-night-set.wav",
-                "fileName": "late-night-set.wav",
-                "extension": "wav",
-                "fileSizeBytes": 1024000,
+    """Ensure local-audio requests separate stems before building rehearsal roles."""
+    with (
+        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+        patch(
+            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+            return_value=[],
+        ),
+    ):
+        separator = separator_class.return_value
+        separator.separate.return_value = {
+            "stems": {
+                "vocals": np.zeros(1024),
+                "bass": np.zeros(1024),
+                "drums": np.zeros(1024),
+                "other": np.zeros(1024),
             },
-        },
-        "2026-03-12T00:00:00Z",
-    )
+            "sample_rate": 22050,
+            "duration_seconds": 1.0,
+            "chunk_count": 1,
+            "separation_notes": "Separated selected local audio into 4 canonical stems.",
+        }
+
+        success = run_analysis_job(
+            "job-3",
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "late-night-set.wav",
+                "roleFocus": ["bass-guitar"],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "2026-03-12T00:00:00Z",
+        )
 
     assert success["state"] == "succeeded"
     assert success["progressLabel"] == "Analysis ready for late-night-set.wav"
+    separator.separate.assert_called_once_with("/Users/test/Music/late-night-set.wav")
 
 
 def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
@@ -363,27 +390,94 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
         "tempRoot": str(tmp_path / "temp"),
     }
 
-    updates = list(run_analysis_job_updates("job-cache", payload, "2026-03-12T00:00:00Z"))
+    with (
+        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+        patch(
+            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+            return_value=[],
+        ),
+    ):
+        separator = separator_class.return_value
+        separator.separate.return_value = {
+            "stems": {
+                "vocals": np.zeros(1024),
+                "bass": np.zeros(1024),
+                "drums": np.zeros(1024),
+                "other": np.zeros(1024),
+            },
+            "sample_rate": 22050,
+            "duration_seconds": 1.0,
+            "chunk_count": 1,
+            "separation_notes": "Separated selected local audio into 4 canonical stems.",
+        }
 
-    observed_progress = [
-        (update["state"], update["progressStage"], update["progressPercent"]) for update in updates
-    ]
-    assert observed_progress == [
-        ("running", "decode", 20),
-        ("running", "separate", 45),
-        ("running", "analyze", 70),
-        ("running", "persist", 90),
-        ("succeeded", "ready", 100),
-    ]
-    assert updates[-1]["cacheStatus"] == "stored"
-    assert len(list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))) == 1
+        updates = list(run_analysis_job_updates("job-cache", payload, "2026-03-12T00:00:00Z"))
 
-    cached_updates = list(run_analysis_job_updates("job-cache-2", payload, "2026-03-12T00:00:00Z"))
+        observed_progress = [
+            (update["state"], update["progressStage"], update["progressPercent"])
+            for update in updates
+        ]
+        assert observed_progress == [
+            ("running", "decode", 20),
+            ("running", "separate", 45),
+            ("running", "analyze", 70),
+            ("running", "persist", 90),
+            ("succeeded", "ready", 100),
+        ]
+        assert updates[-1]["cacheStatus"] == "stored"
+        assert len(list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))) == 1
+
+        cached_updates = list(
+            run_analysis_job_updates("job-cache-2", payload, "2026-03-12T00:00:00Z")
+        )
 
     assert cached_updates[-1]["state"] == "succeeded"
     assert cached_updates[-1]["progressStage"] == "ready"
     assert cached_updates[-1]["progressPercent"] == 100
     assert cached_updates[-1]["cacheStatus"] == "hit"
+    separator.separate.assert_called_once_with("/Users/test/Music/late-night-set.wav")
+
+
+def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:
+    """Ensure unsafe or undecodable local audio returns a typed failure envelope."""
+    with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
+        separator_class.return_value.separate.side_effect = ValueError(
+            "Audio file is too large for stem separation: 16 bytes (max 8 bytes)"
+        )
+
+        updates = list(
+            run_analysis_job_updates(
+                "job-failed-stems",
+                {
+                    "sourceKind": "local_audio",
+                    "projectId": "project-1",
+                    "sourceLabel": "late-night-set.wav",
+                    "roleFocus": ["bass-guitar"],
+                    "localSource": {
+                        "sourcePath": "/Users/test/Music/late-night-set.wav",
+                        "fileName": "late-night-set.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 1024000,
+                    },
+                },
+                "2026-03-12T00:00:00Z",
+            )
+        )
+
+    assert [(update["state"], update.get("progressStage")) for update in updates] == [
+        ("running", "decode"),
+        ("running", "separate"),
+        ("failed", "separate"),
+    ]
+    assert updates[-1]["progressPercent"] == 45
+    assert updates[-1]["error"] == {
+        "code": "engine_unavailable",
+        "message": (
+            "Stem separation failed: Audio file is too large for stem separation: "
+            "16 bytes (max 8 bytes)"
+        ),
+    }
 
 
 def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
