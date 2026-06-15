@@ -1,16 +1,17 @@
 import { useState, useMemo, memo } from "react";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import type { ProjectBootstrapSummary, RehearsalSong } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
-import { generateCueSheetCsv, generateChartSummaryJson, sanitizeFilename } from "../../lib/export";
+import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Download } from "lucide-react";
 
 interface WorkspaceProps {
   song: RehearsalSong;
+  sourceBootstrap?: ProjectBootstrapSummary | null;
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
@@ -22,6 +23,19 @@ function formatTimelineTime(totalSeconds: number): string {
     .toString()
     .padStart(2, "0");
   return `${minutes}:${seconds}`;
+}
+
+/** Documented. */
+function downloadTextFile(contents: string, type: string, filename: string): void {
+  const blob = new Blob([contents], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 type Translator = ReturnType<typeof createTranslator>;
@@ -74,7 +88,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 });
 
 /** Documented. */
-export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
+export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
@@ -108,29 +122,23 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
   /** Documented. */
   const handleExportCueSheet = () => {
     const csv = generateCueSheetCsv(song);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${sanitizeFilename(song.title)}_cuesheet.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadTextFile(csv, "text/csv;charset=utf-8;", `${sanitizeFilename(song.title)}_cuesheet.csv`);
   };
 
   /** Documented. */
   const handleExportChart = () => {
     const json = generateChartSummaryJson(song);
-    const blob = new Blob([json], { type: "application/json;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${sanitizeFilename(song.title)}_chart.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadTextFile(json, "application/json;charset=utf-8;", `${sanitizeFilename(song.title)}_chart.json`);
+  };
+
+  /** Documented. */
+  const handleExportHandoff = () => {
+    const json = generateMetadataHandoffJson(song, {
+      sourceBootstrap,
+      workspaceId: song.id,
+      workspaceTitle: song.title
+    });
+    downloadTextFile(json, "application/json;charset=utf-8;", `${sanitizeFilename(song.title)}_handoff.json`);
   };
 
   return (
@@ -163,6 +171,15 @@ export function Workspace({ song, onSongUpdate }: WorkspaceProps) {
             >
                 <Download className="mr-2 size-4 text-slate-300" />
               Export Chart (JSON)
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportHandoff}
+              className="min-h-10 border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 shadow-sm hover:bg-teal-300/20 hover:text-white"
+            >
+              <Download className="mr-2 size-4 text-teal-200" />
+              Export Handoff (JSON)
             </Button>
           </div>
           </div>

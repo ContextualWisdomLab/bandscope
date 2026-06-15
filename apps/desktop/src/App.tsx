@@ -345,7 +345,7 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} onSongUpdate={handleSongUpdate} />;
+      return <Workspace song={jobResult} sourceBootstrap={selectedBootstrap} onSongUpdate={handleSongUpdate} />;
     }
     return <EmptyState />;
   };

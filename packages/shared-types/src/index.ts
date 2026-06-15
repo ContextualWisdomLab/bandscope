@@ -198,6 +198,53 @@ export type ProjectBootstrapSummary = {
 };
 
 /** Documented. */
+export type MetadataHandoffSourceAsset = {
+  referenceKind: "local_audio";
+  sourceMode: "reference";
+  fileName: string;
+  extension: (typeof SUPPORTED_AUDIO_FORMATS)[number];
+  fileSizeBytes: number;
+  status: "referenced" | "missing";
+};
+
+/** Documented. */
+export type MetadataHandoffRoleBucket = {
+  id: string;
+  name: string;
+  roleType: RehearsalRole["roleType"];
+  confidence: ConfidenceMarker;
+  rehearsalPriority: RehearsalPriority;
+};
+
+/** Documented. */
+export type MetadataHandoffSection = {
+  id: string;
+  label: SectionFormLabel;
+  timeRange: SectionTimeRange;
+  confidence: ConfidenceMarker;
+  roleBuckets: MetadataHandoffRoleBucket[];
+};
+
+/** Documented. */
+export type MetadataHandoffArtifact = {
+  artifactKind: "bandscope.metadata-handoff";
+  artifactVersion: 1;
+  createdAt: string;
+  workspace: {
+    id: string;
+    title: string;
+    workspaceVersion: number;
+  };
+  song: {
+    id: string;
+    title: string;
+    exportSummary: ExportSummary;
+  };
+  sections: MetadataHandoffSection[];
+  sourceAssets: MetadataHandoffSourceAsset[];
+};
+
+/** Documented. */
 export type AnalysisJobRequest =
   | {
       sourceKind: "demo";
@@ -249,6 +296,7 @@ const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
 const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
 const PACK_STATES = ["queued", "analyzing", "ready", "failed"] as const;
+const HANDOFF_ASSET_STATUSES = ["referenced", "missing"] as const;
 
 type ValidationOptions = {
   acceptLegacySectionTimeRanges: boolean;
@@ -513,6 +561,198 @@ export function parseProjectBootstrapSummary(value: unknown): ProjectBootstrapSu
   }
 
   return structuredClone(value as ProjectBootstrapSummary);
+}
+
+/** Documented. */
+function validateMetadataHandoffSourceAsset(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["referenceKind", "sourceMode", "fileName", "extension", "fileSizeBytes", "status"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (value.referenceKind !== "local_audio") {
+    return invalidField(`${path}.referenceKind`);
+  }
+  if (value.sourceMode !== "reference") {
+    return invalidField(`${path}.sourceMode`);
+  }
+  if (typeof value.fileName !== "string" || value.fileName.trim().length === 0) {
+    return invalidField(`${path}.fileName`);
+  }
+  if (!isOneOf(SUPPORTED_AUDIO_FORMATS, value.extension)) {
+    return invalidField(`${path}.extension`);
+  }
+  if (typeof value.fileSizeBytes !== "number" || !Number.isFinite(value.fileSizeBytes) || value.fileSizeBytes <= 0) {
+    return invalidField(`${path}.fileSizeBytes`);
+  }
+  if (!isOneOf(HANDOFF_ASSET_STATUSES, value.status)) {
+    return invalidField(`${path}.status`);
+  }
+
+  return null;
+}
+
+/** Documented. */
+function validateMetadataHandoffRoleBucket(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "name", "roleType", "confidence", "rehearsalPriority"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.name !== "string") {
+    return invalidField(`${path}.name`);
+  }
+  if (!isOneOf(ROLE_TYPES, value.roleType)) {
+    return invalidField(`${path}.roleType`);
+  }
+  const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);
+  if (confidenceError) {
+    return confidenceError;
+  }
+  if (!isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority)) {
+    return invalidField(`${path}.rehearsalPriority`);
+  }
+
+  return null;
+}
+
+/** Documented. */
+function validateMetadataHandoffSection(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "label", "timeRange", "confidence", "roleBuckets"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (!isOneOf(SECTION_FORM_LABELS, value.label)) {
+    return invalidField(`${path}.label`);
+  }
+  const timeRangeError = validateSectionTimeRange(value.timeRange, `${path}.timeRange`);
+  if (timeRangeError) {
+    return timeRangeError;
+  }
+  const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);
+  if (confidenceError) {
+    return confidenceError;
+  }
+  if (!isDenseArray(value.roleBuckets)) {
+    return invalidField(`${path}.roleBuckets`);
+  }
+  for (const [index, role] of value.roleBuckets.entries()) {
+    const roleError = validateMetadataHandoffRoleBucket(role, `${path}.roleBuckets[${index}]`);
+    if (roleError) {
+      return roleError;
+    }
+  }
+
+  return null;
+}
+
+/** Documented. */
+function validateMetadataHandoffArtifact(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return invalidField("root");
+  }
+  const extraKey = unexpectedKey(
+    value,
+    ["artifactKind", "artifactVersion", "createdAt", "workspace", "song", "sections", "sourceAssets"],
+    ""
+  );
+  if (extraKey) {
+    return extraKey;
+  }
+  if (value.artifactKind !== "bandscope.metadata-handoff") {
+    return invalidField("artifactKind");
+  }
+  if (value.artifactVersion !== 1) {
+    return invalidField("artifactVersion");
+  }
+  if (typeof value.createdAt !== "string" || value.createdAt.trim().length === 0) {
+    return invalidField("createdAt");
+  }
+  if (!isRecord(value.workspace)) {
+    return invalidField("workspace");
+  }
+  const workspaceExtraKey = unexpectedKey(value.workspace, ["id", "title", "workspaceVersion"], "workspace");
+  if (workspaceExtraKey) {
+    return workspaceExtraKey;
+  }
+  if (typeof value.workspace.id !== "string") {
+    return invalidField("workspace.id");
+  }
+  if (typeof value.workspace.title !== "string") {
+    return invalidField("workspace.title");
+  }
+  if (
+    typeof value.workspace.workspaceVersion !== "number" ||
+    !Number.isInteger(value.workspace.workspaceVersion) ||
+    value.workspace.workspaceVersion < 1
+  ) {
+    return invalidField("workspace.workspaceVersion");
+  }
+  if (!isRecord(value.song)) {
+    return invalidField("song");
+  }
+  const songExtraKey = unexpectedKey(value.song, ["id", "title", "exportSummary"], "song");
+  if (songExtraKey) {
+    return songExtraKey;
+  }
+  if (typeof value.song.id !== "string") {
+    return invalidField("song.id");
+  }
+  if (typeof value.song.title !== "string") {
+    return invalidField("song.title");
+  }
+  const exportSummaryError = validateExportSummary(value.song.exportSummary, "song.exportSummary");
+  if (exportSummaryError) {
+    return exportSummaryError;
+  }
+  if (!isDenseArray(value.sections)) {
+    return invalidField("sections");
+  }
+  for (const [index, section] of value.sections.entries()) {
+    const sectionError = validateMetadataHandoffSection(section, `sections[${index}]`);
+    if (sectionError) {
+      return sectionError;
+    }
+  }
+  if (!isDenseArray(value.sourceAssets)) {
+    return invalidField("sourceAssets");
+  }
+  for (const [index, sourceAsset] of value.sourceAssets.entries()) {
+    const sourceAssetError = validateMetadataHandoffSourceAsset(sourceAsset, `sourceAssets[${index}]`);
+    if (sourceAssetError) {
+      return sourceAssetError;
+    }
+  }
+
+  return null;
+}
+
+/** Documented. */
+export function isMetadataHandoffArtifact(value: unknown): value is MetadataHandoffArtifact {
+  return validateMetadataHandoffArtifact(value) === null;
+}
+
+/** Documented. */
+export function parseMetadataHandoffArtifact(value: unknown): MetadataHandoffArtifact {
+  const validationError = validateMetadataHandoffArtifact(value);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  return structuredClone(value as MetadataHandoffArtifact);
 }
 
 /** Documented. */
