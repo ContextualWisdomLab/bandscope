@@ -51,6 +51,9 @@ OSSF_PUBLISH_USES_ONLY_VIOLATION = (
     "ossf scorecard publishing job must only contain uses steps; split run steps "
     "into a separate non-publishing job"
 )
+OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION = (
+    "ossf scorecard publishing workflow must not contain top-level env or defaults"
+)
 OSSF_DOWNLOAD_DECOMPRESSION_VIOLATION = (
     "ossf scorecard artifact download must use skip-decompress: true and "
     "repo-owned extraction before normalization"
@@ -62,6 +65,10 @@ RELEASE_DOWNLOAD_DECOMPRESSION_VIOLATION = (
 CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION = (
     "workflows using actions/checkout must set workflow-level "
     "GIT_CONFIG_* init.defaultBranch env to avoid Git initial-branch warnings"
+)
+OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION = (
+    "ossf scorecard checkout steps must set step-level GIT_CONFIG_* "
+    "init.defaultBranch env to avoid Scorecard global env/defaults"
 )
 CHECKOUT_DEFAULT_BRANCH_GUARD_ENV = {
     "GIT_CONFIG_COUNT": "1",
@@ -233,6 +240,28 @@ def step_with_value_from_block(
         if match:
             return match.group("value").strip().strip("'\"")
     return None
+
+
+def step_env_from_block(step_lines: list[str], step_indent: int) -> dict[str, str]:
+    """Return a workflow step ``env`` mapping from a step block."""
+    env: dict[str, str] = {}
+    env_indent: int | None = None
+    for step_line in step_lines:
+        stripped = step_line.partition("#")[0].rstrip()
+        if not stripped.strip():
+            continue
+        indent = len(step_line) - len(step_line.lstrip(" "))
+        if env_indent is None:
+            if indent > step_indent and stripped.strip() == "env:":
+                env_indent = indent
+            continue
+        if indent <= env_indent:
+            break
+        match = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$", stripped)
+        if match is None:
+            continue
+        env[match.group(1)] = match.group(2).strip().strip("\"'")
+    return env
 
 
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
@@ -441,6 +470,42 @@ def workflow_top_level_env(content: str) -> dict[str, str]:
     return env
 
 
+def workflow_top_level_key_lines(content: str, keys: set[str]) -> list[tuple[int, str]]:
+    """Return top-level workflow key line numbers for ``keys``."""
+    key_lines: list[tuple[int, str]] = []
+    for idx, line in enumerate(content.splitlines(), start=1):
+        line_without_comment = line.partition("#")[0].rstrip()
+        if not line_without_comment.strip():
+            continue
+        if len(line_without_comment) - len(line_without_comment.lstrip(" ")) != 0:
+            continue
+        key = line_without_comment.partition(":")[0].strip()
+        if key in keys:
+            key_lines.append((idx, key))
+    return key_lines
+
+
+def workflow_publishes_scorecard_results(content: str) -> bool:
+    """Return whether a workflow publishes OSSF Scorecard results."""
+    workflow_body = "\n".join(
+        line.partition("#")[0] for line in content.splitlines()
+    )
+    return (
+        "ossf/scorecard-action" in workflow_body
+        and "publish_results:" in workflow_body
+    )
+
+
+def checkout_step_has_default_branch_guard(
+    step_lines: list[str], step_indent: int
+) -> bool:
+    """Return whether a checkout step carries the Git default branch env guard."""
+    env = step_env_from_block(step_lines, step_indent)
+    return all(
+        env.get(key) == value for key, value in CHECKOUT_DEFAULT_BRANCH_GUARD_ENV.items()
+    )
+
+
 def verify_checkout_default_branch_guard() -> list[str]:
     """Return checkout workflows missing the Git default-branch warning guard."""
     violations: list[str] = []
@@ -455,6 +520,26 @@ def verify_checkout_default_branch_guard() -> list[str]:
             for line in content.splitlines()
         )
         if not has_checkout:
+            continue
+        if workflow_publishes_scorecard_results(content):
+            checkout_steps = [
+                (step_indent, step_lines)
+                for _, step_indent, step_lines in workflow_step_blocks(
+                    content.splitlines()
+                )
+                if any(
+                    checkout_uses_pattern.search(step_line.partition("#")[0])
+                    for step_line in step_lines
+                )
+            ]
+            if all(
+                checkout_step_has_default_branch_guard(step_lines, step_indent)
+                for step_indent, step_lines in checkout_steps
+            ):
+                continue
+            violations.append(
+                f"{path}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
+            )
             continue
         env = workflow_top_level_env(content)
         if all(
@@ -514,6 +599,17 @@ def ossf_scorecard_publish_restriction_violations(
             else:
                 violations.append(
                     f"{path}:{start_line or 1} -> {OSSF_PUBLISH_USES_ONLY_VIOLATION}"
+                )
+
+    if workflow_publishes_scorecard_results(content):
+        for line_number, _ in workflow_top_level_key_lines(
+            content, {"env", "defaults"}
+        ):
+            if path is None:
+                violations.append(OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION)
+            else:
+                violations.append(
+                    f"{path}:{line_number} -> {OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION}"
                 )
 
     for idx, line in enumerate(content.splitlines(), start=1):
