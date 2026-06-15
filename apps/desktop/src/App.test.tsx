@@ -179,6 +179,8 @@ describe("App", () => {
   it("renders the rehearsal cockpit shell before analysis starts", () => {
     render(<App />);
 
+    expect(screen.getByRole("img", { name: /BandScope circular equalizer mark/i })).toBeTruthy();
+    expect(screen.getByText(/Your rehearsal map stays on this device/i)).toBeTruthy();
     expect(screen.getByRole("navigation", { name: /primary rehearsal views/i })).toBeTruthy();
     expect(screen.getByRole("heading", { name: /Workspace Home/i })).toBeTruthy();
     expect(screen.getByText(/SYNCED • LOCAL/i)).toBeTruthy();
@@ -189,8 +191,8 @@ describe("App", () => {
     expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
     expect(screen.getByText(/^Key$/i)).toBeTruthy();
     expect(screen.getByText(/Local-first/i)).toBeTruthy();
-    expect(screen.getByText(/Local project data stays on this device/i)).toBeTruthy();
-    expect(screen.getByText(/YouTube import contacts the source provider/i)).toBeTruthy();
+    expect(screen.getByText(/Project files stay local/i)).toBeTruthy();
+    expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
   });
 
   it("renders the loaded song as a dark rehearsal command board", async () => {

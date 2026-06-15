@@ -50,6 +50,14 @@
 }
 
 :root {
+    --bandscope-bg: #020713;
+    --bandscope-surface: rgb(8 18 35 / 78%);
+    --bandscope-surface-strong: rgb(2 6 23 / 88%);
+    --bandscope-border: rgb(255 255 255 / 10%);
+    --bandscope-cyan: #67e8f9;
+    --bandscope-teal: #5eead4;
+    --bandscope-violet: #a78bfa;
+    --bandscope-amber: #fcd34d;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);

@@ -59,6 +59,27 @@ describe("Workspace", () => {
     expect(transcribeButton.title).toBe("Transcribe part");
   });
 
+  it("renders bass transcription in the dark rehearsal cockpit system", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "Bass Guitar",
+      transcription: [
+        { pitch: "E2", onset: 0, offset: 0.75, velocity: 0.74 },
+        { pitch: "G2", onset: 0.9, offset: 1.25, velocity: 0.68 }
+      ]
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const grooveMap = screen.getByRole("region", { name: /bass transcription groove map/i });
+    expect(grooveMap.className).toContain("bg-slate-950");
+    expect(screen.getByText("E2")).toBeTruthy();
+    expect(screen.getByText("G2")).toBeTruthy();
+    expect(screen.getByText(/2 notes mapped for rehearsal/i)).toBeTruthy();
+  });
+
   it("localizes empty and loading state titles", () => {
     setNavigatorLanguage("ko-KR");
     render(<EmptyState />);
