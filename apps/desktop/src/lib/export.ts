@@ -151,9 +151,14 @@ export function createReanalysisRequestFromHandoff(
 ): AnalysisJobRequest {
   const parsedHandoff = parseMetadataHandoffArtifact(handoff);
   const parsedSource = parseProjectBootstrapSummary(selectedSource);
-  const roleFocus = Array.from(
-    new Set(parsedHandoff.sections.flatMap((section) => section.roleBuckets.map((role) => role.id)))
-  );
+  // Performance: Calculate role focus using O(1) memory nested loops instead of allocating intermediate flatMap().map() arrays
+  const roleIds = new Set<string>();
+  for (const section of parsedHandoff.sections) {
+    for (const role of section.roleBuckets) {
+      roleIds.add(role.id);
+    }
+  }
+  const roleFocus = Array.from(roleIds);
 
   return parseAnalysisJobRequest({
     sourceKind: "local_audio",
