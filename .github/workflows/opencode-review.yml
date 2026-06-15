@@ -1343,12 +1343,20 @@ jobs:
           collect_current_head_strix_workflow_runs() {
             local output_file="$1"
             local mode="$2"
+            local runs_error
             local runs_json
 
             runs_json="$(mktemp)"
+            runs_error="$(mktemp)"
             if ! env GH_TOKEN="$check_read_token" \
-              gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json"; then
-              rm -f "$runs_json"
+              gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json" 2>"$runs_error"; then
+              if grep -Eq 'HTTP 404|Not Found' "$runs_error"; then
+                : >"$output_file"
+                rm -f "$runs_json" "$runs_error"
+                return 0
+              fi
+              cat "$runs_error" >&2
+              rm -f "$runs_json" "$runs_error"
               return 1
             fi
 
@@ -1379,12 +1387,12 @@ jobs:
                 ' "$runs_json" >"$output_file"
                 ;;
               *)
-                rm -f "$runs_json"
+                rm -f "$runs_json" "$runs_error"
                 return 1
                 ;;
             esac
 
-            rm -f "$runs_json"
+            rm -f "$runs_json" "$runs_error"
           }
 
           collect_failed_github_checks() {
