@@ -839,6 +839,7 @@ jobs:
               || steps.opencode_review_second_fallback.outputs.review_status == 'success')
         env:
           GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
+          CHECK_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -950,11 +951,14 @@ jobs:
           echo "::group::OpenCode Review Approval Gate"
           echo "PR=#${PR_NUMBER} head_sha=${HEAD_SHA} run_id=${RUN_ID} run_attempt=${RUN_ATTEMPT}"
           approval_token_source="configured"
+          review_write_token="$GH_TOKEN"
+          check_read_token="${CHECK_READ_TOKEN:-$GH_TOKEN}"
           if [ -n "${OPENCODE_APP_TOKEN:-}" ]; then
-            export GH_TOKEN="$OPENCODE_APP_TOKEN"
+            review_write_token="$OPENCODE_APP_TOKEN"
             approval_token_source="opencode-app"
           fi
-          overview_comment_token="$GH_TOKEN"
+          export GH_TOKEN="$review_write_token"
+          overview_comment_token="$review_write_token"
           echo "approval token source=${approval_token_source}"
 
           update_review_overview() {
@@ -997,7 +1001,8 @@ jobs:
               --arg body "$body" \
               --arg commit_id "$HEAD_SHA" \
               '{event: $event, body: $body, commit_id: $commit_id}' |
-              gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null
+              env GH_TOKEN="$review_write_token" \
+                gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null
             update_review_overview "$event" "$body"
           }
 
@@ -1341,7 +1346,8 @@ jobs:
             local runs_json
 
             runs_json="$(mktemp)"
-            if ! gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json"; then
+            if ! env GH_TOKEN="$check_read_token" \
+              gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json"; then
               rm -f "$runs_json"
               return 1
             fi
@@ -1390,7 +1396,8 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
-            if ! gh api graphql \
+            if ! env GH_TOKEN="$check_read_token" \
+              gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -1469,7 +1476,8 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
-            if ! gh api graphql \
+            if ! env GH_TOKEN="$check_read_token" \
+              gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -1586,7 +1594,7 @@ jobs:
             return 2
           }
 
-          live_head_sha="$(gh api -X GET "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          live_head_sha="$(env GH_TOKEN="$check_read_token" gh api -X GET "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
           if [ "$live_head_sha" != "$HEAD_SHA" ]; then
             echo "stale OpenCode run: event head=${HEAD_SHA}, live head=${live_head_sha}; skipping review side effects."
             echo "::endgroup::"
@@ -1611,7 +1619,7 @@ jobs:
             }
             trap cleanup_failed_outcome_files EXIT
             if collect_github_checks_with_retry collect_failed_github_checks "$failed_checks_file" && [ -s "$failed_checks_file" ]; then
-              if ! scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
+              if ! env GH_TOKEN="$check_read_token" scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
                 printf "Failed GitHub Check evidence could not be collected for current head \`%s\`.\n" "$HEAD_SHA" >"$failed_check_evidence_file"
               fi
               if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
@@ -1706,7 +1714,7 @@ jobs:
               if [ -s "$failed_checks_file" ]; then
                 failed_check_evidence_file="$(mktemp)"
                 failed_check_review_body_file="$(mktemp)"
-                if ! scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
+                if ! env GH_TOKEN="$check_read_token" scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
                   printf "Failed GitHub Check evidence could not be collected for current head \`%s\`.\n" "$HEAD_SHA" >"$failed_check_evidence_file"
                 fi
                 if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
@@ -1743,7 +1751,7 @@ jobs:
 
               if [ -s "$failed_checks_file" ]; then
                 failed_check_evidence_file="$(mktemp)"
-                if ! scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
+                if ! env GH_TOKEN="$check_read_token" scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
                   printf "Failed GitHub Check evidence could not be collected for current head \`%s\`.\n" "$HEAD_SHA" >"$failed_check_evidence_file"
                 fi
                 if scripts/ci/validate_opencode_failed_check_review.sh "$control_json" "$failed_checks_file" "$failed_check_evidence_file"; then
