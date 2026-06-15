@@ -1,4 +1,13 @@
-import type { RehearsalSong } from "@bandscope/shared-types";
+import {
+  parseAnalysisJobRequest,
+  parseMetadataHandoffArtifact,
+  parseProjectBootstrapSummary,
+  parseRehearsalSong,
+  type AnalysisJobRequest,
+  type MetadataHandoffArtifact,
+  type ProjectBootstrapSummary,
+  type RehearsalSong
+} from "@bandscope/shared-types";
 
 // Security notes:
 // 1. Filename sanitization to prevent directory traversal or invalid characters.
@@ -68,4 +77,88 @@ export function generateChartSummaryJson(song: RehearsalSong): string {
     }))
   };
   return JSON.stringify(summary, null, 2);
+}
+
+/** Documented. */
+export function createMetadataHandoffArtifact(
+  song: RehearsalSong,
+  options: {
+    createdAt?: string;
+    sourceBootstrap?: ProjectBootstrapSummary | null;
+    workspaceId?: string;
+    workspaceTitle?: string;
+  } = {}
+): MetadataHandoffArtifact {
+  const parsedSong = parseRehearsalSong(song);
+  const sourceBootstrap = options.sourceBootstrap
+    ? parseProjectBootstrapSummary(options.sourceBootstrap)
+    : null;
+
+  return parseMetadataHandoffArtifact({
+    artifactKind: "bandscope.metadata-handoff",
+    artifactVersion: 1,
+    createdAt: options.createdAt ?? new Date().toISOString(),
+    workspace: {
+      id: options.workspaceId ?? parsedSong.id,
+      title: options.workspaceTitle ?? parsedSong.title,
+      workspaceVersion: 1
+    },
+    song: {
+      id: parsedSong.id,
+      title: parsedSong.title,
+      exportSummary: parsedSong.exportSummary
+    },
+    sections: parsedSong.sections.map((section) => ({
+      id: section.id,
+      label: section.label,
+      timeRange: section.timeRange,
+      confidence: section.confidence,
+      roleBuckets: section.roles.map((role) => ({
+        id: role.id,
+        name: role.name,
+        roleType: role.roleType,
+        confidence: role.confidence,
+        rehearsalPriority: role.rehearsalPriority
+      }))
+    })),
+    sourceAssets: sourceBootstrap
+      ? [
+          {
+            referenceKind: "local_audio",
+            sourceMode: "reference",
+            fileName: sourceBootstrap.source.fileName,
+            extension: sourceBootstrap.source.extension,
+            fileSizeBytes: sourceBootstrap.source.fileSizeBytes,
+            status: "referenced"
+          }
+        ]
+      : []
+  });
+}
+
+/** Documented. */
+export function generateMetadataHandoffJson(
+  song: RehearsalSong,
+  options: Parameters<typeof createMetadataHandoffArtifact>[1] = {}
+): string {
+  return JSON.stringify(createMetadataHandoffArtifact(song, options), null, 2);
+}
+
+/** Documented. */
+export function createReanalysisRequestFromHandoff(
+  handoff: unknown,
+  selectedSource: ProjectBootstrapSummary
+): AnalysisJobRequest {
+  const parsedHandoff = parseMetadataHandoffArtifact(handoff);
+  const parsedSource = parseProjectBootstrapSummary(selectedSource);
+  const roleFocus = Array.from(
+    new Set(parsedHandoff.sections.flatMap((section) => section.roleBuckets.map((role) => role.id)))
+  );
+
+  return parseAnalysisJobRequest({
+    sourceKind: "local_audio",
+    projectId: parsedSource.projectId,
+    sourceLabel: parsedSource.source.fileName,
+    roleFocus
+  });
 }

@@ -1,10 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { afterEach, describe, expect, it } from "vitest";
+import { createDemoRehearsalSong, type ProjectBootstrapSummary } from "@bandscope/shared-types";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 import { EmptyState, LoadingState } from "./WorkspaceStates";
 
 const originalLanguage = navigator.language;
+const originalCreateObjectUrl = URL.createObjectURL;
+const originalRevokeObjectUrl = URL.revokeObjectURL;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -16,6 +18,15 @@ function setNavigatorLanguage(language: string) {
 describe("Workspace", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
+    vi.restoreAllMocks();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: originalCreateObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: originalRevokeObjectUrl
+    });
   });
 
   it("keeps the song-structure grid valid when a project has no sections", () => {
@@ -78,6 +89,45 @@ describe("Workspace", () => {
     expect(screen.getByText("E2")).toBeTruthy();
     expect(screen.getByText("G2")).toBeTruthy();
     expect(screen.getByText(/2 notes mapped for rehearsal/i)).toBeTruthy();
+  });
+
+  it("exports a metadata-only handoff artifact from the workspace", async () => {
+    const song = createDemoRehearsalSong();
+    const sourceBootstrap: ProjectBootstrapSummary = {
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source: {
+        sourcePath: "/Users/test/Music/late-night-set.wav",
+        fileName: "late-night-set.wav",
+        extension: "wav",
+        fileSizeBytes: 1_024_000
+      }
+    };
+    const createObjectUrl = vi.fn(() => "blob:handoff");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    render(<Workspace song={song} sourceBootstrap={sourceBootstrap} />);
+    fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const payload = JSON.parse(await blob.text());
+    expect(payload.artifactKind).toBe("bandscope.metadata-handoff");
+    expect(payload.sourceAssets[0].fileName).toBe("late-night-set.wav");
+    expect(JSON.stringify(payload)).not.toContain("/Users/test");
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:handoff");
   });
 
   it("localizes empty and loading state titles", () => {

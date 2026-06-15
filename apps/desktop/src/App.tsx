@@ -170,9 +170,11 @@ export function App() {
   const defaultRequest = useMemo(() => createDefaultAnalysisRequest(), []);
   const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
+  const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
@@ -198,9 +200,12 @@ export function App() {
         setJobStatus(nextStatus);
         if (nextStatus.state === "succeeded" && nextStatus.result) {
           setJobResult(nextStatus.result);
+          setJobResultBootstrap(activeAnalysisBootstrap);
+          setActiveAnalysisBootstrap(null);
           setJobError(null);
         }
         if (nextStatus.state === "failed") {
+          setActiveAnalysisBootstrap(null);
           setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
         }
       } catch (error) {
@@ -232,25 +237,32 @@ export function App() {
     }, ANALYSIS_POLL_INTERVAL_MS);
 
     return () => window.clearTimeout(timer);
-  }, [jobStatus, t]);
+  }, [activeAnalysisBootstrap, jobStatus, t]);
 
   /** Documented. */
   const handleStartAnalysis = async () => {
+    const submittedBootstrap = selectedBootstrap;
     setJobError(null);
     setJobResult(null);
+    setJobResultBootstrap(null);
     setJobStatus(null);
+    setActiveAnalysisBootstrap(submittedBootstrap);
     setIsStarting(true);
     try {
       const nextStatus = await startAnalysisJob(selectedRequest);
       setJobStatus(nextStatus);
       if (nextStatus.state === "succeeded" && nextStatus.result) {
         setJobResult(nextStatus.result);
+        setJobResultBootstrap(submittedBootstrap);
+        setActiveAnalysisBootstrap(null);
       }
       if (nextStatus.state === "failed") {
+        setActiveAnalysisBootstrap(null);
         setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
       }
     } catch {
       setJobStatus(null);
+      setActiveAnalysisBootstrap(null);
       setJobError(t("analysisCouldNotStart"));
     } finally {
       setIsStarting(false);
@@ -306,8 +318,10 @@ export function App() {
     try {
       const song = await loadProject();
       setJobResult(song);
+      setJobResultBootstrap(null);
       setJobError(null);
       setSelectedBootstrap(null);
+      setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
       if (e instanceof Error && e.message !== "User cancelled") {
@@ -345,7 +359,7 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} onSongUpdate={handleSongUpdate} />;
+      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
     return <EmptyState />;
   };

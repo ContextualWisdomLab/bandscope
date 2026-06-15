@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeFilename, escapeCsvField, generateCueSheetCsv, generateChartSummaryJson } from "./export";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import {
+  sanitizeFilename,
+  escapeCsvField,
+  generateCueSheetCsv,
+  generateChartSummaryJson,
+  generateMetadataHandoffJson,
+  createReanalysisRequestFromHandoff
+} from "./export";
+import type { ProjectBootstrapSummary, RehearsalSong } from "@bandscope/shared-types";
 
 describe("export sanitization", () => {
   it("sanitizes filename correctly", () => {
@@ -134,5 +141,92 @@ describe("export generation", () => {
     const jsonStr = generateChartSummaryJson(mockSongNoHeadline);
     const parsed = JSON.parse(jsonStr);
     expect(parsed.headline).toBe("");
+  });
+
+  it("generates a metadata-only local handoff without source paths or transcription data", () => {
+    const sourceBootstrap: ProjectBootstrapSummary = {
+      projectId: "project-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-1",
+      cacheRoot: "/tmp/bandscope/cache/project-1",
+      tempRoot: "/tmp/bandscope/temp/project-1",
+      source: {
+        sourcePath: "/Users/test/Music/late-night-set.wav",
+        fileName: "late-night-set.wav",
+        extension: "wav",
+        fileSizeBytes: 1_024_000
+      }
+    };
+    const songWithTranscription: RehearsalSong = {
+      ...mockSong,
+      sections: [{
+        ...mockSong.sections[0]!,
+        roles: [{
+          ...mockSong.sections[0]!.roles[0]!,
+          transcription: [{ pitch: "E2", onset: 0, offset: 1, velocity: 0.7 }]
+        }]
+      }]
+    };
+
+    const json = generateMetadataHandoffJson(songWithTranscription, {
+      createdAt: "2026-06-15T08:30:00.000Z",
+      sourceBootstrap,
+      workspaceId: "workspace-1",
+      workspaceTitle: "Friday rehearsal"
+    });
+    const parsed = JSON.parse(json);
+
+    expect(parsed).toMatchObject({
+      artifactKind: "bandscope.metadata-handoff",
+      artifactVersion: 1,
+      workspace: { id: "workspace-1", title: "Friday rehearsal", workspaceVersion: 1 },
+      song: { id: "test", title: "Test" },
+      sourceAssets: [{
+        referenceKind: "local_audio",
+        sourceMode: "reference",
+        fileName: "late-night-set.wav",
+        extension: "wav",
+        fileSizeBytes: 1_024_000,
+        status: "referenced"
+      }]
+    });
+    expect(json).not.toContain("/Users/test");
+    expect(json).not.toContain("sourcePath");
+    expect(json).not.toContain("transcription");
+    expect(parsed.sections[0].roleBuckets[0]).toEqual({
+      id: "r1",
+      name: "Bass",
+      roleType: "instrument",
+      confidence: { level: "high", source: "model", notes: "" },
+      rehearsalPriority: "high"
+    });
+  });
+
+  it("creates a local re-analysis request from a received handoff and selected replacement asset", () => {
+    const handoff = JSON.parse(generateMetadataHandoffJson(mockSong, {
+      createdAt: "2026-06-15T08:30:00.000Z",
+      workspaceId: "workspace-1",
+      workspaceTitle: "Friday rehearsal"
+    }));
+    const selectedSource: ProjectBootstrapSummary = {
+      projectId: "recipient-project",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/recipient-project",
+      cacheRoot: "/tmp/bandscope/cache/recipient-project",
+      tempRoot: "/tmp/bandscope/temp/recipient-project",
+      source: {
+        sourcePath: "/Users/recipient/Music/late-night-set.wav",
+        fileName: "late-night-set.wav",
+        extension: "wav",
+        fileSizeBytes: 1_024_000
+      }
+    };
+
+    expect(createReanalysisRequestFromHandoff(handoff, selectedSource)).toEqual({
+      sourceKind: "local_audio",
+      projectId: "recipient-project",
+      sourceLabel: "late-night-set.wav",
+      roleFocus: ["r1"]
+    });
   });
 });

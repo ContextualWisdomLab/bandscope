@@ -377,6 +377,75 @@ describe("App", () => {
     });
   });
 
+  it("keeps handoff metadata tied to the source that produced the current result", async () => {
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    const createObjectUrl = vi.fn(() => "blob:handoff");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-1",
+        state: "queued",
+        progressLabel: "Queued for analysis"
+      }))
+      .mockResolvedValueOnce(succeededResult())
+      .mockResolvedValueOnce(
+        bootstrapResponse({
+          projectId: "project-2",
+          source: {
+            sourcePath: "/Users/test/Music/next-song.wav",
+            fileName: "next-song.wav",
+            fileSizeBytes: 2048000
+          }
+        })
+      );
+
+    try {
+      render(<App />);
+
+      fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+      await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+
+      fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+      await waitFor(() => expect(screen.getByText(/next-song\.wav/i)).toBeTruthy());
+
+      fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+      const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+      const payload = JSON.parse(await blob.text());
+
+      expect(payload.sourceAssets[0].fileName).toBe("late-night-set.wav");
+      expect(JSON.stringify(payload)).not.toContain("next-song.wav");
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(revokeObjectUrl).toHaveBeenCalledWith("blob:handoff");
+    } finally {
+      click.mockRestore();
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        value: originalCreateObjectUrl
+      });
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        value: originalRevokeObjectUrl
+      });
+    }
+  });
+
   it("shows a safe failed status when the job poll returns an error", async () => {
     tauriInvoke
       .mockResolvedValueOnce(bootstrapResponse())

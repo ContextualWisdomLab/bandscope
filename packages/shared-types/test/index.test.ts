@@ -8,11 +8,14 @@ import {
   isAnalysisJobStatus,
   parseAnalysisJobStatus,
   parseLocalAudioSource,
+  parseMetadataHandoffArtifact,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
+  isMetadataHandoffArtifact,
   isRehearsalWorkspace,
   parseRehearsalWorkspace,
   parseSongRehearsalPack,
+  type MetadataHandoffArtifact,
   SongRehearsalPack,
   RehearsalWorkspace,
   parseAnalysisJobRequest,
@@ -390,6 +393,113 @@ describe("shared type helpers", () => {
       tempRoot: "/tmp/bandscope/temp/project-1",
       source: { ...source, extension: "ogg" }
     })).toThrow("project bootstrap summary.source");
+  });
+
+  it("validates metadata-only handoff artifacts without bundled assets or paths", () => {
+    const artifact: MetadataHandoffArtifact = {
+      artifactKind: "bandscope.metadata-handoff",
+      artifactVersion: 1,
+      createdAt: "2026-06-15T08:30:00.000Z",
+      workspace: {
+        id: "workspace-1",
+        title: "Friday rehearsal",
+        workspaceVersion: 1
+      },
+      song: {
+        id: "demo-song",
+        title: "Late Night Set",
+        exportSummary: createDemoRehearsalSong().exportSummary
+      },
+      sections: [
+        {
+          id: "verse-1",
+          label: "verse",
+          timeRange: { start: 10, end: 30 },
+          confidence: createDemoRehearsalSong().sections[0]!.confidence,
+          roleBuckets: [
+            {
+              id: "bass-guitar",
+              name: "Bass Guitar",
+              roleType: "instrument",
+              confidence: createDemoRehearsalSong().sections[0]!.roles[0]!.confidence,
+              rehearsalPriority: "high"
+            }
+          ]
+        }
+      ],
+      sourceAssets: [
+        {
+          referenceKind: "local_audio",
+          sourceMode: "reference",
+          fileName: "late-night-set.wav",
+          extension: "wav",
+          fileSizeBytes: 1_024_000,
+          status: "referenced"
+        }
+      ]
+    };
+
+    expect(isMetadataHandoffArtifact(artifact)).toBe(true);
+    expect(parseMetadataHandoffArtifact(artifact)).toEqual(artifact);
+    expect(() => parseMetadataHandoffArtifact({
+      ...artifact,
+      artifactVersion: 2
+    })).toThrow("artifactVersion");
+    expect(() => parseMetadataHandoffArtifact({
+      ...artifact,
+      sourceAssets: [{ ...artifact.sourceAssets[0], sourcePath: "/Users/test/Music/late-night-set.wav" }]
+    })).toThrow("sourceAssets[0].sourcePath");
+    expect(() => parseMetadataHandoffArtifact({
+      ...artifact,
+      sections: [{
+        ...artifact.sections[0],
+        roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], confidence: { level: "sure" } }]
+      }]
+    })).toThrow("sections[0].roleBuckets[0].confidence");
+
+    const invalidCases: Array<{ message: string; payload: unknown }> = [
+      { message: "root", payload: null },
+      { message: "extraField", payload: { ...artifact, extraField: true } },
+      { message: "artifactKind", payload: { ...artifact, artifactKind: "other" } },
+      { message: "createdAt", payload: { ...artifact, createdAt: "   " } },
+      { message: "workspace", payload: { ...artifact, workspace: null } },
+      { message: "workspace.extraField", payload: { ...artifact, workspace: { ...artifact.workspace, extraField: true } } },
+      { message: "workspace.id", payload: { ...artifact, workspace: { ...artifact.workspace, id: 3 } } },
+      { message: "workspace.title", payload: { ...artifact, workspace: { ...artifact.workspace, title: 3 } } },
+      { message: "workspace.workspaceVersion", payload: { ...artifact, workspace: { ...artifact.workspace, workspaceVersion: 0 } } },
+      { message: "song", payload: { ...artifact, song: null } },
+      { message: "song.extraField", payload: { ...artifact, song: { ...artifact.song, extraField: true } } },
+      { message: "song.id", payload: { ...artifact, song: { ...artifact.song, id: 3 } } },
+      { message: "song.title", payload: { ...artifact, song: { ...artifact.song, title: 3 } } },
+      {
+        message: "song.exportSummary.format",
+        payload: { ...artifact, song: { ...artifact.song, exportSummary: { ...artifact.song.exportSummary, format: "pdf" } } }
+      },
+      { message: "sections", payload: { ...artifact, sections: "not-an-array" } },
+      { message: "sections[0]", payload: { ...artifact, sections: [null] } },
+      { message: "sections[0].id", payload: { ...artifact, sections: [{ ...artifact.sections[0], id: 3 }] } },
+      { message: "sections[0].label", payload: { ...artifact, sections: [{ ...artifact.sections[0], label: "solo" }] } },
+      { message: "sections[0].timeRange.start", payload: { ...artifact, sections: [{ ...artifact.sections[0], timeRange: { start: -1, end: 30 } }] } },
+      { message: "sections[0].confidence.source", payload: { ...artifact, sections: [{ ...artifact.sections[0], confidence: { ...artifact.sections[0]!.confidence, source: "other" } }] } },
+      { message: "sections[0].roleBuckets", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: "not-an-array" }] } },
+      { message: "sections[0].roleBuckets[0]", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [null] }] } },
+      { message: "sections[0].roleBuckets[0].id", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], id: 3 }] }] } },
+      { message: "sections[0].roleBuckets[0].name", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], name: 3 }] }] } },
+      { message: "sections[0].roleBuckets[0].roleType", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], roleType: "drums" }] }] } },
+      { message: "sections[0].roleBuckets[0].rehearsalPriority", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], rehearsalPriority: "urgent" }] }] } },
+      { message: "sourceAssets", payload: { ...artifact, sourceAssets: "not-an-array" } },
+      { message: "sourceAssets[0]", payload: { ...artifact, sourceAssets: [null] } },
+      { message: "sourceAssets[0].referenceKind", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], referenceKind: "stem" }] } },
+      { message: "sourceAssets[0].sourceMode", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], sourceMode: "copy" }] } },
+      { message: "sourceAssets[0].fileName", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], fileName: "   " }] } },
+      { message: "sourceAssets[0].extension", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], extension: "ogg" }] } },
+      { message: "sourceAssets[0].fileSizeBytes", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], fileSizeBytes: 0 }] } },
+      { message: "sourceAssets[0].status", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], status: "bundled" }] } }
+    ];
+
+    for (const testCase of invalidCases) {
+      expect(() => parseMetadataHandoffArtifact(testCase.payload)).toThrow(testCase.message);
+    }
   });
 
   it("creates a rehearsal song with section and role level guidance", () => {
