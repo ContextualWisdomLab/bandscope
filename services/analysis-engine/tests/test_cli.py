@@ -12,7 +12,9 @@ import warnings
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import pytest
+import soundfile as sf
 
 from bandscope_analysis import cli
 
@@ -39,6 +41,14 @@ def run_cli(payload: object) -> Any:
     return json.loads(completed.stdout)
 
 
+def write_short_wav(path: Path, sample_rate: int = 8_000) -> None:
+    """Write a small local-audio fixture for CLI subprocess tests."""
+    samples = sample_rate // 4
+    times = np.arange(samples, dtype=np.float32) / sample_rate
+    mix = (0.35 * np.sin(2 * np.pi * 82.0 * times)).astype(np.float32)
+    sf.write(path, mix, sample_rate)
+
+
 def test_cli_returns_succeeded_job_status_for_valid_request() -> None:
     """Ensure the CLI returns a structured succeeded status for a valid request."""
     payload = {
@@ -57,8 +67,10 @@ def test_cli_returns_succeeded_job_status_for_valid_request() -> None:
     assert cast(Any, response["result"])["title"] == "Late Night Set"
 
 
-def test_cli_returns_succeeded_job_status_for_valid_local_audio_request() -> None:
+def test_cli_returns_succeeded_job_status_for_valid_local_audio_request(tmp_path) -> None:
     """Ensure the CLI accepts the local-audio intake request shape."""
+    audio_path = tmp_path / "late-night-set.wav"
+    write_short_wav(audio_path)
     payload = {
         "jobId": "job-local-1",
         "request": {
@@ -67,10 +79,10 @@ def test_cli_returns_succeeded_job_status_for_valid_local_audio_request() -> Non
             "sourceLabel": "late-night-set.wav",
             "roleFocus": ["bass-guitar"],
             "localSource": {
-                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "sourcePath": str(audio_path),
                 "fileName": "late-night-set.wav",
                 "extension": "wav",
-                "fileSizeBytes": 1024000,
+                "fileSizeBytes": audio_path.stat().st_size,
             },
         },
     }
@@ -345,8 +357,13 @@ def test_cli_main_temporal_analyzer_mock(monkeypatch: pytest.MonkeyPatch) -> Non
     assert res["jobId"] == "job-audio"
 
 
-def test_cli_main_temporal_analyzer_mock_success(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_temporal_analyzer_mock_success(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
     """Ensure the temporal analyzer injection block succeeds."""
+    audio_path = tmp_path / "test.wav"
+    write_short_wav(audio_path)
     stdin = io.StringIO(
         json.dumps(
             {
@@ -357,10 +374,10 @@ def test_cli_main_temporal_analyzer_mock_success(monkeypatch: pytest.MonkeyPatch
                     "sourceLabel": "test.wav",
                     "roleFocus": [],
                     "localSource": {
-                        "sourcePath": "/valid/path.wav",
+                        "sourcePath": str(audio_path),
                         "fileName": "test.wav",
                         "extension": "wav",
-                        "fileSizeBytes": 100,
+                        "fileSizeBytes": audio_path.stat().st_size,
                     },
                 },
             }
@@ -373,6 +390,14 @@ def test_cli_main_temporal_analyzer_mock_success(monkeypatch: pytest.MonkeyPatch
             return {"bpm": 120.0, "beats": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr(
+        "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
+        lambda self, y, sr: None,
+    )
+    monkeypatch.setattr(
+        "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+        lambda self, y, sr: [],
+    )
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
@@ -387,6 +412,8 @@ def test_cli_main_progress_jsonl_streams_status_updates(
     tmp_path,
 ) -> None:
     """Ensure Tauri can consume incremental job status updates from stdout."""
+    audio_path = tmp_path / "test.wav"
+    write_short_wav(audio_path)
     stdin = io.StringIO(
         json.dumps(
             {
@@ -397,10 +424,10 @@ def test_cli_main_progress_jsonl_streams_status_updates(
                     "sourceLabel": "test.wav",
                     "roleFocus": [],
                     "localSource": {
-                        "sourcePath": "/valid/path.wav",
+                        "sourcePath": str(audio_path),
                         "fileName": "test.wav",
                         "extension": "wav",
-                        "fileSizeBytes": 100,
+                        "fileSizeBytes": audio_path.stat().st_size,
                     },
                     "cacheRoot": str(tmp_path / "cache"),
                     "tempRoot": str(tmp_path / "temp"),
@@ -415,6 +442,14 @@ def test_cli_main_progress_jsonl_streams_status_updates(
             return {"bpm": 120.0, "beats": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr(
+        "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
+        lambda self, y, sr: None,
+    )
+    monkeypatch.setattr(
+        "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+        lambda self, y, sr: [],
+    )
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--progress-jsonl"])
