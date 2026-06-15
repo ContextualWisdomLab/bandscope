@@ -160,7 +160,7 @@ class AudioStemSeparator:
         )
         bass_mask = frequencies <= self.config.bass_cutoff_hz
         vocal_mask = (frequencies >= self.config.vocal_low_hz) & (
-            frequencies <= self.config.vocal_high_hz
+            frequencies < self.config.vocal_high_hz
         )
         drum_mask = frequencies >= self.config.drum_low_hz
         other_mask = ~(bass_mask | vocal_mask | drum_mask)

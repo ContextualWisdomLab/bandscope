@@ -173,6 +173,22 @@ def test_audio_stem_separator_splits_local_audio_into_chunked_stems(tmp_path) ->
     assert np.any(np.abs(result["stems"]["drums"]) > 0)
 
 
+def test_audio_stem_separator_assigns_boundary_frequency_to_drums_only() -> None:
+    """Ensure adjacent vocal and drum bands do not overlap at the boundary."""
+    sample_rate = 8_000
+    samples = 800
+    times = np.arange(samples, dtype=np.float32) / sample_rate
+    boundary_tone = np.sin(2 * np.pi * 3_400.0 * times).astype(np.float32)
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=sample_rate))
+
+    stems = separator._separate_chunk(boundary_tone, sample_rate)
+
+    drum_peak = float(np.max(np.abs(stems["drums"])))
+    vocal_peak = float(np.max(np.abs(stems["vocals"])))
+    assert drum_peak > 0.5
+    assert vocal_peak < drum_peak * 0.001
+
+
 def test_audio_stem_separator_rejects_missing_audio_file(tmp_path) -> None:
     """Ensure missing local files fail before decode without leaking a full path."""
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
