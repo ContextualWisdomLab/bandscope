@@ -33,7 +33,6 @@ REQUIRED_FILES = [
 ]
 
 PINNED_ACTION = re.compile(r"^\s*-?\s*uses:\s+[^@\s]+@[0-9a-f]{40}(\s+#.*)?$")
-USES_ACTION = re.compile(r"^\s*-?\s*uses:\s+")
 LOCAL_ACTION = re.compile(r"^\s*-?\s*uses:\s+\./")
 DOCKER_ACTION = re.compile(r"^\s*-?\s*uses:\s+docker://")
 PACKAGE_SPEC = re.compile(
@@ -395,7 +394,7 @@ def verify_pinned_actions() -> list[str]:
         for idx, line in enumerate(
             path.read_text(encoding="utf-8").splitlines(), start=1
         ):
-            if USES_ACTION.match(line) is None:
+            if "uses:" not in line:
                 continue
             if (
                 PINNED_ACTION.match(line)
