@@ -839,7 +839,6 @@ jobs:
               || steps.opencode_review_second_fallback.outputs.review_status == 'success')
         env:
           GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
-          CHECK_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -924,6 +923,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
+          CHECK_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           STRIX_GITHUB_MODELS_TOKEN: ${{ secrets.STRIX_GITHUB_MODELS_TOKEN }}
           OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
