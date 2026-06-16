@@ -267,7 +267,7 @@ class TestModelWeightManager:
         config = ModelWeightConfig()
         assert config.model_name == "htdemucs"
         assert config.model_filename == "htdemucs.th"
-        assert "fbaipublicfiles.com" in config.download_url
+        assert config.download_url.startswith("https://dl.fbaipublicfiles.com/")
         assert config.max_download_bytes == 500_000_000
 
     def test_is_available_when_no_cached_file(self, tmp_path) -> None:
@@ -333,3 +333,24 @@ class TestModelWeightManager:
 
         with pytest.raises((RuntimeError, Exception)):
             manager.ensure_weights()
+
+    def test_download_enforces_max_size_limit(self, tmp_path) -> None:
+        """Verify download aborts when exceeding max_download_bytes."""
+        config = ModelWeightConfig(
+            cache_dir=str(tmp_path),
+            max_download_bytes=10,  # Very small limit
+            model_filename="oversized.th",
+        )
+        manager = ModelWeightManager(config)
+
+        # Mock response that streams more data than the limit
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.stream.return_value = iter(
+            [b"x" * 20]  # 20 bytes exceeds 10 byte limit
+        )
+
+        with patch("bandscope_analysis.separation.model_weights.urllib3.PoolManager") as mock_pool:
+            mock_pool.return_value.request.return_value = mock_response
+            with pytest.raises(RuntimeError, match="exceeded maximum size limit"):
+                manager.ensure_weights()

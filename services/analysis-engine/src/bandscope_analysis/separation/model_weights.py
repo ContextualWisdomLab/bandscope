@@ -1,7 +1,7 @@
 """Secure model weight downloading and verification.
 
 Security Notes:
-- Downloads model weights only from an allowlisted URL (Meta's Hugging Face hub).
+- Downloads model weights only from an allowlisted URL (Meta's dl.fbaipublicfiles.com CDN).
 - Verifies file integrity using SHA-256 checksums before loading.
 - Stores weights under a controlled local cache directory (XDG-compliant).
 - Does not log, expose, or execute any part of the model file path.
@@ -158,6 +158,7 @@ class ModelWeightManager:
             retries=urllib3.Retry(total=3, backoff_factor=1.0),
         )
 
+        response = None
         try:
             response = http.request(
                 "GET",
@@ -180,4 +181,5 @@ class ModelWeightManager:
                         )
                     f.write(chunk)
         finally:
-            response.release_conn()
+            if response is not None:
+                response.release_conn()
