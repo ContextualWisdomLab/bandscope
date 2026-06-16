@@ -1,4 +1,4 @@
-"""Local audio source separation using bounded DSP heuristics."""
+"""Local audio source separation using a bounded local spectral model."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import librosa
 import numpy as np
@@ -19,23 +19,24 @@ from bandscope_analysis.temporal.analyzer import (
     TARGET_SR,
 )
 
+from .lightweight_model import LightweightSpectralStemModel
 from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioStemPayload
+from .weights import ensure_verified_model_weights
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class AudioSeparationConfig:
-    """Resource and band-split settings for local stem separation."""
+    """Resource and local-model settings for stem separation."""
 
     target_sample_rate: int = TARGET_SR
     max_file_bytes: int = MAX_AUDIO_FILE_BYTES
     max_duration_seconds: float = float(MAX_ANALYSIS_DURATION_SECONDS)
     chunk_duration_seconds: float = 30.0
-    bass_cutoff_hz: float = 250.0
-    vocal_low_hz: float = 300.0
-    vocal_high_hz: float = 3_400.0
-    drum_low_hz: float = 3_400.0
+    model_cache_dir: str | None = None
+    download_model_weights: bool = False
+    compute_device: str = "auto"
 
 
 class AudioStemSeparator:
@@ -45,8 +46,11 @@ class AudioStemSeparator:
     - Treats the selected audio file as untrusted input.
     - Normalizes the path before use, verifies it is a file, and enforces a
       maximum byte size before decoder handoff.
-    - Uses librosa in-process only; no network access, model download, shell
-      execution, or user-controlled output path is introduced.
+    - Uses local DSP/ML operations in-process only; no shell execution or
+      user-controlled output path is introduced.
+    - Model artifacts are optional and separately verified by allowlisted HTTPS,
+      bounded downloads, and SHA-256 checks.
+    - Inference does not require network access; model downloads are opt-in.
     - Does not log or persist raw audio, separated stems, or full source paths.
     - Fails with bounded, filename-scoped errors so callers can surface a safe
       analysis failure without leaking local directory structure.
@@ -55,6 +59,17 @@ class AudioStemSeparator:
     def __init__(self, config: AudioSeparationConfig | None = None) -> None:
         """Initialize the local stem separator."""
         self.config = config or AudioSeparationConfig()
+        self._compute_device = self._resolve_compute_device(self.config.compute_device)
+        cache_dir = (
+            Path(self.config.model_cache_dir).expanduser()
+            if self.config.model_cache_dir is not None
+            else None
+        )
+        self._model_weights_path = ensure_verified_model_weights(
+            cache_dir=cache_dir,
+            download_if_missing=self.config.download_model_weights,
+        )
+        self._model = LightweightSpectralStemModel()
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
         """Separate local audio into vocals, bass, drums, and other stems."""
@@ -84,9 +99,13 @@ class AudioStemSeparator:
         chunk_count = max(1, len(stem_chunks["vocals"]))
         duration_seconds = float(audio.size / sample_rate)
         logger.info(
-            "Separated local audio into canonical stems: %d chunks, %.1f seconds",
+            "Separated local audio into canonical stems: %d chunks, %.1f seconds (%s)",
             chunk_count,
             duration_seconds,
+            self._compute_device,
+        )
+        weight_note = (
+            "verified stem priors loaded" if self._model_weights_path else "built-in priors"
         )
         return {
             "stems": stems,
@@ -95,7 +114,7 @@ class AudioStemSeparator:
             "chunk_count": chunk_count,
             "separation_notes": (
                 "Separated selected local audio into vocals, bass, drums, and other "
-                f"across {chunk_count} chunks."
+                f"across {chunk_count} chunks using {self._compute_device} ({weight_note})."
             ),
         }
 
@@ -149,28 +168,8 @@ class AudioStemSeparator:
         return _as_float_array(y), int(sr)
 
     def _separate_chunk(self, chunk: AudioStemArray, sample_rate: int) -> AudioStemPayload:
-        """Split one chunk into coarse canonical frequency and percussion bands."""
-        spectrum = cast(
-            np.ndarray[Any, np.dtype[np.complexfloating[Any, Any]]],
-            np.fft.rfft(chunk),
-        )
-        frequencies = cast(
-            np.ndarray[Any, np.dtype[np.floating[Any]]],
-            np.fft.rfftfreq(chunk.size, d=1.0 / sample_rate),
-        )
-        bass_mask = frequencies <= self.config.bass_cutoff_hz
-        vocal_mask = (frequencies >= self.config.vocal_low_hz) & (
-            frequencies < self.config.vocal_high_hz
-        )
-        drum_mask = frequencies >= self.config.drum_low_hz
-        other_mask = ~(bass_mask | vocal_mask | drum_mask)
-
-        return {
-            "vocals": _ifft_band(spectrum, vocal_mask, chunk.size),
-            "bass": _ifft_band(spectrum, bass_mask, chunk.size),
-            "drums": _ifft_band(spectrum, drum_mask, chunk.size),
-            "other": _ifft_band(spectrum, other_mask, chunk.size),
-        }
+        """Split one chunk using the local spectral model backend."""
+        return self._model.separate_chunk(chunk, sample_rate)
 
     def _fit_length(self, audio: AudioStemArray, target_length: int) -> AudioStemArray:
         """Trim or pad a stem to match the source length exactly."""
@@ -180,16 +179,21 @@ class AudioStemSeparator:
             fitted[:copy_length] = audio[:copy_length]
         return cast(AudioStemArray, fitted)
 
+    def _resolve_compute_device(self, preference: str) -> str:
+        """Resolve preferred compute device for optional accelerated backends."""
+        normalized = preference.strip().lower()
+        if normalized in {"cpu", "mps", "cuda"}:
+            return normalized
+        try:
+            import torch  # type: ignore[import-not-found]
 
-def _ifft_band(
-    spectrum: np.ndarray[Any, np.dtype[np.complexfloating[Any, Any]]],
-    mask: np.ndarray[Any, np.dtype[np.bool_]],
-    target_length: int,
-) -> AudioStemArray:
-    """Convert a masked FFT spectrum into a finite float32 stem."""
-    masked = np.where(mask, spectrum, 0)
-    audio = np.fft.irfft(masked, n=target_length)
-    return _as_float_array(audio)
+            if torch.cuda.is_available():
+                return "cuda"
+            if bool(getattr(torch.backends, "mps", None)) and torch.backends.mps.is_available():
+                return "mps"
+        except Exception:
+            return "cpu"
+        return "cpu"
 
 
 def _as_float_array(values: object) -> AudioStemArray:

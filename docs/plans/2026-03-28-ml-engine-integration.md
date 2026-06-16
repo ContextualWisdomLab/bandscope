@@ -16,6 +16,7 @@ This document outlines the MECE execution strategy to incrementally substitute m
 - **Goal**: Deconstruct the mixed audio into isolated stems.
 - **Tech**: Integrate `demucs` (or a smaller alternative) running locally.
 - **Output**: 4 or 6 discrete stems (vocals, bass, drums, other).
+- **Implemented (2026-06)**: Local lightweight spectral model (HPSS + bounded NMF), chunked inference to bound memory use, canonical stem mapping (`vocals`, `bass`, `drums`, `other`), and opt-in model-weight download with allowlisted HTTPS + SHA-256 verification.
 
 ### Track 3: Harmonic & Pitch Pipelines (#107) (COMPLETED)
 

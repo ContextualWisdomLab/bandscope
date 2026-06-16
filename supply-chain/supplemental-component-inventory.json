@@ -11,7 +11,17 @@
       "releaseUsage": "Used by analysis-engine to extract audio from YouTube URLs."
     }
   ],
-  "modelArtifacts": [],
+  "modelArtifacts": [
+    {
+      "name": "bandscope-stem-priors",
+      "version": "v1",
+      "sourceUrl": "https://github.com/Seongho-Bae/bandscope/releases/download/model-assets/stem-priors-v1.npz",
+      "checksum": "sha256:f13ecb6ffdc8f94567df4af41db0adcc8c52d854be06a3f66f30f0b7308f470f",
+      "license": "CC0-1.0",
+      "storagePath": "$BANDSCOPE_MODEL_CACHE/stem-priors-v1.npz",
+      "releaseUsage": "Optional verified priors for local spectral stem separation."
+    }
+  ],
   "notes": [
     "Add ffmpeg, yt-dlp, model weights, or sidecar assets here before they ship.",
     "Track source URL, version, checksum, license, storage path, and release usage for every item."
