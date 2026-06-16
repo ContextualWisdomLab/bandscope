@@ -26,21 +26,16 @@ logger = logging.getLogger(__name__)
 # RMS energy threshold below which a stem is considered silent/inactive in a window.
 _RMS_ACTIVITY_THRESHOLD = 0.01
 
-# Maps stem names to the role IDs they drive.
+# Maps stem names from source-separation output to the role IDs they drive.
+# Demucs produces four stems: vocals, bass, drums, other.  "other" captures
+# everything that is not vocals, bass, or percussion — guitars, keys, synths —
+# so it maps to all remaining melodic/harmonic roles.  Drums are intentionally
+# left unmapped: they are nearly always active and do not help disambiguate
+# structural sections.
 _STEM_TO_ROLE_IDS: dict[str, list[str]] = {
     "vocals": ["lead-vocal"],
     "bass": ["bass-guitar"],
-    "drums": ["acoustic-guitar"],
-    "other": ["keys-left", "keys-right"],
-}
-
-# Maps each role ID back to the stem that controls its activity.
-_ROLE_ID_TO_STEM: dict[str, str] = {
-    "lead-vocal": "vocals",
-    "bass-guitar": "bass",
-    "acoustic-guitar": "drums",
-    "keys-left": "other",
-    "keys-right": "other",
+    "other": ["keys-left", "keys-right", "acoustic-guitar"],
 }
 
 

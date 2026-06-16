@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
@@ -305,15 +306,15 @@ def _mix_stems(stems: dict[str, Any]) -> np.ndarray:
     if not arrays:
         return np.zeros(1024, dtype=np.float32)
     max_len = max(a.shape[0] for a in arrays)
-    mix = np.zeros(max_len, dtype=np.float64)
+    mix = np.zeros(max_len, dtype=np.float32)
     for a in arrays:
-        mix[: a.shape[0]] += a.astype(np.float64)
-    return mix.astype(np.float32)
+        mix[: a.shape[0]] += a.astype(np.float32)
+    return mix
 
 
 def _song_id_from_label(source_label: str) -> str:
     """Derive a stable song ID from the source label."""
-    slug = source_label.lower().replace(" ", "-").replace("/", "-").replace("\\", "-")
+    slug = re.sub(r"[^a-z0-9]+", "-", source_label.lower()).strip("-")
     return slug[:64] or "song"
 
 

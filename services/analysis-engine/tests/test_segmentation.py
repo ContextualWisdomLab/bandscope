@@ -50,12 +50,13 @@ def test_infer_label_first_and_last() -> None:
 
 def test_infer_label_middle_positions() -> None:
     """Middle segments get verse / chorus / bridge labels from position heuristics."""
+    _valid_labels = {"intro", "verse", "chorus", "bridge", "outro"}
     # position ≈ 0.25 (verse range)
     label = _infer_label(1, 6, 0.25)
-    assert label in {"verse", "chorus", "bridge", "pre-chorus", "tag", "pickup", "stop", "handoff"}
+    assert label in _valid_labels
     # position ≈ 0.45 (chorus range)
     label = _infer_label(2, 6, 0.45)
-    assert label in {"verse", "chorus", "bridge", "pre-chorus", "tag", "pickup", "stop", "handoff"}
+    assert label in _valid_labels
 
 
 # ---------------------------------------------------------------------------
