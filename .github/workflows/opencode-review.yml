@@ -1621,14 +1621,15 @@ jobs:
             failed_checks_file="$(mktemp)"
             failed_check_evidence_file="$(mktemp)"
             failed_check_review_body_file="$(mktemp)"
-            pending_checks_file="$(mktemp)"
+            pending_checks_file=""
+            opencode_outcome_summary="OpenCode outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
             # shellcheck disable=SC2329
             cleanup_failed_outcome_files() {
               rm -f "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$pending_checks_file"
             }
             trap cleanup_failed_outcome_files EXIT
             if ! collect_github_checks_with_retry collect_failed_github_checks "$failed_checks_file"; then
-              request_changes_for_gate_failure "GitHub Checks could not be retrieved. OpenCode outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
+              request_changes_for_gate_failure "GitHub Checks could not be retrieved. ${opencode_outcome_summary}"
             elif [ -s "$failed_checks_file" ]; then
               if ! env GH_TOKEN="$check_read_token" scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
                 printf "Failed GitHub Check evidence could not be collected for current head \`%s\`.\n" "$HEAD_SHA" >"$failed_check_evidence_file"
@@ -1639,20 +1640,23 @@ jobs:
                 build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
                 create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
               fi
-            elif ! collect_github_checks_with_retry collect_pending_github_checks "$pending_checks_file"; then
-              request_changes_for_gate_failure "GitHub Checks pending contexts could not be retrieved. OpenCode outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
-            elif [ -s "$pending_checks_file" ]; then
-              build_pending_check_body "$pending_checks_file" "$failed_check_review_body_file"
-              create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
             else
-              create_pull_review "APPROVE" "$(printf '%s\n' \
-                "OpenCode Agent could not complete its review, but current-head GitHub Checks show no failed or pending contexts." \
-                "" \
-                "- Result: APPROVE" \
-                "- Reason: OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}." \
-                "- Head SHA: \`${HEAD_SHA}\`" \
-                "- Workflow run: ${RUN_ID}" \
-                "- Workflow attempt: ${RUN_ATTEMPT}")"
+              pending_checks_file="$(mktemp)"
+              if ! collect_github_checks_with_retry collect_pending_github_checks "$pending_checks_file"; then
+                request_changes_for_gate_failure "GitHub Checks pending contexts could not be retrieved. ${opencode_outcome_summary}"
+              elif [ -s "$pending_checks_file" ]; then
+                build_pending_check_body "$pending_checks_file" "$failed_check_review_body_file"
+                create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+              else
+                create_pull_review "APPROVE" "$(printf '%s\n' \
+                  "OpenCode Agent could not complete its review, but current-head GitHub Checks show no failed or pending contexts." \
+                  "" \
+                  "- Result: APPROVE" \
+                  "- Reason: ${opencode_outcome_summary}" \
+                  "- Head SHA: \`${HEAD_SHA}\`" \
+                  "- Workflow run: ${RUN_ID}" \
+                  "- Workflow attempt: ${RUN_ATTEMPT}")"
+              fi
             fi
             echo "::endgroup::"
             exit 0
