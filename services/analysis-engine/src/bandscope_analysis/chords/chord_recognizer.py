@@ -68,7 +68,7 @@ class ChordRecognizer:
             self_loop_prob: Probability of staying on the same chord (0 < p < 1).
 
         Returns:
-            Row-normalised transition matrix of shape (n_states, n_states).
+            Row-normalized transition matrix of shape (n_states, n_states).
         """
         if n_states <= 1:
             return np.ones((max(n_states, 1), max(n_states, 1)))

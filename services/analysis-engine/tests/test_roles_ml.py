@@ -148,6 +148,8 @@ def test_role_extractor_harmonic_stem_sets_keys_chord() -> None:
         mock_track.return_value = {"lowest_note": "A3", "highest_note": "A4"}
 
         def side_effect_recognize(y: np.ndarray, sr: int) -> list[dict]:
+            # Identity comparison is safe here because the stem arrays are the
+            # exact same objects passed into audio_features; no copy is made.
             if y is bass_stem:
                 return [{"chord": "Emaj", "start_time": 0.0, "end_time": 1.0}]
             if y is other_stem:

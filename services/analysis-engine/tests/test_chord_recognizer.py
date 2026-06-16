@@ -174,8 +174,8 @@ def test_decode_with_viterbi_output_shape() -> None:
     n_chords = 24
     n_frames = 50
     # Simulate similarity matrix: random non-negative values
-    np.random.seed(0)
-    similarity = np.abs(np.random.randn(n_chords, n_frames))
+    rng = np.random.default_rng(0)
+    similarity = np.abs(rng.standard_normal((n_chords, n_frames)))
     states = recognizer._decode_with_viterbi(similarity)
     assert states.shape == (n_frames,)
     assert all(0 <= s < n_chords for s in states)
@@ -199,8 +199,8 @@ def test_decode_with_viterbi_fallback_on_exception() -> None:
     recognizer = ChordRecognizer()
     n_chords = 24
     n_frames = 10
-    np.random.seed(42)
-    similarity = np.abs(np.random.randn(n_chords, n_frames))
+    rng = np.random.default_rng(42)
+    similarity = np.abs(rng.standard_normal((n_chords, n_frames)))
     with patch("librosa.sequence.viterbi_discriminative", side_effect=RuntimeError("fail")):
         states = recognizer._decode_with_viterbi(similarity)
     # Should fall back to argmax
