@@ -23,7 +23,19 @@ import {
   type LocalAudioSource,
   type RehearsalSong,
   MAX_SECTION_TIME_SECONDS,
-  SUPPORTED_AUDIO_FORMATS
+  SUPPORTED_AUDIO_FORMATS,
+  createCollaborationSession,
+  createRehearsalComment,
+  createPlayerAssignment,
+  createRoleApproval,
+  isCollaborationSession,
+  parseCollaborationSession,
+  type CollaborationSession,
+  COMMENT_STATUSES,
+  APPROVAL_STATUSES,
+  ASSIGNMENT_STATUSES,
+  COLLABORATION_SESSION_STATES,
+  COMMENT_TARGET_KINDS
 } from "../src/index";
 
 describe("shared type helpers", () => {
@@ -1195,5 +1207,375 @@ describe("shared type helpers", () => {
 
     expect(() => parseSongRehearsalPack({ ...validPack, id: 123 })).toThrow("id");
     expect(() => parseSongRehearsalPack({ ...validPack, sourceLabel: 123 })).toThrow("sourceLabel");
+  });
+
+  it("creates and validates collaboration sessions with participants, comments, approvals, and assignments", () => {
+    const session = createCollaborationSession({
+      id: "session-1",
+      workspaceId: "workspace-1"
+    });
+
+    expect(session.id).toBe("session-1");
+    expect(session.workspaceId).toBe("workspace-1");
+    expect(session.state).toBe("active");
+    expect(session.participants).toEqual([]);
+    expect(session.comments).toEqual([]);
+    expect(session.approvals).toEqual([]);
+    expect(session.assignments).toEqual([]);
+    expect(session.createdAt).toBeTruthy();
+    expect(session.updatedAt).toBeTruthy();
+    expect(isCollaborationSession(session)).toBe(true);
+
+    // Test with full data
+    const fullSession: CollaborationSession = {
+      id: "session-full",
+      workspaceId: "workspace-1",
+      state: "active",
+      participants: [
+        { id: "p-1", displayName: "Alice", role: "bass" },
+        { id: "p-2", displayName: "Bob", role: "keys" }
+      ],
+      comments: [
+        {
+          id: "c-1",
+          authorId: "p-1",
+          target: { kind: "section", sectionId: "verse-1" },
+          body: "Needs more punch here",
+          status: "active",
+          createdAt: "2026-06-15T10:00:00.000Z",
+          updatedAt: "2026-06-15T10:00:00.000Z"
+        },
+        {
+          id: "c-2",
+          authorId: "p-2",
+          target: { kind: "role", sectionId: "verse-1", roleId: "bass-guitar" },
+          body: "I'll simplify this run",
+          status: "resolved",
+          createdAt: "2026-06-15T10:05:00.000Z",
+          updatedAt: "2026-06-15T10:10:00.000Z",
+          parentId: "c-1"
+        },
+        {
+          id: "c-3",
+          authorId: "p-1",
+          target: { kind: "song" },
+          body: "Overall feels good",
+          status: "active",
+          createdAt: "2026-06-15T11:00:00.000Z",
+          updatedAt: "2026-06-15T11:00:00.000Z"
+        }
+      ],
+      approvals: [
+        {
+          roleId: "bass-guitar",
+          sectionId: "verse-1",
+          status: "approved",
+          reviewerId: "p-1",
+          comment: "Sounds good",
+          updatedAt: "2026-06-15T12:00:00.000Z"
+        }
+      ],
+      assignments: [
+        {
+          id: "a-1",
+          participantId: "p-1",
+          roleId: "bass-guitar",
+          status: "in_progress",
+          notes: "Focus on the turnaround",
+          assignedAt: "2026-06-15T09:00:00.000Z"
+        }
+      ],
+      createdAt: "2026-06-15T08:00:00.000Z",
+      updatedAt: "2026-06-15T12:00:00.000Z"
+    };
+
+    expect(isCollaborationSession(fullSession)).toBe(true);
+    expect(parseCollaborationSession(fullSession)).toEqual(fullSession);
+
+    // Constant arrays are exported correctly
+    expect(COMMENT_STATUSES).toEqual(["active", "resolved", "archived"]);
+    expect(APPROVAL_STATUSES).toEqual(["pending", "approved", "changes_requested"]);
+    expect(ASSIGNMENT_STATUSES).toEqual(["assigned", "in_progress", "done"]);
+    expect(COLLABORATION_SESSION_STATES).toEqual(["active", "paused", "closed"]);
+    expect(COMMENT_TARGET_KINDS).toEqual(["section", "role", "song"]);
+  });
+
+  it("creates rehearsal comments with various target kinds", () => {
+    const sectionComment = createRehearsalComment({
+      id: "c-1",
+      authorId: "author-1",
+      target: { kind: "section", sectionId: "verse-1" },
+      body: "Let's work on timing here"
+    });
+    expect(sectionComment.status).toBe("active");
+    expect(sectionComment.target.kind).toBe("section");
+    expect(sectionComment.parentId).toBeUndefined();
+
+    const replyComment = createRehearsalComment({
+      id: "c-2",
+      authorId: "author-2",
+      target: { kind: "role", sectionId: "verse-1", roleId: "bass-guitar" },
+      body: "Agreed, I'll simplify",
+      parentId: "c-1"
+    });
+    expect(replyComment.parentId).toBe("c-1");
+    expect(replyComment.target.roleId).toBe("bass-guitar");
+
+    const songComment = createRehearsalComment({
+      id: "c-3",
+      authorId: "author-1",
+      target: { kind: "song" },
+      body: "Great rehearsal!"
+    });
+    expect(songComment.target.kind).toBe("song");
+  });
+
+  it("creates player assignments and role approvals", () => {
+    const assignment = createPlayerAssignment({
+      id: "a-1",
+      participantId: "p-1",
+      roleId: "bass-guitar",
+      notes: "Focus on the bridge section"
+    });
+    expect(assignment.status).toBe("assigned");
+    expect(assignment.notes).toBe("Focus on the bridge section");
+    expect(assignment.assignedAt).toBeTruthy();
+
+    const noNotesAssignment = createPlayerAssignment({
+      id: "a-2",
+      participantId: "p-2",
+      roleId: "keys-right"
+    });
+    expect(noNotesAssignment.notes).toBe("");
+
+    const approval = createRoleApproval({
+      roleId: "bass-guitar",
+      sectionId: "verse-1",
+      reviewerId: "p-2",
+      status: "approved",
+      comment: "Sounds great after simplification"
+    });
+    expect(approval.status).toBe("approved");
+    expect(approval.comment).toBe("Sounds great after simplification");
+
+    const pendingApproval = createRoleApproval({
+      roleId: "keys-right",
+      sectionId: "chorus-1",
+      reviewerId: "p-1"
+    });
+    expect(pendingApproval.status).toBe("pending");
+    expect(pendingApproval.comment).toBe("");
+  });
+
+  it("validates collaboration session fields and rejects invalid payloads", () => {
+    const validSession: CollaborationSession = {
+      id: "session-1",
+      workspaceId: "workspace-1",
+      state: "active",
+      participants: [{ id: "p-1", displayName: "Alice", role: "bass" }],
+      comments: [{
+        id: "c-1",
+        authorId: "p-1",
+        target: { kind: "song" },
+        body: "Hello",
+        status: "active",
+        createdAt: "2026-06-15T10:00:00.000Z",
+        updatedAt: "2026-06-15T10:00:00.000Z"
+      }],
+      approvals: [{
+        roleId: "bass-guitar",
+        sectionId: "verse-1",
+        status: "pending",
+        reviewerId: "p-1",
+        comment: "",
+        updatedAt: "2026-06-15T12:00:00.000Z"
+      }],
+      assignments: [{
+        id: "a-1",
+        participantId: "p-1",
+        roleId: "bass-guitar",
+        status: "assigned",
+        notes: "",
+        assignedAt: "2026-06-15T09:00:00.000Z"
+      }],
+      createdAt: "2026-06-15T08:00:00.000Z",
+      updatedAt: "2026-06-15T12:00:00.000Z"
+    };
+
+    expect(isCollaborationSession(validSession)).toBe(true);
+    expect(parseCollaborationSession(validSession)).toEqual(validSession);
+
+    // Invalid root
+    expect(isCollaborationSession(null)).toBe(false);
+    expect(() => parseCollaborationSession(null)).toThrow("root");
+
+    // Extra fields
+    expect(() => parseCollaborationSession({ ...validSession, extraField: true })).toThrow("extraField");
+
+    // Invalid top-level fields
+    expect(() => parseCollaborationSession({ ...validSession, id: "" })).toThrow("id");
+    expect(() => parseCollaborationSession({ ...validSession, id: "  " })).toThrow("id");
+    expect(() => parseCollaborationSession({ ...validSession, workspaceId: "" })).toThrow("workspaceId");
+    expect(() => parseCollaborationSession({ ...validSession, state: "unknown" })).toThrow("state");
+    expect(() => parseCollaborationSession({ ...validSession, createdAt: "" })).toThrow("createdAt");
+    expect(() => parseCollaborationSession({ ...validSession, updatedAt: "  " })).toThrow("updatedAt");
+
+    // Invalid participants
+    expect(() => parseCollaborationSession({ ...validSession, participants: "bad" })).toThrow("participants");
+    expect(() => parseCollaborationSession({ ...validSession, participants: [null] })).toThrow("participants[0]");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      participants: [{ id: "", displayName: "Alice", role: "bass" }]
+    })).toThrow("participants[0].id");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      participants: [{ id: "p-1", displayName: "  ", role: "bass" }]
+    })).toThrow("participants[0].displayName");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      participants: [{ id: "p-1", displayName: "Alice", role: 42 }]
+    })).toThrow("participants[0].role");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      participants: [{ id: "p-1", displayName: "Alice", role: "bass", extraField: true }]
+    })).toThrow("participants[0].extraField");
+
+    // Invalid comments
+    expect(() => parseCollaborationSession({ ...validSession, comments: "bad" })).toThrow("comments");
+    expect(() => parseCollaborationSession({ ...validSession, comments: [null] })).toThrow("comments[0]");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], id: "" }]
+    })).toThrow("comments[0].id");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], authorId: "  " }]
+    })).toThrow("comments[0].authorId");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], target: null }]
+    })).toThrow("comments[0].target");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], target: { kind: "invalid" } }]
+    })).toThrow("comments[0].target.kind");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], body: 42 }]
+    })).toThrow("comments[0].body");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], status: "deleted" }]
+    })).toThrow("comments[0].status");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], createdAt: "" }]
+    })).toThrow("comments[0].createdAt");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], updatedAt: " " }]
+    })).toThrow("comments[0].updatedAt");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], parentId: 42 }]
+    })).toThrow("comments[0].parentId");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], extraField: true }]
+    })).toThrow("comments[0].extraField");
+
+    // Comment target: section must have sectionId
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], target: { kind: "section" } }]
+    })).toThrow("comments[0].target.sectionId");
+
+    // Comment target: role must have sectionId and roleId
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], target: { kind: "role", sectionId: "verse-1" } }]
+    })).toThrow("comments[0].target.roleId");
+
+    // Comment target: extra field rejection
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], target: { kind: "song", extraField: true } }]
+    })).toThrow("comments[0].target.extraField");
+
+    // Comment target: invalid sectionId type
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], target: { kind: "section", sectionId: 42 } }]
+    })).toThrow("comments[0].target.sectionId");
+
+    // Comment target: invalid roleId type
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      comments: [{ ...validSession.comments[0], target: { kind: "role", sectionId: "verse-1", roleId: 42 } }]
+    })).toThrow("comments[0].target.roleId");
+
+    // Invalid approvals
+    expect(() => parseCollaborationSession({ ...validSession, approvals: "bad" })).toThrow("approvals");
+    expect(() => parseCollaborationSession({ ...validSession, approvals: [null] })).toThrow("approvals[0]");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      approvals: [{ ...validSession.approvals[0], roleId: "" }]
+    })).toThrow("approvals[0].roleId");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      approvals: [{ ...validSession.approvals[0], sectionId: " " }]
+    })).toThrow("approvals[0].sectionId");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      approvals: [{ ...validSession.approvals[0], status: "rejected" }]
+    })).toThrow("approvals[0].status");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      approvals: [{ ...validSession.approvals[0], reviewerId: "" }]
+    })).toThrow("approvals[0].reviewerId");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      approvals: [{ ...validSession.approvals[0], comment: 42 }]
+    })).toThrow("approvals[0].comment");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      approvals: [{ ...validSession.approvals[0], updatedAt: "" }]
+    })).toThrow("approvals[0].updatedAt");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      approvals: [{ ...validSession.approvals[0], extraField: true }]
+    })).toThrow("approvals[0].extraField");
+
+    // Invalid assignments
+    expect(() => parseCollaborationSession({ ...validSession, assignments: "bad" })).toThrow("assignments");
+    expect(() => parseCollaborationSession({ ...validSession, assignments: [null] })).toThrow("assignments[0]");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      assignments: [{ ...validSession.assignments[0], id: "" }]
+    })).toThrow("assignments[0].id");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      assignments: [{ ...validSession.assignments[0], participantId: " " }]
+    })).toThrow("assignments[0].participantId");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      assignments: [{ ...validSession.assignments[0], roleId: "" }]
+    })).toThrow("assignments[0].roleId");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      assignments: [{ ...validSession.assignments[0], status: "cancelled" }]
+    })).toThrow("assignments[0].status");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      assignments: [{ ...validSession.assignments[0], notes: 42 }]
+    })).toThrow("assignments[0].notes");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      assignments: [{ ...validSession.assignments[0], assignedAt: "" }]
+    })).toThrow("assignments[0].assignedAt");
+    expect(() => parseCollaborationSession({
+      ...validSession,
+      assignments: [{ ...validSession.assignments[0], extraField: true }]
+    })).toThrow("assignments[0].extraField");
   });
 });

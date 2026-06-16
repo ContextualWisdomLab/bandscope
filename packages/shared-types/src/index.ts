@@ -1553,3 +1553,286 @@ export function parseRehearsalWorkspace(value: unknown): RehearsalWorkspace {
   ));
   return parsed;
 }
+
+// ─── V2: Advanced Rehearsal Collaboration ───────────────────────────────────
+
+export /** Documented. */
+const COMMENT_STATUSES = ["active", "resolved", "archived"] as const;
+export /** Documented. */
+const APPROVAL_STATUSES = ["pending", "approved", "changes_requested"] as const;
+export /** Documented. */
+const ASSIGNMENT_STATUSES = ["assigned", "in_progress", "done"] as const;
+export /** Documented. */
+const COLLABORATION_SESSION_STATES = ["active", "paused", "closed"] as const;
+export /** Documented. */
+const COMMENT_TARGET_KINDS = ["section", "role", "song"] as const;
+
+/** Documented. */
+export type CommentStatus = (typeof COMMENT_STATUSES)[number];
+/** Documented. */
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+/** Documented. */
+export type AssignmentStatus = (typeof ASSIGNMENT_STATUSES)[number];
+/** Documented. */
+export type CollaborationSessionState = (typeof COLLABORATION_SESSION_STATES)[number];
+/** Documented. */
+export type CommentTargetKind = (typeof COMMENT_TARGET_KINDS)[number];
+
+/** Documented. */
+export type CollaborationParticipant = {
+  id: string;
+  displayName: string;
+  role: string;
+};
+
+/** Documented. */
+export type CommentTarget = {
+  kind: CommentTargetKind;
+  sectionId?: string;
+  roleId?: string;
+};
+
+/** Documented. */
+export type RehearsalComment = {
+  id: string;
+  authorId: string;
+  target: CommentTarget;
+  body: string;
+  status: CommentStatus;
+  createdAt: string;
+  updatedAt: string;
+  parentId?: string;
+};
+
+/** Documented. */
+export type RoleApproval = {
+  roleId: string;
+  sectionId: string;
+  status: ApprovalStatus;
+  reviewerId: string;
+  comment: string;
+  updatedAt: string;
+};
+
+/** Documented. */
+export type PlayerAssignment = {
+  id: string;
+  participantId: string;
+  roleId: string;
+  status: AssignmentStatus;
+  notes: string;
+  assignedAt: string;
+};
+
+/** Documented. */
+export type CollaborationSession = {
+  id: string;
+  workspaceId: string;
+  state: CollaborationSessionState;
+  participants: CollaborationParticipant[];
+  comments: RehearsalComment[];
+  approvals: RoleApproval[];
+  assignments: PlayerAssignment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Documented. */
+function validateCollaborationParticipant(value: unknown, path: string): string | null {
+  if (!isRecord(value)) return invalidField(path);
+  const extraKey = unexpectedKey(value, ["id", "displayName", "role"], path);
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string" || value.id.trim().length === 0) return invalidField(`${path}.id`);
+  if (typeof value.displayName !== "string" || value.displayName.trim().length === 0) return invalidField(`${path}.displayName`);
+  if (typeof value.role !== "string") return invalidField(`${path}.role`);
+  return null;
+}
+
+/** Documented. */
+function validateCommentTarget(value: unknown, path: string): string | null {
+  if (!isRecord(value)) return invalidField(path);
+  const extraKey = unexpectedKey(value, ["kind", "sectionId", "roleId"], path);
+  if (extraKey) return extraKey;
+  if (!isOneOf(COMMENT_TARGET_KINDS, value.kind)) return invalidField(`${path}.kind`);
+  if (value.sectionId !== undefined && typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
+  if (value.roleId !== undefined && typeof value.roleId !== "string") return invalidField(`${path}.roleId`);
+  if (value.kind === "section" && typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
+  if (value.kind === "role" && (typeof value.sectionId !== "string" || typeof value.roleId !== "string")) {
+    return invalidField(`${path}.roleId`);
+  }
+  return null;
+}
+
+/** Documented. */
+function validateRehearsalComment(value: unknown, path: string): string | null {
+  if (!isRecord(value)) return invalidField(path);
+  const extraKey = unexpectedKey(value, ["id", "authorId", "target", "body", "status", "createdAt", "updatedAt", "parentId"], path);
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string" || value.id.trim().length === 0) return invalidField(`${path}.id`);
+  if (typeof value.authorId !== "string" || value.authorId.trim().length === 0) return invalidField(`${path}.authorId`);
+  const targetError = validateCommentTarget(value.target, `${path}.target`);
+  if (targetError) return targetError;
+  if (typeof value.body !== "string") return invalidField(`${path}.body`);
+  if (!isOneOf(COMMENT_STATUSES, value.status)) return invalidField(`${path}.status`);
+  if (typeof value.createdAt !== "string" || value.createdAt.trim().length === 0) return invalidField(`${path}.createdAt`);
+  if (typeof value.updatedAt !== "string" || value.updatedAt.trim().length === 0) return invalidField(`${path}.updatedAt`);
+  if (value.parentId !== undefined && typeof value.parentId !== "string") return invalidField(`${path}.parentId`);
+  return null;
+}
+
+/** Documented. */
+function validateRoleApproval(value: unknown, path: string): string | null {
+  if (!isRecord(value)) return invalidField(path);
+  const extraKey = unexpectedKey(value, ["roleId", "sectionId", "status", "reviewerId", "comment", "updatedAt"], path);
+  if (extraKey) return extraKey;
+  if (typeof value.roleId !== "string" || value.roleId.trim().length === 0) return invalidField(`${path}.roleId`);
+  if (typeof value.sectionId !== "string" || value.sectionId.trim().length === 0) return invalidField(`${path}.sectionId`);
+  if (!isOneOf(APPROVAL_STATUSES, value.status)) return invalidField(`${path}.status`);
+  if (typeof value.reviewerId !== "string" || value.reviewerId.trim().length === 0) return invalidField(`${path}.reviewerId`);
+  if (typeof value.comment !== "string") return invalidField(`${path}.comment`);
+  if (typeof value.updatedAt !== "string" || value.updatedAt.trim().length === 0) return invalidField(`${path}.updatedAt`);
+  return null;
+}
+
+/** Documented. */
+function validatePlayerAssignment(value: unknown, path: string): string | null {
+  if (!isRecord(value)) return invalidField(path);
+  const extraKey = unexpectedKey(value, ["id", "participantId", "roleId", "status", "notes", "assignedAt"], path);
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string" || value.id.trim().length === 0) return invalidField(`${path}.id`);
+  if (typeof value.participantId !== "string" || value.participantId.trim().length === 0) return invalidField(`${path}.participantId`);
+  if (typeof value.roleId !== "string" || value.roleId.trim().length === 0) return invalidField(`${path}.roleId`);
+  if (!isOneOf(ASSIGNMENT_STATUSES, value.status)) return invalidField(`${path}.status`);
+  if (typeof value.notes !== "string") return invalidField(`${path}.notes`);
+  if (typeof value.assignedAt !== "string" || value.assignedAt.trim().length === 0) return invalidField(`${path}.assignedAt`);
+  return null;
+}
+
+/** Documented. */
+function validateCollaborationSession(value: unknown): string | null {
+  if (!isRecord(value)) return invalidField("root");
+  const extraKey = unexpectedKey(
+    value,
+    ["id", "workspaceId", "state", "participants", "comments", "approvals", "assignments", "createdAt", "updatedAt"],
+    ""
+  );
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string" || value.id.trim().length === 0) return invalidField("id");
+  if (typeof value.workspaceId !== "string" || value.workspaceId.trim().length === 0) return invalidField("workspaceId");
+  if (!isOneOf(COLLABORATION_SESSION_STATES, value.state)) return invalidField("state");
+  if (typeof value.createdAt !== "string" || value.createdAt.trim().length === 0) return invalidField("createdAt");
+  if (typeof value.updatedAt !== "string" || value.updatedAt.trim().length === 0) return invalidField("updatedAt");
+
+  if (!isDenseArray(value.participants)) return invalidField("participants");
+  for (const [index, p] of value.participants.entries()) {
+    const pError = validateCollaborationParticipant(p, `participants[${index}]`);
+    if (pError) return pError;
+  }
+
+  if (!isDenseArray(value.comments)) return invalidField("comments");
+  for (const [index, c] of value.comments.entries()) {
+    const cError = validateRehearsalComment(c, `comments[${index}]`);
+    if (cError) return cError;
+  }
+
+  if (!isDenseArray(value.approvals)) return invalidField("approvals");
+  for (const [index, a] of value.approvals.entries()) {
+    const aError = validateRoleApproval(a, `approvals[${index}]`);
+    if (aError) return aError;
+  }
+
+  if (!isDenseArray(value.assignments)) return invalidField("assignments");
+  for (const [index, assign] of value.assignments.entries()) {
+    const assignError = validatePlayerAssignment(assign, `assignments[${index}]`);
+    if (assignError) return assignError;
+  }
+
+  return null;
+}
+
+/** Documented. */
+export function isCollaborationSession(value: unknown): value is CollaborationSession {
+  return validateCollaborationSession(value) === null;
+}
+
+/** Documented. */
+export function parseCollaborationSession(value: unknown): CollaborationSession {
+  const validationError = validateCollaborationSession(value);
+  if (validationError) throw new Error(validationError);
+  return structuredClone(value as CollaborationSession);
+}
+
+/** Documented. */
+export function createCollaborationSession(input: {
+  id: string;
+  workspaceId: string;
+}): CollaborationSession {
+  const now = new Date().toISOString();
+  return {
+    id: input.id,
+    workspaceId: input.workspaceId,
+    state: "active",
+    participants: [],
+    comments: [],
+    approvals: [],
+    assignments: [],
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+/** Documented. */
+export function createRehearsalComment(input: {
+  id: string;
+  authorId: string;
+  target: CommentTarget;
+  body: string;
+  parentId?: string;
+}): RehearsalComment {
+  const now = new Date().toISOString();
+  return {
+    id: input.id,
+    authorId: input.authorId,
+    target: input.target,
+    body: input.body,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+    ...(input.parentId !== undefined ? { parentId: input.parentId } : {})
+  };
+}
+
+/** Documented. */
+export function createPlayerAssignment(input: {
+  id: string;
+  participantId: string;
+  roleId: string;
+  notes?: string;
+}): PlayerAssignment {
+  return {
+    id: input.id,
+    participantId: input.participantId,
+    roleId: input.roleId,
+    status: "assigned",
+    notes: input.notes ?? "",
+    assignedAt: new Date().toISOString()
+  };
+}
+
+/** Documented. */
+export function createRoleApproval(input: {
+  roleId: string;
+  sectionId: string;
+  reviewerId: string;
+  status?: ApprovalStatus;
+  comment?: string;
+}): RoleApproval {
+  return {
+    roleId: input.roleId,
+    sectionId: input.sectionId,
+    status: input.status ?? "pending",
+    reviewerId: input.reviewerId,
+    comment: input.comment ?? "",
+    updatedAt: new Date().toISOString()
+  };
+}
