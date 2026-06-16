@@ -309,7 +309,6 @@ class ChordRecognizer:
         self,
         chromagram: np.ndarray,
         similarity: np.ndarray,
-        best_matches: np.ndarray,
         rms: np.ndarray,
         sr: int,
     ) -> list[TrackedChord]:
@@ -388,9 +387,9 @@ class ChordRecognizer:
             return []
 
         rms = self._calculate_rms(y, chromagram.shape[1])
-        similarity, best_matches = self._match_templates(chromagram)
+        similarity, _best_matches = self._match_templates(chromagram)
 
-        return self._create_chord_segments(chromagram, similarity, best_matches, rms, sr)
+        return self._create_chord_segments(chromagram, similarity, rms, sr)
 
 
 def _confidence_rank(level: str) -> int:

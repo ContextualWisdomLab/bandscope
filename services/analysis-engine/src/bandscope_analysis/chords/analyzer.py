@@ -79,11 +79,16 @@ class ChordAnalyzer:
 
             if user_chords:
                 chords = user_chords
+                section_recognized = []
             elif recognized_chords:
                 # Use DSP-recognized chords for this section's time range
                 section_time = section.get("timeRange")
+                section_recognized = self._filter_recognized_for_section(
+                    recognized_chords, section_time
+                )
                 chords = self._chords_for_section(recognized_chords, section_time)
             else:
+                section_recognized = []
                 # Fall back to model-sourced role harmony data
                 chords = self._extract_role_chords(section_roles)
 
@@ -92,7 +97,7 @@ class ChordAnalyzer:
                 key_center = _infer_key_center(chords[0]["chord"])
 
             confidence_level, confidence_source = self._compute_section_confidence(
-                chords, recognized_chords, user_chords
+                chords, section_recognized, user_chords
             )
 
             summaries.append(
@@ -173,6 +178,21 @@ class ChordAnalyzer:
                         }
                     )
         return chords
+
+    def _filter_recognized_for_section(
+        self,
+        recognized: list[TrackedChord],
+        time_range: dict[str, Any] | None,
+    ) -> list[TrackedChord]:
+        """Filter recognized chords to those overlapping a section's time range."""
+        if not time_range or not isinstance(time_range, dict):
+            return recognized
+
+        start = time_range.get("start", 0)
+        end = time_range.get("end", float("inf"))
+        return [
+            c for c in recognized if c["end_time"] >= start and c["start_time"] <= end
+        ]
 
     def _chords_for_section(
         self,
