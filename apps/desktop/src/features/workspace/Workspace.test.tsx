@@ -91,6 +91,20 @@ describe("Workspace", () => {
     expect(screen.getByText(/2 notes mapped for rehearsal/i)).toBeTruthy();
   });
 
+  it("shows collaboration workflows for the selected role", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByText("Harmony Workflow")).toBeTruthy();
+    expect(screen.getByText("Collaboration")).toBeTruthy();
+    expect(screen.getByText("Mina")).toBeTruthy();
+    expect(screen.getByText(/Nail pickup-to-downbeat lock/i)).toBeTruthy();
+    expect(screen.getByText("MD")).toBeTruthy();
+    expect(screen.getByText(/Root-note simplification is locked/i)).toBeTruthy();
+  });
+
   it("exports a metadata-only handoff artifact from the workspace", async () => {
     const song = createDemoRehearsalSong();
     const sourceBootstrap: ProjectBootstrapSummary = {
@@ -155,5 +169,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText("클라우드 동기화")).toBeTruthy();
   });
 });

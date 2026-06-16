@@ -1,6 +1,10 @@
 export /** Documented. */
 const SUPPORTED_AUDIO_FORMATS = ["wav", "mp3", "flac", "m4a"] as const;
 export /** Documented. */
+const ASSIGNMENT_STATUSES = ["todo", "in_progress", "ready_for_review", "approved"] as const;
+export /** Documented. */
+const APPROVAL_STATUSES = ["pending", "approved", "changes_requested"] as const;
+export /** Documented. */
 const SECTION_FORM_LABELS = [
   "intro",
   "verse",
@@ -35,6 +39,10 @@ export type ProvenanceSource = "model" | "user";
 export type CueAnchorKind = "lyric" | "count" | "transition";
 /** Documented. */
 export type RehearsalPriority = "low" | "medium" | "high";
+/** Documented. */
+export type AssignmentStatus = (typeof ASSIGNMENT_STATUSES)[number];
+/** Documented. */
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 /** Documented. */
 export type ExportFormat = "cue-sheet" | "chart-summary";
 
@@ -81,6 +89,32 @@ export type ManualOverride =
   };
 
 /** Documented. */
+export type RehearsalAssignment = {
+  id: string;
+  assignee: string;
+  task: string;
+  status: AssignmentStatus;
+  dueBy: string;
+};
+
+/** Documented. */
+export type RehearsalComment = {
+  id: string;
+  author: string;
+  message: string;
+  createdAt: string;
+};
+
+/** Documented. */
+export type RehearsalApproval = {
+  id: string;
+  approver: string;
+  target: "harmony" | "simplification" | "transposition";
+  status: ApprovalStatus;
+  note: string;
+};
+
+/** Documented. */
 export type RehearsalRole = {
   id: string;
   name: string;
@@ -94,6 +128,11 @@ export type RehearsalRole = {
   setupNote: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
+  harmonicContext?: string;
+  transpositionPlan?: string;
+  assignments?: RehearsalAssignment[];
+  comments?: RehearsalComment[];
+  approvals?: RehearsalApproval[];
   transcription?: TranscriptionNote[];
 };
 
@@ -299,6 +338,9 @@ const PROVENANCE_SOURCES = ["model", "user"] as const;
 const CUE_ANCHOR_KINDS = ["lyric", "count", "transition"] as const;
 const ROLE_TYPES = ["instrument", "vocal", "hand"] as const;
 const EXPORT_FORMATS = ["cue-sheet", "chart-summary"] as const;
+const ASSIGNMENT_STATUSES_INTERNAL = ["todo", "in_progress", "ready_for_review", "approved"] as const;
+const APPROVAL_STATUSES_INTERNAL = ["pending", "approved", "changes_requested"] as const;
+const APPROVAL_TARGETS = ["harmony", "simplification", "transposition"] as const;
 const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
 const ANALYSIS_JOB_STAGES = ["queued", "decode", "separate", "analyze", "persist", "ready"] as const;
@@ -396,6 +438,34 @@ const demoRehearsalSongSeed: RehearsalSong = {
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
+          ],
+          harmonicContext: "Locks vi against kick accents so the chorus lift can widen without losing root weight.",
+          transpositionPlan: "Drop to drop-D only if the bridge sits below C#2 for two passes.",
+          assignments: [
+            {
+              id: "assign-bass-1",
+              assignee: "Mina",
+              task: "Nail pickup-to-downbeat lock with kick in bars 7-8.",
+              status: "in_progress",
+              dueBy: "Tonight line check"
+            }
+          ],
+          comments: [
+            {
+              id: "comment-bass-1",
+              author: "MD",
+              message: "Keep bar 8 sparse so vocal pickup has room.",
+              createdAt: "2026-03-20T19:05:00Z"
+            }
+          ],
+          approvals: [
+            {
+              id: "approval-bass-1",
+              approver: "Ari",
+              target: "simplification",
+              status: "approved",
+              note: "Root-note simplification is locked for first pass."
+            }
           ]
         },
         {
@@ -426,6 +496,34 @@ const demoRehearsalSongSeed: RehearsalSong = {
           manualOverrides: [],
           overlapWarnings: [
             "Melodic overlap: top notes conflict with Lead Vocal range."
+          ],
+          harmonicContext: "Carries Imaj7 color tone; keep upper extension light during vocal phrases.",
+          transpositionPlan: "Transpose voicing set +2 semitones if singer requests D major center.",
+          assignments: [
+            {
+              id: "assign-keys-1",
+              assignee: "Jun",
+              task: "Prepare two voicing presets: full and stripped triad.",
+              status: "ready_for_review",
+              dueBy: "Before soundcheck"
+            }
+          ],
+          comments: [
+            {
+              id: "comment-keys-1",
+              author: "Keys",
+              message: "Can drop top extension on chorus turnarounds if mix is dense.",
+              createdAt: "2026-03-20T19:08:00Z"
+            }
+          ],
+          approvals: [
+            {
+              id: "approval-keys-1",
+              approver: "MD",
+              target: "harmony",
+              status: "pending",
+              note: "Need one more pass against vocal harmony stack."
+            }
           ]
         },
         {
@@ -466,6 +564,34 @@ const demoRehearsalSongSeed: RehearsalSong = {
           ],
           overlapWarnings: [
             "Melodic overlap: competing with Keyboard 1 Right Hand."
+          ],
+          harmonicContext: "Suspended extension supports lyric tension before chorus release.",
+          transpositionPlan: "If top note strains above C#5, move melody center down one whole step.",
+          assignments: [
+            {
+              id: "assign-vocal-1",
+              assignee: "Sora",
+              task: "Confirm ad-lib cut on first pass and re-enter on second chorus.",
+              status: "todo",
+              dueBy: "Next rehearsal"
+            }
+          ],
+          comments: [
+            {
+              id: "comment-vocal-1",
+              author: "Sora",
+              message: "Breath before last line works better with shorter held note.",
+              createdAt: "2026-03-20T19:12:00Z"
+            }
+          ],
+          approvals: [
+            {
+              id: "approval-vocal-1",
+              approver: "Coach",
+              target: "transposition",
+              status: "changes_requested",
+              note: "Try -2 semitones first; current note still spikes near break."
+            }
           ]
         }
       ],
@@ -1159,6 +1285,84 @@ function validateTranscriptionNote(value: unknown, path: string): string | null 
 }
 
 /** Documented. */
+function validateRehearsalAssignment(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "assignee", "task", "status", "dueBy"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.assignee !== "string") {
+    return invalidField(`${path}.assignee`);
+  }
+  if (typeof value.task !== "string") {
+    return invalidField(`${path}.task`);
+  }
+  if (!isOneOf(ASSIGNMENT_STATUSES_INTERNAL, value.status)) {
+    return invalidField(`${path}.status`);
+  }
+  if (typeof value.dueBy !== "string") {
+    return invalidField(`${path}.dueBy`);
+  }
+  return null;
+}
+
+/** Documented. */
+function validateRehearsalComment(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "author", "message", "createdAt"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.author !== "string") {
+    return invalidField(`${path}.author`);
+  }
+  if (typeof value.message !== "string") {
+    return invalidField(`${path}.message`);
+  }
+  if (typeof value.createdAt !== "string") {
+    return invalidField(`${path}.createdAt`);
+  }
+  return null;
+}
+
+/** Documented. */
+function validateRehearsalApproval(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "approver", "target", "status", "note"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.approver !== "string") {
+    return invalidField(`${path}.approver`);
+  }
+  if (!isOneOf(APPROVAL_TARGETS, value.target)) {
+    return invalidField(`${path}.target`);
+  }
+  if (!isOneOf(APPROVAL_STATUSES_INTERNAL, value.status)) {
+    return invalidField(`${path}.status`);
+  }
+  if (typeof value.note !== "string") {
+    return invalidField(`${path}.note`);
+  }
+  return null;
+}
+
+/** Documented. */
 function validateRehearsalRole(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -1178,6 +1382,11 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "setupNote",
       "manualOverrides",
       "overlapWarnings",
+      "harmonicContext",
+      "transpositionPlan",
+      "assignments",
+      "comments",
+      "approvals",
       "transcription"
     ],
     path
@@ -1239,6 +1448,45 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   for (const [index, warning] of value.overlapWarnings.entries()) {
     if (typeof warning !== "string") {
       return invalidField(`${path}.overlapWarnings[${index}]`);
+    }
+  }
+  if (value.harmonicContext !== undefined && typeof value.harmonicContext !== "string") {
+    return invalidField(`${path}.harmonicContext`);
+  }
+  if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
+    return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.assignments !== undefined) {
+    if (!isDenseArray(value.assignments)) {
+      return invalidField(`${path}.assignments`);
+    }
+    for (const [index, assignment] of value.assignments.entries()) {
+      const assignmentError = validateRehearsalAssignment(assignment, `${path}.assignments[${index}]`);
+      if (assignmentError) {
+        return assignmentError;
+      }
+    }
+  }
+  if (value.comments !== undefined) {
+    if (!isDenseArray(value.comments)) {
+      return invalidField(`${path}.comments`);
+    }
+    for (const [index, comment] of value.comments.entries()) {
+      const commentError = validateRehearsalComment(comment, `${path}.comments[${index}]`);
+      if (commentError) {
+        return commentError;
+      }
+    }
+  }
+  if (value.approvals !== undefined) {
+    if (!isDenseArray(value.approvals)) {
+      return invalidField(`${path}.approvals`);
+    }
+    for (const [index, approval] of value.approvals.entries()) {
+      const approvalError = validateRehearsalApproval(approval, `${path}.approvals[${index}]`);
+      if (approvalError) {
+        return approvalError;
+      }
     }
   }
 

@@ -38,6 +38,14 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
   URL.revokeObjectURL(url);
 }
 
+/** Documented. */
+function toReadableStatus(status: string): string {
+  return status
+    .split("_")
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(" ");
+}
+
 type Translator = ReturnType<typeof createTranslator>;
 
 /** Documented. */
@@ -205,6 +213,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
               </p>
             </section>
+
+            <section className="rounded-2xl border border-sky-300/20 bg-sky-300/[0.06] p-4 lg:col-span-4">
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-sky-200">{t("workspaceCloudSyncLabel")}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{t("workspaceCloudSyncStatus")}</p>
+            </section>
           </div>
 
           <SongStructure sections={song.sections} t={t} />
@@ -241,6 +254,54 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </Button>
                 </div>
                 <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">{t("workspaceHarmonyWorkflowLabel")}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{activeRoleDetails?.harmonicContext || t("workspaceHarmonyWorkflowFallback")}</p>
+                    <p className="mt-2 text-xs text-slate-400">
+                      {t("workspaceTranspositionWorkflowLabel")}: {activeRoleDetails?.transpositionPlan || t("workspaceTranspositionWorkflowFallback")}
+                    </p>
+                  </section>
+                  <section className="rounded-2xl border border-white/10 bg-slate-950/55 p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-200">{t("workspaceCollaborationLabel")}</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-400">
+                      {t("workspaceAssignmentsLabel")} · {activeRoleDetails?.assignments?.length ?? 0}
+                    </p>
+                    <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                      {(activeRoleDetails?.assignments?.length ? activeRoleDetails.assignments : []).map((assignment) => (
+                        <li key={assignment.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-2">
+                          <p className="font-semibold text-white">{assignment.assignee}</p>
+                          <p>{assignment.task}</p>
+                          <p className="mt-1 text-xs text-slate-400">{toReadableStatus(assignment.status)} · {assignment.dueBy}</p>
+                        </li>
+                      ))}
+                      {!activeRoleDetails?.assignments?.length && (
+                        <li className="rounded-lg border border-dashed border-white/20 p-2 text-slate-400">{t("workspaceAssignmentsFallback")}</li>
+                      )}
+                    </ul>
+                    <p className="mt-3 text-xs uppercase tracking-[0.16em] text-slate-400">
+                      {t("workspaceCommentsApprovalsLabel")} · {(activeRoleDetails?.comments?.length ?? 0) + (activeRoleDetails?.approvals?.length ?? 0)}
+                    </p>
+                    <ul className="mt-2 space-y-2 text-sm text-slate-300">
+                      {(activeRoleDetails?.comments?.length ? activeRoleDetails.comments : []).map((comment) => (
+                        <li key={comment.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-2">
+                          <p className="font-semibold text-white">{comment.author}</p>
+                          <p>{comment.message}</p>
+                        </li>
+                      ))}
+                      {(activeRoleDetails?.approvals?.length ? activeRoleDetails.approvals : []).map((approval) => (
+                        <li key={approval.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-2">
+                          <p className="font-semibold text-white">{approval.approver}</p>
+                          <p>{toReadableStatus(approval.status)} · {approval.target}</p>
+                          <p className="text-xs text-slate-400">{approval.note}</p>
+                        </li>
+                      ))}
+                      {!(activeRoleDetails?.comments?.length || activeRoleDetails?.approvals?.length) && (
+                        <li className="rounded-lg border border-dashed border-white/20 p-2 text-slate-400">{t("workspaceCommentsApprovalsFallback")}</li>
+                      )}
+                    </ul>
+                  </section>
+                </div>
               </div>
             )}
 

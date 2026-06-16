@@ -1055,6 +1055,42 @@ describe("shared type helpers", () => {
         })
       },
       {
+        message: "sections[0].roles[0].harmonicContext",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.harmonicContext = 3 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].transpositionPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transpositionPlan = 3 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].assignments[0].status",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.assignments = [
+            { id: "a1", assignee: "Mina", task: "task", status: "blocked" as never, dueBy: "Tonight" }
+          ];
+        })
+      },
+      {
+        message: "sections[0].roles[0].comments[0].createdAt",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.comments = [
+            { id: "c1", author: "MD", message: "note", createdAt: 3 as never }
+          ];
+        })
+      },
+      {
+        message: "sections[0].roles[0].approvals[0].target",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.approvals = [
+            { id: "p1", approver: "MD", target: "timing" as never, status: "approved", note: "ok" }
+          ];
+        })
+      },
+      {
         message: "sections[0].partGraph",
         payload: createInvalidSong((song) => {
           (song.sections[0] as unknown as Record<string, unknown>).partGraph = "not-an-array";

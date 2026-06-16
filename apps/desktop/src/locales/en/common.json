@@ -55,5 +55,16 @@
   "youtubePlaceholder": "YouTube URL...",
   "importYoutube": "Import YouTube",
   "importingYoutube": "Importing...",
-  "youtubeImportFailed": "Failed to import YouTube URL."
+  "youtubeImportFailed": "Failed to import YouTube URL.",
+  "workspaceCloudSyncLabel": "Cloud Sync",
+  "workspaceCloudSyncStatus": "Local-first mode is active. Team cloud sync is planned for a dedicated security and conflict-resolution design pass.",
+  "workspaceHarmonyWorkflowLabel": "Harmony Workflow",
+  "workspaceHarmonyWorkflowFallback": "No role-specific harmonic explanation yet. Capture why this voicing is likely before locking changes.",
+  "workspaceTranspositionWorkflowLabel": "Transposition",
+  "workspaceTranspositionWorkflowFallback": "No transposition plan yet. Add target key, capo/tuning plan, and fallback option.",
+  "workspaceCollaborationLabel": "Collaboration",
+  "workspaceAssignmentsLabel": "Assignments",
+  "workspaceAssignmentsFallback": "No assignments yet. Add rehearsal tasks with owner, status, and due context.",
+  "workspaceCommentsApprovalsLabel": "Comments + Approvals",
+  "workspaceCommentsApprovalsFallback": "No comments or approvals yet. Capture decisions before rehearsal starts."
 }

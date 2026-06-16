@@ -55,5 +55,16 @@
   "youtubePlaceholder": "유튜브 URL...",
   "importYoutube": "유튜브 가져오기",
   "importingYoutube": "가져오는 중...",
-  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다."
+  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다.",
+  "workspaceCloudSyncLabel": "클라우드 동기화",
+  "workspaceCloudSyncStatus": "로컬-퍼스트 모드가 활성화되어 있습니다. 팀 클라우드 동기화는 전용 보안/충돌 해결 설계 이후에 제공됩니다.",
+  "workspaceHarmonyWorkflowLabel": "화성 워크플로",
+  "workspaceHarmonyWorkflowFallback": "역할별 화성 설명이 아직 없습니다. 변경을 고정하기 전에 이 보이싱이 맞는 이유를 기록하세요.",
+  "workspaceTranspositionWorkflowLabel": "전조",
+  "workspaceTranspositionWorkflowFallback": "전조 계획이 아직 없습니다. 목표 키, 카포/튜닝 계획, 대체안을 추가하세요.",
+  "workspaceCollaborationLabel": "협업",
+  "workspaceAssignmentsLabel": "할당",
+  "workspaceAssignmentsFallback": "아직 할당이 없습니다. 담당자, 상태, 마감 맥락을 포함해 작업을 추가하세요.",
+  "workspaceCommentsApprovalsLabel": "코멘트 + 승인",
+  "workspaceCommentsApprovalsFallback": "아직 코멘트나 승인이 없습니다. 합주 전에 결정 사항을 기록하세요."
 }
