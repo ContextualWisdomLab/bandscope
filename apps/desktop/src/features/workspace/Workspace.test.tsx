@@ -91,6 +91,23 @@ describe("Workspace", () => {
     expect(screen.getByText(/2 notes mapped for rehearsal/i)).toBeTruthy();
   });
 
+  it("renders collaboration summaries and role-specific rehearsal planning details", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText("Collaboration")).toBeTruthy();
+    expect(screen.getByText(/2 Assignments/i)).toBeTruthy();
+    expect(screen.getByText(/Keep assignments local for now/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
+    expect(screen.getByText(/whole step lower/i)).toBeTruthy();
+    expect(screen.getByText(/Lock the bass entrance against the pickup/i)).toBeTruthy();
+    expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
+  });
+
   it("exports a metadata-only handoff artifact from the workspace", async () => {
     const song = createDemoRehearsalSong();
     const sourceBootstrap: ProjectBootstrapSummary = {
@@ -152,6 +169,7 @@ describe("Workspace", () => {
     expect(screen.getByText("오늘의 합주 지도")).toBeTruthy();
     expect(screen.getByText("합주 작업 공간")).toBeTruthy();
     expect(screen.getByText("곡 타임라인")).toBeTruthy();
+    expect(screen.getByText("협업")).toBeTruthy();
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();

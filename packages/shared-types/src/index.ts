@@ -37,6 +37,14 @@ export type CueAnchorKind = "lyric" | "count" | "transition";
 export type RehearsalPriority = "low" | "medium" | "high";
 /** Documented. */
 export type ExportFormat = "cue-sheet" | "chart-summary";
+/** Documented. */
+export type CollaborationAssignmentStatus = "todo" | "in_progress" | "ready" | "blocked";
+/** Documented. */
+export type CollaborationCommentStatus = "open" | "resolved";
+/** Documented. */
+export type CollaborationApprovalStatus = "pending" | "approved" | "changes_requested";
+/** Documented. */
+export type CollaborationSyncMode = "local_only" | "planned_cloud";
 
 /** Documented. */
 export type ConfidenceMarker = {
@@ -66,6 +74,43 @@ export type TranscriptionNote = {
 };
 
 /** Documented. */
+export type RehearsalAssignment = {
+  id: string;
+  assignee: string;
+  summary: string;
+  sectionId: string;
+  roleId?: string;
+  status: CollaborationAssignmentStatus;
+};
+
+/** Documented. */
+export type RehearsalComment = {
+  id: string;
+  author: string;
+  body: string;
+  sectionId: string;
+  roleId?: string;
+  status: CollaborationCommentStatus;
+};
+
+/** Documented. */
+export type RehearsalApproval = {
+  id: string;
+  scope: string;
+  owner: string;
+  status: CollaborationApprovalStatus;
+};
+
+/** Documented. */
+export type RehearsalCollaboration = {
+  syncMode: CollaborationSyncMode;
+  syncNote: string;
+  assignments: RehearsalAssignment[];
+  comments: RehearsalComment[];
+  approvals: RehearsalApproval[];
+};
+
+/** Documented. */
 export type RehearsalHarmony = {
   chord: string;
   functionLabel: string;
@@ -86,12 +131,14 @@ export type RehearsalRole = {
   name: string;
   roleType: "instrument" | "vocal" | "hand";
   harmony: RehearsalHarmony;
+  harmonicExplanation?: string;
   cue: CueAnchor;
   range: RangeSummary;
   confidence: ConfidenceMarker;
   rehearsalPriority: RehearsalPriority;
   simplification: string;
   setupNote: string;
+  transpositionPlan?: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -170,6 +217,7 @@ export type RehearsalSong = {
   title: string;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
+  collaboration?: RehearsalCollaboration;
 };
 
 /** Documented. */
@@ -299,6 +347,10 @@ const PROVENANCE_SOURCES = ["model", "user"] as const;
 const CUE_ANCHOR_KINDS = ["lyric", "count", "transition"] as const;
 const ROLE_TYPES = ["instrument", "vocal", "hand"] as const;
 const EXPORT_FORMATS = ["cue-sheet", "chart-summary"] as const;
+const COLLABORATION_ASSIGNMENT_STATUSES = ["todo", "in_progress", "ready", "blocked"] as const;
+const COLLABORATION_COMMENT_STATUSES = ["open", "resolved"] as const;
+const COLLABORATION_APPROVAL_STATUSES = ["pending", "approved", "changes_requested"] as const;
+const COLLABORATION_SYNC_MODES = ["local_only", "planned_cloud"] as const;
 const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
 const ANALYSIS_JOB_STAGES = ["queued", "decode", "separate", "analyze", "persist", "ready"] as const;
@@ -377,6 +429,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
             functionLabel: "vi pedal anchor",
             source: "model"
           },
+          harmonicExplanation: "The bass holds the vi center so the rest of the section can lean into the pickup without losing the tonal floor.",
           cue: {
             kind: "transition",
             value: "Hold through the pickup before the downbeat.",
@@ -393,6 +446,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           rehearsalPriority: "high",
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
+          transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -407,6 +461,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
             functionLabel: "Imaj7 color",
             source: "model"
           },
+          harmonicExplanation: "The right hand supplies the major-7 color that distinguishes the verse from the more open chorus voicing.",
           cue: {
             kind: "count",
             value: "Enter on beat 2 after the pickup."
@@ -423,6 +478,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           rehearsalPriority: "high",
           simplification: "Drop the top extension if the chorus turnaround still feels busy.",
           setupNote: "Keep the patch bright enough to stay over the guitars.",
+          transpositionPlan: "If the band rehearses in D, keep the voicing in first inversion so the top line still sings.",
           manualOverrides: [],
           overlapWarnings: [
             "Melodic overlap: top notes conflict with Lead Vocal range."
@@ -437,6 +493,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
             functionLabel: "vi melodic pull",
             source: "model"
           },
+          harmonicExplanation: "The melody leans on the ninth over vi, so the vocal line should feel like a lift rather than a strict chord-tone outline.",
           cue: {
             kind: "lyric",
             value: "city lights"
@@ -453,6 +510,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           rehearsalPriority: "medium",
           simplification: "Keep the sustained note centered; skip the ad-lib on the first pass.",
           setupNote: "Watch the breath before the last line of the verse.",
+          transpositionPlan: "If the room wants more ease, move the section down a whole step and keep the pickup breath mark in the same place.",
           manualOverrides: [
             {
               field: "harmony",
@@ -480,6 +538,60 @@ const demoRehearsalSongSeed: RehearsalSong = {
     format: "cue-sheet",
     headline: "Start with verse entrances before the chorus lift.",
     focusSections: ["verse"]
+  },
+  collaboration: {
+    syncMode: "planned_cloud",
+    syncNote: "Keep assignments local for now. Cloud sync opens only after security and conflict-resolution rules land.",
+    assignments: [
+      {
+        id: "assign-bass-entrance",
+        assignee: "Rhythm Section",
+        summary: "Lock the bass entrance against the pickup so the chorus lift lands together.",
+        sectionId: "verse-1",
+        roleId: "bass-guitar",
+        status: "in_progress"
+      },
+      {
+        id: "assign-vocal-key",
+        assignee: "Lead Vocal",
+        summary: "Confirm whether the verse should stay in C# minor or move down for the first rehearsal pass.",
+        sectionId: "verse-1",
+        roleId: "lead-vocal",
+        status: "todo"
+      }
+    ],
+    comments: [
+      {
+        id: "comment-keys-color",
+        author: "MD",
+        body: "Keep the keyboard color tone gentle on the first pass so the vocal cue stays forward.",
+        sectionId: "verse-1",
+        roleId: "keys-right",
+        status: "open"
+      },
+      {
+        id: "comment-vocal-breath",
+        author: "Lead Vocal",
+        body: "Breath mark is confirmed before the last lyric pickup.",
+        sectionId: "verse-1",
+        roleId: "lead-vocal",
+        status: "resolved"
+      }
+    ],
+    approvals: [
+      {
+        id: "approval-harmony-pass",
+        scope: "Verse harmony pass",
+        owner: "MD",
+        status: "pending"
+      },
+      {
+        id: "approval-vocal-shape",
+        scope: "Lead vocal simplification",
+        owner: "Lead Vocal",
+        status: "approved"
+      }
+    ]
   }
 };
 
@@ -1107,6 +1219,139 @@ function validateRehearsalHarmony(value: unknown, path: string): string | null {
 }
 
 /** Documented. */
+function validateRehearsalAssignment(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "assignee", "summary", "sectionId", "roleId", "status"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.assignee !== "string") {
+    return invalidField(`${path}.assignee`);
+  }
+  if (typeof value.summary !== "string") {
+    return invalidField(`${path}.summary`);
+  }
+  if (typeof value.sectionId !== "string") {
+    return invalidField(`${path}.sectionId`);
+  }
+  if (value.roleId !== undefined && typeof value.roleId !== "string") {
+    return invalidField(`${path}.roleId`);
+  }
+  if (!isOneOf(COLLABORATION_ASSIGNMENT_STATUSES, value.status)) {
+    return invalidField(`${path}.status`);
+  }
+
+  return null;
+}
+
+/** Documented. */
+function validateRehearsalComment(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "author", "body", "sectionId", "roleId", "status"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.author !== "string") {
+    return invalidField(`${path}.author`);
+  }
+  if (typeof value.body !== "string") {
+    return invalidField(`${path}.body`);
+  }
+  if (typeof value.sectionId !== "string") {
+    return invalidField(`${path}.sectionId`);
+  }
+  if (value.roleId !== undefined && typeof value.roleId !== "string") {
+    return invalidField(`${path}.roleId`);
+  }
+  if (!isOneOf(COLLABORATION_COMMENT_STATUSES, value.status)) {
+    return invalidField(`${path}.status`);
+  }
+
+  return null;
+}
+
+/** Documented. */
+function validateRehearsalApproval(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "scope", "owner", "status"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string") {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.scope !== "string") {
+    return invalidField(`${path}.scope`);
+  }
+  if (typeof value.owner !== "string") {
+    return invalidField(`${path}.owner`);
+  }
+  if (!isOneOf(COLLABORATION_APPROVAL_STATUSES, value.status)) {
+    return invalidField(`${path}.status`);
+  }
+
+  return null;
+}
+
+/** Documented. */
+function validateRehearsalCollaboration(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["syncMode", "syncNote", "assignments", "comments", "approvals"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (!isOneOf(COLLABORATION_SYNC_MODES, value.syncMode)) {
+    return invalidField(`${path}.syncMode`);
+  }
+  if (typeof value.syncNote !== "string") {
+    return invalidField(`${path}.syncNote`);
+  }
+  if (!isDenseArray(value.assignments)) {
+    return invalidField(`${path}.assignments`);
+  }
+  for (const [index, assignment] of value.assignments.entries()) {
+    const assignmentError = validateRehearsalAssignment(assignment, `${path}.assignments[${index}]`);
+    if (assignmentError) {
+      return assignmentError;
+    }
+  }
+  if (!isDenseArray(value.comments)) {
+    return invalidField(`${path}.comments`);
+  }
+  for (const [index, comment] of value.comments.entries()) {
+    const commentError = validateRehearsalComment(comment, `${path}.comments[${index}]`);
+    if (commentError) {
+      return commentError;
+    }
+  }
+  if (!isDenseArray(value.approvals)) {
+    return invalidField(`${path}.approvals`);
+  }
+  for (const [index, approval] of value.approvals.entries()) {
+    const approvalError = validateRehearsalApproval(approval, `${path}.approvals[${index}]`);
+    if (approvalError) {
+      return approvalError;
+    }
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateManualOverride(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -1170,12 +1415,14 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "name",
       "roleType",
       "harmony",
+      "harmonicExplanation",
       "cue",
       "range",
       "confidence",
       "rehearsalPriority",
       "simplification",
       "setupNote",
+      "transpositionPlan",
       "manualOverrides",
       "overlapWarnings",
       "transcription"
@@ -1198,6 +1445,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   const harmonyError = validateRehearsalHarmony(value.harmony, `${path}.harmony`);
   if (harmonyError) {
     return harmonyError;
+  }
+  if (value.harmonicExplanation !== undefined && typeof value.harmonicExplanation !== "string") {
+    return invalidField(`${path}.harmonicExplanation`);
   }
 
   const cueError = validateCueAnchor(value.cue, `${path}.cue`);
@@ -1223,6 +1473,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (typeof value.setupNote !== "string") {
     return invalidField(`${path}.setupNote`);
+  }
+  if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
+    return invalidField(`${path}.transpositionPlan`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);
@@ -1432,7 +1685,7 @@ function validateRehearsalSong(
   if (!isRecord(normalized)) {
     return invalidField("root");
   }
-  const extraKey = unexpectedKey(normalized, ["id", "title", "sections", "exportSummary"], "");
+  const extraKey = unexpectedKey(normalized, ["id", "title", "sections", "exportSummary", "collaboration"], "");
   if (extraKey) {
     return extraKey;
   }
@@ -1449,6 +1702,12 @@ function validateRehearsalSong(
     const sectionError = validateRehearsalSection(section, `sections[${index}]`);
     if (sectionError) {
       return sectionError;
+    }
+  }
+  if (normalized.collaboration !== undefined) {
+    const collaborationError = validateRehearsalCollaboration(normalized.collaboration, "collaboration");
+    if (collaborationError) {
+      return collaborationError;
     }
   }
 
