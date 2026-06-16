@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
@@ -11,6 +12,8 @@ from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.separation import AudioStemSeparator
+
+logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
@@ -524,6 +527,7 @@ def run_analysis_job_updates(
     try:
         audio_features = _build_local_audio_features(request)
     except Exception as error:
+        logger.exception("Stem separation failed for job %s: %s", job_id, error)
         updates.append(
             _build_job_status(
                 job_id=job_id,
