@@ -1,11 +1,15 @@
 """Tests for the public analysis-engine API helpers."""
 
+import time
 from unittest.mock import patch
 
 import numpy as np
 
 from bandscope_analysis.api import (
+    _feature_cache_paths,
+    _load_cached_local_audio_features,
     _load_cached_analysis,
+    _store_cached_local_audio_features,
     _store_cached_analysis,
     build_demo_rehearsal_song,
     build_section_time_range,
@@ -526,3 +530,125 @@ def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp
         }
     )
     assert _store_cached_analysis(tmp_path, local_request, build_demo_rehearsal_song()) is False
+
+
+def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_path) -> None:
+    """Ensure reusable stem/features cache can be loaded on subsequent analyses."""
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": ["bass-guitar"],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+            "cacheRoot": str(tmp_path / "cache"),
+            "tempRoot": str(tmp_path / "temp"),
+        }
+    )
+    metadata_path, arrays_path = _feature_cache_paths(request) or (None, None)
+    assert metadata_path is not None
+    assert arrays_path is not None
+
+    features = {
+        "stems": {
+            "vocals": np.zeros(256),
+            "bass": np.zeros(256),
+            "drums": np.zeros(256),
+            "other": np.zeros(256),
+        },
+        "sr": 22050,
+        "separation": {
+            "duration_seconds": 1.0,
+            "chunk_count": 1,
+            "notes": "Separated selected local audio into 4 canonical stems.",
+        },
+    }
+    assert _store_cached_local_audio_features(metadata_path, arrays_path, request, features) is True
+
+    loaded = _load_cached_local_audio_features(metadata_path, arrays_path)
+    assert loaded is not None
+    assert loaded["sr"] == 22050
+    assert loaded["stems"]["bass"].shape == (256,)
+
+    with (
+        patch(
+            "bandscope_analysis.api._load_cached_analysis",
+            return_value=None,
+        ),
+        patch(
+            "bandscope_analysis.api._load_cached_local_audio_features",
+            return_value=loaded,
+        ),
+        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+        patch(
+            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+            return_value=[],
+        ),
+    ):
+        updates = list(run_analysis_job_updates("job-feature-hit", request, "2026-03-12T00:00:00Z"))
+
+    assert updates[1]["progressLabel"] == "Loaded reusable stems... (45%)"
+    assert updates[-1]["state"] == "succeeded"
+    separator_class.return_value.separate.assert_not_called()
+
+
+def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out() -> None:
+    """Ensure timed-out ML stem inference continues with fallback cues instead of hard failure."""
+
+    def _slow_separate(_source_path: str) -> dict[str, object]:
+        time.sleep(0.05)
+        return {
+            "stems": {
+                "vocals": np.zeros(1024),
+                "bass": np.zeros(1024),
+                "drums": np.zeros(1024),
+                "other": np.zeros(1024),
+            },
+            "sample_rate": 22050,
+            "duration_seconds": 1.0,
+            "chunk_count": 1,
+            "separation_notes": "Separated selected local audio into 4 canonical stems.",
+        }
+
+    with (
+        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api.STEM_SEPARATION_TIMEOUT_SECONDS", 0.001),
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+        patch(
+            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+            return_value=[],
+        ),
+    ):
+        separator_class.return_value.separate.side_effect = _slow_separate
+
+        updates = list(
+            run_analysis_job_updates(
+                "job-timeout",
+                {
+                    "sourceKind": "local_audio",
+                    "projectId": "project-1",
+                    "sourceLabel": "late-night-set.wav",
+                    "roleFocus": ["bass-guitar"],
+                    "localSource": {
+                        "sourcePath": "/Users/test/Music/late-night-set.wav",
+                        "fileName": "late-night-set.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 1024000,
+                    },
+                },
+                "2026-03-12T00:00:00Z",
+            )
+        )
+
+    assert updates[-1]["state"] == "succeeded"
+    assert any(
+        update.get("progressLabel")
+        == "Stem separation timed out; continuing with fallback cues"
+        for update in updates
+    )
