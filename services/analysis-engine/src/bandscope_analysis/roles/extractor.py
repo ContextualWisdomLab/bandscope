@@ -49,8 +49,8 @@ class RoleExtractor:
         stems = features.get("stems", {})
         sr = features.get("sr", 22050)
 
-        vocal_range, vocal_chord, bass_range, bass_chord = self._extract_features(stems, sr)
-        roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range)
+        vocal_range, vocal_chord, bass_range, bass_chord, harmonic_chord = self._extract_features(stems, sr)
+        roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range, harmonic_chord)
 
         # Simple mock implementation for testing/demonstration purposes
         for i, section in enumerate(sections):
@@ -66,12 +66,13 @@ class RoleExtractor:
 
     def _extract_features(
         self, stems: dict[str, Any], sr: int
-    ) -> tuple[RangeSummary, str, RangeSummary, str]:
-        """Extract vocal and bass features (range and chord) from stems."""
+    ) -> tuple[RangeSummary, str, RangeSummary, str, str]:
+        """Extract vocal, bass, and harmonic features (range and chord) from stems."""
         vocal_range: RangeSummary = {"lowestNote": "G#3", "highestNote": "C#5"}
         vocal_chord = "C#m7"
         bass_range: RangeSummary = {"lowestNote": "C#2", "highestNote": "E3"}
         bass_chord = "C#m7"
+        harmonic_chord = "Emaj7"
 
         # If we have real audio stems, extract real ranges and chords
         if stems:
@@ -110,16 +111,21 @@ class RoleExtractor:
                         if valid_chords:
                             bass_chord = valid_chords[0]
 
-                if "other" in stems:
-                    c_res = chord_recognizer.recognize(stems["other"], sr=sr)
-                    if c_res and len(c_res) > 0:
-                        valid_chords = [c["chord"] for c in c_res if c["chord"] != "N"]
-                        if valid_chords:
-                            vocal_chord = valid_chords[0]
+                # Extract harmonic chord from keys, guitar, or other stem (in
+                # priority order).  The first available harmonic stem is used.
+                for harmonic_stem in ("keys", "guitar", "other"):
+                    if harmonic_stem in stems:
+                        c_res = chord_recognizer.recognize(stems[harmonic_stem], sr=sr)
+                        if c_res and len(c_res) > 0:
+                            valid_chords = [c["chord"] for c in c_res if c["chord"] != "N"]
+                            if valid_chords:
+                                harmonic_chord = valid_chords[0]
+                                vocal_chord = valid_chords[0]
+                        break
             except Exception as e:
                 logger.warning("Failed to extract features from stems: %s", e)
 
-        return vocal_range, vocal_chord, bass_range, bass_chord
+        return vocal_range, vocal_chord, bass_range, bass_chord, harmonic_chord
 
     def _build_roles(
         self,
@@ -127,6 +133,7 @@ class RoleExtractor:
         bass_range: RangeSummary,
         vocal_chord: str,
         vocal_range: RangeSummary,
+        harmonic_chord: str = "Emaj7",
     ) -> dict[str, RehearsalRole]:
         """Build the 5 mock rehearsal roles and compute their priorities."""
         bass_role: RehearsalRole = {
@@ -190,7 +197,7 @@ class RoleExtractor:
             "name": "Keyboard 1 Right Hand",
             "roleType": RoleType.HAND,
             "harmony": {
-                "chord": "Emaj7",
+                "chord": harmonic_chord,
                 "functionLabel": "Imaj7 color",
                 "source": "model",
             },
@@ -206,7 +213,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
             "simplification": "Drop top extension if the chorus turnaround feels busy.",
-            "setupNote": get_setup_note("Keyboard", ["Emaj7"])
+            "setupNote": get_setup_note("Keyboard", [harmonic_chord])
             or "Keep the patch bright enough to stay over the guitars.",
             "manualOverrides": [],
             "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],

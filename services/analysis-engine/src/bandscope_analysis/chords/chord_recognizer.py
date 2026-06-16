@@ -1,9 +1,13 @@
-"""Chord recognizer using librosa's chromagrams."""
+"""Chord recognizer using librosa's chromagrams and Viterbi HMM decoding."""
 
+import logging
 from typing import TypedDict
 
 import librosa
+import librosa.sequence
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class TrackedChord(TypedDict):
@@ -52,6 +56,58 @@ class ChordRecognizer:
         for note in notes:
             labels.append(f"{note}m")  # Minor
         return labels
+
+    def _build_transition_matrix(self, n_states: int, self_loop_prob: float = 0.9) -> np.ndarray:
+        """Build a chord-to-chord transition matrix with high self-loop probability.
+
+        Musical chords tend to sustain for multiple frames, so a high self-loop
+        probability captures this tendency while still allowing smooth transitions.
+
+        Args:
+            n_states: Number of chord states (e.g. 24 for 12 major + 12 minor).
+            self_loop_prob: Probability of staying on the same chord (0 < p < 1).
+
+        Returns:
+            Row-normalised transition matrix of shape (n_states, n_states).
+        """
+        if n_states <= 1:
+            return np.ones((max(n_states, 1), max(n_states, 1)))
+        other_prob = (1.0 - self_loop_prob) / (n_states - 1)
+        transition = np.full((n_states, n_states), other_prob)
+        np.fill_diagonal(transition, self_loop_prob)
+        return transition
+
+    def _decode_with_viterbi(self, similarity: np.ndarray) -> np.ndarray:
+        """Apply Viterbi decoding to produce a smoothed chord sequence.
+
+        Converts the per-frame similarity scores to a probability distribution
+        and decodes the most likely chord sequence using a self-loop dominant
+        HMM transition model via librosa's Viterbi implementation.
+
+        Args:
+            similarity: Shape (n_chords, n_frames) dot-product similarity matrix.
+
+        Returns:
+            Integer array of shape (n_frames,) with the chord state index for
+            each frame after HMM smoothing.
+        """
+        # Shift to non-negative values, then normalise each frame to sum to 1.
+        obs = similarity - similarity.min(axis=0, keepdims=True)
+        col_sums = obs.sum(axis=0, keepdims=True)
+        col_sums = np.where(col_sums == 0, 1.0, col_sums)
+        obs = obs / col_sums
+        # Add a small probability floor so no observation is zero.
+        obs = np.maximum(obs, 1e-7)
+        obs = obs / obs.sum(axis=0, keepdims=True)
+
+        n_chords = similarity.shape[0]
+        transition = self._build_transition_matrix(n_chords)
+        try:
+            return np.asarray(librosa.sequence.viterbi_discriminative(obs, transition))
+        except Exception:
+            # Fall back to frame-wise argmax if Viterbi decoding fails.
+            logger.warning("Viterbi decoding failed; falling back to argmax")
+            return np.asarray(np.argmax(similarity, axis=0))
 
     def _separate_harmonic(self, y: np.ndarray) -> np.ndarray:
         """Separate harmonic component from audio."""
@@ -122,19 +178,18 @@ class ChordRecognizer:
 
         # Vectorize the variance calculation over frames
         chroma_vars = np.var(chromagram, axis=0)
+        # Use the maximum similarity across *all* chords per frame for the noise
+        # threshold.  With Viterbi decoding the assigned chord index may differ
+        # from the argmax, so we must not rely on `similarity[match, i]` here.
+        max_sims = np.max(similarity, axis=0)
 
         for i, match in enumerate(best_matches):
             chord_label = self.chord_labels[match]
 
-            # Simple threshold for unvoiced/noise (if max similarity is very low)
-            max_sim = similarity[match, i]
+            # Threshold for unvoiced/noise: if no chord has high similarity,
+            # or if RMS energy / chromagram variance are too low, mark as N.
+            max_sim = float(max_sims[i])
             rms_val = rms[i] if i < len(rms) else 0.0
-
-            # For noise, the max similarity is usually lower, but to be robust
-            # we should check if the chromagram is too flat (e.g. low variance)
-            # or if the RMS energy is really low.
-            # However, since dot product normalization makes noise match *something*,
-            # we can look at the variance of the chromagram frame.
             chroma_var = chroma_vars[i]
             if max_sim < 0.3 or rms_val < 0.01 or chroma_var < 0.02:
                 chord_label = "N"
@@ -187,6 +242,8 @@ class ChordRecognizer:
             return []
 
         rms = self._calculate_rms(y, chromagram.shape[1])
-        similarity, best_matches = self._match_templates(chromagram)
+        similarity, _ = self._match_templates(chromagram)
+        # Apply Viterbi HMM decoding for a musically coherent chord sequence.
+        best_matches = self._decode_with_viterbi(similarity)
 
         return self._create_chord_segments(chromagram, similarity, best_matches, rms, sr)
