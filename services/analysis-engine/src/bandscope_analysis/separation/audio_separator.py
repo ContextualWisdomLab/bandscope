@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
-import json
-import hashlib
 import warnings
-from urllib.parse import urlparse
-from urllib.request import urlopen
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 import librosa
 import numpy as np
@@ -46,6 +46,7 @@ class AudioSeparationConfig:
     model_profile_url: str | None = None
     model_profile_sha256: str | None = None
     model_cache_dir: str | None = None
+    max_model_profile_bytes: int = 64 * 1024
     allowed_model_hosts: tuple[str, ...] = (
         "github.com",
         "raw.githubusercontent.com",
@@ -186,9 +187,7 @@ class AudioStemSeparator:
             np.fft.rfftfreq(chunk.size, d=1.0 / sample_rate),
         )
         bass_mask = frequencies <= self._bass_cutoff_hz
-        vocal_mask = (frequencies >= self._vocal_low_hz) & (
-            frequencies < self._vocal_high_hz
-        )
+        vocal_mask = (frequencies >= self._vocal_low_hz) & (frequencies < self._vocal_high_hz)
         drum_mask = frequencies >= self._drum_low_hz
         other_mask = ~(bass_mask | vocal_mask | drum_mask)
 
@@ -213,9 +212,12 @@ class AudioStemSeparator:
         expected_sha256 = _BANDSPLIT_PROFILE_SHA256
 
         if self.config.model_profile_url:
-            profile_path = self._download_model_profile(self.config.model_profile_url)
             if not self.config.model_profile_sha256:
                 raise ValueError("model_profile_sha256 is required when model_profile_url is set")
+            profile_path = self._download_model_profile(
+                self.config.model_profile_url,
+                self.config.model_profile_sha256,
+            )
             expected_sha256 = self.config.model_profile_sha256
         elif self.config.model_profile_path:
             profile_path = Path(self.config.model_profile_path).expanduser().resolve(strict=True)
@@ -239,7 +241,7 @@ class AudioStemSeparator:
             "drumLowHz": float(profile.get("drumLowHz", self.config.drum_low_hz)),
         }
 
-    def _download_model_profile(self, model_profile_url: str) -> Path:
+    def _download_model_profile(self, model_profile_url: str, expected_sha256: str) -> Path:
         """Download profile from an allowlisted HTTPS host into a local cache path."""
         parsed = urlparse(model_profile_url)
         if parsed.scheme != "https" or parsed.hostname not in self.config.allowed_model_hosts:
@@ -253,10 +255,16 @@ class AudioStemSeparator:
             else Path.home() / ".cache" / "bandscope" / "model-profiles"
         )
         cache_root.mkdir(parents=True, exist_ok=True)
-        target = cache_root / Path(parsed.path).name
+        cache_key = hashlib.sha256(model_profile_url.encode("utf-8")).hexdigest()
+        target = cache_root / f"{parsed.hostname}-{cache_key}-{Path(parsed.path).name}"
 
-        with urlopen(model_profile_url, timeout=30) as response:  # noqa: S310
-            payload = response.read()
+        with urlopen(model_profile_url, timeout=10) as response:  # noqa: S310  # nosec B310
+            payload = response.read(self.config.max_model_profile_bytes + 1)
+        if len(payload) > self.config.max_model_profile_bytes:
+            raise ValueError("Model profile exceeds maximum allowed size")
+        observed_sha256 = hashlib.sha256(payload).hexdigest()
+        if observed_sha256 != expected_sha256:
+            raise ValueError("Model profile verification failed: SHA256 mismatch")
         target.write_bytes(payload)
         return target
 

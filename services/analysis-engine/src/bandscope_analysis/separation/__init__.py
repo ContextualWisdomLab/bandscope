@@ -6,10 +6,10 @@ from .model import (
     AudioStemArray,
     AudioStemName,
     AudioStemPayload,
-    StemRoleTypeMap,
     SeparationResult,
     StemCategory,
     StemDescriptor,
+    StemRoleTypeMap,
 )
 from .separator import StemSeparator
 

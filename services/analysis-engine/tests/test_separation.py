@@ -1,6 +1,7 @@
 """Tests for the source separation module."""
 
 import hashlib
+
 import numpy as np
 import pytest
 import soundfile as sf
@@ -270,10 +271,7 @@ def test_audio_stem_separator_uses_verified_local_model_profile(tmp_path) -> Non
     """Ensure local model profile overrides are applied only when checksum is verified."""
     profile_path = tmp_path / "profile.json"
     profile_path.write_text(
-        (
-            '{"bassCutoffHz": 100.0, "vocalLowHz": 120.0, '
-            '"vocalHighHz": 350.0, "drumLowHz": 350.0}'
-        ),
+        ('{"bassCutoffHz": 100.0, "vocalLowHz": 120.0, "vocalHighHz": 350.0, "drumLowHz": 350.0}'),
         encoding="utf-8",
     )
     checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
@@ -357,6 +355,34 @@ def test_audio_stem_separator_rejects_profile_url_without_path() -> None:
         )
 
 
+def test_audio_stem_separator_requires_checksum_for_model_profile_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure remote model profile URLs require explicit checksum pinning."""
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self, *_args):
+            return b"{}"
+
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.urlopen",
+        lambda *args, **kwargs: _Response(),
+    )
+    with pytest.raises(ValueError, match="model_profile_sha256 is required"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_url="https://github.com/Seongho-Bae/bandscope/profile.json",
+            )
+        )
+
+
 def test_audio_stem_separator_downloads_and_verifies_model_profile(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -372,7 +398,7 @@ def test_audio_stem_separator_downloads_and_verifies_model_profile(
         def __exit__(self, *args):
             return None
 
-        def read(self):
+        def read(self, *_args):
             return payload
 
     monkeypatch.setattr(
@@ -388,3 +414,64 @@ def test_audio_stem_separator_downloads_and_verifies_model_profile(
         )
     )
     assert separator._bass_cutoff_hz == pytest.approx(200.0)
+
+
+def test_audio_stem_separator_rejects_oversized_downloaded_model_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure downloaded model profiles are bounded to prevent memory abuse."""
+    payload = b"{" + (b"x" * 130_000) + b"}"
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self, *_args):
+            return payload
+
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.urlopen",
+        lambda *args, **kwargs: _Response(),
+    )
+    with pytest.raises(ValueError, match="maximum allowed size"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_url="https://github.com/Seongho-Bae/bandscope/profile.json",
+                model_profile_sha256=hashlib.sha256(payload).hexdigest(),
+                max_model_profile_bytes=64 * 1024,
+            )
+        )
+
+
+def test_audio_stem_separator_rejects_downloaded_model_profile_checksum_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure downloaded profiles are verified before cache writes."""
+    payload = b'{"bassCutoffHz": 100.0}'
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self, *_args):
+            return payload
+
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.urlopen",
+        lambda *args, **kwargs: _Response(),
+    )
+    with pytest.raises(ValueError, match="SHA256 mismatch"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_url="https://github.com/Seongho-Bae/bandscope/profile.json",
+                model_profile_sha256="0" * 64,
+            )
+        )
