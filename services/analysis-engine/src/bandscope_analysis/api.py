@@ -523,7 +523,7 @@ def run_analysis_job_updates(
 
     try:
         audio_features = _build_local_audio_features(request)
-    except (FileNotFoundError, ValueError) as error:
+    except Exception as error:
         updates.append(
             _build_job_status(
                 job_id=job_id,

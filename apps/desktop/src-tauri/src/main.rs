@@ -30,7 +30,7 @@ struct AppStateInner {
 }
 
 const MAX_IN_FLIGHT_JOBS: usize = 2;
-const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
+const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(600);
 const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__";

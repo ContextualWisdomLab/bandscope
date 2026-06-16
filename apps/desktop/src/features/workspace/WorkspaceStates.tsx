@@ -1,5 +1,6 @@
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Loader2, Music, AlertCircle } from "lucide-react";
 
 /** Documented. */
@@ -19,7 +20,13 @@ export function EmptyState() {
 }
 
 /** Documented. */
-export function LoadingState() {
+export function LoadingState({
+  progressLabel,
+  progressPercent
+}: {
+  progressLabel?: string;
+  progressPercent?: number;
+}) {
   const t = createTranslator(detectPreferredLocale());
   return (
     <Card
@@ -32,7 +39,19 @@ export function LoadingState() {
       <CardContent className="flex flex-col items-center justify-center py-24 text-center">
         <Loader2 className="mb-6 size-12 animate-spin text-cyan-300" aria-hidden="true" />
         <h3 className="mb-2 text-xl font-black text-white">{t("workspaceAnalyzingAudioTitle")}</h3>
-        <p className="max-w-sm animate-pulse text-slate-400">{t("workspaceLoadingState")}</p>
+        {progressLabel ? (
+          <div className="mt-2 w-full max-w-xs space-y-2">
+            <p className="text-sm font-medium text-cyan-200">{progressLabel}</p>
+            {progressPercent !== undefined && (
+              <Progress
+                aria-label="Workspace analysis progress"
+                value={progressPercent}
+              />
+            )}
+          </div>
+        ) : (
+          <p className="max-w-sm animate-pulse text-slate-400">{t("workspaceLoadingState")}</p>
+        )}
       </CardContent>
     </Card>
   );

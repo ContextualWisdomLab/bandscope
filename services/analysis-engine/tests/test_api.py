@@ -480,6 +480,42 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
     }
 
 
+def test_run_analysis_job_updates_fail_safely_on_unexpected_exception() -> None:
+    """Ensure unexpected runtime errors (not just ValueError) return a typed failure envelope."""
+    with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
+        separator_class.return_value.separate.side_effect = RuntimeError(
+            "Unexpected GPU out-of-memory error"
+        )
+
+        updates = list(
+            run_analysis_job_updates(
+                "job-unexpected-err",
+                {
+                    "sourceKind": "local_audio",
+                    "projectId": "project-1",
+                    "sourceLabel": "late-night-set.wav",
+                    "roleFocus": ["bass-guitar"],
+                    "localSource": {
+                        "sourcePath": "/Users/test/Music/late-night-set.wav",
+                        "fileName": "late-night-set.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 1024000,
+                    },
+                },
+                "2026-03-12T00:00:00Z",
+            )
+        )
+
+    assert [(update["state"], update.get("progressStage")) for update in updates] == [
+        ("running", "decode"),
+        ("running", "separate"),
+        ("failed", "separate"),
+    ]
+    assert updates[-1]["progressPercent"] == 45
+    assert updates[-1]["error"]["code"] == "engine_unavailable"
+    assert "Unexpected GPU out-of-memory error" in updates[-1]["error"]["message"]
+
+
 def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
     """Ensure malformed cache files degrade to cache misses without failing analysis."""
     cache_path = tmp_path / "analysis-cache.json"

@@ -359,7 +359,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/queued for analysis/i)).toBeTruthy();
+      expect(screen.getAllByText(/queued for analysis/i).length).toBeGreaterThan(0);
     });
     expect(screen.getAllByRole("status").some((status) => /queued for analysis/i.test(status.textContent ?? ""))).toBe(true);
     await waitFor(() => {
@@ -405,6 +405,29 @@ describe("App", () => {
       "aria-valuenow",
       "45"
     );
+  });
+
+  it("falls back to a state-derived message in the status badge when progressLabel is absent", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-fallback-1",
+        state: "running",
+        progressLabel: undefined
+      }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("status").some((el) => /running analysis/i.test(el.textContent ?? ""))
+      ).toBe(true);
+    });
   });
 
   it("keeps handoff metadata tied to the source that produced the current result", async () => {

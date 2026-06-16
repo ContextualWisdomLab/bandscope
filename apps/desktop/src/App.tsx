@@ -361,7 +361,7 @@ export function App() {
       return <ErrorState error={jobError} />;
     }
     if (analysisInFlight || isStarting) {
-      return <LoadingState />;
+      return <LoadingState progressLabel={jobStatus?.progressLabel} progressPercent={jobStatus?.progressPercent} />;
     }
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
