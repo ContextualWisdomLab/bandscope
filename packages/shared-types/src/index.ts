@@ -1657,9 +1657,8 @@ function validateCommentTarget(value: unknown, path: string): string | null {
   if (value.sectionId !== undefined && typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
   if (value.roleId !== undefined && typeof value.roleId !== "string") return invalidField(`${path}.roleId`);
   if (value.kind === "section" && typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
-  if (value.kind === "role" && (typeof value.sectionId !== "string" || typeof value.roleId !== "string")) {
-    return invalidField(`${path}.roleId`);
-  }
+  if (value.kind === "role" && typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
+  if (value.kind === "role" && typeof value.roleId !== "string") return invalidField(`${path}.roleId`);
   return null;
 }
 
