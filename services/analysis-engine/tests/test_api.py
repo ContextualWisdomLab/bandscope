@@ -373,6 +373,70 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
     separator.separate.assert_called_once_with("/Users/test/Music/late-night-set.wav")
 
 
+def test_run_analysis_job_builds_structural_sections_for_local_audio() -> None:
+    """Local-audio flow should output timed multi-section payload from integrated features."""
+    with (
+        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api.TemporalAnalyzer") as temporal_class,
+        patch("bandscope_analysis.api.ChordRecognizer") as chord_class,
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+    ):
+        separator = separator_class.return_value
+        separator.separate.return_value = {
+            "stems": {
+                "vocals": np.concatenate(
+                    [np.zeros(22050, dtype=np.float32), np.ones(22050, dtype=np.float32)]
+                ),
+                "bass": np.concatenate(
+                    [np.ones(22050, dtype=np.float32), np.zeros(22050, dtype=np.float32)]
+                ),
+                "drums": np.ones(44100, dtype=np.float32),
+                "other": np.concatenate(
+                    [np.zeros(22050, dtype=np.float32), np.ones(22050, dtype=np.float32)]
+                ),
+            },
+            "sample_rate": 22050,
+            "duration_seconds": 2.0,
+            "chunk_count": 1,
+            "separation_notes": "Separated selected local audio into 4 canonical stems.",
+        }
+        temporal_class.return_value.analyze.return_value = {
+            "bpm": 120.0,
+            "beat_times": [0.0, 0.5, 1.0, 1.5, 2.0],
+            "downbeat_times": [0.0, 1.0, 2.0],
+            "duration_seconds": 2.0,
+            "sample_rate": 22050,
+            "audio_path": "/Users/test/Music/late-night-set.wav",
+        }
+        chord_class.return_value.recognize.return_value = [
+            {"start_time": 0.0, "end_time": 1.0, "chord": "Am"},
+            {"start_time": 1.0, "end_time": 2.0, "chord": "C"},
+        ]
+
+        success = run_analysis_job(
+            "job-structural",
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "late-night-set.wav",
+                "roleFocus": ["bass-guitar"],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "2026-03-12T00:00:00Z",
+        )
+
+    assert success["state"] == "succeeded"
+    assert len(success["result"]["sections"]) >= 1
+    first_section = success["result"]["sections"][0]
+    assert first_section["timeRange"]["end"] > first_section["timeRange"]["start"]
+    assert first_section["partGraph"]
+
+
 def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     """Ensure local-audio orchestration exposes stages and persists reusable cache."""
     payload = {

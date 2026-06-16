@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from typing import Any
+
+import numpy as np
 
 from ..sections.utils import validate_section
 from .model import (
@@ -33,6 +36,10 @@ class RoleExtractor:
         self,
         sections: list[Any],
         audio_features: dict[str, Any] | None = None,
+        *,
+        section_windows: list[tuple[float, float]] | None = None,
+        section_chords: list[str] | None = None,
+        lyric_cues: list[str] | None = None,
     ) -> RoleExtractionResult:
         """Extract roles and their topology per section.
 
@@ -53,16 +60,52 @@ class RoleExtractor:
         roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range)
 
         # Simple mock implementation for testing/demonstration purposes
+        sample_rate = features.get("sr", 22050)
+        previous_active_ids: set[str] = set()
         for i, section in enumerate(sections):
             section_id = validate_section(section, i, logger)
+            section_roles = copy.deepcopy(roles)
+            if section_chords and i < len(section_chords):
+                self._apply_section_chord(section_roles, section_chords[i])
+            if lyric_cues and i < len(lyric_cues) and lyric_cues[i]:
+                section_roles["vocal"]["cue"] = {
+                    "kind": CueAnchorKind.LYRIC,
+                    "value": lyric_cues[i],
+                }
 
-            topology = self._build_topology(section_id, i == 0, roles)
+            activity = None
+            if section_windows and i < len(section_windows):
+                activity = self._detect_section_activity(
+                    stems=stems,
+                    sample_rate=sample_rate if isinstance(sample_rate, int) else 22050,
+                    start_time=section_windows[i][0],
+                    end_time=section_windows[i][1],
+                )
+
+            topology = self._build_topology(
+                section_id,
+                i == 0,
+                section_roles,
+                section_activity=activity,
+                previous_active_ids=previous_active_ids,
+            )
+            previous_active_ids = {
+                node["role_id"] for node in topology["part_graph"] if node["is_active"]
+            }
             topologies.append(topology)
 
         return {
             "topologies": topologies,
             "extraction_notes": "Extracted roles and computed handoffs.",
         }
+
+    def _apply_section_chord(self, roles: dict[str, RehearsalRole], chord: str) -> None:
+        """Inject section-level chord context into model-sourced role harmony."""
+        if not chord or chord == "N":
+            return
+        for role in roles.values():
+            if role["harmony"]["source"] == "model":
+                role["harmony"]["chord"] = chord
 
     def _extract_features(
         self, stems: dict[str, Any], sr: int
@@ -287,8 +330,19 @@ class RoleExtractor:
         section_id: str,
         is_first: bool,
         roles: dict[str, RehearsalRole],
+        *,
+        section_activity: dict[str, bool] | None = None,
+        previous_active_ids: set[str] | None = None,
     ) -> SectionRoleTopology:
         """Construct the topology including active roles and the part graph."""
+        if section_activity is not None:
+            return self._build_activity_topology(
+                section_id,
+                roles,
+                section_activity,
+                previous_active_ids,
+            )
+
         active_roles = [roles["bass"], roles["acoustic_guitar"]]
 
         part_graph: list[PartGraphNode] = [
@@ -359,3 +413,97 @@ class RoleExtractor:
             "active_roles": active_roles,
             "part_graph": part_graph,
         }
+
+    def _build_activity_topology(
+        self,
+        section_id: str,
+        roles: dict[str, RehearsalRole],
+        section_activity: dict[str, bool],
+        previous_active_ids: set[str] | None,
+    ) -> SectionRoleTopology:
+        role_order = (
+            ("bass-guitar", "bass"),
+            ("acoustic-guitar", "acoustic_guitar"),
+            ("keys-left", "keys_left"),
+            ("keys-right", "keys_right"),
+            ("lead-vocal", "vocal"),
+        )
+        part_graph: list[PartGraphNode] = []
+        active_roles: list[RehearsalRole] = []
+        current_active_ids: set[str] = set()
+
+        for role_id, role_key in role_order:
+            is_active = bool(section_activity.get(role_id, False))
+            if is_active:
+                active_roles.append(roles[role_key])
+                current_active_ids.add(role_id)
+            part_graph.append(
+                {"role_id": role_id, "is_active": is_active, "handoff_to": [], "handoff_from": []}
+            )
+
+        previous = previous_active_ids or set()
+        entering = current_active_ids - previous
+        exiting = previous - current_active_ids
+        if entering and exiting:
+            graph_by_role = {node["role_id"]: node for node in part_graph}
+            for from_role in exiting:
+                from_node = graph_by_role.get(from_role)
+                if from_node is None:
+                    continue
+                for to_role in entering:
+                    to_node = graph_by_role.get(to_role)
+                    if to_node is None:
+                        continue
+                    from_node["handoff_to"].append(to_role)
+                    to_node["handoff_from"].append(from_role)
+
+        return {
+            "section_id": section_id,
+            "active_roles": active_roles,
+            "part_graph": part_graph,
+        }
+
+    def _detect_section_activity(
+        self,
+        *,
+        stems: dict[str, Any],
+        sample_rate: int,
+        start_time: float,
+        end_time: float,
+    ) -> dict[str, bool]:
+        """Map stem-energy activity to rehearsal roles for one section window."""
+        if sample_rate <= 0:
+            sample_rate = 22050
+        stem_to_roles = {
+            "bass": ("bass-guitar",),
+            "vocals": ("lead-vocal",),
+            "other": ("acoustic-guitar", "keys-left", "keys-right"),
+            "drums": (),
+        }
+        role_activity = {
+            "bass-guitar": False,
+            "lead-vocal": False,
+            "acoustic-guitar": False,
+            "keys-left": False,
+            "keys-right": False,
+        }
+        for stem_name, roles_for_stem in stem_to_roles.items():
+            stem = stems.get(stem_name)
+            if not isinstance(stem, np.ndarray) or stem.size == 0:
+                continue
+            start_idx = max(0, int(round(start_time * sample_rate)))
+            end_idx = max(start_idx + 1, int(round(end_time * sample_rate)))
+            bounded_end = min(end_idx, stem.size)
+            bounded_start = min(start_idx, max(0, bounded_end - 1))
+            section_chunk = stem[bounded_start:bounded_end]
+            if section_chunk.size == 0:
+                continue
+            section_rms = float(
+                np.sqrt(np.mean(np.square(np.asarray(section_chunk, dtype=np.float64))))
+            )
+            global_rms = float(np.sqrt(np.mean(np.square(np.asarray(stem, dtype=np.float64)))))
+            threshold = max(1e-4, global_rms * 0.35)
+            is_active = section_rms >= threshold
+            for role_id in roles_for_stem:
+                role_activity[role_id] = is_active
+        return role_activity

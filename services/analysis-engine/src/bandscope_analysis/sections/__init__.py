@@ -5,7 +5,11 @@ from arrangement representations.
 """
 
 from .anchors import count_based_anchor, lyric_phrase_anchor
-from .extractor import extract_sections
+from .extractor import (
+    StructuralSectionExtractionResult,
+    extract_sections,
+    extract_structural_sections,
+)
 from .model import (
     ALL_SECTION_LABELS,
     CueAnchor,
@@ -26,5 +30,7 @@ __all__ = [
     "count_based_anchor",
     "lyric_phrase_anchor",
     "extract_sections",
+    "extract_structural_sections",
+    "StructuralSectionExtractionResult",
     "validate_section",
 ]

@@ -7,10 +7,14 @@ import json
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
+import numpy as np
+
+from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
-from bandscope_analysis.sections import extract_sections
+from bandscope_analysis.sections import extract_sections, extract_structural_sections
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal import TemporalAnalyzer
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
@@ -293,41 +297,92 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
 
 def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
-    """Return the bootstrap rehearsal song payload for orchestration tests."""
+    """Build a rehearsal payload from available structure, timing, and role features."""
+    features = audio_features or {}
 
-    # Extract sections using the new pipeline
-    arrangement = [{"label": "verse", "groove": "Straight eighths with a late snare feel"}]
-    extraction_result = extract_sections(arrangement)
-    verse_section = extraction_result["sections"][0]
+    use_structural = "temporal" in features
+    section_windows: list[tuple[float, float]] = []
+    section_chords: list[str] = []
+    section_cues: list[str] = []
+    if use_structural:
+        structural = extract_structural_sections(features)
+        extraction_result = structural["extraction"]
+        sections = extraction_result["sections"]
+        section_windows = structural["boundaries"]
+        section_chords = structural["dominant_chords"]
+        for section in sections:
+            cue_value = section.get("cue_anchor", {}).get("value", "")
+            section_cues.append(cue_value if isinstance(cue_value, str) else "")
+    else:
+        extraction_result = extract_sections(
+            [{"label": "verse", "groove": "Straight eighths with a late snare feel"}]
+        )
+        sections = extraction_result["sections"]
+        section_windows = [(10.0, 30.0)]
+        section_chords = ["N"]
+        section_cues = [""]
 
-    # Extract roles
-    extractor = RoleExtractor()
-    role_result = extractor.extract([verse_section], audio_features)
-    verse_topology = role_result["topologies"][0]
-    verse_roles = verse_topology["active_roles"]
+    role_result = RoleExtractor().extract(
+        sections,
+        features,
+        section_windows=section_windows if use_structural else None,
+        section_chords=section_chords if use_structural else None,
+        lyric_cues=section_cues if use_structural else None,
+    )
+
+    rendered_sections: list[RehearsalSectionPayload] = []
+    focus_sections: list[str] = []
+    for index, section in enumerate(sections):
+        topology = role_result["topologies"][index]
+        section_start, section_end = (
+            section_windows[index]
+            if index < len(section_windows)
+            else (float(index * 8), float((index + 1) * 8))
+        )
+        range_start = max(0, int(section_start))
+        range_end = max(range_start + 1, int(np.ceil(section_end)))
+        chord_hint = section_chords[index] if index < len(section_chords) else "N"
+        cue_anchor = section.get("cue_anchor", {})
+        cue_value = cue_anchor.get("value", "")
+        confidence_notes = str(section.get("confidence_notes", "Detected structural boundary"))
+        if cue_anchor.get("strategy") == "lyric" and isinstance(cue_value, str) and cue_value:
+            confidence_notes = f"{confidence_notes} Cue lyric: {cue_value}."
+        if chord_hint != "N":
+            confidence_notes = f"{confidence_notes} Harmonic center near {chord_hint}."
+        rendered_sections.append(
+            {
+                "id": str(section["id"]),
+                "label": str(section["form_label"]),
+                "groove": str(section["groove"]),
+                "timeRange": build_section_time_range(range_start, range_end),
+                "confidence": {
+                    "level": cast(str, section["confidence_level"]),
+                    "source": cast(str, section["confidence_source"]),
+                    "notes": confidence_notes,
+                },
+                "roles": cast(list[RehearsalRolePayload], topology["active_roles"]),
+                "partGraph": cast(list[PartGraphNodePayload], topology["part_graph"]),
+            }
+        )
+        if topology["active_roles"]:
+            focus_sections.append(str(section["form_label"]))
+
+    unique_focus_sections = list(dict.fromkeys(focus_sections)) or [
+        str(sections[0]["form_label"]) if sections else "verse"
+    ]
+    headline = (
+        f"Prioritize {unique_focus_sections[0]} entries, then lock transitions across "
+        f"{len(rendered_sections)} detected section(s)."
+    )
 
     return {
         "id": "demo-song",
         "title": "Late Night Set",
-        "sections": [
-            {
-                "id": verse_section["id"],
-                "label": verse_section["form_label"],
-                "groove": verse_section["groove"],
-                "timeRange": build_section_time_range(10, 30),
-                "confidence": {
-                    "level": "medium",
-                    "source": "model",
-                    "notes": "Double-check the pickup into the chorus.",
-                },
-                "roles": cast(list[RehearsalRolePayload], verse_roles),
-                "partGraph": cast(Any, verse_topology["part_graph"]),
-            }
-        ],
+        "sections": rendered_sections,
         "exportSummary": {
             "format": "cue-sheet",
-            "headline": "Start with verse entrances before the chorus lift.",
-            "focusSections": ["verse"],
+            "headline": headline,
+            "focusSections": unique_focus_sections,
         },
     }
 
@@ -437,10 +492,31 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
 
-    separation_result = AudioStemSeparator().separate(request["localSource"]["sourcePath"])
+    source_path = request["localSource"]["sourcePath"]
+    separation_result = AudioStemSeparator().separate(source_path)
+    try:
+        temporal_result = TemporalAnalyzer().analyze(source_path)
+    except (FileNotFoundError, ValueError):
+        duration = float(separation_result["duration_seconds"])
+        temporal_result = {
+            "bpm": 120.0,
+            "beat_times": [float(index) * 0.5 for index in range(max(1, int(duration * 2)))],
+            "downbeat_times": [
+                float(index) * 2.0 for index in range(max(1, int(np.ceil(duration / 2.0))))
+            ],
+            "duration_seconds": duration,
+            "sample_rate": separation_result["sample_rate"],
+            "audio_path": source_path,
+        }
+    chords = ChordRecognizer().recognize(
+        separation_result["stems"].get("other", separation_result["stems"]["bass"]),
+        sr=separation_result["sample_rate"],
+    )
     return {
         "stems": separation_result["stems"],
         "sr": separation_result["sample_rate"],
+        "temporal": temporal_result,
+        "chords": chords,
         "separation": {
             "duration_seconds": separation_result["duration_seconds"],
             "chunk_count": separation_result["chunk_count"],
