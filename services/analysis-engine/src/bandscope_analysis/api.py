@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import math
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
+
+import numpy as np
 
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
+from bandscope_analysis.segmentation import AudioSegmenter
 from bandscope_analysis.separation import AudioStemSeparator
+
+logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
@@ -292,6 +299,141 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     return normalized
 
 
+def _mix_stems(stems: dict[str, Any]) -> np.ndarray:
+    """Sum all stem arrays into a mono mix for segmentation."""
+    arrays = [v for v in stems.values() if isinstance(v, np.ndarray) and v.size > 0]
+    if not arrays:
+        return np.zeros(1024, dtype=np.float32)
+    max_len = max(a.shape[0] for a in arrays)
+    mix = np.zeros(max_len, dtype=np.float64)
+    for a in arrays:
+        mix[: a.shape[0]] += a.astype(np.float64)
+    return mix.astype(np.float32)
+
+
+def _song_id_from_label(source_label: str) -> str:
+    """Derive a stable song ID from the source label."""
+    slug = source_label.lower().replace(" ", "-").replace("/", "-").replace("\\", "-")
+    return slug[:64] or "song"
+
+
+def build_rehearsal_song_from_audio(
+    source_label: str,
+    audio_features: dict[str, Any],
+) -> RehearsalSong:
+    """Build a reality-based rehearsal song payload from separated audio stems.
+
+    This function replaces the hardcoded demo in the local-audio analysis path.
+    It uses SSM/novelty-curve segmentation to detect structural boundaries, then
+    detects which stems are active in each segment to build the real part-graph
+    topology and fuses temporal and chord information into the final payload.
+
+    Args:
+        source_label: Human-readable label for the source track (used as title).
+        audio_features: Dict with ``stems`` (numpy arrays per stem category) and
+            ``sr`` (sample rate).
+
+    Returns:
+        A fully populated ``RehearsalSong`` matching the IPC schema.
+    """
+    stems: dict[str, Any] = audio_features.get("stems", {})
+    sr = int(audio_features.get("sr", 22050))
+
+    # --- 1. Structural segmentation ---
+    mix = _mix_stems(stems)
+    segmenter = AudioSegmenter()
+    try:
+        seg_result = segmenter.segment(mix, sr)
+    except Exception as exc:
+        logger.warning(
+            "Segmentation failed for '%s': %s; using single-section fallback.",
+            source_label,
+            exc,
+        )
+        duration = float(mix.shape[0]) / sr if sr > 0 else 30.0
+        seg_result = {
+            "boundaries": [
+                {
+                    "start_sec": 0.0,
+                    "end_sec": max(1.0, duration),
+                    "label": "verse",
+                    "confidence": "low",
+                }
+            ],
+            "duration_seconds": duration,
+            "method": "fallback",
+            "segmentation_notes": "Segmentation failed; single-section fallback.",
+        }
+
+    boundaries = seg_result["boundaries"]
+
+    # --- 2. Convert boundaries → section candidates ---
+    arrangement = [
+        {"label": b["label"], "groove": "standard"}
+        for b in boundaries
+    ]
+    extraction_result = extract_sections(arrangement)
+    sections = extraction_result["sections"]
+
+    # --- 3. Extract roles with real stem-activity detection per section ---
+    extractor = RoleExtractor()
+    role_result = extractor.extract(
+        sections,
+        audio_features,
+        segment_boundaries=cast(list[dict[str, Any]], boundaries),
+    )
+
+    # --- 4. Fuse everything into the IPC payload ---
+    rehearsal_sections: list[RehearsalSectionPayload] = []
+    for i, section in enumerate(sections):
+        topology = role_result["topologies"][i]
+        boundary = boundaries[i]
+
+        start_sec = max(0, int(boundary["start_sec"]))
+        end_sec = max(start_sec + 1, int(math.ceil(boundary["end_sec"])))
+
+        rehearsal_sections.append(
+            {
+                "id": section["id"],
+                "label": section["form_label"],
+                "groove": section["groove"],
+                "timeRange": build_section_time_range(start_sec, end_sec),
+                "confidence": {
+                    "level": boundary["confidence"],
+                    "source": "model",
+                    "notes": section["confidence_notes"],
+                },
+                "roles": cast(list[RehearsalRolePayload], topology["active_roles"]),
+                "partGraph": cast(Any, topology["part_graph"]),
+            }
+        )
+
+    # Prioritise rehearsal focus on choruses and verses, then bridges.
+    priority_labels = ["chorus", "verse", "bridge"]
+    seen: dict[str, bool] = {}
+    focus_sections: list[str] = []
+    for s in sections:
+        lbl = s["form_label"]
+        if lbl in priority_labels and lbl not in seen:
+            seen[lbl] = True
+            focus_sections.append(lbl)
+        if len(focus_sections) >= 2:
+            break
+    if not focus_sections:
+        focus_sections = [sections[0]["form_label"]] if sections else ["verse"]
+
+    return {
+        "id": _song_id_from_label(source_label),
+        "title": source_label,
+        "sections": rehearsal_sections,
+        "exportSummary": {
+            "format": "cue-sheet",
+            "headline": f"Focus on section transitions and entrances for {source_label}.",
+            "focusSections": focus_sections,
+        },
+    }
+
+
 def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
     """Return the bootstrap rehearsal song payload for orchestration tests."""
 
@@ -553,7 +695,11 @@ def run_analysis_job_updates(
         )
     )
 
-    result = build_demo_rehearsal_song(audio_features)
+    result = (
+        build_rehearsal_song_from_audio(request["sourceLabel"], audio_features)
+        if audio_features is not None
+        else build_demo_rehearsal_song()
+    )
     updates.append(
         _build_job_status(
             job_id=job_id,

@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import numpy as np
+
 from ..sections.utils import validate_section
 from .model import (
     CueAnchorKind,
@@ -21,6 +23,26 @@ from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
 
+# RMS energy threshold below which a stem is considered silent/inactive in a window.
+_RMS_ACTIVITY_THRESHOLD = 0.01
+
+# Maps stem names to the role IDs they drive.
+_STEM_TO_ROLE_IDS: dict[str, list[str]] = {
+    "vocals": ["lead-vocal"],
+    "bass": ["bass-guitar"],
+    "drums": ["acoustic-guitar"],
+    "other": ["keys-left", "keys-right"],
+}
+
+# Maps each role ID back to the stem that controls its activity.
+_ROLE_ID_TO_STEM: dict[str, str] = {
+    "lead-vocal": "vocals",
+    "bass-guitar": "bass",
+    "acoustic-guitar": "drums",
+    "keys-left": "other",
+    "keys-right": "other",
+}
+
 
 class RoleExtractor:
     """Extracts roles and builds the part graph for song sections."""
@@ -33,12 +55,18 @@ class RoleExtractor:
         self,
         sections: list[Any],
         audio_features: dict[str, Any] | None = None,
+        segment_boundaries: list[dict[str, Any]] | None = None,
     ) -> RoleExtractionResult:
         """Extract roles and their topology per section.
 
         Args:
             sections: List of section dicts (must contain 'id').
             audio_features: Optional audio features to inform extraction.
+            segment_boundaries: Optional list of SegmentBoundary dicts (with
+                ``start_sec`` and ``end_sec``) aligned to ``sections``.  When
+                provided together with stems in ``audio_features``, each section
+                gets its own stem-activity detection pass so the part graph
+                reflects real instrumentation rather than a fixed pattern.
 
         Returns:
             RoleExtractionResult containing topologies and notes.
@@ -47,22 +75,69 @@ class RoleExtractor:
 
         features = audio_features or {}
         stems = features.get("stems", {})
-        sr = features.get("sr", 22050)
+        sr = int(features.get("sr", 22050))
 
         vocal_range, vocal_chord, bass_range, bass_chord = self._extract_features(stems, sr)
         roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range)
 
-        # Simple mock implementation for testing/demonstration purposes
+        # Compute per-section active-stem sets when boundaries + real stems are available.
+        active_sets: list[set[str] | None] = []
+        for i, _ in enumerate(sections):
+            boundary = (
+                segment_boundaries[i]
+                if segment_boundaries and i < len(segment_boundaries)
+                else None
+            )
+            if boundary is not None and stems:
+                active = self._detect_active_stems(
+                    stems, sr, float(boundary["start_sec"]), float(boundary["end_sec"])
+                )
+                active_sets.append(active)
+            else:
+                active_sets.append(None)
+
         for i, section in enumerate(sections):
             section_id = validate_section(section, i, logger)
+            active_stem_ids = active_sets[i]
+            prev_active_stem_ids = active_sets[i - 1] if i > 0 else None
 
-            topology = self._build_topology(section_id, i == 0, roles)
+            topology = self._build_topology(
+                section_id, i == 0, roles, active_stem_ids, prev_active_stem_ids
+            )
             topologies.append(topology)
 
         return {
             "topologies": topologies,
             "extraction_notes": "Extracted roles and computed handoffs.",
         }
+
+    def _detect_active_stems(
+        self,
+        stems: dict[str, Any],
+        sr: int,
+        start_sec: float,
+        end_sec: float,
+    ) -> set[str]:
+        """Return the set of stem names with significant energy in the time window.
+
+        A stem is considered active when its RMS amplitude in the requested
+        window exceeds ``_RMS_ACTIVITY_THRESHOLD``.
+        """
+        start_sample = int(start_sec * sr)
+        end_sample = int(end_sec * sr)
+        active: set[str] = set()
+
+        for stem_name, audio in stems.items():
+            if not isinstance(audio, np.ndarray) or audio.size == 0:
+                continue
+            window = audio[start_sample:end_sample]
+            if window.size == 0:
+                continue
+            rms = float(np.sqrt(np.mean(window.astype(np.float64) ** 2)))
+            if rms > _RMS_ACTIVITY_THRESHOLD:
+                active.add(stem_name)
+
+        return active
 
     def _extract_features(
         self, stems: dict[str, Any], sr: int
@@ -287,8 +362,111 @@ class RoleExtractor:
         section_id: str,
         is_first: bool,
         roles: dict[str, RehearsalRole],
+        active_stem_ids: set[str] | None = None,
+        prev_active_stem_ids: set[str] | None = None,
     ) -> SectionRoleTopology:
-        """Construct the topology including active roles and the part graph."""
+        """Construct the topology including active roles and the part graph.
+
+        When ``active_stem_ids`` is provided (real audio path), role activity is
+        driven by actual stem energy detected in the section window.  Otherwise
+        the legacy position-based fallback is used (demo / no-audio path).
+
+        Args:
+            section_id: Stable identifier for the section.
+            is_first: True when this is the first section in the song.
+            roles: Pre-built role dict keyed by short name.
+            active_stem_ids: Set of stem names with significant energy in this
+                section.  ``None`` → use position-based fallback.
+            prev_active_stem_ids: Active stems in the immediately preceding
+                section, used to compute handoff edges.  ``None`` → no handoffs.
+        """
+        if active_stem_ids is not None:
+            return self._build_topology_from_stems(
+                section_id, roles, active_stem_ids, prev_active_stem_ids
+            )
+        return self._build_topology_position_based(section_id, is_first, roles)
+
+    def _build_topology_from_stems(
+        self,
+        section_id: str,
+        roles: dict[str, RehearsalRole],
+        active_stem_ids: set[str],
+        prev_active_stem_ids: set[str] | None,
+    ) -> SectionRoleTopology:
+        """Build topology driven by real stem-activity detection."""
+        # Map stem names → role keys for the fixed role dict
+        _KEY_BY_ROLE_ID = {
+            "lead-vocal": "vocal",
+            "bass-guitar": "bass",
+            "acoustic-guitar": "acoustic_guitar",
+            "keys-left": "keys_left",
+            "keys-right": "keys_right",
+        }
+
+        # Determine which role IDs are active based on stem activity
+        active_role_ids: set[str] = set()
+        for stem_name in active_stem_ids:
+            for role_id in _STEM_TO_ROLE_IDS.get(stem_name, []):
+                active_role_ids.add(role_id)
+
+        # Fallback: ensure at least bass and acoustic-guitar are present
+        if not active_role_ids:
+            active_role_ids = {"bass-guitar", "acoustic-guitar"}
+
+        # Determine which role IDs were active in the previous section
+        prev_active_role_ids: set[str] = set()
+        if prev_active_stem_ids is not None:
+            for stem_name in prev_active_stem_ids:
+                for role_id in _STEM_TO_ROLE_IDS.get(stem_name, []):
+                    prev_active_role_ids.add(role_id)
+
+        # Roles that newly enter (prev inactive → now active)
+        entering = active_role_ids - prev_active_role_ids
+        # Roles that drop out (prev active → now inactive)
+        exiting = prev_active_role_ids - active_role_ids
+
+        # Build ordered role lists and part graph
+        role_order = ["bass-guitar", "acoustic-guitar", "keys-left", "keys-right", "lead-vocal"]
+        active_roles: list[RehearsalRole] = []
+        part_graph: list[PartGraphNode] = []
+
+        for role_id in role_order:
+            role_key = _KEY_BY_ROLE_ID[role_id]
+            role = roles[role_key]
+            is_active = role_id in active_role_ids
+
+            # Compute handoff edges for this role
+            handoff_to: list[str] = []
+            handoff_from: list[str] = []
+            if role_id in exiting:
+                handoff_to = sorted(entering)
+            if role_id in entering:
+                handoff_from = sorted(exiting)
+
+            part_graph.append(
+                {
+                    "role_id": role_id,
+                    "is_active": is_active,
+                    "handoff_to": handoff_to,
+                    "handoff_from": handoff_from,
+                }
+            )
+            if is_active:
+                active_roles.append(role)
+
+        return {
+            "section_id": section_id,
+            "active_roles": active_roles,
+            "part_graph": part_graph,
+        }
+
+    def _build_topology_position_based(
+        self,
+        section_id: str,
+        is_first: bool,
+        roles: dict[str, RehearsalRole],
+    ) -> SectionRoleTopology:
+        """Legacy position-based topology used for demo mode (no real audio)."""
         active_roles = [roles["bass"], roles["acoustic_guitar"]]
 
         part_graph: list[PartGraphNode] = [
