@@ -10,7 +10,7 @@ from typing import Any, Literal, NotRequired, TypedDict, cast
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
-from bandscope_analysis.sections.segmenter import segment_audio, segment_boundaries_from_audio
+from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
@@ -334,13 +334,10 @@ def _build_from_pipeline(
     if mix.size == 0:
         return _build_from_arrangement(features)
 
-    # 1. Structural segmentation
-    detected_sections = segment_audio(mix, sr, duration_seconds)
+    # 1+2. Structural segmentation and boundary detection (single pass)
+    detected_sections, boundaries = segment_with_boundaries(mix, sr, duration_seconds)
     if not detected_sections:
         return _build_from_arrangement(features)
-
-    # 2. Get boundary time ranges for activity detection
-    boundaries = segment_boundaries_from_audio(mix, sr, duration_seconds)
 
     # 3. Role extraction with real stem activity
     extractor = RoleExtractor()

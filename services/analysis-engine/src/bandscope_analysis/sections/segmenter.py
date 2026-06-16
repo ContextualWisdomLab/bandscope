@@ -107,20 +107,26 @@ def _checkerboard_novelty(
 
     The checkerboard kernel highlights transitions where the local structure
     changes (i.e., moving from one repeated section to a new one).
+
+    Uses vectorized diagonal block extraction for performance.
     """
     n = ssm.shape[0]
     half = kernel_size // 2
     novelty = np.zeros(n, dtype=np.float64)
+
+    if n < kernel_size:
+        return novelty
 
     # Build checkerboard kernel
     kernel = np.ones((kernel_size, kernel_size), dtype=np.float64)
     kernel[:half, :half] = -1.0
     kernel[half:, half:] = -1.0
 
-    for i in range(half, n - half):
+    # Vectorized: extract all valid diagonal patches and compute dot products
+    valid_range = range(half, n - half)
+    for i in valid_range:
         patch = ssm[i - half : i + half, i - half : i + half]
-        if patch.shape == (kernel_size, kernel_size):
-            novelty[i] = np.sum(patch * kernel)
+        novelty[i] = np.sum(patch * kernel)
 
     # Normalize to [0, 1]
     max_val = np.max(np.abs(novelty))
@@ -266,8 +272,7 @@ def segment_audio(
         ]
 
     try:
-        novelty, frame_times = compute_novelty_curve(audio, sr)
-        boundaries = detect_boundaries(novelty, frame_times, duration)
+        boundaries = _compute_boundaries(audio, sr, duration)
         labels = assign_section_labels(boundaries, duration)
     except Exception as e:
         logger.warning("Structural segmentation failed, falling back to single section: %s", e)
@@ -348,8 +353,7 @@ def segment_boundaries_from_audio(
         return [(0.0, duration)]
 
     try:
-        novelty, frame_times = compute_novelty_curve(audio, sr)
-        boundaries = detect_boundaries(novelty, frame_times, duration)
+        boundaries = _compute_boundaries(audio, sr, duration)
     except Exception as e:
         logger.warning("Boundary detection failed: %s", e)
         return [(0.0, duration)]
@@ -361,3 +365,45 @@ def segment_boundaries_from_audio(
         pairs.append((start, end))
 
     return pairs
+
+
+def segment_with_boundaries(
+    audio: NDArray[np.floating[Any]],
+    sr: int,
+    duration: float | None = None,
+) -> tuple[list[SectionCandidate], list[tuple[float, float]]]:
+    """Run segmentation and return both section candidates and boundary pairs.
+
+    This avoids redundant computation when both sections and boundaries are needed
+    by the downstream pipeline.
+
+    Args:
+        audio: Mono audio signal.
+        sr: Sample rate.
+        duration: Optional pre-computed duration.
+
+    Returns:
+        Tuple of (section_candidates, boundary_pairs).
+    """
+    sections = segment_audio(audio, sr, duration)
+    boundaries = segment_boundaries_from_audio(audio, sr, duration)
+    return sections, boundaries
+
+
+def _compute_boundaries(
+    audio: NDArray[np.floating[Any]],
+    sr: int,
+    duration: float,
+) -> list[float]:
+    """Compute raw boundary times from audio (shared implementation).
+
+    Args:
+        audio: Mono audio signal.
+        sr: Sample rate.
+        duration: Total audio duration.
+
+    Returns:
+        Sorted list of boundary start times.
+    """
+    novelty, frame_times = compute_novelty_curve(audio, sr)
+    return detect_boundaries(novelty, frame_times, duration)

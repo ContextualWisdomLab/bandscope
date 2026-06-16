@@ -15,7 +15,7 @@ from .model import (
     SectionExtractionResult,
     SectionLabel,
 )
-from .segmenter import segment_audio, segment_boundaries_from_audio
+from .segmenter import segment_audio, segment_boundaries_from_audio, segment_with_boundaries
 from .utils import validate_section
 
 __all__ = [
@@ -30,5 +30,6 @@ __all__ = [
     "extract_sections",
     "segment_audio",
     "segment_boundaries_from_audio",
+    "segment_with_boundaries",
     "validate_section",
 ]
