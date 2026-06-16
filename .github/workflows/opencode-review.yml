@@ -1621,7 +1621,6 @@ jobs:
             failed_checks_file="$(mktemp)"
             failed_check_evidence_file="$(mktemp)"
             failed_check_review_body_file="$(mktemp)"
-            opencode_outcome_summary="OpenCode outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
             # shellcheck disable=SC2329
             cleanup_failed_outcome_files() {
               rm -f "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
@@ -1630,6 +1629,7 @@ jobs:
               fi
             }
             trap cleanup_failed_outcome_files EXIT
+            opencode_outcome_summary="OpenCode outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
             if ! collect_github_checks_with_retry collect_failed_github_checks "$failed_checks_file"; then
               request_changes_for_gate_failure "GitHub Checks could not be retrieved. ${opencode_outcome_summary}"
             elif [ -s "$failed_checks_file" ]; then
