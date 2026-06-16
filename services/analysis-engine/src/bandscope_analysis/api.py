@@ -10,6 +10,7 @@ from typing import Any, Literal, NotRequired, TypedDict, cast
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
+from bandscope_analysis.sections.segmenter import segment_audio, segment_boundaries_from_audio
 from bandscope_analysis.separation import AudioStemSeparator
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
@@ -293,14 +294,130 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
 
 def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
-    """Return the bootstrap rehearsal song payload for orchestration tests."""
+    """Return the bootstrap rehearsal song payload for orchestration tests.
 
-    # Extract sections using the new pipeline
+    When audio_features includes real stems from separation, this function runs
+    the full integrated pipeline: structural segmentation, stem activity detection,
+    temporal grid fusion, and role extraction. Falls back to the arrangement-based
+    extraction when no real audio features are available.
+    """
+    features = audio_features or {}
+    stems = features.get("stems", {})
+    sr = features.get("sr", 22050)
+    separation_info = features.get("separation", {})
+    duration_seconds = separation_info.get("duration_seconds", 0.0) if separation_info else 0.0
+
+    # --- Integrated pipeline: real segmentation when stems are available ---
+    if stems and duration_seconds > 0:
+        return _build_from_pipeline(stems, sr, duration_seconds, features)
+
+    # --- Fallback: arrangement-based extraction (demo mode) ---
+    return _build_from_arrangement(audio_features)
+
+
+def _build_from_pipeline(
+    stems: dict[str, Any],
+    sr: int,
+    duration_seconds: float,
+    features: dict[str, Any],
+) -> RehearsalSong:
+    """Build a RehearsalSong from the integrated analysis pipeline.
+
+    Pipeline stages:
+    1. Structural segmentation via SSM novelty curve on the mixed audio.
+    2. Stem activity detection per boundary.
+    3. Role extraction with real activity maps and handoffs.
+    4. Temporal grid fusion (section time ranges).
+    """
+    # Reconstruct mix from stems for segmentation
+    mix = _reconstruct_mix(stems)
+    if mix.size == 0:
+        return _build_from_arrangement(features)
+
+    # 1. Structural segmentation
+    detected_sections = segment_audio(mix, sr, duration_seconds)
+    if not detected_sections:
+        return _build_from_arrangement(features)
+
+    # 2. Get boundary time ranges for activity detection
+    boundaries = segment_boundaries_from_audio(mix, sr, duration_seconds)
+
+    # 3. Role extraction with real stem activity
+    extractor = RoleExtractor()
+    role_result = extractor.extract(
+        detected_sections,
+        {
+            "stems": stems,
+            "sr": sr,
+            "boundaries": boundaries,
+        },
+    )
+
+    # 4. Build final payload sections
+    payload_sections: list[RehearsalSectionPayload] = []
+    focus_sections: list[str] = []
+
+    for i, section in enumerate(detected_sections):
+        # Compute time range from boundaries
+        if i < len(boundaries):
+            start_sec, end_sec = boundaries[i]
+        else:
+            start_sec = 0.0
+            end_sec = duration_seconds
+
+        # Clamp to u32 bounds and convert to integers
+        start_int = max(0, int(start_sec))
+        end_int = max(start_int + 1, int(end_sec))
+        time_range = build_section_time_range(start_int, end_int)
+
+        # Get topology for this section
+        topology = role_result["topologies"][i] if i < len(role_result["topologies"]) else None
+        section_roles = topology["active_roles"] if topology else []
+        section_graph = topology["part_graph"] if topology else []
+
+        payload_sections.append({
+            "id": section["id"],
+            "label": section["form_label"],
+            "groove": section["groove"],
+            "timeRange": time_range,
+            "confidence": {
+                "level": section["confidence_level"],
+                "source": section["confidence_source"],
+                "notes": section["confidence_notes"],
+            },
+            "roles": cast(list[RehearsalRolePayload], section_roles),
+            "partGraph": cast(list[PartGraphNodePayload], section_graph),
+        })
+
+        # Track high-priority sections for export summary
+        if section["form_label"] in ("chorus", "verse"):
+            if section["form_label"] not in focus_sections:
+                focus_sections.append(section["form_label"])
+
+    if not focus_sections and payload_sections:
+        focus_sections = [payload_sections[0]["label"]]
+
+    # Build export summary from detected structure
+    headline = _build_export_headline(detected_sections)
+
+    return {
+        "id": "analyzed-song",
+        "title": features.get("title", "Analyzed Track"),
+        "sections": payload_sections,
+        "exportSummary": {
+            "format": "cue-sheet",
+            "headline": headline,
+            "focusSections": focus_sections,
+        },
+    }
+
+
+def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
+    """Build a RehearsalSong from the arrangement-based extraction path."""
     arrangement = [{"label": "verse", "groove": "Straight eighths with a late snare feel"}]
     extraction_result = extract_sections(arrangement)
     verse_section = extraction_result["sections"][0]
 
-    # Extract roles
     extractor = RoleExtractor()
     role_result = extractor.extract([verse_section], audio_features)
     verse_topology = role_result["topologies"][0]
@@ -330,6 +447,50 @@ def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> R
             "focusSections": ["verse"],
         },
     }
+
+
+def _reconstruct_mix(stems: dict[str, Any]) -> Any:
+    """Reconstruct a mono mix from separated stems for segmentation."""
+    import numpy as np
+
+    arrays = []
+    for stem_audio in stems.values():
+        if isinstance(stem_audio, np.ndarray) and stem_audio.size > 0:
+            arrays.append(stem_audio.astype(np.float64))
+
+    if not arrays:
+        return np.array([], dtype=np.float32)
+
+    # Align lengths and sum
+    max_len = max(a.size for a in arrays)
+    mix = np.zeros(max_len, dtype=np.float64)
+    for arr in arrays:
+        mix[: arr.size] += arr
+
+    # Normalize to prevent clipping
+    max_val = np.max(np.abs(mix))
+    if max_val > 0:
+        mix = mix / max_val
+
+    return mix.astype(np.float32)
+
+
+def _build_export_headline(sections: list[Any]) -> str:
+    """Generate an export summary headline from detected sections."""
+    labels = [s["form_label"] for s in sections if isinstance(s, dict)]
+    unique_labels = list(dict.fromkeys(labels))
+
+    if not unique_labels:
+        return "Start with verse entrances before the chorus lift."
+
+    if "chorus" in unique_labels and "verse" in unique_labels:
+        return "Focus on verse-to-chorus transitions and entrances."
+    if "verse" in unique_labels:
+        return "Start with verse entrances before the next section."
+    if "chorus" in unique_labels:
+        return "Nail the chorus entrances and energy lifts."
+
+    return f"Work through the {unique_labels[0]} section entrances first."
 
 
 def _build_job_status(
