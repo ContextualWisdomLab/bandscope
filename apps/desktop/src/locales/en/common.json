@@ -43,6 +43,7 @@
   "workspaceCommentsLabel": "Comments",
   "workspaceApprovalsLabel": "Approvals",
   "workspaceHarmonyExplainLabel": "Why it works",
+  "workspaceHarmonyExplainFallback": "The role-specific harmonic reason will appear here after the room confirms it.",
   "workspaceTranspositionLabel": "Transpose / simplify",
   "workspaceStemsLabel": "Stems",
   "workspaceRehearsalPrioritiesLabel": "Rehearsal Priorities",

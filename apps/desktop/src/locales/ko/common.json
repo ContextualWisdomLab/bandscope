@@ -43,6 +43,7 @@
   "workspaceCommentsLabel": "코멘트",
   "workspaceApprovalsLabel": "승인",
   "workspaceHarmonyExplainLabel": "이 화성이 먹히는 이유",
+  "workspaceHarmonyExplainFallback": "역할별 화성 이유는 합주실에서 확인되면 여기에 정리됩니다.",
   "workspaceTranspositionLabel": "전조 / 단순화",
   "workspaceStemsLabel": "스템",
   "workspaceRehearsalPrioritiesLabel": "합주 우선순위",

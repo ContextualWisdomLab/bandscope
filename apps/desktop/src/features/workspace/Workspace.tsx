@@ -290,7 +290,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceHarmonyExplainLabel")}</p>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-200">
-                      {activeRoleDetails?.harmonicExplanation ?? activeRoleDetails?.harmony.functionLabel ?? t("workspaceCollaborationEmpty")}
+                      {activeRoleDetails?.harmonicExplanation ?? activeRoleDetails?.harmony.functionLabel ?? t("workspaceHarmonyExplainFallback")}
                     </p>
                   </div>
                   <div className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3">
