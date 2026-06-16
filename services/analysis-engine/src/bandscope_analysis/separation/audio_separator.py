@@ -1,4 +1,4 @@
-"""Local audio source separation using bounded DSP heuristics."""
+"""Local audio source separation with ML model support and DSP fallback."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from bandscope_analysis.temporal.analyzer import (
     TARGET_SR,
 )
 
+from .demucs_separator import DemucsConfig, DemucsModelSeparator, is_demucs_available
 from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioStemPayload
 
 logger = logging.getLogger(__name__)
@@ -36,17 +37,23 @@ class AudioSeparationConfig:
     vocal_low_hz: float = 300.0
     vocal_high_hz: float = 3_400.0
     drum_low_hz: float = 3_400.0
+    use_demucs: bool = True
+    demucs_config: DemucsConfig | None = None
 
 
 class AudioStemSeparator:
     """Split a selected local mix into canonical stems for downstream analysis.
 
+    Uses the Demucs ML model for high-quality separation when available,
+    falling back to bounded DSP heuristics when torch/demucs is not installed.
+
     Security Notes:
     - Treats the selected audio file as untrusted input.
     - Normalizes the path before use, verifies it is a file, and enforces a
       maximum byte size before decoder handoff.
-    - Uses librosa in-process only; no network access, model download, shell
-      execution, or user-controlled output path is introduced.
+    - When using Demucs: model weights loaded from verified local cache only;
+      no network access during inference.
+    - When using DSP fallback: uses librosa in-process only.
     - Does not log or persist raw audio, separated stems, or full source paths.
     - Fails with bounded, filename-scoped errors so callers can surface a safe
       analysis failure without leaking local directory structure.
@@ -55,6 +62,38 @@ class AudioStemSeparator:
     def __init__(self, config: AudioSeparationConfig | None = None) -> None:
         """Initialize the local stem separator."""
         self.config = config or AudioSeparationConfig()
+        self._demucs: DemucsModelSeparator | None = None
+        self._demucs_checked = False
+
+    @property
+    def uses_ml_model(self) -> bool:
+        """Return True if ML-based separation is active."""
+        return self._get_demucs() is not None
+
+    def _get_demucs(self) -> DemucsModelSeparator | None:
+        """Lazily check and initialize Demucs if available."""
+        if self._demucs_checked:
+            return self._demucs
+
+        self._demucs_checked = True
+        if not self.config.use_demucs:
+            logger.info("Demucs disabled by configuration; using DSP fallback.")
+            return None
+
+        if not is_demucs_available():
+            logger.info(
+                "Demucs/torch not available; using DSP frequency-band fallback."
+            )
+            return None
+
+        try:
+            self._demucs = DemucsModelSeparator(self.config.demucs_config)
+            logger.info("Demucs ML model separator initialized.")
+        except Exception as e:
+            logger.warning("Failed to initialize Demucs: %s; using DSP fallback.", e)
+            self._demucs = None
+
+        return self._demucs
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
         """Separate local audio into vocals, bass, drums, and other stems."""
@@ -63,6 +102,64 @@ class AudioStemSeparator:
         if audio.size == 0:
             raise ValueError(f"Stem separation decode failed for {path.name}")
 
+        demucs = self._get_demucs()
+        if demucs is not None:
+            return self._separate_with_demucs(demucs, audio, sample_rate)
+
+        return self._separate_with_dsp(audio, sample_rate)
+
+    def _separate_with_demucs(
+        self,
+        demucs: DemucsModelSeparator,
+        audio: AudioStemArray,
+        sample_rate: int,
+    ) -> AudioSeparationResult:
+        """Separate audio using the Demucs ML model with chunked inference."""
+        try:
+            stems = demucs.separate(audio, sample_rate)
+        except Exception as e:
+            logger.warning(
+                "Demucs separation failed: %s; falling back to DSP.", e
+            )
+            return self._separate_with_dsp(audio, sample_rate)
+
+        # Ensure all stems match the input length
+        target_length = audio.size
+        fitted_stems: AudioStemPayload = {}
+        for stem_name in ("vocals", "bass", "drums", "other"):
+            stem_key = cast(AudioStemName, stem_name)
+            if stem_key in stems:
+                fitted_stems[stem_key] = self._fit_length(stems[stem_key], target_length)
+            else:
+                fitted_stems[stem_key] = cast(
+                    AudioStemArray, np.zeros(target_length, dtype=np.float32)
+                )
+
+        duration_seconds = float(audio.size / sample_rate)
+        demucs_cfg = self.config.demucs_config or DemucsConfig()
+        chunk_count = max(
+            1,
+            int(np.ceil(audio.size / (sample_rate * demucs_cfg.chunk_seconds))),
+        )
+        logger.info(
+            "Separated local audio with Demucs ML model: %.1f seconds",
+            duration_seconds,
+        )
+        return {
+            "stems": fitted_stems,
+            "sample_rate": sample_rate,
+            "duration_seconds": duration_seconds,
+            "chunk_count": chunk_count,
+            "separation_notes": (
+                "Separated audio using Demucs ML model (htdemucs) into "
+                "vocals, bass, drums, and other stems."
+            ),
+        }
+
+    def _separate_with_dsp(
+        self, audio: AudioStemArray, sample_rate: int
+    ) -> AudioSeparationResult:
+        """Separate audio using DSP frequency-band heuristics (fallback)."""
         chunk_size = max(1, int(sample_rate * self.config.chunk_duration_seconds))
         stem_chunks: dict[AudioStemName, list[AudioStemArray]] = {
             "vocals": [],

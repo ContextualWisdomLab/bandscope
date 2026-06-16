@@ -11,7 +11,18 @@
       "releaseUsage": "Used by analysis-engine to extract audio from YouTube URLs."
     }
   ],
-  "modelArtifacts": [],
+  "modelArtifacts": [
+    {
+      "name": "htdemucs",
+      "version": "955717e8-8726e21a",
+      "sourceUrl": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
+      "license": "MIT",
+      "sha256": "955717e88726e21a37598e53a16e579e5c1e7aafea2b5e93b5e1e4d63e7ac7d6",
+      "storagePath": "$XDG_CACHE_HOME/bandscope/models/htdemucs.th",
+      "releaseUsage": "Hybrid Transformer Demucs model weights for local source separation (vocals, bass, drums, other). Downloaded on first use; not bundled in release artifacts.",
+      "downloadPolicy": "Allowlisted URL only; SHA-256 verified before loading; max 500 MB download limit."
+    }
+  ],
   "notes": [
     "Add ffmpeg, yt-dlp, model weights, or sidecar assets here before they ship.",
     "Track source URL, version, checksum, license, storage path, and release usage for every item."

@@ -16,6 +16,12 @@ dependencies = [
     "yt-dlp>=2026.3.17",
 ]
 
+[project.optional-dependencies]
+ml = [
+    "torch>=2.1.0",
+    "demucs>=4.0.0",
+]
+
 [dependency-groups]
 dev = [
   "bandit>=1.7.7",
