@@ -1,5 +1,6 @@
 """Tests for the source separation module."""
 
+import hashlib
 import numpy as np
 import pytest
 import soundfile as sf
@@ -164,6 +165,12 @@ def test_audio_stem_separator_splits_local_audio_into_chunked_stems(tmp_path) ->
     assert result["sample_rate"] == sample_rate
     assert result["duration_seconds"] == pytest.approx(duration_seconds)
     assert result["chunk_count"] == 4
+    assert result["stem_role_types"] == {
+        "vocals": "vocal",
+        "bass": "instrument",
+        "drums": "instrument",
+        "other": "instrument",
+    }
     assert "4 chunks" in result["separation_notes"]
     assert str(tmp_path) not in result["separation_notes"]
     for stem in result["stems"].values():
@@ -257,3 +264,127 @@ def test_audio_stem_separator_redacts_decoder_exceptions(
         separator.separate(audio_path)
 
     assert str(tmp_path) not in str(error.value)
+
+
+def test_audio_stem_separator_uses_verified_local_model_profile(tmp_path) -> None:
+    """Ensure local model profile overrides are applied only when checksum is verified."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        (
+            '{"bassCutoffHz": 100.0, "vocalLowHz": 120.0, '
+            '"vocalHighHz": 350.0, "drumLowHz": 350.0}'
+        ),
+        encoding="utf-8",
+    )
+    checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(
+            target_sample_rate=8_000,
+            model_profile_path=str(profile_path),
+            model_profile_sha256=checksum,
+        )
+    )
+    assert separator._bass_cutoff_hz == pytest.approx(100.0)
+    assert separator._drum_low_hz == pytest.approx(350.0)
+
+
+def test_audio_stem_separator_requires_checksum_for_local_model_profile(tmp_path) -> None:
+    """Ensure local model profile paths require explicit checksum pinning."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model_profile_sha256 is required"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=str(profile_path),
+            )
+        )
+
+
+def test_audio_stem_separator_rejects_model_profile_checksum_mismatch(tmp_path) -> None:
+    """Ensure tampered model profiles are rejected by checksum validation."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="SHA256 mismatch"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=str(profile_path),
+                model_profile_sha256="0" * 64,
+            )
+        )
+
+
+def test_audio_stem_separator_rejects_invalid_json_model_profile(tmp_path) -> None:
+    """Ensure invalid profile JSON fails safely."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text("{invalid", encoding="utf-8")
+    checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="invalid JSON profile"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=str(profile_path),
+                model_profile_sha256=checksum,
+            )
+        )
+
+
+def test_audio_stem_separator_rejects_non_allowlisted_model_profile_url() -> None:
+    """Ensure model profile downloads require allowlisted HTTPS origins."""
+    with pytest.raises(ValueError, match="not allowlisted"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_url="http://example.com/profile.json",
+                model_profile_sha256="0" * 64,
+            )
+        )
+
+
+def test_audio_stem_separator_rejects_profile_url_without_path() -> None:
+    """Ensure profile URLs include an explicit file path."""
+    with pytest.raises(ValueError, match="must include a file path"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_url="https://github.com",
+                model_profile_sha256="0" * 64,
+            )
+        )
+
+
+def test_audio_stem_separator_downloads_and_verifies_model_profile(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure allowlisted profile downloads are checksum-verified before use."""
+    payload = b'{"bassCutoffHz": 200.0, "drumLowHz": 2000.0}'
+    checksum = hashlib.sha256(payload).hexdigest()
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self):
+            return payload
+
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.urlopen",
+        lambda *args, **kwargs: _Response(),
+    )
+    monkeypatch.setattr("bandscope_analysis.separation.audio_separator.Path.home", lambda: tmp_path)
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(
+            target_sample_rate=8_000,
+            model_profile_url="https://github.com/Seongho-Bae/bandscope/profile.json",
+            model_profile_sha256=checksum,
+        )
+    )
+    assert separator._bass_cutoff_hz == pytest.approx(200.0)

@@ -11,7 +11,18 @@
       "releaseUsage": "Used by analysis-engine to extract audio from YouTube URLs."
     }
   ],
-  "modelArtifacts": [],
+  "modelArtifacts": [
+    {
+      "name": "bandsplit-v1-profile",
+      "version": "1.0.0",
+      "sourceUrl": "https://github.com/Seongho-Bae/bandscope/blob/develop/services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json",
+      "license": "Proprietary",
+      "checksum": "sha256:ced4ae5c9077aace1694b6fafee1877e46e836e293545dcb6ea06cb579984254",
+      "storagePath": "services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json",
+      "releaseUsage": "Local-first lightweight profile used by analysis-engine stem separation.",
+      "verification": "SHA256 verified in bandscope_analysis.separation.audio_separator.AudioStemSeparator._load_model_profile"
+    }
+  ],
   "notes": [
     "Add ffmpeg, yt-dlp, model weights, or sidecar assets here before they ship.",
     "Track source URL, version, checksum, license, storage path, and release usage for every item."

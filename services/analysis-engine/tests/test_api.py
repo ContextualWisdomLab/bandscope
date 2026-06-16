@@ -348,6 +348,12 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
             "sample_rate": 22050,
             "duration_seconds": 1.0,
             "chunk_count": 1,
+            "stem_role_types": {
+                "vocals": "vocal",
+                "bass": "instrument",
+                "drums": "instrument",
+                "other": "instrument",
+            },
             "separation_notes": "Separated selected local audio into 4 canonical stems.",
         }
 
@@ -409,6 +415,12 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             "sample_rate": 22050,
             "duration_seconds": 1.0,
             "chunk_count": 1,
+            "stem_role_types": {
+                "vocals": "vocal",
+                "bass": "instrument",
+                "drums": "instrument",
+                "other": "instrument",
+            },
             "separation_notes": "Separated selected local audio into 4 canonical stems.",
         }
 

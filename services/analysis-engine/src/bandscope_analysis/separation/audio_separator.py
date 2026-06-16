@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
+import json
+import hashlib
 import warnings
+from urllib.parse import urlparse
+from urllib.request import urlopen
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -22,6 +26,8 @@ from bandscope_analysis.temporal.analyzer import (
 from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioStemPayload
 
 logger = logging.getLogger(__name__)
+_BANDSPLIT_PROFILE_PATH = Path(__file__).with_name("model_weights") / "bandsplit-v1.json"
+_BANDSPLIT_PROFILE_SHA256 = "ced4ae5c9077aace1694b6fafee1877e46e836e293545dcb6ea06cb579984254"
 
 
 @dataclass(frozen=True)
@@ -36,6 +42,15 @@ class AudioSeparationConfig:
     vocal_low_hz: float = 300.0
     vocal_high_hz: float = 3_400.0
     drum_low_hz: float = 3_400.0
+    model_profile_path: str | None = None
+    model_profile_url: str | None = None
+    model_profile_sha256: str | None = None
+    model_cache_dir: str | None = None
+    allowed_model_hosts: tuple[str, ...] = (
+        "github.com",
+        "raw.githubusercontent.com",
+        "objects.githubusercontent.com",
+    )
 
 
 class AudioStemSeparator:
@@ -45,8 +60,9 @@ class AudioStemSeparator:
     - Treats the selected audio file as untrusted input.
     - Normalizes the path before use, verifies it is a file, and enforces a
       maximum byte size before decoder handoff.
-    - Uses librosa in-process only; no network access, model download, shell
-      execution, or user-controlled output path is introduced.
+    - Uses librosa in-process and optionally downloads model profiles only from
+      an allowlisted HTTPS host with SHA256 verification.
+    - No shell execution or user-controlled output path is introduced.
     - Does not log or persist raw audio, separated stems, or full source paths.
     - Fails with bounded, filename-scoped errors so callers can surface a safe
       analysis failure without leaking local directory structure.
@@ -55,6 +71,11 @@ class AudioStemSeparator:
     def __init__(self, config: AudioSeparationConfig | None = None) -> None:
         """Initialize the local stem separator."""
         self.config = config or AudioSeparationConfig()
+        profile = self._load_model_profile()
+        self._bass_cutoff_hz = profile["bassCutoffHz"]
+        self._vocal_low_hz = profile["vocalLowHz"]
+        self._vocal_high_hz = profile["vocalHighHz"]
+        self._drum_low_hz = profile["drumLowHz"]
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
         """Separate local audio into vocals, bass, drums, and other stems."""
@@ -93,6 +114,12 @@ class AudioStemSeparator:
             "sample_rate": sample_rate,
             "duration_seconds": duration_seconds,
             "chunk_count": chunk_count,
+            "stem_role_types": {
+                "vocals": "vocal",
+                "bass": "instrument",
+                "drums": "instrument",
+                "other": "instrument",
+            },
             "separation_notes": (
                 "Separated selected local audio into vocals, bass, drums, and other "
                 f"across {chunk_count} chunks."
@@ -158,11 +185,11 @@ class AudioStemSeparator:
             np.ndarray[Any, np.dtype[np.floating[Any]]],
             np.fft.rfftfreq(chunk.size, d=1.0 / sample_rate),
         )
-        bass_mask = frequencies <= self.config.bass_cutoff_hz
-        vocal_mask = (frequencies >= self.config.vocal_low_hz) & (
-            frequencies < self.config.vocal_high_hz
+        bass_mask = frequencies <= self._bass_cutoff_hz
+        vocal_mask = (frequencies >= self._vocal_low_hz) & (
+            frequencies < self._vocal_high_hz
         )
-        drum_mask = frequencies >= self.config.drum_low_hz
+        drum_mask = frequencies >= self._drum_low_hz
         other_mask = ~(bass_mask | vocal_mask | drum_mask)
 
         return {
@@ -179,6 +206,59 @@ class AudioStemSeparator:
         if copy_length:
             fitted[:copy_length] = audio[:copy_length]
         return cast(AudioStemArray, fitted)
+
+    def _load_model_profile(self) -> dict[str, float]:
+        """Load and verify a bounded local profile for lightweight stem separation."""
+        profile_path = _BANDSPLIT_PROFILE_PATH
+        expected_sha256 = _BANDSPLIT_PROFILE_SHA256
+
+        if self.config.model_profile_url:
+            profile_path = self._download_model_profile(self.config.model_profile_url)
+            if not self.config.model_profile_sha256:
+                raise ValueError("model_profile_sha256 is required when model_profile_url is set")
+            expected_sha256 = self.config.model_profile_sha256
+        elif self.config.model_profile_path:
+            profile_path = Path(self.config.model_profile_path).expanduser().resolve(strict=True)
+            if not self.config.model_profile_sha256:
+                raise ValueError("model_profile_sha256 is required when model_profile_path is set")
+            expected_sha256 = self.config.model_profile_sha256
+
+        observed_sha256 = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+        if observed_sha256 != expected_sha256:
+            raise ValueError("Model profile verification failed: SHA256 mismatch")
+
+        try:
+            profile = json.loads(profile_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError("Model profile verification failed: invalid JSON profile") from error
+
+        return {
+            "bassCutoffHz": float(profile.get("bassCutoffHz", self.config.bass_cutoff_hz)),
+            "vocalLowHz": float(profile.get("vocalLowHz", self.config.vocal_low_hz)),
+            "vocalHighHz": float(profile.get("vocalHighHz", self.config.vocal_high_hz)),
+            "drumLowHz": float(profile.get("drumLowHz", self.config.drum_low_hz)),
+        }
+
+    def _download_model_profile(self, model_profile_url: str) -> Path:
+        """Download profile from an allowlisted HTTPS host into a local cache path."""
+        parsed = urlparse(model_profile_url)
+        if parsed.scheme != "https" or parsed.hostname not in self.config.allowed_model_hosts:
+            raise ValueError("Model profile URL is not allowlisted")
+        if not parsed.path:
+            raise ValueError("Model profile URL must include a file path")
+
+        cache_root = (
+            Path(self.config.model_cache_dir).expanduser()
+            if self.config.model_cache_dir
+            else Path.home() / ".cache" / "bandscope" / "model-profiles"
+        )
+        cache_root.mkdir(parents=True, exist_ok=True)
+        target = cache_root / Path(parsed.path).name
+
+        with urlopen(model_profile_url, timeout=30) as response:  # noqa: S310
+            payload = response.read()
+        target.write_bytes(payload)
+        return target
 
 
 def _ifft_band(

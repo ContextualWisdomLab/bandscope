@@ -441,6 +441,7 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
     return {
         "stems": separation_result["stems"],
         "sr": separation_result["sample_rate"],
+        "stem_role_types": separation_result["stem_role_types"],
         "separation": {
             "duration_seconds": separation_result["duration_seconds"],
             "chunk_count": separation_result["chunk_count"],
