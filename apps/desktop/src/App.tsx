@@ -84,6 +84,24 @@ function progressMessage(
 }
 
 /** Documented. */
+function stageDisplayLabel(stage: AnalysisJobStatus["progressStage"]): string | null {
+  switch (stage) {
+    case "decode":
+      return "Decode";
+    case "separate":
+      return "Stems";
+    case "analyze":
+      return "Analyze";
+    case "persist":
+      return "Save";
+    case "ready":
+      return "Done";
+    default:
+      return null;
+  }
+}
+
+/** Documented. */
 function BandScopeMark() {
   return (
     <span
@@ -583,6 +601,11 @@ export function App() {
                   >
                     <div className="flex items-center gap-2">
                       {jobStatus.state === "running" && <span className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-cyan-100/30 border-t-cyan-200" />}
+                      {jobStatus.progressStage && stageDisplayLabel(jobStatus.progressStage) && (
+                        <span className="shrink-0 rounded bg-cyan-300/20 px-1.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-cyan-200">
+                          {stageDisplayLabel(jobStatus.progressStage)}
+                        </span>
+                      )}
                       <span className="min-w-0 flex-1 truncate">{progressMessage(t, jobStatus)}</span>
                       {jobStatus.progressPercent !== undefined && (
                         <span className="shrink-0 tabular-nums text-cyan-50/80">{jobStatus.progressPercent}%</span>
@@ -592,7 +615,7 @@ export function App() {
                       <Progress
                         aria-label="Analysis progress"
                         value={jobStatus.progressPercent}
-                        className="mt-2"
+                        className="mt-2 transition-all duration-300 ease-out"
                       />
                     )}
                   </div>

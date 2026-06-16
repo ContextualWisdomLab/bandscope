@@ -28,10 +28,12 @@ declare global {
 
 const browserJobStore = new Map<string, AnalysisJobStatus>();
 const BROWSER_PROGRESS_STEPS = [
-  { progressLabel: "Decoding audio", progressStage: "decode", progressPercent: 20 },
+  { progressLabel: "Decoding audio", progressStage: "decode", progressPercent: 10 },
+  { progressLabel: "Separating stems... (25%)", progressStage: "separate", progressPercent: 25 },
   { progressLabel: "Separating stems... (45%)", progressStage: "separate", progressPercent: 45 },
-  { progressLabel: "Building rehearsal cues", progressStage: "analyze", progressPercent: 70 },
-  { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
+  { progressLabel: "Analyzing sections and roles... (55%)", progressStage: "analyze", progressPercent: 55 },
+  { progressLabel: "Building rehearsal cues... (70%)", progressStage: "analyze", progressPercent: 70 },
+  { progressLabel: "Saving reusable features... (90%)", progressStage: "persist", progressPercent: 90 }
 ] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([

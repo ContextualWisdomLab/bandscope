@@ -459,6 +459,8 @@ def test_cli_main_progress_jsonl_streams_status_updates(
     assert [update["progressStage"] for update in updates] == [
         "decode",
         "separate",
+        "separate",
+        "analyze",
         "analyze",
         "persist",
         "ready",

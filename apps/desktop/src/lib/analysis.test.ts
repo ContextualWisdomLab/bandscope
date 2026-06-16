@@ -127,9 +127,15 @@ describe("analysis bridge", () => {
       state: "running",
       progressLabel: "Decoding audio",
       progressStage: "decode",
-      progressPercent: 20
+      progressPercent: 10
     });
 
+    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
+      state: "running",
+      progressLabel: "Separating stems... (25%)",
+      progressStage: "separate",
+      progressPercent: 25
+    });
     expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
       state: "running",
       progressLabel: "Separating stems... (45%)",
@@ -138,13 +144,19 @@ describe("analysis bridge", () => {
     });
     expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
       state: "running",
-      progressLabel: "Building rehearsal cues",
+      progressLabel: "Analyzing sections and roles... (55%)",
+      progressStage: "analyze",
+      progressPercent: 55
+    });
+    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
+      state: "running",
+      progressLabel: "Building rehearsal cues... (70%)",
       progressStage: "analyze",
       progressPercent: 70
     });
     expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
       state: "running",
-      progressLabel: "Saving reusable features",
+      progressLabel: "Saving reusable features... (90%)",
       progressStage: "persist",
       progressPercent: 90
     });

@@ -5,8 +5,13 @@ from unittest.mock import patch
 import numpy as np
 
 from bandscope_analysis.api import (
+    _feature_cache_path,
     _load_cached_analysis,
+    _load_cached_features,
+    _MlStepTimeout,
+    _run_ml_step_with_timeout,
     _store_cached_analysis,
+    _store_cached_features,
     build_demo_rehearsal_song,
     build_section_time_range,
     get_analysis_status,
@@ -419,8 +424,10 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             for update in updates
         ]
         assert observed_progress == [
-            ("running", "decode", 20),
+            ("running", "decode", 10),
+            ("running", "separate", 25),
             ("running", "separate", 45),
+            ("running", "analyze", 55),
             ("running", "analyze", 70),
             ("running", "persist", 90),
             ("succeeded", "ready", 100),
@@ -441,7 +448,10 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
 
 def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:
     """Ensure unsafe or undecodable local audio returns a typed failure envelope."""
-    with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
+    with (
+        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api.time.sleep"),
+    ):
         separator_class.return_value.separate.side_effect = ValueError(
             "Audio file is too large for stem separation: 16 bytes (max 8 bytes)"
         )
@@ -470,7 +480,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
         ("running", "separate"),
         ("failed", "separate"),
     ]
-    assert updates[-1]["progressPercent"] == 45
+    assert updates[-1]["progressPercent"] == 25
     assert updates[-1]["error"] == {
         "code": "engine_unavailable",
         "message": (
@@ -526,3 +536,289 @@ def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp
         }
     )
     assert _store_cached_analysis(tmp_path, local_request, build_demo_rehearsal_song()) is False
+
+
+def test_run_ml_step_with_timeout_retries_on_failure() -> None:
+    """Ensure the ML step runner retries transient failures before giving up."""
+    call_count = 0
+
+    def flaky_step(path: str) -> dict:
+        nonlocal call_count
+        call_count += 1
+        if call_count < 2:
+            raise ValueError("Transient failure")
+        return {"result": "success"}
+
+    with patch("bandscope_analysis.api.time.sleep"):
+        result = _run_ml_step_with_timeout(
+            flaky_step,
+            "/path/to/audio.wav",
+            timeout_seconds=10,
+            max_retries=2,
+            step_label="Test step",
+        )
+
+    assert result == {"result": "success"}
+    assert call_count == 2
+
+
+def test_run_ml_step_with_timeout_raises_after_exhausting_retries() -> None:
+    """Ensure the runner raises after all retries are exhausted."""
+    import pytest
+
+    def always_fails(path: str) -> dict:
+        raise OSError("Permanent failure")
+
+    with (
+        patch("bandscope_analysis.api.time.sleep"),
+        pytest.raises(OSError, match="Permanent failure"),
+    ):
+        _run_ml_step_with_timeout(
+            always_fails,
+            "/path/to/audio.wav",
+            timeout_seconds=10,
+            max_retries=2,
+            step_label="Failing step",
+        )
+
+
+def test_run_ml_step_with_timeout_handles_timeout() -> None:
+    """Ensure the runner raises MlStepTimeout when SIGALRM fires."""
+    import signal as sig
+
+    import pytest
+
+    if not hasattr(sig, "SIGALRM"):
+        pytest.skip("SIGALRM not available on this platform")
+
+    def slow_step(path: str) -> dict:
+        import time as real_time
+
+        real_time.sleep(10)
+        return {"result": "should not reach"}
+
+    with pytest.raises(_MlStepTimeout):
+        _run_ml_step_with_timeout(
+            slow_step,
+            "/path/to/audio.wav",
+            timeout_seconds=1,
+            max_retries=1,
+            step_label="Slow step",
+        )
+
+
+def test_feature_cache_path_returns_none_for_non_local_requests() -> None:
+    """Ensure feature cache path is None for demo requests."""
+    result = _feature_cache_path(
+        validate_analysis_job_request(
+            {
+                "sourceKind": "demo",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": ["bass-guitar"],
+            }
+        )
+    )
+    assert result is None
+
+
+def test_feature_cache_path_returns_path_for_local_audio_with_cache_root(tmp_path) -> None:
+    """Ensure feature cache path is generated for local audio requests."""
+    result = _feature_cache_path(
+        validate_analysis_job_request(
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "test.wav",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/path/to/test.wav",
+                    "fileName": "test.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024,
+                },
+                "cacheRoot": str(tmp_path),
+            }
+        )
+    )
+    assert result is not None
+    assert "feature-cache-v1" in str(result)
+
+
+def test_load_cached_features_treats_invalid_cache_as_miss(tmp_path) -> None:
+    """Ensure malformed feature cache files degrade to misses."""
+    cache_path = tmp_path / "features.json"
+
+    for content in (
+        "[]",
+        '{"schemaVersion": 999, "features": {}}',
+        '{"schemaVersion": 1, "features": []}',
+        '{"schemaVersion": 1}',
+    ):
+        cache_path.write_text(content, encoding="utf-8")
+        assert _load_cached_features(cache_path) is None
+
+    # Non-existent file
+    assert _load_cached_features(tmp_path / "nonexistent.json") is None
+
+
+def test_load_cached_features_returns_valid_features(tmp_path) -> None:
+    """Ensure valid feature cache is loaded correctly."""
+    import json
+
+    cache_path = tmp_path / "features.json"
+    payload = {
+        "schemaVersion": 1,
+        "source": {"fileName": "test.wav", "extension": "wav", "fileSizeBytes": 1024},
+        "features": {"sr": 22050, "separation": {"duration_seconds": 1.0}},
+    }
+    cache_path.write_text(json.dumps(payload), encoding="utf-8")
+    result = _load_cached_features(cache_path)
+    assert result is not None
+    assert result["sr"] == 22050
+
+
+def test_store_cached_features_persists_to_disk(tmp_path) -> None:
+    """Ensure feature caching writes to disk correctly."""
+    import json
+
+    cache_path = tmp_path / "feature-cache-v1" / "test.json"
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-1",
+            "sourceLabel": "test.wav",
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": "/path/to/test.wav",
+                "fileName": "test.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024,
+            },
+            "cacheRoot": str(tmp_path),
+        }
+    )
+    features = {"sr": 22050, "separation": {"duration_seconds": 1.0}}
+    assert _store_cached_features(cache_path, request, features) is True
+    assert cache_path.exists()
+
+    stored = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert stored["schemaVersion"] == 1
+    assert stored["features"]["sr"] == 22050
+
+
+def test_store_cached_features_rejects_requests_without_local_source(tmp_path) -> None:
+    """Ensure storing features fails gracefully without localSource."""
+    cache_path = tmp_path / "features.json"
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "demo",
+            "sourceLabel": "Late Night Set",
+            "roleFocus": [],
+        }
+    )
+    assert _store_cached_features(cache_path, request, {"sr": 22050}) is False
+
+
+def test_store_cached_features_handles_write_errors(tmp_path) -> None:
+    """Ensure feature cache write failures return False without raising."""
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-1",
+            "sourceLabel": "test.wav",
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": "/path/to/test.wav",
+                "fileName": "test.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024,
+            },
+            "cacheRoot": str(tmp_path),
+        }
+    )
+    # tmp_path itself (directory) will cause an OSError for path.open()
+    assert _store_cached_features(tmp_path, request, {"sr": 22050}) is False
+
+
+def test_run_analysis_job_updates_uses_cached_features_when_available(tmp_path) -> None:
+    """Ensure intermediate feature cache is loaded when stems exist on disk."""
+    import json
+
+    payload = {
+        "sourceKind": "local_audio",
+        "projectId": "project-features",
+        "sourceLabel": "test.wav",
+        "roleFocus": [],
+        "localSource": {
+            "sourcePath": "/Users/test/Music/test.wav",
+            "fileName": "test.wav",
+            "extension": "wav",
+            "fileSizeBytes": 1024,
+        },
+        "cacheRoot": str(tmp_path / "cache"),
+        "tempRoot": str(tmp_path / "temp"),
+    }
+
+    # Pre-populate the feature cache
+    feature_path = _feature_cache_path(validate_analysis_job_request(payload))
+    assert feature_path is not None
+    feature_path.parent.mkdir(parents=True, exist_ok=True)
+    feature_payload = {
+        "schemaVersion": 1,
+        "source": {"fileName": "test.wav", "extension": "wav", "fileSizeBytes": 1024},
+        "features": {"sr": 22050, "separation": {"duration_seconds": 1.0}},
+    }
+    feature_path.write_text(json.dumps(feature_payload), encoding="utf-8")
+
+    with (
+        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+        patch(
+            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+            return_value=[],
+        ),
+    ):
+        updates = list(
+            run_analysis_job_updates("job-features-cached", payload, "2026-03-12T00:00:00Z")
+        )
+        # Separator should not be called since we have cached features
+        separator_class.return_value.separate.assert_not_called()
+
+    assert updates[-1]["state"] == "succeeded"
+    # Verify the "Loading cached stems and features" step is present
+    labels = [u["progressLabel"] for u in updates]
+    assert "Loading cached stems and features" in labels
+
+
+def test_run_analysis_job_updates_reports_timeout_failure() -> None:
+    """Ensure timeout during stem separation yields a typed failure envelope."""
+    with (
+        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api.time.sleep"),
+    ):
+        separator_class.return_value.separate.side_effect = _MlStepTimeout(
+            "Stem separation timed out after 120s (attempt 2/2)"
+        )
+
+        updates = list(
+            run_analysis_job_updates(
+                "job-timeout",
+                {
+                    "sourceKind": "local_audio",
+                    "projectId": "project-1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/path/to/test.wav",
+                        "fileName": "test.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 1024,
+                    },
+                },
+                "2026-03-12T00:00:00Z",
+            )
+        )
+
+    assert updates[-1]["state"] == "failed"
+    assert updates[-1]["error"]["code"] == "engine_unavailable"
+    assert "timed out" in updates[-1]["error"]["message"]

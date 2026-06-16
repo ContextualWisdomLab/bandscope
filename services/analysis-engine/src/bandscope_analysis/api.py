@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import signal
+import time
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
@@ -12,8 +15,13 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.separation import AudioStemSeparator
 
+logger = logging.getLogger(__name__)
+
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
+FEATURE_CACHE_SCHEMA_VERSION = 1
+ML_STEP_TIMEOUT_SECONDS = 120
+ML_STEP_MAX_RETRIES = 2
 
 AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
 AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
@@ -432,12 +440,144 @@ def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: Rehe
     return True
 
 
+class _MlStepTimeout(Exception):
+    """Raised when an ML inference step exceeds its timeout budget."""
+
+
+def _timeout_handler(_signum: int, _frame: object) -> None:
+    """Signal handler that raises a timeout for ML inference steps."""
+    raise _MlStepTimeout("ML inference step exceeded timeout budget")
+
+
+def _run_ml_step_with_timeout(
+    step_fn: Any,
+    *args: Any,
+    timeout_seconds: int = ML_STEP_TIMEOUT_SECONDS,
+    max_retries: int = ML_STEP_MAX_RETRIES,
+    step_label: str = "ML step",
+) -> Any:
+    """Execute an ML inference step with timeout and retry logic.
+
+    Graceful degradation: retries on failure, raises after exhausting attempts.
+    On platforms without SIGALRM (Windows), falls back to unbounded execution.
+    """
+    last_error: BaseException | None = None
+    for attempt in range(max_retries):
+        has_alarm = hasattr(signal, "SIGALRM")
+        try:
+            if has_alarm:
+                old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+                signal.alarm(timeout_seconds)
+            try:
+                result = step_fn(*args)
+            finally:
+                if has_alarm:
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
+            return result
+        except _MlStepTimeout:
+            last_error = _MlStepTimeout(
+                f"{step_label} timed out after {timeout_seconds}s "
+                f"(attempt {attempt + 1}/{max_retries})"
+            )
+            logger.warning("%s timed out (attempt %d/%d)", step_label, attempt + 1, max_retries)
+        except (FileNotFoundError, ValueError, OSError) as error:
+            last_error = error
+            logger.warning(
+                "%s failed (attempt %d/%d): %s",
+                step_label,
+                attempt + 1,
+                max_retries,
+                error,
+            )
+        if attempt < max_retries - 1:
+            time.sleep(min(2**attempt, 4))
+    raise last_error if last_error is not None else RuntimeError(f"{step_label} failed")
+
+
+def _feature_cache_path(request: AnalysisJobRequest) -> Path | None:
+    """Return a feature-level cache path for intermediate stems and features."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+    cache_root = request.get("cacheRoot")
+    if not cache_root:
+        return None
+
+    local_source = request["localSource"]
+    key_payload = {
+        "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+        "projectId": request.get("projectId", ""),
+        "sourcePath": local_source["sourcePath"],
+        "fileName": local_source["fileName"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
+    }
+    digest = hashlib.sha256(
+        json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return Path(cache_root) / "feature-cache-v1" / f"{digest}.json"
+
+
+def _load_cached_features(path: Path) -> dict[str, Any] | None:
+    """Load cached intermediate features, treating malformed cache as a miss."""
+    try:
+        with path.open("r", encoding="utf-8") as cache_file:
+            payload = json.load(cache_file)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
+        return None
+    features = payload.get("features")
+    if not isinstance(features, dict):
+        return None
+    return cast(dict[str, Any], features)
+
+
+def _store_cached_features(
+    path: Path, request: AnalysisJobRequest, features: dict[str, Any]
+) -> bool:
+    """Persist intermediate features without storing absolute source paths."""
+    if "localSource" not in request:
+        return False
+
+    local_source = request["localSource"]
+    payload = {
+        "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+        "source": {
+            "fileName": local_source["fileName"],
+            "extension": local_source["extension"],
+            "fileSizeBytes": local_source["fileSizeBytes"],
+        },
+        "features": {
+            "sr": features.get("sr"),
+            "separation": features.get("separation"),
+        },
+    }
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = path.with_suffix(".tmp")
+        with temp_path.open("w", encoding="utf-8") as cache_file:
+            json.dump(payload, cache_file, separators=(",", ":"))
+        temp_path.replace(path)
+    except OSError:
+        return False
+    return True
+
+
 def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
     """Build downstream audio features for a local-audio request."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
 
-    separation_result = AudioStemSeparator().separate(request["localSource"]["sourcePath"])
+    separation_result = _run_ml_step_with_timeout(
+        AudioStemSeparator().separate,
+        request["localSource"]["sourcePath"],
+        timeout_seconds=ML_STEP_TIMEOUT_SECONDS,
+        max_retries=ML_STEP_MAX_RETRIES,
+        step_label="Stem separation",
+    )
     return {
         "stems": separation_result["stems"],
         "sr": separation_result["sample_rate"],
@@ -500,66 +640,135 @@ def run_analysis_job_updates(
     decode_label = (
         "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
     )
-    updates = [
+    updates: list[AnalysisJobStatus] = [
         _build_job_status(
             job_id=job_id,
             state="running",
             requested_at=requested_at,
             progress_label=decode_label,
             progress_stage="decode",
-            progress_percent=20,
-            cache_status=cache_status,
-        ),
-        _build_job_status(
-            job_id=job_id,
-            state="running",
-            requested_at=requested_at,
-            progress_label="Separating stems... (45%)",
-            progress_stage="separate",
-            progress_percent=45,
+            progress_percent=10,
             cache_status=cache_status,
         ),
     ]
 
-    try:
-        audio_features = _build_local_audio_features(request)
-    except (FileNotFoundError, ValueError) as error:
+    # Check for cached intermediate features to skip costly stem separation
+    feature_path = _feature_cache_path(request)
+    cached_features: dict[str, Any] | None = None
+    if feature_path is not None:
+        cached_features = _load_cached_features(feature_path)
+
+    audio_features: dict[str, Any] | None
+    if cached_features is not None:
         updates.append(
             _build_job_status(
                 job_id=job_id,
-                state="failed",
+                state="running",
                 requested_at=requested_at,
-                progress_label="Stem separation failed",
+                progress_label="Loading cached stems and features",
+                progress_stage="separate",
+                progress_percent=40,
+                cache_status=cache_status,
+            )
+        )
+        audio_features = cached_features
+    else:
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="running",
+                requested_at=requested_at,
+                progress_label="Separating stems... (25%)",
+                progress_stage="separate",
+                progress_percent=25,
+                cache_status=cache_status,
+            )
+        )
+
+        try:
+            audio_features = _build_local_audio_features(request)
+        except _MlStepTimeout as error:
+            updates.append(
+                _build_job_status(
+                    job_id=job_id,
+                    state="failed",
+                    requested_at=requested_at,
+                    progress_label="Stem separation timed out",
+                    progress_stage="separate",
+                    progress_percent=25,
+                    cache_status=cache_status,
+                    error={
+                        "code": "engine_unavailable",
+                        "message": f"Stem separation timed out: {error}",
+                    },
+                )
+            )
+            return updates
+        except (FileNotFoundError, ValueError, OSError, RuntimeError) as error:
+            updates.append(
+                _build_job_status(
+                    job_id=job_id,
+                    state="failed",
+                    requested_at=requested_at,
+                    progress_label="Stem separation failed",
+                    progress_stage="separate",
+                    progress_percent=25,
+                    cache_status=cache_status,
+                    error={
+                        "code": "engine_unavailable",
+                        "message": f"Stem separation failed: {error}",
+                    },
+                )
+            )
+            return updates
+
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="running",
+                requested_at=requested_at,
+                progress_label="Separating stems... (45%)",
                 progress_stage="separate",
                 progress_percent=45,
                 cache_status=cache_status,
-                error={
-                    "code": "engine_unavailable",
-                    "message": f"Stem separation failed: {error}",
-                },
             )
         )
-        return updates
+
+        # Cache intermediate features for future re-use
+        if feature_path is not None and audio_features is not None:
+            _store_cached_features(feature_path, request, audio_features)
 
     updates.append(
         _build_job_status(
             job_id=job_id,
             state="running",
             requested_at=requested_at,
-            progress_label="Building rehearsal cues",
+            progress_label="Analyzing sections and roles... (55%)",
             progress_stage="analyze",
-            progress_percent=70,
+            progress_percent=55,
             cache_status=cache_status,
         )
     )
 
     result = build_demo_rehearsal_song(audio_features)
+
     updates.append(
         _build_job_status(
             job_id=job_id,
             state="running",
             requested_at=requested_at,
-            progress_label="Saving reusable features",
+            progress_label="Building rehearsal cues... (70%)",
+            progress_stage="analyze",
+            progress_percent=70,
+            cache_status=cache_status,
+        )
+    )
+    updates.append(
+        _build_job_status(
+            job_id=job_id,
+            state="running",
+            requested_at=requested_at,
+            progress_label="Saving reusable features... (90%)",
             progress_stage="persist",
             progress_percent=90,
             cache_status=cache_status,
