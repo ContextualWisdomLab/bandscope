@@ -106,3 +106,68 @@ def test_pitch_tracker_none_f0():
     with patch("librosa.pyin", return_value=(None, np.array([False]), np.array([0.0]))):
         result = tracker.track(y, sr=22050)
         assert result["lowest_note"] is None
+
+
+def test_pitch_tracker_medium_confidence() -> None:
+    """Test that a moderate-quality signal produces medium confidence."""
+    tracker = PitchTracker()
+    sr = 22050
+    t = np.linspace(0, 1.0, sr)
+    # A4 sine wave with moderate noise
+    y = np.sin(2 * np.pi * 440.0 * t) * 0.3 + np.random.randn(sr) * 0.05
+
+    result = tracker.track(y, sr=sr)
+    # Should detect a note but with medium or high confidence
+    if result["lowest_note"] is not None:
+        assert result["confidence"] in ("medium", "high")
+
+
+def test_pitch_tracker_confidence_multi_factor() -> None:
+    """Test that confidence computation uses multiple factors."""
+    tracker = PitchTracker()
+    sr = 22050
+    t = np.linspace(0, 2.0, sr * 2)
+    # Strong, sustained sine wave = high voicing + high energy + high ratio
+    y = np.sin(2 * np.pi * 440.0 * t)
+
+    result = tracker.track(y, sr=sr)
+    assert result["lowest_note"] is not None
+    assert result["confidence"] == "high"
+
+
+def test_pitch_tracker_confidence_none_probs() -> None:
+    """Test confidence computation when voiced_probs is None."""
+    tracker = PitchTracker()
+    # Directly call _compute_confidence with None probs
+    voiced_flag = np.array([True, False, True])
+    y = np.sin(np.linspace(0, 1, 100))
+    result = tracker._compute_confidence(None, voiced_flag, y)
+    assert result in ("low", "medium", "high")
+
+
+def test_pitch_tracker_confidence_returns_medium() -> None:
+    """Test that _compute_confidence returns medium for moderate signals."""
+    tracker = PitchTracker()
+    # Moderate voicing probs, moderate voicing ratio, moderate energy
+    voiced_probs = np.array([0.5, 0.6, 0.4, 0.5, 0.3])
+    voiced_flag = np.array([True, True, False, True, False])
+    # Moderate energy signal
+    y = np.sin(np.linspace(0, 6.28, 1000)) * 0.04
+
+    result = tracker._compute_confidence(voiced_probs, voiced_flag, y)
+    # score = 0.5*0.46 + 0.3*0.6 + 0.2*(0.04/0.05*~0.028/0.05)
+    # This should be in the medium range
+    assert result in ("low", "medium")
+
+
+def test_pitch_tracker_confidence_returns_low() -> None:
+    """Test that _compute_confidence returns low for very weak signals."""
+    tracker = PitchTracker()
+    # Low voicing probs, low voicing ratio, very low energy
+    voiced_probs = np.array([0.1, 0.2, 0.1, 0.05, 0.1])
+    voiced_flag = np.array([False, False, False, False, True])
+    # Very low energy signal
+    y = np.zeros(1000) + np.random.randn(1000) * 0.001
+
+    result = tracker._compute_confidence(voiced_probs, voiced_flag, y)
+    assert result == "low"

@@ -1,5 +1,7 @@
 """Tests for the chord analysis module."""
 
+import numpy as np
+
 from bandscope_analysis.chords.analyzer import ChordAnalyzer, _infer_key_center
 from bandscope_analysis.chords.capo import detect_capo_and_tuning
 from bandscope_analysis.chords.model import ChordAnalysisResult
@@ -160,3 +162,234 @@ def test_detect_drop_d() -> None:
     result = detect_capo_and_tuning(["D5", "G5", "A5"])
     assert result["capo"] == 0
     assert result["tuning"] == "Drop D"
+
+
+def test_chord_analyzer_with_audio_stems() -> None:
+    """Test analyzer uses ChordRecognizer when audio stems are provided."""
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    sr = 22050
+    # Generate a C major chord audio
+    t = np.linspace(0, 3, sr * 3, endpoint=False)
+    other_stem = (
+        np.sin(2 * np.pi * 261.63 * t)
+        + np.sin(2 * np.pi * 329.63 * t)
+        + np.sin(2 * np.pi * 392.00 * t)
+    ).astype(np.float32) / 3.0
+
+    result = analyzer.analyze(
+        sections,
+        audio_stems={"other": other_stem},
+        sample_rate=sr,
+    )
+    assert len(result["sections"]) == 1
+    summary = result["sections"][0]
+    # Should have recognized at least one chord (likely C)
+    assert len(summary["chords"]) > 0
+    assert summary["chords"][0]["chord"] != ""
+    assert summary["confidence_source"] == "model"
+
+
+def test_chord_analyzer_user_overrides_audio() -> None:
+    """Test that user-sourced chords override audio-derived chords."""
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    sr = 22050
+    t = np.linspace(0, 2, sr * 2, endpoint=False)
+    other_stem = np.sin(2 * np.pi * 261.63 * t).astype(np.float32)
+
+    roles_by_section = {
+        "verse-1": [
+            {"harmony": {"chord": "Am", "functionLabel": "vi", "source": "user"}},
+        ]
+    }
+
+    result = analyzer.analyze(
+        sections,
+        roles_by_section=roles_by_section,
+        audio_stems={"other": other_stem},
+        sample_rate=sr,
+    )
+    summary = result["sections"][0]
+    # User chords should take priority
+    assert summary["chords"][0]["chord"] == "Am"
+    assert summary["confidence_level"] == "high"
+    assert summary["confidence_source"] == "user"
+
+
+def test_chord_analyzer_empty_stems_fallback() -> None:
+    """Test analyzer falls back to role data with empty stems."""
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    roles_by_section = {
+        "verse-1": [
+            {"harmony": {"chord": "G", "functionLabel": "I", "source": "model"}},
+        ]
+    }
+
+    result = analyzer.analyze(
+        sections,
+        roles_by_section=roles_by_section,
+        audio_stems={"other": np.array([], dtype=np.float32)},
+    )
+    summary = result["sections"][0]
+    assert summary["chords"][0]["chord"] == "G"
+
+
+def test_chord_analyzer_recognize_exception() -> None:
+    """Test that recognition exceptions are handled gracefully."""
+    from unittest.mock import patch
+
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    sr = 22050
+    t = np.linspace(0, 1, sr, endpoint=False)
+    other_stem = np.sin(2 * np.pi * 440.0 * t).astype(np.float32)
+
+    with patch.object(analyzer._recognizer, "recognize", side_effect=RuntimeError("fail")):
+        result = analyzer.analyze(
+            sections,
+            audio_stems={"other": other_stem},
+            sample_rate=sr,
+        )
+    # Should fall back gracefully with no chords
+    assert len(result["sections"]) == 1
+
+
+def test_chord_analyzer_time_range_filtering() -> None:
+    """Test that section time ranges filter recognized chords."""
+    analyzer = ChordAnalyzer()
+    sr = 22050
+    # Generate two distinct chords for 3 seconds each
+    t1 = np.linspace(0, 3, sr * 3, endpoint=False)
+    # C major
+    y1 = (
+        np.sin(2 * np.pi * 261.63 * t1)
+        + np.sin(2 * np.pi * 329.63 * t1)
+        + np.sin(2 * np.pi * 392.00 * t1)
+    ).astype(np.float32) / 3.0
+
+    t2 = np.linspace(0, 3, sr * 3, endpoint=False)
+    # G major
+    y2 = (
+        np.sin(2 * np.pi * 392.00 * t2)
+        + np.sin(2 * np.pi * 493.88 * t2)
+        + np.sin(2 * np.pi * 587.33 * t2)
+    ).astype(np.float32) / 3.0
+
+    audio = np.concatenate([y1, y2])
+
+    sections = [
+        {"id": "verse-1", "timeRange": {"start": 0.0, "end": 3.0}},
+        {"id": "chorus-1", "timeRange": {"start": 3.0, "end": 6.0}},
+    ]
+
+    result = analyzer.analyze(
+        sections,
+        audio_stems={"other": audio},
+        sample_rate=sr,
+    )
+    assert len(result["sections"]) == 2
+
+
+def test_chord_analyzer_dsp_low_confidence() -> None:
+    """Test that low-confidence DSP chords produce low confidence level."""
+    from unittest.mock import patch
+
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    sr = 22050
+    t = np.linspace(0, 2, sr * 2, endpoint=False)
+    other_stem = np.sin(2 * np.pi * 261.63 * t).astype(np.float32)
+
+    # Mock the recognizer to return chords with low confidence
+    mock_chords = [
+        {"start_time": 0.0, "end_time": 1.0, "chord": "C", "confidence": "low"},
+        {"start_time": 1.0, "end_time": 2.0, "chord": "G", "confidence": "low"},
+    ]
+    with patch.object(analyzer._recognizer, "recognize", return_value=mock_chords):
+        result = analyzer.analyze(
+            sections,
+            audio_stems={"other": other_stem},
+            sample_rate=sr,
+        )
+    summary = result["sections"][0]
+    assert summary["confidence_level"] == "low"
+    assert summary["confidence_source"] == "model"
+
+
+def test_chord_analyzer_dsp_medium_confidence() -> None:
+    """Test that medium-ratio DSP chords produce medium confidence."""
+    from unittest.mock import patch
+
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    sr = 22050
+    t = np.linspace(0, 2, sr * 2, endpoint=False)
+    other_stem = np.sin(2 * np.pi * 261.63 * t).astype(np.float32)
+
+    # Mock: 1 high out of 3 = 33% > 20%, should be medium
+    mock_chords = [
+        {"start_time": 0.0, "end_time": 1.0, "chord": "C", "confidence": "high"},
+        {"start_time": 1.0, "end_time": 1.5, "chord": "G", "confidence": "low"},
+        {"start_time": 1.5, "end_time": 2.0, "chord": "Am", "confidence": "low"},
+    ]
+    with patch.object(analyzer._recognizer, "recognize", return_value=mock_chords):
+        result = analyzer.analyze(
+            sections,
+            audio_stems={"other": other_stem},
+            sample_rate=sr,
+        )
+    summary = result["sections"][0]
+    assert summary["confidence_level"] == "medium"
+    assert summary["confidence_source"] == "model"
+
+
+def test_chord_analyzer_dsp_high_confidence() -> None:
+    """Test that high-ratio DSP chords produce high confidence."""
+    from unittest.mock import patch
+
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    sr = 22050
+    t = np.linspace(0, 2, sr * 2, endpoint=False)
+    other_stem = np.sin(2 * np.pi * 261.63 * t).astype(np.float32)
+
+    # Mock: 2 high out of 3 = 67% > 50%, should be high
+    mock_chords = [
+        {"start_time": 0.0, "end_time": 1.0, "chord": "C", "confidence": "high"},
+        {"start_time": 1.0, "end_time": 1.5, "chord": "G", "confidence": "high"},
+        {"start_time": 1.5, "end_time": 2.0, "chord": "Am", "confidence": "low"},
+    ]
+    with patch.object(analyzer._recognizer, "recognize", return_value=mock_chords):
+        result = analyzer.analyze(
+            sections,
+            audio_stems={"other": other_stem},
+            sample_rate=sr,
+        )
+    summary = result["sections"][0]
+    assert summary["confidence_level"] == "high"
+    assert summary["confidence_source"] == "model"
+
+
+def test_chord_analyzer_all_n_chords_returns_empty() -> None:
+    """Test that all N (no chord) results return empty chords."""
+    from unittest.mock import patch
+
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    sr = 22050
+    t = np.linspace(0, 1, sr, endpoint=False)
+    other_stem = np.sin(2 * np.pi * 261.63 * t).astype(np.float32)
+
+    mock_chords = [
+        {"start_time": 0.0, "end_time": 1.0, "chord": "N", "confidence": "low"},
+    ]
+    with patch.object(analyzer._recognizer, "recognize", return_value=mock_chords):
+        result = analyzer.analyze(
+            sections,
+            audio_stems={"other": other_stem},
+            sample_rate=sr,
+        )
+    summary = result["sections"][0]
+    assert summary["chords"] == []

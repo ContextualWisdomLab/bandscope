@@ -67,57 +67,74 @@ class RoleExtractor:
     def _extract_features(
         self, stems: dict[str, Any], sr: int
     ) -> tuple[RangeSummary, str, RangeSummary, str]:
-        """Extract vocal and bass features (range and chord) from stems."""
+        """Extract vocal and bass features (range and chord) from stems.
+
+        When real audio stems are available, uses PitchTracker (pYIN) and
+        ChordRecognizer (chromagram + Viterbi) to derive actual ranges and chords
+        from the signal. Returns signal-derived values instead of hardcoded defaults.
+
+        Args:
+            stems: Dict mapping stem names to numpy audio arrays.
+            sr: Sample rate of the audio.
+
+        Returns:
+            Tuple of (vocal_range, vocal_chord, bass_range, bass_chord).
+        """
+        # Defaults only used when no audio stems are available
         vocal_range: RangeSummary = {"lowestNote": "G#3", "highestNote": "C#5"}
         vocal_chord = "C#m7"
         bass_range: RangeSummary = {"lowestNote": "C#2", "highestNote": "E3"}
         bass_chord = "C#m7"
 
-        # If we have real audio stems, extract real ranges and chords
-        if stems:
-            try:
-                from ..chords.chord_recognizer import ChordRecognizer
-                from ..ranges.pitch_tracker import PitchTracker
+        if not stems:
+            return vocal_range, vocal_chord, bass_range, bass_chord
 
-                pitch_tracker = PitchTracker()
-                chord_recognizer = ChordRecognizer()
+        try:
+            from ..chords.chord_recognizer import ChordRecognizer
+            from ..ranges.pitch_tracker import PitchTracker
 
-                if "vocals" in stems:
-                    p_res = pitch_tracker.track(stems["vocals"], sr=sr)
-                    if p_res:
-                        v_lowest = p_res.get("lowest_note")
-                        v_highest = p_res.get("highest_note")
-                        if v_lowest and v_highest:
-                            vocal_range = {
-                                "lowestNote": v_lowest,
-                                "highestNote": v_highest,
-                            }
+            pitch_tracker = PitchTracker()
+            chord_recognizer = ChordRecognizer()
 
-                if "bass" in stems:
-                    p_res = pitch_tracker.track(stems["bass"], sr=sr)
-                    if p_res:
-                        b_lowest = p_res.get("lowest_note")
-                        b_highest = p_res.get("highest_note")
-                        if b_lowest and b_highest:
-                            bass_range = {
-                                "lowestNote": b_lowest,
-                                "highestNote": b_highest,
-                            }
-                    c_res = chord_recognizer.recognize(stems["bass"], sr=sr)
-                    if c_res and len(c_res) > 0:
-                        # Use the most common chord or first chord
-                        valid_chords = [c["chord"] for c in c_res if c["chord"] != "N"]
-                        if valid_chords:
-                            bass_chord = valid_chords[0]
+            # Extract vocal range from vocal stem
+            if "vocals" in stems:
+                p_res = pitch_tracker.track(stems["vocals"], sr=sr)
+                if p_res:
+                    v_lowest = p_res.get("lowest_note")
+                    v_highest = p_res.get("highest_note")
+                    if v_lowest and v_highest:
+                        vocal_range = {
+                            "lowestNote": v_lowest,
+                            "highestNote": v_highest,
+                        }
 
-                if "other" in stems:
-                    c_res = chord_recognizer.recognize(stems["other"], sr=sr)
-                    if c_res and len(c_res) > 0:
-                        valid_chords = [c["chord"] for c in c_res if c["chord"] != "N"]
-                        if valid_chords:
-                            vocal_chord = valid_chords[0]
-            except Exception as e:
-                logger.warning("Failed to extract features from stems: %s", e)
+            # Extract bass range and chord from bass stem
+            if "bass" in stems:
+                p_res = pitch_tracker.track(stems["bass"], sr=sr)
+                if p_res:
+                    b_lowest = p_res.get("lowest_note")
+                    b_highest = p_res.get("highest_note")
+                    if b_lowest and b_highest:
+                        bass_range = {
+                            "lowestNote": b_lowest,
+                            "highestNote": b_highest,
+                        }
+                c_res = chord_recognizer.recognize(stems["bass"], sr=sr)
+                if c_res and len(c_res) > 0:
+                    valid_chords = [c["chord"] for c in c_res if c["chord"] != "N"]
+                    if valid_chords:
+                        # Use the most common chord across all segments
+                        bass_chord = _most_common_chord(valid_chords)
+
+            # Extract harmonic chord from 'other' stem (keys, guitar, etc.)
+            if "other" in stems:
+                c_res = chord_recognizer.recognize(stems["other"], sr=sr)
+                if c_res and len(c_res) > 0:
+                    valid_chords = [c["chord"] for c in c_res if c["chord"] != "N"]
+                    if valid_chords:
+                        vocal_chord = _most_common_chord(valid_chords)
+        except Exception as e:
+            logger.warning("Failed to extract features from stems: %s", e)
 
         return vocal_range, vocal_chord, bass_range, bass_chord
 
@@ -359,3 +376,18 @@ class RoleExtractor:
             "active_roles": active_roles,
             "part_graph": part_graph,
         }
+
+
+def _most_common_chord(chords: list[str]) -> str:
+    """Return the most frequently occurring chord from a list.
+
+    Args:
+        chords: Non-empty list of chord label strings.
+
+    Returns:
+        The chord that appears most frequently. Ties broken by first occurrence.
+    """
+    counts: dict[str, int] = {}
+    for chord in chords:
+        counts[chord] = counts.get(chord, 0) + 1
+    return max(counts, key=lambda c: counts[c])
