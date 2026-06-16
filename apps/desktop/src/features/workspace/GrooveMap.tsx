@@ -100,7 +100,11 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
                 width: `${widthPercent}%`
               }}
               title={`${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`}
-            />
+            >
+              <span className="sr-only">
+                {`${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`}
+              </span>
+            </div>
           );
         })}
       </div>
