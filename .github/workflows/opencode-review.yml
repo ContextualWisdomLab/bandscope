@@ -895,15 +895,30 @@ jobs:
           ' "$clean_output" >"$comment_body_file"
 
           if [ ! -s "$comment_body_file" ]; then
-            echo "OpenCode output did not include the required sentinel."
-            cat "$clean_output"
-            exit 0
+            if python3 scripts/ci/opencode_review_normalize_output.py \
+              "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$clean_output"; then
+              cp "$clean_output" "$comment_body_file"
+            else
+              echo "OpenCode output did not include the required sentinel."
+              cat "$clean_output"
+              exit 0
+            fi
           fi
 
           gate_status=0
           gate_result="$(
             bash scripts/ci/opencode_review_approve_gate.sh "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$comment_body_file" "$normalized_comment_json"
           )" || gate_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            if python3 scripts/ci/opencode_review_normalize_output.py \
+              "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$clean_output"; then
+              cp "$clean_output" "$comment_body_file"
+              gate_status=0
+              gate_result="$(
+                bash scripts/ci/opencode_review_approve_gate.sh "$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$comment_body_file" "$normalized_comment_json"
+              )" || gate_status=$?
+            fi
+          fi
           printf 'OpenCode comment gate result: %s (exit %s)\n' "$gate_result" "$gate_status"
           if [ "$gate_status" -eq 0 ]; then
             {

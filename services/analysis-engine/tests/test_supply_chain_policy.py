@@ -5049,6 +5049,9 @@ def test_opencode_review_stops_external_check_failures_without_review() -> None:
     assert "stop_for_external_failed_check_if_needed" in workflow
     assert 'stop_approval_without_review "EXTERNAL_CHECK_FAILURE"' in workflow
     assert 'map(tostring | ltrimstr("- ") | "- " + .)' in workflow
+    assert 'if [ "$gate_status" -ne 0 ]; then' in workflow
+    assert "python3 scripts/ci/opencode_review_normalize_output.py" in workflow
+    assert '"$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$clean_output"' in workflow
     assert 'if ! classification="$(' in workflow
     assert "jq -r '.classification // empty' \"$classification_file\" 2>/dev/null" in workflow
 
