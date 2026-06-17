@@ -2711,10 +2711,10 @@ def test_scorecard_sarif_normalizer_preserves_file_locations(tmp_path: Path) -> 
     assert "properties" not in location
 
 
-def test_scorecard_sarif_normalizer_drops_non_blocking_cii_badge_result(
+def test_scorecard_sarif_normalizer_downgrades_non_blocking_cii_badge_result(
     tmp_path: Path,
 ) -> None:
-    """Ensure the external OpenSSF badge signal does not block code scanning gates."""
+    """Ensure the badge signal keeps Scorecard analysis without blocking gates."""
     normalizer = load_module(
         "scripts/checks/normalize_scorecard_sarif.py",
         "normalize_scorecard_sarif_cii_badge",
@@ -2759,9 +2759,18 @@ def test_scorecard_sarif_normalizer_drops_non_blocking_cii_badge_result(
     rewritten = normalizer.normalize_scorecard_sarif(source, target)
     normalized = json.loads(target.read_text(encoding="utf-8"))
     results = normalized["runs"][0]["results"]
+    cii_result = results[0]
+    cii_location = cii_result["locations"][0]["physicalLocation"]
 
-    assert rewritten == 2
-    assert [result["ruleId"] for result in results] == ["TokenPermissionsID"]
+    assert rewritten == 5
+    assert [result["ruleId"] for result in results] == [
+        "CIIBestPracticesID",
+        "TokenPermissionsID",
+    ]
+    assert cii_result["level"] == "note"
+    assert cii_result["properties"]["bandscopeNonBlockingScorecardSignal"] is True
+    assert cii_location["artifactLocation"]["uri"] == ".github/workflows/ossf-scorecard.yml"
+    assert cii_location["region"]["startLine"] == 1
 
 
 def test_scorecard_sarif_normalizer_fills_existing_region_start_line(

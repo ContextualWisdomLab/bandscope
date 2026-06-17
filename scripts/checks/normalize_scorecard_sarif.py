@@ -21,6 +21,41 @@ def is_non_blocking_scorecard_result(result: object) -> bool:
     )
 
 
+def downgrade_non_blocking_scorecard_result(result: dict) -> int:
+    """Keep a non-blocking Scorecard result visible without tripping gates."""
+    rewritten = 0
+    if result.get("level") != "note":
+        result["level"] = "note"
+        rewritten += 1
+
+    properties = result.get("properties")
+    if not isinstance(properties, dict):
+        properties = {}
+        result["properties"] = properties
+        rewritten += 1
+    if properties.get("bandscopeNonBlockingScorecardSignal") is not True:
+        properties["bandscopeNonBlockingScorecardSignal"] = True
+        rewritten += 1
+
+    locations = result.get("locations")
+    if isinstance(locations, list) and locations:
+        return rewritten
+
+    result["locations"] = [
+        {
+            "physicalLocation": {
+                "artifactLocation": {"uri": SCORECARD_WORKFLOW_URI},
+                "region": {"startLine": 1},
+                "properties": {
+                    "bandscopeNonBlockingScorecardSignal": True,
+                    "bandscopeRepositoryLevelFinding": True,
+                },
+            }
+        }
+    ]
+    return rewritten + 1
+
+
 def normalize_scorecard_sarif(source: Path, target: Path) -> int:
     """Normalize Scorecard SARIF locations/results and return the change count."""
     sarif = json.loads(source.read_text(encoding="utf-8"))
@@ -35,14 +70,11 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
         results = run.get("results", [])
         if not isinstance(results, list):
             continue
-        retained_results = []
         for result in results:
-            if is_non_blocking_scorecard_result(result):
-                rewritten += 1
-                continue
-            retained_results.append(result)
             if not isinstance(result, dict):
                 continue
+            if is_non_blocking_scorecard_result(result):
+                rewritten += downgrade_non_blocking_scorecard_result(result)
             locations = result.get("locations", [])
             if not isinstance(locations, list):
                 continue
@@ -74,7 +106,6 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
                 )
                 properties["bandscopeRepositoryLevelFinding"] = True
                 rewritten += 1
-        run["results"] = retained_results
 
     target.write_text(
         json.dumps(sarif, indent=2, sort_keys=True) + "\n", encoding="utf-8"
