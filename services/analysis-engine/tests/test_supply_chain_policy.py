@@ -4920,6 +4920,15 @@ Finalizing artifact upload
     assert "rerun the failed workflow job" in result["reason"]
     assert "build-baseline/build / macos / amd64" in result["signals"]
     assert "Packaged .+ to artifacts/" not in result["signals"]
+    artifact_finalize_signals = [
+        signal
+        for signal in result["signals"]
+        if "Failed to FinalizeArtifact: Unable to make request: ECONNRESET" in signal
+    ]
+    assert artifact_finalize_signals == [
+        "artifact upload finalize request reset: "
+        "##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET"
+    ]
     assert any(
         "Failed to FinalizeArtifact: Unable to make request: ECONNRESET" in signal
         for signal in result["signals"]
@@ -5039,6 +5048,7 @@ def test_opencode_review_stops_external_check_failures_without_review() -> None:
     assert "scripts/ci/classify_failed_check_evidence.py" in workflow
     assert "stop_for_external_failed_check_if_needed" in workflow
     assert 'stop_approval_without_review "EXTERNAL_CHECK_FAILURE"' in workflow
+    assert 'map(tostring | ltrimstr("- ") | "- " + .)' in workflow
     assert 'if ! classification="$(' in workflow
     assert "jq -r '.classification // empty' \"$classification_file\" 2>/dev/null" in workflow
 

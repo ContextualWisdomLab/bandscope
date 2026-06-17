@@ -1310,7 +1310,7 @@ jobs:
             signals="$(
               jq -r '
                 (.signals // [])
-                | map("- " + .)
+                | map(tostring | ltrimstr("- ") | "- " + .)
                 | join("\n")
               ' "$classification_file"
             )"

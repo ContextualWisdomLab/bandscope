@@ -112,10 +112,14 @@ def matching_labeled_evidence_lines(
 ) -> list[str]:
     """Return labeled concrete evidence lines matched by the given patterns."""
     matches: list[str] = []
+    matched_lines: set[str] = set()
     for label, pattern in patterns:
         for line in evidence_text.splitlines():
             if pattern.search(line):
-                matches.append(f"{label}: {line.strip()}")
+                matched_line = line.strip()
+                if matched_line not in matched_lines:
+                    matches.append(f"{label}: {matched_line}")
+                    matched_lines.add(matched_line)
                 break
     return matches
 
