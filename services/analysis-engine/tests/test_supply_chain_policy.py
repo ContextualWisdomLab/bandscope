@@ -744,6 +744,56 @@ jobs:
     ) in violations
 
 
+def test_supply_chain_check_requires_unconditional_audit_steps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure conditional audit steps cannot satisfy vulnerability coverage."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_unconditional_audit",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "security-audit.yml").write_text(
+        """
+name: security-audit
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skipped npm audit
+        if: ${{ false }}
+        run: npm audit --workspaces --audit-level=high
+      - name: Skipped Python audit
+        if: false
+        run: pip-audit --local --strict
+      - name: Skipped Rust audit
+        if: github.ref == 'refs/heads/not-used'
+        run: cargo +stable audit
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "security audit workflow missing vulnerability audit token: "
+        "npm audit --workspaces --audit-level=high"
+    ) in violations
+    assert (
+        "security audit workflow missing vulnerability audit token: pip-audit --local --strict"
+    ) in violations
+    assert (
+        "security audit workflow missing vulnerability audit token: cargo +stable audit"
+    ) in violations
+
+
 def test_supply_chain_check_accepts_explicit_false_continue_on_error_audit_steps(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

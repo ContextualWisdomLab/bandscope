@@ -332,6 +332,13 @@ def step_is_blocking(step_lines: list[str], step_indent: int) -> bool:
     return normalized in {"false", "${{false}}"}
 
 
+def step_is_required_blocking(step_lines: list[str], step_indent: int) -> bool:
+    """Return whether a workflow step is unconditional and failure-blocking."""
+    if step_scalar_value_from_block(step_lines, step_indent, "if") is not None:
+        return False
+    return step_is_blocking(step_lines, step_indent)
+
+
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
     """Return workflow lines with shell backslash continuations folded."""
     logical_lines: list[tuple[int, str]] = []
@@ -1111,10 +1118,7 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
         )
 
     def is_blocking_required_step(block_lines: list[str], block_indent: int) -> bool:
-        step_content = "\n".join(line.partition("#")[0] for line in block_lines)
-        return step_is_blocking(block_lines, block_indent) and not re.search(
-            r"^\s+if\s*:", step_content, flags=re.MULTILINE
-        )
+        return step_is_required_blocking(block_lines, block_indent)
 
     violations: list[str] = []
     for index, block_indent, step_lines in step_blocks:
@@ -1200,15 +1204,14 @@ def verify_workflow_coverage() -> list[str]:
     for token in ["develop", "main", "pull_request", "push"]:
         if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
-    audit_run_commands = (
-        [
-            command
-            for _, _, command, is_blocking in workflow_run_steps(audit)
-            if is_blocking
-        ]
-        if audit
-        else []
-    )
+    audit_run_commands: list[str] = []
+    if audit:
+        for _, step_indent, step_lines in workflow_step_blocks(audit.splitlines()):
+            if not step_is_required_blocking(step_lines, step_indent):
+                continue
+            command = step_run_command_from_block(step_lines, step_indent)
+            if command.strip():
+                audit_run_commands.append(command)
     for token in [
         "npm audit --workspaces --audit-level=high",
         "pip-audit --local --strict",
