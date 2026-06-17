@@ -2711,6 +2711,59 @@ def test_scorecard_sarif_normalizer_preserves_file_locations(tmp_path: Path) -> 
     assert "properties" not in location
 
 
+def test_scorecard_sarif_normalizer_drops_non_blocking_cii_badge_result(
+    tmp_path: Path,
+) -> None:
+    """Ensure the external OpenSSF badge signal does not block code scanning gates."""
+    normalizer = load_module(
+        "scripts/checks/normalize_scorecard_sarif.py",
+        "normalize_scorecard_sarif_cii_badge",
+    )
+    source = tmp_path / "results.sarif"
+    target = tmp_path / "normalized-results.sarif"
+    source.write_text(
+        json.dumps(
+            {
+                "version": "2.1.0",
+                "runs": [
+                    {
+                        "results": [
+                            {
+                                "ruleId": "CIIBestPracticesID",
+                                "message": {
+                                    "text": (
+                                        "no effort to earn an OpenSSF best practices badge detected"
+                                    )
+                                },
+                            },
+                            {
+                                "ruleId": "TokenPermissionsID",
+                                "locations": [
+                                    {
+                                        "physicalLocation": {
+                                            "artifactLocation": {
+                                                "uri": "no file associated with this alert"
+                                            }
+                                        }
+                                    }
+                                ],
+                            },
+                        ]
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rewritten = normalizer.normalize_scorecard_sarif(source, target)
+    normalized = json.loads(target.read_text(encoding="utf-8"))
+    results = normalized["runs"][0]["results"]
+
+    assert rewritten == 2
+    assert [result["ruleId"] for result in results] == ["TokenPermissionsID"]
+
+
 def test_scorecard_sarif_normalizer_fills_existing_region_start_line(
     tmp_path: Path,
 ) -> None:
