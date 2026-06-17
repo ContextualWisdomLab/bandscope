@@ -4372,3 +4372,16 @@ def test_supply_chain_check_accepts_repo_workspace_exec_policy(
     violations = supply_chain.verify_workflow_workspace_exec_policy()
 
     assert not violations
+
+
+def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
+    """Ensure OpenCode approval does not wait on other review-agent statuses."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "def opencode_review_agent_status:" in workflow
+    assert '$context == "coderabbit"' in workflow
+    assert '$context == "copilot pull request reviewer"' in workflow
+    assert workflow.count("select(opencode_review_agent_status | not)") >= 3
