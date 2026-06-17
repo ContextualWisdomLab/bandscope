@@ -1284,7 +1284,14 @@ def verify_workflow_coverage() -> list[str]:
     if scorecard:
         missing.extend(
             f"ossf scorecard workflow missing token: {token}"
-            for token in ["develop", "main", "push", "schedule", "ossf-scorecard"]
+            for token in [
+                "develop",
+                "main",
+                "pull_request",
+                "push",
+                "schedule",
+                "ossf-scorecard",
+            ]
             if token not in scorecard
         )
         if "ossf/scorecard-action" in scorecard:

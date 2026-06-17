@@ -1131,6 +1131,18 @@ def test_supply_chain_check_accepts_repo_ossf_publish_restrictions(
     assert not any("ossf scorecard" in violation for violation in violations)
 
 
+def test_supply_chain_check_accepts_repo_ossf_pr_code_scanning_upload() -> None:
+    """Ensure checked-in Scorecard uploads SARIF for PR code-scanning gates."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "ossf-scorecard.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "pull_request:" in workflow
+    assert "github.event_name == 'pull_request'" in workflow
+    assert "github.event.pull_request.base.ref" in workflow
+
+
 def test_supply_chain_check_rejects_unnormalized_scorecard_sarif_upload(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
