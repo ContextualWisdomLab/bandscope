@@ -4917,6 +4917,40 @@ Finalizing artifact upload
     )
 
 
+def test_opencode_classifies_tauri_binary_release_502_as_external() -> None:
+    """Ensure Tauri binary release server errors do not request source changes."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence_tauri_binary_release",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: build-baseline/build / windows / amd64
+
+### Failed job steps
+
+- step 12: Build native shell (failure)
+
+### Failed log excerpt
+
+```text
+Finished `release` profile [optimized] target(s) in 4m 53s
+Built application at: D:\\a\\bandscope\\target\\release\\bandscope-desktop.exe
+Downloading https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip
+failed to bundle project `http status: 502`
+Error failed to bundle project `http status: 502`
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "external_infrastructure"
+    assert "Tauri binary release download server error" in result["reason"]
+    assert "build-baseline/build / windows / amd64" in result["signals"]
+    assert any("tauri-apps/binary-releases" in signal for signal in result["signals"])
+
+
 def test_opencode_keeps_test_failures_actionable() -> None:
     """Ensure ordinary failed checks still require source-backed diagnosis."""
     classifier = load_module(

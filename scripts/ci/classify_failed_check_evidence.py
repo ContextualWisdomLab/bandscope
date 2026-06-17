@@ -15,6 +15,10 @@ UPLOAD_ARTIFACT_STEP = re.compile(
     r"^- step \d+:\s+Upload .+ artifact \(failure\)$",
     re.IGNORECASE | re.MULTILINE,
 )
+BUILD_NATIVE_SHELL_STEP = re.compile(
+    r"^- step \d+:\s+Build native shell \(failure\)$",
+    re.IGNORECASE | re.MULTILINE,
+)
 ARTIFACT_UPLOAD_INFRA_PATTERNS = (
     (
         "artifact upload finalize request reset",
@@ -32,6 +36,21 @@ ARTIFACT_UPLOAD_CONFIRMATION_PATTERNS = (
     re.compile(r"actions/upload-artifact@", re.IGNORECASE),
     re.compile(r"Finished uploading artifact content", re.IGNORECASE),
     re.compile(r"Finalizing artifact upload", re.IGNORECASE),
+)
+TAURI_BINARY_RELEASE_DOWNLOAD_PATTERNS = (
+    re.compile(
+        r"Downloading https://github\.com/tauri-apps/binary-releases/",
+        re.IGNORECASE,
+    ),
+)
+TAURI_BUNDLE_INFRA_PATTERNS = (
+    (
+        "tauri binary release download server error",
+        re.compile(
+            r"failed to bundle project `http status:\s*50[0-9]`",
+            re.IGNORECASE,
+        ),
+    ),
 )
 BUILD_OR_PACKAGE_SUCCESS_PATTERNS = (
     re.compile(r"Finished `release` profile", re.IGNORECASE),
@@ -84,52 +103,114 @@ def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
 
     failed_check = failed_checks[0].strip()
     upload_step_match = UPLOAD_ARTIFACT_STEP.search(evidence_text)
-    if upload_step_match is None:
+    build_success_signals = matching_evidence_lines(
+        evidence_text,
+        BUILD_OR_PACKAGE_SUCCESS_PATTERNS,
+    )
+    if upload_step_match is not None:
+        matched_infra_signals = [
+            label
+            for label, pattern in ARTIFACT_UPLOAD_INFRA_PATTERNS
+            if pattern.search(evidence_text)
+        ]
+        if not matched_infra_signals:
+            return unknown(
+                "no known external artifact upload infrastructure signal was present",
+                signals=[failed_check, upload_step_match.group(0)],
+            )
+
+        if not any(
+            pattern.search(evidence_text)
+            for pattern in ARTIFACT_UPLOAD_CONFIRMATION_PATTERNS
+        ):
+            return unknown(
+                "artifact upload context was missing from the failed-check evidence",
+                signals=[
+                    failed_check,
+                    upload_step_match.group(0),
+                    *matched_infra_signals,
+                ],
+            )
+
+        if not build_success_signals:
+            return unknown(
+                "build or package success was not visible before artifact upload failed",
+                signals=[
+                    failed_check,
+                    upload_step_match.group(0),
+                    *matched_infra_signals,
+                ],
+            )
+
+        return external(
+            (
+                "the only failed check is a GitHub artifact upload "
+                "finalization/network failure after build/package output was "
+                "produced; rerun the failed workflow job instead of requesting "
+                "source changes"
+            ),
+            signals=[
+                failed_check,
+                upload_step_match.group(0),
+                *matched_infra_signals,
+                *build_success_signals,
+            ],
+        )
+
+    native_shell_step_match = BUILD_NATIVE_SHELL_STEP.search(evidence_text)
+    if native_shell_step_match is None:
         return unknown(
-            "the failed job step was not an artifact upload step",
+            "no known external failed job step pattern was present",
             signals=[failed_check],
         )
 
     matched_infra_signals = [
         label
-        for label, pattern in ARTIFACT_UPLOAD_INFRA_PATTERNS
+        for label, pattern in TAURI_BUNDLE_INFRA_PATTERNS
         if pattern.search(evidence_text)
     ]
     if not matched_infra_signals:
         return unknown(
-            "no known external artifact upload infrastructure signal was present",
-            signals=[failed_check, upload_step_match.group(0)],
+            "no known external native-shell infrastructure signal was present",
+            signals=[failed_check, native_shell_step_match.group(0)],
         )
 
-    if not any(
-        pattern.search(evidence_text)
-        for pattern in ARTIFACT_UPLOAD_CONFIRMATION_PATTERNS
-    ):
-        return unknown(
-            "artifact upload context was missing from the failed-check evidence",
-            signals=[failed_check, upload_step_match.group(0), *matched_infra_signals],
-        )
-
-    build_success_signals = matching_evidence_lines(
+    tauri_download_signals = matching_evidence_lines(
         evidence_text,
-        BUILD_OR_PACKAGE_SUCCESS_PATTERNS,
+        TAURI_BINARY_RELEASE_DOWNLOAD_PATTERNS,
     )
+    if not tauri_download_signals:
+        return unknown(
+            "Tauri binary release download context was missing from the evidence",
+            signals=[
+                failed_check,
+                native_shell_step_match.group(0),
+                *matched_infra_signals,
+            ],
+        )
+
     if not build_success_signals:
         return unknown(
-            "build or package success was not visible before artifact upload failed",
-            signals=[failed_check, upload_step_match.group(0), *matched_infra_signals],
+            "build success was not visible before native-shell bundling failed",
+            signals=[
+                failed_check,
+                native_shell_step_match.group(0),
+                *matched_infra_signals,
+                *tauri_download_signals,
+            ],
         )
 
     return external(
         (
-            "the only failed check is a GitHub artifact upload finalization/network "
-            "failure after build/package output was produced; rerun the failed "
+            "the only failed check is a Tauri binary release download server "
+            "error after the native app binary was built; rerun the failed "
             "workflow job instead of requesting source changes"
         ),
         signals=[
             failed_check,
-            upload_step_match.group(0),
+            native_shell_step_match.group(0),
             *matched_infra_signals,
+            *tauri_download_signals,
             *build_success_signals,
         ],
     )
