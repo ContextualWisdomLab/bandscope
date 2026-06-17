@@ -382,7 +382,11 @@ def nested_shell_commands(tokens: list[str]) -> list[str]:
             continue
         for option_index in range(index + 1, len(tokens)):
             option = tokens[option_index]
-            if option == "-c" or (option.startswith("-") and "c" in option[1:]):
+            if option == "-c" or (
+                option.startswith("-")
+                and not option.startswith("--")
+                and "c" in option[1:]
+            ):
                 if option_index + 1 < len(tokens):
                     nested_commands.append(tokens[option_index + 1])
                 break

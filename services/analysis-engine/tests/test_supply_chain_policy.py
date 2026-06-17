@@ -631,7 +631,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Nested npm audit
-        run: bash -lc 'npm audit --workspaces --audit-level=high'
+        run: bash --norc -lc 'npm audit --workspaces --audit-level=high'
       - name: Nested Python audit
         run: sh -ec 'pip-audit --local --strict'
       - name: Nested Rust audit
