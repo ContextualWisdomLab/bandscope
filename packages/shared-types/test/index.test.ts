@@ -1,3 +1,4 @@
+import fc from "fast-check";
 import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
@@ -67,6 +68,22 @@ describe("shared type helpers", () => {
       status: "idle",
       supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
     });
+  });
+
+  it("property-checks supported local audio sources", () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          sourcePath: fc.string({ minLength: 1 }).filter((value) => value.trim().length > 0),
+          fileName: fc.string({ minLength: 1 }).filter((value) => value.trim().length > 0),
+          extension: fc.constantFrom(...SUPPORTED_AUDIO_FORMATS),
+          fileSizeBytes: fc.integer({ min: 1, max: Number.MAX_SAFE_INTEGER })
+        }),
+        (source) => {
+          expect(parseLocalAudioSource(source)).toEqual(source);
+        }
+      )
+    );
   });
 
   it("validates analysis job requests and status envelopes", () => {
