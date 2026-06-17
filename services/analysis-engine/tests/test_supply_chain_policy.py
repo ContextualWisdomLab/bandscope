@@ -1150,6 +1150,16 @@ def test_supply_chain_check_accepts_repo_ossf_pr_code_scanning_upload() -> None:
     )
 
 
+def test_opencode_review_declares_top_level_token_permissions() -> None:
+    """Ensure OpenCode review keeps workflow-level GITHUB_TOKEN restrictions."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "\npermissions: read-all\n" in workflow
+
+
 def test_supply_chain_check_rejects_unnormalized_scorecard_sarif_upload(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
