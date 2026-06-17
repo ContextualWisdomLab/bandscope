@@ -81,6 +81,15 @@ RELEASE_ARTIFACT_EXTRACTOR = "scripts/release/extract_release_artifacts.py"
 OSSF_SARIF_NORMALIZER = "scripts/checks/normalize_scorecard_sarif.py"
 OSSF_NORMALIZED_SARIF = "normalized-scorecard-results.sarif"
 OSSF_NORMALIZED_SARIF_UPLOAD = f"sarif_file: {OSSF_NORMALIZED_SARIF}"
+TRUSTED_SCORECARD_SCRIPTS_DIR = "trusted-scorecard-scripts"
+OSSF_ARTIFACT_EXTRACTOR_COMMANDS = {
+    OSSF_ARTIFACT_EXTRACTOR,
+    f"{TRUSTED_SCORECARD_SCRIPTS_DIR}/{OSSF_ARTIFACT_EXTRACTOR}",
+}
+OSSF_SARIF_NORMALIZER_COMMANDS = {
+    OSSF_SARIF_NORMALIZER,
+    f"{TRUSTED_SCORECARD_SCRIPTS_DIR}/{OSSF_SARIF_NORMALIZER}",
+}
 RELEASE_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*")
 RELEASE_ASSET_VALIDATOR = (
     "scripts/release/select_release_assets.py --output release-assets.txt"
@@ -911,7 +920,7 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
             return None
         if cleaned_tokens[0] not in {"python", "python3"}:
             return None
-        if cleaned_tokens[1] != OSSF_SARIF_NORMALIZER:
+        if cleaned_tokens[1] not in OSSF_SARIF_NORMALIZER_COMMANDS:
             return None
         positional_args = cleaned_tokens[2:]
         if len(positional_args) < 2:
@@ -1007,7 +1016,7 @@ def scorecard_artifact_download_decompression_violations(content: str) -> list[s
         return (
             len(cleaned_tokens) == 4
             and cleaned_tokens[0] in {"python", "python3"}
-            and cleaned_tokens[1] == OSSF_ARTIFACT_EXTRACTOR
+            and cleaned_tokens[1] in OSSF_ARTIFACT_EXTRACTOR_COMMANDS
             and cleaned_tokens[2] == "scorecard-artifact"
             and cleaned_tokens[3] == "scorecard-sarif"
         )

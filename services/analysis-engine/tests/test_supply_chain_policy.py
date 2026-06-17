@@ -1141,6 +1141,13 @@ def test_supply_chain_check_accepts_repo_ossf_pr_code_scanning_upload() -> None:
     assert "pull_request:" in workflow
     assert "github.event_name == 'pull_request'" in workflow
     assert "github.event.pull_request.base.ref" in workflow
+    assert "path: trusted-scorecard-scripts" in workflow
+    assert (
+        "python3 trusted-scorecard-scripts/scripts/checks/extract_scorecard_artifact.py" in workflow
+    )
+    assert (
+        "python3 trusted-scorecard-scripts/scripts/checks/normalize_scorecard_sarif.py" in workflow
+    )
 
 
 def test_supply_chain_check_rejects_unnormalized_scorecard_sarif_upload(
