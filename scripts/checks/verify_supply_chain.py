@@ -543,6 +543,41 @@ def command_contains_token_sequence(
     return False
 
 
+def executed_command_token_lists(
+    tokens: list[str], *, recursion_depth: int = 0
+) -> list[list[str]]:
+    """Return tokenized commands after unwrapping allowed command wrappers."""
+    tokens = strip_shell_assignment_prefix(tokens)
+    if not tokens:
+        return []
+
+    executable = tokens[0].rsplit("/", maxsplit=1)[-1]
+    if executable in {":", "echo", "printf"}:
+        return []
+    if executable == "env":
+        return executed_command_token_lists(
+            env_wrapped_command_tokens(tokens[1:]), recursion_depth=recursion_depth
+        )
+    if executable == "uv" and len(tokens) > 1 and tokens[1] == "run":
+        return executed_command_token_lists(
+            uv_run_command_tokens(tokens[2:]), recursion_depth=recursion_depth
+        )
+    if executable in {"bash", "dash", "sh", "zsh"}:
+        if recursion_depth >= 2:
+            return []
+        nested_commands: list[list[str]] = []
+        for nested_command in nested_shell_commands(tokens):
+            for nested_line in shell_logical_lines(nested_command):
+                nested_commands.extend(
+                    executed_command_token_lists(
+                        shell_line_tokens(nested_line),
+                        recursion_depth=recursion_depth + 1,
+                    )
+                )
+        return nested_commands
+    return [tokens]
+
+
 def command_has_line_starting_with(command: str, prefix: str) -> bool:
     """Return whether a run command has a logical line starting with ``prefix``."""
     return any(line.strip().startswith(prefix) for line in shell_logical_lines(command))
@@ -620,13 +655,8 @@ def add_release_asset_allowlist_violation(violations: list[str], path: Path) -> 
         violations.append(violation)
 
 
-def release_create_explicit_asset_tokens(command: str) -> list[str]:
-    """Return non-allowlisted asset tokens from a gh release create command."""
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        return [command]
-
+def release_create_explicit_asset_tokens_from_tokens(tokens: list[str]) -> list[str]:
+    """Return non-allowlisted asset tokens from tokenized ``gh release create``."""
     command_index = -1
     for idx in range(len(tokens) - 2):
         if tokens[idx : idx + 3] == ["gh", "release", "create"]:
@@ -662,6 +692,22 @@ def release_create_explicit_asset_tokens(command: str) -> list[str]:
             continue
         explicit_assets.append(token)
         idx += 1
+    return explicit_assets
+
+
+def release_create_explicit_asset_tokens(command: str) -> list[str]:
+    """Return non-allowlisted asset tokens from a gh release create command."""
+    explicit_assets: list[str] = []
+    for line in shell_logical_lines(command):
+        try:
+            tokens = shlex.split(line)
+        except ValueError:
+            explicit_assets.append(line)
+            continue
+        for executed_tokens in executed_command_token_lists(tokens):
+            explicit_assets.extend(
+                release_create_explicit_asset_tokens_from_tokens(executed_tokens)
+            )
     return explicit_assets
 
 
@@ -960,7 +1006,9 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
         job_blocks = workflow_job_step_blocks(index)
         normalizer_run_commands = [
             step_run_command_from_block(normalizer_step_lines, normalizer_step_indent)
-            for _, normalizer_step_indent, normalizer_step_lines in job_blocks
+            for normalizer_index, normalizer_step_indent, normalizer_step_lines in job_blocks
+            if normalizer_index < index
+            and step_is_required_blocking(normalizer_step_lines, normalizer_step_indent)
         ]
         normalizer_outputs = {
             output
@@ -1547,37 +1595,37 @@ def verify_release_asset_allowlist_policy() -> list[str]:
             release_command_lines = [
                 line.strip() for line in shell_logical_lines(release_command)
             ]
-            revalidator_index = next(
-                (
-                    line_index
-                    for line_index, line in enumerate(release_command_lines)
-                    if command_contains_token_sequence(line, RELEASE_ASSET_REVALIDATOR)
-                ),
-                -1,
-            )
-            mapfile_index = next(
-                (
-                    line_index
-                    for line_index, line in enumerate(release_command_lines)
-                    if command_contains_token_sequence(line, RELEASE_ASSET_MAPFILE)
-                ),
-                -1,
-            )
-            release_create_index = next(
-                (
-                    line_index
-                    for line_index, line in enumerate(release_command_lines)
-                    if command_contains_token_sequence(line, "gh release create")
-                ),
-                -1,
-            )
-            has_revalidation_before_publish = (
-                revalidator_index >= 0
-                and mapfile_index >= 0
-                and release_create_index >= 0
-                and revalidator_index < mapfile_index < release_create_index
-            )
-            if not (has_generator_before_publish and has_revalidation_before_publish):
+            revalidator_indexes = [
+                line_index
+                for line_index, line in enumerate(release_command_lines)
+                if command_contains_token_sequence(line, RELEASE_ASSET_REVALIDATOR)
+            ]
+            mapfile_indexes = [
+                line_index
+                for line_index, line in enumerate(release_command_lines)
+                if command_contains_token_sequence(line, RELEASE_ASSET_MAPFILE)
+            ]
+            release_create_indexes = [
+                line_index
+                for line_index, line in enumerate(release_command_lines)
+                if command_contains_token_sequence(line, "gh release create")
+            ]
+            previous_release_create_index = -1
+            all_release_creates_revalidated = bool(release_create_indexes)
+            for release_create_index in release_create_indexes:
+                has_revalidation_before_publish = any(
+                    previous_release_create_index
+                    < revalidator_index
+                    < mapfile_index
+                    < release_create_index
+                    for revalidator_index in revalidator_indexes
+                    for mapfile_index in mapfile_indexes
+                )
+                if not has_revalidation_before_publish:
+                    all_release_creates_revalidated = False
+                    break
+                previous_release_create_index = release_create_index
+            if not (has_generator_before_publish and all_release_creates_revalidated):
                 violations.append(
                     f"{path}: release asset upload must use scripts/release/select_release_assets.py"
                     " to generate and revalidate release-assets.txt"

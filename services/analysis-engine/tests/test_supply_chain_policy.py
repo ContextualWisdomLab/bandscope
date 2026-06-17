@@ -1319,6 +1319,56 @@ def test_supply_chain_check_rejects_upload_step_with_unnormalized_scorecard_sari
     ) in violations
 
 
+def test_supply_chain_check_rejects_scorecard_normalizer_after_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure Scorecard SARIF normalization must precede upload-sarif."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_ossf_sarif_order_guard",
+    )
+    default_branch_ref = "format('refs/heads/{0}', github.event.repository.default_branch)"
+    publish_guard = supply_chain.OSSF_DEFAULT_BRANCH_PUBLISH_GUARD.partition(": ")[2]
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "ossf-scorecard.yml").write_text(
+        "\n".join(
+            [
+                "name: ossf-scorecard",
+                "on: push",
+                "jobs:",
+                "  analysis:",
+                "    steps:",
+                "      - uses: "
+                "ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3",
+                f"        if: github.ref == {default_branch_ref}",
+                "        with:",
+                f"          publish_results: {publish_guard}",
+                "      - uses: "
+                "github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225",
+                "        with:",
+                "          sarif_file: normalized-scorecard-results.sarif",
+                "      - name: Normalize after upload",
+                "        run: >-",
+                "          python3 scripts/checks/normalize_scorecard_sarif.py",
+                "          scorecard-sarif/results.sarif",
+                "          normalized-scorecard-results.sarif",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "ossf scorecard SARIF upload must normalize repository-level placeholder URIs "
+        "before upload-sarif"
+    ) in violations
+
+
 def test_supply_chain_check_rejects_env_spoofed_scorecard_sarif_upload(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -3919,6 +3969,49 @@ jobs:
     )
 
 
+def test_supply_chain_check_rejects_nested_shell_release_explicit_asset_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure nested shell gh release create calls cannot bypass asset scanning."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_nested_release_allowlist",
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        "\n".join(
+            [
+                "name: build-baseline",
+                "jobs:",
+                "  publish-immutable-release:",
+                "    steps:",
+                "      - name: Validate release asset set",
+                "        run: python3 scripts/release/select_release_assets.py "
+                "--output release-assets.txt",
+                "      - name: Create draft release with complete assets, then publish",
+                "        run: |",
+                "          python3 scripts/release/select_release_assets.py "
+                "--input release-assets.txt",
+                "          mapfile -t release_assets < release-assets.txt",
+                '          bash -c \'gh release create "$RELEASE_TAG" '
+                '"${release_assets[@]}" artifacts/debug.log --draft\'',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use an explicit "
+        "allowlist, not artifacts/*" in violations
+    )
+
+
 def test_supply_chain_check_rejects_release_asset_array_globs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -4160,6 +4253,49 @@ jobs:
             --draft
       - name: Create unprotected secondary release
         run: |
+          gh release create "$SECONDARY_RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use "
+        "scripts/release/select_release_assets.py to generate and revalidate "
+        "release-assets.txt"
+    ) in violations
+
+
+def test_supply_chain_check_requires_revalidation_between_same_step_release_creates(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure each release create in a run block has its own revalidation."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_same_step_release_create_revalidation",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create two releases in one run step
+        run: |
+          python3 scripts/release/select_release_assets.py --input release-assets.txt
+          mapfile -t release_assets < release-assets.txt
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
           gh release create "$SECONDARY_RELEASE_TAG" \
             "${release_assets[@]}" \
             --draft
