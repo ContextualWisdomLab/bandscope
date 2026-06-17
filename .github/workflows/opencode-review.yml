@@ -848,7 +848,7 @@ jobs:
               || steps.opencode_review_fallback.outputs.review_status == 'success'
               || steps.opencode_review_second_fallback.outputs.review_status == 'success')
         env:
-          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -862,6 +862,10 @@ jobs:
           OPENCODE_SECOND_FALLBACK_OUTPUT_FILE: ${{ runner.temp }}/opencode-review-second-fallback.md
         run: |
           set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::OpenCode review commenting requires an OpenCode app token or OPENCODE_APPROVE_TOKEN with issues write access."
+            exit 1
+          fi
 
           if [ "$OPENCODE_PRIMARY_OUTCOME" = "success" ]; then
             review_output_file="$OPENCODE_PRIMARY_OUTPUT_FILE"
@@ -932,7 +936,7 @@ jobs:
       - name: Approve PR if OpenCode review passed
         if: always()
         env:
-          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           STRIX_GITHUB_MODELS_TOKEN: ${{ secrets.STRIX_GITHUB_MODELS_TOKEN }}
           OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
@@ -963,6 +967,10 @@ jobs:
           if [ -n "${OPENCODE_APP_TOKEN:-}" ]; then
             export GH_TOKEN="$OPENCODE_APP_TOKEN"
             approval_token_source="opencode-app"
+          fi
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::OpenCode approval requires an OpenCode app token or OPENCODE_APPROVE_TOKEN with pull request write access."
+            exit 1
           fi
           overview_comment_token="$GH_TOKEN"
           echo "approval token source=${approval_token_source}"
@@ -1629,24 +1637,30 @@ jobs:
               rm -f "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
             }
             trap cleanup_failed_outcome_files EXIT
-            if collect_github_checks_with_retry collect_failed_github_checks "$failed_checks_file" && [ -s "$failed_checks_file" ]; then
-              if ! scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
-                printf "Failed GitHub Check evidence could not be collected for current head \`%s\`.\n" "$HEAD_SHA" >"$failed_check_evidence_file"
-              fi
-              if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
-                create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+            if collect_github_checks_with_retry collect_failed_github_checks "$failed_checks_file"; then
+              if [ -s "$failed_checks_file" ]; then
+                if ! scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
+                  printf "Failed GitHub Check evidence could not be collected for current head \`%s\`.\n" "$HEAD_SHA" >"$failed_check_evidence_file"
+                fi
+                if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
+                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                else
+                  build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
+                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                fi
               else
-                build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
-                create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                pending_checks_file="$(mktemp)"
+                if ! collect_github_checks_with_retry collect_pending_github_checks "$pending_checks_file"; then
+                  request_changes_for_gate_failure "GitHub Checks lookup failed while diagnosing failed OpenCode outcomes; inspect Actions API authentication or network state before retrying. OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
+                elif [ -s "$pending_checks_file" ]; then
+                  build_pending_check_body "$pending_checks_file" "$failed_check_review_body_file"
+                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                else
+                  request_changes_for_gate_failure "OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
+                fi
               fi
             else
-              pending_checks_file="$(mktemp)"
-              if collect_github_checks_with_retry collect_pending_github_checks "$pending_checks_file" && [ -s "$pending_checks_file" ]; then
-                build_pending_check_body "$pending_checks_file" "$failed_check_review_body_file"
-                create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
-              else
-                request_changes_for_gate_failure "OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
-              fi
+              request_changes_for_gate_failure "GitHub Checks lookup failed while diagnosing failed OpenCode outcomes; inspect Actions API authentication or network state before retrying. OpenCode action outcomes were primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}."
             fi
             echo "::endgroup::"
             exit 0
