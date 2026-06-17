@@ -341,7 +341,35 @@ def shell_line_tokens(line: str) -> list[str]:
         return line.split("#", maxsplit=1)[0].split()
 
 
-def command_contains_token_sequence(command: str, token_sequence: str) -> bool:
+def tokens_contain_sequence(tokens: list[str], expected_tokens: list[str]) -> bool:
+    """Return whether tokens contain the expected contiguous token sequence."""
+    for index in range(0, len(tokens) - len(expected_tokens) + 1):
+        if tokens[index : index + len(expected_tokens)] == expected_tokens:
+            return True
+    return False
+
+
+def nested_shell_commands(tokens: list[str]) -> list[str]:
+    """Return shell -c command strings embedded in a tokenized command line."""
+    nested_commands: list[str] = []
+    shell_names = {"bash", "dash", "sh", "zsh"}
+    for index, token in enumerate(tokens):
+        if token.rsplit("/", maxsplit=1)[-1] not in shell_names:
+            continue
+        for option_index in range(index + 1, len(tokens)):
+            option = tokens[option_index]
+            if option == "-c" or (option.startswith("-") and "c" in option[1:]):
+                if option_index + 1 < len(tokens):
+                    nested_commands.append(tokens[option_index + 1])
+                break
+            if not option.startswith("-"):
+                break
+    return nested_commands
+
+
+def command_contains_token_sequence(
+    command: str, token_sequence: str, *, recursion_depth: int = 0
+) -> bool:
     """Return whether a run command executes the requested token sequence."""
     expected_tokens = shell_line_tokens(token_sequence)
     if not expected_tokens:
@@ -350,8 +378,16 @@ def command_contains_token_sequence(command: str, token_sequence: str) -> bool:
         tokens = shell_line_tokens(line)
         if tokens and tokens[0] in {"echo", "printf"}:
             continue
-        for index in range(0, len(tokens) - len(expected_tokens) + 1):
-            if tokens[index : index + len(expected_tokens)] == expected_tokens:
+        if tokens_contain_sequence(tokens, expected_tokens):
+            return True
+        if recursion_depth >= 2:
+            continue
+        for nested_command in nested_shell_commands(tokens):
+            if command_contains_token_sequence(
+                nested_command,
+                token_sequence,
+                recursion_depth=recursion_depth + 1,
+            ):
                 return True
     return False
 
@@ -1021,7 +1057,13 @@ def verify_workflow_coverage() -> list[str]:
         if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
     audit_run_commands = (
-        [command for _, _, command, _ in workflow_run_steps(audit)] if audit else []
+        [
+            command
+            for _, _, command, is_blocking in workflow_run_steps(audit)
+            if is_blocking
+        ]
+        if audit
+        else []
     )
     for token in [
         "npm audit --workspaces --audit-level=high",

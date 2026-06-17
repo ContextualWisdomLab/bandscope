@@ -609,6 +609,94 @@ jobs:
     ) in violations
 
 
+def test_supply_chain_check_accepts_nested_shell_audit_commands(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure shell -c wrappers cannot hide real vulnerability scan commands."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_nested_shell_audit",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "security-audit.yml").write_text(
+        """
+name: security-audit
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nested npm audit
+        run: bash -lc 'npm audit --workspaces --audit-level=high'
+      - name: Nested Python audit
+        run: sh -ec 'pip-audit --local --strict'
+      - name: Nested Rust audit
+        run: /bin/bash -c 'cargo +stable audit'
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert not any("missing vulnerability audit token" in item for item in violations)
+
+
+def test_supply_chain_check_requires_blocking_audit_steps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure continue-on-error audit steps cannot satisfy vulnerability coverage."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_blocking_audit",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "security-audit.yml").write_text(
+        """
+name: security-audit
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Non-blocking npm audit
+        continue-on-error: true
+        run: npm audit --workspaces --audit-level=high
+      - name: Non-blocking Python audit
+        continue-on-error: true
+        run: pip-audit --local --strict
+      - name: Non-blocking Rust audit
+        continue-on-error: true
+        run: cargo +stable audit
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "security audit workflow missing vulnerability audit token: "
+        "npm audit --workspaces --audit-level=high"
+    ) in violations
+    assert (
+        "security audit workflow missing vulnerability audit token: pip-audit --local --strict"
+    ) in violations
+    assert (
+        "security audit workflow missing vulnerability audit token: cargo +stable audit"
+    ) in violations
+
+
 def test_supply_chain_check_requires_ossf_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
