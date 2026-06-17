@@ -13,7 +13,7 @@ on:
 permissions:
   actions: read
   checks: read
-  contents: read
+  contents: write
   pull-requests: write
 
 concurrency:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 30
     env:
       DEFAULT_BRANCH: develop
-      GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       MAX_PRS: ${{ github.event.inputs.max_prs || '20' }}
     steps:
@@ -38,12 +38,6 @@ jobs:
 
           owner="${GH_REPO%/*}"
           repo="${GH_REPO#*/}"
-
-          if [[ -z "${GH_TOKEN:-}" ]]; then
-            echo "::error::pr-review-merge-scheduler requires OPENCODE_APPROVE_TOKEN with pull-requests:write and contents:write permissions."
-            echo "Configure OPENCODE_APPROVE_TOKEN before running the scheduler so branch updates and merges do not silently fall back to the read-only GITHUB_TOKEN."
-            exit 1
-          fi
 
           gh_output_retry() {
             local attempt
@@ -90,7 +84,6 @@ jobs:
 
           unresolved_threads() {
             local pr="$1"
-            # shellcheck disable=SC2016
             gh_output_retry gh api graphql \
               -f owner="$owner" \
               -f repo="$repo" \
