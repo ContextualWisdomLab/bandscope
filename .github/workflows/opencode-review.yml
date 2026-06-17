@@ -1349,7 +1349,12 @@ jobs:
               return 1
             fi
 
-            classification="$(jq -r '.classification // empty' "$classification_file")"
+            if ! classification="$(
+              jq -r '.classification // empty' "$classification_file" 2>/dev/null
+            )"; then
+              rm -f "$classification_file"
+              return 1
+            fi
             if [ "$classification" != "external_infrastructure" ]; then
               rm -f "$classification_file"
               return 1

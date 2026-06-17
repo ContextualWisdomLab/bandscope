@@ -107,6 +107,19 @@ def matching_evidence_lines(
     return matches
 
 
+def matching_labeled_evidence_lines(
+    evidence_text: str, patterns: tuple[tuple[str, re.Pattern[str]], ...]
+) -> list[str]:
+    """Return labeled concrete evidence lines matched by the given patterns."""
+    matches: list[str] = []
+    for label, pattern in patterns:
+        for line in evidence_text.splitlines():
+            if pattern.search(line):
+                matches.append(f"{label}: {line.strip()}")
+                break
+    return matches
+
+
 def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
     """Classify whether failed check evidence is safe to withhold as non-source."""
     failed_checks = FAILED_CHECK_HEADING.findall(evidence_text)
@@ -125,11 +138,10 @@ def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
         BUILD_OR_PACKAGE_SUCCESS_PATTERNS,
     )
     if upload_step_match is not None:
-        matched_infra_signals = [
-            label
-            for label, pattern in ARTIFACT_UPLOAD_INFRA_PATTERNS
-            if pattern.search(evidence_text)
-        ]
+        matched_infra_signals = matching_labeled_evidence_lines(
+            evidence_text,
+            ARTIFACT_UPLOAD_INFRA_PATTERNS,
+        )
         if not matched_infra_signals:
             return unknown(
                 "no known external artifact upload infrastructure signal was present",
@@ -176,11 +188,10 @@ def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
 
     setup_uv_step_match = SETUP_UV_STEP.search(evidence_text)
     if setup_uv_step_match is not None:
-        matched_infra_signals = [
-            label
-            for label, pattern in SETUP_UV_INFRA_PATTERNS
-            if pattern.search(evidence_text)
-        ]
+        matched_infra_signals = matching_labeled_evidence_lines(
+            evidence_text,
+            SETUP_UV_INFRA_PATTERNS,
+        )
         if not matched_infra_signals:
             return unknown(
                 "no known external setup-uv infrastructure signal was present",
@@ -222,11 +233,10 @@ def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
             signals=[failed_check],
         )
 
-    matched_infra_signals = [
-        label
-        for label, pattern in TAURI_BUNDLE_INFRA_PATTERNS
-        if pattern.search(evidence_text)
-    ]
+    matched_infra_signals = matching_labeled_evidence_lines(
+        evidence_text,
+        TAURI_BUNDLE_INFRA_PATTERNS,
+    )
     if not matched_infra_signals:
         return unknown(
             "no known external native-shell infrastructure signal was present",

@@ -4920,6 +4920,10 @@ Finalizing artifact upload
     assert "rerun the failed workflow job" in result["reason"]
     assert "build-baseline/build / macos / amd64" in result["signals"]
     assert "Packaged .+ to artifacts/" not in result["signals"]
+    assert any(
+        "Failed to FinalizeArtifact: Unable to make request: ECONNRESET" in signal
+        for signal in result["signals"]
+    )
     assert (
         "Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg"
         in result["signals"]
@@ -4958,6 +4962,9 @@ Error failed to bundle project `http status: 502`
     assert "Tauri binary release download server error" in result["reason"]
     assert "build-baseline/build / windows / amd64" in result["signals"]
     assert any("tauri-apps/binary-releases" in signal for signal in result["signals"])
+    assert any(
+        "failed to bundle project `http status: 502`" in signal for signal in result["signals"]
+    )
 
 
 def test_opencode_classifies_setup_uv_manifest_fetch_as_external() -> None:
@@ -4988,6 +4995,7 @@ Fetching manifest data from https://raw.githubusercontent.com/astral-sh/versions
     assert result["classification"] == "external_infrastructure"
     assert "setup-uv manifest fetch failure" in result["reason"]
     assert "build-baseline/build / macos / amd64" in result["signals"]
+    assert any("##[error]fetch failed" in signal for signal in result["signals"])
     assert any(
         "raw.githubusercontent.com/astral-sh/versions" in signal for signal in result["signals"]
     )
@@ -5031,6 +5039,8 @@ def test_opencode_review_stops_external_check_failures_without_review() -> None:
     assert "scripts/ci/classify_failed_check_evidence.py" in workflow
     assert "stop_for_external_failed_check_if_needed" in workflow
     assert 'stop_approval_without_review "EXTERNAL_CHECK_FAILURE"' in workflow
+    assert 'if ! classification="$(' in workflow
+    assert "jq -r '.classification // empty' \"$classification_file\" 2>/dev/null" in workflow
 
 
 def test_opencode_normalizer_defaults_missing_approve_findings(tmp_path: Path) -> None:
