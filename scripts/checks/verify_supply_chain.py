@@ -381,14 +381,6 @@ def shell_line_tokens(line: str) -> list[str]:
         return line.split("#", maxsplit=1)[0].split()
 
 
-def tokens_contain_sequence(tokens: list[str], expected_tokens: list[str]) -> bool:
-    """Return whether tokens contain the expected contiguous token sequence."""
-    for index in range(0, len(tokens) - len(expected_tokens) + 1):
-        if tokens[index : index + len(expected_tokens)] == expected_tokens:
-            return True
-    return False
-
-
 def nested_shell_commands(tokens: list[str]) -> list[str]:
     """Return shell -c command strings embedded in a tokenized command line."""
     nested_commands: list[str] = []
@@ -576,11 +568,6 @@ def executed_command_token_lists(
                 )
         return nested_commands
     return [tokens]
-
-
-def command_has_line_starting_with(command: str, prefix: str) -> bool:
-    """Return whether a run command has a logical line starting with ``prefix``."""
-    return any(line.strip().startswith(prefix) for line in shell_logical_lines(command))
 
 
 def yaml_scalar_value(stripped_line: str) -> str:
