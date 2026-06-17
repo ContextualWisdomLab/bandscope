@@ -85,6 +85,9 @@ RELEASE_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*")
 RELEASE_ASSET_VALIDATOR = (
     "scripts/release/select_release_assets.py --output release-assets.txt"
 )
+RELEASE_ASSET_REVALIDATOR = (
+    "scripts/release/select_release_assets.py --input release-assets.txt"
+)
 RELEASE_ASSET_MAPFILE = "mapfile -t release_assets < release-assets.txt"
 WORKSPACE_EXEC_PATTERN = re.compile(r"\bnpm\s+exec\s+--workspace\b")
 RUST_RAND_ADVISORY_ID = "GHSA-cq8v-f236-94qc"
@@ -490,12 +493,9 @@ def workflow_top_level_key_lines(content: str, keys: set[str]) -> list[tuple[int
 
 def workflow_publishes_scorecard_results(content: str) -> bool:
     """Return whether a workflow publishes OSSF Scorecard results."""
-    workflow_body = "\n".join(
-        line.partition("#")[0] for line in content.splitlines()
-    )
+    workflow_body = "\n".join(line.partition("#")[0] for line in content.splitlines())
     return (
-        "ossf/scorecard-action" in workflow_body
-        and "publish_results:" in workflow_body
+        "ossf/scorecard-action" in workflow_body and "publish_results:" in workflow_body
     )
 
 
@@ -505,7 +505,8 @@ def checkout_step_has_default_branch_guard(
     """Return whether a checkout step carries the Git default branch env guard."""
     env = step_env_from_block(step_lines, step_indent)
     return all(
-        env.get(key) == value for key, value in CHECKOUT_DEFAULT_BRANCH_GUARD_ENV.items()
+        env.get(key) == value
+        for key, value in CHECKOUT_DEFAULT_BRANCH_GUARD_ENV.items()
     )
 
 
@@ -540,9 +541,7 @@ def verify_checkout_default_branch_guard() -> list[str]:
                 for step_indent, step_lines in checkout_steps
             ):
                 continue
-            violations.append(
-                f"{path}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
-            )
+            violations.append(f"{path}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}")
             continue
         env = workflow_top_level_env(content)
         if all(
@@ -958,6 +957,15 @@ def verify_workflow_coverage() -> list[str]:
     for token in ["develop", "main", "pull_request", "push"]:
         if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
+    for token in [
+        "npm audit --workspaces --audit-level=high",
+        "pip-audit --local --strict",
+        "cargo +stable audit",
+    ]:
+        if audit and token not in audit:
+            missing.append(
+                f"security audit workflow missing vulnerability audit token: {token}"
+            )
     codeql = read_workflow(Path(".github/workflows/codeql.yml"), "codeql", missing)
     for token in ["develop", "main", "pull_request", "push", "codeql"]:
         if codeql and token not in codeql:
@@ -1259,10 +1267,12 @@ def verify_release_asset_allowlist_policy() -> list[str]:
             continue
         if (
             RELEASE_ASSET_VALIDATOR not in content
+            or RELEASE_ASSET_REVALIDATOR not in content
             or RELEASE_ASSET_MAPFILE not in content
         ):
             violations.append(
                 f"{path}: release asset upload must use scripts/release/select_release_assets.py"
+                " to generate and revalidate release-assets.txt"
             )
         in_release_assets = False
         for line in content.splitlines():
@@ -1442,7 +1452,9 @@ def rust_osv_exception_violations(
         )
     for advisory_id, reason in sorted(osv_ignores.items()):
         if not reason.strip():
-            violations.append(f"{osv_config}: OSV ignore for {advisory_id} needs a reason")
+            violations.append(
+                f"{osv_config}: OSV ignore for {advisory_id} needs a reason"
+            )
     return violations
 
 

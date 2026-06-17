@@ -341,6 +341,7 @@ jobs:
             echo "Release $RELEASE_TAG already exists; immutable release assets must be attached before publication."
             exit 1
           fi
+          python3 scripts/release/select_release_assets.py --input release-assets.txt
           mapfile -t release_assets < release-assets.txt
           (( ${#release_assets[@]} > 0 ))
           gh release create "$RELEASE_TAG" \

@@ -549,6 +549,18 @@ def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> No
     assert all(package.get("version") != "2.19.2" for package in pygments)
 
 
+def test_security_audit_workflow_keeps_dependency_vulnerability_scans() -> None:
+    """Ensure the audit workflow keeps npm, Python, and Rust vulnerability scans."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "security-audit.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "npm audit --workspaces --audit-level=high" in workflow
+    assert "pip-audit --local --strict" in workflow
+    assert "cargo +stable audit" in workflow
+
+
 def test_supply_chain_check_requires_ossf_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -3569,6 +3581,44 @@ def test_supply_chain_check_accepts_repo_release_asset_allowlist_policy(
     violations = supply_chain.verify_release_asset_allowlist_policy()
 
     assert not violations
+
+
+def test_supply_chain_check_requires_release_asset_revalidation_before_publish(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure release publish revalidates the generated asset allowlist."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_release_revalidate"
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create draft release with complete assets, then publish
+        run: |
+          mapfile -t release_assets < release-assets.txt
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use "
+        "scripts/release/select_release_assets.py to generate and revalidate "
+        "release-assets.txt"
+    ) in violations
 
 
 def test_supply_chain_check_rejects_bare_workflow_npx_package_fetch(
