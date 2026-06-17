@@ -1299,6 +1299,67 @@ jobs:
             } >"$body_file"
           }
 
+          build_external_failed_check_body() {
+            local failed_checks_file="$1"
+            local classification_file="$2"
+            local body_file="$3"
+            local reason
+            local signals
+
+            reason="$(jq -r '.reason // "external GitHub check failure"' "$classification_file")"
+            signals="$(
+              jq -r '
+                (.signals // [])
+                | map("- " + .)
+                | join("\n")
+              ' "$classification_file"
+            )"
+            if [ -z "$signals" ]; then
+              signals="- external check failure was classified without additional signals"
+            fi
+
+            {
+              printf '## Pull request overview\n\n'
+              printf 'OpenCode completed its review pass, but the only failed current-head check is external infrastructure rather than a source-backed repository defect.\n\n'
+              printf '## Findings\n\n'
+              printf 'No blocking source finding was submitted. Re-run the failed workflow job so the required GitHub check can report a clean current-head result.\n\n'
+              printf '## Verification\n\n'
+              printf -- '- Result: EXTERNAL_CHECK_FAILURE\n'
+              printf -- '- Reason: %s\n\n' "$reason"
+              printf '## Gate evidence\n\n'
+              printf -- "- Head SHA: \`%s\`\n" "$HEAD_SHA"
+              printf -- '- Workflow run: %s\n' "$RUN_ID"
+              printf -- '- Workflow attempt: %s\n\n' "$RUN_ATTEMPT"
+              printf 'Failed checks:\n'
+              cat "$failed_checks_file"
+              printf '\n\nExternal infrastructure signals:\n%s\n' "$signals"
+            } >"$body_file"
+          }
+
+          stop_for_external_failed_check_if_needed() {
+            local failed_checks_file="$1"
+            local evidence_file="$2"
+            local body_file="$3"
+            local classification_file
+            local classification
+
+            classification_file="$(mktemp)"
+            if ! python3 scripts/ci/classify_failed_check_evidence.py "$evidence_file" >"$classification_file"; then
+              rm -f "$classification_file"
+              return 1
+            fi
+
+            classification="$(jq -r '.classification // empty' "$classification_file")"
+            if [ "$classification" != "external_infrastructure" ]; then
+              rm -f "$classification_file"
+              return 1
+            fi
+
+            build_external_failed_check_body "$failed_checks_file" "$classification_file" "$body_file"
+            rm -f "$classification_file"
+            stop_approval_without_review "EXTERNAL_CHECK_FAILURE" "$(cat "$body_file")"
+          }
+
           normalize_opencode_output() {
             local output_file="$1"
 
@@ -1708,6 +1769,9 @@ jobs:
                 if ! scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
                   printf "Failed GitHub Check evidence could not be collected for current head \`%s\`.\n" "$HEAD_SHA" >"$failed_check_evidence_file"
                 fi
+                if stop_for_external_failed_check_if_needed "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
+                  :
+                fi
                 if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
                   create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
                 else
@@ -1835,6 +1899,9 @@ jobs:
                 if ! scripts/ci/collect_failed_check_evidence.sh "$failed_check_evidence_file"; then
                   printf "Failed GitHub Check evidence could not be collected for current head \`%s\`.\n" "$HEAD_SHA" >"$failed_check_evidence_file"
                 fi
+                if stop_for_external_failed_check_if_needed "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
+                  :
+                fi
                 if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
                   create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
                 else
@@ -1891,6 +1958,8 @@ jobs:
                 if scripts/ci/validate_opencode_failed_check_review.sh "$control_json" "$failed_checks_file" "$failed_check_evidence_file"; then
                   format_request_changes_body "$control_json" "$failed_check_review_body_file"
                   create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                elif stop_for_external_failed_check_if_needed "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
+                  :
                 elif run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
                   create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
                 else

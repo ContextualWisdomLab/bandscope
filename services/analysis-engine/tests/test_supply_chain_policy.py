@@ -4825,6 +4825,80 @@ def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
     assert workflow.count("select(opencode_review_agent_status | not)") >= 3
 
 
+def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
+    """Ensure transient artifact upload finalization resets do not request changes."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: build-baseline/build / macos / amd64
+
+### Failed job steps
+
+- step 13: Upload macOS amd64 artifact (failure)
+
+### Failed log excerpt
+
+```text
+Finished `release` profile [optimized] target(s) in 6m 56s
+Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg
+Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+Finished uploading artifact content to blob storage!
+Finalizing artifact upload
+##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "external_infrastructure"
+    assert "rerun the failed workflow job" in result["reason"]
+    assert "build-baseline/build / macos / amd64" in result["signals"]
+
+
+def test_opencode_keeps_test_failures_actionable() -> None:
+    """Ensure ordinary failed checks still require source-backed diagnosis."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence_actionable",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: ci/ci / build-and-test
+
+### Failed job steps
+
+- step 7: Run tests (failure)
+
+### Failed log excerpt
+
+```text
+FAIL apps/desktop/src/App.test.tsx
+##[error]Process completed with exit code 1.
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "actionable_or_unknown"
+
+
+def test_opencode_review_stops_external_check_failures_without_review() -> None:
+    """Ensure external check failures update overview instead of review state."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "scripts/ci/classify_failed_check_evidence.py" in workflow
+    assert "stop_for_external_failed_check_if_needed" in workflow
+    assert 'stop_approval_without_review "EXTERNAL_CHECK_FAILURE"' in workflow
+
+
 def test_opencode_normalizer_defaults_missing_approve_findings(tmp_path: Path) -> None:
     """Ensure APPROVE control payloads without findings normalize to findings:[]."""
     normalizer = load_module(
