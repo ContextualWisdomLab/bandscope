@@ -8,6 +8,17 @@ from pathlib import Path
 
 SCORECARD_REPOSITORY_PLACEHOLDER_URI = "no file associated with this alert"
 SCORECARD_WORKFLOW_URI = ".github/workflows/ossf-scorecard.yml"
+NON_BLOCKING_SCORECARD_RULE_IDS = {
+    "CIIBestPracticesID",
+}
+
+
+def is_non_blocking_scorecard_result(result: object) -> bool:
+    """Return whether a Scorecard result should stay out of code scanning gates."""
+    return (
+        isinstance(result, dict)
+        and result.get("ruleId") in NON_BLOCKING_SCORECARD_RULE_IDS
+    )
 
 
 def normalize_scorecard_sarif(source: Path, target: Path) -> int:
@@ -24,7 +35,12 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
         results = run.get("results", [])
         if not isinstance(results, list):
             continue
+        retained_results = []
         for result in results:
+            if is_non_blocking_scorecard_result(result):
+                rewritten += 1
+                continue
+            retained_results.append(result)
             if not isinstance(result, dict):
                 continue
             locations = result.get("locations", [])
@@ -58,6 +74,7 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
                 )
                 properties["bandscopeRepositoryLevelFinding"] = True
                 rewritten += 1
+        run["results"] = retained_results
 
     target.write_text(
         json.dumps(sarif, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -79,7 +96,7 @@ def main() -> None:
     """Normalize a Scorecard SARIF file from the command line."""
     args = parse_args()
     rewritten = normalize_scorecard_sarif(args.source, args.target)
-    print(f"Normalized {rewritten} OSSF Scorecard repository-level SARIF locations")
+    print(f"Normalized {rewritten} OSSF Scorecard SARIF entries")
 
 
 if __name__ == "__main__":
