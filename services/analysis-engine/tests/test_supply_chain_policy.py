@@ -3391,12 +3391,8 @@ def test_supply_chain_check_reports_malformed_rust_exception_toml(tmp_path: Path
 
     violations = supply_chain.rust_osv_exception_violations(audit_config, osv_config)
 
-    assert any(
-        violation.startswith(f"{audit_config}: invalid TOML: ") for violation in violations
-    )
-    assert any(
-        violation.startswith(f"{osv_config}: invalid TOML: ") for violation in violations
-    )
+    assert any(violation.startswith(f"{audit_config}: invalid TOML: ") for violation in violations)
+    assert any(violation.startswith(f"{osv_config}: invalid TOML: ") for violation in violations)
 
 
 def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
