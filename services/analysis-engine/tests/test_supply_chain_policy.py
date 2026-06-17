@@ -4607,3 +4607,14 @@ def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
     assert '$context == "coderabbit"' in workflow
     assert '$context == "copilot pull request reviewer"' in workflow
     assert workflow.count("select(opencode_review_agent_status | not)") >= 3
+
+
+def test_opencode_strix_lookup_reports_missing_actions_read_scope() -> None:
+    """Ensure Strix lookup token-scope failures are diagnosable."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "HTTP 403|forbidden|resource not accessible" in workflow
+    assert "requires Actions read access" in workflow

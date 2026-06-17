@@ -1405,6 +1405,9 @@ jobs:
                 rm -f "$error_file" "$runs_json"
                 return 0
               fi
+              if grep -Eiq 'HTTP 403|forbidden|resource not accessible' "$error_file"; then
+                echo "::error::OpenCode Strix workflow lookup requires Actions read access for GH_TOKEN, OPENCODE_APPROVE_TOKEN, or the OpenCode app token." >&2
+              fi
               cat "$error_file" >&2
               rm -f "$error_file" "$runs_json"
               return 1
