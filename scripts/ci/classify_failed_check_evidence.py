@@ -58,6 +58,19 @@ def external(reason: str, *, signals: list[str]) -> dict[str, Any]:
     }
 
 
+def matching_evidence_lines(
+    evidence_text: str, patterns: tuple[re.Pattern[str], ...]
+) -> list[str]:
+    """Return concrete evidence lines matched by the given patterns."""
+    matches: list[str] = []
+    for pattern in patterns:
+        for line in evidence_text.splitlines():
+            if pattern.search(line):
+                matches.append(line.strip())
+                break
+    return matches
+
+
 def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
     """Classify whether failed check evidence is safe to withhold as non-source."""
     failed_checks = FAILED_CHECK_HEADING.findall(evidence_text)
@@ -97,11 +110,10 @@ def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
             signals=[failed_check, upload_step_match.group(0), *matched_infra_signals],
         )
 
-    build_success_signals = [
-        pattern.pattern
-        for pattern in BUILD_OR_PACKAGE_SUCCESS_PATTERNS
-        if pattern.search(evidence_text)
-    ]
+    build_success_signals = matching_evidence_lines(
+        evidence_text,
+        BUILD_OR_PACKAGE_SUCCESS_PATTERNS,
+    )
     if not build_success_signals:
         return unknown(
             "build or package success was not visible before artifact upload failed",

@@ -4857,6 +4857,11 @@ Finalizing artifact upload
     assert result["classification"] == "external_infrastructure"
     assert "rerun the failed workflow job" in result["reason"]
     assert "build-baseline/build / macos / amd64" in result["signals"]
+    assert "Packaged .+ to artifacts/" not in result["signals"]
+    assert (
+        "Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg"
+        in result["signals"]
+    )
 
 
 def test_opencode_keeps_test_failures_actionable() -> None:
