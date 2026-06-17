@@ -586,8 +586,9 @@ jobs:
     steps:
       - name: Non-executed audit examples
         run: |
+          true # npm audit --workspaces --audit-level=high
           # pip-audit --local --strict
-          echo "audit examples only"
+          printf '%s\n' "cargo +stable audit"
 """.strip(),
         encoding="utf-8",
     )

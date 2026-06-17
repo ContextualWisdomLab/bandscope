@@ -336,9 +336,9 @@ def shell_logical_lines(command: str) -> list[str]:
 def shell_line_tokens(line: str) -> list[str]:
     """Return shell tokens for a logical command line."""
     try:
-        return shlex.split(line)
+        return shlex.split(line, comments=True)
     except ValueError:
-        return line.split()
+        return line.split("#", maxsplit=1)[0].split()
 
 
 def command_contains_token_sequence(command: str, token_sequence: str) -> bool:
