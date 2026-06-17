@@ -22,7 +22,7 @@ def is_non_blocking_scorecard_result(result: object) -> bool:
 
 
 def normalize_scorecard_sarif(source: Path, target: Path) -> int:
-    """Rewrite repository-level Scorecard placeholder URIs and return change count."""
+    """Normalize Scorecard SARIF locations/results and return the change count."""
     sarif = json.loads(source.read_text(encoding="utf-8"))
     rewritten = 0
 
@@ -85,7 +85,7 @@ def normalize_scorecard_sarif(source: Path, target: Path) -> int:
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Normalize OSSF Scorecard SARIF repository-level locations."
+        description="Normalize OSSF Scorecard SARIF for GitHub code scanning upload."
     )
     parser.add_argument("source", type=Path, help="Path to the Scorecard SARIF file")
     parser.add_argument("target", type=Path, help="Path to write normalized SARIF")
