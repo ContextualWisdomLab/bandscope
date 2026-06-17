@@ -6,6 +6,7 @@ import importlib
 import json
 import re
 import stat
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -4822,6 +4823,81 @@ def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
     assert '$context == "coderabbit"' in workflow
     assert '$context == "copilot pull request reviewer"' in workflow
     assert workflow.count("select(opencode_review_agent_status | not)") >= 3
+
+
+def test_opencode_normalizer_defaults_missing_approve_findings(tmp_path: Path) -> None:
+    """Ensure APPROVE control payloads without findings normalize to findings:[]."""
+    normalizer = load_module(
+        "scripts/ci/opencode_review_normalize_output.py",
+        "opencode_review_normalize_output",
+    )
+    output_file = tmp_path / "opencode-output.md"
+    output_file.write_text(
+        "\n".join(
+            [
+                "review text",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"checks and review passed",'
+                '"summary":"no source-backed blockers found"}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = normalizer.main(
+        [
+            "opencode_review_normalize_output.py",
+            "abc123",
+            "456",
+            "1",
+            str(output_file),
+        ]
+    )
+
+    assert result == 0
+    assert '"findings":[]' in output_file.read_text(encoding="utf-8")
+
+
+def test_opencode_review_gate_defaults_missing_approve_findings(tmp_path: Path) -> None:
+    """Ensure approval gate accepts APPROVE payloads that omit empty findings."""
+    repo_root = Path(__file__).resolve().parents[3]
+    comment_file = tmp_path / "comment.md"
+    normalized_file = tmp_path / "normalized.json"
+    comment_file.write_text(
+        "\n".join(
+            [
+                "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
+                "",
+                "<!-- opencode-review-control-v1",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"checks and review passed",'
+                '"summary":"no source-backed blockers found"}',
+                "-->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(repo_root / "scripts" / "ci" / "opencode_review_approve_gate.sh"),
+            "abc123",
+            "456",
+            "1",
+            str(comment_file),
+            str(normalized_file),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "APPROVE"
+    assert json.loads(normalized_file.read_text(encoding="utf-8"))["findings"] == []
 
 
 def test_opencode_strix_lookup_reports_missing_actions_read_scope() -> None:

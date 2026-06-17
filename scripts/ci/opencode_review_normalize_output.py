@@ -37,6 +37,8 @@ def valid_control(
         return None
 
     findings = value.get("findings")
+    if findings is None and result == "APPROVE":
+        findings = []
     if not isinstance(findings, list):
         return None
     if result == "APPROVE" and findings:
