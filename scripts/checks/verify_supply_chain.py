@@ -24,6 +24,7 @@ REQUIRED_FILES = [
     Path(".github/workflows/secret-scan-gate.yml"),
     Path(".github/workflows/build-baseline.yml"),
     Path(".github/workflows/ossf-scorecard.yml"),
+    Path("apps/desktop/src-tauri/osv-scanner.toml"),
     Path("docs/security/dependency-policy.md"),
     Path("docs/security/sbom-policy.md"),
     Path("docs/security/code-security.md"),
@@ -80,9 +81,21 @@ RELEASE_ARTIFACT_EXTRACTOR = "scripts/release/extract_release_artifacts.py"
 OSSF_SARIF_NORMALIZER = "scripts/checks/normalize_scorecard_sarif.py"
 OSSF_NORMALIZED_SARIF = "normalized-scorecard-results.sarif"
 OSSF_NORMALIZED_SARIF_UPLOAD = f"sarif_file: {OSSF_NORMALIZED_SARIF}"
+TRUSTED_SCORECARD_SCRIPTS_DIR = "trusted-scorecard-scripts"
+OSSF_ARTIFACT_EXTRACTOR_COMMANDS = {
+    OSSF_ARTIFACT_EXTRACTOR,
+    f"{TRUSTED_SCORECARD_SCRIPTS_DIR}/{OSSF_ARTIFACT_EXTRACTOR}",
+}
+OSSF_SARIF_NORMALIZER_COMMANDS = {
+    OSSF_SARIF_NORMALIZER,
+    f"{TRUSTED_SCORECARD_SCRIPTS_DIR}/{OSSF_SARIF_NORMALIZER}",
+}
 RELEASE_ARTIFACT_GLOB = re.compile(r"(?:^|\s)artifacts/\*")
 RELEASE_ASSET_VALIDATOR = (
     "scripts/release/select_release_assets.py --output release-assets.txt"
+)
+RELEASE_ASSET_REVALIDATOR = (
+    "scripts/release/select_release_assets.py --input release-assets.txt"
 )
 RELEASE_ASSET_MAPFILE = "mapfile -t release_assets < release-assets.txt"
 WORKSPACE_EXEC_PATTERN = re.compile(r"\bnpm\s+exec\s+--workspace\b")
@@ -128,6 +141,8 @@ RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
     "glib",
 )
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
+RUST_AUDIT_CONFIG = Path("apps/desktop/src-tauri/.cargo/audit.toml")
+RUST_OSV_SCANNER_CONFIG = Path("apps/desktop/src-tauri/osv-scanner.toml")
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -140,6 +155,7 @@ RELEASE_CREATE_VALUE_FLAGS = {
 }
 RELEASE_CREATE_ALLOWED_ASSET_TOKENS = {"${release_assets[@]}", "${release_assets[*]}"}
 WorkflowStepBlock = tuple[int, int, list[str]]
+WorkflowRunStep = tuple[int, str, str, bool]
 
 
 def workflow_step_blocks(lines: list[str]) -> list[WorkflowStepBlock]:
@@ -202,8 +218,9 @@ def step_run_command_from_block(step_lines: list[str], step_indent: int) -> str:
     run_indent: int | None = None
     command_lines: list[str] = []
     for step_line in step_lines:
-        raw_stripped = step_line.strip().partition("#")[0].strip()
-        stripped = raw_stripped
+        raw_stripped = step_line.strip()
+        yaml_stripped = raw_stripped.partition("#")[0].strip()
+        stripped = yaml_stripped
         is_step_start = stripped.startswith("- ")
         if is_step_start:
             stripped = stripped[2:].strip()
@@ -211,12 +228,36 @@ def step_run_command_from_block(step_lines: list[str], step_indent: int) -> str:
         if run_indent is None:
             if stripped.startswith("run:") and (indent > step_indent or is_step_start):
                 run_indent = indent
-                command_lines.append(stripped.partition(":")[2].strip())
+                run_value = stripped.partition(":")[2].strip()
+                command_lines.append(
+                    "" if run_value in {"|", "|-", ">", ">-"} else run_value
+                )
             continue
+        stripped = "" if raw_stripped.startswith("#") else raw_stripped
         if stripped and indent <= run_indent:
             break
         command_lines.append(stripped)
     return "\n".join(command_lines)
+
+
+def workflow_run_steps(content: str) -> list[WorkflowRunStep]:
+    """Return run commands with their workflow job content and blocking status."""
+    lines = content.splitlines()
+    run_steps: list[WorkflowRunStep] = []
+    for index, step_indent, step_lines in workflow_step_blocks(lines):
+        command = step_run_command_from_block(step_lines, step_indent)
+        if not command.strip():
+            continue
+        is_blocking = step_is_blocking(step_lines, step_indent)
+        run_steps.append(
+            (
+                index,
+                workflow_job_content_for_step(lines, index),
+                command,
+                is_blocking,
+            )
+        )
+    return run_steps
 
 
 def step_with_value_from_block(
@@ -264,6 +305,40 @@ def step_env_from_block(step_lines: list[str], step_indent: int) -> dict[str, st
     return env
 
 
+def step_scalar_value_from_block(
+    step_lines: list[str], step_indent: int, key: str
+) -> str | None:
+    """Return a simple top-level scalar value from a workflow step block."""
+    for step_line in step_lines:
+        stripped = step_line.partition("#")[0].strip()
+        if not stripped:
+            continue
+        if stripped.startswith(f"- {key}:"):
+            return yaml_scalar_value(stripped[2:].strip())
+        indent = len(step_line) - len(step_line.lstrip(" "))
+        if indent == step_indent + 2 and stripped.startswith(f"{key}:"):
+            return yaml_scalar_value(stripped)
+    return None
+
+
+def step_is_blocking(step_lines: list[str], step_indent: int) -> bool:
+    """Return whether a workflow step should block when its command fails."""
+    continue_on_error = step_scalar_value_from_block(
+        step_lines, step_indent, "continue-on-error"
+    )
+    if continue_on_error is None:
+        return True
+    normalized = re.sub(r"\s+", "", continue_on_error.casefold())
+    return normalized in {"false", "${{false}}"}
+
+
+def step_is_required_blocking(step_lines: list[str], step_indent: int) -> bool:
+    """Return whether a workflow step is unconditional and failure-blocking."""
+    if step_scalar_value_from_block(step_lines, step_indent, "if") is not None:
+        return False
+    return step_is_blocking(step_lines, step_indent)
+
+
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
     """Return workflow lines with shell backslash continuations folded."""
     logical_lines: list[tuple[int, str]] = []
@@ -290,6 +365,209 @@ def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
     if pending_parts:
         logical_lines.append((pending_start, " ".join(pending_parts)))
     return logical_lines
+
+
+def shell_logical_lines(command: str) -> list[str]:
+    """Return shell command lines with backslash continuations folded."""
+    logical_lines = [line for _, line in logical_workflow_lines(command)]
+    return logical_lines or [command]
+
+
+def shell_line_tokens(line: str) -> list[str]:
+    """Return shell tokens for a logical command line."""
+    try:
+        return shlex.split(line, comments=True)
+    except ValueError:
+        return line.split("#", maxsplit=1)[0].split()
+
+
+def nested_shell_commands(tokens: list[str]) -> list[str]:
+    """Return shell -c command strings embedded in a tokenized command line."""
+    nested_commands: list[str] = []
+    shell_names = {"bash", "dash", "sh", "zsh"}
+    for index, token in enumerate(tokens):
+        if token.rsplit("/", maxsplit=1)[-1] not in shell_names:
+            continue
+        for option_index in range(index + 1, len(tokens)):
+            option = tokens[option_index]
+            if option == "-c" or (
+                option.startswith("-")
+                and not option.startswith("--")
+                and "c" in option[1:]
+            ):
+                if option_index + 1 < len(tokens):
+                    nested_commands.append(tokens[option_index + 1])
+                break
+            if not option.startswith("-"):
+                break
+    return nested_commands
+
+
+def is_shell_assignment_token(token: str) -> bool:
+    """Return whether a token is a shell variable assignment prefix."""
+    return re.match(r"^[A-Za-z_][A-Za-z0-9_]*=.*$", token) is not None
+
+
+def strip_shell_assignment_prefix(tokens: list[str]) -> list[str]:
+    """Return tokens after leading shell assignment prefixes."""
+    index = 0
+    while index < len(tokens) and is_shell_assignment_token(tokens[index]):
+        index += 1
+    return tokens[index:]
+
+
+def env_wrapped_command_tokens(tokens: list[str]) -> list[str]:
+    """Return the command portion of an env-wrapped command line."""
+    index = 0
+    options_with_values = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            return tokens[index + 1 :]
+        if is_shell_assignment_token(token):
+            index += 1
+            continue
+        if token in options_with_values:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return tokens[index:]
+    return []
+
+
+def uv_run_command_tokens(tokens: list[str]) -> list[str]:
+    """Return the command portion of a uv run invocation."""
+    index = 0
+    options_with_values = {
+        "--config-file",
+        "--default-index",
+        "--directory",
+        "--env-file",
+        "--exclude-newer",
+        "--extra-index-url",
+        "--index",
+        "--index-strategy",
+        "--index-url",
+        "--keyring-provider",
+        "--link-mode",
+        "--managed-python",
+        "--project",
+        "--python",
+        "--resolution",
+        "--with",
+        "--with-editable",
+        "--with-requirements",
+    }
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            return tokens[index + 1 :]
+        if token in options_with_values:
+            index += 2
+            continue
+        if any(token.startswith(f"{option}=") for option in options_with_values):
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return tokens[index:]
+    return []
+
+
+def command_tokens_start_with_sequence(
+    tokens: list[str], expected_tokens: list[str], *, recursion_depth: int
+) -> bool:
+    """Return whether a tokenized shell command executes the expected prefix."""
+    tokens = strip_shell_assignment_prefix(tokens)
+    if not tokens:
+        return False
+
+    executable = tokens[0].rsplit("/", maxsplit=1)[-1]
+    if executable in {":", "echo", "printf"}:
+        return False
+    if executable == "env":
+        return command_tokens_start_with_sequence(
+            env_wrapped_command_tokens(tokens[1:]),
+            expected_tokens,
+            recursion_depth=recursion_depth,
+        )
+    if executable == "uv" and len(tokens) > 1 and tokens[1] == "run":
+        return command_tokens_start_with_sequence(
+            uv_run_command_tokens(tokens[2:]),
+            expected_tokens,
+            recursion_depth=recursion_depth,
+        )
+    if executable in {"python", "python3"}:
+        return tokens[1 : 1 + len(expected_tokens)] == expected_tokens
+    if executable in {"bash", "dash", "sh", "zsh"}:
+        if recursion_depth >= 2:
+            return False
+        return any(
+            command_contains_token_sequence(
+                nested_command,
+                " ".join(shlex.quote(token) for token in expected_tokens),
+                recursion_depth=recursion_depth + 1,
+            )
+            for nested_command in nested_shell_commands(tokens)
+        )
+
+    return tokens[: len(expected_tokens)] == expected_tokens
+
+
+def command_contains_token_sequence(
+    command: str, token_sequence: str, *, recursion_depth: int = 0
+) -> bool:
+    """Return whether a run command executes the requested token sequence."""
+    expected_tokens = shell_line_tokens(token_sequence)
+    if not expected_tokens:
+        return False
+    for line in shell_logical_lines(command):
+        tokens = shell_line_tokens(line)
+        if tokens and tokens[0] in {"echo", "printf"}:
+            continue
+        if command_tokens_start_with_sequence(
+            tokens, expected_tokens, recursion_depth=recursion_depth
+        ):
+            return True
+    return False
+
+
+def executed_command_token_lists(
+    tokens: list[str], *, recursion_depth: int = 0
+) -> list[list[str]]:
+    """Return tokenized commands after unwrapping allowed command wrappers."""
+    tokens = strip_shell_assignment_prefix(tokens)
+    if not tokens:
+        return []
+
+    executable = tokens[0].rsplit("/", maxsplit=1)[-1]
+    if executable in {":", "echo", "printf"}:
+        return []
+    if executable == "env":
+        return executed_command_token_lists(
+            env_wrapped_command_tokens(tokens[1:]), recursion_depth=recursion_depth
+        )
+    if executable == "uv" and len(tokens) > 1 and tokens[1] == "run":
+        return executed_command_token_lists(
+            uv_run_command_tokens(tokens[2:]), recursion_depth=recursion_depth
+        )
+    if executable in {"bash", "dash", "sh", "zsh"}:
+        if recursion_depth >= 2:
+            return []
+        nested_commands: list[list[str]] = []
+        for nested_command in nested_shell_commands(tokens):
+            for nested_line in shell_logical_lines(nested_command):
+                nested_commands.extend(
+                    executed_command_token_lists(
+                        shell_line_tokens(nested_line),
+                        recursion_depth=recursion_depth + 1,
+                    )
+                )
+        return nested_commands
+    return [tokens]
 
 
 def yaml_scalar_value(stripped_line: str) -> str:
@@ -364,13 +642,8 @@ def add_release_asset_allowlist_violation(violations: list[str], path: Path) -> 
         violations.append(violation)
 
 
-def release_create_explicit_asset_tokens(command: str) -> list[str]:
-    """Return non-allowlisted asset tokens from a gh release create command."""
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        return [command]
-
+def release_create_explicit_asset_tokens_from_tokens(tokens: list[str]) -> list[str]:
+    """Return non-allowlisted asset tokens from tokenized ``gh release create``."""
     command_index = -1
     for idx in range(len(tokens) - 2):
         if tokens[idx : idx + 3] == ["gh", "release", "create"]:
@@ -406,6 +679,22 @@ def release_create_explicit_asset_tokens(command: str) -> list[str]:
             continue
         explicit_assets.append(token)
         idx += 1
+    return explicit_assets
+
+
+def release_create_explicit_asset_tokens(command: str) -> list[str]:
+    """Return non-allowlisted asset tokens from a gh release create command."""
+    explicit_assets: list[str] = []
+    for line in shell_logical_lines(command):
+        try:
+            tokens = shlex.split(line)
+        except ValueError:
+            explicit_assets.append(line)
+            continue
+        for executed_tokens in executed_command_token_lists(tokens):
+            explicit_assets.extend(
+                release_create_explicit_asset_tokens_from_tokens(executed_tokens)
+            )
     return explicit_assets
 
 
@@ -487,12 +776,9 @@ def workflow_top_level_key_lines(content: str, keys: set[str]) -> list[tuple[int
 
 def workflow_publishes_scorecard_results(content: str) -> bool:
     """Return whether a workflow publishes OSSF Scorecard results."""
-    workflow_body = "\n".join(
-        line.partition("#")[0] for line in content.splitlines()
-    )
+    workflow_body = "\n".join(line.partition("#")[0] for line in content.splitlines())
     return (
-        "ossf/scorecard-action" in workflow_body
-        and "publish_results:" in workflow_body
+        "ossf/scorecard-action" in workflow_body and "publish_results:" in workflow_body
     )
 
 
@@ -502,7 +788,8 @@ def checkout_step_has_default_branch_guard(
     """Return whether a checkout step carries the Git default branch env guard."""
     env = step_env_from_block(step_lines, step_indent)
     return all(
-        env.get(key) == value for key, value in CHECKOUT_DEFAULT_BRANCH_GUARD_ENV.items()
+        env.get(key) == value
+        for key, value in CHECKOUT_DEFAULT_BRANCH_GUARD_ENV.items()
     )
 
 
@@ -537,9 +824,7 @@ def verify_checkout_default_branch_guard() -> list[str]:
                 for step_indent, step_lines in checkout_steps
             ):
                 continue
-            violations.append(
-                f"{path}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
-            )
+            violations.append(f"{path}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}")
             continue
         env = workflow_top_level_env(content)
         if all(
@@ -675,7 +960,7 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
             return None
         if cleaned_tokens[0] not in {"python", "python3"}:
             return None
-        if cleaned_tokens[1] != OSSF_SARIF_NORMALIZER:
+        if cleaned_tokens[1] not in OSSF_SARIF_NORMALIZER_COMMANDS:
             return None
         positional_args = cleaned_tokens[2:]
         if len(positional_args) < 2:
@@ -708,7 +993,9 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
         job_blocks = workflow_job_step_blocks(index)
         normalizer_run_commands = [
             step_run_command_from_block(normalizer_step_lines, normalizer_step_indent)
-            for _, normalizer_step_indent, normalizer_step_lines in job_blocks
+            for normalizer_index, normalizer_step_indent, normalizer_step_lines in job_blocks
+            if normalizer_index < index
+            and step_is_required_blocking(normalizer_step_lines, normalizer_step_indent)
         ]
         normalizer_outputs = {
             output
@@ -771,7 +1058,7 @@ def scorecard_artifact_download_decompression_violations(content: str) -> list[s
         return (
             len(cleaned_tokens) == 4
             and cleaned_tokens[0] in {"python", "python3"}
-            and cleaned_tokens[1] == OSSF_ARTIFACT_EXTRACTOR
+            and cleaned_tokens[1] in OSSF_ARTIFACT_EXTRACTOR_COMMANDS
             and cleaned_tokens[2] == "scorecard-artifact"
             and cleaned_tokens[3] == "scorecard-sarif"
         )
@@ -865,11 +1152,8 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
             and cleaned_tokens[3] == "artifacts"
         )
 
-    def is_blocking_required_step(block_lines: list[str]) -> bool:
-        step_content = "\n".join(line.partition("#")[0] for line in block_lines)
-        return not re.search(
-            r"^\s+continue-on-error\s*:", step_content, flags=re.MULTILINE
-        ) and not re.search(r"^\s+if\s*:", step_content, flags=re.MULTILINE)
+    def is_blocking_required_step(block_lines: list[str], block_indent: int) -> bool:
+        return step_is_required_blocking(block_lines, block_indent)
 
     violations: list[str] = []
     for index, block_indent, step_lines in step_blocks:
@@ -903,7 +1187,7 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
                 if invokes_release_extractor(
                     step_run_command_from_block(block_lines, block_indent)
                 )
-                and is_blocking_required_step(block_lines)
+                and is_blocking_required_step(block_lines, block_indent)
             ),
             None,
         )
@@ -955,6 +1239,26 @@ def verify_workflow_coverage() -> list[str]:
     for token in ["develop", "main", "pull_request", "push"]:
         if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
+    audit_run_commands: list[str] = []
+    if audit:
+        for _, step_indent, step_lines in workflow_step_blocks(audit.splitlines()):
+            if not step_is_required_blocking(step_lines, step_indent):
+                continue
+            command = step_run_command_from_block(step_lines, step_indent)
+            if command.strip():
+                audit_run_commands.append(command)
+    for token in [
+        "npm audit --workspaces --audit-level=high",
+        "pip-audit --local --strict",
+        "cargo +stable audit",
+    ]:
+        if audit and not any(
+            command_contains_token_sequence(command, token)
+            for command in audit_run_commands
+        ):
+            missing.append(
+                f"security audit workflow missing vulnerability audit token: {token}"
+            )
     codeql = read_workflow(Path(".github/workflows/codeql.yml"), "codeql", missing)
     for token in ["develop", "main", "pull_request", "push", "codeql"]:
         if codeql and token not in codeql:
@@ -1027,7 +1331,14 @@ def verify_workflow_coverage() -> list[str]:
     if scorecard:
         missing.extend(
             f"ossf scorecard workflow missing token: {token}"
-            for token in ["develop", "main", "push", "schedule", "ossf-scorecard"]
+            for token in [
+                "develop",
+                "main",
+                "pull_request",
+                "push",
+                "schedule",
+                "ossf-scorecard",
+            ]
             if token not in scorecard
         )
         if "ossf/scorecard-action" in scorecard:
@@ -1252,15 +1563,61 @@ def verify_release_asset_allowlist_policy() -> list[str]:
     )
     for path in workflow_paths:
         content = path.read_text(encoding="utf-8")
-        if "gh release create" not in content:
+        run_steps = workflow_run_steps(content)
+        release_steps = [
+            (index, job_content, command)
+            for index, job_content, command, is_blocking in run_steps
+            if command_contains_token_sequence(command, "gh release create")
+        ]
+        if not release_steps:
             continue
-        if (
-            RELEASE_ASSET_VALIDATOR not in content
-            or RELEASE_ASSET_MAPFILE not in content
-        ):
-            violations.append(
-                f"{path}: release asset upload must use scripts/release/select_release_assets.py"
+        for release_step_index, release_job_content, release_command in release_steps:
+            has_generator_before_publish = any(
+                job_content == release_job_content
+                and index < release_step_index
+                and is_blocking
+                and command_contains_token_sequence(command, RELEASE_ASSET_VALIDATOR)
+                for index, job_content, command, is_blocking in run_steps
             )
+            release_command_lines = [
+                line.strip() for line in shell_logical_lines(release_command)
+            ]
+            revalidator_indexes = [
+                line_index
+                for line_index, line in enumerate(release_command_lines)
+                if command_contains_token_sequence(line, RELEASE_ASSET_REVALIDATOR)
+            ]
+            mapfile_indexes = [
+                line_index
+                for line_index, line in enumerate(release_command_lines)
+                if command_contains_token_sequence(line, RELEASE_ASSET_MAPFILE)
+            ]
+            release_create_indexes = [
+                line_index
+                for line_index, line in enumerate(release_command_lines)
+                if command_contains_token_sequence(line, "gh release create")
+            ]
+            previous_release_create_index = -1
+            all_release_creates_revalidated = bool(release_create_indexes)
+            for release_create_index in release_create_indexes:
+                has_revalidation_before_publish = any(
+                    previous_release_create_index
+                    < revalidator_index
+                    < mapfile_index
+                    < release_create_index
+                    for revalidator_index in revalidator_indexes
+                    for mapfile_index in mapfile_indexes
+                )
+                if not has_revalidation_before_publish:
+                    all_release_creates_revalidated = False
+                    break
+                previous_release_create_index = release_create_index
+            if not (has_generator_before_publish and all_release_creates_revalidated):
+                violations.append(
+                    f"{path}: release asset upload must use scripts/release/select_release_assets.py"
+                    " to generate and revalidate release-assets.txt"
+                )
+                break
         in_release_assets = False
         for line in content.splitlines():
             stripped = line.strip()
@@ -1272,14 +1629,18 @@ def verify_release_asset_allowlist_policy() -> list[str]:
             if in_release_assets and stripped == ")":
                 in_release_assets = False
 
-        for _, line in logical_workflow_lines(content):
-            if "gh release create" not in line:
+        for _, _, command, _ in run_steps:
+            for line in shell_logical_lines(command):
+                if not command_contains_token_sequence(line, "gh release create"):
+                    continue
+                if RELEASE_ARTIFACT_GLOB.search(
+                    line
+                ) or release_create_explicit_asset_tokens(line):
+                    add_release_asset_allowlist_violation(violations, path)
+                    break
+            else:
                 continue
-            if RELEASE_ARTIFACT_GLOB.search(
-                line
-            ) or release_create_explicit_asset_tokens(line):
-                add_release_asset_allowlist_violation(violations, path)
-                break
+            break
     return violations
 
 
@@ -1363,6 +1724,84 @@ def rust_dependency_advisory_violations(
             violations.append(
                 f"{lockfile}: rand {version} is below patched {patched} "
                 f"for {RUST_RAND_ADVISORY_ID}"
+            )
+    return violations
+
+
+def rust_audit_ignored_advisories(audit_config: Path) -> set[str]:
+    """Return advisory ids tracked in cargo-audit's repo-owned ignore list."""
+    if not audit_config.exists():
+        return set()
+    data = tomllib.loads(audit_config.read_text(encoding="utf-8"))
+    advisories = data.get("advisories", {})
+    if not isinstance(advisories, dict):
+        return set()
+    ignored = advisories.get("ignore", [])
+    if not isinstance(ignored, list):
+        return set()
+    return {item for item in ignored if isinstance(item, str) and item}
+
+
+def rust_osv_ignored_advisories(osv_config: Path) -> dict[str, str]:
+    """Return advisory ids and reasons from OSV Scanner's repo-owned ignore list."""
+    if not osv_config.exists():
+        return {}
+    data = tomllib.loads(osv_config.read_text(encoding="utf-8"))
+    entries = data.get("IgnoredVulns", [])
+    if not isinstance(entries, list):
+        return {}
+    ignored: dict[str, str] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        advisory_id = entry.get("id")
+        reason = entry.get("reason")
+        if isinstance(advisory_id, str) and advisory_id:
+            ignored[advisory_id] = reason if isinstance(reason, str) else ""
+    return ignored
+
+
+def toml_decode_violation(path: Path, error: tomllib.TOMLDecodeError) -> str:
+    """Return a single-line TOML decode policy violation."""
+    return f"{path}: invalid TOML: {str(error).replace(chr(10), ' ')}"
+
+
+def rust_osv_exception_violations(
+    audit_config: Path = RUST_AUDIT_CONFIG,
+    osv_config: Path = RUST_OSV_SCANNER_CONFIG,
+) -> list[str]:
+    """Return OSV Scanner exception drift from the cargo-audit exception scope."""
+    violations: list[str] = []
+    if not audit_config.exists():
+        return [f"cargo audit config missing: {audit_config}"]
+    if not osv_config.exists():
+        return [f"OSV scanner config missing: {osv_config}"]
+
+    try:
+        audit_ignores = rust_audit_ignored_advisories(audit_config)
+    except tomllib.TOMLDecodeError as error:
+        violations.append(toml_decode_violation(audit_config, error))
+        audit_ignores = set()
+    try:
+        osv_ignores = rust_osv_ignored_advisories(osv_config)
+    except tomllib.TOMLDecodeError as error:
+        violations.append(toml_decode_violation(osv_config, error))
+        osv_ignores = {}
+    if violations:
+        return violations
+
+    for advisory_id in sorted(audit_ignores - set(osv_ignores)):
+        violations.append(
+            f"{osv_config}: missing OSV ignore for {advisory_id} tracked in cargo audit config"
+        )
+    for advisory_id in sorted(set(osv_ignores) - audit_ignores):
+        violations.append(
+            f"{osv_config}: unexpected OSV ignore for {advisory_id} not tracked in cargo audit config"
+        )
+    for advisory_id, reason in sorted(osv_ignores.items()):
+        if not reason.strip():
+            violations.append(
+                f"{osv_config}: OSV ignore for {advisory_id} needs a reason"
             )
     return violations
 
@@ -1738,6 +2177,7 @@ def main() -> int:
     violations.extend(verify_release_asset_allowlist_policy())
     violations.extend(verify_workflow_npx_policy())
     violations.extend(verify_workflow_workspace_exec_policy())
+    violations.extend(rust_osv_exception_violations())
     violations.extend(rust_dependency_advisory_violations())
 
     if violations:
