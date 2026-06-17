@@ -3575,6 +3575,46 @@ jobs:
     )
 
 
+def test_supply_chain_check_rejects_prefixed_release_artifact_wildcard_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure prefixed gh release create calls cannot bypass asset scanning."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_prefixed_release_allowlist",
+    )
+
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create draft release with complete assets, then publish
+        run: |
+          python3 scripts/release/select_release_assets.py --input release-assets.txt
+          mapfile -t release_assets < release-assets.txt
+          env GH_TOKEN="$GH_TOKEN" gh release create "$RELEASE_TAG" \
+            artifacts/* \
+            --draft
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use an explicit "
+        "allowlist, not artifacts/*" in violations
+    )
+
+
 def test_supply_chain_check_rejects_release_asset_array_globs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -3731,6 +3771,46 @@ jobs:
         run: |
           mapfile -t release_assets < release-assets.txt
           gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+          python3 scripts/release/select_release_assets.py --input release-assets.txt
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use "
+        "scripts/release/select_release_assets.py to generate and revalidate "
+        "release-assets.txt"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_prefixed_release_revalidation_after_publish(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure prefixed gh release create calls still require prior revalidation."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_prefixed_release_revalidate_order",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create draft release with complete assets, then publish
+        run: |
+          mapfile -t release_assets < release-assets.txt
+          env GH_TOKEN="$GH_TOKEN" gh release create "$RELEASE_TAG" \
             "${release_assets[@]}" \
             --draft
           python3 scripts/release/select_release_assets.py --input release-assets.txt

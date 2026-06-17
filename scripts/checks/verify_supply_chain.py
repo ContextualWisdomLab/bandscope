@@ -1337,7 +1337,7 @@ def verify_release_asset_allowlist_policy() -> list[str]:
             (index, job_content, command)
             for index, job_content, command, is_blocking in run_steps
             if is_blocking
-            and command_has_line_starting_with(command, "gh release create")
+            and command_contains_token_sequence(command, "gh release create")
         ]
         if not release_steps:
             continue
@@ -1373,7 +1373,7 @@ def verify_release_asset_allowlist_policy() -> list[str]:
                 (
                     line_index
                     for line_index, line in enumerate(release_command_lines)
-                    if line.startswith("gh release create")
+                    if command_contains_token_sequence(line, "gh release create")
                 ),
                 -1,
             )
@@ -1404,7 +1404,7 @@ def verify_release_asset_allowlist_policy() -> list[str]:
 
         for _, _, command, _ in run_steps:
             for line in shell_logical_lines(command):
-                if not line.strip().startswith("gh release create"):
+                if not command_contains_token_sequence(line, "gh release create"):
                     continue
                 if RELEASE_ARTIFACT_GLOB.search(
                     line
