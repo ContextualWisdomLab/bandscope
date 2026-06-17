@@ -3379,6 +3379,26 @@ reason = ""
     assert f"{osv_config}: OSV ignore for RUSTSEC-2024-0413 needs a reason" in violations
 
 
+def test_supply_chain_check_reports_malformed_rust_exception_toml(tmp_path: Path) -> None:
+    """Ensure malformed Rust exception configs produce actionable policy errors."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_osv_malformed"
+    )
+    audit_config = tmp_path / "audit.toml"
+    osv_config = tmp_path / "osv-scanner.toml"
+    audit_config.write_text("[advisories]\nignore = [", encoding="utf-8")
+    osv_config.write_text("[[IgnoredVulns]]\nid = ", encoding="utf-8")
+
+    violations = supply_chain.rust_osv_exception_violations(audit_config, osv_config)
+
+    assert any(
+        violation.startswith(f"{audit_config}: invalid TOML: ") for violation in violations
+    )
+    assert any(
+        violation.startswith(f"{osv_config}: invalid TOML: ") for violation in violations
+    )
+
+
 def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     """Ensure the glib exception records owner-chain scope and removal criteria."""
     repo_root = Path(__file__).resolve().parents[3]

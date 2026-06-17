@@ -1403,6 +1403,11 @@ def rust_osv_ignored_advisories(osv_config: Path) -> dict[str, str]:
     return ignored
 
 
+def toml_decode_violation(path: Path, error: tomllib.TOMLDecodeError) -> str:
+    """Return a single-line TOML decode policy violation."""
+    return f"{path}: invalid TOML: {str(error).replace(chr(10), ' ')}"
+
+
 def rust_osv_exception_violations(
     audit_config: Path = RUST_AUDIT_CONFIG,
     osv_config: Path = RUST_OSV_SCANNER_CONFIG,
@@ -1414,8 +1419,19 @@ def rust_osv_exception_violations(
     if not osv_config.exists():
         return [f"OSV scanner config missing: {osv_config}"]
 
-    audit_ignores = rust_audit_ignored_advisories(audit_config)
-    osv_ignores = rust_osv_ignored_advisories(osv_config)
+    try:
+        audit_ignores = rust_audit_ignored_advisories(audit_config)
+    except tomllib.TOMLDecodeError as error:
+        violations.append(toml_decode_violation(audit_config, error))
+        audit_ignores = set()
+    try:
+        osv_ignores = rust_osv_ignored_advisories(osv_config)
+    except tomllib.TOMLDecodeError as error:
+        violations.append(toml_decode_violation(osv_config, error))
+        osv_ignores = {}
+    if violations:
+        return violations
+
     for advisory_id in sorted(audit_ignores - set(osv_ignores)):
         violations.append(
             f"{osv_config}: missing OSV ignore for {advisory_id} tracked in cargo audit config"

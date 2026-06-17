@@ -1348,13 +1348,22 @@ jobs:
           collect_current_head_strix_workflow_runs() {
             local output_file="$1"
             local mode="$2"
+            local error_file
             local runs_json
 
+            error_file="$(mktemp)"
             runs_json="$(mktemp)"
-            if ! gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json"; then
-              rm -f "$runs_json"
+            if ! gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json" 2>"$error_file"; then
+              if grep -Eiq 'HTTP 404|not found' "$error_file"; then
+                : >"$output_file"
+                rm -f "$error_file" "$runs_json"
+                return 0
+              fi
+              cat "$error_file" >&2
+              rm -f "$error_file" "$runs_json"
               return 1
             fi
+            rm -f "$error_file"
 
             case "$mode" in
               failed)
