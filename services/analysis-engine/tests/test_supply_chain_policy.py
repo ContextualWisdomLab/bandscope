@@ -647,6 +647,53 @@ jobs:
     assert not any("missing vulnerability audit token" in item for item in violations)
 
 
+def test_supply_chain_check_rejects_noop_audit_command_spoofs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure shell no-op commands cannot satisfy vulnerability audit coverage."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_noop_audit_spoof",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "security-audit.yml").write_text(
+        """
+name: security-audit
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Spoof npm audit
+        run: : npm audit --workspaces --audit-level=high
+      - name: Spoof Python audit
+        run: : pip-audit --local --strict
+      - name: Spoof Rust audit
+        run: : cargo +stable audit
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "security audit workflow missing vulnerability audit token: "
+        "npm audit --workspaces --audit-level=high"
+    ) in violations
+    assert (
+        "security audit workflow missing vulnerability audit token: pip-audit --local --strict"
+    ) in violations
+    assert (
+        "security audit workflow missing vulnerability audit token: cargo +stable audit"
+    ) in violations
+
+
 def test_supply_chain_check_requires_blocking_audit_steps(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -3927,6 +3974,46 @@ jobs:
     ) in violations
 
 
+def test_supply_chain_check_rejects_noop_release_asset_revalidation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure shell no-op revalidation commands cannot satisfy release policy."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_release_revalidate_noop",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create draft release with complete assets, then publish
+        run: |
+          : python3 scripts/release/select_release_assets.py --input release-assets.txt
+          mapfile -t release_assets < release-assets.txt
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use "
+        "scripts/release/select_release_assets.py to generate and revalidate "
+        "release-assets.txt"
+    ) in violations
+
+
 def test_supply_chain_check_rejects_release_revalidation_after_publish(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -3952,6 +4039,51 @@ jobs:
             "${release_assets[@]}" \
             --draft
           python3 scripts/release/select_release_assets.py --input release-assets.txt
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use "
+        "scripts/release/select_release_assets.py to generate and revalidate "
+        "release-assets.txt"
+    ) in violations
+
+
+def test_supply_chain_check_requires_revalidation_for_each_release_create(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure every release create command is protected by revalidation."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_each_release_create_revalidation",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create protected draft release
+        run: |
+          python3 scripts/release/select_release_assets.py --input release-assets.txt
+          mapfile -t release_assets < release-assets.txt
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+      - name: Create unprotected secondary release
+        run: |
+          gh release create "$SECONDARY_RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
 """.strip(),
         encoding="utf-8",
     )

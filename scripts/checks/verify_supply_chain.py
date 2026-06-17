@@ -395,6 +395,120 @@ def nested_shell_commands(tokens: list[str]) -> list[str]:
     return nested_commands
 
 
+def is_shell_assignment_token(token: str) -> bool:
+    """Return whether a token is a shell variable assignment prefix."""
+    return re.match(r"^[A-Za-z_][A-Za-z0-9_]*=.*$", token) is not None
+
+
+def strip_shell_assignment_prefix(tokens: list[str]) -> list[str]:
+    """Return tokens after leading shell assignment prefixes."""
+    index = 0
+    while index < len(tokens) and is_shell_assignment_token(tokens[index]):
+        index += 1
+    return tokens[index:]
+
+
+def env_wrapped_command_tokens(tokens: list[str]) -> list[str]:
+    """Return the command portion of an env-wrapped command line."""
+    index = 0
+    options_with_values = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            return tokens[index + 1 :]
+        if is_shell_assignment_token(token):
+            index += 1
+            continue
+        if token in options_with_values:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return tokens[index:]
+    return []
+
+
+def uv_run_command_tokens(tokens: list[str]) -> list[str]:
+    """Return the command portion of a uv run invocation."""
+    index = 0
+    options_with_values = {
+        "--config-file",
+        "--default-index",
+        "--directory",
+        "--env-file",
+        "--exclude-newer",
+        "--extra-index-url",
+        "--index",
+        "--index-strategy",
+        "--index-url",
+        "--keyring-provider",
+        "--link-mode",
+        "--managed-python",
+        "--project",
+        "--python",
+        "--resolution",
+        "--with",
+        "--with-editable",
+        "--with-requirements",
+    }
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--":
+            return tokens[index + 1 :]
+        if token in options_with_values:
+            index += 2
+            continue
+        if any(token.startswith(f"{option}=") for option in options_with_values):
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return tokens[index:]
+    return []
+
+
+def command_tokens_start_with_sequence(
+    tokens: list[str], expected_tokens: list[str], *, recursion_depth: int
+) -> bool:
+    """Return whether a tokenized shell command executes the expected prefix."""
+    tokens = strip_shell_assignment_prefix(tokens)
+    if not tokens:
+        return False
+
+    executable = tokens[0].rsplit("/", maxsplit=1)[-1]
+    if executable in {":", "echo", "printf"}:
+        return False
+    if executable == "env":
+        return command_tokens_start_with_sequence(
+            env_wrapped_command_tokens(tokens[1:]),
+            expected_tokens,
+            recursion_depth=recursion_depth,
+        )
+    if executable == "uv" and len(tokens) > 1 and tokens[1] == "run":
+        return command_tokens_start_with_sequence(
+            uv_run_command_tokens(tokens[2:]),
+            expected_tokens,
+            recursion_depth=recursion_depth,
+        )
+    if executable in {"python", "python3"}:
+        return tokens[1 : 1 + len(expected_tokens)] == expected_tokens
+    if executable in {"bash", "dash", "sh", "zsh"}:
+        if recursion_depth >= 2:
+            return False
+        return any(
+            command_contains_token_sequence(
+                nested_command,
+                " ".join(shlex.quote(token) for token in expected_tokens),
+                recursion_depth=recursion_depth + 1,
+            )
+            for nested_command in nested_shell_commands(tokens)
+        )
+
+    return tokens[: len(expected_tokens)] == expected_tokens
+
+
 def command_contains_token_sequence(
     command: str, token_sequence: str, *, recursion_depth: int = 0
 ) -> bool:
@@ -406,17 +520,10 @@ def command_contains_token_sequence(
         tokens = shell_line_tokens(line)
         if tokens and tokens[0] in {"echo", "printf"}:
             continue
-        if tokens_contain_sequence(tokens, expected_tokens):
+        if command_tokens_start_with_sequence(
+            tokens, expected_tokens, recursion_depth=recursion_depth
+        ):
             return True
-        if recursion_depth >= 2:
-            continue
-        for nested_command in nested_shell_commands(tokens):
-            if command_contains_token_sequence(
-                nested_command,
-                token_sequence,
-                recursion_depth=recursion_depth + 1,
-            ):
-                return True
     return False
 
 
@@ -1406,12 +1513,10 @@ def verify_release_asset_allowlist_policy() -> list[str]:
         release_steps = [
             (index, job_content, command)
             for index, job_content, command, is_blocking in run_steps
-            if is_blocking
-            and command_contains_token_sequence(command, "gh release create")
+            if command_contains_token_sequence(command, "gh release create")
         ]
         if not release_steps:
             continue
-        has_structural_release_validation = False
         for release_step_index, release_job_content, release_command in release_steps:
             has_generator_before_publish = any(
                 job_content == release_job_content
@@ -1453,14 +1558,12 @@ def verify_release_asset_allowlist_policy() -> list[str]:
                 and release_create_index >= 0
                 and revalidator_index < mapfile_index < release_create_index
             )
-            if has_generator_before_publish and has_revalidation_before_publish:
-                has_structural_release_validation = True
+            if not (has_generator_before_publish and has_revalidation_before_publish):
+                violations.append(
+                    f"{path}: release asset upload must use scripts/release/select_release_assets.py"
+                    " to generate and revalidate release-assets.txt"
+                )
                 break
-        if not has_structural_release_validation:
-            violations.append(
-                f"{path}: release asset upload must use scripts/release/select_release_assets.py"
-                " to generate and revalidate release-assets.txt"
-            )
         in_release_assets = False
         for line in content.splitlines():
             stripped = line.strip()
