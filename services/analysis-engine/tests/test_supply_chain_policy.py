@@ -561,6 +561,53 @@ def test_security_audit_workflow_keeps_dependency_vulnerability_scans() -> None:
     assert "cargo +stable audit" in workflow
 
 
+def test_supply_chain_check_requires_audit_tokens_in_run_steps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure comments and env values cannot satisfy vulnerability scan coverage."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_audit_run_steps",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "security-audit.yml").write_text(
+        """
+name: security-audit
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+env:
+  AUDIT_EXAMPLES: npm audit --workspaces --audit-level=high
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Non-executed audit examples
+        run: |
+          # pip-audit --local --strict
+          echo "audit examples only"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert (
+        "security audit workflow missing vulnerability audit token: "
+        "npm audit --workspaces --audit-level=high"
+    ) in violations
+    assert (
+        "security audit workflow missing vulnerability audit token: pip-audit --local --strict"
+    ) in violations
+    assert (
+        "security audit workflow missing vulnerability audit token: cargo +stable audit"
+    ) in violations
+
+
 def test_supply_chain_check_requires_ossf_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -3600,6 +3647,129 @@ jobs:
     steps:
       - name: Validate release asset set
         run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create draft release with complete assets, then publish
+        run: |
+          mapfile -t release_assets < release-assets.txt
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use "
+        "scripts/release/select_release_assets.py to generate and revalidate "
+        "release-assets.txt"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_commented_release_asset_revalidation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure commented revalidation commands cannot satisfy release policy."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_release_revalidate_comment",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create draft release with complete assets, then publish
+        run: |
+          # python3 scripts/release/select_release_assets.py --input release-assets.txt
+          mapfile -t release_assets < release-assets.txt
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use "
+        "scripts/release/select_release_assets.py to generate and revalidate "
+        "release-assets.txt"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_release_revalidation_after_publish(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure release revalidation must happen before mapfile and publication."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_release_revalidate_order",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  publish-immutable-release:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Create draft release with complete assets, then publish
+        run: |
+          mapfile -t release_assets < release-assets.txt
+          gh release create "$RELEASE_TAG" \
+            "${release_assets[@]}" \
+            --draft
+          python3 scripts/release/select_release_assets.py --input release-assets.txt
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_release_asset_allowlist_policy()
+
+    assert (
+        ".github/workflows/build-baseline.yml: release asset upload must use "
+        "scripts/release/select_release_assets.py to generate and revalidate "
+        "release-assets.txt"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_release_revalidation_in_different_job(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure release revalidation is tied to the publishing job."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_release_revalidate_job",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        """
+name: build-baseline
+jobs:
+  validate:
+    steps:
+      - name: Validate release asset set
+        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
+      - name: Revalidate release asset set
+        run: python3 scripts/release/select_release_assets.py --input release-assets.txt
+  publish-immutable-release:
+    steps:
       - name: Create draft release with complete assets, then publish
         run: |
           mapfile -t release_assets < release-assets.txt

@@ -146,6 +146,7 @@ RELEASE_CREATE_VALUE_FLAGS = {
 }
 RELEASE_CREATE_ALLOWED_ASSET_TOKENS = {"${release_assets[@]}", "${release_assets[*]}"}
 WorkflowStepBlock = tuple[int, int, list[str]]
+WorkflowRunStep = tuple[int, str, str, bool]
 
 
 def workflow_step_blocks(lines: list[str]) -> list[WorkflowStepBlock]:
@@ -208,8 +209,9 @@ def step_run_command_from_block(step_lines: list[str], step_indent: int) -> str:
     run_indent: int | None = None
     command_lines: list[str] = []
     for step_line in step_lines:
-        raw_stripped = step_line.strip().partition("#")[0].strip()
-        stripped = raw_stripped
+        raw_stripped = step_line.strip()
+        yaml_stripped = raw_stripped.partition("#")[0].strip()
+        stripped = yaml_stripped
         is_step_start = stripped.startswith("- ")
         if is_step_start:
             stripped = stripped[2:].strip()
@@ -217,12 +219,39 @@ def step_run_command_from_block(step_lines: list[str], step_indent: int) -> str:
         if run_indent is None:
             if stripped.startswith("run:") and (indent > step_indent or is_step_start):
                 run_indent = indent
-                command_lines.append(stripped.partition(":")[2].strip())
+                run_value = stripped.partition(":")[2].strip()
+                command_lines.append(
+                    "" if run_value in {"|", "|-", ">", ">-"} else run_value
+                )
             continue
+        stripped = "" if raw_stripped.startswith("#") else raw_stripped
         if stripped and indent <= run_indent:
             break
         command_lines.append(stripped)
     return "\n".join(command_lines)
+
+
+def workflow_run_steps(content: str) -> list[WorkflowRunStep]:
+    """Return run commands with their workflow job content and blocking status."""
+    lines = content.splitlines()
+    run_steps: list[WorkflowRunStep] = []
+    for index, step_indent, step_lines in workflow_step_blocks(lines):
+        command = step_run_command_from_block(step_lines, step_indent)
+        if not command.strip():
+            continue
+        step_content = "\n".join(line.partition("#")[0] for line in step_lines)
+        is_blocking = not re.search(
+            r"^\s+continue-on-error\s*:", step_content, flags=re.MULTILINE
+        )
+        run_steps.append(
+            (
+                index,
+                workflow_job_content_for_step(lines, index),
+                command,
+                is_blocking,
+            )
+        )
+    return run_steps
 
 
 def step_with_value_from_block(
@@ -296,6 +325,40 @@ def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
     if pending_parts:
         logical_lines.append((pending_start, " ".join(pending_parts)))
     return logical_lines
+
+
+def shell_logical_lines(command: str) -> list[str]:
+    """Return shell command lines with backslash continuations folded."""
+    logical_lines = [line for _, line in logical_workflow_lines(command)]
+    return logical_lines or [command]
+
+
+def shell_line_tokens(line: str) -> list[str]:
+    """Return shell tokens for a logical command line."""
+    try:
+        return shlex.split(line)
+    except ValueError:
+        return line.split()
+
+
+def command_contains_token_sequence(command: str, token_sequence: str) -> bool:
+    """Return whether a run command executes the requested token sequence."""
+    expected_tokens = shell_line_tokens(token_sequence)
+    if not expected_tokens:
+        return False
+    for line in shell_logical_lines(command):
+        tokens = shell_line_tokens(line)
+        if tokens and tokens[0] in {"echo", "printf"}:
+            continue
+        for index in range(0, len(tokens) - len(expected_tokens) + 1):
+            if tokens[index : index + len(expected_tokens)] == expected_tokens:
+                return True
+    return False
+
+
+def command_has_line_starting_with(command: str, prefix: str) -> bool:
+    """Return whether a run command has a logical line starting with ``prefix``."""
+    return any(line.strip().startswith(prefix) for line in shell_logical_lines(command))
 
 
 def yaml_scalar_value(stripped_line: str) -> str:
@@ -957,12 +1020,18 @@ def verify_workflow_coverage() -> list[str]:
     for token in ["develop", "main", "pull_request", "push"]:
         if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
+    audit_run_commands = (
+        [command for _, _, command, _ in workflow_run_steps(audit)] if audit else []
+    )
     for token in [
         "npm audit --workspaces --audit-level=high",
         "pip-audit --local --strict",
         "cargo +stable audit",
     ]:
-        if audit and token not in audit:
+        if audit and not any(
+            command_contains_token_sequence(command, token)
+            for command in audit_run_commands
+        ):
             missing.append(
                 f"security audit workflow missing vulnerability audit token: {token}"
             )
@@ -1263,13 +1332,61 @@ def verify_release_asset_allowlist_policy() -> list[str]:
     )
     for path in workflow_paths:
         content = path.read_text(encoding="utf-8")
-        if "gh release create" not in content:
+        run_steps = workflow_run_steps(content)
+        release_steps = [
+            (index, job_content, command)
+            for index, job_content, command, is_blocking in run_steps
+            if is_blocking
+            and command_has_line_starting_with(command, "gh release create")
+        ]
+        if not release_steps:
             continue
-        if (
-            RELEASE_ASSET_VALIDATOR not in content
-            or RELEASE_ASSET_REVALIDATOR not in content
-            or RELEASE_ASSET_MAPFILE not in content
-        ):
+        has_structural_release_validation = False
+        for release_step_index, release_job_content, release_command in release_steps:
+            has_generator_before_publish = any(
+                job_content == release_job_content
+                and index < release_step_index
+                and is_blocking
+                and command_contains_token_sequence(command, RELEASE_ASSET_VALIDATOR)
+                for index, job_content, command, is_blocking in run_steps
+            )
+            release_command_lines = [
+                line.strip() for line in shell_logical_lines(release_command)
+            ]
+            revalidator_index = next(
+                (
+                    line_index
+                    for line_index, line in enumerate(release_command_lines)
+                    if command_contains_token_sequence(line, RELEASE_ASSET_REVALIDATOR)
+                ),
+                -1,
+            )
+            mapfile_index = next(
+                (
+                    line_index
+                    for line_index, line in enumerate(release_command_lines)
+                    if command_contains_token_sequence(line, RELEASE_ASSET_MAPFILE)
+                ),
+                -1,
+            )
+            release_create_index = next(
+                (
+                    line_index
+                    for line_index, line in enumerate(release_command_lines)
+                    if line.startswith("gh release create")
+                ),
+                -1,
+            )
+            has_revalidation_before_publish = (
+                revalidator_index >= 0
+                and mapfile_index >= 0
+                and release_create_index >= 0
+                and revalidator_index < mapfile_index < release_create_index
+            )
+            if has_generator_before_publish and has_revalidation_before_publish:
+                has_structural_release_validation = True
+                break
+        if not has_structural_release_validation:
             violations.append(
                 f"{path}: release asset upload must use scripts/release/select_release_assets.py"
                 " to generate and revalidate release-assets.txt"
@@ -1285,14 +1402,18 @@ def verify_release_asset_allowlist_policy() -> list[str]:
             if in_release_assets and stripped == ")":
                 in_release_assets = False
 
-        for _, line in logical_workflow_lines(content):
-            if "gh release create" not in line:
+        for _, _, command, _ in run_steps:
+            for line in shell_logical_lines(command):
+                if not line.strip().startswith("gh release create"):
+                    continue
+                if RELEASE_ARTIFACT_GLOB.search(
+                    line
+                ) or release_create_explicit_asset_tokens(line):
+                    add_release_asset_allowlist_violation(violations, path)
+                    break
+            else:
                 continue
-            if RELEASE_ARTIFACT_GLOB.search(
-                line
-            ) or release_create_explicit_asset_tokens(line):
-                add_release_asset_allowlist_violation(violations, path)
-                break
+            break
     return violations
 
 
