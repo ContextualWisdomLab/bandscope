@@ -697,6 +697,47 @@ jobs:
     ) in violations
 
 
+def test_supply_chain_check_accepts_explicit_false_continue_on_error_audit_steps(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure explicitly blocking audit steps still satisfy coverage."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_explicit_false_continue_on_error",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "security-audit.yml").write_text(
+        """
+name: security-audit
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Blocking npm audit
+        continue-on-error: false
+        run: npm audit --workspaces --audit-level=high
+      - name: Blocking Python audit
+        continue-on-error: "false"
+        run: pip-audit --local --strict
+      - name: Blocking Rust audit
+        continue-on-error: ${{ false }}
+        run: cargo +stable audit
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert not any("missing vulnerability audit token" in item for item in violations)
+
+
 def test_supply_chain_check_requires_ossf_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1993,6 +2034,55 @@ def test_supply_chain_check_rejects_non_blocking_release_extractor_spoofs(
         "release artifact download must use skip-decompress: true and "
         "repo-owned extraction before asset validation"
     ) in violations
+
+
+def test_supply_chain_check_accepts_false_continue_on_error_release_extractor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure explicitly blocking release extraction still satisfies the guard."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_false_continue_on_error_release_extractor",
+    )
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "build-baseline.yml").write_text(
+        "\n".join(
+            [
+                "name: build-baseline",
+                "jobs:",
+                "  publish-immutable-release:",
+                "    name: release-artifact / publish",
+                "    steps:",
+                "      - uses: actions/download-artifact@"
+                "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+                "        with:",
+                "          pattern: bandscope-*-${{ github.sha }}",
+                "          path: downloaded-artifacts",
+                "          skip-decompress: true",
+                "      - name: Extract release artifacts with repo-owned validation",
+                "        continue-on-error: false",
+                "        run: >-",
+                "          python3 scripts/release/extract_release_artifacts.py",
+                "          downloaded-artifacts",
+                "          artifacts",
+                "      - name: Validate release asset set",
+                "        run: >-",
+                "          python3 scripts/release/select_release_assets.py",
+                "          --output release-assets.txt",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    violations = supply_chain.verify_workflow_coverage()
+
+    assert not any(
+        "release artifact download must use skip-decompress: true" in violation
+        for violation in violations
+    )
 
 
 def test_supply_chain_check_rejects_release_download_env_skip_decompress_spoof(

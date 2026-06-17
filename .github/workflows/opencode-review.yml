@@ -1692,9 +1692,10 @@ jobs:
             failed_checks_file="$(mktemp)"
             failed_check_evidence_file="$(mktemp)"
             failed_check_review_body_file="$(mktemp)"
+            pending_checks_file=""
             # shellcheck disable=SC2329
             cleanup_failed_outcome_files() {
-              rm -f "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
+              rm -f "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$pending_checks_file"
             }
             trap cleanup_failed_outcome_files EXIT
             if collect_github_checks_with_retry collect_failed_github_checks "$failed_checks_file"; then

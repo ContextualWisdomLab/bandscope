@@ -239,10 +239,7 @@ def workflow_run_steps(content: str) -> list[WorkflowRunStep]:
         command = step_run_command_from_block(step_lines, step_indent)
         if not command.strip():
             continue
-        step_content = "\n".join(line.partition("#")[0] for line in step_lines)
-        is_blocking = not re.search(
-            r"^\s+continue-on-error\s*:", step_content, flags=re.MULTILINE
-        )
+        is_blocking = step_is_blocking(step_lines, step_indent)
         run_steps.append(
             (
                 index,
@@ -297,6 +294,33 @@ def step_env_from_block(step_lines: list[str], step_indent: int) -> dict[str, st
             continue
         env[match.group(1)] = match.group(2).strip().strip("\"'")
     return env
+
+
+def step_scalar_value_from_block(
+    step_lines: list[str], step_indent: int, key: str
+) -> str | None:
+    """Return a simple top-level scalar value from a workflow step block."""
+    for step_line in step_lines:
+        stripped = step_line.partition("#")[0].strip()
+        if not stripped:
+            continue
+        if stripped.startswith(f"- {key}:"):
+            return yaml_scalar_value(stripped[2:].strip())
+        indent = len(step_line) - len(step_line.lstrip(" "))
+        if indent == step_indent + 2 and stripped.startswith(f"{key}:"):
+            return yaml_scalar_value(stripped)
+    return None
+
+
+def step_is_blocking(step_lines: list[str], step_indent: int) -> bool:
+    """Return whether a workflow step should block when its command fails."""
+    continue_on_error = step_scalar_value_from_block(
+        step_lines, step_indent, "continue-on-error"
+    )
+    if continue_on_error is None:
+        return True
+    normalized = re.sub(r"\s+", "", continue_on_error.casefold())
+    return normalized in {"false", "${{false}}"}
 
 
 def logical_workflow_lines(content: str) -> list[tuple[int, str]]:
@@ -966,11 +990,11 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
             and cleaned_tokens[3] == "artifacts"
         )
 
-    def is_blocking_required_step(block_lines: list[str]) -> bool:
+    def is_blocking_required_step(block_lines: list[str], block_indent: int) -> bool:
         step_content = "\n".join(line.partition("#")[0] for line in block_lines)
-        return not re.search(
-            r"^\s+continue-on-error\s*:", step_content, flags=re.MULTILINE
-        ) and not re.search(r"^\s+if\s*:", step_content, flags=re.MULTILINE)
+        return step_is_blocking(block_lines, block_indent) and not re.search(
+            r"^\s+if\s*:", step_content, flags=re.MULTILINE
+        )
 
     violations: list[str] = []
     for index, block_indent, step_lines in step_blocks:
@@ -1004,7 +1028,7 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
                 if invokes_release_extractor(
                     step_run_command_from_block(block_lines, block_indent)
                 )
-                and is_blocking_required_step(block_lines)
+                and is_blocking_required_step(block_lines, block_indent)
             ),
             None,
         )
