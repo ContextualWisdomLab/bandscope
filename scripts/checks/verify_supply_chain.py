@@ -24,6 +24,7 @@ REQUIRED_FILES = [
     Path(".github/workflows/secret-scan-gate.yml"),
     Path(".github/workflows/build-baseline.yml"),
     Path(".github/workflows/ossf-scorecard.yml"),
+    Path("apps/desktop/src-tauri/osv-scanner.toml"),
     Path("docs/security/dependency-policy.md"),
     Path("docs/security/sbom-policy.md"),
     Path("docs/security/code-security.md"),
@@ -128,6 +129,8 @@ RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
     "glib",
 )
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
+RUST_AUDIT_CONFIG = Path("apps/desktop/src-tauri/.cargo/audit.toml")
+RUST_OSV_SCANNER_CONFIG = Path("apps/desktop/src-tauri/osv-scanner.toml")
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -1367,6 +1370,66 @@ def rust_dependency_advisory_violations(
     return violations
 
 
+def rust_audit_ignored_advisories(audit_config: Path) -> set[str]:
+    """Return advisory ids tracked in cargo-audit's repo-owned ignore list."""
+    if not audit_config.exists():
+        return set()
+    data = tomllib.loads(audit_config.read_text(encoding="utf-8"))
+    advisories = data.get("advisories", {})
+    if not isinstance(advisories, dict):
+        return set()
+    ignored = advisories.get("ignore", [])
+    if not isinstance(ignored, list):
+        return set()
+    return {item for item in ignored if isinstance(item, str) and item}
+
+
+def rust_osv_ignored_advisories(osv_config: Path) -> dict[str, str]:
+    """Return advisory ids and reasons from OSV Scanner's repo-owned ignore list."""
+    if not osv_config.exists():
+        return {}
+    data = tomllib.loads(osv_config.read_text(encoding="utf-8"))
+    entries = data.get("IgnoredVulns", [])
+    if not isinstance(entries, list):
+        return {}
+    ignored: dict[str, str] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        advisory_id = entry.get("id")
+        reason = entry.get("reason")
+        if isinstance(advisory_id, str) and advisory_id:
+            ignored[advisory_id] = reason if isinstance(reason, str) else ""
+    return ignored
+
+
+def rust_osv_exception_violations(
+    audit_config: Path = RUST_AUDIT_CONFIG,
+    osv_config: Path = RUST_OSV_SCANNER_CONFIG,
+) -> list[str]:
+    """Return OSV Scanner exception drift from the cargo-audit exception scope."""
+    violations: list[str] = []
+    if not audit_config.exists():
+        return [f"cargo audit config missing: {audit_config}"]
+    if not osv_config.exists():
+        return [f"OSV scanner config missing: {osv_config}"]
+
+    audit_ignores = rust_audit_ignored_advisories(audit_config)
+    osv_ignores = rust_osv_ignored_advisories(osv_config)
+    for advisory_id in sorted(audit_ignores - set(osv_ignores)):
+        violations.append(
+            f"{osv_config}: missing OSV ignore for {advisory_id} tracked in cargo audit config"
+        )
+    for advisory_id in sorted(set(osv_ignores) - audit_ignores):
+        violations.append(
+            f"{osv_config}: unexpected OSV ignore for {advisory_id} not tracked in cargo audit config"
+        )
+    for advisory_id, reason in sorted(osv_ignores.items()):
+        if not reason.strip():
+            violations.append(f"{osv_config}: OSV ignore for {advisory_id} needs a reason")
+    return violations
+
+
 def rust_glib_advisory_violations(
     lockfile: Path,
     version: str,
@@ -1738,6 +1801,7 @@ def main() -> int:
     violations.extend(verify_release_asset_allowlist_policy())
     violations.extend(verify_workflow_npx_policy())
     violations.extend(verify_workflow_workspace_exec_policy())
+    violations.extend(rust_osv_exception_violations())
     violations.extend(rust_dependency_advisory_violations())
 
     if violations:

@@ -298,7 +298,7 @@ jobs:
       - gate-windows
       - gate-macos
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -329,10 +329,14 @@ jobs:
         run: python3 scripts/release/select_release_assets.py --output release-assets.txt
       - name: Create draft release with complete assets, then publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BANDSCOPE_RELEASE_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "BANDSCOPE_RELEASE_TOKEN is required to publish immutable release assets."
+            exit 1
+          fi
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists; immutable release assets must be attached before publication."
             exit 1

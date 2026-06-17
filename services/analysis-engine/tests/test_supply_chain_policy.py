@@ -3329,6 +3329,56 @@ def test_supply_chain_check_requires_tracked_rust_glib_legacy_exception() -> Non
     ) in content
 
 
+def test_supply_chain_check_accepts_repo_osv_rust_exceptions() -> None:
+    """Ensure OSV Scanner ignores stay aligned with cargo-audit exceptions."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_osv_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.rust_osv_exception_violations(
+        repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml",
+        repo_root / "apps" / "desktop" / "src-tauri" / "osv-scanner.toml",
+    )
+
+    assert not violations
+
+
+def test_supply_chain_check_rejects_osv_exception_drift(tmp_path: Path) -> None:
+    """Ensure OSV exceptions cannot silently diverge from cargo-audit scope."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_osv_drift"
+    )
+    audit_config = tmp_path / "audit.toml"
+    osv_config = tmp_path / "osv-scanner.toml"
+    audit_config.write_text(
+        """
+[advisories]
+ignore = ["RUSTSEC-2024-0429"]
+""".strip(),
+        encoding="utf-8",
+    )
+    osv_config.write_text(
+        """
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0413"
+reason = ""
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_osv_exception_violations(audit_config, osv_config)
+
+    assert (
+        f"{osv_config}: missing OSV ignore for RUSTSEC-2024-0429 tracked in cargo audit config"
+    ) in violations
+    assert (
+        f"{osv_config}: unexpected OSV ignore for RUSTSEC-2024-0413 "
+        "not tracked in cargo audit config"
+    ) in violations
+    assert f"{osv_config}: OSV ignore for RUSTSEC-2024-0413 needs a reason" in violations
+
+
 def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     """Ensure the glib exception records owner-chain scope and removal criteria."""
     repo_root = Path(__file__).resolve().parents[3]

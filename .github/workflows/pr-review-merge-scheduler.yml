@@ -13,7 +13,7 @@ on:
 permissions:
   actions: read
   checks: read
-  contents: write
+  contents: read
   pull-requests: write
 
 concurrency:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 30
     env:
       DEFAULT_BRANCH: develop
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}
       GH_REPO: ${{ github.repository }}
       MAX_PRS: ${{ github.event.inputs.max_prs || '20' }}
     steps:
