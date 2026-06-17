@@ -4951,6 +4951,39 @@ Error failed to bundle project `http status: 502`
     assert any("tauri-apps/binary-releases" in signal for signal in result["signals"])
 
 
+def test_opencode_classifies_setup_uv_manifest_fetch_as_external() -> None:
+    """Ensure setup-uv manifest fetch failures do not request source changes."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence_setup_uv_fetch",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: build-baseline/build / macos / amd64
+
+### Failed job steps
+
+- step 5: Run astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 (failure)
+
+### Failed log excerpt
+
+```text
+Fetching manifest data from https://raw.githubusercontent.com/astral-sh/versions/
+##[error]fetch failed
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "external_infrastructure"
+    assert "setup-uv manifest fetch failure" in result["reason"]
+    assert "build-baseline/build / macos / amd64" in result["signals"]
+    assert any(
+        "raw.githubusercontent.com/astral-sh/versions" in signal for signal in result["signals"]
+    )
+
+
 def test_opencode_keeps_test_failures_actionable() -> None:
     """Ensure ordinary failed checks still require source-backed diagnosis."""
     classifier = load_module(

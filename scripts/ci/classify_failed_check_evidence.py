@@ -19,6 +19,10 @@ BUILD_NATIVE_SHELL_STEP = re.compile(
     r"^- step \d+:\s+Build native shell \(failure\)$",
     re.IGNORECASE | re.MULTILINE,
 )
+SETUP_UV_STEP = re.compile(
+    r"^- step \d+:\s+Run astral-sh/setup-uv@.+ \(failure\)$",
+    re.IGNORECASE | re.MULTILINE,
+)
 ARTIFACT_UPLOAD_INFRA_PATTERNS = (
     (
         "artifact upload finalize request reset",
@@ -50,6 +54,19 @@ TAURI_BUNDLE_INFRA_PATTERNS = (
             r"failed to bundle project `http status:\s*50[0-9]`",
             re.IGNORECASE,
         ),
+    ),
+)
+SETUP_UV_MANIFEST_FETCH_PATTERNS = (
+    re.compile(
+        r"Fetching manifest data from "
+        r"https://raw\.githubusercontent\.com/astral-sh/versions/",
+        re.IGNORECASE,
+    ),
+)
+SETUP_UV_INFRA_PATTERNS = (
+    (
+        "setup-uv manifest fetch failed",
+        re.compile(r"##\[error\]fetch failed", re.IGNORECASE),
     ),
 )
 BUILD_OR_PACKAGE_SUCCESS_PATTERNS = (
@@ -154,6 +171,47 @@ def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
                 upload_step_match.group(0),
                 *matched_infra_signals,
                 *build_success_signals,
+            ],
+        )
+
+    setup_uv_step_match = SETUP_UV_STEP.search(evidence_text)
+    if setup_uv_step_match is not None:
+        matched_infra_signals = [
+            label
+            for label, pattern in SETUP_UV_INFRA_PATTERNS
+            if pattern.search(evidence_text)
+        ]
+        if not matched_infra_signals:
+            return unknown(
+                "no known external setup-uv infrastructure signal was present",
+                signals=[failed_check, setup_uv_step_match.group(0)],
+            )
+
+        setup_uv_fetch_signals = matching_evidence_lines(
+            evidence_text,
+            SETUP_UV_MANIFEST_FETCH_PATTERNS,
+        )
+        if not setup_uv_fetch_signals:
+            return unknown(
+                "setup-uv manifest fetch context was missing from the evidence",
+                signals=[
+                    failed_check,
+                    setup_uv_step_match.group(0),
+                    *matched_infra_signals,
+                ],
+            )
+
+        return external(
+            (
+                "the only failed check is a setup-uv manifest fetch failure "
+                "before repository build steps ran; rerun the failed workflow "
+                "job instead of requesting source changes"
+            ),
+            signals=[
+                failed_check,
+                setup_uv_step_match.group(0),
+                *matched_infra_signals,
+                *setup_uv_fetch_signals,
             ],
         )
 
