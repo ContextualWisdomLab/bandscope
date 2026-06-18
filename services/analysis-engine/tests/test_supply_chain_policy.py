@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 from conftest import load_module
 
-
 OPTIONAL_STRUCTURAL_REVIEW_PHRASES = (
     "structural exploration is not required",
     "structural exploration not required",
