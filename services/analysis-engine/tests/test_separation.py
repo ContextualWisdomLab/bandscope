@@ -331,6 +331,22 @@ def test_audio_stem_separator_rejects_invalid_json_model_profile(tmp_path) -> No
         )
 
 
+def test_audio_stem_separator_rejects_non_object_model_profile(tmp_path) -> None:
+    """Ensure well-formed non-object profile JSON fails as verification failure."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text("[]", encoding="utf-8")
+    checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="invalid JSON profile"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=str(profile_path),
+                model_profile_sha256=checksum,
+            )
+        )
+
+
 def test_audio_stem_separator_rejects_missing_local_model_profile(tmp_path) -> None:
     """Ensure missing local model profiles fail without leaking parent paths."""
     profile_path = tmp_path / "missing-profile.json"

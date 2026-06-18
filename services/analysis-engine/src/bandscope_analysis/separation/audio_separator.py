@@ -213,14 +213,17 @@ class AudioStemSeparator:
                 raise ValueError("model_profile_sha256 is required when model_profile_path is set")
             expected_sha256 = self.config.model_profile_sha256
 
-        observed_sha256 = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+        profile_bytes = profile_path.read_bytes()
+        observed_sha256 = hashlib.sha256(profile_bytes).hexdigest()
         if observed_sha256 != expected_sha256:
             raise ValueError("Model profile verification failed: SHA256 mismatch")
 
         try:
-            profile = json.loads(profile_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as error:
+            profile = json.loads(profile_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise ValueError("Model profile verification failed: invalid JSON profile") from error
+        if not isinstance(profile, dict):
+            raise ValueError("Model profile verification failed: invalid JSON profile")
 
         loaded_profile = {
             "bassCutoffHz": float(profile.get("bassCutoffHz", self.config.bass_cutoff_hz)),

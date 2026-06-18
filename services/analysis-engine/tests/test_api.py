@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 
 from bandscope_analysis.api import (
+    _build_local_audio_features,
     _feature_cache_paths,
     _load_cached_analysis,
     _load_cached_local_audio_features,
@@ -579,6 +580,12 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "other": np.zeros(256),
         },
         "sr": 22050,
+        "stem_role_types": {
+            "vocals": "vocal",
+            "bass": "instrument",
+            "drums": "instrument",
+            "other": "instrument",
+        },
         "separation": {
             "duration_seconds": 1.0,
             "chunk_count": 1,
@@ -591,6 +598,12 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
     assert loaded is not None
     assert loaded["sr"] == 22050
     assert loaded["stems"]["bass"].shape == (256,)
+    assert loaded["stem_role_types"] == {
+        "vocals": "vocal",
+        "bass": "instrument",
+        "drums": "instrument",
+        "other": "instrument",
+    }
 
     with (
         patch(
@@ -691,6 +704,20 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     np.savez_compressed(arrays_path, stem_bass=np.zeros(4))
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
+    metadata_path.write_text(
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, '
+        '"stemKeys": ["bass"], "stemRoleTypes": []}',
+        encoding="utf-8",
+    )
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+    metadata_path.write_text(
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, '
+        '"stemKeys": ["bass"], "stemRoleTypes": {"bass": "percussion"}}',
+        encoding="utf-8",
+    )
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
     class BadArchive:
         def __enter__(self):
             return self
@@ -755,6 +782,20 @@ def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
             arrays_path,
             request,
             {"stems": {"bass": np.zeros(4)}, "sr": 22050, "separation": []},
+        )
+        is False
+    )
+    assert (
+        _store_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            {
+                "stems": {"bass": np.zeros(4)},
+                "sr": 22050,
+                "stem_role_types": {"bass": "percussion"},
+                "separation": {},
+            },
         )
         is False
     )
@@ -832,6 +873,17 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
         _stem_separation_worker("/tmp/audio.wav", fake_queue, "/tmp/stems.npz")
     assert fake_queue.items == [("runtime_error", "Stem separation returned invalid stems.")]
 
+    fake_queue = FakeQueue()
+    with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
+        separator_class.return_value.separate.return_value = {
+            "stems": {"bass": np.zeros(4)},
+            "stem_role_types": {"bass": "percussion"},
+        }
+        _stem_separation_worker("/tmp/audio.wav", fake_queue, "/tmp/stems.npz")
+    assert fake_queue.items == [
+        ("runtime_error", "Stem separation returned invalid stem role metadata.")
+    ]
+
 
 def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) -> None:
     """Ensure worker handoff avoids queueing full stem arrays when a file path exists."""
@@ -852,6 +904,10 @@ def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) ->
                 "bass": np.ones(4),
             },
             "sample_rate": 22050,
+            "stem_role_types": {
+                "vocals": "vocal",
+                "bass": "instrument",
+            },
             "duration_seconds": 1.0,
             "chunk_count": 1,
             "separation_notes": "Separated test stems.",
@@ -864,6 +920,7 @@ def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) ->
     assert isinstance(payload, dict)
     assert payload["arraysPath"] == str(arrays_path)
     assert payload["stemKeys"] == ["vocals", "bass"]
+    assert payload["stemRoleTypes"] == {"vocals": "vocal", "bass": "instrument"}
     assert "stems" not in payload
     with np.load(arrays_path, allow_pickle=False) as archive:
         assert archive["stem_bass"].shape == (4,)
@@ -921,6 +978,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
         "sampleRate": 22050,
         "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "ok"},
         "stemKeys": ["bass"],
+        "stemRoleTypes": {"bass": "instrument"},
     }
     with patch(
         "bandscope_analysis.api._multiprocessing_context",
@@ -929,6 +987,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
         loaded = _run_stem_separation_with_timeout("/tmp/audio.wav")
     assert loaded["sr"] == 22050
     assert loaded["stems"]["bass"].shape == (4,)
+    assert loaded["stem_role_types"] == {"bass": "instrument"}
     assert not arrays_path.with_suffix(".json").exists()
 
     invalid_file_payloads = [
@@ -939,6 +998,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
                 "sampleRate": 22050,
                 "separation": {},
                 "stemKeys": ["bass"],
+                "stemRoleTypes": {"bass": "instrument"},
             },
             "Stem separation returned invalid stem arrays.",
         ),
@@ -948,6 +1008,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
                 "sampleRate": 22050,
                 "separation": {},
                 "stemKeys": ["bass"],
+                "stemRoleTypes": {"bass": "instrument"},
             },
             "Stem separation returned invalid stem arrays.",
         ),
@@ -980,6 +1041,56 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
                 assert str(error)
             else:
                 raise AssertionError(f"Expected {expected_error.__name__}")
+
+
+def test_build_local_audio_features_preserves_file_envelope_stem_roles(tmp_path) -> None:
+    """Ensure temp-file stem handoff returns the same feature schema as in-memory separation."""
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": ["bass-guitar"],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+            "tempRoot": str(tmp_path / "temp"),
+        }
+    )
+    file_handoff_features = {
+        "stems": {"bass": np.ones(4)},
+        "sr": 22050,
+        "stem_role_types": {"bass": "instrument"},
+        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "ok"},
+    }
+
+    with patch(
+        "bandscope_analysis.api._run_stem_separation_with_timeout",
+        return_value=file_handoff_features,
+    ) as run_stem_separation:
+        loaded = _build_local_audio_features(request)
+
+    assert loaded == file_handoff_features
+    assert run_stem_separation.call_args.kwargs["arrays_path"] == _stem_work_arrays_path(request)
+
+    legacy_file_handoff_features = {
+        "stems": {"vocals": np.ones(4)},
+        "sr": 22050,
+        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "ok"},
+    }
+    with patch(
+        "bandscope_analysis.api._run_stem_separation_with_timeout",
+        return_value=legacy_file_handoff_features,
+    ):
+        loaded_legacy = _build_local_audio_features(request)
+
+    assert loaded_legacy == {
+        **legacy_file_handoff_features,
+        "stem_role_types": {"vocals": "vocal"},
+    }
 
 
 def test_stem_separation_process_helper_handles_empty_worker_exit() -> None:
