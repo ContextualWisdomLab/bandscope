@@ -228,16 +228,13 @@ export function App() {
       return;
     }
 
-    const timer = window.setInterval(() => {
+    const timer = window.setTimeout(() => {
       setRenderedProgressPercent((current) => {
         const base = current ?? 0;
-        if (base >= targetPercent) {
-          return targetPercent;
-        }
         return Math.min(targetPercent, base + 1);
       });
     }, 20);
-    return () => window.clearInterval(timer);
+    return () => window.clearTimeout(timer);
   }, [jobStatus?.progressPercent, jobStatus?.state, renderedProgressPercent]);
 
   useEffect(() => {
