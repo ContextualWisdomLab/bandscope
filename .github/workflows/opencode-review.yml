@@ -1040,6 +1040,7 @@ jobs:
               printf '%s\n\n' "$findings"
               printf '## Verification\n\n'
               printf -- '- Review source: independent OpenCode review of the current checkout, focused changed hunks, and current-head GitHub Check evidence.\n'
+              printf -- '- Structural exploration: mandatory before any conclusion; use CodeGraph first when available, otherwise focused local source/diff inspection is required.\n'
               printf -- '- Result: REQUEST_CHANGES\n'
               printf -- '- Reason: %s\n\n' "$reason"
               printf '## Gate evidence\n\n'
@@ -1895,6 +1896,7 @@ jobs:
                 "## Verification" \
                 "" \
                 "- Review source: independent OpenCode review of the current checkout, focused changed hunks, and current-head GitHub Check evidence." \
+                "- Structural exploration: completed before approval; if structural exploration, changed-file inspection, or evidence completeness is missing, OpenCode must not approve." \
                 "- Result: APPROVE" \
                 "- Reason: ${reason}" \
                 "" \
