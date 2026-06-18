@@ -65,7 +65,7 @@ if [ -z "$CONTROL_JSON" ]; then
 fi
 
 TMP_JSON="$(mktemp)"
-trap 'rm -f "$TMP_JSON"' EXIT
+trap 'rm -f "$TMP_JSON" "${TMP_JSON}.normalized"' EXIT
 printf '%s\n' "$CONTROL_JSON" >"$TMP_JSON"
 
 if ! jq -e . "$TMP_JSON" >/dev/null 2>&1; then
@@ -77,6 +77,11 @@ CONTROL_HEAD_SHA="$(jq -r '.head_sha // empty' "$TMP_JSON")"
 CONTROL_RUN_ID="$(jq -r '.run_id // empty' "$TMP_JSON")"
 CONTROL_RUN_ATTEMPT="$(jq -r '.run_attempt // empty' "$TMP_JSON")"
 RESULT="$(jq -r '.result // empty' "$TMP_JSON")"
+
+if [ "$RESULT" = "APPROVE" ]; then
+  jq '.findings = (.findings // [])' "$TMP_JSON" >"${TMP_JSON}.normalized"
+  mv "${TMP_JSON}.normalized" "$TMP_JSON"
+fi
 
 if [ "$CONTROL_HEAD_SHA" != "$EXPECTED_HEAD_SHA" ]; then
   echo "SHA_MISMATCH"
@@ -120,6 +125,47 @@ if ! jq -e '
     and (.suggested_diff | type == "string" and length > 0)
     and ((.suggested_diff | ascii_downcase) as $d | (($d | startswith("n/a")) | not) and (($d | startswith("cannot provide diff")) | not))
   )
+' "$TMP_JSON" >/dev/null; then
+  echo "NO_CONCLUSION"
+  exit 4
+fi
+
+if ! jq -e '
+  def admits_missing_structural_review:
+    ((.reason + "\n" + .summary) | ascii_downcase) as $text
+    | (
+      ($text | contains("structural exploration was not possible"))
+      or ($text | contains("structural exploration not possible"))
+      or ($text | contains("structural exploration is not required"))
+      or ($text | contains("structural exploration not required"))
+      or ($text | contains("structural analysis is not required"))
+      or ($text | contains("structural analysis not required"))
+      or ($text | contains("structural review is not required"))
+      or ($text | contains("structural review not required"))
+      or ($text | contains("no structural exploration required"))
+      or ($text | contains("no structural analysis required"))
+      or ($text | contains("no structural review required"))
+      or ($text | contains("structural exploration is unnecessary"))
+      or ($text | contains("structural analysis is unnecessary"))
+      or ($text | contains("structural review is unnecessary"))
+      or ($text | contains("could not be reviewed"))
+      or ($text | contains("could not inspect"))
+      or ($text | contains("could not be inspected"))
+      or ($text | contains("could not access changed files"))
+      or ($text | contains("could not access the changed files"))
+      or ($text | contains("could not access source files"))
+      or ($text | contains("could not access the source files"))
+      or ($text | contains("could not access required files"))
+      or ($text | contains("could not access required evidence"))
+      or ($text | contains("file access issues"))
+      or ($text | contains("file inaccessibility"))
+      or ($text | contains("evidence was truncated"))
+      or ($text | contains("not provided in evidence"))
+      or ($text | contains("truncated evidence"))
+      or ($text | contains("unable to inspect"))
+      or ($text | contains("insufficient evidence"))
+    );
+  if .result == "APPROVE" then (admits_missing_structural_review | not) else true end
 ' "$TMP_JSON" >/dev/null; then
   echo "NO_CONCLUSION"
   exit 4

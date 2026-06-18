@@ -9,6 +9,46 @@ from pathlib import Path
 from typing import Any
 
 
+STRUCTURAL_FAILURE_PHRASES = (
+    "structural exploration was not possible",
+    "structural exploration not possible",
+    "structural exploration is not required",
+    "structural exploration not required",
+    "structural analysis is not required",
+    "structural analysis not required",
+    "structural review is not required",
+    "structural review not required",
+    "no structural exploration required",
+    "no structural analysis required",
+    "no structural review required",
+    "structural exploration is unnecessary",
+    "structural analysis is unnecessary",
+    "structural review is unnecessary",
+    "could not be reviewed",
+    "could not inspect",
+    "could not be inspected",
+    "could not access changed files",
+    "could not access the changed files",
+    "could not access source files",
+    "could not access the source files",
+    "could not access required files",
+    "could not access required evidence",
+    "file access issues",
+    "file inaccessibility",
+    "evidence was truncated",
+    "not provided in evidence",
+    "truncated evidence",
+    "unable to inspect",
+    "insufficient evidence",
+)
+
+
+def admits_missing_structural_review(reason: str, summary: str) -> bool:
+    """Return whether an approval admits it did not inspect required structure."""
+    combined = f"{reason}\n{summary}".casefold()
+    return any(phrase in combined for phrase in STRUCTURAL_FAILURE_PHRASES)
+
+
 def valid_control(
     value: Any,
     *,
@@ -35,13 +75,19 @@ def valid_control(
         return None
     if not isinstance(value.get("summary"), str) or not value["summary"].strip():
         return None
+    reason = value["reason"].strip()
+    summary = value["summary"].strip()
 
     findings = value.get("findings")
+    if findings is None and result == "APPROVE":
+        findings = []
     if not isinstance(findings, list):
         return None
     if result == "APPROVE" and findings:
         return None
     if result == "REQUEST_CHANGES" and not findings:
+        return None
+    if result == "APPROVE" and admits_missing_structural_review(reason, summary):
         return None
 
     required_finding_fields = (
@@ -68,8 +114,8 @@ def valid_control(
         "run_id": value["run_id"],
         "run_attempt": value["run_attempt"],
         "result": result,
-        "reason": value["reason"],
-        "summary": value["summary"],
+        "reason": reason,
+        "summary": summary,
         "findings": findings,
     }
 

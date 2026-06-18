@@ -1,5 +1,5 @@
 import { useState, useMemo, memo } from "react";
-import type { ProjectBootstrapSummary, RehearsalSong } from "@bandscope/shared-types";
+import type { ProjectBootstrapSummary, RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
@@ -93,30 +93,27 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
-  const allRoles = useMemo(() => {
-    const roleMap = new Map<string, string>();
+  const roleMap = useMemo(() => {
+    const map = new Map<string, RehearsalRole>();
     song.sections.forEach(section => {
       section.roles.forEach(role => {
-        if (!roleMap.has(role.id)) {
-          roleMap.set(role.id, role.name);
+        if (!map.has(role.id)) {
+          map.set(role.id, role);
         }
       });
     });
-    return Array.from(roleMap.entries()).map(([id, name]) => ({ id, name }));
+    return map;
   }, [song]);
-  const activeRoleDetails = useMemo(
-    () => {
-      for (const section of song.sections) {
-        for (const role of section.roles) {
-          if (role.id === activeRole) {
-            return role;
-          }
-        }
-      }
-      return undefined;
-    },
-    [activeRole, song]
-  );
+
+  const allRoles = useMemo(() => {
+    return Array.from(roleMap.values()).map(role => ({ id: role.id, name: role.name }));
+  }, [roleMap]);
+
+  // Performance: use the cached roleMap so activeRoleDetails does not rescan sections and roles on every render.
+  const activeRoleDetails = useMemo(() => {
+    if (!activeRole) return undefined;
+    return roleMap.get(activeRole);
+  }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
 
   /** Documented. */
