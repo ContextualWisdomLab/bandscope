@@ -130,6 +130,35 @@ if ! jq -e '
   exit 4
 fi
 
+if ! jq -e '
+  def admits_missing_structural_review:
+    ((.reason + "\n" + .summary) | ascii_downcase) as $text
+    | (
+      ($text | contains("structural exploration was not possible"))
+      or ($text | contains("structural exploration not possible"))
+      or ($text | contains("could not be reviewed"))
+      or ($text | contains("could not inspect"))
+      or ($text | contains("could not be inspected"))
+      or ($text | contains("could not access changed files"))
+      or ($text | contains("could not access the changed files"))
+      or ($text | contains("could not access source files"))
+      or ($text | contains("could not access the source files"))
+      or ($text | contains("could not access required files"))
+      or ($text | contains("could not access required evidence"))
+      or ($text | contains("file access issues"))
+      or ($text | contains("file inaccessibility"))
+      or ($text | contains("evidence was truncated"))
+      or ($text | contains("not provided in evidence"))
+      or ($text | contains("truncated evidence"))
+      or ($text | contains("unable to inspect"))
+      or ($text | contains("insufficient evidence"))
+    );
+  if .result == "APPROVE" then (admits_missing_structural_review | not) else true end
+' "$TMP_JSON" >/dev/null; then
+  echo "NO_CONCLUSION"
+  exit 4
+fi
+
 SOURCE_ROOT="${GITHUB_WORKSPACE:-$PWD}"
 if ! python3 - "$SOURCE_ROOT" "$TMP_JSON" <<'PY'
 from __future__ import annotations
