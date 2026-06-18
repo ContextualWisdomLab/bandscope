@@ -4884,7 +4884,8 @@ def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
     assert "def opencode_review_agent_status:" in workflow
     assert '$context == "coderabbit"' in workflow
     assert '$context == "copilot pull request reviewer"' in workflow
-    assert workflow.count("select(opencode_review_agent_status | not)") >= 3
+    assert "current_peer_checks_still_running" not in workflow
+    assert workflow.count("select(opencode_review_agent_status | not)") >= 2
 
 
 def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
