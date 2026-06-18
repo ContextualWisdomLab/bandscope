@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from ..sections.utils import validate_section
+from .activity import compute_handoffs, detect_stem_activity, map_stems_to_roles
 from .model import (
     CueAnchorKind,
     PartGraphNode,
@@ -36,6 +37,10 @@ class RoleExtractor:
     ) -> RoleExtractionResult:
         """Extract roles and their topology per section.
 
+        When audio_features includes stems and boundaries, real stem activity
+        detection is used to determine which roles are active in each section.
+        Falls back to heuristic-based topology when real stems are unavailable.
+
         Args:
             sections: List of section dicts (must contain 'id').
             audio_features: Optional audio features to inform extraction.
@@ -48,20 +53,46 @@ class RoleExtractor:
         features = audio_features or {}
         stems = features.get("stems", {})
         sr = features.get("sr", 22050)
+        boundaries: list[tuple[float, float]] = features.get("boundaries", [])
 
         vocal_range, vocal_chord, bass_range, bass_chord = self._extract_features(stems, sr)
         roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range)
 
-        # Simple mock implementation for testing/demonstration purposes
+        # Use real stem activity detection when we have stems and boundaries
+        activity_maps: list[dict[str, bool]] | None = None
+        if stems and boundaries and len(boundaries) == len(sections):
+            try:
+                stem_activity = detect_stem_activity(stems, boundaries, sr)
+                activity_maps = [map_stems_to_roles(sa) for sa in stem_activity]
+            except Exception as e:
+                logger.warning("Stem activity detection failed, using fallback: %s", e)
+                activity_maps = None
+
         for i, section in enumerate(sections):
             section_id = validate_section(section, i, logger)
 
-            topology = self._build_topology(section_id, i == 0, roles)
+            if activity_maps is not None:
+                # Real activity-based topology
+                current_activity = activity_maps[i]
+                next_activity = activity_maps[i + 1] if i + 1 < len(activity_maps) else None
+                topology = self._build_activity_topology(
+                    section_id, roles, current_activity, next_activity
+                )
+            else:
+                # Fallback to heuristic-based topology
+                topology = self._build_topology(section_id, i == 0, roles)
+
             topologies.append(topology)
+
+        extraction_method = (
+            "Extracted roles from real stem activity detection."
+            if activity_maps is not None
+            else "Extracted roles and computed handoffs."
+        )
 
         return {
             "topologies": topologies,
-            "extraction_notes": "Extracted roles and computed handoffs.",
+            "extraction_notes": extraction_method,
         }
 
     def _extract_features(
@@ -128,7 +159,7 @@ class RoleExtractor:
         vocal_chord: str,
         vocal_range: RangeSummary,
     ) -> dict[str, RehearsalRole]:
-        """Build the 5 mock rehearsal roles and compute their priorities."""
+        """Build the 5 rehearsal roles and compute their priorities."""
         bass_role: RehearsalRole = {
             "id": "bass-guitar",
             "name": "Bass Guitar",
@@ -280,6 +311,50 @@ class RoleExtractor:
             "keys_right": keys_role,
             "vocal": vocal_role,
             "acoustic_guitar": acoustic_guitar_role,
+        }
+
+    def _build_activity_topology(
+        self,
+        section_id: str,
+        roles: dict[str, RehearsalRole],
+        role_activity: dict[str, bool],
+        next_role_activity: dict[str, bool] | None,
+    ) -> SectionRoleTopology:
+        """Build topology from real stem activity detection."""
+        handoffs = compute_handoffs(role_activity, next_role_activity)
+
+        # Map role_id to role key in the roles dict
+        role_id_to_key = {
+            "bass-guitar": "bass",
+            "keys-left": "keys_left",
+            "keys-right": "keys_right",
+            "lead-vocal": "vocal",
+            "acoustic-guitar": "acoustic_guitar",
+        }
+
+        active_roles: list[RehearsalRole] = []
+        part_graph: list[PartGraphNode] = []
+
+        for role_id, role_key in role_id_to_key.items():
+            is_active = role_activity.get(role_id, False)
+            handoff_to, handoff_from = handoffs.get(role_id, ([], []))
+
+            if is_active:
+                active_roles.append(roles[role_key])
+
+            part_graph.append(
+                {
+                    "role_id": role_id,
+                    "is_active": is_active,
+                    "handoff_to": handoff_to,
+                    "handoff_from": handoff_from,
+                }
+            )
+
+        return {
+            "section_id": section_id,
+            "active_roles": active_roles,
+            "part_graph": part_graph,
         }
 
     def _build_topology(
