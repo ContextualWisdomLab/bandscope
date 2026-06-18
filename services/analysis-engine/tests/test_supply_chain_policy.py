@@ -14,6 +14,22 @@ import pytest
 from conftest import load_module
 
 
+OPTIONAL_STRUCTURAL_REVIEW_PHRASES = (
+    "structural exploration is not required",
+    "structural exploration not required",
+    "structural analysis is not required",
+    "structural analysis not required",
+    "structural review is not required",
+    "structural review not required",
+    "no structural exploration required",
+    "no structural analysis required",
+    "no structural review required",
+    "structural exploration is unnecessary",
+    "structural analysis is unnecessary",
+    "structural review is unnecessary",
+)
+
+
 def test_supply_chain_check_requires_multi_arch_runner_labels(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -5175,10 +5191,11 @@ def test_opencode_normalizer_rejects_optional_structural_review_variants(
         "opencode_review_normalize_optional_structure",
     )
 
-    for phrase in (
-        "no structural review required",
-        "structural review is unnecessary",
-    ):
+    assert set(OPTIONAL_STRUCTURAL_REVIEW_PHRASES).issubset(
+        normalizer.STRUCTURAL_FAILURE_PHRASES
+    )
+
+    for phrase in OPTIONAL_STRUCTURAL_REVIEW_PHRASES:
         output_file = tmp_path / f"{phrase.replace(' ', '-')}.md"
         original_output = "\n".join(
             [
@@ -5256,10 +5273,7 @@ def test_opencode_review_gate_rejects_optional_structural_review_variants(
     """Ensure approval gate rejects optional structural-review phrasing."""
     repo_root = Path(__file__).resolve().parents[3]
 
-    for phrase in (
-        "no structural review required",
-        "structural review is unnecessary",
-    ):
+    for phrase in OPTIONAL_STRUCTURAL_REVIEW_PHRASES:
         comment_file = tmp_path / f"{phrase.replace(' ', '-')}.md"
         normalized_file = tmp_path / f"{phrase.replace(' ', '-')}.json"
         comment_file.write_text(
