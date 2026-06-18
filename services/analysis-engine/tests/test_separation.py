@@ -331,147 +331,53 @@ def test_audio_stem_separator_rejects_invalid_json_model_profile(tmp_path) -> No
         )
 
 
-def test_audio_stem_separator_rejects_non_allowlisted_model_profile_url() -> None:
-    """Ensure model profile downloads require allowlisted HTTPS origins."""
-    with pytest.raises(ValueError, match="not allowlisted"):
+def test_audio_stem_separator_rejects_missing_local_model_profile(tmp_path) -> None:
+    """Ensure missing local model profiles fail without leaking parent paths."""
+    profile_path = tmp_path / "missing-profile.json"
+
+    with pytest.raises(FileNotFoundError, match="Model profile not found: missing-profile.json"):
         AudioStemSeparator(
             AudioSeparationConfig(
                 target_sample_rate=8_000,
-                model_profile_url="http://example.com/profile.json",
+                model_profile_path=str(profile_path),
                 model_profile_sha256="0" * 64,
             )
         )
 
 
-def test_audio_stem_separator_rejects_profile_url_without_path() -> None:
-    """Ensure profile URLs include an explicit file path."""
-    with pytest.raises(ValueError, match="must include a file path"):
+def test_audio_stem_separator_rejects_invalid_band_profile(tmp_path) -> None:
+    """Ensure profile band ordering is validated before use."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        '{"bassCutoffHz": 400.0, "vocalLowHz": 300.0, "vocalHighHz": 350.0, "drumLowHz": 350.0}',
+        encoding="utf-8",
+    )
+    checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="invalid band ordering"):
         AudioStemSeparator(
             AudioSeparationConfig(
                 target_sample_rate=8_000,
-                model_profile_url="https://github.com",
-                model_profile_sha256="0" * 64,
+                model_profile_path=str(profile_path),
+                model_profile_sha256=checksum,
             )
         )
 
 
-def test_audio_stem_separator_requires_checksum_for_model_profile_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Ensure remote model profile URLs require explicit checksum pinning."""
-
-    class _Response:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return None
-
-        def read(self, *_args):
-            return b"{}"
-
-    monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.urlopen",
-        lambda *args, **kwargs: _Response(),
+def test_audio_stem_separator_rejects_non_finite_band_profile(tmp_path) -> None:
+    """Ensure non-finite profile values are rejected before use."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        '{"bassCutoffHz": NaN, "vocalLowHz": 300.0, "vocalHighHz": 350.0, "drumLowHz": 350.0}',
+        encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="model_profile_sha256 is required"):
+    checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="non-finite band value"):
         AudioStemSeparator(
             AudioSeparationConfig(
                 target_sample_rate=8_000,
-                model_profile_url="https://github.com/Seongho-Bae/bandscope/profile.json",
-            )
-        )
-
-
-def test_audio_stem_separator_downloads_and_verifies_model_profile(
-    tmp_path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Ensure allowlisted profile downloads are checksum-verified before use."""
-    payload = b'{"bassCutoffHz": 200.0, "drumLowHz": 2000.0}'
-    checksum = hashlib.sha256(payload).hexdigest()
-
-    class _Response:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return None
-
-        def read(self, *_args):
-            return payload
-
-    monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.urlopen",
-        lambda *args, **kwargs: _Response(),
-    )
-    monkeypatch.setattr("bandscope_analysis.separation.audio_separator.Path.home", lambda: tmp_path)
-    separator = AudioStemSeparator(
-        AudioSeparationConfig(
-            target_sample_rate=8_000,
-            model_profile_url="https://github.com/Seongho-Bae/bandscope/profile.json",
-            model_profile_sha256=checksum,
-        )
-    )
-    assert separator._bass_cutoff_hz == pytest.approx(200.0)
-
-
-def test_audio_stem_separator_rejects_oversized_downloaded_model_profile(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Ensure downloaded model profiles are bounded to prevent memory abuse."""
-    payload = b"{" + (b"x" * 130_000) + b"}"
-
-    class _Response:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return None
-
-        def read(self, *_args):
-            return payload
-
-    monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.urlopen",
-        lambda *args, **kwargs: _Response(),
-    )
-    with pytest.raises(ValueError, match="maximum allowed size"):
-        AudioStemSeparator(
-            AudioSeparationConfig(
-                target_sample_rate=8_000,
-                model_profile_url="https://github.com/Seongho-Bae/bandscope/profile.json",
-                model_profile_sha256=hashlib.sha256(payload).hexdigest(),
-                max_model_profile_bytes=64 * 1024,
-            )
-        )
-
-
-def test_audio_stem_separator_rejects_downloaded_model_profile_checksum_mismatch(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Ensure downloaded profiles are verified before cache writes."""
-    payload = b'{"bassCutoffHz": 100.0}'
-
-    class _Response:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return None
-
-        def read(self, *_args):
-            return payload
-
-    monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.urlopen",
-        lambda *args, **kwargs: _Response(),
-    )
-    with pytest.raises(ValueError, match="SHA256 mismatch"):
-        AudioStemSeparator(
-            AudioSeparationConfig(
-                target_sample_rate=8_000,
-                model_profile_url="https://github.com/Seongho-Bae/bandscope/profile.json",
-                model_profile_sha256="0" * 64,
+                model_profile_path=str(profile_path),
+                model_profile_sha256=checksum,
             )
         )

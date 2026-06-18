@@ -10,8 +10,6 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import urlparse
-from urllib.request import urlopen
 
 import librosa
 import numpy as np
@@ -43,15 +41,7 @@ class AudioSeparationConfig:
     vocal_high_hz: float = 3_400.0
     drum_low_hz: float = 3_400.0
     model_profile_path: str | None = None
-    model_profile_url: str | None = None
     model_profile_sha256: str | None = None
-    model_cache_dir: str | None = None
-    max_model_profile_bytes: int = 64 * 1024
-    allowed_model_hosts: tuple[str, ...] = (
-        "github.com",
-        "raw.githubusercontent.com",
-        "objects.githubusercontent.com",
-    )
 
 
 class AudioStemSeparator:
@@ -61,8 +51,8 @@ class AudioStemSeparator:
     - Treats the selected audio file as untrusted input.
     - Normalizes the path before use, verifies it is a file, and enforces a
       maximum byte size before decoder handoff.
-    - Uses librosa in-process and optionally downloads model profiles only from
-      an allowlisted HTTPS host with SHA256 verification.
+    - Uses librosa in-process and loads only the bundled profile or a local
+      checksum-pinned profile override.
     - No shell execution or user-controlled output path is introduced.
     - Does not log or persist raw audio, separated stems, or full source paths.
     - Fails with bounded, filename-scoped errors so callers can surface a safe
@@ -211,16 +201,14 @@ class AudioStemSeparator:
         profile_path = _BANDSPLIT_PROFILE_PATH
         expected_sha256 = _BANDSPLIT_PROFILE_SHA256
 
-        if self.config.model_profile_url:
-            if not self.config.model_profile_sha256:
-                raise ValueError("model_profile_sha256 is required when model_profile_url is set")
-            profile_path = self._download_model_profile(
-                self.config.model_profile_url,
-                self.config.model_profile_sha256,
-            )
-            expected_sha256 = self.config.model_profile_sha256
-        elif self.config.model_profile_path:
-            profile_path = Path(self.config.model_profile_path).expanduser().resolve(strict=True)
+        if self.config.model_profile_path:
+            profile_candidate = Path(self.config.model_profile_path).expanduser()
+            try:
+                profile_path = profile_candidate.resolve(strict=True)
+            except FileNotFoundError as error:
+                raise FileNotFoundError(
+                    f"Model profile not found: {profile_candidate.name or 'selected profile'}"
+                ) from error
             if not self.config.model_profile_sha256:
                 raise ValueError("model_profile_sha256 is required when model_profile_path is set")
             expected_sha256 = self.config.model_profile_sha256
@@ -234,39 +222,29 @@ class AudioStemSeparator:
         except json.JSONDecodeError as error:
             raise ValueError("Model profile verification failed: invalid JSON profile") from error
 
-        return {
+        loaded_profile = {
             "bassCutoffHz": float(profile.get("bassCutoffHz", self.config.bass_cutoff_hz)),
             "vocalLowHz": float(profile.get("vocalLowHz", self.config.vocal_low_hz)),
             "vocalHighHz": float(profile.get("vocalHighHz", self.config.vocal_high_hz)),
             "drumLowHz": float(profile.get("drumLowHz", self.config.drum_low_hz)),
         }
+        _validate_profile(loaded_profile)
+        return loaded_profile
 
-    def _download_model_profile(self, model_profile_url: str, expected_sha256: str) -> Path:
-        """Download profile from an allowlisted HTTPS host into a local cache path."""
-        parsed = urlparse(model_profile_url)
-        if parsed.scheme != "https" or parsed.hostname not in self.config.allowed_model_hosts:
-            raise ValueError("Model profile URL is not allowlisted")
-        if not parsed.path:
-            raise ValueError("Model profile URL must include a file path")
 
-        cache_root = (
-            Path(self.config.model_cache_dir).expanduser()
-            if self.config.model_cache_dir
-            else Path.home() / ".cache" / "bandscope" / "model-profiles"
-        )
-        cache_root.mkdir(parents=True, exist_ok=True)
-        cache_key = hashlib.sha256(model_profile_url.encode("utf-8")).hexdigest()
-        target = cache_root / f"{parsed.hostname}-{cache_key}-{Path(parsed.path).name}"
-
-        with urlopen(model_profile_url, timeout=10) as response:  # noqa: S310  # nosec B310
-            payload = response.read(self.config.max_model_profile_bytes + 1)
-        if len(payload) > self.config.max_model_profile_bytes:
-            raise ValueError("Model profile exceeds maximum allowed size")
-        observed_sha256 = hashlib.sha256(payload).hexdigest()
-        if observed_sha256 != expected_sha256:
-            raise ValueError("Model profile verification failed: SHA256 mismatch")
-        target.write_bytes(payload)
-        return target
+def _validate_profile(profile: dict[str, float]) -> None:
+    """Validate band profile values before using them for FFT masks."""
+    values = tuple(profile.values())
+    if not all(np.isfinite(value) for value in values):
+        raise ValueError("Model profile verification failed: non-finite band value")
+    if not (
+        0.0
+        < profile["bassCutoffHz"]
+        < profile["vocalLowHz"]
+        < profile["vocalHighHz"]
+        <= profile["drumLowHz"]
+    ):
+        raise ValueError("Model profile verification failed: invalid band ordering")
 
 
 def _ifft_band(
