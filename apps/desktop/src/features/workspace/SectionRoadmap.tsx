@@ -77,7 +77,12 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t("sectionRoadmapScrollHint")}</span>
       </div>
 
-      <div className="hide-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6 pt-2">
+      <div
+        className="hide-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6 pt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:rounded-xl"
+        role="region"
+        tabIndex={0}
+        aria-label={t("sectionRoadmapTitle")}
+      >
         {song.sections.map((section) => (
           <Card
             key={section.id}
