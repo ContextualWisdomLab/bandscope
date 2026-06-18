@@ -9,6 +9,7 @@ from .model import (
     SeparationResult,
     StemCategory,
     StemDescriptor,
+    StemRoleTypeMap,
 )
 from .separator import StemSeparator
 
@@ -18,6 +19,7 @@ __all__ = [
     "AudioStemArray",
     "AudioStemName",
     "AudioStemPayload",
+    "StemRoleTypeMap",
     "AudioStemSeparator",
     "StemSeparator",
     "StemCategory",

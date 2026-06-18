@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import warnings
@@ -22,6 +24,21 @@ from bandscope_analysis.temporal.analyzer import (
 from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioStemPayload
 
 logger = logging.getLogger(__name__)
+_BANDSPLIT_PROFILE_PATH = Path(__file__).with_name("model_weights") / "bandsplit-v1.json"
+_BANDSPLIT_PROFILE_SHA256 = "ced4ae5c9077aace1694b6fafee1877e46e836e293545dcb6ea06cb579984254"
+_MAX_MODEL_PROFILE_BYTES = 16 * 1024
+
+
+def _read_model_profile_bytes(profile_path: Path) -> bytes:
+    """Read a local model profile with a hard memory bound and safe error text."""
+    try:
+        with profile_path.open("rb") as profile_file:
+            profile_bytes = profile_file.read(_MAX_MODEL_PROFILE_BYTES + 1)
+    except OSError as error:
+        raise ValueError("Model profile verification failed: unreadable profile") from error
+    if len(profile_bytes) > _MAX_MODEL_PROFILE_BYTES:
+        raise ValueError("Model profile verification failed: profile too large")
+    return profile_bytes
 
 
 @dataclass(frozen=True)
@@ -36,6 +53,8 @@ class AudioSeparationConfig:
     vocal_low_hz: float = 300.0
     vocal_high_hz: float = 3_400.0
     drum_low_hz: float = 3_400.0
+    model_profile_path: str | None = None
+    model_profile_sha256: str | None = None
 
 
 class AudioStemSeparator:
@@ -45,8 +64,9 @@ class AudioStemSeparator:
     - Treats the selected audio file as untrusted input.
     - Normalizes the path before use, verifies it is a file, and enforces a
       maximum byte size before decoder handoff.
-    - Uses librosa in-process only; no network access, model download, shell
-      execution, or user-controlled output path is introduced.
+    - Uses librosa in-process and loads only the bundled profile or a local
+      checksum-pinned profile override.
+    - No shell execution or user-controlled output path is introduced.
     - Does not log or persist raw audio, separated stems, or full source paths.
     - Fails with bounded, filename-scoped errors so callers can surface a safe
       analysis failure without leaking local directory structure.
@@ -55,6 +75,11 @@ class AudioStemSeparator:
     def __init__(self, config: AudioSeparationConfig | None = None) -> None:
         """Initialize the local stem separator."""
         self.config = config or AudioSeparationConfig()
+        profile = self._load_model_profile()
+        self._bass_cutoff_hz = profile["bassCutoffHz"]
+        self._vocal_low_hz = profile["vocalLowHz"]
+        self._vocal_high_hz = profile["vocalHighHz"]
+        self._drum_low_hz = profile["drumLowHz"]
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
         """Separate local audio into vocals, bass, drums, and other stems."""
@@ -93,6 +118,12 @@ class AudioStemSeparator:
             "sample_rate": sample_rate,
             "duration_seconds": duration_seconds,
             "chunk_count": chunk_count,
+            "stem_role_types": {
+                "vocals": "vocal",
+                "bass": "instrument",
+                "drums": "instrument",
+                "other": "instrument",
+            },
             "separation_notes": (
                 "Separated selected local audio into vocals, bass, drums, and other "
                 f"across {chunk_count} chunks."
@@ -158,11 +189,9 @@ class AudioStemSeparator:
             np.ndarray[Any, np.dtype[np.floating[Any]]],
             np.fft.rfftfreq(chunk.size, d=1.0 / sample_rate),
         )
-        bass_mask = frequencies <= self.config.bass_cutoff_hz
-        vocal_mask = (frequencies >= self.config.vocal_low_hz) & (
-            frequencies < self.config.vocal_high_hz
-        )
-        drum_mask = frequencies >= self.config.drum_low_hz
+        bass_mask = frequencies <= self._bass_cutoff_hz
+        vocal_mask = (frequencies >= self._vocal_low_hz) & (frequencies < self._vocal_high_hz)
+        drum_mask = frequencies >= self._drum_low_hz
         other_mask = ~(bass_mask | vocal_mask | drum_mask)
 
         return {
@@ -179,6 +208,64 @@ class AudioStemSeparator:
         if copy_length:
             fitted[:copy_length] = audio[:copy_length]
         return cast(AudioStemArray, fitted)
+
+    def _load_model_profile(self) -> dict[str, float]:
+        """Load and verify a bounded local profile for lightweight stem separation."""
+        profile_path = _BANDSPLIT_PROFILE_PATH
+        expected_sha256 = _BANDSPLIT_PROFILE_SHA256
+
+        if self.config.model_profile_path:
+            profile_candidate = Path(self.config.model_profile_path).expanduser()
+            try:
+                profile_path = profile_candidate.resolve(strict=True)
+            except FileNotFoundError as error:
+                raise FileNotFoundError(
+                    f"Model profile not found: {profile_candidate.name or 'selected profile'}"
+                ) from error
+            if not self.config.model_profile_sha256:
+                raise ValueError("model_profile_sha256 is required when model_profile_path is set")
+            expected_sha256 = self.config.model_profile_sha256
+
+        profile_bytes = _read_model_profile_bytes(profile_path)
+        observed_sha256 = hashlib.sha256(profile_bytes).hexdigest()
+        if observed_sha256 != expected_sha256:
+            raise ValueError("Model profile verification failed: SHA256 mismatch")
+
+        try:
+            profile = json.loads(profile_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError("Model profile verification failed: invalid JSON profile") from error
+        if not isinstance(profile, dict):
+            raise ValueError("Model profile verification failed: invalid JSON profile")
+
+        try:
+            loaded_profile = {
+                "bassCutoffHz": float(profile.get("bassCutoffHz", self.config.bass_cutoff_hz)),
+                "vocalLowHz": float(profile.get("vocalLowHz", self.config.vocal_low_hz)),
+                "vocalHighHz": float(profile.get("vocalHighHz", self.config.vocal_high_hz)),
+                "drumLowHz": float(profile.get("drumLowHz", self.config.drum_low_hz)),
+            }
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "Model profile verification failed: invalid numeric band value"
+            ) from error
+        _validate_profile(loaded_profile)
+        return loaded_profile
+
+
+def _validate_profile(profile: dict[str, float]) -> None:
+    """Validate band profile values before using them for FFT masks."""
+    values = tuple(profile.values())
+    if not all(np.isfinite(value) for value in values):
+        raise ValueError("Model profile verification failed: non-finite band value")
+    if not (
+        0.0
+        < profile["bassCutoffHz"]
+        < profile["vocalLowHz"]
+        < profile["vocalHighHz"]
+        <= profile["drumLowHz"]
+    ):
+        raise ValueError("Model profile verification failed: invalid band ordering")
 
 
 def _ifft_band(

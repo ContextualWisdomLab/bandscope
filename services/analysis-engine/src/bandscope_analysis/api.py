@@ -188,6 +188,7 @@ class CachedFeaturePayload(TypedDict):
     sampleRate: int
     separation: dict[str, object]
     stemKeys: list[str]
+    stemRoleTypes: dict[str, str]
 
 
 class StemSeparationTimedOut(RuntimeError):
@@ -646,6 +647,29 @@ def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: Rehe
     return True
 
 
+def _default_stem_role_types(stem_keys: list[str]) -> dict[str, str]:
+    """Return canonical role metadata for known stem names."""
+    return {stem_key: "vocal" if stem_key == "vocals" else "instrument" for stem_key in stem_keys}
+
+
+def _normalize_stem_role_types(
+    stem_role_types: object, stem_keys: list[str]
+) -> dict[str, str] | None:
+    """Validate role metadata while preserving compatibility with older caches."""
+    if stem_role_types is None:
+        return _default_stem_role_types(stem_keys)
+    if not isinstance(stem_role_types, dict):
+        return None
+
+    normalized: dict[str, str] = {}
+    for stem_key in stem_keys:
+        role_type = stem_role_types.get(stem_key)
+        if role_type not in ("vocal", "instrument"):
+            return None
+        normalized[stem_key] = role_type
+    return normalized
+
+
 def _load_cached_local_audio_features(
     metadata_path: Path, arrays_path: Path
 ) -> dict[str, Any] | None:
@@ -667,13 +691,16 @@ def _load_cached_local_audio_features(
     stem_keys = metadata_payload.get("stemKeys")
     if not isinstance(stem_keys, list) or not stem_keys:
         return None
+    if not all(isinstance(stem_key, str) and stem_key for stem_key in stem_keys):
+        return None
+    stem_role_types = _normalize_stem_role_types(metadata_payload.get("stemRoleTypes"), stem_keys)
+    if stem_role_types is None:
+        return None
 
     try:
         with np.load(arrays_path, allow_pickle=False) as stems_archive:
             stems: dict[str, np.ndarray] = {}
             for stem_key in stem_keys:
-                if not isinstance(stem_key, str):
-                    return None
                 archive_key = f"stem_{stem_key}"
                 if archive_key not in stems_archive:
                     return None
@@ -687,6 +714,7 @@ def _load_cached_local_audio_features(
     return {
         "stems": stems,
         "sr": metadata_payload["sampleRate"],
+        "stem_role_types": stem_role_types,
         "separation": {
             "duration_seconds": separation.get("duration_seconds"),
             "chunk_count": separation.get("chunk_count"),
@@ -731,6 +759,11 @@ def _store_cached_local_audio_features(
     if not isinstance(separation, dict):
         return False
 
+    stem_keys = [key.replace("stem_", "", 1) for key in serialized_stems]
+    stem_role_types = _normalize_stem_role_types(audio_features.get("stem_role_types"), stem_keys)
+    if stem_role_types is None:
+        return False
+
     local_source = request["localSource"]
     metadata_payload: CachedFeaturePayload = {
         "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
@@ -745,7 +778,8 @@ def _store_cached_local_audio_features(
             "chunk_count": separation.get("chunk_count"),
             "notes": separation.get("notes"),
         },
-        "stemKeys": [key.replace("stem_", "", 1) for key in serialized_stems],
+        "stemKeys": stem_keys,
+        "stemRoleTypes": stem_role_types,
     }
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
@@ -772,6 +806,12 @@ def _stem_separation_worker(
             serialized_stems = _serialize_stem_arrays(separation_result.get("stems"))
             if not serialized_stems:
                 raise RuntimeError("Stem separation returned invalid stems.")
+            stem_keys = [key.replace("stem_", "", 1) for key in serialized_stems]
+            stem_role_types = _normalize_stem_role_types(
+                separation_result.get("stem_role_types"), stem_keys
+            )
+            if stem_role_types is None:
+                raise RuntimeError("Stem separation returned invalid stem role metadata.")
             output_path = Path(arrays_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with output_path.open("wb") as arrays_file:
@@ -787,7 +827,8 @@ def _stem_separation_worker(
                             "chunk_count": separation_result["chunk_count"],
                             "notes": separation_result["separation_notes"],
                         },
-                        "stemKeys": [key.replace("stem_", "", 1) for key in serialized_stems],
+                        "stemKeys": stem_keys,
+                        "stemRoleTypes": stem_role_types,
                     },
                 )
             )
@@ -867,6 +908,7 @@ def _run_stem_separation_with_timeout(
             "sampleRate": payload.get("sampleRate"),
             "separation": payload.get("separation"),
             "stemKeys": payload.get("stemKeys"),
+            "stemRoleTypes": payload.get("stemRoleTypes"),
         }
         arrays_output_path = Path(str(payload.get("arraysPath", "")))
         metadata_temp = arrays_output_path.with_suffix(".json")
@@ -898,10 +940,18 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
         arrays_path=_stem_work_arrays_path(request),
     )
     if "sample_rate" not in separation_result:
+        if "stem_role_types" not in separation_result and isinstance(
+            separation_result.get("stems"), dict
+        ):
+            stem_keys = list(separation_result["stems"])
+            stem_role_types = _normalize_stem_role_types(None, stem_keys)
+            if stem_role_types is not None:
+                return {**separation_result, "stem_role_types": stem_role_types}
         return separation_result
     return {
         "stems": separation_result["stems"],
         "sr": separation_result["sample_rate"],
+        "stem_role_types": separation_result["stem_role_types"],
         "separation": {
             "duration_seconds": separation_result["duration_seconds"],
             "chunk_count": separation_result["chunk_count"],

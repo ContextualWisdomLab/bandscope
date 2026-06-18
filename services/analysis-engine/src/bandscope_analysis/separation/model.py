@@ -39,6 +39,7 @@ class SeparationResult(TypedDict):
 AudioStemName = Literal["vocals", "bass", "drums", "other"]
 AudioStemArray = NDArray[np.floating[Any]]
 AudioStemPayload = dict[AudioStemName, AudioStemArray]
+StemRoleTypeMap = dict[AudioStemName, Literal["vocal", "instrument"]]
 
 
 class AudioSeparationResult(TypedDict):
@@ -48,4 +49,5 @@ class AudioSeparationResult(TypedDict):
     sample_rate: int
     duration_seconds: float
     chunk_count: int
+    stem_role_types: StemRoleTypeMap
     separation_notes: str
