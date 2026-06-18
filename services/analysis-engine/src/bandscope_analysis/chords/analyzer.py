@@ -115,9 +115,7 @@ class ChordAnalyzer:
             "analysis_notes": f"Analyzed chords for {len(summaries)} sections.",
         }
 
-    def _recognize_from_stems(
-        self, stems: dict[str, np.ndarray], sr: int
-    ) -> list[TrackedChord]:
+    def _recognize_from_stems(self, stems: dict[str, np.ndarray], sr: int) -> list[TrackedChord]:
         """Run chord recognition on harmonic stems (other, bass as fallback).
 
         Args:
@@ -190,9 +188,7 @@ class ChordAnalyzer:
 
         start = time_range.get("start", 0)
         end = time_range.get("end", float("inf"))
-        return [
-            c for c in recognized if c["end_time"] >= start and c["start_time"] <= end
-        ]
+        return [c for c in recognized if c["end_time"] >= start and c["start_time"] <= end]
 
     def _chords_for_section(
         self,
