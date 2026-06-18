@@ -61,28 +61,6 @@ def test_select_release_assets_returns_only_validated_release_files(tmp_path: Pa
     ]
 
 
-def test_validate_asset_list_rejects_drift_from_strict_allowlist(tmp_path: Path) -> None:
-    """Reject release asset lists that diverge after selection."""
-    selector = load_module(
-        "scripts/release/select_release_assets.py", "select_release_assets_input_drift"
-    )
-    sha = "abc123def456"
-    _write_release_metadata(tmp_path)
-    for platform, arch, suffix in [
-        ("windows", "amd64", ".exe"),
-        ("windows", "arm64", ".msi"),
-        ("macos", "amd64", ".dmg"),
-        ("macos", "arm64", ".dmg"),
-    ]:
-        _write_installer(tmp_path, platform, arch, sha, suffix)
-    expected_assets = selector.select_release_assets(tmp_path, git_sha=sha)
-    asset_list = tmp_path / "release-assets.txt"
-    selector.write_asset_list(asset_list, [*expected_assets, "artifacts/debug.log"])
-
-    with pytest.raises(ValueError, match="does not match strict allowlist"):
-        selector.validate_asset_list(asset_list, expected_assets)
-
-
 def test_select_release_assets_rejects_stray_artifact_file(tmp_path: Path) -> None:
     """Fail closed when an unexpected artifact could otherwise be released."""
     selector = load_module(

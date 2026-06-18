@@ -65,7 +65,7 @@ if [ -z "$CONTROL_JSON" ]; then
 fi
 
 TMP_JSON="$(mktemp)"
-trap 'rm -f "$TMP_JSON" "${TMP_JSON}.normalized"' EXIT
+trap 'rm -f "$TMP_JSON"' EXIT
 printf '%s\n' "$CONTROL_JSON" >"$TMP_JSON"
 
 if ! jq -e . "$TMP_JSON" >/dev/null 2>&1; then
@@ -77,11 +77,6 @@ CONTROL_HEAD_SHA="$(jq -r '.head_sha // empty' "$TMP_JSON")"
 CONTROL_RUN_ID="$(jq -r '.run_id // empty' "$TMP_JSON")"
 CONTROL_RUN_ATTEMPT="$(jq -r '.run_attempt // empty' "$TMP_JSON")"
 RESULT="$(jq -r '.result // empty' "$TMP_JSON")"
-
-if [ "$RESULT" = "APPROVE" ]; then
-  jq '.findings = (.findings // [])' "$TMP_JSON" >"${TMP_JSON}.normalized"
-  mv "${TMP_JSON}.normalized" "$TMP_JSON"
-fi
 
 if [ "$CONTROL_HEAD_SHA" != "$EXPECTED_HEAD_SHA" ]; then
   echo "SHA_MISMATCH"
