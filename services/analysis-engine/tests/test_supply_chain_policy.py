@@ -5166,6 +5166,45 @@ def test_opencode_normalizer_rejects_approve_without_structural_review(
     assert output_file.read_text(encoding="utf-8") == original_output
 
 
+def test_opencode_normalizer_rejects_optional_structural_review_variants(
+    tmp_path: Path,
+) -> None:
+    """Ensure optional structural-review phrasing cannot be normalized."""
+    normalizer = load_module(
+        "scripts/ci/opencode_review_normalize_output.py",
+        "opencode_review_normalize_optional_structure",
+    )
+
+    for phrase in (
+        "no structural review required",
+        "structural review is unnecessary",
+    ):
+        output_file = tmp_path / f"{phrase.replace(' ', '-')}.md"
+        original_output = "\n".join(
+            [
+                "review text",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                f'"summary":"{phrase}",'
+                '"findings":[]}',
+            ]
+        )
+        output_file.write_text(original_output, encoding="utf-8")
+
+        result = normalizer.main(
+            [
+                "opencode_review_normalize_output.py",
+                "abc123",
+                "456",
+                "1",
+                str(output_file),
+            ]
+        )
+
+        assert result == 4
+        assert output_file.read_text(encoding="utf-8") == original_output
+
+
 def test_opencode_review_gate_rejects_approve_without_structural_review(
     tmp_path: Path,
 ) -> None:
@@ -5209,6 +5248,56 @@ def test_opencode_review_gate_rejects_approve_without_structural_review(
     assert result.returncode == 4
     assert result.stdout.strip() == "NO_CONCLUSION"
     assert not normalized_file.exists()
+
+
+def test_opencode_review_gate_rejects_optional_structural_review_variants(
+    tmp_path: Path,
+) -> None:
+    """Ensure approval gate rejects optional structural-review phrasing."""
+    repo_root = Path(__file__).resolve().parents[3]
+
+    for phrase in (
+        "no structural review required",
+        "structural review is unnecessary",
+    ):
+        comment_file = tmp_path / f"{phrase.replace(' ', '-')}.md"
+        normalized_file = tmp_path / f"{phrase.replace(' ', '-')}.json"
+        comment_file.write_text(
+            "\n".join(
+                [
+                    "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
+                    "",
+                    "<!-- opencode-review-control-v1",
+                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                    '"result":"APPROVE","reason":"no blockers found",'
+                    f'"summary":"{phrase}",'
+                    '"findings":[]}',
+                    "-->",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [
+                "bash",
+                str(repo_root / "scripts" / "ci" / "opencode_review_approve_gate.sh"),
+                "abc123",
+                "456",
+                "1",
+                str(comment_file),
+                str(normalized_file),
+            ],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 4
+        assert result.stdout.strip() == "NO_CONCLUSION"
+        assert not normalized_file.exists()
 
 
 def test_opencode_normalizer_accepts_completed_local_structural_fallback(
