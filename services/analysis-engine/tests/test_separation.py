@@ -347,6 +347,38 @@ def test_audio_stem_separator_rejects_non_object_model_profile(tmp_path) -> None
         )
 
 
+def test_audio_stem_separator_rejects_unreadable_local_model_profile(tmp_path) -> None:
+    """Ensure unreadable profile paths fail without leaking local parent paths."""
+    profile_path = tmp_path / "profile-dir.json"
+    profile_path.mkdir()
+
+    with pytest.raises(ValueError, match="unreadable profile") as error:
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=str(profile_path),
+                model_profile_sha256="0" * 64,
+            )
+        )
+    assert str(tmp_path) not in str(error.value)
+
+
+def test_audio_stem_separator_rejects_oversized_local_model_profile(tmp_path) -> None:
+    """Ensure model profile overrides have a bounded read size."""
+    profile_path = tmp_path / "large-profile.json"
+    profile_path.write_text(" " * 20_000, encoding="utf-8")
+    checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="profile too large"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=str(profile_path),
+                model_profile_sha256=checksum,
+            )
+        )
+
+
 def test_audio_stem_separator_rejects_missing_local_model_profile(tmp_path) -> None:
     """Ensure missing local model profiles fail without leaking parent paths."""
     profile_path = tmp_path / "missing-profile.json"
@@ -357,6 +389,25 @@ def test_audio_stem_separator_rejects_missing_local_model_profile(tmp_path) -> N
                 target_sample_rate=8_000,
                 model_profile_path=str(profile_path),
                 model_profile_sha256="0" * 64,
+            )
+        )
+
+
+def test_audio_stem_separator_rejects_non_numeric_band_profile(tmp_path) -> None:
+    """Ensure profile numeric coercion failures use bounded verification errors."""
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        '{"bassCutoffHz": "low", "vocalLowHz": 300.0, "vocalHighHz": 350.0, "drumLowHz": 350.0}',
+        encoding="utf-8",
+    )
+    checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="invalid numeric band value"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=str(profile_path),
+                model_profile_sha256=checksum,
             )
         )
 

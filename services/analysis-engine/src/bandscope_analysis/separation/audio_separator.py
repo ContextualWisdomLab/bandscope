@@ -26,6 +26,19 @@ from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioSt
 logger = logging.getLogger(__name__)
 _BANDSPLIT_PROFILE_PATH = Path(__file__).with_name("model_weights") / "bandsplit-v1.json"
 _BANDSPLIT_PROFILE_SHA256 = "ced4ae5c9077aace1694b6fafee1877e46e836e293545dcb6ea06cb579984254"
+_MAX_MODEL_PROFILE_BYTES = 16 * 1024
+
+
+def _read_model_profile_bytes(profile_path: Path) -> bytes:
+    """Read a local model profile with a hard memory bound and safe error text."""
+    try:
+        with profile_path.open("rb") as profile_file:
+            profile_bytes = profile_file.read(_MAX_MODEL_PROFILE_BYTES + 1)
+    except OSError as error:
+        raise ValueError("Model profile verification failed: unreadable profile") from error
+    if len(profile_bytes) > _MAX_MODEL_PROFILE_BYTES:
+        raise ValueError("Model profile verification failed: profile too large")
+    return profile_bytes
 
 
 @dataclass(frozen=True)
@@ -213,7 +226,7 @@ class AudioStemSeparator:
                 raise ValueError("model_profile_sha256 is required when model_profile_path is set")
             expected_sha256 = self.config.model_profile_sha256
 
-        profile_bytes = profile_path.read_bytes()
+        profile_bytes = _read_model_profile_bytes(profile_path)
         observed_sha256 = hashlib.sha256(profile_bytes).hexdigest()
         if observed_sha256 != expected_sha256:
             raise ValueError("Model profile verification failed: SHA256 mismatch")
@@ -225,12 +238,17 @@ class AudioStemSeparator:
         if not isinstance(profile, dict):
             raise ValueError("Model profile verification failed: invalid JSON profile")
 
-        loaded_profile = {
-            "bassCutoffHz": float(profile.get("bassCutoffHz", self.config.bass_cutoff_hz)),
-            "vocalLowHz": float(profile.get("vocalLowHz", self.config.vocal_low_hz)),
-            "vocalHighHz": float(profile.get("vocalHighHz", self.config.vocal_high_hz)),
-            "drumLowHz": float(profile.get("drumLowHz", self.config.drum_low_hz)),
-        }
+        try:
+            loaded_profile = {
+                "bassCutoffHz": float(profile.get("bassCutoffHz", self.config.bass_cutoff_hz)),
+                "vocalLowHz": float(profile.get("vocalLowHz", self.config.vocal_low_hz)),
+                "vocalHighHz": float(profile.get("vocalHighHz", self.config.vocal_high_hz)),
+                "drumLowHz": float(profile.get("drumLowHz", self.config.drum_low_hz)),
+            }
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "Model profile verification failed: invalid numeric band value"
+            ) from error
         _validate_profile(loaded_profile)
         return loaded_profile
 
