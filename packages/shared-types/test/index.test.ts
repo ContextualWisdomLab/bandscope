@@ -1,3 +1,4 @@
+import fc from "fast-check";
 import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
@@ -5,12 +6,15 @@ import {
   createDefaultProjectSummary,
   createDemoRehearsalSong,
   isRehearsalSong,
+  isProjectSummary,
   isAnalysisJobStatus,
   parseAnalysisJobStatus,
   parseLocalAudioSource,
   parseMetadataHandoffArtifact,
+  parseProjectSummary,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
+  validateProjectSummary,
   isMetadataHandoffArtifact,
   isRehearsalWorkspace,
   parseRehearsalWorkspace,
@@ -21,6 +25,7 @@ import {
   parseAnalysisJobRequest,
   type AnalysisJobRequest,
   type LocalAudioSource,
+  type ProjectSummary,
   type RehearsalSong,
   MAX_SECTION_TIME_SECONDS,
   SUPPORTED_AUDIO_FORMATS
@@ -67,6 +72,61 @@ describe("shared type helpers", () => {
       status: "idle",
       supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
     });
+  });
+
+  it("validates project summaries at process boundaries", () => {
+    const statuses: ProjectSummary["status"][] = ["idle", "running", "done", "failed"];
+
+    for (const status of statuses) {
+      const summary: ProjectSummary = {
+        id: `project-${status}`,
+        title: `Project ${status}`,
+        status,
+        supportedAudioFormats: ["wav", "mp3"]
+      };
+
+      expect(validateProjectSummary(summary)).toBeNull();
+      expect(isProjectSummary(summary)).toBe(true);
+      expect(parseProjectSummary(summary)).toEqual(summary);
+    }
+
+    const validSummary: ProjectSummary = {
+      id: "project-1",
+      title: "Demo Song",
+      status: "running",
+      supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
+    };
+    const sparseFormats = {
+      ...validSummary,
+      supportedAudioFormats: new Array(1)
+    };
+
+    expect(parseProjectSummary(validSummary)).toEqual(validSummary);
+    expect(isProjectSummary({ ...validSummary, status: "queued" })).toBe(false);
+    expect(validateProjectSummary(null)).toContain("root");
+    expect(() => parseProjectSummary({ ...validSummary, id: "   " })).toThrow("id");
+    expect(() => parseProjectSummary({ ...validSummary, title: "" })).toThrow("title");
+    expect(() => parseProjectSummary({ ...validSummary, status: "queued" })).toThrow("status");
+    expect(() => parseProjectSummary({ ...validSummary, supportedAudioFormats: "wav" })).toThrow("supportedAudioFormats");
+    expect(() => parseProjectSummary(sparseFormats)).toThrow("supportedAudioFormats");
+    expect(() => parseProjectSummary({ ...validSummary, supportedAudioFormats: ["ogg"] })).toThrow("supportedAudioFormats[0]");
+    expect(() => parseProjectSummary({ ...validSummary, extraField: true })).toThrow("extraField");
+  });
+
+  it("property-checks supported local audio sources", () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          sourcePath: fc.string({ minLength: 1 }).filter((value) => value.trim().length > 0),
+          fileName: fc.string({ minLength: 1 }).filter((value) => value.trim().length > 0),
+          extension: fc.constantFrom(...SUPPORTED_AUDIO_FORMATS),
+          fileSizeBytes: fc.integer({ min: 1, max: Number.MAX_SAFE_INTEGER })
+        }),
+        (source) => {
+          expect(parseLocalAudioSource(source)).toEqual(source);
+        }
+      )
+    );
   });
 
   it("validates analysis job requests and status envelopes", () => {
@@ -581,10 +641,17 @@ describe("shared type helpers", () => {
       ],
       exportSummary: {
         format: "cue-sheet"
+      },
+      collaboration: {
+        syncMode: "planned_cloud"
       }
     });
 
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
+    expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
+    expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.collaboration?.assignments).toHaveLength(2);
+    expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
       field: "harmony",
       source: "user",
@@ -599,11 +666,13 @@ describe("shared type helpers", () => {
     const second = createDemoRehearsalSong();
 
     first.sections[0]?.roles[2]?.manualOverrides?.splice(0, 1);
+    first.collaboration?.assignments.splice(0, 1);
 
     expect(second).not.toBe(first);
     expect(second.sections).not.toBe(first.sections);
     expect(second.sections[0]?.roles).not.toBe(first.sections[0]?.roles);
     expect(second.sections[0]?.roles[2]?.manualOverrides).toHaveLength(1);
+    expect(second.collaboration?.assignments).toHaveLength(2);
   });
 
   it("validates and parses rehearsal song payloads", () => {
@@ -653,9 +722,11 @@ describe("shared type helpers", () => {
 
     const parsed = parseRehearsalSong(song);
     parsed.sections[0]?.roles.splice(0, 1);
+    parsed.collaboration?.comments.splice(0, 1);
 
     expect(parsed.sections[0]?.roles).toHaveLength(2);
     expect(song.sections[0]?.roles).toHaveLength(3);
+    expect(song.collaboration?.comments).toHaveLength(2);
     const legacySong = createDemoRehearsalSong() as unknown as {
       sections: Array<Record<string, unknown>>;
     };
@@ -690,6 +761,12 @@ describe("shared type helpers", () => {
     const badExportSummary = createDemoRehearsalSong() as unknown as {
       exportSummary: unknown;
     };
+    const badCollaborationStatus = createDemoRehearsalSong() as unknown as {
+      collaboration: { assignments: Array<{ status: string }> };
+    };
+    const badRoleExplanation = createDemoRehearsalSong() as unknown as {
+      sections: Array<{ roles: Array<{ harmonicExplanation: unknown }> }>;
+    };
     const missingId = { ...createDemoRehearsalSong(), id: 42 };
     const sparseSections = createDemoRehearsalSong() as unknown as { sections: RehearsalSong["sections"] };
 
@@ -698,6 +775,8 @@ describe("shared type helpers", () => {
     badHeadline.exportSummary.headline = 99;
     badFocusSection.exportSummary.focusSections = ["verse", 7];
     badExportSummary.exportSummary = [];
+    badCollaborationStatus.collaboration.assignments[0]!.status = "done";
+    badRoleExplanation.sections[0]!.roles[0]!.harmonicExplanation = 7;
     sparseSections.sections = new Array(1) as RehearsalSong["sections"];
 
     expect(() => parseRehearsalSong(roleSparse)).toThrow("sections[0].roles");
@@ -705,6 +784,8 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(badHeadline)).toThrow("exportSummary.headline");
     expect(() => parseRehearsalSong(badFocusSection)).toThrow("exportSummary.focusSections[1]");
     expect(() => parseRehearsalSong(badExportSummary)).toThrow("exportSummary");
+    expect(() => parseRehearsalSong(badCollaborationStatus)).toThrow("collaboration.assignments[0].status");
+    expect(() => parseRehearsalSong(badRoleExplanation)).toThrow("sections[0].roles[0].harmonicExplanation");
     expect(() => parseRehearsalSong(missingId)).toThrow("id");
     expect(() => parseRehearsalSong(sparseSections)).toThrow("sections");
     expect(() => parseRehearsalSong({
@@ -1013,6 +1094,18 @@ describe("shared type helpers", () => {
         })
       },
       {
+        message: "sections[0].roles[0].harmonicExplanation",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.harmonicExplanation = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].transpositionPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
         message: "sections[0].roles[2].manualOverrides[0]",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[2]!.manualOverrides[0] = null as never;
@@ -1112,6 +1205,36 @@ describe("shared type helpers", () => {
         message: "exportSummary.focusSections",
         payload: createInvalidSong((song) => {
           song.exportSummary.focusSections = new Array(1) as never;
+        })
+      },
+      {
+        message: "collaboration.syncMode",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.syncMode = "shared_drive" as never;
+        })
+      },
+      {
+        message: "collaboration.syncNote",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.syncNote = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.assignments[0].assignee",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.assignments[0]!.assignee = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.comments[0].status",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.comments[0]!.status = "pending" as never;
+        })
+      },
+      {
+        message: "collaboration.approvals[0].status",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.approvals[0]!.status = "waiting" as never;
         })
       }
     ];

@@ -119,9 +119,34 @@ def write_asset_list(output_path: Path, assets: Iterable[str]) -> None:
     output_path.write_text("\n".join(assets) + "\n", encoding="utf-8")
 
 
+def read_asset_list(input_path: Path) -> list[str]:
+    """Return release asset paths from a previously generated allowlist."""
+    if input_path.is_symlink() or not input_path.is_file():
+        raise ValueError(f"missing release asset list: {input_path.as_posix()}")
+    return [
+        line.strip()
+        for line in input_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def validate_asset_list(input_path: Path, expected_assets: list[str]) -> None:
+    """Raise if a release asset list diverges from the strict allowlist."""
+    actual_assets = read_asset_list(input_path)
+    if actual_assets != expected_assets:
+        raise ValueError(
+            f"release asset list {input_path.as_posix()} does not match strict allowlist"
+        )
+
+
 def main() -> int:
     """Validate release artifacts and write a strict asset list."""
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--input",
+        type=Path,
+        help="Path to an existing asset list to validate against the strict allowlist.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -142,6 +167,10 @@ def main() -> int:
 
     try:
         assets = select_release_assets(args.repo_root, git_sha=args.git_sha)
+        if args.input is not None:
+            validate_asset_list(args.input, assets)
+            if args.output is None:
+                return 0
     except ValueError as exc:
         print(f"Release asset validation failed: {exc}", file=sys.stderr)
         return 1

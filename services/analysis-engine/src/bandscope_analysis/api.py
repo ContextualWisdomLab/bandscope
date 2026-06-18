@@ -4,16 +4,25 @@ from __future__ import annotations
 
 import hashlib
 import json
+import multiprocessing as mp
+import queue
+import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
+
+import numpy as np
 
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
+from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
+FEATURE_CACHE_SCHEMA_VERSION = 1
+STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
 AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
 AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
@@ -171,6 +180,20 @@ class CachedAnalysisPayload(TypedDict):
     result: RehearsalSong
 
 
+class CachedFeaturePayload(TypedDict):
+    """Typed cached feature metadata persisted beside stem arrays."""
+
+    schemaVersion: int
+    source: dict[str, object]
+    sampleRate: int
+    separation: dict[str, object]
+    stemKeys: list[str]
+
+
+class StemSeparationTimedOut(RuntimeError):
+    """Raised when local stem separation exceeds the orchestration timeout."""
+
+
 def build_section_time_range(start: object, end: object) -> SectionTimeRangePayload:
     """Build a section time range that matches the shared Rust u32 timing contract."""
     if (
@@ -293,14 +316,129 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
 
 def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
-    """Return the bootstrap rehearsal song payload for orchestration tests."""
+    """Return the bootstrap rehearsal song payload for orchestration tests.
 
-    # Extract sections using the new pipeline
+    When audio_features includes real stems from separation, this function runs
+    the full integrated pipeline: structural segmentation, stem activity detection,
+    temporal grid fusion, and role extraction. Falls back to the arrangement-based
+    extraction when no real audio features are available.
+    """
+    features = audio_features or {}
+    stems = features.get("stems", {})
+    sr = features.get("sr", 22050)
+    separation_info = features.get("separation", {})
+    duration_seconds = separation_info.get("duration_seconds", 0.0) if separation_info else 0.0
+
+    # --- Integrated pipeline: real segmentation when stems are available ---
+    if stems and duration_seconds > 0:
+        return _build_from_pipeline(stems, sr, duration_seconds, features)
+
+    # --- Fallback: arrangement-based extraction (demo mode) ---
+    return _build_from_arrangement(audio_features)
+
+
+def _build_from_pipeline(
+    stems: dict[str, Any],
+    sr: int,
+    duration_seconds: float,
+    features: dict[str, Any],
+) -> RehearsalSong:
+    """Build a RehearsalSong from the integrated analysis pipeline.
+
+    Pipeline stages:
+    1. Structural segmentation via SSM novelty curve on the mixed audio.
+    2. Stem activity detection per boundary.
+    3. Role extraction with real activity maps and handoffs.
+    4. Temporal grid fusion (section time ranges).
+    """
+    # Reconstruct mix from stems for segmentation
+    mix = _reconstruct_mix(stems)
+    if mix.size == 0:
+        return _build_from_arrangement(features)
+
+    # 1+2. Structural segmentation and boundary detection (single pass)
+    detected_sections, boundaries = segment_with_boundaries(mix, sr, duration_seconds)
+    if not detected_sections:
+        return _build_from_arrangement(features)
+
+    # 3. Role extraction with real stem activity
+    extractor = RoleExtractor()
+    role_result = extractor.extract(
+        detected_sections,
+        {
+            "stems": stems,
+            "sr": sr,
+            "boundaries": boundaries,
+        },
+    )
+
+    # 4. Build final payload sections
+    payload_sections: list[RehearsalSectionPayload] = []
+    focus_sections: list[str] = []
+
+    for i, section in enumerate(detected_sections):
+        # Compute time range from boundaries
+        if i < len(boundaries):
+            start_sec, end_sec = boundaries[i]
+        else:
+            start_sec = 0.0
+            end_sec = duration_seconds
+
+        # Clamp to u32 bounds and convert to integers
+        start_int = max(0, int(start_sec))
+        end_int = max(start_int + 1, int(end_sec))
+        time_range = build_section_time_range(start_int, end_int)
+
+        # Get topology for this section
+        topology = role_result["topologies"][i] if i < len(role_result["topologies"]) else None
+        section_roles = topology["active_roles"] if topology else []
+        section_graph = topology["part_graph"] if topology else []
+
+        payload_sections.append(
+            {
+                "id": section["id"],
+                "label": section["form_label"],
+                "groove": section["groove"],
+                "timeRange": time_range,
+                "confidence": {
+                    "level": section["confidence_level"],
+                    "source": section["confidence_source"],
+                    "notes": section["confidence_notes"],
+                },
+                "roles": cast(list[RehearsalRolePayload], section_roles),
+                "partGraph": section_graph,
+            }
+        )
+
+        # Track high-priority sections for export summary
+        if section["form_label"] in ("chorus", "verse"):
+            if section["form_label"] not in focus_sections:
+                focus_sections.append(section["form_label"])
+
+    if not focus_sections and payload_sections:
+        focus_sections = [payload_sections[0]["label"]]
+
+    # Build export summary from detected structure
+    headline = _build_export_headline(detected_sections)
+
+    return {
+        "id": "analyzed-song",
+        "title": features.get("title", "Analyzed Track"),
+        "sections": payload_sections,
+        "exportSummary": {
+            "format": "cue-sheet",
+            "headline": headline,
+            "focusSections": focus_sections,
+        },
+    }
+
+
+def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
+    """Build a RehearsalSong from the arrangement-based extraction path."""
     arrangement = [{"label": "verse", "groove": "Straight eighths with a late snare feel"}]
     extraction_result = extract_sections(arrangement)
     verse_section = extraction_result["sections"][0]
 
-    # Extract roles
     extractor = RoleExtractor()
     role_result = extractor.extract([verse_section], audio_features)
     verse_topology = role_result["topologies"][0]
@@ -330,6 +468,48 @@ def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> R
             "focusSections": ["verse"],
         },
     }
+
+
+def _reconstruct_mix(stems: dict[str, Any]) -> Any:
+    """Reconstruct a mono mix from separated stems for segmentation."""
+    arrays = []
+    for stem_audio in stems.values():
+        if isinstance(stem_audio, np.ndarray) and stem_audio.size > 0:
+            arrays.append(stem_audio.astype(np.float64))
+
+    if not arrays:
+        return np.array([], dtype=np.float32)
+
+    # Align lengths and sum
+    max_len = max(a.size for a in arrays)
+    mix = np.zeros(max_len, dtype=np.float64)
+    for arr in arrays:
+        mix[: arr.size] += arr
+
+    # Normalize to prevent clipping
+    max_val = np.max(np.abs(mix))
+    if max_val > 0:
+        mix = mix / max_val
+
+    return mix.astype(np.float32)
+
+
+def _build_export_headline(sections: list[Any]) -> str:
+    """Generate an export summary headline from detected sections."""
+    labels = [s["form_label"] for s in sections if isinstance(s, dict)]
+    unique_labels = list(dict.fromkeys(labels))
+
+    if not unique_labels:
+        return "Start with verse entrances before the chorus lift."
+
+    if "chorus" in unique_labels and "verse" in unique_labels:
+        return "Focus on verse-to-chorus transitions and entrances."
+    if "verse" in unique_labels:
+        return "Start with verse entrances before the next section."
+    if "chorus" in unique_labels:
+        return "Nail the chorus entrances and energy lifts."
+
+    return f"Work through the {unique_labels[0]} section entrances first."
 
 
 def _build_job_status(
@@ -388,6 +568,40 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
 
 
+def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
+    """Return metadata + array cache paths for intermediate local-audio features."""
+    analysis_cache_path = _analysis_cache_path(request)
+    if analysis_cache_path is None:
+        return None
+    stem_cache_base = analysis_cache_path.with_suffix("")
+    return (
+        stem_cache_base.with_suffix(".features.json"),
+        stem_cache_base.with_suffix(".features.npz"),
+    )
+
+
+def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
+    """Return an app-temp stem array path for process handoff when available."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+    temp_root = request.get("tempRoot")
+    if not temp_root:
+        return None
+
+    local_source = request["localSource"]
+    key_payload = {
+        "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+        "projectId": request.get("projectId", ""),
+        "sourcePath": local_source["sourcePath"],
+        "fileName": local_source["fileName"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
+    }
+    digest = hashlib.sha256(
+        json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return Path(temp_root) / "stem-work-v1" / f"{digest}.npz"
+
+
 def _load_cached_analysis(path: Path) -> RehearsalSong | None:
     """Load a cached rehearsal result, treating malformed cache as a miss."""
     try:
@@ -432,12 +646,259 @@ def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: Rehe
     return True
 
 
+def _load_cached_local_audio_features(
+    metadata_path: Path, arrays_path: Path
+) -> dict[str, Any] | None:
+    """Load cached stem/features payload, treating malformed files as cache misses."""
+    try:
+        with metadata_path.open("r", encoding="utf-8") as metadata_file:
+            metadata_payload = json.load(metadata_file)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(metadata_payload, dict):
+        return None
+    if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
+        return None
+    if not isinstance(metadata_payload.get("sampleRate"), int):
+        return None
+    separation = metadata_payload.get("separation")
+    if not isinstance(separation, dict):
+        return None
+    stem_keys = metadata_payload.get("stemKeys")
+    if not isinstance(stem_keys, list) or not stem_keys:
+        return None
+
+    try:
+        with np.load(arrays_path, allow_pickle=False) as stems_archive:
+            stems: dict[str, np.ndarray] = {}
+            for stem_key in stem_keys:
+                if not isinstance(stem_key, str):
+                    return None
+                archive_key = f"stem_{stem_key}"
+                if archive_key not in stems_archive:
+                    return None
+                stem_array = stems_archive[archive_key]
+                if not isinstance(stem_array, np.ndarray):
+                    return None
+                stems[stem_key] = stem_array
+    except (OSError, ValueError):
+        return None
+
+    return {
+        "stems": stems,
+        "sr": metadata_payload["sampleRate"],
+        "separation": {
+            "duration_seconds": separation.get("duration_seconds"),
+            "chunk_count": separation.get("chunk_count"),
+            "notes": separation.get("notes"),
+        },
+    }
+
+
+def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
+    """Return validated stem arrays for compressed npz persistence."""
+    if not isinstance(stems, dict) or not stems:
+        return None
+
+    serialized_stems: dict[str, np.ndarray] = {}
+    for stem_name, stem_value in stems.items():
+        if not isinstance(stem_name, str) or not stem_name:
+            return None
+        if not stem_name.isidentifier():
+            return None
+        if not isinstance(stem_value, np.ndarray):
+            return None
+        serialized_stems[f"stem_{stem_name}"] = stem_value
+    return serialized_stems
+
+
+def _store_cached_local_audio_features(
+    metadata_path: Path,
+    arrays_path: Path,
+    request: AnalysisJobRequest,
+    audio_features: dict[str, Any],
+) -> bool:
+    """Persist reusable local-audio features with atomic writes."""
+    if "localSource" not in request:
+        return False
+    serialized_stems = _serialize_stem_arrays(audio_features.get("stems"))
+    sample_rate = audio_features.get("sr")
+    if serialized_stems is None:
+        return False
+    if not isinstance(sample_rate, int):
+        return False
+    separation = audio_features.get("separation")
+    if not isinstance(separation, dict):
+        return False
+
+    local_source = request["localSource"]
+    metadata_payload: CachedFeaturePayload = {
+        "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+        "source": {
+            "fileName": local_source["fileName"],
+            "extension": local_source["extension"],
+            "fileSizeBytes": local_source["fileSizeBytes"],
+        },
+        "sampleRate": sample_rate,
+        "separation": {
+            "duration_seconds": separation.get("duration_seconds"),
+            "chunk_count": separation.get("chunk_count"),
+            "notes": separation.get("notes"),
+        },
+        "stemKeys": [key.replace("stem_", "", 1) for key in serialized_stems],
+    }
+    try:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
+        arrays_temp = arrays_path.with_name(f"{arrays_path.name}.tmp")
+        with metadata_temp.open("w", encoding="utf-8") as metadata_file:
+            json.dump(metadata_payload, metadata_file, separators=(",", ":"))
+        with arrays_temp.open("wb") as arrays_file:
+            np.savez_compressed(arrays_file, **cast(Any, serialized_stems))
+        arrays_temp.replace(arrays_path)
+        metadata_temp.replace(metadata_path)
+    except OSError:
+        return False
+    return True
+
+
+def _stem_separation_worker(
+    source_path: str, result_queue: Any, arrays_path: str | None = None
+) -> None:
+    """Run stem separation in an isolated child process for enforceable timeout."""
+    try:
+        separation_result = AudioStemSeparator().separate(source_path)
+        if arrays_path is not None:
+            serialized_stems = _serialize_stem_arrays(separation_result.get("stems"))
+            if not serialized_stems:
+                raise RuntimeError("Stem separation returned invalid stems.")
+            output_path = Path(arrays_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with output_path.open("wb") as arrays_file:
+                np.savez_compressed(arrays_file, **cast(Any, serialized_stems))
+            result_queue.put(
+                (
+                    "ok_file",
+                    {
+                        "arraysPath": str(output_path),
+                        "sampleRate": separation_result["sample_rate"],
+                        "separation": {
+                            "duration_seconds": separation_result["duration_seconds"],
+                            "chunk_count": separation_result["chunk_count"],
+                            "notes": separation_result["separation_notes"],
+                        },
+                        "stemKeys": [key.replace("stem_", "", 1) for key in serialized_stems],
+                    },
+                )
+            )
+            return
+        result_queue.put(("ok", separation_result))
+    except FileNotFoundError as error:
+        result_queue.put(("file_not_found", str(error)))
+    except ValueError as error:
+        result_queue.put(("value_error", str(error)))
+    except RuntimeError as error:
+        result_queue.put(("runtime_error", str(error)))
+    except Exception as error:
+        result_queue.put(("runtime_error", str(error)))
+
+
+def _multiprocessing_context() -> mp.context.BaseContext:
+    """Choose a process start method that works in tests and production."""
+    methods = mp.get_all_start_methods()
+    method = "fork" if "fork" in methods else "spawn"
+    return mp.get_context(method)
+
+
+def _stop_process(process: mp.Process) -> None:
+    """Terminate a timed-out worker without waiting for the ML step to finish."""
+    if not process.is_alive():
+        return
+    process.terminate()
+    process.join(timeout=1)
+    if process.is_alive():
+        process.kill()
+        process.join(timeout=1)
+
+
+def _run_stem_separation_with_timeout(
+    source_path: str,
+    timeout_seconds: float | None = None,
+    arrays_path: Path | None = None,
+) -> dict[str, Any]:
+    """Run local stem separation with a cross-platform process timeout."""
+    timeout_budget = STEM_SEPARATION_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    context = _multiprocessing_context()
+    result_queue = context.Queue(maxsize=1)
+    process = cast(Any, context).Process(
+        target=_stem_separation_worker,
+        args=(source_path, result_queue, str(arrays_path) if arrays_path else None),
+    )
+    process.start()
+    deadline = time.monotonic() + max(timeout_budget, 0.001)
+
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _stop_process(process)
+                raise StemSeparationTimedOut(f"Stem separation exceeded {timeout_budget:g}s.")
+            try:
+                kind, payload = result_queue.get(timeout=min(remaining, 0.05))
+                break
+            except queue.Empty:
+                if not process.is_alive():
+                    process.join(timeout=1)
+                    raise RuntimeError("Stem separation process ended without a result.") from None
+    finally:
+        result_queue.close()
+        result_queue.join_thread()
+
+    process.join(timeout=1)
+    _stop_process(process)
+
+    if kind == "ok":
+        return cast(dict[str, Any], payload)
+    if kind == "ok_file":
+        if not isinstance(payload, dict):
+            raise RuntimeError("Stem separation returned invalid metadata.")
+        metadata_payload = {
+            "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+            "sampleRate": payload.get("sampleRate"),
+            "separation": payload.get("separation"),
+            "stemKeys": payload.get("stemKeys"),
+        }
+        arrays_output_path = Path(str(payload.get("arraysPath", "")))
+        metadata_temp = arrays_output_path.with_suffix(".json")
+        try:
+            metadata_temp.write_text(json.dumps(metadata_payload), encoding="utf-8")
+            loaded = _load_cached_local_audio_features(metadata_temp, arrays_output_path)
+        except OSError:
+            loaded = None
+        finally:
+            with suppress(OSError):
+                metadata_temp.unlink(missing_ok=True)
+        if loaded is None:
+            raise RuntimeError("Stem separation returned invalid stem arrays.")
+        return loaded
+    if kind == "file_not_found":
+        raise FileNotFoundError(str(payload))
+    if kind == "value_error":
+        raise ValueError(str(payload))
+    raise RuntimeError(str(payload))
+
+
 def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
     """Build downstream audio features for a local-audio request."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
 
-    separation_result = AudioStemSeparator().separate(request["localSource"]["sourcePath"])
+    separation_result = _run_stem_separation_with_timeout(
+        request["localSource"]["sourcePath"],
+        arrays_path=_stem_work_arrays_path(request),
+    )
+    if "sample_rate" not in separation_result:
+        return separation_result
     return {
         "stems": separation_result["stems"],
         "sr": separation_result["sample_rate"],
@@ -500,6 +961,7 @@ def run_analysis_job_updates(
     decode_label = (
         "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
     )
+    feature_cache_paths = _feature_cache_paths(request)
     updates = [
         _build_job_status(
             job_id=job_id,
@@ -510,36 +972,83 @@ def run_analysis_job_updates(
             progress_percent=20,
             cache_status=cache_status,
         ),
-        _build_job_status(
-            job_id=job_id,
-            state="running",
-            requested_at=requested_at,
-            progress_label="Separating stems... (45%)",
-            progress_stage="separate",
-            progress_percent=45,
-            cache_status=cache_status,
-        ),
     ]
+    audio_features: dict[str, Any] | None = None
+    feature_cache_hit = False
+    if feature_cache_paths is not None:
+        cached_features = _load_cached_local_audio_features(*feature_cache_paths)
+        if cached_features is not None:
+            audio_features = cached_features
+            feature_cache_hit = True
+            updates.append(
+                _build_job_status(
+                    job_id=job_id,
+                    state="running",
+                    requested_at=requested_at,
+                    progress_label="Loaded reusable stems... (45%)",
+                    progress_stage="separate",
+                    progress_percent=45,
+                    cache_status=cache_status,
+                )
+            )
 
-    try:
-        audio_features = _build_local_audio_features(request)
-    except (FileNotFoundError, ValueError) as error:
+    if audio_features is None:
         updates.append(
             _build_job_status(
                 job_id=job_id,
-                state="failed",
+                state="running",
                 requested_at=requested_at,
-                progress_label="Stem separation failed",
+                progress_label="Separating stems... (45%)",
                 progress_stage="separate",
                 progress_percent=45,
                 cache_status=cache_status,
-                error={
-                    "code": "engine_unavailable",
-                    "message": f"Stem separation failed: {error}",
-                },
             )
         )
-        return updates
+        try:
+            audio_features = _build_local_audio_features(request)
+        except StemSeparationTimedOut:
+            updates.append(
+                _build_job_status(
+                    job_id=job_id,
+                    state="running",
+                    requested_at=requested_at,
+                    progress_label="Stem separation timed out; continuing with fallback cues",
+                    progress_stage="separate",
+                    progress_percent=55,
+                    cache_status=cache_status,
+                )
+            )
+            audio_features = None
+        except RuntimeError:
+            updates.append(
+                _build_job_status(
+                    job_id=job_id,
+                    state="running",
+                    requested_at=requested_at,
+                    progress_label="Stem separation unavailable; continuing with fallback cues",
+                    progress_stage="separate",
+                    progress_percent=55,
+                    cache_status=cache_status,
+                )
+            )
+            audio_features = None
+        except (FileNotFoundError, ValueError) as error:
+            updates.append(
+                _build_job_status(
+                    job_id=job_id,
+                    state="failed",
+                    requested_at=requested_at,
+                    progress_label="Stem separation failed",
+                    progress_stage="separate",
+                    progress_percent=45,
+                    cache_status=cache_status,
+                    error={
+                        "code": "engine_unavailable",
+                        "message": f"Stem separation failed: {error}",
+                    },
+                )
+            )
+            return updates
 
     updates.append(
         _build_job_status(
@@ -566,6 +1075,10 @@ def run_analysis_job_updates(
         )
     )
     final_cache_status = cache_status
+    if audio_features is not None and feature_cache_paths is not None and not feature_cache_hit:
+        _store_cached_local_audio_features(
+            feature_cache_paths[0], feature_cache_paths[1], request, audio_features
+        )
     if cache_path is not None:
         final_cache_status = (
             "stored" if _store_cached_analysis(cache_path, request, result) else "miss"

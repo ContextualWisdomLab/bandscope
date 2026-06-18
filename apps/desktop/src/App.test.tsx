@@ -5,7 +5,9 @@ import { App } from "./App";
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
+const mockSubscribeToAnalysisJobUpdates = vi.fn();
 let mockImportYoutubeUrlError = false;
+let latestStatusSubscription: ((payload: Record<string, unknown>) => void) | null = null;
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -30,6 +32,8 @@ vi.mock("./lib/analysis", async (importActual) => {
       sourceLabel: "Late Night Set",
       roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
     }),
+    subscribeToAnalysisJobUpdates: (...args: Parameters<typeof mockSubscribeToAnalysisJobUpdates>) =>
+      mockSubscribeToAnalysisJobUpdates(...args),
     loadProject: () => mockLoadProject(),
     saveProject: (song: unknown) => mockSaveProject(song)
   };
@@ -171,7 +175,17 @@ describe("App", () => {
     tauriInvoke.mockReset();
     mockLoadProject.mockReset();
     mockSaveProject.mockReset();
+    mockSubscribeToAnalysisJobUpdates.mockReset();
     mockImportYoutubeUrlError = false;
+    latestStatusSubscription = null;
+    mockSubscribeToAnalysisJobUpdates.mockImplementation(
+      async (_jobId: string, onUpdate: (status: Record<string, unknown>) => void) => {
+        latestStatusSubscription = onUpdate;
+        return () => {
+          latestStatusSubscription = null;
+        };
+      }
+    );
     delete tauriWindow.__TAURI_INTERNALS__;
     tauriWindow.__TAURI_INVOKE__ = tauriInvoke;
   });
@@ -405,6 +419,52 @@ describe("App", () => {
       "aria-valuenow",
       "45"
     );
+  });
+
+  it("applies pushed analysis status updates over the IPC event bridge", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-push-1",
+        state: "queued",
+        progressLabel: "Queued for analysis"
+      }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/queued for analysis/i)).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(mockSubscribeToAnalysisJobUpdates).toHaveBeenCalledWith(
+        "job-push-1",
+        expect.any(Function)
+      );
+    });
+
+    latestStatusSubscription?.(
+      jobStatusResponse({
+        jobId: "job-push-1",
+        state: "running",
+        progressLabel: "Separating stems... (45%)",
+        progressStage: "separate",
+        progressPercent: 45
+      })
+    );
+    await waitFor(() => {
+      expect(screen.getByText(/separating stems/i)).toBeTruthy();
+    });
+
+    latestStatusSubscription?.(succeededResult());
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
   });
 
   it("keeps handoff metadata tied to the source that produced the current result", async () => {
