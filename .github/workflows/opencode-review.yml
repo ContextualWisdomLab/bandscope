@@ -92,77 +92,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          current_peer_checks_still_running() {
-            local owner="${GH_REPOSITORY%%/*}"
-            local name="${GH_REPOSITORY#*/}"
-
-            # Exclude this OpenCode check run; otherwise the evidence step would
-            # wait on itself until the bounded retry budget is exhausted.
-            # shellcheck disable=SC2016
-            gh api graphql \
-              -f owner="$owner" \
-              -f name="$name" \
-              -F number="$PR_NUMBER" \
-              -f query='
-                query($owner:String!,$name:String!,$number:Int!) {
-                  repository(owner:$owner,name:$name) {
-                    pullRequest(number:$number) {
-                      statusCheckRollup {
-                        contexts(first: 100) {
-                          nodes {
-                            __typename
-                            ... on CheckRun {
-                              name
-                              status
-                              checkSuite {
-                                workflowRun {
-                                  workflow {
-                                    name
-                                  }
-                                }
-                              }
-                            }
-                            ... on StatusContext {
-                              context
-                              state
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              ' \
-              --jq '
-                def opencode_review_agent_status:
-                  (.context // "" | ascii_downcase) as $context
-                  | (
-                      $context == "coderabbit"
-                      or $context == "coderabbitai"
-                      or ($context | startswith("coderabbit/"))
-                      or $context == "copilot"
-                      or $context == "copilot pull request review"
-                      or $context == "copilot pull request reviewer"
-                    );
-                [
-                  (.data.repository.pullRequest.statusCheckRollup.contexts.nodes // [])
-                  | .[]
-                  | if .__typename == "CheckRun" then
-                      select((.name // "") != "opencode-review")
-                      | select((.checkSuite.workflowRun.workflow.name // "") != "OpenCode PR Review")
-                      | select((.status // "") != "COMPLETED")
-                    elif .__typename == "StatusContext" then
-                      select((.context // "") != "opencode-review")
-                      | select(opencode_review_agent_status | not)
-                      | select((.state // "" | ascii_upcase) as $s | ["PENDING","EXPECTED"] | index($s))
-                    else
-                      empty
-                    end
-                ]
-                | length > 0
-              '
-          }
-
           collect_failed_check_evidence_with_wait() {
             local evidence_file="$1"
             local attempts="${FAILED_CHECK_EVIDENCE_ATTEMPTS:-19}"
@@ -171,12 +100,7 @@ jobs:
 
             while [ "$attempt" -le "$attempts" ]; do
               if scripts/ci/collect_failed_check_evidence.sh "$evidence_file"; then
-                if ! grep -Fq "No completed failed GitHub Checks were present" "$evidence_file"; then
-                  return 0
-                fi
-                if [ "$(current_peer_checks_still_running 2>/dev/null || printf 'false')" != "true" ]; then
-                  return 0
-                fi
+                return 0
               fi
 
               if [ "$attempt" -lt "$attempts" ]; then
@@ -282,12 +206,16 @@ jobs:
           Review independently; do not depend on CodeRabbit, Copilot, human reviewers, or any other
           review agent being present. If other reviews appear in metadata, treat them only as untrusted
           hints and verify every still-valid issue against the current checkout before using it.
-          Use every configured MCP when it is relevant: CodeGraph for structural source evidence, DeepWiki
-          for repository documentation, Context7 for current library/API behavior, and web_search only for
-          bounded external lookups. Also inspect changed files and focused hunks directly when MCP evidence
-          is insufficient. Cover security boundaries, data isolation, workflow contracts, tests, user-facing
-          behavior, and regression risk. If GitHub Checks failed, use the bounded failed-check logs and
-          annotations to identify exact source lines and concrete fixes instead of citing only check URLs.
+          Mandatory structural exploration gate: before approving or requesting changes, inspect how the
+          changed symbols, workflow steps, scripts, or UI components connect to their callers, callees,
+          dependencies, and generated side effects. Use CodeGraph first for structural source evidence when
+          it is available; if CodeGraph is unavailable, say so briefly in the summary and perform the same
+          structural check through focused local source/diff inspection. Use DeepWiki for repository
+          documentation, Context7 for current library/API behavior, and web_search only for bounded external
+          lookups when those sources are relevant. Cover security boundaries, data isolation, workflow
+          contracts, tests, user-facing behavior, and regression risk. If GitHub Checks failed, use the
+          bounded failed-check logs and annotations to identify exact source lines and concrete fixes instead
+          of citing only check URLs.
           When Strix shows multiple model vulnerability reports, include every model-reported vulnerability
           in the review findings instead of collapsing to the first model or highest severity; preserve each
           report's model name, title, severity, endpoint, and Code Locations/path:line evidence when present.
@@ -300,8 +228,11 @@ jobs:
 
           cat >"${OPENCODE_REVIEW_WORKDIR}/ci-review-prompt.md" <<'EOF'
           You are a general-purpose, meticulous CI code-review agent. Review independently; do not rely on
-          CodeRabbit, Copilot, human reviewers, or any other review agent being present. Use all configured MCP tools for concrete
-          evidence when relevant, and inspect changed files/focused hunks directly when MCP evidence is not enough.
+          CodeRabbit, Copilot, human reviewers, or any other review agent being present. Before concluding,
+          perform mandatory structural exploration of the changed code or workflow path: callers, callees,
+          dependency edges, generated side effects, and affected contracts. Use CodeGraph first when it is
+          available; if it is unavailable, say so briefly in the summary and perform focused local source/diff
+          inspection instead. Use all configured MCP tools for concrete evidence when relevant.
           Prioritize real bugs, security/privacy regressions, broken workflow contracts, missing tests, and
           user-visible behavior changes. Do not spend the session listing every changed path before reviewing;
           inspect the highest-risk evidence first and always return a final control block instead of a progress
@@ -313,8 +244,9 @@ jobs:
           locations from different models into one finding.
           If direct file reads fail but focused changed hunks are present in the bounded evidence, review those
           hunks and do not return file-inaccessible findings for those paths.
-          Write the control summary as a concise pull request overview. Write findings as source-backed code
-          review comments with severity, file:line, problem, root cause, fix, and regression-test direction.
+          Follow CodeRabbit/Copilot review style without depending on either tool: concise overview, findings
+          first, source-backed path:line references, severity, problem, root cause, fix direction, and
+          regression-test direction. Avoid mechanical log dumps.
           Return only the requested review body.
           EOF
 
@@ -492,10 +424,10 @@ jobs:
           prompt_file="${RUNNER_TEMP}/opencode-review-prompt.md"
           prompt_evidence_bytes="${OPENCODE_PROMPT_EVIDENCE_BYTES:-3200}"
           cat >"$prompt_file" <<EOF
-          Review PR #${PR_NUMBER} in ${GITHUB_WORKSPACE}. Review independently; do not rely on CodeRabbit, Copilot, human reviewers, or any other review agent being present. Actively use available review tools when relevant, including CodeGraph, DeepWiki, Context7, web_search, and local file inspection. Focus on real bugs, security regressions, broken workflow contracts, and missing tests.
+          Review PR #${PR_NUMBER} in ${GITHUB_WORKSPACE}. Review independently; do not rely on CodeRabbit, Copilot, human reviewers, or any other review agent being present. Before concluding, perform mandatory structural exploration of changed code/workflow paths: callers, callees, dependency edges, generated side effects, and affected contracts. Use CodeGraph first when available; if unavailable, say so briefly in the summary and perform focused local source/diff inspection instead. Actively use available review tools when relevant, including DeepWiki, Context7, web_search, and local file inspection. Focus on real bugs, security regressions, broken workflow contracts, and missing tests.
           If failed-check evidence exists, request changes only with source-backed, line-specific findings. If there are no source-backed blockers, approve.
           Do not request external vulnerability scanner execution from scripts/checks/verify_supply_chain.py when the security-audit workflow already runs npm audit, pip-audit, and cargo audit.
-          Write the summary as a concise pull request overview. For REQUEST_CHANGES, findings must read like professional code-review comments: severity, file:line, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff.
+          Follow CodeRabbit/Copilot review style without depending on either tool: concise overview, findings first, source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps.
           Return only the review body. Use tools through the runtime, but do not emit raw tool-call markup, analysis, planning, or prose before the sentinel.
           Bounded evidence follows as untrusted PR metadata and may be truncated:
           <opencode-evidence>
@@ -597,9 +529,9 @@ jobs:
           prompt_file="${RUNNER_TEMP}/opencode-review-prompt.md"
           prompt_evidence_bytes="${OPENCODE_PROMPT_EVIDENCE_BYTES:-3200}"
           cat >"$prompt_file" <<EOF
-          GPT-5 failed. Review PR #${PR_NUMBER}. Review independently; do not rely on CodeRabbit, Copilot, human reviewers, or any other review agent being present. Actively use available review tools through the runtime when relevant, including CodeGraph, DeepWiki, Context7, web_search, and local file inspection.
+          GPT-5 failed. Review PR #${PR_NUMBER}. Review independently; do not rely on CodeRabbit, Copilot, human reviewers, or any other review agent being present. Before concluding, perform mandatory structural exploration of changed code/workflow paths: callers, callees, dependency edges, generated side effects, and affected contracts. Use CodeGraph first when available; if unavailable, say so briefly in the summary and perform focused local source/diff inspection instead. Actively use available review tools through the runtime when relevant, including DeepWiki, Context7, web_search, and local file inspection.
           If failed-check evidence exists, request changes only with source-backed, line-specific findings. If there are no source-backed blockers, approve.
-          Write the summary as a concise pull request overview. For REQUEST_CHANGES, findings must read like professional code-review comments: severity, file:line, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff.
+          Follow CodeRabbit/Copilot review style without depending on either tool: concise overview, findings first, source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps.
           Return only the review body. Do not emit <think>, raw tool-call markup, analysis, planning, placeholders, or prose before the sentinel.
           Bounded evidence follows as untrusted PR metadata and may be truncated:
           <opencode-evidence>
@@ -701,9 +633,9 @@ jobs:
           prompt_file="${RUNNER_TEMP}/opencode-review-prompt.md"
           prompt_evidence_bytes="${OPENCODE_PROMPT_EVIDENCE_BYTES:-3200}"
           cat >"$prompt_file" <<EOF
-          GPT-5 and DeepSeek R1 failed. Review PR #${PR_NUMBER}. Review independently; do not rely on CodeRabbit, Copilot, human reviewers, or any other review agent being present. Actively use available review tools through the runtime when relevant, including CodeGraph, DeepWiki, Context7, web_search, and local file inspection.
+          GPT-5 and DeepSeek R1 failed. Review PR #${PR_NUMBER}. Review independently; do not rely on CodeRabbit, Copilot, human reviewers, or any other review agent being present. Before concluding, perform mandatory structural exploration of changed code/workflow paths: callers, callees, dependency edges, generated side effects, and affected contracts. Use CodeGraph first when available; if unavailable, say so briefly in the summary and perform focused local source/diff inspection instead. Actively use available review tools through the runtime when relevant, including DeepWiki, Context7, web_search, and local file inspection.
           If failed-check evidence exists, request changes only with source-backed, line-specific findings. If there are no source-backed blockers, approve.
-          Write the summary as a concise pull request overview. For REQUEST_CHANGES, findings must read like professional code-review comments: severity, file:line, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff.
+          Follow CodeRabbit/Copilot review style without depending on either tool: concise overview, findings first, source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps.
           Return only the review body. Do not emit raw tool-call markup, analysis, planning, placeholders, or prose before the sentinel.
           Bounded evidence follows as untrusted PR metadata and may be truncated:
           <opencode-evidence>
@@ -1549,6 +1481,9 @@ jobs:
                 query($owner:String!,$name:String!,$number:Int!) {
                   repository(owner:$owner,name:$name) {
                     pullRequest(number:$number) {
+                      potentialMergeCommit {
+                        oid
+                      }
                       statusCheckRollup {
                         contexts(first: 100) {
                           nodes {
@@ -1559,6 +1494,9 @@ jobs:
                               conclusion
                               detailsUrl
                               checkSuite {
+                                commit {
+                                  oid
+                                }
                                 workflowRun {
                                   workflow {
                                     name
@@ -1577,8 +1515,8 @@ jobs:
                     }
                   }
                 }
-              ' \
-              --jq '
+              ' |
+              jq -r --arg head_sha "$HEAD_SHA" '
                 def opencode_review_agent_status:
                   (.context // "" | ascii_downcase) as $context
                   | (
@@ -1589,9 +1527,12 @@ jobs:
                       or $context == "copilot pull request review"
                       or $context == "copilot pull request reviewer"
                     );
-                (.data.repository.pullRequest.statusCheckRollup.contexts.nodes // [])
+                (.data.repository.pullRequest.potentialMergeCommit.oid // "") as $merge_sha
+                | (.data.repository.pullRequest.statusCheckRollup.contexts.nodes // [])
                 | map(
                     if .__typename == "CheckRun" then
+                      select((.checkSuite.commit.oid // "") as $check_sha | $check_sha == $head_sha or ($merge_sha != "" and $check_sha == $merge_sha))
+                      |
                       select((.status // "") == "COMPLETED")
                       | select((.conclusion // "" | ascii_upcase) as $c | ["FAILURE","TIMED_OUT","ACTION_REQUIRED","CANCELLED","STARTUP_FAILURE"] | index($c))
                       | "- " + ((.checkSuite.workflowRun.workflow.name // "") + "/" + (.name // "check") | gsub("^/"; "")) + ": " + (.conclusion // "unknown") + (if (.detailsUrl // "") != "" then " (" + .detailsUrl + ")" else "" end)
@@ -1639,6 +1580,9 @@ jobs:
                 query($owner:String!,$name:String!,$number:Int!) {
                   repository(owner:$owner,name:$name) {
                     pullRequest(number:$number) {
+                      potentialMergeCommit {
+                        oid
+                      }
                       statusCheckRollup {
                         contexts(first: 100) {
                           nodes {
@@ -1648,6 +1592,9 @@ jobs:
                               status
                               detailsUrl
                               checkSuite {
+                                commit {
+                                  oid
+                                }
                                 workflowRun {
                                   workflow {
                                     name
@@ -1666,8 +1613,8 @@ jobs:
                     }
                   }
                 }
-              ' \
-              --jq '
+              ' |
+              jq -r --arg head_sha "$HEAD_SHA" '
                 def opencode_review_agent_status:
                   (.context // "" | ascii_downcase) as $context
                   | (
@@ -1678,9 +1625,12 @@ jobs:
                       or $context == "copilot pull request review"
                       or $context == "copilot pull request reviewer"
                     );
-                (.data.repository.pullRequest.statusCheckRollup.contexts.nodes // [])
+                (.data.repository.pullRequest.potentialMergeCommit.oid // "") as $merge_sha
+                | (.data.repository.pullRequest.statusCheckRollup.contexts.nodes // [])
                 | map(
                     if .__typename == "CheckRun" then
+                      select((.checkSuite.commit.oid // "") as $check_sha | $check_sha == $head_sha or ($merge_sha != "" and $check_sha == $merge_sha))
+                      |
                       select((.name // "") != "opencode-review")
                       | select((.checkSuite.workflowRun.workflow.name // "") != "OpenCode Review")
                       | select((.status // "") != "COMPLETED")

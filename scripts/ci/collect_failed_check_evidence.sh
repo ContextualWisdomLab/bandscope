@@ -182,7 +182,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# shellcheck disable=SC2016
 gh api graphql \
 	-f owner="$owner" \
 	-f name="$repo" \
@@ -191,6 +190,9 @@ gh api graphql \
 		query($owner:String!,$name:String!,$number:Int!) {
 			repository(owner:$owner,name:$name) {
 				pullRequest(number:$number) {
+					potentialMergeCommit {
+						oid
+					}
 					statusCheckRollup {
 						contexts(first: 100) {
 							nodes {
@@ -202,6 +204,9 @@ gh api graphql \
 									conclusion
 									detailsUrl
 									checkSuite {
+										commit {
+											oid
+										}
 										workflowRun {
 											databaseId
 											workflow {
@@ -221,12 +226,14 @@ gh api graphql \
 				}
 			}
 		}
-	' \
-	--jq '
-		(.data.repository.pullRequest.statusCheckRollup.contexts.nodes // [])
+	' |
+	jq -r --arg head_sha "$HEAD_SHA" '
+		(.data.repository.pullRequest.potentialMergeCommit.oid // "") as $merge_sha
+		| (.data.repository.pullRequest.statusCheckRollup.contexts.nodes // [])
 		| map(
 			if .__typename == "CheckRun" then
-				select((.status // "") == "COMPLETED")
+				select((.checkSuite.commit.oid // "") as $check_sha | $check_sha == $head_sha or ($merge_sha != "" and $check_sha == $merge_sha))
+				| select((.status // "") == "COMPLETED")
 				| select((.conclusion // "" | ascii_upcase) as $c | ["FAILURE","TIMED_OUT","ACTION_REQUIRED","CANCELLED","STARTUP_FAILURE"] | index($c))
 				| [
 					"check_run",
@@ -254,15 +261,15 @@ gh api graphql \
 		| @tsv
 		' >"$failed_contexts"
 
-	HEAD_SHA="$HEAD_SHA" gh run list \
+	gh run list \
 		--repo "$GH_REPOSITORY" \
 		--commit "$HEAD_SHA" \
 		--limit 100 \
-		--json databaseId,workflowName,status,conclusion,url,event,headSha \
-		--jq '
+		--json databaseId,workflowName,status,conclusion,url,event,headSha |
+		jq -r --arg head_sha "$HEAD_SHA" '
 			.[]
 			| select((.event // "") == "pull_request_target" or (.event // "") == "workflow_dispatch")
-			| select((.headSha // "") == env.HEAD_SHA)
+			| select((.headSha // "") == $head_sha)
 			| select((.workflowName // "") == "Strix Security Scan" or (.workflowName // "") == "Strix")
 			| select((.status // "") == "completed")
 			| select((.conclusion // "" | ascii_downcase) as $c | ["failure","timed_out","action_required","cancelled","startup_failure"] | index($c))
