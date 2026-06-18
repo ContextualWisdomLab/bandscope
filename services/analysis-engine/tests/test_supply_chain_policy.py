@@ -4884,7 +4884,8 @@ def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
     assert "def opencode_review_agent_status:" in workflow
     assert '$context == "coderabbit"' in workflow
     assert '$context == "copilot pull request reviewer"' in workflow
-    assert workflow.count("select(opencode_review_agent_status | not)") >= 3
+    assert "current_peer_checks_still_running" not in workflow
+    assert workflow.count("select(opencode_review_agent_status | not)") >= 2
 
 
 def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
@@ -5103,6 +5104,168 @@ def test_opencode_review_gate_defaults_missing_approve_findings(tmp_path: Path) 
                 '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
                 '"result":"APPROVE","reason":"checks and review passed",'
                 '"summary":"no source-backed blockers found"}',
+                "-->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(repo_root / "scripts" / "ci" / "opencode_review_approve_gate.sh"),
+            "abc123",
+            "456",
+            "1",
+            str(comment_file),
+            str(normalized_file),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "APPROVE"
+    assert json.loads(normalized_file.read_text(encoding="utf-8"))["findings"] == []
+
+
+def test_opencode_normalizer_rejects_approve_without_structural_review(
+    tmp_path: Path,
+) -> None:
+    """Ensure OpenCode cannot approve after admitting structural review failed."""
+    normalizer = load_module(
+        "scripts/ci/opencode_review_normalize_output.py",
+        "opencode_review_normalize_missing_structure",
+    )
+    output_file = tmp_path / "opencode-output.md"
+    original_output = "\n".join(
+        [
+            "review text",
+            '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+            '"result":"APPROVE","reason":"no blockers found",'
+            '"summary":"No blockers found, but evidence was truncated",'
+            '"findings":[]}',
+        ]
+    )
+    output_file.write_text(original_output, encoding="utf-8")
+
+    result = normalizer.main(
+        [
+            "opencode_review_normalize_output.py",
+            "abc123",
+            "456",
+            "1",
+            str(output_file),
+        ]
+    )
+
+    assert result == 4
+    assert output_file.read_text(encoding="utf-8") == original_output
+
+
+def test_opencode_review_gate_rejects_approve_without_structural_review(
+    tmp_path: Path,
+) -> None:
+    """Ensure approval gate rejects approvals that admit missing structure."""
+    repo_root = Path(__file__).resolve().parents[3]
+    comment_file = tmp_path / "comment.md"
+    normalized_file = tmp_path / "normalized.json"
+    comment_file.write_text(
+        "\n".join(
+            [
+                "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
+                "",
+                "<!-- opencode-review-control-v1",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"No blockers found, but evidence was truncated",'
+                '"findings":[]}',
+                "-->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(repo_root / "scripts" / "ci" / "opencode_review_approve_gate.sh"),
+            "abc123",
+            "456",
+            "1",
+            str(comment_file),
+            str(normalized_file),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 4
+    assert result.stdout.strip() == "NO_CONCLUSION"
+    assert not normalized_file.exists()
+
+
+def test_opencode_normalizer_accepts_completed_local_structural_fallback(
+    tmp_path: Path,
+) -> None:
+    """Ensure normalizer accepts tool fallback when structural review completed."""
+    normalizer = load_module(
+        "scripts/ci/opencode_review_normalize_output.py",
+        "opencode_review_normalize_structural_fallback",
+    )
+    output_file = tmp_path / "opencode-output.md"
+    output_file.write_text(
+        "\n".join(
+            [
+                "review text",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"Could not access CodeGraph; performed focused local '
+                'source/diff inspection and completed structural exploration",'
+                '"findings":[]}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = normalizer.main(
+        [
+            "opencode_review_normalize_output.py",
+            "abc123",
+            "456",
+            "1",
+            str(output_file),
+        ]
+    )
+
+    assert result == 0
+    assert '"findings":[]' in output_file.read_text(encoding="utf-8")
+
+
+def test_opencode_review_gate_accepts_completed_local_structural_fallback(
+    tmp_path: Path,
+) -> None:
+    """Ensure tool access failures do not block approvals after local structure review."""
+    repo_root = Path(__file__).resolve().parents[3]
+    comment_file = tmp_path / "comment.md"
+    normalized_file = tmp_path / "normalized.json"
+    comment_file.write_text(
+        "\n".join(
+            [
+                "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
+                "",
+                "<!-- opencode-review-control-v1",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"Could not access CodeGraph; performed focused local '
+                'source/diff inspection and completed structural exploration",'
+                '"findings":[]}',
                 "-->",
                 "",
             ]
