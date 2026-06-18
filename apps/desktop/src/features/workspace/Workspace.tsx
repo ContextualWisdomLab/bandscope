@@ -52,6 +52,19 @@ function nonBlankText(value: string | undefined): string | undefined {
 }
 
 /** Documented. */
+function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): ProjectBootstrapSummary | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return parseProjectBootstrapSummary(value);
+  } catch {
+    return null;
+  }
+}
+
+/** Documented. */
 const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
@@ -176,7 +189,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Documented. */
   const handleExportHandoff = () => {
-    const parsedSourceBootstrap = sourceBootstrap ? parseProjectBootstrapSummary(sourceBootstrap) : null;
+    const parsedSourceBootstrap = safeProjectBootstrapSummary(sourceBootstrap);
     const json = generateMetadataHandoffJson(song, {
       sourceBootstrap: parsedSourceBootstrap,
       workspaceId: song.id,

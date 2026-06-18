@@ -619,9 +619,11 @@ export function validateProjectSummary(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidProjectSummaryField("root");
   }
-  const extraKey = unexpectedKey(value, ["id", "title", "status", "supportedAudioFormats"], "");
-  if (extraKey) {
-    return extraKey.replace("Invalid rehearsal song contract", "Invalid project summary contract");
+  const allowedKeys = ["id", "title", "status", "supportedAudioFormats"] as const;
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) {
+      return invalidProjectSummaryField(key);
+    }
   }
   if (typeof value.id !== "string" || value.id.trim().length === 0) {
     return invalidProjectSummaryField("id");

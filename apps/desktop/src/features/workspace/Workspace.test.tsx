@@ -174,6 +174,34 @@ describe("Workspace", () => {
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:handoff");
   });
 
+  it("exports metadata-only handoff when source bootstrap is invalid", async () => {
+    const song = createDemoRehearsalSong();
+    const invalidSourceBootstrap = {
+      projectId: "project-1"
+    } as ProjectBootstrapSummary;
+    const createObjectUrl = vi.fn(() => "blob:handoff");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    render(<Workspace song={song} sourceBootstrap={invalidSourceBootstrap} />);
+    fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const payload = JSON.parse(await blob.text());
+    expect(payload.artifactKind).toBe("bandscope.metadata-handoff");
+    expect(payload.sourceAssets).toEqual([]);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:handoff");
+  });
+
   it("validates source bootstrap before generating metadata handoff", () => {
     const song = createDemoRehearsalSong();
     const invalidSourceBootstrap = {
