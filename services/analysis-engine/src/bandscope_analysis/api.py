@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+import multiprocessing as mp
+import queue
+import time
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
@@ -184,6 +186,10 @@ class CachedFeaturePayload(TypedDict):
     sampleRate: int
     separation: dict[str, object]
     stemKeys: list[str]
+
+
+class StemSeparationTimedOut(RuntimeError):
+    """Raised when local stem separation exceeds the orchestration timeout."""
 
 
 def build_section_time_range(start: object, end: object) -> SectionTimeRangePayload:
@@ -409,7 +415,10 @@ def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | Non
     if analysis_cache_path is None:
         return None
     stem_cache_base = analysis_cache_path.with_suffix("")
-    return stem_cache_base.with_suffix(".features.json"), stem_cache_base.with_suffix(".features.npz")
+    return (
+        stem_cache_base.with_suffix(".features.json"),
+        stem_cache_base.with_suffix(".features.npz"),
+    )
 
 
 def _load_cached_analysis(path: Path) -> RehearsalSong | None:
@@ -494,9 +503,6 @@ def _load_cached_local_audio_features(
     except OSError:
         return None
 
-    if not stems:
-        return None
-
     return {
         "stems": stems,
         "sr": metadata_payload["sampleRate"],
@@ -536,9 +542,6 @@ def _store_cached_local_audio_features(
         if not isinstance(stem_value, np.ndarray):
             return False
         serialized_stems[f"stem_{stem_name}"] = stem_value
-    if not serialized_stems:
-        return False
-
     local_source = request["localSource"]
     metadata_payload: CachedFeaturePayload = {
         "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
@@ -557,12 +560,12 @@ def _store_cached_local_audio_features(
     }
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_temp = metadata_path.with_suffix(".tmp")
-        arrays_temp = arrays_path.with_suffix(".tmp")
+        metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
+        arrays_temp = arrays_path.with_name(f"{arrays_path.name}.tmp")
         with metadata_temp.open("w", encoding="utf-8") as metadata_file:
             json.dump(metadata_payload, metadata_file, separators=(",", ":"))
         with arrays_temp.open("wb") as arrays_file:
-            np.savez_compressed(arrays_file, **serialized_stems)
+            np.savez_compressed(arrays_file, **cast(Any, serialized_stems))
         metadata_temp.replace(metadata_path)
         arrays_temp.replace(arrays_path)
     except OSError:
@@ -570,12 +573,87 @@ def _store_cached_local_audio_features(
     return True
 
 
+def _stem_separation_worker(source_path: str, result_queue: Any) -> None:
+    """Run stem separation in an isolated child process for enforceable timeout."""
+    try:
+        result_queue.put(("ok", AudioStemSeparator().separate(source_path)))
+    except FileNotFoundError as error:
+        result_queue.put(("file_not_found", str(error)))
+    except ValueError as error:
+        result_queue.put(("value_error", str(error)))
+    except RuntimeError as error:
+        result_queue.put(("runtime_error", str(error)))
+    except Exception as error:
+        result_queue.put(("runtime_error", str(error)))
+
+
+def _multiprocessing_context() -> mp.context.BaseContext:
+    """Choose a process start method that works in tests and production."""
+    methods = mp.get_all_start_methods()
+    method = "fork" if "fork" in methods else "spawn"
+    return mp.get_context(method)
+
+
+def _stop_process(process: mp.Process) -> None:
+    """Terminate a timed-out worker without waiting for the ML step to finish."""
+    if not process.is_alive():
+        return
+    process.terminate()
+    process.join(timeout=1)
+    if process.is_alive():
+        process.kill()
+        process.join(timeout=1)
+
+
+def _run_stem_separation_with_timeout(
+    source_path: str, timeout_seconds: float | None = None
+) -> dict[str, Any]:
+    """Run local stem separation with a cross-platform process timeout."""
+    timeout_budget = STEM_SEPARATION_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    context = _multiprocessing_context()
+    result_queue = context.Queue(maxsize=1)
+    process = cast(Any, context).Process(
+        target=_stem_separation_worker,
+        args=(source_path, result_queue),
+    )
+    process.start()
+    deadline = time.monotonic() + max(timeout_budget, 0.001)
+
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _stop_process(process)
+                raise StemSeparationTimedOut(f"Stem separation exceeded {timeout_budget:g}s.")
+            try:
+                kind, payload = result_queue.get(timeout=min(remaining, 0.05))
+                break
+            except queue.Empty:
+                if not process.is_alive():
+                    process.join(timeout=1)
+                    raise RuntimeError("Stem separation process ended without a result.") from None
+    finally:
+        result_queue.close()
+        result_queue.join_thread()
+
+    process.join(timeout=1)
+    _stop_process(process)
+
+    if kind == "ok":
+        return cast(dict[str, Any], payload)
+    if kind == "file_not_found":
+        raise FileNotFoundError(str(payload))
+    if kind == "value_error":
+        raise ValueError(str(payload))
+    raise RuntimeError(str(payload))
+
+
 def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
     """Build downstream audio features for a local-audio request."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
 
-    separation_result = AudioStemSeparator().separate(request["localSource"]["sourcePath"])
+    separation_result = _run_stem_separation_with_timeout(request["localSource"]["sourcePath"])
     return {
         "stems": separation_result["stems"],
         "sr": separation_result["sample_rate"],
@@ -681,10 +759,8 @@ def run_analysis_job_updates(
             )
         )
         try:
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                task = executor.submit(_build_local_audio_features, request)
-                audio_features = task.result(timeout=STEM_SEPARATION_TIMEOUT_SECONDS)
-        except FuturesTimeoutError:
+            audio_features = _build_local_audio_features(request)
+        except StemSeparationTimedOut:
             updates.append(
                 _build_job_status(
                     job_id=job_id,

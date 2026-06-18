@@ -1,5 +1,6 @@
 """Tests for the public analysis-engine API helpers."""
 
+import queue
 import time
 from unittest.mock import patch
 
@@ -7,10 +8,13 @@ import numpy as np
 
 from bandscope_analysis.api import (
     _feature_cache_paths,
-    _load_cached_local_audio_features,
     _load_cached_analysis,
-    _store_cached_local_audio_features,
+    _load_cached_local_audio_features,
+    _run_stem_separation_with_timeout,
+    _stem_separation_worker,
+    _stop_process,
     _store_cached_analysis,
+    _store_cached_local_audio_features,
     build_demo_rehearsal_song,
     build_section_time_range,
     get_analysis_status,
@@ -374,7 +378,6 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
 
     assert success["state"] == "succeeded"
     assert success["progressLabel"] == "Analysis ready for late-night-set.wav"
-    separator.separate.assert_called_once_with("/Users/test/Music/late-night-set.wav")
 
 
 def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
@@ -430,7 +433,9 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             ("succeeded", "ready", 100),
         ]
         assert updates[-1]["cacheStatus"] == "stored"
-        assert len(list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))) == 1
+        cache_files = list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))
+        assert len([path for path in cache_files if not path.name.endswith(".features.json")]) == 1
+        assert len([path for path in cache_files if path.name.endswith(".features.json")]) == 1
 
         cached_updates = list(
             run_analysis_job_updates("job-cache-2", payload, "2026-03-12T00:00:00Z")
@@ -440,7 +445,6 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     assert cached_updates[-1]["progressStage"] == "ready"
     assert cached_updates[-1]["progressPercent"] == 100
     assert cached_updates[-1]["cacheStatus"] == "hit"
-    separator.separate.assert_called_once_with("/Users/test/Music/late-night-set.wav")
 
 
 def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:
@@ -598,11 +602,340 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
     separator_class.return_value.separate.assert_not_called()
 
 
+def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None:
+    """Ensure malformed feature metadata never blocks a fresh analysis run."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+
+    for content in (
+        "[]",
+        '{"schemaVersion": 999, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 1, "sampleRate": "22050", "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": [], "stemKeys": ["bass"]}',
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": []}',
+    ):
+        metadata_path.write_text(content, encoding="utf-8")
+        assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+    metadata_path.write_text(
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        encoding="utf-8",
+    )
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+    np.savez_compressed(arrays_path, stem_vocals=np.zeros(4))
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+    metadata_path.write_text(
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": [7]}',
+        encoding="utf-8",
+    )
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+    class BadArchive:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def __contains__(self, _key: str) -> bool:
+            return True
+
+        def __getitem__(self, _key: str) -> object:
+            return "not-an-array"
+
+    metadata_path.write_text(
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        encoding="utf-8",
+    )
+    with patch("bandscope_analysis.api.np.load", return_value=BadArchive()):
+        assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
+def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
+    """Ensure feature cache writes require app-owned request metadata and arrays."""
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": ["bass-guitar"],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+        }
+    )
+    demo_request = validate_analysis_job_request(
+        {
+            "sourceKind": "demo",
+            "sourceLabel": "Late Night Set",
+            "roleFocus": ["bass-guitar"],
+        }
+    )
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+
+    assert _store_cached_local_audio_features(metadata_path, arrays_path, demo_request, {}) is False
+    assert _store_cached_local_audio_features(metadata_path, arrays_path, request, {}) is False
+    assert (
+        _store_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            {"stems": {"bass": np.zeros(4)}, "sr": "22050", "separation": {}},
+        )
+        is False
+    )
+    assert (
+        _store_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            {"stems": {"bass": np.zeros(4)}, "sr": 22050, "separation": []},
+        )
+        is False
+    )
+    assert (
+        _store_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            {"stems": {"": np.zeros(4)}, "sr": 22050, "separation": {}},
+        )
+        is False
+    )
+    assert (
+        _store_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            {"stems": {"bad-stem": np.zeros(4)}, "sr": 22050, "separation": {}},
+        )
+        is False
+    )
+    assert (
+        _store_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            {"stems": {"bass": [0.0]}, "sr": 22050, "separation": {}},
+        )
+        is False
+    )
+    assert (
+        _store_cached_local_audio_features(
+            tmp_path / "missing" / "features.json",
+            tmp_path,
+            request,
+            {"stems": {"bass": np.zeros(4)}, "sr": 22050, "separation": {}},
+        )
+        is False
+    )
+
+
+def test_stem_separation_worker_maps_safe_error_kinds() -> None:
+    """Ensure child worker errors are converted to serializable parent messages."""
+
+    class FakeQueue:
+        def __init__(self) -> None:
+            self.items: list[tuple[str, object]] = []
+
+        def put(self, item: tuple[str, object]) -> None:
+            self.items.append(item)
+
+    cases = [
+        (FileNotFoundError("missing"), "file_not_found"),
+        (ValueError("bad media"), "value_error"),
+        (RuntimeError("oom"), "runtime_error"),
+        (Exception("unexpected"), "runtime_error"),
+    ]
+
+    for error, expected_kind in cases:
+        fake_queue = FakeQueue()
+        with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
+            separator_class.return_value.separate.side_effect = error
+            _stem_separation_worker("/tmp/audio.wav", fake_queue)
+        assert fake_queue.items == [(expected_kind, str(error))]
+
+    fake_queue = FakeQueue()
+    with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
+        separator_class.return_value.separate.return_value = {"ok": True}
+        _stem_separation_worker("/tmp/audio.wav", fake_queue)
+    assert fake_queue.items == [("ok", {"ok": True})]
+
+
+def test_stem_separation_process_helper_maps_worker_results() -> None:
+    """Ensure parent-side process helper maps worker result envelopes."""
+
+    class FakeQueue:
+        def __init__(self, item: tuple[str, object]) -> None:
+            self.item = item
+
+        def get(self, timeout: float) -> tuple[str, object]:
+            assert timeout > 0
+            return self.item
+
+        def close(self) -> None:
+            return None
+
+        def join_thread(self) -> None:
+            return None
+
+    class FakeProcess:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            self.started = False
+
+        def start(self) -> None:
+            self.started = True
+
+        def join(self, timeout: float | None = None) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return False
+
+    class FakeContext:
+        def __init__(self, item: tuple[str, object]) -> None:
+            self.item = item
+            self.Process = FakeProcess
+
+        def Queue(self, maxsize: int) -> FakeQueue:
+            assert maxsize == 1
+            return FakeQueue(self.item)
+
+    with patch(
+        "bandscope_analysis.api._multiprocessing_context",
+        return_value=FakeContext(("ok", {"stems": {}})),
+    ):
+        assert _run_stem_separation_with_timeout("/tmp/audio.wav") == {"stems": {}}
+
+    error_cases = [
+        (("file_not_found", "missing"), FileNotFoundError),
+        (("value_error", "bad media"), ValueError),
+        (("runtime_error", "oom"), RuntimeError),
+    ]
+    for item, expected_error in error_cases:
+        with patch(
+            "bandscope_analysis.api._multiprocessing_context",
+            return_value=FakeContext(item),
+        ):
+            try:
+                _run_stem_separation_with_timeout("/tmp/audio.wav")
+            except expected_error as error:
+                assert str(error)
+            else:
+                raise AssertionError(f"Expected {expected_error.__name__}")
+
+
+def test_stem_separation_process_helper_handles_empty_worker_exit() -> None:
+    """Ensure a worker that exits without a result degrades safely."""
+
+    class EmptyQueue:
+        def get(self, timeout: float) -> tuple[str, object]:
+            raise queue.Empty
+
+        def close(self) -> None:
+            return None
+
+        def join_thread(self) -> None:
+            return None
+
+    class EmptyProcess:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def start(self) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return False
+
+        def join(self, timeout: float | None = None) -> None:
+            return None
+
+    class EmptyContext:
+        Process = EmptyProcess
+
+        def Queue(self, maxsize: int) -> EmptyQueue:
+            assert maxsize == 1
+            return EmptyQueue()
+
+    with patch("bandscope_analysis.api._multiprocessing_context", return_value=EmptyContext()):
+        try:
+            _run_stem_separation_with_timeout("/tmp/audio.wav")
+        except RuntimeError as error:
+            assert "ended without a result" in str(error)
+        else:
+            raise AssertionError("Expected RuntimeError")
+
+
+def test_stop_process_kills_stubborn_worker() -> None:
+    """Ensure stubborn timed-out workers are killed after terminate."""
+
+    class StubbornProcess:
+        def __init__(self) -> None:
+            self.terminated = False
+            self.killed = False
+
+        def is_alive(self) -> bool:
+            return not self.killed
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def kill(self) -> None:
+            self.killed = True
+
+        def join(self, timeout: float | None = None) -> None:
+            return None
+
+    process = StubbornProcess()
+    _stop_process(process)  # type: ignore[arg-type]
+    assert process.terminated is True
+    assert process.killed is True
+
+
+def test_run_analysis_job_updates_degrades_when_stem_step_is_unavailable() -> None:
+    """Ensure runtime ML failures continue with fallback cues."""
+    with patch(
+        "bandscope_analysis.api._build_local_audio_features",
+        side_effect=RuntimeError("oom"),
+    ):
+        updates = list(
+            run_analysis_job_updates(
+                "job-runtime",
+                {
+                    "sourceKind": "local_audio",
+                    "projectId": "project-1",
+                    "sourceLabel": "late-night-set.wav",
+                    "roleFocus": ["bass-guitar"],
+                    "localSource": {
+                        "sourcePath": "/Users/test/Music/late-night-set.wav",
+                        "fileName": "late-night-set.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 1024000,
+                    },
+                },
+                "2026-03-12T00:00:00Z",
+            )
+        )
+
+    assert updates[-1]["state"] == "succeeded"
+    assert any(
+        update.get("progressLabel") == "Stem separation unavailable; continuing with fallback cues"
+        for update in updates
+    )
+
+
 def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out() -> None:
     """Ensure timed-out ML stem inference continues with fallback cues instead of hard failure."""
 
     def _slow_separate(_source_path: str) -> dict[str, object]:
-        time.sleep(0.05)
+        time.sleep(0.4)
         return {
             "stems": {
                 "vocals": np.zeros(1024),
@@ -627,6 +960,7 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
     ):
         separator_class.return_value.separate.side_effect = _slow_separate
 
+        started_at = time.monotonic()
         updates = list(
             run_analysis_job_updates(
                 "job-timeout",
@@ -645,10 +979,11 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
                 "2026-03-12T00:00:00Z",
             )
         )
+        elapsed = time.monotonic() - started_at
 
     assert updates[-1]["state"] == "succeeded"
+    assert elapsed < 0.3
     assert any(
-        update.get("progressLabel")
-        == "Stem separation timed out; continuing with fallback cues"
+        update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
     )
