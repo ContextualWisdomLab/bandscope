@@ -204,22 +204,22 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         </CardHeader>
 
         <CardContent className="space-y-6 bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.86))] p-5 md:p-7">
-          <div className="grid gap-4 lg:grid-cols-5">
-            <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 lg:col-span-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">{t("workspaceSongTimelineLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
                 {song.sections.length} section{song.sections.length === 1 ? "" : "s"} mapped with groove, role cues, and chord confidence notes.
               </p>
             </section>
 
-            <section className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.07] p-4">
+            <section className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.07] p-4 md:col-span-2 xl:col-span-1">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">{t("workspaceCollaborationLabel")}</p>
               {song.collaboration ? (
                 <div className="mt-2 space-y-3 text-sm leading-6 text-slate-300">
-                  <div className="grid grid-cols-3 gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200">
-                    <span>{collaborationSummary.assignments} {t("workspaceAssignmentsLabel")}</span>
-                    <span>{collaborationSummary.comments} {t("workspaceCommentsLabel")}</span>
-                    <span>{collaborationSummary.approvals} {t("workspaceApprovalsLabel")}</span>
+                  <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200">
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{collaborationSummary.assignments} {t("workspaceAssignmentsLabel")}</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{collaborationSummary.comments} {t("workspaceCommentsLabel")}</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{collaborationSummary.approvals} {t("workspaceApprovalsLabel")}</span>
                   </div>
                   <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
                     <CloudOff className="mt-0.5 size-4 shrink-0 text-emerald-200" aria-hidden="true" />
