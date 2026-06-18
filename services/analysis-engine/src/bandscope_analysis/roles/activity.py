@@ -6,7 +6,7 @@ by analyzing energy levels in the separated audio stems.
 Security Notes:
 - Processes numpy arrays from stem separation; no file I/O or network access.
 - All numpy operations are bounded by input array sizes.
-- Fails safely with all-active fallback when detection is inconclusive.
+- Fails closed with inactive stems or empty activity when detection is inconclusive.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
-# Energy threshold relative to the stem's global max for considering it "active".
+# Energy threshold relative to the stem's global RMS for considering it "active".
 ACTIVITY_THRESHOLD = 0.05
 
 # Canonical stem names matching the AudioStemSeparator output.
@@ -143,13 +143,9 @@ def compute_handoffs(
         return handoffs
 
     # Find roles that deactivate in the next section
-    deactivating = [
-        r for r in current_roles if current_roles[r] and not next_roles.get(r, False)
-    ]
+    deactivating = [r for r in current_roles if current_roles[r] and not next_roles.get(r, False)]
     # Find roles that activate in the next section
-    activating = [
-        r for r in next_roles if next_roles[r] and not current_roles.get(r, False)
-    ]
+    activating = [r for r in next_roles if next_roles[r] and not current_roles.get(r, False)]
 
     # Roles that deactivate hand off to roles that activate
     for deact_role in deactivating:

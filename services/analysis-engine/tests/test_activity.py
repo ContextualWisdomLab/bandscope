@@ -17,13 +17,11 @@ def test_detect_stem_activity_identifies_active_stems() -> None:
     n_samples = int(sr * duration)
 
     vocals = np.zeros(n_samples, dtype=np.float32)
-    vocals[:n_samples // 2] = np.sin(
-        2 * np.pi * 440 * np.linspace(0, 5, n_samples // 2)
-    ).astype(np.float32)
+    vocals[: n_samples // 2] = np.sin(2 * np.pi * 440 * np.linspace(0, 5, n_samples // 2)).astype(
+        np.float32
+    )
 
-    bass = (0.5 * np.sin(
-        2 * np.pi * 100 * np.linspace(0, 10, n_samples)
-    )).astype(np.float32)
+    bass = (0.5 * np.sin(2 * np.pi * 100 * np.linspace(0, 10, n_samples))).astype(np.float32)
 
     stems = {"vocals": vocals, "bass": bass, "drums": np.zeros(n_samples, dtype=np.float32)}
 
@@ -46,6 +44,18 @@ def test_detect_stem_activity_empty_inputs() -> None:
     """Ensure empty stems or boundaries return empty list."""
     assert detect_stem_activity({}, [(0.0, 5.0)], 22050) == []
     assert detect_stem_activity({"bass": np.zeros(1000, dtype=np.float32)}, [], 22050) == []
+
+
+def test_detect_stem_activity_marks_empty_and_out_of_range_segments_inactive() -> None:
+    """Ensure invalid stem segments fail closed as inactive."""
+    stems = {
+        "vocals": np.array([], dtype=np.float32),
+        "bass": np.ones(10, dtype=np.float32),
+    }
+
+    activity = detect_stem_activity(stems, [(1.0, 2.0)], 10)
+
+    assert activity == [{"vocals": False, "bass": False}]
 
 
 def test_map_stems_to_roles_vocal_mapping() -> None:

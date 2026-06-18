@@ -342,12 +342,14 @@ class RoleExtractor:
             if is_active:
                 active_roles.append(roles[role_key])
 
-            part_graph.append({
-                "role_id": role_id,
-                "is_active": is_active,
-                "handoff_to": handoff_to,
-                "handoff_from": handoff_from,
-            })
+            part_graph.append(
+                {
+                    "role_id": role_id,
+                    "is_active": is_active,
+                    "handoff_to": handoff_to,
+                    "handoff_from": handoff_from,
+                }
+            )
 
         return {
             "section_id": section_id,

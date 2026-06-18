@@ -13,6 +13,7 @@ Security Notes:
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Literal
 
 import librosa
@@ -29,6 +30,9 @@ MIN_SEGMENT_DURATION_SECONDS = 4.0
 # Maximum number of segments to return (avoids over-segmentation).
 MAX_SEGMENTS = 20
 
+# Maximum frame count for dense SSM construction.
+MAX_SSM_FRAMES = 4096
+
 # Canonical section label assignment order for repeating patterns.
 _LABEL_ORDER: tuple[str, ...] = (
     "intro",
@@ -40,25 +44,6 @@ _LABEL_ORDER: tuple[str, ...] = (
     "chorus",
     "outro",
 )
-
-
-class StructuralSegment:
-    """A detected structural boundary in the audio."""
-
-    def __init__(
-        self,
-        start_time: float,
-        end_time: float,
-        label: str,
-        sequence_index: int,
-        confidence: float,
-    ) -> None:
-        """Initialize a structural segment."""
-        self.start_time = start_time
-        self.end_time = end_time
-        self.label = label
-        self.sequence_index = sequence_index
-        self.confidence = confidence
 
 
 def compute_novelty_curve(
@@ -76,8 +61,10 @@ def compute_novelty_curve(
     Returns:
         Tuple of (novelty_curve, frame_times).
     """
+    effective_hop_length = max(hop_length, math.ceil(audio.size / MAX_SSM_FRAMES))
+
     # Extract chroma features for structural comparison
-    chroma = librosa.feature.chroma_cqt(y=audio, sr=sr, hop_length=hop_length)
+    chroma = librosa.feature.chroma_cqt(y=audio, sr=sr, hop_length=effective_hop_length)
 
     # Build self-similarity matrix from chroma
     ssm = librosa.segment.recurrence_matrix(
@@ -93,7 +80,7 @@ def compute_novelty_curve(
 
     # Frame times for each novelty value
     frame_times = librosa.frames_to_time(
-        np.arange(len(novelty)), sr=sr, hop_length=hop_length
+        np.arange(len(novelty)), sr=sr, hop_length=effective_hop_length
     )
 
     return novelty, frame_times
@@ -108,7 +95,7 @@ def _checkerboard_novelty(
     The checkerboard kernel highlights transitions where the local structure
     changes (i.e., moving from one repeated section to a new one).
 
-    Uses vectorized diagonal block extraction for performance.
+    Iterates over valid diagonal patches while keeping the SSM frame count bounded.
     """
     n = ssm.shape[0]
     half = kernel_size // 2
@@ -122,13 +109,13 @@ def _checkerboard_novelty(
     kernel[:half, :half] = -1.0
     kernel[half:, half:] = -1.0
 
-    # Vectorized: extract all valid diagonal patches and compute dot products
+    # Extract all valid diagonal patches and compute dot products.
     valid_range = range(half, n - half)
     for i in valid_range:
         patch = ssm[i - half : i + half, i - half : i + half]
         novelty[i] = np.sum(patch * kernel)
 
-    # Normalize to [0, 1]
+    # Normalize by peak absolute magnitude, preserving sign.
     max_val = np.max(np.abs(novelty))
     if max_val > 0:
         novelty = novelty / max_val
@@ -162,8 +149,10 @@ def detect_boundaries(
 
     # Simple peak detection: local maxima above threshold
     peaks: list[int] = []
-    for i in range(1, len(novelty) - 1):
-        if novelty[i] > threshold and novelty[i] > novelty[i - 1] and novelty[i] > novelty[i + 1]:
+    for i, value in enumerate(novelty):
+        left = novelty[i - 1] if i > 0 else float("-inf")
+        right = novelty[i + 1] if i + 1 < len(novelty) else float("-inf")
+        if value > threshold and value > left and value > right:
             peaks.append(i)
 
     # Convert peak frames to times
@@ -253,77 +242,16 @@ def segment_audio(
     if duration is None:
         duration = float(audio.size) / sr
 
-    # Short audio: return single section
     if duration < MIN_SEGMENT_DURATION_SECONDS * 2:
-        return [
-            {
-                "id": "verse-1",
-                "form_label": "verse",
-                "sequence_index": 1,
-                "groove": "standard",
-                "confidence_level": "low",
-                "confidence_source": "model",
-                "confidence_notes": "Audio too short for structural analysis",
-                "cue_anchor": {
-                    "strategy": CueAnchorStrategy.COUNT.value,
-                    "value": "Enter on beat 1 of bar 1",
-                },
-            }
-        ]
+        return _single_section_fallback("Audio too short for structural analysis")
 
     try:
         boundaries = _compute_boundaries(audio, sr, duration)
-        labels = assign_section_labels(boundaries, duration)
     except Exception as e:
         logger.warning("Structural segmentation failed, falling back to single section: %s", e)
-        return [
-            {
-                "id": "verse-1",
-                "form_label": "verse",
-                "sequence_index": 1,
-                "groove": "standard",
-                "confidence_level": "low",
-                "confidence_source": "model",
-                "confidence_notes": f"Segmentation fallback: {e}",
-                "cue_anchor": {
-                    "strategy": CueAnchorStrategy.COUNT.value,
-                    "value": "Enter on beat 1 of bar 1",
-                },
-            }
-        ]
+        return _single_section_fallback(f"Segmentation fallback: {e}")
 
-    sections: list[SectionCandidate] = []
-    n_boundaries = len(boundaries)
-
-    for i, (label, seq_idx) in enumerate(labels):
-        start_time = boundaries[i]
-        end_time = boundaries[i + 1] if i + 1 < n_boundaries else duration
-
-        # Confidence based on whether label is in canonical set
-        confidence_level: Literal["low", "medium", "high"] = (
-            "high" if label in ALL_SECTION_LABELS else "low"
-        )
-
-        section_id = f"{label}-{seq_idx}"
-
-        candidate: SectionCandidate = {
-            "id": section_id,
-            "form_label": label,
-            "sequence_index": seq_idx,
-            "groove": "standard",
-            "confidence_level": confidence_level,
-            "confidence_source": "model",
-            "confidence_notes": (
-                f"Detected via SSM novelty at {start_time:.1f}s-{end_time:.1f}s"
-            ),
-            "cue_anchor": {
-                "strategy": CueAnchorStrategy.COUNT.value,
-                "value": "Enter on beat 1 of bar 1",
-            },
-        }
-        sections.append(candidate)
-
-    return sections
+    return _sections_from_boundaries(boundaries, duration)
 
 
 def segment_boundaries_from_audio(
@@ -358,13 +286,7 @@ def segment_boundaries_from_audio(
         logger.warning("Boundary detection failed: %s", e)
         return [(0.0, duration)]
 
-    pairs: list[tuple[float, float]] = []
-    for i in range(len(boundaries)):
-        start = boundaries[i]
-        end = boundaries[i + 1] if i + 1 < len(boundaries) else duration
-        pairs.append((start, end))
-
-    return pairs
+    return _boundary_pairs_from_boundaries(boundaries, duration)
 
 
 def segment_with_boundaries(
@@ -374,8 +296,8 @@ def segment_with_boundaries(
 ) -> tuple[list[SectionCandidate], list[tuple[float, float]]]:
     """Run segmentation and return both section candidates and boundary pairs.
 
-    This avoids redundant computation when both sections and boundaries are needed
-    by the downstream pipeline.
+    This preserves one helper call-site for downstream code that needs both
+    section candidates and boundary pairs.
 
     Args:
         audio: Mono audio signal.
@@ -385,9 +307,92 @@ def segment_with_boundaries(
     Returns:
         Tuple of (section_candidates, boundary_pairs).
     """
-    sections = segment_audio(audio, sr, duration)
-    boundaries = segment_boundaries_from_audio(audio, sr, duration)
-    return sections, boundaries
+    if audio.size == 0:
+        return [], []
+
+    if duration is None:
+        duration = float(audio.size) / sr
+
+    if duration < MIN_SEGMENT_DURATION_SECONDS * 2:
+        return _single_section_fallback("Audio too short for structural analysis"), [
+            (0.0, duration)
+        ]
+
+    try:
+        boundaries = _compute_boundaries(audio, sr, duration)
+    except Exception as e:
+        logger.warning("Structural segmentation failed, falling back to single section: %s", e)
+        return _single_section_fallback(f"Segmentation fallback: {e}"), [(0.0, duration)]
+
+    return _sections_from_boundaries(boundaries, duration), _boundary_pairs_from_boundaries(
+        boundaries, duration
+    )
+
+
+def _single_section_fallback(confidence_notes: str) -> list[SectionCandidate]:
+    """Build a single low-confidence verse section for segmentation fallback."""
+    return [
+        {
+            "id": "verse-1",
+            "form_label": "verse",
+            "sequence_index": 1,
+            "groove": "standard",
+            "confidence_level": "low",
+            "confidence_source": "model",
+            "confidence_notes": confidence_notes,
+            "cue_anchor": {
+                "strategy": CueAnchorStrategy.COUNT.value,
+                "value": "Enter on beat 1 of bar 1",
+            },
+        }
+    ]
+
+
+def _sections_from_boundaries(boundaries: list[float], duration: float) -> list[SectionCandidate]:
+    """Build section candidates from precomputed boundary start times."""
+    labels = assign_section_labels(boundaries, duration)
+    sections: list[SectionCandidate] = []
+    n_boundaries = len(boundaries)
+
+    for i, (label, seq_idx) in enumerate(labels):
+        start_time = boundaries[i]
+        end_time = boundaries[i + 1] if i + 1 < n_boundaries else duration
+
+        confidence_level: Literal["low", "medium", "high"] = (
+            "high" if label in ALL_SECTION_LABELS else "low"
+        )
+
+        sections.append(
+            {
+                "id": f"{label}-{seq_idx}",
+                "form_label": label,
+                "sequence_index": seq_idx,
+                "groove": "standard",
+                "confidence_level": confidence_level,
+                "confidence_source": "model",
+                "confidence_notes": (
+                    f"Detected via SSM novelty at {start_time:.1f}s-{end_time:.1f}s"
+                ),
+                "cue_anchor": {
+                    "strategy": CueAnchorStrategy.COUNT.value,
+                    "value": "Enter on beat 1 of bar 1",
+                },
+            }
+        )
+
+    return sections
+
+
+def _boundary_pairs_from_boundaries(
+    boundaries: list[float], duration: float
+) -> list[tuple[float, float]]:
+    """Build `(start, end)` boundary pairs from precomputed boundary start times."""
+    pairs: list[tuple[float, float]] = []
+    for i in range(len(boundaries)):
+        start = boundaries[i]
+        end = boundaries[i + 1] if i + 1 < len(boundaries) else duration
+        pairs.append((start, end))
+    return pairs
 
 
 def _compute_boundaries(

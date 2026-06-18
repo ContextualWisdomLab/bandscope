@@ -394,19 +394,21 @@ def _build_from_pipeline(
         section_roles = topology["active_roles"] if topology else []
         section_graph = topology["part_graph"] if topology else []
 
-        payload_sections.append({
-            "id": section["id"],
-            "label": section["form_label"],
-            "groove": section["groove"],
-            "timeRange": time_range,
-            "confidence": {
-                "level": section["confidence_level"],
-                "source": section["confidence_source"],
-                "notes": section["confidence_notes"],
-            },
-            "roles": cast(list[RehearsalRolePayload], section_roles),
-            "partGraph": cast(list[PartGraphNodePayload], section_graph),
-        })
+        payload_sections.append(
+            {
+                "id": section["id"],
+                "label": section["form_label"],
+                "groove": section["groove"],
+                "timeRange": time_range,
+                "confidence": {
+                    "level": section["confidence_level"],
+                    "source": section["confidence_source"],
+                    "notes": section["confidence_notes"],
+                },
+                "roles": cast(list[RehearsalRolePayload], section_roles),
+                "partGraph": section_graph,
+            }
+        )
 
         # Track high-priority sections for export summary
         if section["form_label"] in ("chorus", "verse"):
@@ -470,8 +472,6 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
     """Reconstruct a mono mix from separated stems for segmentation."""
-    import numpy as np
-
     arrays = []
     for stem_audio in stems.values():
         if isinstance(stem_audio, np.ndarray) and stem_audio.size > 0:
