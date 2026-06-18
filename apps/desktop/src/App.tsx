@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AudioWaveform,
   CircleHelp,
@@ -36,6 +36,7 @@ import {
   isSupportedYoutubeUrl,
   loadProject,
   saveProject,
+  subscribeToAnalysisJobUpdates,
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
@@ -177,6 +178,7 @@ export function App() {
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
@@ -194,6 +196,71 @@ export function App() {
       }
     : defaultRequest;
 
+  /** Documented. */
+  const applyJobStatus = useCallback((nextStatus: AnalysisJobStatus) => {
+    setJobStatus(nextStatus);
+    if (nextStatus.state === "succeeded" && nextStatus.result) {
+      setJobResult(nextStatus.result);
+      setJobResultBootstrap(activeAnalysisBootstrap);
+      setActiveAnalysisBootstrap(null);
+      setJobError(null);
+    }
+    if (nextStatus.state === "failed") {
+      setActiveAnalysisBootstrap(null);
+      setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
+    }
+  }, [activeAnalysisBootstrap, t]);
+
+  useEffect(() => {
+    const targetPercent = jobStatus?.progressPercent;
+    if (targetPercent === undefined) {
+      setRenderedProgressPercent(undefined);
+      return;
+    }
+    if (jobStatus?.state === "failed" || jobStatus?.state === "succeeded") {
+      setRenderedProgressPercent(targetPercent);
+      return;
+    }
+
+    const currentPercent = renderedProgressPercent ?? 0;
+    if (currentPercent >= targetPercent) {
+      setRenderedProgressPercent(targetPercent);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setRenderedProgressPercent((current) => {
+        const base = current ?? 0;
+        return Math.min(targetPercent, base + 1);
+      });
+    }, 20);
+    return () => window.clearTimeout(timer);
+  }, [jobStatus?.progressPercent, jobStatus?.state, renderedProgressPercent]);
+
+  useEffect(() => {
+    if (!jobStatus || (jobStatus.state !== "queued" && jobStatus.state !== "running")) {
+      return;
+    }
+
+    let disposed = false;
+    let unsubscribe: () => void = Function.prototype as () => void;
+    void subscribeToAnalysisJobUpdates(jobStatus.jobId, (nextStatus) => {
+      if (!disposed) {
+        applyJobStatus(nextStatus);
+      }
+    }).then((cleanup) => {
+      if (disposed) {
+        cleanup();
+        return;
+      }
+      unsubscribe = cleanup;
+    });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [applyJobStatus, jobStatus?.jobId, jobStatus?.state]);
+
   useEffect(() => {
     if (!jobStatus || (jobStatus.state !== "queued" && jobStatus.state !== "running")) {
       return;
@@ -202,17 +269,7 @@ export function App() {
     const timer = window.setTimeout(async () => {
       try {
         const nextStatus = await getAnalysisJobStatus(jobStatus.jobId);
-        setJobStatus(nextStatus);
-        if (nextStatus.state === "succeeded" && nextStatus.result) {
-          setJobResult(nextStatus.result);
-          setJobResultBootstrap(activeAnalysisBootstrap);
-          setActiveAnalysisBootstrap(null);
-          setJobError(null);
-        }
-        if (nextStatus.state === "failed") {
-          setActiveAnalysisBootstrap(null);
-          setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
-        }
+        applyJobStatus(nextStatus);
       } catch (error) {
         if (error instanceof Error && error.message === "Invalid analysis job status response") {
           const fallbackMessage = t("analysisCouldNotStart");
@@ -242,7 +299,7 @@ export function App() {
     }, ANALYSIS_POLL_INTERVAL_MS);
 
     return () => window.clearTimeout(timer);
-  }, [activeAnalysisBootstrap, jobStatus, t]);
+  }, [applyJobStatus, jobStatus, t]);
 
   /** Documented. */
   const handleStartAnalysis = async () => {
@@ -255,15 +312,13 @@ export function App() {
     setIsStarting(true);
     try {
       const nextStatus = await startAnalysisJob(selectedRequest);
-      setJobStatus(nextStatus);
       if (nextStatus.state === "succeeded" && nextStatus.result) {
+        setJobStatus(nextStatus);
         setJobResult(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
         setActiveAnalysisBootstrap(null);
-      }
-      if (nextStatus.state === "failed") {
-        setActiveAnalysisBootstrap(null);
-        setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
+      } else {
+        applyJobStatus(nextStatus);
       }
     } catch {
       setJobStatus(null);
@@ -438,10 +493,10 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <button type="button" aria-label="Settings coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+              <button type="button" aria-label="Settings coming soon" title="Settings coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
                 <Settings className="size-5" aria-hidden="true" />
               </button>
-              <button type="button" aria-label="Help coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+              <button type="button" aria-label="Help coming soon" title="Help coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
                 <CircleHelp className="size-5" aria-hidden="true" />
               </button>
             </div>
@@ -585,13 +640,15 @@ export function App() {
                       {jobStatus.state === "running" && <span className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-cyan-100/30 border-t-cyan-200" />}
                       <span className="min-w-0 flex-1 truncate">{progressMessage(t, jobStatus)}</span>
                       {jobStatus.progressPercent !== undefined && (
-                        <span className="shrink-0 tabular-nums text-cyan-50/80">{jobStatus.progressPercent}%</span>
+                        <span className="shrink-0 tabular-nums text-cyan-50/80">
+                          {(renderedProgressPercent ?? jobStatus.progressPercent)}%
+                        </span>
                       )}
                     </div>
                     {jobStatus.progressPercent !== undefined && (
                       <Progress
                         aria-label="Analysis progress"
-                        value={jobStatus.progressPercent}
+                        value={renderedProgressPercent ?? jobStatus.progressPercent}
                         className="mt-2"
                       />
                     )}

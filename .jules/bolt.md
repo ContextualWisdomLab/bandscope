@@ -30,3 +30,7 @@
 ## 2026-06-13 - Memoize SongStructure timeline
 **Learning:** The SongStructure timeline component renders multiple DOM nodes for sections and re-rendered unnecessarily when the active role state changed in the parent Workspace.
 **Action:** Apply React.memo to static presentational components that receive stable props (like sections) but are siblings to highly interactive state (like role filtering).
+
+## 2025-02-13 - O(1) activeRoleDetails Lookup Optimization
+**Learning:** Recomputing active role details by looping through sections and roles on every render/selection causes repeated O(totalRoles) scans.
+**Action:** Use a memoized Map cache mapping role ID to the full RehearsalRole object to allow O(1) lookups.

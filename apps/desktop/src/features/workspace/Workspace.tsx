@@ -1,5 +1,5 @@
 import { useState, useMemo, memo } from "react";
-import type { ProjectBootstrapSummary, RehearsalSong } from "@bandscope/shared-types";
+import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
@@ -7,7 +7,7 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
-import { Download } from "lucide-react";
+import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4 } from "lucide-react";
 
 interface WorkspaceProps {
   song: RehearsalSong;
@@ -39,6 +39,30 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
 }
 
 type Translator = ReturnType<typeof createTranslator>;
+
+/** Documented. */
+function formatStatusLabel(status: string): string {
+  return status.replaceAll("_", " ");
+}
+
+/** Documented. */
+function nonBlankText(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/** Documented. */
+function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): ProjectBootstrapSummary | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return parseProjectBootstrapSummary(value);
+  } catch {
+    return null;
+  }
+}
 
 /** Documented. */
 const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
@@ -93,31 +117,63 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
-  const allRoles = useMemo(() => {
-    const roleMap = new Map<string, string>();
+  const roleMap = useMemo(() => {
+    const map = new Map<string, RehearsalRole>();
     song.sections.forEach(section => {
       section.roles.forEach(role => {
-        if (!roleMap.has(role.id)) {
-          roleMap.set(role.id, role.name);
+        if (!map.has(role.id)) {
+          map.set(role.id, role);
         }
       });
     });
-    return Array.from(roleMap.entries()).map(([id, name]) => ({ id, name }));
+    return map;
   }, [song]);
-  const activeRoleDetails = useMemo(
-    () => {
-      for (const section of song.sections) {
-        for (const role of section.roles) {
-          if (role.id === activeRole) {
-            return role;
-          }
-        }
-      }
-      return undefined;
-    },
-    [activeRole, song]
-  );
+
+  const allRoles = useMemo(() => {
+    return Array.from(roleMap.values()).map(role => ({ id: role.id, name: role.name }));
+  }, [roleMap]);
+
+  // Performance: use the cached roleMap so activeRoleDetails does not rescan sections and roles on every render.
+  const activeRoleDetails = useMemo(() => {
+    if (!activeRole) return undefined;
+    return roleMap.get(activeRole);
+  }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
+  const collaborationAssignments = useMemo(
+    () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
+    [song.collaboration]
+  );
+  const collaborationComments = useMemo(
+    () => (Array.isArray(song.collaboration?.comments) ? song.collaboration.comments : []),
+    [song.collaboration]
+  );
+  const collaborationApprovals = useMemo(
+    () => (Array.isArray(song.collaboration?.approvals) ? song.collaboration.approvals : []),
+    [song.collaboration]
+  );
+  const collaborationSummary = useMemo(
+    () => ({
+      assignments: collaborationAssignments.length,
+      comments: collaborationComments.length,
+      approvals: collaborationApprovals.length
+    }),
+    [collaborationApprovals.length, collaborationAssignments.length, collaborationComments.length]
+  );
+  const activeRoleAssignments = useMemo(
+    () => collaborationAssignments.filter(assignment => assignment.roleId === undefined || assignment.roleId === activeRole),
+    [activeRole, collaborationAssignments]
+  );
+  const activeRoleComments = useMemo(
+    () => collaborationComments.filter(comment => comment.roleId === undefined || comment.roleId === activeRole),
+    [activeRole, collaborationComments]
+  );
+  const roleHarmonicExplanation =
+    nonBlankText(activeRoleDetails?.harmonicExplanation) ??
+    nonBlankText(activeRoleDetails?.harmony.functionLabel) ??
+    t("workspaceHarmonyExplainFallback");
+  const roleTranspositionPlan =
+    nonBlankText(activeRoleDetails?.transpositionPlan) ??
+    nonBlankText(activeRoleDetails?.simplification);
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -133,8 +189,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Documented. */
   const handleExportHandoff = () => {
+    const parsedSourceBootstrap = safeProjectBootstrapSummary(sourceBootstrap);
     const json = generateMetadataHandoffJson(song, {
-      sourceBootstrap,
+      sourceBootstrap: parsedSourceBootstrap,
       workspaceId: song.id,
       workspaceTitle: song.title
     });
@@ -186,12 +243,34 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         </CardHeader>
 
         <CardContent className="space-y-6 bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.86))] p-5 md:p-7">
-          <div className="grid gap-4 lg:grid-cols-4">
-            <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 lg:col-span-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">{t("workspaceSongTimelineLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
                 {song.sections.length} section{song.sections.length === 1 ? "" : "s"} mapped with groove, role cues, and chord confidence notes.
               </p>
+            </section>
+
+            <section className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.07] p-4 md:col-span-2 xl:col-span-1">
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">{t("workspaceCollaborationLabel")}</p>
+              {song.collaboration ? (
+                <div className="mt-2 space-y-3 text-sm leading-6 text-slate-300">
+                  <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-200">
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{collaborationSummary.assignments} {t("workspaceAssignmentsLabel")}</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{collaborationSummary.comments} {t("workspaceCommentsLabel")}</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{collaborationSummary.approvals} {t("workspaceApprovalsLabel")}</span>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                    <CloudOff className="mt-0.5 size-4 shrink-0 text-emerald-200" aria-hidden="true" />
+                    <div>
+                      <p className="text-[0.65rem] font-black uppercase tracking-[0.22em] text-emerald-200">{t("workspaceSyncStatusLabel")}</p>
+                      <p>{song.collaboration.syncNote}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-300">{t("workspaceCollaborationEmpty")}</p>
+              )}
             </section>
 
             <section className="rounded-2xl border border-violet-300/20 bg-violet-300/[0.06] p-4">
@@ -240,6 +319,75 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     Transcribe Bass
                   </Button>
                 </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
+                    <div className="flex items-center gap-2 text-cyan-100">
+                      <Music4 className="size-4" aria-hidden="true" />
+                      <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceHarmonyExplainLabel")}</p>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">
+                      {roleHarmonicExplanation}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3">
+                    <div className="flex items-center gap-2 text-indigo-100">
+                      <ClipboardList className="size-4" aria-hidden="true" />
+                      <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">
+                      {roleTranspositionPlan}
+                    </p>
+                  </div>
+                </div>
+                {song.collaboration && (
+                  <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="flex items-center gap-2 text-slate-100">
+                        <ClipboardList className="size-4 text-cyan-200" aria-hidden="true" />
+                        <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceAssignmentsLabel")}</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {activeRoleAssignments.map((assignment) => (
+                          <div key={assignment.id} className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.06] p-2">
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">{assignment.assignee}</p>
+                            <p className="mt-1 text-sm text-slate-100">{assignment.summary}</p>
+                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{formatStatusLabel(assignment.status)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="flex items-center gap-2 text-slate-100">
+                        <MessageSquareMore className="size-4 text-amber-200" aria-hidden="true" />
+                        <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceCommentsLabel")}</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {activeRoleComments.map((comment) => (
+                          <div key={comment.id} className="rounded-lg border border-amber-300/15 bg-amber-300/[0.07] p-2">
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">{comment.author}</p>
+                            <p className="mt-1 text-sm text-slate-100">{comment.body}</p>
+                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{formatStatusLabel(comment.status)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="flex items-center gap-2 text-slate-100">
+                        <CheckCheck className="size-4 text-emerald-200" aria-hidden="true" />
+                        <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceApprovalsLabel")}</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {collaborationApprovals.map((approval) => (
+                          <div key={approval.id} className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.07] p-2">
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100">{approval.scope}</p>
+                            <p className="mt-1 text-sm text-slate-100">{approval.owner}</p>
+                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{formatStatusLabel(approval.status)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
               </div>
             )}

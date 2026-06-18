@@ -14,6 +14,7 @@ import {
   type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
+import { listen } from "@tauri-apps/api/event";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -270,6 +271,38 @@ export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobSt
     return parseAnalysisJobStatus(response);
   } catch {
     throw new Error("Invalid analysis job status response");
+  }
+}
+
+/** Documented. */
+export async function subscribeToAnalysisJobUpdates(
+  jobId: string,
+  onUpdate: (status: AnalysisJobStatus) => void
+): Promise<() => void> {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+  const tauriInternals = window.__TAURI_INTERNALS__;
+  if (!tauriInternals || typeof tauriInternals.invoke !== "function") {
+    return () => undefined;
+  }
+
+  try {
+    const unlisten = await listen<unknown>("analysis-job-updated", (event) => {
+      try {
+        const status = parseAnalysisJobStatus(event.payload);
+        if (status.jobId === jobId) {
+          onUpdate(status);
+        }
+      } catch {
+        // Ignore malformed status payloads and keep polling fallback active.
+      }
+    });
+    return () => {
+      void unlisten();
+    };
+  } catch {
+    return () => undefined;
   }
 }
 
