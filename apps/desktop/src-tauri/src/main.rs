@@ -10,13 +10,12 @@ use std::{
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
-        mpsc,
-        Arc, Mutex,
+        mpsc, Arc, Mutex,
     },
     thread,
     time::{Duration, Instant},
 };
-use tauri::{Manager, Runtime};
+use tauri::{Emitter, Manager, Runtime};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[derive(Clone)]
@@ -602,10 +601,19 @@ fn failed_status(
     }
 }
 
-fn store_status(state: &AppState, status: AnalysisJobStatus) {
+fn store_status(state: &AppState, status: &AnalysisJobStatus) {
     if let Ok(mut jobs) = state.0.jobs.lock() {
-        jobs.insert(status.job_id.clone(), status);
+        jobs.insert(status.job_id.clone(), status.clone());
     }
+}
+
+fn store_status_and_emit<R: Runtime>(
+    state: &AppState,
+    app: &tauri::AppHandle<R>,
+    status: &AnalysisJobStatus,
+) {
+    store_status(state, status);
+    let _ = app.emit("analysis-job-updated", status);
 }
 
 fn store_bootstrap_source(state: &AppState, summary: ProjectBootstrapSummaryPayload) {
@@ -629,17 +637,19 @@ fn lookup_bootstrap_source(
 
 fn drain_analysis_status_updates(
     state: &AppState,
+    app: &tauri::AppHandle<impl Runtime>,
     status_rx: &mpsc::Receiver<AnalysisJobStatus>,
     last_status: &mut Option<AnalysisJobStatus>,
 ) {
     while let Ok(status) = status_rx.try_recv() {
-        store_status(state, status.clone());
+        store_status_and_emit(state, app, &status);
         *last_status = Some(status);
     }
 }
 
 fn run_analysis_engine(
     state: AppState,
+    app: tauri::AppHandle<impl Runtime>,
     job_id: String,
     request: AnalysisJobRequest,
     requested_at: String,
@@ -749,7 +759,7 @@ fn run_analysis_engine(
     let mut last_status = None;
     let exit_status;
     loop {
-        drain_analysis_status_updates(&state, &status_rx, &mut last_status);
+        drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
         match process.try_wait() {
             Ok(Some(status)) => {
                 exit_status = status;
@@ -792,7 +802,7 @@ fn run_analysis_engine(
     }
     let reader_last_status = stdout_reader.join().unwrap_or(None);
     let _ = stderr_reader.join();
-    drain_analysis_status_updates(&state, &status_rx, &mut last_status);
+    drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
     if last_status.is_none() {
         last_status = reader_last_status;
     }
@@ -823,7 +833,11 @@ fn run_analysis_engine(
 }
 
 #[tauri::command]
-fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> AnalysisJobStatus {
+fn start_analysis_job(
+    request: Value,
+    app: tauri::AppHandle<impl Runtime>,
+    state: tauri::State<'_, AppState>,
+) -> AnalysisJobStatus {
     let requested_at = iso_timestamp_now();
     let mut parsed_request = match parse_request_payload(request) {
         Ok(parsed_request) => parsed_request,
@@ -884,13 +898,15 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
         result: None,
         error: None,
     };
-    store_status(&state, queued.clone());
+    store_status_and_emit(&state, &app, &queued);
 
     let app_state = state.inner().clone();
+    let worker_app_handle = app.clone();
     std::thread::spawn(move || {
-        store_status(
+        store_status_and_emit(
             &app_state,
-            AnalysisJobStatus {
+            &worker_app_handle,
+            &AnalysisJobStatus {
                 job_id: job_id.clone(),
                 state: AnalysisJobState::Running,
                 requested_at: requested_at.clone(),
@@ -903,8 +919,14 @@ fn start_analysis_job(request: Value, state: tauri::State<'_, AppState>) -> Anal
                 error: None,
             },
         );
-        let finished = run_analysis_engine(app_state.clone(), job_id, parsed_request, requested_at);
-        store_status(&app_state, finished);
+        let finished = run_analysis_engine(
+            app_state.clone(),
+            worker_app_handle.clone(),
+            job_id,
+            parsed_request,
+            requested_at,
+        );
+        store_status_and_emit(&app_state, &worker_app_handle, &finished);
         release_job_slot(&app_state);
     });
 
@@ -1385,7 +1407,10 @@ mod tests {
             "YouTube import timed out.",
         );
 
-        assert_eq!(result.expect_err("slow child should time out"), "YouTube import timed out.");
+        assert_eq!(
+            result.expect_err("slow child should time out"),
+            "YouTube import timed out."
+        );
     }
 
     #[test]
