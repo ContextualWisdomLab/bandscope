@@ -3896,7 +3896,11 @@ def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     assert "`RUSTSEC-2024-0429` for `glib 0.18.5`" in content
     assert "VariantStrIter" in content
     assert "Tauri/wry/webkit2gtk/gtk GTK3 stack" in content
-    assert "no compatible lockfile-only update" in content
+    assert "A compatible lockfile refresh can move the desktop stack to" in content
+    assert "`tauri 2.11.3`" in content
+    assert "`wry 0.55.1`" in content
+    assert "`tao 0.35.3`" in content
+    assert "`muda 0.19.3`" in content
     assert "drops or patches the chain" in content
 
 
