@@ -197,8 +197,8 @@ class ChordAnalyzer:
     ) -> list[ChordLabel]:
         """Map recognized chord segments into ChordLabel format for a section.
 
-        Filters by section time range if available, deduplicates, and maps
-        confidence from the recognizer into functionLabel hints.
+        Filters by section time range if available and deduplicates recognized
+        chord labels while preserving their first observed order.
         """
         valid_chords = [c for c in recognized if c["chord"] != "N"]
         if not valid_chords:

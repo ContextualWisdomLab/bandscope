@@ -180,8 +180,9 @@ def test_chord_recognizer_viterbi_smoothing_reduces_spurious_changes() -> None:
         + np.sin(2 * np.pi * 329.63 * t)
         + np.sin(2 * np.pi * 392.00 * t)
     ) / 3.0
-    # Add tiny noise
-    y += np.random.randn(len(y)) * 0.01
+    # Add tiny deterministic noise
+    rng = np.random.default_rng(42)
+    y += rng.normal(0.0, 0.01, len(y))
 
     result = recognizer.recognize(y, sr=sr)
     # With Viterbi smoothing, a steady chord should produce very few segments

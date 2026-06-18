@@ -111,14 +111,18 @@ class RoleExtractor:
         Returns:
             Tuple of (vocal_range, vocal_chord, bass_range, bass_chord).
         """
-        # Defaults only used when no audio stems are available
-        vocal_range: RangeSummary = {"lowestNote": "G#3", "highestNote": "C#5"}
-        vocal_chord = "C#m7"
-        bass_range: RangeSummary = {"lowestNote": "C#2", "highestNote": "E3"}
-        bass_chord = "C#m7"
-
         if not stems:
-            return vocal_range, vocal_chord, bass_range, bass_chord
+            return (
+                {"lowestNote": "G#3", "highestNote": "C#5"},
+                "C#m7",
+                {"lowestNote": "C#2", "highestNote": "E3"},
+                "C#m7",
+            )
+
+        vocal_range: RangeSummary = {"lowestNote": "", "highestNote": ""}
+        vocal_chord = ""
+        bass_range: RangeSummary = {"lowestNote": "", "highestNote": ""}
+        bass_chord = ""
 
         try:
             from ..chords.chord_recognizer import ChordRecognizer

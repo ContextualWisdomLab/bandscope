@@ -78,11 +78,11 @@ class PitchTracker:
         confidence = self._compute_confidence(voiced_probs, voiced_flag, y)
 
         # If voicing probability is very low, treat as unvoiced regardless of confidence
-        avg_prob = (
-            np.mean(voiced_probs[~np.isnan(voiced_probs)])
-            if voiced_probs is not None and len(voiced_probs) > 0
-            else 0.0
-        )
+        if voiced_probs is not None and len(voiced_probs) > 0:
+            valid_probs = voiced_probs[~np.isnan(voiced_probs)]
+            avg_prob = float(np.mean(valid_probs)) if len(valid_probs) > 0 else 0.0
+        else:
+            avg_prob = 0.0
         if avg_prob < 0.2:
             return {"lowest_note": None, "highest_note": None, "confidence": "low"}
 

@@ -112,14 +112,50 @@ def test_pitch_tracker_medium_confidence() -> None:
     """Test that a moderate-quality signal produces medium confidence."""
     tracker = PitchTracker()
     sr = 22050
-    t = np.linspace(0, 1.0, sr)
-    # A4 sine wave with moderate noise
-    y = np.sin(2 * np.pi * 440.0 * t) * 0.3 + np.random.randn(sr) * 0.05
+    y = np.full(sr, 0.01, dtype=np.float32)
+    f0 = np.full(10, 440.0)
+    voiced_flag = np.array([True, True, True, True, False, False, False, False, False, False])
+    voiced_probs = np.full(10, 0.4)
 
-    result = tracker.track(y, sr=sr)
-    # Should detect a note but with medium or high confidence
-    if result["lowest_note"] is not None:
-        assert result["confidence"] in ("medium", "high")
+    with patch("librosa.pyin", return_value=(f0, voiced_flag, voiced_probs)):
+        result = tracker.track(y, sr=sr)
+
+    assert result["lowest_note"] == "A4"
+    assert result["highest_note"] == "A4"
+    assert result["confidence"] == "medium"
+
+
+def test_pitch_tracker_all_nan_voicing_probs_returns_low() -> None:
+    """Test that all-NaN voicing probabilities fail closed."""
+    tracker = PitchTracker()
+    sr = 22050
+    y = np.full(sr, 0.05, dtype=np.float32)
+    f0 = np.full(10, 440.0)
+    voiced_flag = np.full(10, True)
+    voiced_probs = np.full(10, np.nan)
+
+    with patch("librosa.pyin", return_value=(f0, voiced_flag, voiced_probs)):
+        result = tracker.track(y, sr=sr)
+
+    assert result["lowest_note"] is None
+    assert result["highest_note"] is None
+    assert result["confidence"] == "low"
+
+
+def test_pitch_tracker_none_voicing_probs_returns_low() -> None:
+    """Test that missing voicing probabilities fail closed."""
+    tracker = PitchTracker()
+    sr = 22050
+    y = np.full(sr, 0.05, dtype=np.float32)
+    f0 = np.full(10, 440.0)
+    voiced_flag = np.full(10, True)
+
+    with patch("librosa.pyin", return_value=(f0, voiced_flag, None)):
+        result = tracker.track(y, sr=sr)
+
+    assert result["lowest_note"] is None
+    assert result["highest_note"] is None
+    assert result["confidence"] == "low"
 
 
 def test_pitch_tracker_confidence_multi_factor() -> None:
@@ -157,7 +193,7 @@ def test_pitch_tracker_confidence_returns_medium() -> None:
     result = tracker._compute_confidence(voiced_probs, voiced_flag, y)
     # score = 0.5*0.46 + 0.3*0.6 + 0.2*(0.04/0.05*~0.028/0.05)
     # This should be in the medium range
-    assert result in ("low", "medium")
+    assert result == "medium"
 
 
 def test_pitch_tracker_confidence_returns_low() -> None:
