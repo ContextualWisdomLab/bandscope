@@ -5190,9 +5190,7 @@ def test_opencode_normalizer_rejects_optional_structural_review_variants(
         "opencode_review_normalize_optional_structure",
     )
 
-    assert set(OPTIONAL_STRUCTURAL_REVIEW_PHRASES).issubset(
-        normalizer.STRUCTURAL_FAILURE_PHRASES
-    )
+    assert set(OPTIONAL_STRUCTURAL_REVIEW_PHRASES).issubset(normalizer.STRUCTURAL_FAILURE_PHRASES)
 
     for phrase in OPTIONAL_STRUCTURAL_REVIEW_PHRASES:
         output_file = tmp_path / f"{phrase.replace(' ', '-')}.md"
