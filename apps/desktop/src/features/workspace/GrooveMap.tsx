@@ -89,6 +89,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
           const pitchIndex = pitchIndexMap.get(note.pitch) ?? 0;
           const leftPercent = (note.onset / maxTime) * 100;
           const widthPercent = ((note.offset - note.onset) / maxTime) * 100;
+          const noteLabel = `${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`;
 
           return (
             <div
@@ -99,8 +100,12 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
                 left: `${leftPercent}%`,
                 width: `${widthPercent}%`
               }}
-              title={`${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`}
-            />
+              title={noteLabel}
+            >
+              <span className="sr-only">
+                {noteLabel}
+              </span>
+            </div>
           );
         })}
       </div>
