@@ -172,7 +172,7 @@ class ChordAnalyzer:
                         {
                             "chord": chord_name,
                             "functionLabel": str(harmony.get("functionLabel", "")),
-                            "source": harmony.get("source", "model"),
+                            "source": "model",
                         }
                     )
         return chords

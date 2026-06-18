@@ -113,10 +113,10 @@ class RoleExtractor:
         """
         if not stems:
             return (
-                {"lowestNote": "G#3", "highestNote": "C#5"},
-                "C#m7",
-                {"lowestNote": "C#2", "highestNote": "E3"},
-                "C#m7",
+                {"lowestNote": "", "highestNote": ""},
+                "",
+                {"lowestNote": "", "highestNote": ""},
+                "",
             )
 
         vocal_range: RangeSummary = {"lowestNote": "", "highestNote": ""}

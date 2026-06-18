@@ -63,6 +63,28 @@ def test_chord_analyzer_deduplicates_chords() -> None:
     assert len(result["sections"][0]["chords"]) == 1
 
 
+def test_chord_analyzer_clamps_legacy_role_sources_to_model() -> None:
+    """Test legacy role chord extraction always emits model source."""
+    analyzer = ChordAnalyzer()
+    sections = [{"id": "verse-1"}]
+    roles_by_section = {
+        "verse-1": [
+            {
+                "harmony": {
+                    "chord": "F",
+                    "functionLabel": "IV",
+                    "source": "unexpected",
+                }
+            },
+        ]
+    }
+
+    result = analyzer.analyze(sections, roles_by_section)
+    assert result["sections"][0]["chords"] == [
+        {"chord": "F", "functionLabel": "IV", "source": "model"}
+    ]
+
+
 def test_chord_analyzer_user_source_confidence() -> None:
     """Test that user-sourced chords raise confidence to high."""
     analyzer = ChordAnalyzer()
