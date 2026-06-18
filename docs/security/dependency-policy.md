@@ -103,7 +103,7 @@ Current controlled exceptions:
 
 - No Python vulnerability exceptions are active. `GHSA-5239-wwwm-4pmq` (`Pygments <2.20.0`) was removed by locking `Pygments` to `2.20.0`; the CI `security-audit` workflow must run `pip-audit --local --strict` against the synced `uv` environment without a targeted ignore for that advisory.
 - Cargo audit warnings for legacy `gtk3` vulnerabilities (e.g. `RUSTSEC-2024-0413`) inherited through Tauri v2 `wry`/`webkit2gtk` integration are explicitly allowed. These are deep framework dependencies with no alternative, so they are documented exceptions and ignored by default.
-- `RUSTSEC-2024-0429` for `glib 0.18.5` is allowed only for the `VariantStrIter` advisory inherited through the Tauri/wry/webkit2gtk/gtk GTK3 stack. A compatible lockfile refresh can move the desktop stack to `tauri 2.11.3`, `wry 0.55.1`, `muda 0.19.3`, and related transitive patches, but it still does not move this stack to patched `glib >=0.20.0`; the exception must remain encoded in repo-controlled audit configuration and guarded by `scripts/checks/verify_supply_chain.py`, and it must be removed when upstream drops or patches the chain.
+- `RUSTSEC-2024-0429` for `glib 0.18.5` is allowed only for the `VariantStrIter` advisory inherited through the Tauri/wry/webkit2gtk/gtk GTK3 stack. A compatible lockfile refresh can move the desktop stack to `tauri 2.11.3`, `wry 0.55.1`, `tao 0.35.3`, `muda 0.19.3`, and related transitive patches, but it still does not move this stack to patched `glib >=0.20.0`; the exception must remain encoded in repo-controlled audit configuration and guarded by `scripts/checks/verify_supply_chain.py`, and it must be removed when upstream drops or patches the chain.
 
 Retired third-party deprecation and advisory signal:
 
