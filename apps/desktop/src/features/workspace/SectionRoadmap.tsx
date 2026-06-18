@@ -1,5 +1,5 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -15,6 +15,7 @@ interface SectionRoadmapProps {
 
 /** Documented. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
+  const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
@@ -70,7 +71,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   return (
     <div className="mt-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center text-xl font-black tracking-tight text-white">
+        <h2 id={sectionRoadmapTitleId} className="flex items-center text-xl font-black tracking-tight text-white">
           <Music2 className="mr-2 size-5 text-cyan-300" aria-hidden="true" />
           {t("sectionRoadmapTitle")}
         </h2>
@@ -78,10 +79,10 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
       </div>
 
       <div
-        className="hide-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6 pt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:rounded-xl"
+        className="hide-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto rounded-xl pb-6 pt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
         role="region"
         tabIndex={0}
-        aria-label={t("sectionRoadmapTitle")}
+        aria-labelledby={sectionRoadmapTitleId}
       >
         {song.sections.map((section) => (
           <Card
