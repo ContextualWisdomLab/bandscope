@@ -595,6 +595,7 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
+        patch("bandscope_analysis.api._store_cached_local_audio_features") as store_features,
     ):
         updates = list(run_analysis_job_updates("job-feature-hit", request, "2026-03-12T00:00:00Z"))
 
@@ -602,6 +603,7 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
     assert updates[1]["cacheStatus"] == "miss"
     assert updates[-1]["state"] == "succeeded"
     separator_class.return_value.separate.assert_not_called()
+    store_features.assert_not_called()
 
 
 def test_stem_work_arrays_path_requires_local_temp_root(tmp_path) -> None:
@@ -915,6 +917,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
         loaded = _run_stem_separation_with_timeout("/tmp/audio.wav")
     assert loaded["sr"] == 22050
     assert loaded["stems"]["bass"].shape == (4,)
+    assert not arrays_path.with_suffix(".json").exists()
 
     invalid_file_payloads = [
         ("not-a-dict", "Stem separation returned invalid metadata."),

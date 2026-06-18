@@ -10,8 +10,7 @@ use std::{
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
-        mpsc,
-        Arc, Mutex,
+        mpsc, Arc, Mutex,
     },
     thread,
     time::{Duration, Instant},
@@ -602,18 +601,18 @@ fn failed_status(
     }
 }
 
-fn store_status(state: &AppState, status: AnalysisJobStatus) {
+fn store_status(state: &AppState, status: &AnalysisJobStatus) {
     if let Ok(mut jobs) = state.0.jobs.lock() {
-        jobs.insert(status.job_id.clone(), status);
+        jobs.insert(status.job_id.clone(), status.clone());
     }
 }
 
 fn store_status_and_emit<R: Runtime>(
     state: &AppState,
     app: &tauri::AppHandle<R>,
-    status: AnalysisJobStatus,
+    status: &AnalysisJobStatus,
 ) {
-    store_status(state, status.clone());
+    store_status(state, status);
     let _ = app.emit("analysis-job-updated", status);
 }
 
@@ -643,7 +642,7 @@ fn drain_analysis_status_updates(
     last_status: &mut Option<AnalysisJobStatus>,
 ) {
     while let Ok(status) = status_rx.try_recv() {
-        store_status_and_emit(state, app, status.clone());
+        store_status_and_emit(state, app, &status);
         *last_status = Some(status);
     }
 }
@@ -899,7 +898,7 @@ fn start_analysis_job(
         result: None,
         error: None,
     };
-    store_status_and_emit(&state, &app, queued.clone());
+    store_status_and_emit(&state, &app, &queued);
 
     let app_state = state.inner().clone();
     let worker_app_handle = app.clone();
@@ -907,7 +906,7 @@ fn start_analysis_job(
         store_status_and_emit(
             &app_state,
             &worker_app_handle,
-            AnalysisJobStatus {
+            &AnalysisJobStatus {
                 job_id: job_id.clone(),
                 state: AnalysisJobState::Running,
                 requested_at: requested_at.clone(),
@@ -920,9 +919,14 @@ fn start_analysis_job(
                 error: None,
             },
         );
-        let finished =
-            run_analysis_engine(app_state.clone(), worker_app_handle.clone(), job_id, parsed_request, requested_at);
-        store_status_and_emit(&app_state, &worker_app_handle, finished);
+        let finished = run_analysis_engine(
+            app_state.clone(),
+            worker_app_handle.clone(),
+            job_id,
+            parsed_request,
+            requested_at,
+        );
+        store_status_and_emit(&app_state, &worker_app_handle, &finished);
         release_job_slot(&app_state);
     });
 
@@ -1403,7 +1407,10 @@ mod tests {
             "YouTube import timed out.",
         );
 
-        assert_eq!(result.expect_err("slow child should time out"), "YouTube import timed out.");
+        assert_eq!(
+            result.expect_err("slow child should time out"),
+            "YouTube import timed out."
+        );
     }
 
     #[test]

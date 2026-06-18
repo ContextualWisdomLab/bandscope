@@ -7,6 +7,7 @@ import json
 import multiprocessing as mp
 import queue
 import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
@@ -596,8 +597,8 @@ def _store_cached_local_audio_features(
             json.dump(metadata_payload, metadata_file, separators=(",", ":"))
         with arrays_temp.open("wb") as arrays_file:
             np.savez_compressed(arrays_file, **cast(Any, serialized_stems))
-        metadata_temp.replace(metadata_path)
         arrays_temp.replace(arrays_path)
+        metadata_temp.replace(metadata_path)
     except OSError:
         return False
     return True
@@ -716,6 +717,9 @@ def _run_stem_separation_with_timeout(
             loaded = _load_cached_local_audio_features(metadata_temp, arrays_output_path)
         except OSError:
             loaded = None
+        finally:
+            with suppress(OSError):
+                metadata_temp.unlink(missing_ok=True)
         if loaded is None:
             raise RuntimeError("Stem separation returned invalid stem arrays.")
         return loaded
@@ -812,10 +816,12 @@ def run_analysis_job_updates(
         ),
     ]
     audio_features: dict[str, Any] | None = None
+    feature_cache_hit = False
     if feature_cache_paths is not None:
         cached_features = _load_cached_local_audio_features(*feature_cache_paths)
         if cached_features is not None:
             audio_features = cached_features
+            feature_cache_hit = True
             updates.append(
                 _build_job_status(
                     job_id=job_id,
@@ -911,7 +917,7 @@ def run_analysis_job_updates(
         )
     )
     final_cache_status = cache_status
-    if audio_features is not None and feature_cache_paths is not None:
+    if audio_features is not None and feature_cache_paths is not None and not feature_cache_hit:
         _store_cached_local_audio_features(
             feature_cache_paths[0], feature_cache_paths[1], request, audio_features
         )
