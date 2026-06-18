@@ -6,12 +6,15 @@ import {
   createDefaultProjectSummary,
   createDemoRehearsalSong,
   isRehearsalSong,
+  isProjectSummary,
   isAnalysisJobStatus,
   parseAnalysisJobStatus,
   parseLocalAudioSource,
   parseMetadataHandoffArtifact,
+  parseProjectSummary,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
+  validateProjectSummary,
   isMetadataHandoffArtifact,
   isRehearsalWorkspace,
   parseRehearsalWorkspace,
@@ -22,6 +25,7 @@ import {
   parseAnalysisJobRequest,
   type AnalysisJobRequest,
   type LocalAudioSource,
+  type ProjectSummary,
   type RehearsalSong,
   MAX_SECTION_TIME_SECONDS,
   SUPPORTED_AUDIO_FORMATS
@@ -68,6 +72,45 @@ describe("shared type helpers", () => {
       status: "idle",
       supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
     });
+  });
+
+  it("validates project summaries at process boundaries", () => {
+    const statuses: ProjectSummary["status"][] = ["idle", "running", "done", "failed"];
+
+    for (const status of statuses) {
+      const summary: ProjectSummary = {
+        id: `project-${status}`,
+        title: `Project ${status}`,
+        status,
+        supportedAudioFormats: ["wav", "mp3"]
+      };
+
+      expect(validateProjectSummary(summary)).toBeNull();
+      expect(isProjectSummary(summary)).toBe(true);
+      expect(parseProjectSummary(summary)).toEqual(summary);
+    }
+
+    const validSummary: ProjectSummary = {
+      id: "project-1",
+      title: "Demo Song",
+      status: "running",
+      supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
+    };
+    const sparseFormats = {
+      ...validSummary,
+      supportedAudioFormats: new Array(1)
+    };
+
+    expect(parseProjectSummary(validSummary)).toEqual(validSummary);
+    expect(isProjectSummary({ ...validSummary, status: "queued" })).toBe(false);
+    expect(validateProjectSummary(null)).toContain("root");
+    expect(() => parseProjectSummary({ ...validSummary, id: "   " })).toThrow("id");
+    expect(() => parseProjectSummary({ ...validSummary, title: "" })).toThrow("title");
+    expect(() => parseProjectSummary({ ...validSummary, status: "queued" })).toThrow("status");
+    expect(() => parseProjectSummary({ ...validSummary, supportedAudioFormats: "wav" })).toThrow("supportedAudioFormats");
+    expect(() => parseProjectSummary(sparseFormats)).toThrow("supportedAudioFormats");
+    expect(() => parseProjectSummary({ ...validSummary, supportedAudioFormats: ["ogg"] })).toThrow("supportedAudioFormats[0]");
+    expect(() => parseProjectSummary({ ...validSummary, extraField: true })).toThrow("extraField");
   });
 
   it("property-checks supported local audio sources", () => {

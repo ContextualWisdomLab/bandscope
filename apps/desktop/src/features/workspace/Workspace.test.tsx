@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong, type ProjectBootstrapSummary } from "@bandscope/shared-types";
+import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 import { EmptyState, LoadingState } from "./WorkspaceStates";
+import { generateMetadataHandoffJson } from "../../lib/export";
 
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
@@ -92,6 +93,7 @@ describe("Workspace", () => {
   });
 
   it("renders collaboration summaries and role-specific rehearsal planning details", () => {
+    setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
     render(<Workspace song={song} />);
@@ -106,6 +108,31 @@ describe("Workspace", () => {
     expect(screen.getByText(/whole step lower/i)).toBeTruthy();
     expect(screen.getByText(/Lock the bass entrance against the pickup/i)).toBeTruthy();
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
+  });
+
+  it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      harmonicExplanation: "   ",
+      transpositionPlan: ""
+    };
+    song.collaboration = {
+      syncMode: "local_only",
+      syncNote: "Local-only draft"
+    } as RehearsalSong["collaboration"];
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText(/0 Assignments/i)).toBeTruthy();
+    expect(screen.getByText(/0 Comments/i)).toBeTruthy();
+    expect(screen.getByText(/0 Approvals/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByText("vi pedal anchor")).toBeTruthy();
+    expect(screen.getAllByText("Stay on roots if the chorus entrance gets muddy.").length).toBeGreaterThan(0);
   });
 
   it("exports a metadata-only handoff artifact from the workspace", async () => {
@@ -145,6 +172,17 @@ describe("Workspace", () => {
     expect(JSON.stringify(payload)).not.toContain("/Users/test");
     expect(click).toHaveBeenCalledTimes(1);
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:handoff");
+  });
+
+  it("validates source bootstrap before generating metadata handoff", () => {
+    const song = createDemoRehearsalSong();
+    const invalidSourceBootstrap = {
+      projectId: "project-1"
+    } as ProjectBootstrapSummary;
+
+    expect(() => {
+      generateMetadataHandoffJson(song, { sourceBootstrap: invalidSourceBootstrap });
+    }).toThrow("sourceMode");
   });
 
   it("localizes empty and loading state titles", () => {

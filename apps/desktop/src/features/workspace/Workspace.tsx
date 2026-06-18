@@ -1,5 +1,5 @@
 import { useState, useMemo, memo } from "react";
-import type { ProjectBootstrapSummary, RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
+import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
@@ -43,6 +43,12 @@ type Translator = ReturnType<typeof createTranslator>;
 /** Documented. */
 function formatStatusLabel(status: string): string {
   return status.replaceAll("_", " ");
+}
+
+/** Documented. */
+function nonBlankText(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 /** Documented. */
@@ -120,22 +126,41 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
-  const collaborationSummary = useMemo(
-    () => ({
-      assignments: song.collaboration?.assignments.length ?? 0,
-      comments: song.collaboration?.comments.length ?? 0,
-      approvals: song.collaboration?.approvals.length ?? 0
-    }),
+  const collaborationAssignments = useMemo(
+    () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
     [song.collaboration]
   );
+  const collaborationComments = useMemo(
+    () => (Array.isArray(song.collaboration?.comments) ? song.collaboration.comments : []),
+    [song.collaboration]
+  );
+  const collaborationApprovals = useMemo(
+    () => (Array.isArray(song.collaboration?.approvals) ? song.collaboration.approvals : []),
+    [song.collaboration]
+  );
+  const collaborationSummary = useMemo(
+    () => ({
+      assignments: collaborationAssignments.length,
+      comments: collaborationComments.length,
+      approvals: collaborationApprovals.length
+    }),
+    [collaborationApprovals.length, collaborationAssignments.length, collaborationComments.length]
+  );
   const activeRoleAssignments = useMemo(
-    () => song.collaboration?.assignments.filter(assignment => assignment.roleId === undefined || assignment.roleId === activeRole) ?? [],
-    [activeRole, song.collaboration]
+    () => collaborationAssignments.filter(assignment => assignment.roleId === undefined || assignment.roleId === activeRole),
+    [activeRole, collaborationAssignments]
   );
   const activeRoleComments = useMemo(
-    () => song.collaboration?.comments.filter(comment => comment.roleId === undefined || comment.roleId === activeRole) ?? [],
-    [activeRole, song.collaboration]
+    () => collaborationComments.filter(comment => comment.roleId === undefined || comment.roleId === activeRole),
+    [activeRole, collaborationComments]
   );
+  const roleHarmonicExplanation =
+    nonBlankText(activeRoleDetails?.harmonicExplanation) ??
+    nonBlankText(activeRoleDetails?.harmony.functionLabel) ??
+    t("workspaceHarmonyExplainFallback");
+  const roleTranspositionPlan =
+    nonBlankText(activeRoleDetails?.transpositionPlan) ??
+    nonBlankText(activeRoleDetails?.simplification);
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -151,8 +176,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Documented. */
   const handleExportHandoff = () => {
+    const parsedSourceBootstrap = sourceBootstrap ? parseProjectBootstrapSummary(sourceBootstrap) : null;
     const json = generateMetadataHandoffJson(song, {
-      sourceBootstrap,
+      sourceBootstrap: parsedSourceBootstrap,
       workspaceId: song.id,
       workspaceTitle: song.title
     });
@@ -287,7 +313,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceHarmonyExplainLabel")}</p>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-200">
-                      {activeRoleDetails?.harmonicExplanation ?? activeRoleDetails?.harmony.functionLabel ?? t("workspaceHarmonyExplainFallback")}
+                      {roleHarmonicExplanation}
                     </p>
                   </div>
                   <div className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3">
@@ -296,7 +322,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-200">
-                      {activeRoleDetails?.transpositionPlan ?? activeRoleDetails?.simplification}
+                      {roleTranspositionPlan}
                     </p>
                   </div>
                 </div>
@@ -338,7 +364,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                         <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceApprovalsLabel")}</p>
                       </div>
                       <div className="mt-3 space-y-2">
-                        {song.collaboration.approvals.map((approval) => (
+                        {collaborationApprovals.map((approval) => (
                           <div key={approval.id} className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.07] p-2">
                             <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100">{approval.scope}</p>
                             <p className="mt-1 text-sm text-slate-100">{approval.owner}</p>

@@ -342,6 +342,7 @@ export type AnalysisJobSnapshot = {
 };
 
 const CONFIDENCE_LEVELS = ["low", "medium", "high"] as const;
+const PROJECT_STATUSES = ["idle", "running", "done", "failed"] as const;
 const REHEARSAL_PRIORITIES = ["low", "medium", "high"] as const;
 const PROVENANCE_SOURCES = ["model", "user"] as const;
 const CUE_ANCHOR_KINDS = ["lyric", "count", "transition"] as const;
@@ -400,6 +401,11 @@ function unexpectedKey(value: Record<string, unknown>, allowedKeys: readonly str
   }
 
   return null;
+}
+
+/** Documented. */
+function invalidProjectSummaryField(path: string): string {
+  return `Invalid project summary contract: invalid field '${path}'`;
 }
 
 const demoRehearsalSongSeed: RehearsalSong = {
@@ -606,6 +612,51 @@ export function createDefaultProjectSummary(input: {
     status: "idle",
     supportedAudioFormats: SUPPORTED_AUDIO_FORMATS
   };
+}
+
+/** Documented. */
+export function validateProjectSummary(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return invalidProjectSummaryField("root");
+  }
+  const extraKey = unexpectedKey(value, ["id", "title", "status", "supportedAudioFormats"], "");
+  if (extraKey) {
+    return extraKey.replace("Invalid rehearsal song contract", "Invalid project summary contract");
+  }
+  if (typeof value.id !== "string" || value.id.trim().length === 0) {
+    return invalidProjectSummaryField("id");
+  }
+  if (typeof value.title !== "string" || value.title.trim().length === 0) {
+    return invalidProjectSummaryField("title");
+  }
+  if (!isOneOf(PROJECT_STATUSES, value.status)) {
+    return invalidProjectSummaryField("status");
+  }
+  if (!isDenseArray(value.supportedAudioFormats)) {
+    return invalidProjectSummaryField("supportedAudioFormats");
+  }
+  for (const [index, format] of value.supportedAudioFormats.entries()) {
+    if (!isOneOf(SUPPORTED_AUDIO_FORMATS, format)) {
+      return invalidProjectSummaryField(`supportedAudioFormats[${index}]`);
+    }
+  }
+
+  return null;
+}
+
+/** Documented. */
+export function isProjectSummary(value: unknown): value is ProjectSummary {
+  return validateProjectSummary(value) === null;
+}
+
+/** Documented. */
+export function parseProjectSummary(value: unknown): ProjectSummary {
+  const validationError = validateProjectSummary(value);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  return structuredClone(value as ProjectSummary);
 }
 
 /** Documented. */
