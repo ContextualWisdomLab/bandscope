@@ -3897,8 +3897,9 @@ def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     assert "VariantStrIter" in content
     assert "Tauri/wry/webkit2gtk/gtk GTK3 stack" in content
     assert "A compatible lockfile refresh can move the desktop stack to" in content
-    assert "`tauri 2.11.2`" in content
+    assert "`tauri 2.11.3`" in content
     assert "`wry 0.55.1`" in content
+    assert "`muda 0.19.3`" in content
     assert "drops or patches the chain" in content
 
 
