@@ -34,3 +34,7 @@
 ## 2025-02-13 - O(1) activeRoleDetails Lookup Optimization
 **Learning:** Recomputing active role details by looping through sections and roles on every render/selection causes repeated O(totalRoles) scans.
 **Action:** Use a memoized Map cache mapping role ID to the full RehearsalRole object to allow O(1) lookups.
+
+## 2025-02-13 - Vectorize Viterbi decoding inner loop
+**Learning:** The Viterbi decoding inner loop in chord recognition was iterating over all 25 chord states inside each frame, creating an O(N_frames * N_states^2) computational cost in Python.
+**Action:** Vectorize the `n_states` dimension using `numpy` broadcasting to compute all transition probabilities concurrently, turning the nested Python loop into a fast numpy operation.

@@ -160,10 +160,12 @@ class ChordRecognizer:
 
         # Forward pass
         for t in range(1, n_frames):
-            for s in range(n_states):
-                trans_probs = viterbi[:, t - 1] + log_trans[:, s]
-                backpointer[s, t] = int(np.argmax(trans_probs))
-                viterbi[s, t] = trans_probs[backpointer[s, t]] + log_obs[s, t]
+            # trans_probs: shape (n_states, n_states), where trans_probs[prev_s, curr_s]
+            # is the prob of transitioning from prev_s to curr_s at frame t.
+            # viterbi[:, t - 1, np.newaxis] broadcasts the previous state probabilities.
+            trans_probs = viterbi[:, t - 1, np.newaxis] + log_trans
+            backpointer[:, t] = np.argmax(trans_probs, axis=0)
+            viterbi[:, t] = np.max(trans_probs, axis=0) + log_obs[:, t]
 
         # Backtrace
         states = np.zeros(n_frames, dtype=np.intp)
