@@ -92,6 +92,66 @@ jobs:
         run: |
           set -euo pipefail
 
+          current_peer_checks_still_running() {
+            local owner="${GH_REPOSITORY%%/*}"
+            local name="${GH_REPOSITORY#*/}"
+
+            # Exclude this OpenCode check run; otherwise the evidence step would
+            # wait on itself until the bounded retry budget is exhausted.
+            # shellcheck disable=SC2016
+            gh api graphql \
+              -f owner="$owner" \
+              -f name="$name" \
+              -F number="$PR_NUMBER" \
+              -f query='
+                query($owner:String!,$name:String!,$number:Int!) {
+                  repository(owner:$owner,name:$name) {
+                    pullRequest(number:$number) {
+                      statusCheckRollup {
+                        contexts(first: 100) {
+                          nodes {
+                            __typename
+                            ... on CheckRun {
+                              name
+                              status
+                              checkSuite {
+                                workflowRun {
+                                  workflow {
+                                    name
+                                  }
+                                }
+                              }
+                            }
+                            ... on StatusContext {
+                              context
+                              state
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ' \
+              --jq '
+                [
+                  (.data.repository.pullRequest.statusCheckRollup.contexts.nodes // [])
+                  | .[]
+                  | if .__typename == "CheckRun" then
+                      select((.name // "") != "opencode-review")
+                      | select((.checkSuite.workflowRun.workflow.name // "") != "OpenCode PR Review")
+                      | select((.status // "") != "COMPLETED")
+                    elif .__typename == "StatusContext" then
+                      select((.context // "") != "opencode-review")
+                      | select((.state // "" | ascii_upcase) as $s | ["PENDING","EXPECTED"] | index($s))
+                    else
+                      empty
+                    end
+                ]
+                | length > 0
+              '
+          }
+
           collect_failed_check_evidence_with_wait() {
             local evidence_file="$1"
             local attempts="${FAILED_CHECK_EVIDENCE_ATTEMPTS:-19}"
@@ -100,7 +160,12 @@ jobs:
 
             while [ "$attempt" -le "$attempts" ]; do
               if scripts/ci/collect_failed_check_evidence.sh "$evidence_file"; then
-                return 0
+                if ! grep -Fq "No completed failed GitHub Checks were present" "$evidence_file"; then
+                  return 0
+                fi
+                if [ "$(current_peer_checks_still_running 2>/dev/null || printf 'false')" != "true" ]; then
+                  return 0
+                fi
               fi
 
               if [ "$attempt" -lt "$attempts" ]; then
