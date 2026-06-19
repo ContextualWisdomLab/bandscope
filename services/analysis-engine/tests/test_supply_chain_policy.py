@@ -4907,6 +4907,20 @@ def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
     assert workflow.count("select(opencode_review_agent_status | not)") >= 2
 
 
+def test_opencode_review_unavailable_reports_provider_errors() -> None:
+    """Ensure unavailable OpenCode reviews explain provider failures in the overview."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "summarize_opencode_review_failures" in workflow
+    assert "OpenCode runtime evidence:" in workflow
+    assert ".error.data.statusCode // empty" in workflow
+    assert ".error.data.message // .error.message // .error.name // empty" in workflow
+    assert ".error.data.metadata.url // empty" in workflow
+
+
 def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
     """Ensure scheduled queue handling still runs when the app token secret is absent."""
     repo_root = Path(__file__).resolve().parents[3]

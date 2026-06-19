@@ -1728,6 +1728,61 @@ jobs:
             return 2
           }
 
+          summarize_opencode_review_failures() {
+            local attempt_spec
+            local attempt_name
+            local output_file
+            local error_message
+            local status_code
+            local provider_url
+            local found=0
+
+            for attempt_spec in \
+              "primary:${RUNNER_TEMP}/opencode-review-primary.md.jsonl" \
+              "fallback-r1:${RUNNER_TEMP}/opencode-review-fallback.md.jsonl" \
+              "fallback-v3:${RUNNER_TEMP}/opencode-review-second-fallback.md.jsonl"; do
+              attempt_name="${attempt_spec%%:*}"
+              output_file="${attempt_spec#*:}"
+              if [ ! -s "$output_file" ]; then
+                continue
+              fi
+
+              error_message="$(
+                jq -r 'select(.type == "error") | (.error.data.message // .error.message // .error.name // empty)' "$output_file" 2>/dev/null |
+                  head -n 1 || true
+              )"
+              status_code="$(
+                jq -r 'select(.type == "error") | (.error.data.statusCode // empty)' "$output_file" 2>/dev/null |
+                  head -n 1 || true
+              )"
+              provider_url="$(
+                jq -r 'select(.type == "error") | (.error.data.metadata.url // empty)' "$output_file" 2>/dev/null |
+                  head -n 1 || true
+              )"
+
+              if [ -z "$error_message" ] && [ -z "$status_code" ]; then
+                continue
+              fi
+
+              found=1
+              printf -- '- %s model call failed' "$attempt_name"
+              if [ -n "$status_code" ]; then
+                printf ' with HTTP %s' "$status_code"
+              fi
+              if [ -n "$error_message" ]; then
+                printf ': %s' "$error_message"
+              fi
+              if [ -n "$provider_url" ]; then
+                printf ' (%s)' "$provider_url"
+              fi
+              printf '\n'
+            done
+
+            if [ "$found" -eq 0 ]; then
+              printf -- '- No OpenCode provider error detail was captured in the JSONL outputs.\n'
+            fi
+          }
+
           live_head_sha="$(gh api -X GET "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
           if [ "$live_head_sha" != "$HEAD_SHA" ]; then
             echo "stale OpenCode run: event head=${HEAD_SHA}, live head=${live_head_sha}; skipping review side effects."
@@ -1794,6 +1849,9 @@ jobs:
                     "- Result: OPENCODE_REVIEW_UNAVAILABLE" \
                     "- Reason: OpenCode review attempts did not complete or did not return a valid control block." \
                     "- OpenCode outcomes: primary=${OPENCODE_PRIMARY_OUTCOME:-unknown}, fallback=${OPENCODE_FALLBACK_OUTCOME:-unknown}, second_fallback=${OPENCODE_SECOND_FALLBACK_OUTCOME:-unknown}" \
+                    "" \
+                    "OpenCode runtime evidence:" \
+                    "$(summarize_opencode_review_failures)" \
                     "- Head SHA: \`${HEAD_SHA}\`" \
                     "- Workflow run: ${RUN_ID}" \
                     "- Workflow attempt: ${RUN_ATTEMPT}" \
@@ -1967,6 +2025,9 @@ jobs:
                 "" \
                 "- Result: OPENCODE_REVIEW_UNAVAILABLE" \
                 "- Reason: approval gate result was ${gate_result:-empty}." \
+                "" \
+                "OpenCode runtime evidence:" \
+                "$(summarize_opencode_review_failures)" \
                 "- Head SHA: \`${HEAD_SHA}\`" \
                 "- Workflow run: ${RUN_ID}" \
                 "- Workflow attempt: ${RUN_ATTEMPT}" \
