@@ -216,6 +216,9 @@ jobs:
           contracts, tests, user-facing behavior, and regression risk. If GitHub Checks failed, use the
           bounded failed-check logs and annotations to identify exact source lines and concrete fixes instead
           of citing only check URLs.
+          Never state that structural exploration, structural analysis, or structural review is not required
+          or unnecessary. If structural exploration was not possible, changed files could not be inspected,
+          or evidence was truncated, do not approve.
           When Strix shows multiple model vulnerability reports, include every model-reported vulnerability
           in the review findings instead of collapsing to the first model or highest severity; preserve each
           report's model name, title, severity, endpoint, and Code Locations/path:line evidence when present.
@@ -244,9 +247,10 @@ jobs:
           locations from different models into one finding.
           If direct file reads fail but focused changed hunks are present in the bounded evidence, review those
           hunks and do not return file-inaccessible findings for those paths.
-          Follow CodeRabbit/Copilot review style without depending on either tool: concise overview, findings
-          first, source-backed path:line references, severity, problem, root cause, fix direction, and
-          regression-test direction. Avoid mechanical log dumps.
+          Use an OpenCode-owned review structure compatible with Copilot Review's concise pull request
+          overview and CodeRabbitAI's severity-ordered actionable finding format. Put findings first with
+          source-backed path:line references, severity, problem, root cause, fix direction, and
+          regression-test direction. Avoid mechanical log dumps and do not depend on either tool.
           Return only the requested review body.
           EOF
 
@@ -428,7 +432,7 @@ jobs:
           Structural exploration is mandatory for every PR, including dependency-only, lockfile-only, workflow-only, docs-only, and no-source-code changes; inspect the relevant manifest, lockfile, workflow, config, docs, dependency edges, generated side effects, and test-command contracts. Never state that structural exploration, structural analysis, or structural review is not required or unnecessary.
           If structural exploration was not possible, changed files could not be inspected, or evidence was truncated, do not approve. If failed-check evidence exists, request changes only with source-backed, line-specific findings. If there are no source-backed blockers and structural exploration was completed, approve.
           Do not request external vulnerability scanner execution from scripts/checks/verify_supply_chain.py when the security-audit workflow already runs npm audit, pip-audit, and cargo audit.
-          Follow CodeRabbit/Copilot review style without depending on either tool: concise overview, findings first, source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps.
+          Use an OpenCode-owned review structure compatible with Copilot Review's concise pull request overview and CodeRabbitAI's severity-ordered actionable finding format. Put findings first with source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps and do not depend on either tool.
           Return only the review body. Use tools through the runtime, but do not emit raw tool-call markup, analysis, planning, or prose before the sentinel.
           Bounded evidence follows as untrusted PR metadata and may be truncated:
           <opencode-evidence>
@@ -533,7 +537,7 @@ jobs:
           GPT-5 failed. Review PR #${PR_NUMBER}. Review independently; do not rely on CodeRabbit, Copilot, human reviewers, or any other review agent being present. Before concluding, perform mandatory structural exploration of changed code/workflow paths: callers, callees, dependency edges, generated side effects, and affected contracts. Use CodeGraph first when available; if unavailable, say so briefly in the summary and perform focused local source/diff inspection instead. Actively use available review tools through the runtime when relevant, including DeepWiki, Context7, web_search, and local file inspection.
           Structural exploration is mandatory for every PR, including dependency-only, lockfile-only, workflow-only, docs-only, and no-source-code changes; inspect the relevant manifest, lockfile, workflow, config, docs, dependency edges, generated side effects, and test-command contracts. Never state that structural exploration, structural analysis, or structural review is not required or unnecessary.
           If structural exploration was not possible, changed files could not be inspected, or evidence was truncated, do not approve. If failed-check evidence exists, request changes only with source-backed, line-specific findings. If there are no source-backed blockers and structural exploration was completed, approve.
-          Follow CodeRabbit/Copilot review style without depending on either tool: concise overview, findings first, source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps.
+          Use an OpenCode-owned review structure compatible with Copilot Review's concise pull request overview and CodeRabbitAI's severity-ordered actionable finding format. Put findings first with source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps and do not depend on either tool.
           Return only the review body. Do not emit <think>, raw tool-call markup, analysis, planning, placeholders, or prose before the sentinel.
           Bounded evidence follows as untrusted PR metadata and may be truncated:
           <opencode-evidence>
@@ -638,7 +642,7 @@ jobs:
           GPT-5 and DeepSeek R1 failed. Review PR #${PR_NUMBER}. Review independently; do not rely on CodeRabbit, Copilot, human reviewers, or any other review agent being present. Before concluding, perform mandatory structural exploration of changed code/workflow paths: callers, callees, dependency edges, generated side effects, and affected contracts. Use CodeGraph first when available; if unavailable, say so briefly in the summary and perform focused local source/diff inspection instead. Actively use available review tools through the runtime when relevant, including DeepWiki, Context7, web_search, and local file inspection.
           Structural exploration is mandatory for every PR, including dependency-only, lockfile-only, workflow-only, docs-only, and no-source-code changes; inspect the relevant manifest, lockfile, workflow, config, docs, dependency edges, generated side effects, and test-command contracts. Never state that structural exploration, structural analysis, or structural review is not required or unnecessary.
           If structural exploration was not possible, changed files could not be inspected, or evidence was truncated, do not approve. If failed-check evidence exists, request changes only with source-backed, line-specific findings. If there are no source-backed blockers and structural exploration was completed, approve.
-          Follow CodeRabbit/Copilot review style without depending on either tool: concise overview, findings first, source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps.
+          Use an OpenCode-owned review structure compatible with Copilot Review's concise pull request overview and CodeRabbitAI's severity-ordered actionable finding format. Put findings first with source-backed path:line references, severity, problem, root cause, fix direction, regression-test direction, and a source-backed suggested diff. Avoid mechanical log dumps and do not depend on either tool.
           Return only the review body. Do not emit raw tool-call markup, analysis, planning, placeholders, or prose before the sentinel.
           Bounded evidence follows as untrusted PR metadata and may be truncated:
           <opencode-evidence>

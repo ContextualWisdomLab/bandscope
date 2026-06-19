@@ -6,6 +6,12 @@ if [ $# -ne 4 ] && [ $# -ne 5 ]; then
   exit 64
 fi
 
+SCRIPT_DIR="$(
+  CDPATH=''
+  cd -P -- "$(dirname -- "$0")"
+  pwd -P
+)"
+NORMALIZER="$SCRIPT_DIR/opencode_review_normalize_output.py"
 EXPECTED_HEAD_SHA="$1"
 EXPECTED_RUN_ID="$2"
 EXPECTED_RUN_ATTEMPT="$3"
@@ -79,8 +85,9 @@ CONTROL_RUN_ATTEMPT="$(jq -r '.run_attempt // empty' "$TMP_JSON")"
 RESULT="$(jq -r '.result // empty' "$TMP_JSON")"
 
 if [ "$RESULT" = "APPROVE" ]; then
-  jq '.findings = (.findings // [])' "$TMP_JSON" >"${TMP_JSON}.normalized"
-  mv "${TMP_JSON}.normalized" "$TMP_JSON"
+  TMP_NORMALIZED_JSON="${TMP_JSON}.normalized"
+  jq '.findings = (.findings // [])' "$TMP_JSON" >"$TMP_NORMALIZED_JSON"
+  mv "$TMP_NORMALIZED_JSON" "$TMP_JSON"
 fi
 
 if [ "$CONTROL_HEAD_SHA" != "$EXPECTED_HEAD_SHA" ]; then
@@ -130,43 +137,7 @@ if ! jq -e '
   exit 4
 fi
 
-if ! jq -e '
-  def admits_missing_structural_review:
-    ((.reason + "\n" + .summary) | ascii_downcase) as $text
-    | (
-      ($text | contains("structural exploration was not possible"))
-      or ($text | contains("structural exploration not possible"))
-      or ($text | contains("structural exploration is not required"))
-      or ($text | contains("structural exploration not required"))
-      or ($text | contains("structural analysis is not required"))
-      or ($text | contains("structural analysis not required"))
-      or ($text | contains("structural review is not required"))
-      or ($text | contains("structural review not required"))
-      or ($text | contains("no structural exploration required"))
-      or ($text | contains("no structural analysis required"))
-      or ($text | contains("no structural review required"))
-      or ($text | contains("structural exploration is unnecessary"))
-      or ($text | contains("structural analysis is unnecessary"))
-      or ($text | contains("structural review is unnecessary"))
-      or ($text | contains("could not be reviewed"))
-      or ($text | contains("could not inspect"))
-      or ($text | contains("could not be inspected"))
-      or ($text | contains("could not access changed files"))
-      or ($text | contains("could not access the changed files"))
-      or ($text | contains("could not access source files"))
-      or ($text | contains("could not access the source files"))
-      or ($text | contains("could not access required files"))
-      or ($text | contains("could not access required evidence"))
-      or ($text | contains("file access issues"))
-      or ($text | contains("file inaccessibility"))
-      or ($text | contains("evidence was truncated"))
-      or ($text | contains("not provided in evidence"))
-      or ($text | contains("truncated evidence"))
-      or ($text | contains("unable to inspect"))
-      or ($text | contains("insufficient evidence"))
-    );
-  if .result == "APPROVE" then (admits_missing_structural_review | not) else true end
-' "$TMP_JSON" >/dev/null; then
+if ! python3 "$NORMALIZER" --check-structural-approval "$TMP_JSON" >/dev/null; then
   echo "NO_CONCLUSION"
   exit 4
 fi

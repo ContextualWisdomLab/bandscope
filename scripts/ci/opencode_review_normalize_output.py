@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,9 @@ STRUCTURAL_FAILURE_PHRASES = (
     "could not be reviewed",
     "could not inspect",
     "could not be inspected",
+    "changed files could not be inspected",
+    "source files could not be inspected",
+    "required files could not be inspected",
     "could not access changed files",
     "could not access the changed files",
     "could not access source files",
@@ -42,11 +46,52 @@ STRUCTURAL_FAILURE_PHRASES = (
     "insufficient evidence",
 )
 
+STRUCTURAL_FAILURE_PATTERNS = (
+    re.compile(
+        r"\b(?:could not|cannot|can't|unable to)\s+"
+        r"(?:inspect|access|review)\s+(?:the\s+)?"
+        r"(?:changed|source|required)\s+files?\b"
+    ),
+    re.compile(
+        r"\b(?:changed|source|required)\s+files?\s+"
+        r"(?:could not|cannot|can't|were not|was not)\s+"
+        r"(?:be\s+)?(?:inspected|accessed|reviewed)\b"
+    ),
+    re.compile(
+        r"\b(?:structural\s+(?:exploration|analysis|review))\s+"
+        r"(?:was\s+)?(?:unavailable|incomplete|blocked|not possible)\b"
+    ),
+)
+
 
 def admits_missing_structural_review(reason: str, summary: str) -> bool:
     """Return whether an approval admits it did not inspect required structure."""
     combined = f"{reason}\n{summary}".casefold()
-    return any(phrase in combined for phrase in STRUCTURAL_FAILURE_PHRASES)
+    return any(phrase in combined for phrase in STRUCTURAL_FAILURE_PHRASES) or any(
+        pattern.search(combined) for pattern in STRUCTURAL_FAILURE_PATTERNS
+    )
+
+
+def check_structural_approval(control_file: Path) -> int:
+    """Reject approvals whose control JSON admits missing structural review."""
+    try:
+        value = json.loads(control_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"cannot read OpenCode control JSON: {exc}", file=sys.stderr)
+        return 65
+
+    if not isinstance(value, dict):
+        print("NO_CONCLUSION", file=sys.stderr)
+        return 4
+
+    if value.get("result") == "APPROVE" and admits_missing_structural_review(
+        str(value.get("reason", "")),
+        str(value.get("summary", "")),
+    ):
+        print("NO_CONCLUSION", file=sys.stderr)
+        return 4
+
+    return 0
 
 
 def valid_control(
@@ -145,10 +190,14 @@ def iter_json_objects(text: str) -> list[Any]:
 
 def main(argv: list[str]) -> int:
     """Normalize an OpenCode output file for the shell approval gate."""
+    if len(argv) == 3 and argv[1] == "--check-structural-approval":
+        return check_structural_approval(Path(argv[2]))
+
     if len(argv) != 5:
         print(
             "usage: opencode_review_normalize_output.py "
-            "<expected_head_sha> <expected_run_id> <expected_run_attempt> <output_file>",
+            "<expected_head_sha> <expected_run_id> <expected_run_attempt> <output_file>\n"
+            "   or: opencode_review_normalize_output.py --check-structural-approval <control_json_file>",
             file=sys.stderr,
         )
         return 64
