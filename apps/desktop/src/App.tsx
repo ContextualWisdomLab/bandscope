@@ -608,10 +608,14 @@ export function App() {
                   disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
-                  aria-label="Start analysis"
+                  aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}
                 >
-                  <Play className="mr-2 size-4 fill-current" aria-hidden="true" />
-                  {t("startAnalysis")}
+                  {isStarting ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Play className="mr-2 size-4 fill-current" aria-hidden="true" />
+                  )}
+                  {isStarting ? t("startingAnalysis") : t("startAnalysis")}
                 </Button>
               </div>
             </div>

@@ -16,6 +16,7 @@
   "harmonySource": "harmony source",
   "manualOverride": "manual override",
   "startAnalysis": "Start analysis",
+  "startingAnalysis": "Starting...",
   "analysisCouldNotStart": "Analysis could not start.",
   "analysisStateQueued": "Queued for analysis",
   "analysisStateRunning": "Running analysis",
