@@ -25,9 +25,16 @@ jobs:
     name: review and merge ready PRs
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      actions: read
+      checks: read
+      contents: write
+      issues: write
+      pull-requests: write
     env:
       DEFAULT_BRANCH: develop
-      GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
+      GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}
+      OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
       GH_REPO: ${{ github.repository }}
       MAX_PRS: ${{ github.event.inputs.max_prs || '20' }}
     steps:
@@ -40,9 +47,13 @@ jobs:
           repo="${GH_REPO#*/}"
 
           if [[ -z "${GH_TOKEN:-}" ]]; then
-            echo "::error::pr-review-merge-scheduler requires OPENCODE_APPROVE_TOKEN with pull-requests:write and contents:write permissions."
-            echo "Configure OPENCODE_APPROVE_TOKEN before running the scheduler so branch updates and merges do not silently fall back to the read-only GITHUB_TOKEN."
+            echo "::error::pr-review-merge-scheduler requires OPENCODE_APPROVE_TOKEN or repository GITHUB_TOKEN."
             exit 1
+          fi
+          if [[ -n "${OPENCODE_APPROVE_TOKEN:-}" ]]; then
+            echo "scheduler token source=opencode-approve-token"
+          else
+            echo "scheduler token source=github-token"
           fi
 
           gh_output_retry() {

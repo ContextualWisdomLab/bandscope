@@ -4907,6 +4907,21 @@ def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
     assert workflow.count("select(opencode_review_agent_status | not)") >= 2
 
 
+def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
+    """Ensure scheduled queue handling still runs when the app token secret is absent."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "pr-review-merge-scheduler.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "contents: write" in workflow
+    assert "issues: write" in workflow
+    assert "pull-requests: write" in workflow
+    assert "GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}" in workflow
+    assert "scheduler token source=github-token" in workflow
+    assert "Configure OPENCODE_APPROVE_TOKEN before running the scheduler" not in workflow
+
+
 def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
     """Ensure transient artifact upload finalization resets do not request changes."""
     classifier = load_module(
