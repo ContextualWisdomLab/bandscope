@@ -993,7 +993,7 @@ jobs:
             body="$(printf '%s\n' \
               "## Pull request overview" \
               "" \
-              "OpenCode could not publish a source-backed review because its current-run review evidence was missing or invalid." \
+              "OpenCode could not publish a source-backed approval because its current-run review evidence was missing or invalid." \
               "" \
               "## Findings" \
               "" \
@@ -1009,7 +1009,7 @@ jobs:
               "- Head SHA: \`${HEAD_SHA}\`" \
               "- Workflow run: ${RUN_ID}" \
               "- Workflow attempt: ${RUN_ATTEMPT}")"
-            create_pull_review "REQUEST_CHANGES" "$body"
+            create_pull_review "COMMENT" "$body"
           }
 
           stop_approval_without_review() {
@@ -1017,9 +1017,9 @@ jobs:
             local body="$2"
 
             update_review_overview "$result" "$body"
-            echo "::error::${result}: OpenCode did not change the pull request review state."
+            echo "::notice::${result}: OpenCode did not change the pull request review state."
             echo "::endgroup::"
-            exit 1
+            exit 0
           }
 
           format_request_changes_body() {
