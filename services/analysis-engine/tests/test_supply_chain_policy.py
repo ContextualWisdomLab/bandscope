@@ -4894,7 +4894,7 @@ def test_supply_chain_check_accepts_repo_workspace_exec_policy(
 
 
 def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
-    """Ensure OpenCode approval does not wait on other review-agent statuses."""
+    """Ensure OpenCode ignores review agents while waiting on regular peer checks."""
     repo_root = Path(__file__).resolve().parents[3]
     workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
         encoding="utf-8"
@@ -4903,7 +4903,16 @@ def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
     assert "def opencode_review_agent_status:" in workflow
     assert '$context == "coderabbit"' in workflow
     assert '$context == "copilot pull request reviewer"' in workflow
-    assert "current_peer_checks_still_running" not in workflow
+    assert "current_peer_checks_still_running" in workflow
+    assert 'select((.name // "") != "opencode-review")' in workflow
+    assert (
+        'select((.checkSuite.workflowRun.workflow.name // "") != "OpenCode PR Review")' in workflow
+    )
+    assert (
+        'select((.state // "" | ascii_upcase) as $s | ["PENDING","EXPECTED"] | index($s))'
+        in workflow
+    )
+    assert "No completed failed GitHub Checks were present" in workflow
     assert workflow.count("select(opencode_review_agent_status | not)") >= 2
 
 
