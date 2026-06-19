@@ -34,3 +34,6 @@
 ## 2025-02-13 - O(1) activeRoleDetails Lookup Optimization
 **Learning:** Recomputing active role details by looping through sections and roles on every render/selection causes repeated O(totalRoles) scans.
 **Action:** Use a memoized Map cache mapping role ID to the full RehearsalRole object to allow O(1) lookups.
+## 2025-02-14 - Replace Set with Map.map with for loop
+**Learning:** Using `new Set(array.map(...))` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequent renders of large transcription arrays.
+**Action:** Replace `array.map()` inside `new Set()` with a `for...of` loop or `.reduce()` to iterate and add elements directly to the Set for O(1) memory and avoiding intermediate array allocations.
