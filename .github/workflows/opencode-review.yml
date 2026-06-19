@@ -27,8 +27,8 @@ jobs:
       id-token: write
       contents: read
       statuses: read
-      pull-requests: read
-      issues: read
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -790,7 +790,9 @@ jobs:
               || steps.opencode_review_fallback.outputs.review_status == 'success'
               || steps.opencode_review_second_fallback.outputs.review_status == 'success')
         env:
-          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN }}
+          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
+          OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
+          OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -804,8 +806,13 @@ jobs:
           OPENCODE_SECOND_FALLBACK_OUTPUT_FILE: ${{ runner.temp }}/opencode-review-second-fallback.md
         run: |
           set -euo pipefail
+          if [ -n "${OPENCODE_APP_TOKEN:-}" ]; then
+            export GH_TOKEN="$OPENCODE_APP_TOKEN"
+          elif [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
+            export GH_TOKEN="$OPENCODE_APPROVE_TOKEN"
+          fi
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::OpenCode review commenting requires an OpenCode app token or OPENCODE_APPROVE_TOKEN with issues write access."
+            echo "::error::OpenCode review commenting requires an OpenCode app token, OPENCODE_APPROVE_TOKEN, or repository GITHUB_TOKEN with issues write access."
             exit 1
           fi
 
@@ -893,10 +900,11 @@ jobs:
       - name: Approve PR if OpenCode review passed
         if: always()
         env:
-          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN }}
+          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
           GH_REPOSITORY: ${{ github.repository }}
           STRIX_GITHUB_MODELS_TOKEN: ${{ secrets.STRIX_GITHUB_MODELS_TOKEN }}
           OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
+          OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
           OPENCODE_EVIDENCE_FILE: ${{ runner.temp }}/opencode-review-evidence.md
           OPENCODE_FAILED_CHECK_EVIDENCE_FILE: ${{ runner.temp }}/opencode-failed-check-evidence.md
           OPENCODE_FAILED_CHECK_DIAGNOSIS_FILE: ${{ runner.temp }}/opencode-failed-check-diagnosis.md
@@ -920,13 +928,16 @@ jobs:
           set -euo pipefail
           echo "::group::OpenCode Review Approval Gate"
           echo "PR=#${PR_NUMBER} head_sha=${HEAD_SHA} run_id=${RUN_ID} run_attempt=${RUN_ATTEMPT}"
-          approval_token_source="configured"
+          approval_token_source="github-token"
           if [ -n "${OPENCODE_APP_TOKEN:-}" ]; then
             export GH_TOKEN="$OPENCODE_APP_TOKEN"
             approval_token_source="opencode-app"
+          elif [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
+            export GH_TOKEN="$OPENCODE_APPROVE_TOKEN"
+            approval_token_source="opencode-approve-token"
           fi
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::error::OpenCode approval requires an OpenCode app token or OPENCODE_APPROVE_TOKEN with pull request write access."
+            echo "::error::OpenCode approval requires an OpenCode app token, OPENCODE_APPROVE_TOKEN, or repository GITHUB_TOKEN with pull request write access."
             exit 1
           fi
           overview_comment_token="$GH_TOKEN"
