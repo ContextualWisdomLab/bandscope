@@ -1671,6 +1671,16 @@ def test_supply_chain_check_accepts_colocated_non_scorecard_sarif_upload(
     assert not any("ossf scorecard SARIF upload" in violation for violation in violations)
 
 
+def test_trivy_workflow_pins_cli_version() -> None:
+    """Ensure Trivy scan uses the pinned CLI version proven by the CI gate."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "trivy.yml").read_text(encoding="utf-8")
+
+    assert "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25" in workflow
+    assert "version: v0.71.2" in workflow
+    assert "exit-code: '1'" in workflow
+
+
 def test_supply_chain_check_accepts_colocated_generic_non_scorecard_sarif_upload(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

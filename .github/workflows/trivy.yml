@@ -32,6 +32,7 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
+          version: v0.71.2
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
