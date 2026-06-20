@@ -42,7 +42,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       checks: read
-      contents: read
+      contents: write
+      issues: write
       pull-requests: write
     env:
       GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}
