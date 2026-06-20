@@ -22,7 +22,12 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
   // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
   const uniquePitches = useMemo(() => {
-    return Array.from(new Set(renderedNotes.map(n => n.pitch))).sort();
+    // Performance: Use a loop to populate the Set to avoid allocating an intermediate array from .map()
+    const pitches = new Set<string>();
+    for (const note of renderedNotes) {
+      pitches.add(note.pitch);
+    }
+    return Array.from(pitches).sort();
   }, [renderedNotes]);
 
   const pitchIndexMap = useMemo(() => {
