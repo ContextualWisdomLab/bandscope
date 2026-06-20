@@ -565,6 +565,22 @@ def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> No
     assert all(package.get("version") != "2.19.2" for package in pygments)
 
 
+def test_python_lockfile_keeps_msgpack_at_patched_advisory_version() -> None:
+    """Ensure Trivy's msgpack crash advisory cannot re-enter the Python lockfile."""
+    repo_root = Path(__file__).resolve().parents[3]
+    python_lockfile = (repo_root / "services" / "analysis-engine" / "uv.lock").read_text(
+        encoding="utf-8"
+    )
+
+    tomllib = importlib.import_module("tomllib")
+    lock = tomllib.loads(python_lockfile)
+    packages = lock.get("package", [])
+    msgpack = [package for package in packages if package.get("name") == "msgpack"]
+
+    assert len(msgpack) == 1
+    assert msgpack[0].get("version") == "1.2.1"
+
+
 def test_security_audit_workflow_keeps_dependency_vulnerability_scans() -> None:
     """Ensure the audit workflow keeps npm, Python, and Rust vulnerability scans."""
     repo_root = Path(__file__).resolve().parents[3]
