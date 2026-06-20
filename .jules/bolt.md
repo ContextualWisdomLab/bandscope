@@ -37,3 +37,7 @@
 ## 2025-02-14 - Replace Set with Map.map with for loop
 **Learning:** Using `new Set(array.map(...))` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequent renders of large transcription arrays.
 **Action:** Replace `array.map()` inside `new Set()` with a `for...of` loop or `.reduce()` to iterate and add elements directly to the Set for O(1) memory and avoiding intermediate array allocations.
+
+## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
+**Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
+**Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
