@@ -4930,6 +4930,19 @@ def test_opencode_review_unavailable_reports_provider_errors() -> None:
     assert ".error.data.metadata.url // empty" in workflow
 
 
+def test_opencode_approval_write_failure_updates_overview_only() -> None:
+    """Ensure approval write failures are not reported as source findings."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "create_approval_or_report_unavailable" in workflow
+    assert "APPROVAL_REVIEW_UNAVAILABLE" in workflow
+    assert "not a source-backed code finding" in workflow
+    assert 'create_approval_or_report_unavailable "$body"' in workflow
+
+
 def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
     """Ensure scheduled queue handling still runs when the app token secret is absent."""
     repo_root = Path(__file__).resolve().parents[3]
