@@ -1,250 +1,80 @@
-name: pr-review-merge-scheduler
+name: PR Review Merge Scheduler
 
 on:
+  schedule:
+    - cron: "17 */2 * * *"
   workflow_dispatch:
     inputs:
-      max_prs:
-        description: Maximum number of open PRs to inspect in one run
+      dry_run:
+        description: Print planned actions without mutating PRs
         required: false
-        default: "20"
-  schedule:
-    - cron: "17 * * * *"
-
-permissions:
-  actions: read
-  checks: read
-  contents: read
-  pull-requests: write
+        default: false
+        type: boolean
+      max_prs:
+        description: Maximum open PRs to inspect
+        required: false
+        default: "100"
+      trigger_reviews:
+        description: Dispatch OpenCode Review for PR heads without current approval
+        required: false
+        default: false
+        type: boolean
+      enable_auto_merge:
+        description: Enable auto-merge for current-head approved PRs
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: pr-review-merge-scheduler
   cancel-in-progress: false
 
 jobs:
-  review-and-merge-ready-prs:
-    name: review and merge ready PRs
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+  scan-pr-queue:
+    runs-on: ubuntu-latest
     permissions:
-      actions: read
+      actions: write
       checks: read
       contents: write
-      issues: write
       pull-requests: write
     env:
-      DEFAULT_BRANCH: develop
-      GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}
-      OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
-      GH_REPO: ${{ github.repository }}
-      MAX_PRS: ${{ github.event.inputs.max_prs || '20' }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+      MAX_PRS: ${{ inputs.max_prs || '100' }}
+      PROJECT_FLOW: ${{ vars.PROJECT_FLOW || 'git-flow' }}
+      TRIGGER_REVIEWS: "false"
+      ENABLE_AUTO_MERGE: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_auto_merge == true }}
     steps:
-      - name: Inspect review state and merge eligible PRs
-        shell: bash
+      - name: Checkout trusted scheduler
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
+      - name: Self-test scheduler
+        run: python3 scripts/ci/pr_review_merge_scheduler.py --self-test
+
+      - name: Inspect PR review and merge queue
         run: |
           set -euo pipefail
-
-          owner="${GH_REPO%/*}"
-          repo="${GH_REPO#*/}"
-
-          if [[ -z "${GH_TOKEN:-}" ]]; then
-            echo "::error::pr-review-merge-scheduler requires OPENCODE_APPROVE_TOKEN or repository GITHUB_TOKEN."
-            exit 1
+          args=(
+            --repo "$GITHUB_REPOSITORY"
+            --base-branch "$DEFAULT_BRANCH"
+            --max-prs "$MAX_PRS"
+            --project-flow "$PROJECT_FLOW"
+            --review-workflow "OpenCode Review"
+          )
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
           fi
-          if [[ -n "${OPENCODE_APPROVE_TOKEN:-}" ]]; then
-            echo "scheduler token source=opencode-approve-token"
+          if [ "$TRIGGER_REVIEWS" = "true" ]; then
+            args+=(--trigger-reviews)
           else
-            echo "scheduler token source=github-token"
+            args+=(--no-trigger-reviews)
           fi
-
-          gh_output_retry() {
-            local attempt
-            local err
-            local max_attempts=4
-            local output
-            local status
-
-            for attempt in $(seq 1 "$max_attempts"); do
-              err="$(mktemp)"
-              set +e
-              output="$("$@" 2>"$err")"
-              status="$?"
-              set -e
-
-              if [[ "$status" -eq 0 ]]; then
-                rm -f "$err"
-                printf '%s\n' "$output"
-                return 0
-              fi
-
-              if [[ "$attempt" -eq "$max_attempts" ]]; then
-                if [[ -n "$output" ]]; then
-                  printf 'stdout:\n%s\n' "$output" >&2
-                fi
-                if [[ -s "$err" ]]; then
-                  cat "$err" >&2
-                fi
-                rm -f "$err"
-                return "$status"
-              fi
-
-              echo "GitHub command failed on attempt $attempt/$max_attempts; retrying..." >&2
-              if [[ -n "$output" ]]; then
-                printf 'stdout:\n%s\n' "$output" >&2
-              fi
-              if [[ -s "$err" ]]; then
-                cat "$err" >&2
-              fi
-              rm -f "$err"
-              sleep "$((attempt * 2))"
-            done
-          }
-
-          unresolved_threads() {
-            local pr="$1"
-            # shellcheck disable=SC2016
-            gh_output_retry gh api graphql \
-              -f owner="$owner" \
-              -f repo="$repo" \
-              -F number="$pr" \
-              -f query='
-                query($owner: String!, $repo: String!, $number: Int!) {
-                  repository(owner: $owner, name: $repo) {
-                    pullRequest(number: $number) {
-                      reviewThreads(first: 100) {
-                        nodes {
-                          isResolved
-                        }
-                      }
-                    }
-                  }
-                }' \
-              --jq '[.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false)] | length'
-          }
-
-          required_checks_passed() {
-            local pr="$1"
-            local attempt
-            local check_error
-            local checks_json
-            local check_status
-            local max_attempts=4
-            local non_passing
-
-            for attempt in $(seq 1 "$max_attempts"); do
-              check_error="$(mktemp)"
-              set +e
-              checks_json="$(gh pr checks "$pr" --required --json name,bucket,state 2>"$check_error")"
-              check_status="$?"
-              set -e
-
-              if [[ "$check_status" -eq 0 ]]; then
-                rm -f "$check_error"
-                break
-              fi
-
-              if [[ "$check_status" -eq 8 ]]; then
-                echo "PR #$pr required checks are still pending."
-                rm -f "$check_error"
-                return 1
-              fi
-
-              echo "PR #$pr required checks could not be read on attempt $attempt/$max_attempts:"
-              cat "$check_error"
-              rm -f "$check_error"
-
-              if [[ "$attempt" -eq "$max_attempts" ]]; then
-                return 1
-              fi
-
-              sleep "$((attempt * 2))"
-            done
-
-            non_passing="$(jq '[.[] | select(.bucket != "pass")] | length' <<<"$checks_json")"
-            if [[ "$non_passing" -ne 0 ]]; then
-              echo "PR #$pr has required checks that are not passing:"
-              jq -r '.[] | select(.bucket != "pass") | "- \(.name): \(.state)"' <<<"$checks_json"
-              return 1
-            fi
-
-            return 0
-          }
-
-          request_review_once() {
-            local pr="$1"
-            local head="$2"
-            local review="$3"
-            local body
-            local comments_json
-            local marker
-            local has_marker
-            marker="<!-- bandscope-pr-review-merge-scheduler:${head} -->"
-
-            if ! comments_json="$(gh_output_retry gh pr view "$pr" --json comments)"; then
-              echo "PR #$pr comments could not be read; skipping scheduler review request for this pass."
-              return 0
-            fi
-            has_marker="$(jq --arg marker "$marker" 'any(.comments[]?; .body | contains($marker))' <<<"$comments_json")"
-            if [[ "$has_marker" == "true" ]]; then
-              echo "PR #$pr already has a scheduler review request for $head."
-              return 0
-            fi
-
-            body="$(printf '%s\n%s\n\n%s\n' \
-              "$marker" \
-              "@coderabbitai review" \
-              "Scheduled PR review/merge pass found zero unresolved review threads, but this head is not approved yet (${review}). Please review this current head so the normal merge gate can decide it.")"
-            if ! gh_output_retry gh pr comment "$pr" --body "$body"; then
-              echo "PR #$pr scheduler review request could not be posted; skipping for this pass."
-            fi
-          }
-
-          prs_json="$(gh_output_retry gh pr list \
-            --base "$DEFAULT_BRANCH" \
-            --state open \
-            --limit "$MAX_PRS" \
-            --json number,title,headRefOid,reviewDecision,mergeStateStatus,isDraft)"
-
-          while IFS= read -r pr_json; do
-            pr="$(jq -r '.number' <<<"$pr_json")"
-            head="$(jq -r '.headRefOid' <<<"$pr_json")"
-            review="$(jq -r '.reviewDecision' <<<"$pr_json")"
-            merge_state="$(jq -r '.mergeStateStatus' <<<"$pr_json")"
-            title="$(jq -r '.title' <<<"$pr_json")"
-
-            echo "Inspecting PR #$pr: $title"
-
-            if ! unresolved="$(unresolved_threads "$pr")"; then
-              echo "PR #$pr review threads could not be read after retries; skipping this pass."
-              continue
-            fi
-            if [[ "$unresolved" -ne 0 ]]; then
-              echo "PR #$pr has $unresolved unresolved review thread(s); leaving it for code fixes."
-              continue
-            fi
-
-            if [[ "$review" != "APPROVED" ]]; then
-              request_review_once "$pr" "$head" "$review"
-              continue
-            fi
-
-            if ! required_checks_passed "$pr"; then
-              continue
-            fi
-
-            if [[ "$merge_state" == "DIRTY" ]]; then
-              echo "PR #$pr has merge conflicts; leaving it for manual conflict resolution."
-              continue
-            fi
-
-            if [[ "$merge_state" == "BEHIND" ]]; then
-              echo "PR #$pr is behind $DEFAULT_BRANCH; updating branch and waiting for fresh checks."
-              gh pr update-branch "$pr" || true
-              continue
-            fi
-
-            echo "PR #$pr is approved, thread-clean, and required checks passed; attempting merge."
-            if ! gh pr merge "$pr" --merge --delete-branch --match-head-commit "$head"; then
-              echo "Direct merge did not complete for PR #$pr; enabling auto-merge when allowed."
-              gh pr merge "$pr" --auto --merge --delete-branch --match-head-commit "$head" || true
-            fi
-          done < <(jq -c '.[] | select(.isDraft | not)' <<<"$prs_json")
+          if [ "$ENABLE_AUTO_MERGE" = "true" ]; then
+            args+=(--enable-auto-merge)
+          else
+            args+=(--no-enable-auto-merge)
+          fi
+          python3 scripts/ci/pr_review_merge_scheduler.py "${args[@]}"
