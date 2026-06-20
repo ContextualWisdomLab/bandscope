@@ -130,7 +130,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   }, [song]);
 
   const allRoles = useMemo(() => {
-    return Array.from(roleMap.values()).map(role => ({ id: role.id, name: role.name }));
+    // Performance: Avoid O(N) allocation of intermediate array from Array.from() before mapping
+    const roles: { id: string; name: string }[] = [];
+    for (const role of roleMap.values()) {
+      roles.push({ id: role.id, name: role.name });
+    }
+    return roles;
   }, [roleMap]);
 
   // Performance: use the cached roleMap so activeRoleDetails does not rescan sections and roles on every render.
