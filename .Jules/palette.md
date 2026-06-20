@@ -12,3 +12,6 @@
 ## 2026-06-18 - Added keyboard accessibility to scrollable regions
 **Learning:** Horizontally scrollable regions (like the `SectionRoadmap` component) are not accessible to keyboard-only users unless they can receive focus. Keyboard users must be able to focus the container to scroll its content using arrow keys.
 **Action:** For proper keyboard accessibility in custom scrollable regions, always include `tabIndex={0}`, an appropriate `aria-label`, `role="region"`, and explicit focus visible styling (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300`).
+## 2026-06-19 - Internationalization
+**Learning:** The desktop app uses i18n via json files located in `apps/desktop/src/locales/`
+**Action:** When adding new text strings, make sure to add it to all locale files.

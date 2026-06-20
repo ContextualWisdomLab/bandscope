@@ -1052,6 +1052,45 @@ jobs:
             update_review_overview "$event" "$body"
           }
 
+          create_approval_or_report_unavailable() {
+            local body="$1"
+            local error_file unavailable_body
+
+            error_file="$(mktemp)"
+            if jq -n \
+              --arg event "APPROVE" \
+              --arg body "$body" \
+              --arg commit_id "$HEAD_SHA" \
+              '{event: $event, body: $body, commit_id: $commit_id}' |
+              gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null 2>"$error_file"; then
+              update_review_overview "APPROVE" "$body"
+              rm -f "$error_file"
+              return 0
+            fi
+
+            unavailable_body="$(printf '%s\n' \
+              "## Pull request overview" \
+              "" \
+              "OpenCode completed its independent review and found no blocking findings, but GitHub rejected the approval review write." \
+              "" \
+              "## Findings" \
+              "" \
+              "No blocking findings from OpenCode's independent review." \
+              "" \
+              "## Verification" \
+              "" \
+              "- Result: APPROVAL_REVIEW_UNAVAILABLE" \
+              "- Reason: approval review creation failed with token source ${approval_token_source}." \
+              "- Head SHA: \`${HEAD_SHA}\`" \
+              "- Workflow run: ${RUN_ID}" \
+              "- Workflow attempt: ${RUN_ATTEMPT}" \
+              "" \
+              "OpenCode did not submit a stale REQUEST_CHANGES review because this is a review-write capability issue, not a source-backed code finding.")"
+            update_review_overview "APPROVAL_REVIEW_UNAVAILABLE" "$unavailable_body"
+            sed 's/^/approval review write: /' "$error_file" >&2
+            rm -f "$error_file"
+          }
+
           request_changes_for_gate_failure() {
             local reason="$1"
             local body
@@ -2046,7 +2085,7 @@ jobs:
                 "- Head SHA: \`${HEAD_SHA}\`" \
                 "- Workflow run: ${RUN_ID}" \
                 "- Workflow attempt: ${RUN_ATTEMPT}")"
-              create_pull_review "APPROVE" "$body"
+              create_approval_or_report_unavailable "$body"
               ;;
             REQUEST_CHANGES)
               failed_check_review_body_file="$(mktemp)"

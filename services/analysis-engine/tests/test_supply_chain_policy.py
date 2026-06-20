@@ -565,6 +565,22 @@ def test_python_security_audit_does_not_ignore_patched_pygments_advisory() -> No
     assert all(package.get("version") != "2.19.2" for package in pygments)
 
 
+def test_python_lockfile_keeps_msgpack_at_patched_advisory_version() -> None:
+    """Ensure Trivy's msgpack crash advisory cannot re-enter the Python lockfile."""
+    repo_root = Path(__file__).resolve().parents[3]
+    python_lockfile = (repo_root / "services" / "analysis-engine" / "uv.lock").read_text(
+        encoding="utf-8"
+    )
+
+    tomllib = importlib.import_module("tomllib")
+    lock = tomllib.loads(python_lockfile)
+    packages = lock.get("package", [])
+    msgpack = [package for package in packages if package.get("name") == "msgpack"]
+
+    assert len(msgpack) == 1
+    assert msgpack[0].get("version") == "1.2.1"
+
+
 def test_security_audit_workflow_keeps_dependency_vulnerability_scans() -> None:
     """Ensure the audit workflow keeps npm, Python, and Rust vulnerability scans."""
     repo_root = Path(__file__).resolve().parents[3]
@@ -1669,6 +1685,16 @@ def test_supply_chain_check_accepts_colocated_non_scorecard_sarif_upload(
     violations = supply_chain.verify_workflow_coverage()
 
     assert not any("ossf scorecard SARIF upload" in violation for violation in violations)
+
+
+def test_trivy_workflow_pins_cli_version() -> None:
+    """Ensure Trivy scan uses the pinned CLI version proven by the CI gate."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "trivy.yml").read_text(encoding="utf-8")
+
+    assert "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25" in workflow
+    assert "version: v0.71.2" in workflow
+    assert "exit-code: '1'" in workflow
 
 
 def test_supply_chain_check_accepts_colocated_generic_non_scorecard_sarif_upload(
@@ -4928,6 +4954,19 @@ def test_opencode_review_unavailable_reports_provider_errors() -> None:
     assert ".error.data.statusCode // empty" in workflow
     assert ".error.data.message // .error.message // .error.name // empty" in workflow
     assert ".error.data.metadata.url // empty" in workflow
+
+
+def test_opencode_approval_write_failure_updates_overview_only() -> None:
+    """Ensure approval write failures are not reported as source findings."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "create_approval_or_report_unavailable" in workflow
+    assert "APPROVAL_REVIEW_UNAVAILABLE" in workflow
+    assert "not a source-backed code finding" in workflow
+    assert 'create_approval_or_report_unavailable "$body"' in workflow
 
 
 def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
