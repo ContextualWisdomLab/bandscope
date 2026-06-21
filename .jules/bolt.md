@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+## 2025-02-16 - Avoid intermediate arrays in React Array.from render loops
+
+**Learning:** Using `Array.from({ length: N }).map(...)` inside React render cycles allocates an unnecessary intermediate array before mapping, creating avoidable GC pressure.
+**Action:** Replace `Array.from({ length: N }).map((_, index) => ...)` with `Array.from({ length: N }, (_, index) => ...)` to create each rendered item directly.

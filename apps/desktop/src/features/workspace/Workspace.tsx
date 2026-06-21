@@ -96,7 +96,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
           <div className="flex h-24 items-center gap-1 overflow-hidden">
-            {Array.from({ length: 84 }).map((_, index) => (
+            {Array.from({ length: 84 }, (_, index) => (
               <span
                 key={index}
                 className="w-1 flex-none rounded-full bg-gradient-to-t from-cyan-500 via-sky-400 to-violet-400 opacity-85"
