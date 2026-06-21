@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
 import numpy as np
+from typing_extensions import Unpack
 
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
@@ -513,36 +514,44 @@ def _build_export_headline(sections: list[Any]) -> str:
     return f"Work through the {unique_labels[0]} section entrances first."
 
 
+class _JobStatusOptions(TypedDict, total=False):
+    progress_label: str | None
+    progress_stage: AnalysisJobStage | None
+    progress_percent: int | None
+    cache_status: AnalysisCacheStatus | None
+    result: RehearsalSong | None
+    error: AnalysisJobError | None
+
+
+_JOB_STATUS_OPTION_KEYS = frozenset(_JobStatusOptions.__annotations__)
+
+
 def _build_job_status(
-    *,
-    job_id: str,
-    state: AnalysisJobState,
-    requested_at: str,
-    progress_label: str | None = None,
-    progress_stage: AnalysisJobStage | None = None,
-    progress_percent: int | None = None,
-    cache_status: AnalysisCacheStatus | None = None,
-    result: RehearsalSong | None = None,
-    error: AnalysisJobError | None = None,
+    *, job_id: str, state: AnalysisJobState, requested_at: str, **kwargs: Unpack[_JobStatusOptions]
 ) -> AnalysisJobStatus:
     """Build a shared job status envelope with optional orchestration progress."""
+    unexpected_keys = set(kwargs) - _JOB_STATUS_OPTION_KEYS
+    if unexpected_keys:
+        unexpected = ", ".join(sorted(unexpected_keys))
+        raise TypeError(f"_build_job_status() got unexpected keyword argument(s): {unexpected}")
+
     status: AnalysisJobStatus = {
         "jobId": job_id,
         "state": state,
         "requestedAt": requested_at,
         "updatedAt": requested_at,
     }
-    if progress_label is not None:
+    if (progress_label := kwargs.get("progress_label")) is not None:
         status["progressLabel"] = progress_label
-    if progress_stage is not None:
+    if (progress_stage := kwargs.get("progress_stage")) is not None:
         status["progressStage"] = progress_stage
-    if progress_percent is not None:
+    if (progress_percent := kwargs.get("progress_percent")) is not None:
         status["progressPercent"] = progress_percent
-    if cache_status is not None:
+    if (cache_status := kwargs.get("cache_status")) is not None:
         status["cacheStatus"] = cache_status
-    if result is not None:
+    if (result := kwargs.get("result")) is not None:
         status["result"] = result
-    if error is not None:
+    if (error := kwargs.get("error")) is not None:
         status["error"] = error
     return status
 

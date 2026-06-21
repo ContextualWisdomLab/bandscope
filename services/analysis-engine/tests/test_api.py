@@ -5,8 +5,10 @@ import time
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from bandscope_analysis.api import (
+    _build_job_status,
     _build_local_audio_features,
     _feature_cache_paths,
     _load_cached_analysis,
@@ -33,6 +35,23 @@ def test_get_analysis_status_returns_health_payload() -> None:
         "status": "ready",
         "pipeline_stages": ["decode", "draft", "separate", "persist"],
     }
+
+
+def test_build_job_status_preserves_keyword_only_required_arguments() -> None:
+    """Ensure the helper keeps its previous keyword-only runtime behavior."""
+    with pytest.raises(TypeError):
+        _build_job_status("job-1", "queued", "2026-06-29T00:00:00Z")
+
+
+def test_build_job_status_rejects_unexpected_optional_kwargs() -> None:
+    """Ensure typed kwargs do not silently swallow misspelled option names."""
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        _build_job_status(
+            job_id="job-1",
+            state="queued",
+            requested_at="2026-06-29T00:00:00Z",
+            progress_lable="queued",
+        )
 
 
 def test_validate_analysis_job_request_accepts_demo_payload() -> None:
