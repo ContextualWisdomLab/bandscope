@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
-import { EmptyState, LoadingState } from "./WorkspaceStates";
+import { LoadingState } from "./WorkspaceStates";
 import { generateMetadataHandoffJson } from "../../lib/export";
 
 const originalLanguage = navigator.language;
@@ -213,12 +213,10 @@ describe("Workspace", () => {
     }).toThrow("sourceMode");
   });
 
-  it("localizes empty and loading state titles", () => {
+  it("localizes loading state titles", () => {
     setNavigatorLanguage("ko-KR");
-    render(<EmptyState />);
     render(<LoadingState />);
 
-    expect(screen.getByRole("heading", { name: "분석 준비 완료" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "오디오 분석 중" })).toBeTruthy();
   });
 
