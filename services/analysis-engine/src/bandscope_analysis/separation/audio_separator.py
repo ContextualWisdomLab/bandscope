@@ -132,7 +132,7 @@ class AudioStemSeparator:
 
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
-        candidate = Path(audio_path).expanduser()
+        candidate = Path(audio_path)
         try:
             path = candidate.resolve(strict=True)
         except FileNotFoundError as error:
@@ -215,7 +215,7 @@ class AudioStemSeparator:
         expected_sha256 = _BANDSPLIT_PROFILE_SHA256
 
         if self.config.model_profile_path:
-            profile_candidate = Path(self.config.model_profile_path).expanduser()
+            profile_candidate = Path(self.config.model_profile_path)
             try:
                 profile_path = profile_candidate.resolve(strict=True)
             except FileNotFoundError as error:
