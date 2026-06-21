@@ -173,7 +173,7 @@ export async function subscribeToWorkspaceUpdates(callback: WorkspaceUpdateCallb
         callback(parseRehearsalWorkspace(event.payload));
       } else {
         // eslint-disable-next-line no-console -- Warn about invalid payload structure
-        console.warn("Received invalid workspace update from Tauri", event.payload);
+        console.warn("Received invalid workspace update from Tauri");
       }
     });
   } else {
@@ -201,7 +201,7 @@ export async function getWorkspaceState(): Promise<RehearsalWorkspace | null> {
     return parseRehearsalWorkspace(response);
   } catch (error) {
     // eslint-disable-next-line no-console -- Error logging for workspace state fetch failure
-    console.error("Failed to get workspace state", error);
+    console.error("Failed to get workspace state:", error instanceof Error ? error.message : "Unknown error");
     return null;
   }
 }
