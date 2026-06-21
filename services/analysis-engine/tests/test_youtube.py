@@ -86,6 +86,7 @@ def test_download_youtube_audio_success(
         "duration": 60,
     }
     mock_ydl.extract_info.return_value = mock_info
+    mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
     mock_exists.return_value = True
     mock_getsize.return_value = 10 * 1024 * 1024
@@ -111,16 +112,11 @@ def test_download_youtube_audio_success(
     assert called_opts["postprocessors"] == [{"key": "FFmpegExtractAudio"}]
     assert "%(id)s.%(ext)s" in called_opts["outtmpl"]
 
-    # Verify extract_info was called twice correctly: once for metadata, once for download
-    from unittest.mock import call
+    # Verify extract_info was called once for metadata, and process_ie_result once for download
 
-    assert mock_ydl.extract_info.call_count == 2
-    mock_ydl.extract_info.assert_has_calls(
-        [
-            call(input_url, download=False),
-            call(input_url, download=True),
-        ]
-    )
+    assert mock_ydl.extract_info.call_count == 1
+    mock_ydl.extract_info.assert_called_with(input_url, download=False)
+    mock_ydl.process_ie_result.assert_called_with(mock_info, download=True)
 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")
@@ -349,6 +345,7 @@ def test_module_execution(
     mock_ydl = MagicMock()
     mock_yt_dlp.YoutubeDL.return_value.__enter__.return_value = mock_ydl
     mock_ydl.extract_info.return_value = {"id": "abc123DEF45"}
+    mock_ydl.process_ie_result.return_value = {"id": "abc123DEF45"}
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
     monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
 
@@ -373,13 +370,14 @@ def test_validate_url_exception(mock_urlparse: MagicMock) -> None:
 
 
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
-def test_download_youtube_audio_second_info_none(mock_ydl_class: MagicMock) -> None:
-    """Test when the second extract_info returns None."""
+def test_download_youtube_audio_process_result_none(mock_ydl_class: MagicMock) -> None:
+    """Test when process_ie_result returns None during the download step."""
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
-    # First call (download=False) returns info, second call (download=True) returns None
-    mock_ydl.extract_info.side_effect = [{"duration": 60}, None]
+    # Metadata extraction succeeds, but download processing returns no result.
+    mock_ydl.extract_info.return_value = {"duration": 60}
+    mock_ydl.process_ie_result.return_value = None
 
     result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 

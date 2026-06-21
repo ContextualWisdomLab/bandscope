@@ -142,9 +142,9 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                     },
                 }
 
-            info = ydl.extract_info(url, download=True)
+            info = ydl.process_ie_result(info, download=True)
             if info is None:
-                raise Exception("Failed to extract info")
+                raise Exception("Failed to process download info")
             actual_filepath = ydl.prepare_filename(info)
 
             actual_filepath = _find_downloaded_file(actual_filepath)
