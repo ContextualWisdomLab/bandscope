@@ -149,11 +149,13 @@ def is_opencode_context(node: dict[str, Any]) -> bool:
     """Return whether a status node belongs to OpenCode review."""
 
     if node.get("__typename") == "CheckRun":
-        workflow = (
-            ((node.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow")
-            or {}
+        workflow = ((node.get("checkSuite") or {}).get("workflowRun") or {}).get(
+            "workflow"
+        ) or {}
+        return (
+            node.get("name") == "opencode-review"
+            or workflow.get("name") == "OpenCode Review"
         )
-        return node.get("name") == "opencode-review" or workflow.get("name") == "OpenCode Review"
     return node.get("context") == "opencode-review"
 
 
@@ -172,8 +174,12 @@ def opencode_in_progress(pr: dict[str, Any]) -> bool:
 def unresolved_thread_count(pr: dict[str, Any]) -> int:
     """Count active unresolved review threads."""
 
-    threads = ((pr.get("reviewThreads") or {}).get("nodes") or [])
-    return sum(1 for thread in threads if not thread.get("isResolved") and not thread.get("isOutdated"))
+    threads = (pr.get("reviewThreads") or {}).get("nodes") or []
+    return sum(
+        1
+        for thread in threads
+        if not thread.get("isResolved") and not thread.get("isOutdated")
+    )
 
 
 def review_author_login(review: dict[str, Any]) -> str:
@@ -187,7 +193,11 @@ def is_opencode_review(review: dict[str, Any]) -> bool:
 
     login = review_author_login(review)
     body = review.get("body") or ""
-    return login.startswith("opencode-agent") or "opencode" in login or "OpenCode Agent" in body
+    return (
+        login.startswith("opencode-agent")
+        or "opencode" in login
+        or "OpenCode Agent" in body
+    )
 
 
 def current_head_review_state(pr: dict[str, Any], state: str) -> bool:
@@ -224,10 +234,25 @@ def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     head = pr["headRefOid"]
     if dry_run:
         return
-    run(["gh", "pr", "merge", number, "--repo", repo, "--auto", "--merge", "--match-head-commit", head])
+    run(
+        [
+            "gh",
+            "pr",
+            "merge",
+            number,
+            "--repo",
+            repo,
+            "--auto",
+            "--merge",
+            "--match-head-commit",
+            head,
+        ]
+    )
 
 
-def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
+def dispatch_opencode_review(
+    repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool
+) -> None:
     """Dispatch the OpenCode review workflow for a pull request."""
 
     if dry_run:
@@ -256,16 +281,7 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
     )
 
 
-def inspect_pr(
-    repo: str,
-    pr: dict[str, Any],
-    *,
-    dry_run: bool,
-    trigger_reviews: bool,
-    enable_auto_merge_flag: bool,
-    workflow: str,
-    base_branch: str,
-) -> Decision:
+def inspect_pr(pr: dict[str, Any], args: argparse.Namespace) -> Decision:
     """Inspect a pull request and select the scheduler action."""
 
     number = pr["number"]
@@ -274,9 +290,11 @@ def inspect_pr(
 
     if pr.get("isDraft"):
         return Decision(number, "skip", "draft PR")
-    if base_ref != base_branch:
-        return Decision(number, "skip", f"base branch is {base_ref}; expected {base_branch}")
-    if head_repo != repo:
+    if base_ref != args.base_branch:
+        return Decision(
+            number, "skip", f"base branch is {base_ref}; expected {args.base_branch}"
+        )
+    if head_repo != args.repo:
         return Decision(number, "skip", f"fork or external head repo: {head_repo}")
 
     unresolved = unresolved_thread_count(pr)
@@ -284,22 +302,36 @@ def inspect_pr(
         return Decision(number, "block", f"{unresolved} unresolved review thread(s)")
 
     if has_current_head_changes_requested(pr):
-        return Decision(number, "block", "current-head OpenCode review requested changes")
+        return Decision(
+            number, "block", "current-head OpenCode review requested changes"
+        )
 
     if has_current_head_approval(pr):
         if pr.get("autoMergeRequest"):
-            return Decision(number, "wait", "current head is approved; auto-merge already enabled")
-        if not enable_auto_merge_flag:
-            return Decision(number, "wait", "current head is approved; auto-merge disabled by scheduler inputs")
-        enable_auto_merge(repo, pr, dry_run=dry_run)
-        return Decision(number, "auto_merge", "current head is approved; auto-merge enabled")
+            return Decision(
+                number, "wait", "current head is approved; auto-merge already enabled"
+            )
+        if not args.enable_auto_merge:
+            return Decision(
+                number,
+                "wait",
+                "current head is approved; auto-merge disabled by scheduler inputs",
+            )
+        enable_auto_merge(args.repo, pr, dry_run=args.dry_run)
+        return Decision(
+            number, "auto_merge", "current head is approved; auto-merge enabled"
+        )
 
     if opencode_in_progress(pr):
         return Decision(number, "wait", "OpenCode review is already in progress")
 
-    if trigger_reviews:
-        dispatch_opencode_review(repo, workflow, pr, dry_run=dry_run)
-        return Decision(number, "review_dispatch", "current head has no OpenCode approval")
+    if args.trigger_reviews:
+        dispatch_opencode_review(
+            args.repo, args.review_workflow, pr, dry_run=args.dry_run
+        )
+        return Decision(
+            number, "review_dispatch", "current head has no OpenCode approval"
+        )
 
     return Decision(number, "block", "current head has no OpenCode approval")
 
@@ -379,8 +411,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--project-flow", default=os.environ.get("PROJECT_FLOW", ""))
     parser.add_argument("--max-prs", type=int, default=100)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--trigger-reviews", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--enable-auto-merge", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--trigger-reviews", action=argparse.BooleanOptionalAction, default=True
+    )
+    parser.add_argument(
+        "--enable-auto-merge", action=argparse.BooleanOptionalAction, default=True
+    )
     parser.add_argument("--review-workflow", default="OpenCode Review")
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args(argv)
@@ -400,18 +436,7 @@ def main(argv: list[str]) -> int:
     if not args.project_flow:
         raise SystemExit("--project-flow is required")
     prs = fetch_open_prs(args.repo, args.max_prs)
-    decisions = [
-        inspect_pr(
-            args.repo,
-            pr,
-            dry_run=args.dry_run,
-            trigger_reviews=args.trigger_reviews,
-            enable_auto_merge_flag=args.enable_auto_merge,
-            workflow=args.review_workflow,
-            base_branch=args.base_branch,
-        )
-        for pr in prs
-    ]
+    decisions = [inspect_pr(pr, args) for pr in prs]
     print_summary(
         decisions,
         dry_run=args.dry_run,
