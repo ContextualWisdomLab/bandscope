@@ -1446,6 +1446,182 @@ def verify_workflow_npx_policy() -> list[str]:
     return violations
 
 
+
+class _WorkflowWorkspaceState:
+    def __init__(self, path: Path, root_working_directories: set[str]):
+        self.path = path
+        self.root_working_directories = root_working_directories
+        self.workflow_default_directory = ""
+        self.current_job_default_directory = ""
+        self.current_job_indent: int | None = None
+        self.workflow_defaults_indent: int | None = None
+        self.workflow_defaults_run_indent: int | None = None
+        self.job_defaults_indent: int | None = None
+        self.job_defaults_run_indent: int | None = None
+        self.in_jobs = False
+        self.step_working_directory: str | None = None
+        self.step_uses_workspace_exec = False
+        self.violations: list[str] = []
+
+    def record_step_violation(self) -> None:
+        effective_working_directory = (
+            self.step_working_directory
+            if self.step_working_directory is not None
+            else self.current_job_default_directory or self.workflow_default_directory
+        )
+        if (
+            self.step_uses_workspace_exec
+            and effective_working_directory
+            and effective_working_directory not in self.root_working_directories
+        ):
+            self.violations.append(
+                f"{self.path}: workflow npm exec --workspace commands "
+                "must run from the repository root"
+            )
+
+
+def _process_workflow_defaults(indent: int, stripped: str, state: _WorkflowWorkspaceState) -> bool:
+    if indent == 0 and stripped == "defaults:":
+        state.workflow_defaults_indent = indent
+        state.workflow_defaults_run_indent = None
+        return True
+    if state.workflow_defaults_indent is not None and stripped == "run:":
+        state.workflow_defaults_run_indent = indent
+        return True
+    if state.workflow_defaults_run_indent is not None and stripped.startswith(
+        "working-directory:"
+    ):
+        state.workflow_default_directory = yaml_scalar_value(stripped)
+        return True
+    return False
+
+
+def _process_job_defaults(indent: int, stripped: str, state: _WorkflowWorkspaceState) -> bool:
+    if (
+        state.current_job_indent is not None
+        and indent == state.current_job_indent + 2
+        and stripped == "defaults:"
+    ):
+        state.job_defaults_indent = indent
+        state.job_defaults_run_indent = None
+        return True
+    if state.job_defaults_indent is not None and stripped == "run:":
+        state.job_defaults_run_indent = indent
+        return True
+    if state.job_defaults_run_indent is not None and stripped.startswith(
+        "working-directory:"
+    ):
+        state.current_job_default_directory = yaml_scalar_value(stripped)
+        return True
+    return False
+
+
+def _reset_indent_state(indent: int, state: _WorkflowWorkspaceState) -> None:
+    if (
+        state.workflow_defaults_run_indent is not None
+        and indent <= state.workflow_defaults_run_indent
+    ):
+        state.workflow_defaults_run_indent = None
+    if (
+        state.workflow_defaults_indent is not None
+        and indent <= state.workflow_defaults_indent
+    ):
+        state.workflow_defaults_indent = None
+    if (
+        state.job_defaults_run_indent is not None
+        and indent <= state.job_defaults_run_indent
+    ):
+        state.job_defaults_run_indent = None
+    if state.job_defaults_indent is not None and indent <= state.job_defaults_indent:
+        state.job_defaults_indent = None
+
+
+def _process_jobs_declaration(indent: int, stripped: str, state: _WorkflowWorkspaceState) -> bool:
+    if indent == 0 and stripped == "jobs:":
+        state.in_jobs = True
+        return True
+    if (
+        state.in_jobs
+        and indent == 2
+        and stripped.endswith(":")
+        and not stripped.startswith("-")
+    ):
+        state.record_step_violation()
+        state.current_job_indent = indent
+        state.current_job_default_directory = ""
+        state.job_defaults_indent = None
+        state.job_defaults_run_indent = None
+        state.step_working_directory = None
+        state.step_uses_workspace_exec = False
+        return True
+    return False
+
+
+def _process_step_declaration(
+    stripped: str,
+    line_number: int,
+    workspace_exec_lines: set[int],
+    state: _WorkflowWorkspaceState
+) -> None:
+    if re.match(r"^-\s+(name|uses|run):", stripped):
+        state.record_step_violation()
+        state.step_working_directory = None
+        state.step_uses_workspace_exec = False
+
+    if stripped.startswith("working-directory:"):
+        state.step_working_directory = yaml_scalar_value(stripped)
+    if (
+        WORKSPACE_EXEC_PATTERN.search(stripped)
+        or line_number in workspace_exec_lines
+    ):
+        state.step_uses_workspace_exec = True
+
+
+def _process_workflow_line(
+    line: str,
+    line_number: int,
+    workspace_exec_lines: set[int],
+    state: _WorkflowWorkspaceState,
+) -> None:
+    indent = len(line) - len(line.lstrip(" "))
+    stripped = line.strip()
+    if not stripped:
+        return
+
+    _reset_indent_state(indent, state)
+
+    if _process_workflow_defaults(indent, stripped, state):
+        return
+
+    if _process_jobs_declaration(indent, stripped, state):
+        return
+
+    if _process_job_defaults(indent, stripped, state):
+        return
+
+    _process_step_declaration(stripped, line_number, workspace_exec_lines, state)
+
+
+def _verify_workflow_file_workspace_exec_policy(
+    path: Path,
+    root_working_directories: set[str],
+) -> list[str]:
+    content = path.read_text(encoding="utf-8")
+    workspace_exec_lines = {
+        line_number
+        for line_number, logical_line in logical_workflow_lines(content)
+        if WORKSPACE_EXEC_PATTERN.search(logical_line)
+    }
+
+    state = _WorkflowWorkspaceState(path, root_working_directories)
+
+    lines_with_sentinel = [*content.splitlines(), "      - name: sentinel"]
+    for line_number, line in enumerate(lines_with_sentinel, start=1):
+        _process_workflow_line(line, line_number, workspace_exec_lines, state)
+
+    return state.violations
+
+
 def verify_workflow_workspace_exec_policy() -> list[str]:
     """Return workflow npm workspace invocations that run from nested directories."""
     violations: list[str] = []
@@ -1455,143 +1631,12 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
     root_working_directories = {"", ".", "./", "${{ github.workspace }}"}
 
     for path in workflow_paths:
-        content = path.read_text(encoding="utf-8")
-        workspace_exec_lines = {
-            line_number
-            for line_number, logical_line in logical_workflow_lines(content)
-            if WORKSPACE_EXEC_PATTERN.search(logical_line)
-        }
-        workflow_default_directory = ""
-        current_job_default_directory = ""
-        current_job_indent: int | None = None
-        workflow_defaults_indent: int | None = None
-        workflow_defaults_run_indent: int | None = None
-        job_defaults_indent: int | None = None
-        job_defaults_run_indent: int | None = None
-        in_jobs = False
-        step_working_directory: str | None = None
-        step_uses_workspace_exec = False
-
-        def record_step_violation(
-            current_step_working_directory: str | None,
-            job_default_directory: str,
-            default_directory: str,
-            uses_workspace_exec: bool,
-            workflow_path: Path,
-        ) -> None:
-            effective_working_directory = (
-                current_step_working_directory
-                if current_step_working_directory is not None
-                else job_default_directory or default_directory
-            )
-            if (
-                uses_workspace_exec
-                and effective_working_directory
-                and effective_working_directory not in root_working_directories
-            ):
-                violations.append(
-                    f"{workflow_path}: workflow npm exec --workspace commands "
-                    "must run from the repository root"
-                )
-
-        lines_with_sentinel = [*content.splitlines(), "      - name: sentinel"]
-        for line_number, line in enumerate(lines_with_sentinel, start=1):
-            indent = len(line) - len(line.lstrip(" "))
-            stripped = line.strip()
-            if not stripped:
-                continue
-
-            if (
-                workflow_defaults_run_indent is not None
-                and indent <= workflow_defaults_run_indent
-            ):
-                workflow_defaults_run_indent = None
-            if (
-                workflow_defaults_indent is not None
-                and indent <= workflow_defaults_indent
-            ):
-                workflow_defaults_indent = None
-            if (
-                job_defaults_run_indent is not None
-                and indent <= job_defaults_run_indent
-            ):
-                job_defaults_run_indent = None
-            if job_defaults_indent is not None and indent <= job_defaults_indent:
-                job_defaults_indent = None
-
-            if indent == 0 and stripped == "defaults:":
-                workflow_defaults_indent = indent
-                workflow_defaults_run_indent = None
-                continue
-            if workflow_defaults_indent is not None and stripped == "run:":
-                workflow_defaults_run_indent = indent
-                continue
-            if workflow_defaults_run_indent is not None and stripped.startswith(
-                "working-directory:"
-            ):
-                workflow_default_directory = yaml_scalar_value(stripped)
-                continue
-
-            if indent == 0 and stripped == "jobs:":
-                in_jobs = True
-                continue
-            if (
-                in_jobs
-                and indent == 2
-                and stripped.endswith(":")
-                and not stripped.startswith("-")
-            ):
-                record_step_violation(
-                    step_working_directory,
-                    current_job_default_directory,
-                    workflow_default_directory,
-                    step_uses_workspace_exec,
-                    path,
-                )
-                current_job_indent = indent
-                current_job_default_directory = ""
-                job_defaults_indent = None
-                job_defaults_run_indent = None
-                step_working_directory = None
-                step_uses_workspace_exec = False
-                continue
-            if (
-                current_job_indent is not None
-                and indent == current_job_indent + 2
-                and stripped == "defaults:"
-            ):
-                job_defaults_indent = indent
-                job_defaults_run_indent = None
-                continue
-            if job_defaults_indent is not None and stripped == "run:":
-                job_defaults_run_indent = indent
-                continue
-            if job_defaults_run_indent is not None and stripped.startswith(
-                "working-directory:"
-            ):
-                current_job_default_directory = yaml_scalar_value(stripped)
-                continue
-
-            if re.match(r"^-\s+(name|uses|run):", stripped):
-                record_step_violation(
-                    step_working_directory,
-                    current_job_default_directory,
-                    workflow_default_directory,
-                    step_uses_workspace_exec,
-                    path,
-                )
-                step_working_directory = None
-                step_uses_workspace_exec = False
-
-            if stripped.startswith("working-directory:"):
-                step_working_directory = yaml_scalar_value(stripped)
-            if (
-                WORKSPACE_EXEC_PATTERN.search(stripped)
-                or line_number in workspace_exec_lines
-            ):
-                step_uses_workspace_exec = True
+        violations.extend(
+            _verify_workflow_file_workspace_exec_policy(path, root_working_directories)
+        )
 
     return violations
+
 
 
 def verify_release_asset_allowlist_policy() -> list[str]:
