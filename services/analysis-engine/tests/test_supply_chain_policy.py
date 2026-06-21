@@ -5165,8 +5165,11 @@ def test_opencode_normalizer_defaults_missing_approve_findings(tmp_path: Path) -
             [
                 "review text",
                 '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                '"result":"APPROVE","reason":"checks and review passed",'
-                '"summary":"no source-backed blockers found"}',
+                '"result":"APPROVE",'
+                '"reason":"checks passed for '
+                'scripts/ci/opencode_review_normalize_output.py",'
+                '"summary":"no blockers in '
+                'scripts/ci/opencode_review_normalize_output.py"}',
             ]
         ),
         encoding="utf-8",
@@ -5198,8 +5201,11 @@ def test_opencode_review_gate_defaults_missing_approve_findings(tmp_path: Path) 
                 "",
                 "<!-- opencode-review-control-v1",
                 '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                '"result":"APPROVE","reason":"checks and review passed",'
-                '"summary":"no source-backed blockers found"}',
+                '"result":"APPROVE",'
+                '"reason":"checks passed for '
+                'scripts/ci/opencode_review_normalize_output.py",'
+                '"summary":"no blockers in '
+                'scripts/ci/opencode_review_normalize_output.py"}',
                 "-->",
                 "",
             ]
