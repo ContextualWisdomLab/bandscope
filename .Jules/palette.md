@@ -15,3 +15,6 @@
 ## 2026-06-19 - Internationalization
 **Learning:** The desktop app uses i18n via json files located in `apps/desktop/src/locales/`
 **Action:** When adding new text strings, make sure to add it to all locale files.
+## 2026-06-21 - Explanatory tooltips for disabled primary buttons
+**Learning:** Sighted users relying on mouse hover lack context when primary action buttons (like "Start Analysis" without a source) are disabled, causing UX friction.
+**Action:** Always add a `title` attribute to disabled primary buttons explaining the specific reason they are disabled, falling back to `undefined` when active.
