@@ -58,7 +58,7 @@ function getMockSong(jobId: string): SongRehearsalPack | undefined {
  * Triggers a mock workspace update to all listeners.
  */
 function triggerMockUpdate() {
-  const payload = structuredClone(mockWorkspace);
+  const payload = mockWorkspace;
   mockListeners.forEach(listener => listener({ payload }));
 }
 
