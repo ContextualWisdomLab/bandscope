@@ -83,8 +83,8 @@ def test_validate_analysis_job_request_accepts_local_audio_payload() -> None:
     }
 
 
-def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
-    """Ensure the request validator reports every expected safe-failure path."""
+def test_validate_analysis_job_request_rejects_bad_generic_fields() -> None:
+    """Ensure the request validator reports failures for bad generic payload structures."""
     cases = [
         ([], "root"),
         ({}, "sourceKind"),
@@ -93,6 +93,71 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
         ({"sourceKind": "demo", "sourceLabel": "   ", "roleFocus": []}, "sourceLabel"),
         ({"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": {}}, "roleFocus"),
         ({"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [7]}, "roleFocus[0]"),
+    ]
+
+    for payload, message in cases:
+        try:
+            validate_analysis_job_request(payload)
+        except ValueError as error:
+            assert message in str(error)
+        else:
+            raise AssertionError(f"Expected ValueError for {payload!r}")
+
+
+def test_validate_analysis_job_request_rejects_bad_demo_fields() -> None:
+    """Ensure the request validator reports failures for bad demo payloads."""
+    cases = [
+        (
+            {
+                "sourceKind": "demo",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "projectId",
+        ),
+        (
+            {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [], "extra": True},
+            "extra",
+        ),
+        (
+            {
+                "sourceKind": "demo",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "cacheRoot": "/tmp/bandscope/cache",
+            },
+            "cacheRoot",
+        ),
+        (
+            {
+                "sourceKind": "demo",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "tempRoot": "/tmp/bandscope/temp",
+            },
+            "tempRoot",
+        ),
+    ]
+
+    for payload, message in cases:
+        try:
+            validate_analysis_job_request(payload)
+        except ValueError as error:
+            assert message in str(error)
+        else:
+            raise AssertionError(f"Expected ValueError for {payload!r}")
+
+
+def test_validate_analysis_job_request_rejects_bad_local_audio_fields() -> None:
+    """Ensure the request validator reports failures for bad local_audio payloads."""
+    cases = [
         (
             {"sourceKind": "local_audio", "sourceLabel": "Late Night Set", "roleFocus": []},
             "projectId",
@@ -191,43 +256,6 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
                 },
             },
             "localSource.extra",
-        ),
-        (
-            {
-                "sourceKind": "demo",
-                "projectId": "project-1",
-                "sourceLabel": "Late Night Set",
-                "roleFocus": [],
-                "localSource": {
-                    "sourcePath": "/Users/test/Music/late-night-set.wav",
-                    "fileName": "late-night-set.wav",
-                    "extension": "wav",
-                    "fileSizeBytes": 1024000,
-                },
-            },
-            "projectId",
-        ),
-        (
-            {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [], "extra": True},
-            "extra",
-        ),
-        (
-            {
-                "sourceKind": "demo",
-                "sourceLabel": "Late Night Set",
-                "roleFocus": [],
-                "cacheRoot": "/tmp/bandscope/cache",
-            },
-            "cacheRoot",
-        ),
-        (
-            {
-                "sourceKind": "demo",
-                "sourceLabel": "Late Night Set",
-                "roleFocus": [],
-                "tempRoot": "/tmp/bandscope/temp",
-            },
-            "tempRoot",
         ),
         (
             {
