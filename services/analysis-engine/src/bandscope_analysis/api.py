@@ -960,54 +960,52 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
     }
 
 
-def run_analysis_job_updates(
+def _check_analysis_cache(
+    request: AnalysisJobRequest,
     job_id: str,
-    payload: object,
     requested_at: str,
-) -> list[AnalysisJobStatus]:
-    """Return incremental orchestration status updates for an analysis job."""
-    try:
-        request = validate_analysis_job_request(payload)
-    except ValueError as error:
-        return [
-            _build_job_status(
-                job_id=job_id,
-                state="failed",
-                requested_at=requested_at,
-                error={
-                    "code": "invalid_request",
-                    "message": str(error),
-                },
-            )
-        ]
-
+) -> tuple[Path | None, AnalysisCacheStatus, list[AnalysisJobStatus] | None]:
+    """Return cached analysis updates when a reusable local-audio result exists."""
     cache_path = _analysis_cache_path(request)
     cache_status: AnalysisCacheStatus = "disabled" if cache_path is None else "miss"
     if cache_path is not None:
         cached_result = _load_cached_analysis(cache_path)
         if cached_result is not None:
-            return [
-                _build_job_status(
-                    job_id=job_id,
-                    state="running",
-                    requested_at=requested_at,
-                    progress_label="Loading cached analysis",
-                    progress_stage="persist",
-                    progress_percent=95,
-                    cache_status="hit",
-                ),
-                _build_job_status(
-                    job_id=job_id,
-                    state="succeeded",
-                    requested_at=requested_at,
-                    progress_label=f"Analysis ready for {request['sourceLabel']}",
-                    progress_stage="ready",
-                    progress_percent=100,
-                    cache_status="hit",
-                    result=cached_result,
-                ),
-            ]
+            return (
+                cache_path,
+                "hit",
+                [
+                    _build_job_status(
+                        job_id=job_id,
+                        state="running",
+                        requested_at=requested_at,
+                        progress_label="Loading cached analysis",
+                        progress_stage="persist",
+                        progress_percent=95,
+                        cache_status="hit",
+                    ),
+                    _build_job_status(
+                        job_id=job_id,
+                        state="succeeded",
+                        requested_at=requested_at,
+                        progress_label=f"Analysis ready for {request['sourceLabel']}",
+                        progress_stage="ready",
+                        progress_percent=100,
+                        cache_status="hit",
+                        result=cached_result,
+                    ),
+                ],
+            )
+    return cache_path, cache_status, None
 
+
+def _check_feature_cache(
+    request: AnalysisJobRequest,
+    job_id: str,
+    requested_at: str,
+    cache_status: AnalysisCacheStatus,
+) -> tuple[tuple[Path, Path] | None, dict[str, Any] | None, bool, list[AnalysisJobStatus]]:
+    """Load cached intermediate features and emit initial decode-stage progress."""
     decode_label = (
         "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
     )
@@ -1041,79 +1039,88 @@ def run_analysis_job_updates(
                     cache_status=cache_status,
                 )
             )
+    return feature_cache_paths, audio_features, feature_cache_hit, updates
 
-    if audio_features is None:
+
+def _try_separate_stems(
+    request: AnalysisJobRequest,
+    job_id: str,
+    requested_at: str,
+    cache_status: AnalysisCacheStatus,
+) -> tuple[dict[str, Any] | None, list[AnalysisJobStatus]]:
+    """Build stem features, downgrading timeout/unavailable errors to fallback progress."""
+    updates = [
+        _build_job_status(
+            job_id=job_id,
+            state="running",
+            requested_at=requested_at,
+            progress_label="Separating stems... (45%)",
+            progress_stage="separate",
+            progress_percent=45,
+            cache_status=cache_status,
+        )
+    ]
+    try:
+        audio_features = _build_local_audio_features(request)
+    except StemSeparationTimedOut:
         updates.append(
             _build_job_status(
                 job_id=job_id,
                 state="running",
                 requested_at=requested_at,
-                progress_label="Separating stems... (45%)",
+                progress_label="Stem separation timed out; continuing with fallback cues",
                 progress_stage="separate",
-                progress_percent=45,
+                progress_percent=55,
                 cache_status=cache_status,
             )
         )
-        try:
-            audio_features = _build_local_audio_features(request)
-        except StemSeparationTimedOut:
-            updates.append(
-                _build_job_status(
-                    job_id=job_id,
-                    state="running",
-                    requested_at=requested_at,
-                    progress_label="Stem separation timed out; continuing with fallback cues",
-                    progress_stage="separate",
-                    progress_percent=55,
-                    cache_status=cache_status,
-                )
+        audio_features = None
+    except RuntimeError:
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="running",
+                requested_at=requested_at,
+                progress_label="Stem separation unavailable; continuing with fallback cues",
+                progress_stage="separate",
+                progress_percent=55,
+                cache_status=cache_status,
             )
-            audio_features = None
-        except RuntimeError:
-            updates.append(
-                _build_job_status(
-                    job_id=job_id,
-                    state="running",
-                    requested_at=requested_at,
-                    progress_label="Stem separation unavailable; continuing with fallback cues",
-                    progress_stage="separate",
-                    progress_percent=55,
-                    cache_status=cache_status,
-                )
-            )
-            audio_features = None
-        except (FileNotFoundError, ValueError) as error:
-            updates.append(
-                _build_job_status(
-                    job_id=job_id,
-                    state="failed",
-                    requested_at=requested_at,
-                    progress_label="Stem separation failed",
-                    progress_stage="separate",
-                    progress_percent=45,
-                    cache_status=cache_status,
-                    error={
-                        "code": "engine_unavailable",
-                        "message": f"Stem separation failed: {error}",
-                    },
-                )
-            )
-            return updates
-
-    updates.append(
-        _build_job_status(
-            job_id=job_id,
-            state="running",
-            requested_at=requested_at,
-            progress_label="Building rehearsal cues",
-            progress_stage="analyze",
-            progress_percent=70,
-            cache_status=cache_status,
         )
-    )
+        audio_features = None
+    except (FileNotFoundError, ValueError) as error:
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                progress_label="Stem separation failed",
+                progress_stage="separate",
+                progress_percent=45,
+                cache_status=cache_status,
+                error={
+                    "code": "engine_unavailable",
+                    "message": f"Stem separation failed: {error}",
+                },
+            )
+        )
+        return None, updates
+    return audio_features, updates
 
-    result = build_demo_rehearsal_song(audio_features)
-    updates.append(
+
+def _finalize_caches(
+    request: AnalysisJobRequest,
+    job_id: str,
+    requested_at: str,
+    cache_path: Path | None,
+    cache_status: AnalysisCacheStatus,
+    feature_cache_paths: tuple[Path, Path] | None,
+    audio_features: dict[str, Any] | None,
+    feature_cache_hit: bool,
+    result: RehearsalSong,
+) -> list[AnalysisJobStatus]:
+    """Persist reusable caches and return final orchestration status updates."""
+    updates = [
         _build_job_status(
             job_id=job_id,
             state="running",
@@ -1123,7 +1130,7 @@ def run_analysis_job_updates(
             progress_percent=90,
             cache_status=cache_status,
         )
-    )
+    ]
     final_cache_status = cache_status
     if audio_features is not None and feature_cache_paths is not None and not feature_cache_hit:
         _store_cached_local_audio_features(
@@ -1145,6 +1152,71 @@ def run_analysis_job_updates(
             result=result,
         )
     )
+    return updates
+
+
+def run_analysis_job_updates(
+    job_id: str,
+    payload: object,
+    requested_at: str,
+) -> list[AnalysisJobStatus]:
+    """Return incremental orchestration status updates for an analysis job."""
+    try:
+        request = validate_analysis_job_request(payload)
+    except ValueError as error:
+        return [
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                error={
+                    "code": "invalid_request",
+                    "message": str(error),
+                },
+            )
+        ]
+
+    cache_path, cache_status, cached_updates = _check_analysis_cache(request, job_id, requested_at)
+    if cached_updates is not None:
+        return cached_updates
+
+    feature_cache_paths, audio_features, feature_cache_hit, updates = _check_feature_cache(
+        request, job_id, requested_at, cache_status
+    )
+
+    if audio_features is None:
+        audio_features, sep_updates = _try_separate_stems(
+            request, job_id, requested_at, cache_status
+        )
+        updates.extend(sep_updates)
+        if updates[-1]["state"] == "failed":
+            return updates
+
+    updates.append(
+        _build_job_status(
+            job_id=job_id,
+            state="running",
+            requested_at=requested_at,
+            progress_label="Building rehearsal cues",
+            progress_stage="analyze",
+            progress_percent=70,
+            cache_status=cache_status,
+        )
+    )
+
+    result = build_demo_rehearsal_song(audio_features)
+    final_updates = _finalize_caches(
+        request,
+        job_id,
+        requested_at,
+        cache_path,
+        cache_status,
+        feature_cache_paths,
+        audio_features,
+        feature_cache_hit,
+        result,
+    )
+    updates.extend(final_updates)
     return updates
 
 
