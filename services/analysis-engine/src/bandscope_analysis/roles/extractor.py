@@ -28,7 +28,7 @@ class RoleExtractor:
 
     def __init__(self) -> None:
         """Initialize the role extractor."""
-        pass
+        self._setup_note_cache: dict[tuple[str, frozenset[str]], str | None] = {}
 
     def extract(
         self,
@@ -48,6 +48,7 @@ class RoleExtractor:
         Returns:
             RoleExtractionResult containing topologies and notes.
         """
+        self._setup_note_cache.clear()
         topologies: list[SectionRoleTopology] = []
 
         features = audio_features or {}
@@ -94,6 +95,16 @@ class RoleExtractor:
             "topologies": topologies,
             "extraction_notes": extraction_method,
         }
+
+    def _get_setup_note_cached(self, role_name: str, chords: list[str]) -> str | None:
+        """Cache the setup note computation per role and chord set."""
+        cache_key = (role_name, frozenset(chords))
+        try:
+            return self._setup_note_cache[cache_key]
+        except KeyError:
+            setup_note = get_setup_note(role_name, chords)
+            self._setup_note_cache[cache_key] = setup_note
+            return setup_note
 
     def _extract_features(
         self, stems: dict[str, Any], sr: int
@@ -202,7 +213,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
             "simplification": "Stay on roots if the chorus entrance gets muddy.",
-            "setupNote": get_setup_note("Bass Guitar", [bass_chord])
+            "setupNote": self._get_setup_note_cached("Bass Guitar", [bass_chord])
             or "Keep the attack short so the verse breathes.",
             "manualOverrides": [],
             "overlapWarnings": [
@@ -231,7 +242,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
             "simplification": "Omit if bass is covering the lower register.",
-            "setupNote": get_setup_note("Keyboard", ["C#"])
+            "setupNote": self._get_setup_note_cached("Keyboard", ["C#"])
             or "Use a darker patch to avoid clashing with right hand.",
             "manualOverrides": [],
             "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
@@ -258,7 +269,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
             "simplification": "Drop top extension if the chorus turnaround feels busy.",
-            "setupNote": get_setup_note("Keyboard", ["Emaj7"])
+            "setupNote": self._get_setup_note_cached("Keyboard", ["Emaj7"])
             or "Keep the patch bright enough to stay over the guitars.",
             "manualOverrides": [],
             "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
@@ -282,7 +293,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
             "simplification": "Keep sustained note centered; skip ad-lib on first pass.",
-            "setupNote": get_setup_note("Lead Vocal", [vocal_chord])
+            "setupNote": self._get_setup_note_cached("Lead Vocal", [vocal_chord])
             or "Watch the breath before the last line of the verse.",
             "manualOverrides": [
                 {
@@ -316,7 +327,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.MEDIUM,
             "simplification": "Simplify strumming pattern if rushing.",
-            "setupNote": get_setup_note("Acoustic Guitar", ["Eb", "Bb", "Fm", "Ab"])
+            "setupNote": self._get_setup_note_cached("Acoustic Guitar", ["Eb", "Bb", "Fm", "Ab"])
             or "Check tuning.",
             "manualOverrides": [],
             "overlapWarnings": [],

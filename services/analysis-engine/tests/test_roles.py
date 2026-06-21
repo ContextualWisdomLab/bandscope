@@ -86,6 +86,28 @@ def test_role_extractor_basic() -> None:
     assert verse_graph[0]["handoff_to"] == []
 
 
+def test_setup_note_cache_uses_chord_set_order() -> None:
+    """Ensure setup-note caching treats chord sets as order-insensitive."""
+    extractor = RoleExtractor()
+
+    with patch("bandscope_analysis.roles.extractor.get_setup_note", return_value="Capo 1") as note:
+        assert extractor._get_setup_note_cached("Acoustic Guitar", ["Eb", "Bb"]) == "Capo 1"
+        assert extractor._get_setup_note_cached("Acoustic Guitar", ["Bb", "Eb"]) == "Capo 1"
+
+    note.assert_called_once_with("Acoustic Guitar", ["Eb", "Bb"])
+
+
+def test_extract_clears_setup_note_cache_between_runs() -> None:
+    """Ensure long-lived extractor instances do not keep stale setup-note entries."""
+    extractor = RoleExtractor()
+    stale_key = ("Acoustic Guitar", frozenset(["stale"]))
+    extractor._setup_note_cache[stale_key] = "stale note"
+
+    extractor.extract([])
+
+    assert stale_key not in extractor._setup_note_cache
+
+
 def test_role_extractor_empty() -> None:
     """Test extractor with empty sections list."""
     extractor = RoleExtractor()
