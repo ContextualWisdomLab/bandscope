@@ -11,6 +11,29 @@ vi.mock("../../i18n", () => ({
   detectPreferredLocale: () => "en"
 }));
 
+describe("tabValueToRoleId", () => {
+  const roles = [
+    { id: "bass-guitar", name: "Bass Guitar" },
+    { id: "lead-vocal", name: "Lead Vocal" }
+  ];
+
+  it("returns null for the ALL_ROLES_VALUE", () => {
+    expect(tabValueToRoleId("__bandscope_all_roles__", roles)).toBeNull();
+  });
+
+  it("returns null for values that do not start with the role prefix", () => {
+    expect(tabValueToRoleId("raw-unknown-role", roles)).toBeNull();
+  });
+
+  it("returns null for tab values that are not in the provided role allowlist", () => {
+    expect(tabValueToRoleId("role:unknown-role", roles)).toBeNull();
+  });
+
+  it("returns the role id for valid role tab values", () => {
+    expect(tabValueToRoleId("role:bass-guitar", roles)).toBe("bass-guitar");
+  });
+});
+
 describe("RoleSwitcher", () => {
   it("keeps the all-roles control distinct from a real role whose id is all", () => {
     const onRoleChange = vi.fn();
@@ -45,16 +68,5 @@ describe("RoleSwitcher", () => {
     const allRolesTrigger = screen.getByRole("tab", { name: "All Roles" });
     expect(allRolesTrigger.className).toContain("data-active:bg-cyan-300");
     expect(allRolesTrigger.className).not.toContain("data-[state=active]:");
-  });
-
-  it("ignores tab values that are not in the rendered role allowlist", () => {
-    const roles = [
-      { id: "bass-guitar", name: "Bass Guitar" },
-      { id: "lead-vocal", name: "Lead Vocal" }
-    ];
-
-    expect(tabValueToRoleId("role:bass-guitar", roles)).toBe("bass-guitar");
-    expect(tabValueToRoleId("role:unknown-role", roles)).toBeNull();
-    expect(tabValueToRoleId("raw-unknown-role", roles)).toBeNull();
   });
 });
