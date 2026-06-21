@@ -124,64 +124,28 @@ def matching_labeled_evidence_lines(
     return matches
 
 
-def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
-    """Classify whether failed check evidence is safe to withhold as non-source."""
-    failed_checks = FAILED_CHECK_HEADING.findall(evidence_text)
-    if not failed_checks:
-        return unknown("no failed check headings were present")
-    if len(failed_checks) != 1:
-        return unknown(
-            "multiple failed checks require per-check source diagnosis",
-            signals=failed_checks,
-        )
-
-    failed_check = failed_checks[0].strip()
-    upload_step_match = UPLOAD_ARTIFACT_STEP.search(evidence_text)
-    build_success_signals = matching_evidence_lines(
+def _classify_upload_artifact_failure(
+    evidence_text: str,
+    failed_check: str,
+    upload_step_match: re.Match[str],
+    build_success_signals: list[str],
+) -> dict[str, Any]:
+    matched_infra_signals = matching_labeled_evidence_lines(
         evidence_text,
-        BUILD_OR_PACKAGE_SUCCESS_PATTERNS,
+        ARTIFACT_UPLOAD_INFRA_PATTERNS,
     )
-    if upload_step_match is not None:
-        matched_infra_signals = matching_labeled_evidence_lines(
-            evidence_text,
-            ARTIFACT_UPLOAD_INFRA_PATTERNS,
+    if not matched_infra_signals:
+        return unknown(
+            "no known external artifact upload infrastructure signal was present",
+            signals=[failed_check, upload_step_match.group(0)],
         )
-        if not matched_infra_signals:
-            return unknown(
-                "no known external artifact upload infrastructure signal was present",
-                signals=[failed_check, upload_step_match.group(0)],
-            )
 
-        if not any(
-            pattern.search(evidence_text)
-            for pattern in ARTIFACT_UPLOAD_CONFIRMATION_PATTERNS
-        ):
-            return unknown(
-                "artifact upload context was missing from the failed-check evidence",
-                signals=[
-                    failed_check,
-                    upload_step_match.group(0),
-                    *matched_infra_signals,
-                ],
-            )
-
-        if not build_success_signals:
-            return unknown(
-                "build or package success was not visible before artifact upload failed",
-                signals=[
-                    failed_check,
-                    upload_step_match.group(0),
-                    *matched_infra_signals,
-                ],
-            )
-
-        return external(
-            (
-                "the only failed check is a GitHub artifact upload "
-                "finalization/network failure after build/package output was "
-                "produced; rerun the failed workflow job instead of requesting "
-                "source changes"
-            ),
+    if not any(
+        pattern.search(evidence_text)
+        for pattern in ARTIFACT_UPLOAD_CONFIRMATION_PATTERNS
+    ):
+        return unknown(
+            "artifact upload context was missing from the failed-check evidence",
             signals=[
                 failed_check,
                 upload_step_match.group(0),
@@ -190,53 +154,82 @@ def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
             ],
         )
 
-    setup_uv_step_match = SETUP_UV_STEP.search(evidence_text)
-    if setup_uv_step_match is not None:
-        matched_infra_signals = matching_labeled_evidence_lines(
-            evidence_text,
-            SETUP_UV_INFRA_PATTERNS,
+    if not build_success_signals:
+        return unknown(
+            "build or package success was not visible before artifact upload failed",
+            signals=[
+                failed_check,
+                upload_step_match.group(0),
+                *matched_infra_signals,
+            ],
         )
-        if not matched_infra_signals:
-            return unknown(
-                "no known external setup-uv infrastructure signal was present",
-                signals=[failed_check, setup_uv_step_match.group(0)],
-            )
 
-        setup_uv_fetch_signals = matching_evidence_lines(
-            evidence_text,
-            SETUP_UV_MANIFEST_FETCH_PATTERNS,
+    return external(
+        (
+            "the only failed check is a GitHub artifact upload "
+            "finalization/network failure after build/package output was "
+            "produced; rerun the failed workflow job instead of requesting "
+            "source changes"
+        ),
+        signals=[
+            failed_check,
+            upload_step_match.group(0),
+            *matched_infra_signals,
+            *build_success_signals,
+        ],
+    )
+
+
+def _classify_setup_uv_failure(
+    evidence_text: str,
+    failed_check: str,
+    setup_uv_step_match: re.Match[str],
+) -> dict[str, Any]:
+    matched_infra_signals = matching_labeled_evidence_lines(
+        evidence_text,
+        SETUP_UV_INFRA_PATTERNS,
+    )
+    if not matched_infra_signals:
+        return unknown(
+            "no known external setup-uv infrastructure signal was present",
+            signals=[failed_check, setup_uv_step_match.group(0)],
         )
-        if not setup_uv_fetch_signals:
-            return unknown(
-                "setup-uv manifest fetch context was missing from the evidence",
-                signals=[
-                    failed_check,
-                    setup_uv_step_match.group(0),
-                    *matched_infra_signals,
-                ],
-            )
 
-        return external(
-            (
-                "the only failed check is a setup-uv manifest fetch failure "
-                "before repository build steps ran; rerun the failed workflow "
-                "job instead of requesting source changes"
-            ),
+    setup_uv_fetch_signals = matching_evidence_lines(
+        evidence_text,
+        SETUP_UV_MANIFEST_FETCH_PATTERNS,
+    )
+    if not setup_uv_fetch_signals:
+        return unknown(
+            "setup-uv manifest fetch context was missing from the evidence",
             signals=[
                 failed_check,
                 setup_uv_step_match.group(0),
                 *matched_infra_signals,
-                *setup_uv_fetch_signals,
             ],
         )
 
-    native_shell_step_match = BUILD_NATIVE_SHELL_STEP.search(evidence_text)
-    if native_shell_step_match is None:
-        return unknown(
-            "no known external failed job step pattern was present",
-            signals=[failed_check],
-        )
+    return external(
+        (
+            "the only failed check is a setup-uv manifest fetch failure "
+            "before repository build steps ran; rerun the failed workflow "
+            "job instead of requesting source changes"
+        ),
+        signals=[
+            failed_check,
+            setup_uv_step_match.group(0),
+            *matched_infra_signals,
+            *setup_uv_fetch_signals,
+        ],
+    )
 
+
+def _classify_native_shell_failure(
+    evidence_text: str,
+    failed_check: str,
+    native_shell_step_match: re.Match[str],
+    build_success_signals: list[str],
+) -> dict[str, Any]:
     matched_infra_signals = matching_labeled_evidence_lines(
         evidence_text,
         TAURI_BUNDLE_INFRA_PATTERNS,
@@ -285,6 +278,47 @@ def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
             *tauri_download_signals,
             *build_success_signals,
         ],
+    )
+
+
+def classify_failed_check_evidence(evidence_text: str) -> dict[str, Any]:
+    """Classify whether failed check evidence is safe to withhold as non-source."""
+    failed_checks = FAILED_CHECK_HEADING.findall(evidence_text)
+    if not failed_checks:
+        return unknown("no failed check headings were present")
+    if len(failed_checks) != 1:
+        return unknown(
+            "multiple failed checks require per-check source diagnosis",
+            signals=failed_checks,
+        )
+
+    failed_check = failed_checks[0].strip()
+    build_success_signals = matching_evidence_lines(
+        evidence_text,
+        BUILD_OR_PACKAGE_SUCCESS_PATTERNS,
+    )
+
+    upload_step_match = UPLOAD_ARTIFACT_STEP.search(evidence_text)
+    if upload_step_match is not None:
+        return _classify_upload_artifact_failure(
+            evidence_text, failed_check, upload_step_match, build_success_signals
+        )
+
+    setup_uv_step_match = SETUP_UV_STEP.search(evidence_text)
+    if setup_uv_step_match is not None:
+        return _classify_setup_uv_failure(
+            evidence_text, failed_check, setup_uv_step_match
+        )
+
+    native_shell_step_match = BUILD_NATIVE_SHELL_STEP.search(evidence_text)
+    if native_shell_step_match is not None:
+        return _classify_native_shell_failure(
+            evidence_text, failed_check, native_shell_step_match, build_success_signals
+        )
+
+    return unknown(
+        "no known external failed job step pattern was present",
+        signals=[failed_check],
     )
 
 

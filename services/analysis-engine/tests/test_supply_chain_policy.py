@@ -5030,6 +5030,40 @@ Finalizing artifact upload
     )
 
 
+def test_opencode_preserves_build_signals_when_artifact_upload_context_is_missing() -> None:
+    """Keep diagnostic build output when upload reset evidence lacks upload context."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence_artifact_upload_missing_context",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: build-baseline/build / macos / amd64
+
+### Failed job steps
+
+- step 13: Upload macOS amd64 artifact (failure)
+
+### Failed log excerpt
+
+```text
+Finished `release` profile [optimized] target(s) in 6m 56s
+Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg
+##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "actionable_or_unknown"
+    assert "artifact upload context was missing" in result["reason"]
+    assert (
+        "Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg"
+        in result["signals"]
+    )
+
+
 def test_opencode_classifies_tauri_binary_release_502_as_external() -> None:
     """Ensure Tauri binary release server errors do not request source changes."""
     classifier = load_module(
