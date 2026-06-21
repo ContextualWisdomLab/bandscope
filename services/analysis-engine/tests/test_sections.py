@@ -81,3 +81,44 @@ def test_extract_sections_unrecognized_label() -> None:
     assert sections[1]["id"] == "random part-1"
     assert sections[1]["form_label"] == "random part"
     assert sections[1]["confidence_level"] == "low"
+
+def test_extract_sections_missing_label() -> None:
+    """Verify section extraction handles items without a label."""
+    arrangement = [{"groove": "heavy"}]
+
+    result = extract_sections(arrangement)
+
+    assert result["strategy_used"] == "count"
+    sections = result["sections"]
+
+    assert sections[0]["id"] == "unknown-1"
+    assert sections[0]["form_label"] == "unknown"
+    assert sections[0]["confidence_level"] == "low"
+    assert sections[0]["groove"] == "heavy"
+
+def test_extract_sections_empty_arrangement() -> None:
+    """Verify section extraction behavior when the arrangement is empty."""
+    arrangement = []
+
+    result = extract_sections(arrangement)
+
+    assert result["strategy_used"] == "count"
+    assert len(result["sections"]) == 0
+    assert result["extraction_notes"] == "Extracted 0 sections using count."
+
+def test_normalize_label_variations() -> None:
+    """Verify section extraction implicitly tests label normalization."""
+    arrangement = [
+        {"label": "Verse 1"},
+        {"label": " chorus 2  "},
+        {"label": "PRE-CHORUS"},
+        {"label": "Intro A"}
+    ]
+
+    result = extract_sections(arrangement)
+
+    sections = result["sections"]
+    assert sections[0]["form_label"] == "verse"
+    assert sections[1]["form_label"] == "chorus"
+    assert sections[2]["form_label"] == "pre-chorus"
+    assert sections[3]["form_label"] == "intro"
