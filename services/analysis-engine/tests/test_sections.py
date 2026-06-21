@@ -1,5 +1,7 @@
 """Tests for the section extraction logic and models."""
 
+from typing import Any, Dict, List
+
 from bandscope_analysis.sections.extractor import extract_sections
 from bandscope_analysis.sections.model import CueAnchorStrategy
 
@@ -82,6 +84,7 @@ def test_extract_sections_unrecognized_label() -> None:
     assert sections[1]["form_label"] == "random part"
     assert sections[1]["confidence_level"] == "low"
 
+
 def test_extract_sections_missing_label() -> None:
     """Verify section extraction handles items without a label."""
     arrangement = [{"groove": "heavy"}]
@@ -96,9 +99,10 @@ def test_extract_sections_missing_label() -> None:
     assert sections[0]["confidence_level"] == "low"
     assert sections[0]["groove"] == "heavy"
 
+
 def test_extract_sections_empty_arrangement() -> None:
     """Verify section extraction behavior when the arrangement is empty."""
-    arrangement = []
+    arrangement: List[Dict[str, Any]] = []
 
     result = extract_sections(arrangement)
 
@@ -106,13 +110,14 @@ def test_extract_sections_empty_arrangement() -> None:
     assert len(result["sections"]) == 0
     assert result["extraction_notes"] == "Extracted 0 sections using count."
 
+
 def test_normalize_label_variations() -> None:
     """Verify section extraction implicitly tests label normalization."""
     arrangement = [
         {"label": "Verse 1"},
         {"label": " chorus 2  "},
         {"label": "PRE-CHORUS"},
-        {"label": "Intro A"}
+        {"label": "Intro A"},
     ]
 
     result = extract_sections(arrangement)
