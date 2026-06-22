@@ -32,6 +32,8 @@ env:
   GIT_CONFIG_COUNT: "1"
   GIT_CONFIG_KEY_0: init.defaultBranch
   GIT_CONFIG_VALUE_0: develop
+  PR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.inputs.pr_base_sha }}
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.pr_head_sha }}
 
 jobs:
   opencode-review:
@@ -1303,17 +1305,17 @@ jobs:
             local gh_error_file
             gh_error_file="$(mktemp)"
             if ! gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input "$review_payload_file" >/dev/null 2>"$gh_error_file"; then
-              echo "::warning::OpenCode could not submit pull review inline comments; falling back to body-only ${event} review."
+              echo "::warning::OpenCode could not submit pull review inline comments; failing instead of falling back to body-only ${event} review."
               if [ -s "$gh_error_file" ]; then
                 sed -E 's/[[:space:]]+/ /g; s/^/::warning::GitHub API: /' "$gh_error_file" || true
               fi
               rm -f "$gh_error_file"
               if [ -s "$fallback_body_file" ]; then
-                create_pull_review "$event" "$(cat "$fallback_body_file")"
+                update_review_overview "INLINE_COMMENT_PUBLISH_FAILED" "$(cat "$fallback_body_file")"
               else
-                update_review_overview "$event" "$body"
+                update_review_overview "INLINE_COMMENT_PUBLISH_FAILED" "$body"
               fi
-              return 0
+              return 1
             fi
             rm -f "$gh_error_file"
             update_review_overview "$event" "$body"
