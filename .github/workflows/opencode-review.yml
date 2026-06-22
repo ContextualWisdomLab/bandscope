@@ -2445,12 +2445,6 @@ jobs:
           )"
           comment_body="$(jq -r '.body // ""' <<<"$comment_json")"
 
-          if [ -z "$comment_body" ]; then
-            request_changes_for_gate_failure "No current-run OpenCode sentinel comment was found."
-            echo "::endgroup::"
-            exit 0
-          fi
-
           tmp_body="$(mktemp)"
           control_json="$(mktemp)"
           failed_checks_file=""
