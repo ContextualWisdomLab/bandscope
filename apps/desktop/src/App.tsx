@@ -62,6 +62,31 @@ const NAV_ITEMS = [
 ] as const;
 
 const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
+// Fixed rhythm constants preserve the local-first decorative waveform.
+const LOCAL_FIRST_BAR_COUNT = 34;
+const LOCAL_FIRST_BAR_MIN_HEIGHT_PX = 14;
+const LOCAL_FIRST_BAR_HEIGHT_STEP = 19;
+const LOCAL_FIRST_BAR_HEIGHT_RANGE_PX = 38;
+
+const BRAND_BAR_DECORATION = BRAND_BAR_HEIGHTS.map((height, index) => (
+  <span
+    key={`${height}-${index}`}
+    className={`w-1.5 rounded-full bg-gradient-to-t from-teal-300 via-cyan-200 to-violet-300 ${height}`}
+  />
+));
+
+const LOCAL_FIRST_DECORATIVE_BARS = Array.from({ length: LOCAL_FIRST_BAR_COUNT }, (_, index) => (
+  <span
+    key={index}
+    className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"
+    style={{
+      height: `${
+        LOCAL_FIRST_BAR_MIN_HEIGHT_PX
+        + ((index * LOCAL_FIRST_BAR_HEIGHT_STEP) % LOCAL_FIRST_BAR_HEIGHT_RANGE_PX)
+      }px`
+    }}
+  />
+));
 
 /** Documented. */
 function progressMessage(
@@ -94,12 +119,7 @@ function BandScopeMark() {
     >
       <span className="absolute inset-1 rounded-full border border-teal-200/20" aria-hidden="true" />
       <span className="flex h-8 items-end gap-0.5" aria-hidden="true">
-        {BRAND_BAR_HEIGHTS.map((height, index) => (
-          <span
-            key={`${height}-${index}`}
-            className={`w-1.5 rounded-full bg-gradient-to-t from-teal-300 via-cyan-200 to-violet-300 ${height}`}
-          />
-        ))}
+        {BRAND_BAR_DECORATION}
       </span>
     </span>
   );
@@ -485,13 +505,7 @@ export function App() {
               </p>
               <div className="mt-3 h-14 overflow-hidden rounded-xl bg-[linear-gradient(90deg,rgba(34,211,238,.12),rgba(124,58,237,.12))]">
                 <div className="flex h-full items-end gap-0.5 px-2 pb-1" aria-hidden="true">
-                  {Array.from({ length: 34 }).map((_, index) => (
-                    <span
-                      key={index}
-                      className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"
-                      style={{ height: `${14 + ((index * 19) % 38)}px` }}
-                    />
-                  ))}
+                  {LOCAL_FIRST_DECORATIVE_BARS}
                 </div>
               </div>
             </div>

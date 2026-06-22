@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2025-02-16 - Hoist inline Array.from() UI maps
+**Learning:** Using `Array.from({ length }).map()` inside React render cycles (e.g. for generating timeline bars or repeating static UI decorations) forces V8 to allocate new arrays and instantiate new React Elements on every render, adding GC overhead.
+**Action:** Extract static generative layout arrays (like purely decorative bars based on indices) into top-level module constants.
