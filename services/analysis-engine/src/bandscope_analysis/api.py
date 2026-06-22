@@ -220,6 +220,86 @@ def get_analysis_status() -> HealthReport:
     return build_health_report()
 
 
+def _validate_demo_request(
+    payload: dict[str, object], source_kind: str, source_label: str, role_focus: list[str]
+) -> AnalysisJobRequest:
+    if payload.get("localSource") is not None or payload.get("projectId") is not None:
+        raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+    if payload.get("cacheRoot") is not None:
+        raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+    if payload.get("tempRoot") is not None:
+        raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+    return {
+        "sourceKind": cast(Literal["demo", "local_audio"], source_kind),
+        "sourceLabel": source_label,
+        "roleFocus": role_focus,
+    }
+
+
+def _validate_local_source(local_source: object) -> LocalAudioSource:
+    if not isinstance(local_source, dict):
+        raise ValueError("Invalid analysis job request: invalid field 'localSource'")
+    allowed_local_keys = {"sourcePath", "fileName", "extension", "fileSizeBytes"}
+    for key in local_source:
+        if key not in allowed_local_keys:
+            raise ValueError(f"Invalid analysis job request: invalid field 'localSource.{key}'")
+    source_path = local_source.get("sourcePath")
+    file_name = local_source.get("fileName")
+    extension = local_source.get("extension")
+    file_size_bytes = local_source.get("fileSizeBytes")
+    if not isinstance(source_path, str) or not source_path.strip():
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
+    if not isinstance(file_name, str) or not file_name.strip():
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
+    if extension not in {"wav", "mp3", "flac", "m4a"}:
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.extension'")
+    if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
+
+    return {
+        "sourcePath": source_path,
+        "fileName": file_name,
+        "extension": cast(Literal["wav", "mp3", "flac", "m4a"], extension),
+        "fileSizeBytes": file_size_bytes,
+    }
+
+
+def _validate_local_audio_request(
+    payload: dict[str, object], source_kind: str, source_label: str, role_focus: list[str]
+) -> AnalysisJobRequest:
+    project_id = payload.get("projectId")
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+
+    local_source_payload = payload.get("localSource")
+    if local_source_payload is None:
+        raise ValueError("Invalid analysis job request: invalid field 'localSource'")
+
+    local_source = _validate_local_source(local_source_payload)
+
+    normalized: AnalysisJobRequest = {
+        "sourceKind": cast(Literal["demo", "local_audio"], source_kind),
+        "sourceLabel": source_label,
+        "roleFocus": role_focus,
+        "projectId": project_id,
+        "localSource": local_source,
+    }
+
+    cache_root = payload.get("cacheRoot")
+    if cache_root is not None:
+        if not isinstance(cache_root, str) or not cache_root.strip():
+            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+        normalized["cacheRoot"] = cache_root
+
+    temp_root = payload.get("tempRoot")
+    if temp_root is not None:
+        if not isinstance(temp_root, str) or not temp_root.strip():
+            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+        normalized["tempRoot"] = temp_root
+
+    return normalized
+
+
 def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     """Validate and normalize an engine job request payload."""
     if not isinstance(payload, dict):
@@ -241,9 +321,6 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     source_kind = payload.get("sourceKind")
     source_label = payload.get("sourceLabel")
     role_focus = payload.get("roleFocus")
-    project_id = payload.get("projectId")
-    cache_root = payload.get("cacheRoot")
-    temp_root = payload.get("tempRoot")
 
     if source_kind not in {"demo", "local_audio"}:
         raise ValueError("Invalid analysis job request: invalid field 'sourceKind'")
@@ -255,65 +332,10 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         if not isinstance(role, str):
             raise ValueError(f"Invalid analysis job request: invalid field 'roleFocus[{index}]'")
 
-    local_source = payload.get("localSource")
     if source_kind == "demo":
-        if local_source is not None or project_id is not None:
-            raise ValueError("Invalid analysis job request: invalid field 'projectId'")
-        if cache_root is not None:
-            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
-        if temp_root is not None:
-            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
-        return {
-            "sourceKind": source_kind,
-            "sourceLabel": source_label,
-            "roleFocus": role_focus,
-        }
+        return _validate_demo_request(payload, source_kind, source_label, role_focus)
 
-    if not isinstance(project_id, str) or not project_id.strip():
-        raise ValueError("Invalid analysis job request: invalid field 'projectId'")
-    if local_source is None:
-        raise ValueError("Invalid analysis job request: invalid field 'localSource'")
-    if not isinstance(local_source, dict):
-        raise ValueError("Invalid analysis job request: invalid field 'localSource'")
-    allowed_local_keys = {"sourcePath", "fileName", "extension", "fileSizeBytes"}
-    for key in local_source:
-        if key not in allowed_local_keys:
-            raise ValueError(f"Invalid analysis job request: invalid field 'localSource.{key}'")
-    source_path = local_source.get("sourcePath")
-    file_name = local_source.get("fileName")
-    extension = local_source.get("extension")
-    file_size_bytes = local_source.get("fileSizeBytes")
-    if not isinstance(source_path, str) or not source_path.strip():
-        raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
-    if not isinstance(file_name, str) or not file_name.strip():
-        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
-    if extension not in {"wav", "mp3", "flac", "m4a"}:
-        raise ValueError("Invalid analysis job request: invalid field 'localSource.extension'")
-    if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
-        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
-
-    normalized: AnalysisJobRequest = {
-        "sourceKind": source_kind,
-        "sourceLabel": source_label,
-        "roleFocus": role_focus,
-        "projectId": project_id,
-        "localSource": {
-            "sourcePath": source_path,
-            "fileName": file_name,
-            "extension": extension,
-            "fileSizeBytes": file_size_bytes,
-        },
-    }
-    if cache_root is not None:
-        if not isinstance(cache_root, str) or not cache_root.strip():
-            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
-        normalized["cacheRoot"] = cache_root
-    if temp_root is not None:
-        if not isinstance(temp_root, str) or not temp_root.strip():
-            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
-        normalized["tempRoot"] = temp_root
-
-    return normalized
+    return _validate_local_audio_request(payload, source_kind, source_label, role_focus)
 
 
 def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
