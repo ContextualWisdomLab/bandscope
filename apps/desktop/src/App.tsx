@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AudioWaveform,
+  X,
   CircleHelp,
   Clock3,
   CloudOff,
@@ -188,6 +189,7 @@ export function App() {
   const activeJobIdRef = useRef<string | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
+  const isBusy = analysisInFlight || isStarting || isImporting;
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
     ? {
         sourceKind: "local_audio",
@@ -553,7 +555,7 @@ export function App() {
               <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center 2xl:grid-cols-[auto_1fr]">
                 <Button
                   onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting}
+                  disabled={isBusy}
                   variant="secondary"
                   className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
                   aria-label="Choose local audio"
@@ -562,20 +564,33 @@ export function App() {
                   {t("chooseLocalAudio")}
                 </Button>
 
-                <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
+                <div className="relative flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
                   <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
-                  <Input
-                    type="text"
-                    placeholder={t("youtubePlaceholder")}
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                    disabled={analysisInFlight || isStarting || isImporting}
-                    className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
-                    aria-label="YouTube URL"
-                  />
+                  <div className="relative flex flex-1 items-center">
+                    <Input
+                      type="text"
+                      placeholder={t("youtubePlaceholder")}
+                      value={youtubeUrl}
+                      onChange={(e) => setYoutubeUrl(e.target.value)}
+                      disabled={isBusy}
+                      className="h-10 w-full border-0 bg-transparent pr-8 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
+                      aria-label="YouTube URL"
+                    />
+                    {youtubeUrl && !isBusy && (
+                      <button
+                        type="button"
+                        onClick={() => setYoutubeUrl("")}
+                        aria-label="Clear YouTube URL"
+                        title="Clear YouTube URL"
+                        className="absolute right-2 rounded-md p-0.5 text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                      >
+                        <X className="size-4" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
                   <Button
                     onClick={handleImportYoutube}
-                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    disabled={!youtubeUrl || isBusy}
                     variant="outline"
                     className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                     aria-label="Import YouTube"
@@ -609,7 +624,7 @@ export function App() {
                 </Button>
                 <Button
                   onClick={handleStartAnalysis}
-                  disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                  disabled={!selectedBootstrap || isBusy}
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
                   aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}

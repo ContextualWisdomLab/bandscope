@@ -18,3 +18,7 @@
 ## 2026-06-25 - Native tooltips on disabled elements
 **Learning:** Standard HTML `title` attributes used as tooltips do not render on elements that use Tailwind's `pointer-events-none` class, which is often applied to `disabled:` variants in Base UI and styled components.
 **Action:** Do not rely on native `title` attributes for explaining disabled states on buttons with `pointer-events-none`. Instead, either use a custom tooltip component or ensure focus/interactive styles are preserved if an explanation is strictly required.
+
+## 2026-06-22 - Clear Button for URLs
+**Learning:** Adding a clear button (`X`) within URL input containers makes error recovery and URL swapping significantly smoother for users.
+**Action:** When adding absolute-positioned elements inside inputs (like an `X` button on the right), ensure the input has adequate right padding (e.g. `pr-8`) to prevent long text values from visually overlapping the interactive element. Also ensure icon-only clear buttons have both an `aria-label` and a matching `title`.
