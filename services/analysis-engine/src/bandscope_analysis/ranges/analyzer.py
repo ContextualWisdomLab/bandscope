@@ -215,8 +215,7 @@ class RangeAnalyzer:
             ranges_with_midi.sort(key=lambda x: x[1])
 
             # Detect overlaps between all pairs of ranges
-            for a_idx in range(len(ranges_with_midi)):
-                r_a, midi_low_a, midi_high_a = ranges_with_midi[a_idx]
+            for a_idx, (r_a, midi_low_a, midi_high_a) in enumerate(ranges_with_midi):
                 for b_idx in range(a_idx + 1, len(ranges_with_midi)):
                     r_b, midi_low_b, midi_high_b = ranges_with_midi[b_idx]
 
@@ -225,25 +224,26 @@ class RangeAnalyzer:
                     if midi_low_b > midi_high_a:
                         break
 
-                    # Check for overlap
-                    if midi_low_a <= midi_high_b and midi_low_b <= midi_high_a:
-                        severity = _overlap_severity(
-                            r_a["lowestNote"],
-                            r_a["highestNote"],
-                            r_b["lowestNote"],
-                            r_b["highestNote"],
-                        )
+                    if not (midi_low_a <= midi_high_b and midi_low_b <= midi_high_a):
+                        continue
 
-                        overlaps.append(
-                            {
-                                "role_a": r_a["role_id"],
-                                "role_b": r_b["role_id"],
-                                "overlap_region": (
-                                    f"{r_a['role_name']} and {r_b['role_name']} overlap"
-                                ),
-                                "severity": severity,
-                            }
-                        )
+                    severity = _overlap_severity(
+                        r_a["lowestNote"],
+                        r_a["highestNote"],
+                        r_b["lowestNote"],
+                        r_b["highestNote"],
+                    )
+
+                    overlaps.append(
+                        {
+                            "role_a": r_a["role_id"],
+                            "role_b": r_b["role_id"],
+                            "overlap_region": (
+                                f"{r_a['role_name']} and {r_b['role_name']} overlap"
+                            ),
+                            "severity": severity,
+                        }
+                    )
 
             summaries.append(
                 {

@@ -168,6 +168,30 @@ def test_range_analyzer_no_overlap() -> None:
     assert result["sections"][0]["overlaps"] == []
 
 
+def test_range_analyzer_does_not_overlap_inverted_ranges() -> None:
+    """Test malformed inverted ranges do not create false-positive overlaps."""
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "verse-1"}]
+    roles_by_section = {
+        "verse-1": [
+            {
+                "id": "normal",
+                "name": "Normal",
+                "range": {"lowestNote": "C4", "highestNote": "C5"},
+            },
+            {
+                "id": "inverted",
+                "name": "Inverted",
+                "range": {"lowestNote": "D4", "highestNote": "C3"},
+            },
+        ]
+    }
+
+    result = analyzer.analyze(sections, roles_by_section)
+
+    assert result["sections"][0]["overlaps"] == []
+
+
 def test_range_analyzer_invalid_section() -> None:
     """Test analyzer handles non-dict sections gracefully."""
     analyzer = RangeAnalyzer()
