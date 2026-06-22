@@ -10,55 +10,56 @@ import yt_dlp  # type: ignore
 from bandscope_analysis.youtube import download_youtube_audio, validate_url
 
 
-def test_validate_url() -> None:
-    """Test URL validation."""
-    assert validate_url("https://youtube.com/watch?v=abc123DEF45") is True
-    assert validate_url("https://youtu.be/abc123DEF45") is True
-    assert validate_url("https://www.youtube.com/watch?v=abc123DEF45") is True
-    assert validate_url("https://www.youtube.com/watch?v=abc123DEF45&t=10") is True
-
-    assert validate_url("https://m.youtube.com/watch?v=abc123DEF45") is False
-    assert validate_url("https://music.youtube.com/watch?v=abc123DEF45") is False
-    assert validate_url("https://evil.youtube.com/watch?v=abc123DEF45") is False
-    assert validate_url("https://youtube.com/watch?v=123") is False
-    assert validate_url("https://youtu.be/123") is False
-    assert validate_url("http://youtube.com/watch?v=abc123DEF45") is False
-    assert validate_url("https://vimeo.com/abc123DEF45") is False
-    assert validate_url("https://youtube.com/redirect?q=https://example.com") is False
-    assert validate_url("https://www.youtube.com/redirect?q=https://example.com") is False
-    assert validate_url("https://youtube.com/watch?v=") is False
-    assert validate_url("https://youtu.be/") is False
-    assert validate_url("https://youtu.be/abc123DEF45/extra") is False
-    assert validate_url("https://youtube.com/watch?v=abc123DEF45&v=def456GHI78") is False
-    assert validate_url("https://youtube.com/watch?v=&v=def456GHI78") is False
-    assert validate_url("https://youtube.com/watch?v=abc123DEF45&v=") is False
-    assert validate_url("https://youtube.com/watch?v=../../../etc/passwd") is False
-    assert validate_url("https://youtu.be/../../../etc/passwd") is False
-
-
-def test_validate_url_edge_cases() -> None:
-    """Test URL validation edge cases and potential bypasses."""
-    # IP address bypass attempts
-    assert validate_url("https://127.0.0.1/watch?v=123") is False
-    assert validate_url("https://[::1]/watch?v=123") is False
-
-    # User info bypass attempts
-    assert validate_url("https://youtube.com@evil.com/watch?v=123") is False
-    assert validate_url("https://youtube.com@youtu.be/123") is False
-    assert validate_url("https://user:pass@youtube.com/watch?v=123") is False
-
-    # Subdomain/Suffix trickery
-    assert validate_url("https://youtube.com.evil.com/watch?v=123") is False
-    assert validate_url("https://evil-youtube.com/watch?v=123") is False
-
-    # Path/Query trickery
-    assert validate_url("https://evil.com/youtube.com/watch?v=123") is False
-    assert validate_url("https://evil.com?youtube.com/watch?v=123") is False
-    assert validate_url("https://evil.com#youtube.com/watch?v=123") is False
-
-    # Allowlist behavior and explicit default ports
-    assert validate_url("https://kr.youtube.com/watch?v=abc123DEF45") is False
-    assert validate_url("https://youtube.com:443/watch?v=abc123DEF45") is True
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        # Valid URLs
+        ("https://youtube.com/watch?v=abc123DEF45", True),
+        ("https://youtu.be/abc123DEF45", True),
+        ("https://www.youtube.com/watch?v=abc123DEF45", True),
+        ("https://www.youtube.com/watch?v=abc123DEF45&t=10", True),
+        ("https://youtube.com:443/watch?v=abc123DEF45", True),
+        # Invalid schemes / domains / ports
+        ("http://youtube.com/watch?v=abc123DEF45", False),
+        ("ftp://youtube.com/watch?v=abc123DEF45", False),
+        ("https://m.youtube.com/watch?v=abc123DEF45", False),
+        ("https://music.youtube.com/watch?v=abc123DEF45", False),
+        ("https://evil.youtube.com/watch?v=abc123DEF45", False),
+        ("https://vimeo.com/abc123DEF45", False),
+        ("https://kr.youtube.com/watch?v=abc123DEF45", False),
+        # Invalid video IDs or paths
+        ("https://youtube.com/watch?v=123", False),
+        ("https://youtu.be/123", False),
+        ("https://youtube.com/redirect?q=https://example.com", False),
+        ("https://www.youtube.com/redirect?q=https://example.com", False),
+        ("https://youtube.com/watch?v=", False),
+        ("https://youtu.be/", False),
+        ("https://youtu.be/abc123DEF45/extra", False),
+        ("https://youtube.com/watch?v=../../../etc/passwd", False),
+        ("https://youtu.be/../../../etc/passwd", False),
+        # Multiple query parameters
+        ("https://youtube.com/watch?v=abc123DEF45&v=def456GHI78", False),
+        ("https://youtube.com/watch?v=&v=def456GHI78", False),
+        ("https://youtube.com/watch?v=abc123DEF45&v=", False),
+        # IP address bypass attempts
+        ("https://127.0.0.1/watch?v=123", False),
+        ("https://[::1]/watch?v=123", False),
+        # User info bypass attempts
+        ("https://youtube.com@evil.com/watch?v=123", False),
+        ("https://youtube.com@youtu.be/123", False),
+        ("https://user:pass@youtube.com/watch?v=123", False),
+        # Subdomain/Suffix trickery
+        ("https://youtube.com.evil.com/watch?v=123", False),
+        ("https://evil-youtube.com/watch?v=123", False),
+        # Path/Query trickery
+        ("https://evil.com/youtube.com/watch?v=123", False),
+        ("https://evil.com?youtube.com/watch?v=123", False),
+        ("https://evil.com#youtube.com/watch?v=123", False),
+    ],
+)
+def test_validate_url(url: str, expected: bool) -> None:
+    """Test URL validation with parameterized edge cases."""
+    assert validate_url(url) is expected
 
 
 def test_download_youtube_audio_invalid_url() -> None:
