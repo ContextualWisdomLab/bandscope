@@ -1453,7 +1453,15 @@ jobs:
             (
               cd "$source_root"
               if command -v actionlint >/dev/null 2>&1; then
-                actionlint -shellcheck= -pyflakes= .github/workflows/opencode-review.yml .github/workflows/strix.yml
+                workflow_files=()
+                for workflow_file in .github/workflows/opencode-review.yml .github/workflows/strix.yml; do
+                  if [ -f "$workflow_file" ]; then
+                    workflow_files+=("$workflow_file")
+                  fi
+                done
+                if [ "${#workflow_files[@]}" -gt 0 ]; then
+                  actionlint -shellcheck= -pyflakes= "${workflow_files[@]}"
+                fi
               else
                 printf 'actionlint unavailable; skipped workflow schema validation.\n'
               fi
