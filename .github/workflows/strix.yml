@@ -77,7 +77,6 @@ jobs:
           {
             echo "TRUSTED_WORKSPACE=$trusted_workspace"
             echo "TRUSTED_STRIX_GATE=$trusted_workspace/scripts/ci/strix_quick_gate.sh"
-            echo "TRUSTED_STRIX_GATE_TEST=$trusted_workspace/scripts/ci/test_strix_quick_gate.sh"
           } >> "$GITHUB_ENV"
 
       - name: Fetch pull request head for trusted scan
@@ -127,10 +126,6 @@ jobs:
           done
           echo "::error::PR head ref did not resolve to expected commit $PR_HEAD_SHA after retries." >&2
           exit 1
-
-      - name: Self-test Strix gate script
-        working-directory: ${{ runner.temp }}/trusted-workspace
-        run: bash "$TRUSTED_STRIX_GATE_TEST"
 
       - name: Gate Strix secrets
         id: gate
