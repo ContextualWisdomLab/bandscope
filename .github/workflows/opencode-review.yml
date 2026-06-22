@@ -34,7 +34,7 @@ permissions:
 env:
   GIT_CONFIG_COUNT: "1"
   GIT_CONFIG_KEY_0: init.defaultBranch
-  GIT_CONFIG_VALUE_0: ${{ github.event.repository.default_branch || 'main' }}
+  GIT_CONFIG_VALUE_0: develop
 
 jobs:
   opencode-review:
