@@ -81,3 +81,44 @@ def test_extract_sections_unrecognized_label() -> None:
     assert sections[1]["id"] == "random part-1"
     assert sections[1]["form_label"] == "random part"
     assert sections[1]["confidence_level"] == "low"
+
+
+def test_extract_sections_empty() -> None:
+    """Verify section extraction behavior with an empty arrangement list."""
+    result = extract_sections([])
+
+    assert result["strategy_used"] == "count"
+    assert result["sections"] == []
+
+
+def test_extract_sections_missing_label() -> None:
+    """Verify section extraction falls back to 'unknown' when label is missing."""
+    arrangement = [{"groove": "heavy"}]
+
+    result = extract_sections(arrangement)
+
+    assert result["strategy_used"] == "count"
+    sections = result["sections"]
+
+    assert len(sections) == 1
+    assert sections[0]["id"] == "unknown-1"
+    assert sections[0]["form_label"] == "unknown"
+    assert sections[0]["confidence_level"] == "low"
+
+
+def test_extract_sections_sequence_indexing() -> None:
+    """Verify identical normalized labels receive correctly incrementing sequence_index values."""
+    arrangement = [
+        {"label": "verse"},
+        {"label": "Chorus"},
+        {"label": "verse 2"},
+        {"label": "chorus 2"},
+    ]
+
+    result = extract_sections(arrangement)
+    sections = result["sections"]
+
+    assert sections[0]["sequence_index"] == 1
+    assert sections[1]["sequence_index"] == 1
+    assert sections[2]["sequence_index"] == 2
+    assert sections[3]["sequence_index"] == 2
