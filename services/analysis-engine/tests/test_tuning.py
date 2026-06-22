@@ -1,5 +1,7 @@
 """Tests for role tuning heuristics."""
 
+from unittest.mock import patch
+
 from bandscope_analysis.roles.tuning import get_setup_note
 
 
@@ -32,3 +34,39 @@ def test_get_setup_note_drop_d() -> None:
     """Test drop D tuning detection."""
     note = get_setup_note("Electric Guitar", ["D5", "G5", "A5"])
     assert note == "Setup: Drop D tuning"
+
+
+@patch("bandscope_analysis.roles.tuning.detect_capo_and_tuning")
+def test_get_setup_note_mock_capo_and_tuning(mock_detect) -> None:
+    """Test string generation when both capo and custom tuning are detected."""
+    mock_detect.return_value = {"capo": 2, "tuning": "Open G"}
+    note = get_setup_note("Electric Guitar", ["G", "C", "D"])
+    assert note == "Setup: Open G tuning, Capo 2"
+    mock_detect.assert_called_once_with(["G", "C", "D"])
+
+
+@patch("bandscope_analysis.roles.tuning.detect_capo_and_tuning")
+def test_get_setup_note_mock_custom_tuning_only(mock_detect) -> None:
+    """Test string generation with custom tuning but no capo (capo=0)."""
+    mock_detect.return_value = {"capo": 0, "tuning": "Eb"}
+    note = get_setup_note("Guitar", ["Eb5", "Ab5"])
+    assert note == "Setup: Eb tuning"
+    mock_detect.assert_called_once_with(["Eb5", "Ab5"])
+
+
+@patch("bandscope_analysis.roles.tuning.detect_capo_and_tuning")
+def test_get_setup_note_mock_capo_only(mock_detect) -> None:
+    """Test string generation with capo but standard tuning."""
+    mock_detect.return_value = {"capo": 4, "tuning": "Standard"}
+    note = get_setup_note("Guitar", ["E", "A", "B"])
+    assert note == "Setup: Standard tuning, Capo 4"
+    mock_detect.assert_called_once_with(["E", "A", "B"])
+
+
+@patch("bandscope_analysis.roles.tuning.detect_capo_and_tuning")
+def test_get_setup_note_mock_no_capo_standard_tuning(mock_detect) -> None:
+    """Test string generation with standard tuning and no capo (capo None)."""
+    mock_detect.return_value = {"capo": None, "tuning": "Standard"}
+    note = get_setup_note("Guitar", ["C", "F", "G"])
+    assert note is None
+    mock_detect.assert_called_once_with(["C", "F", "G"])
