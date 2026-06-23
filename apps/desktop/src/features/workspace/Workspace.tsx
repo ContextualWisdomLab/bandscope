@@ -311,9 +311,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button type="button" disabled title="Coming soon" variant="outline" className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400">Play stem</Button>
-                  <Button type="button" disabled title="Coming soon" variant="outline" className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400">Loop section</Button>
-                  <Button type="button" disabled title="Coming soon" variant="outline" className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400">Solo / mute others</Button>
+                  <Button type="button" disabled title="Coming soon" aria-label="Play stem (coming soon)" variant="outline" className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400">Play stem</Button>
+                  <Button type="button" disabled title="Coming soon" aria-label="Loop section (coming soon)" variant="outline" className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400">Loop section</Button>
+                  <Button type="button" disabled title="Coming soon" aria-label="Solo or mute others (coming soon)" variant="outline" className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400">Solo / mute others</Button>
                   <Button
                     type="button"
                     disabled={!canTranscribeBass}
