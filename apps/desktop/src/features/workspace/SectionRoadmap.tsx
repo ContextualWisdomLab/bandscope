@@ -1,5 +1,5 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useId, useMemo } from "react";
+import { type ReactNode, useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -103,9 +103,11 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">
-              {section.roles
-                .filter(role => !activeRole || role.id === activeRole)
-                .map(role => (
+              {section.roles.reduce<ReactNode[]>((visibleRoles, role) => {
+                if (activeRole && role.id !== activeRole) {
+                  return visibleRoles;
+                }
+                visibleRoles.push(
                   <div
                     key={role.id}
                     className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
@@ -189,8 +191,10 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         )}
                       </div>
                     </div>
-                  </div>
-              ))}
+                  </div>,
+                );
+                return visibleRoles;
+              }, [])}
             </CardContent>
           </Card>
         ))}
