@@ -132,6 +132,9 @@ class AudioStemSeparator:
 
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
+        path_str = str(audio_path)
+        if ".." in path_str:
+            raise ValueError("Path traversal sequences are not allowed")
         candidate = Path(audio_path)
         try:
             path = candidate.resolve(strict=True)
