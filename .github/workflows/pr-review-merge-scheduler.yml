@@ -24,6 +24,11 @@ on:
         required: false
         default: true
         type: boolean
+      update_branches:
+        description: Update outdated PR branches after OpenCode approval
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -41,19 +46,19 @@ jobs:
   scan-pr-queue:
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       checks: read
       contents: write
-      issues: write
       pull-requests: write
     env:
-      GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}
-      OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
       MAX_PRS: ${{ inputs.max_prs || '100' }}
       PROJECT_FLOW: ${{ vars.PROJECT_FLOW || 'git-flow' }}
-      TRIGGER_REVIEWS: "false"
+      TRIGGER_REVIEWS: ${{ github.event_name == 'workflow_dispatch' && inputs.trigger_reviews == true }}
       ENABLE_AUTO_MERGE: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_auto_merge == true }}
+      UPDATE_BRANCHES: ${{ github.event_name != 'workflow_dispatch' || inputs.update_branches == true }}
     steps:
       - name: Checkout trusted scheduler
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -63,11 +68,7 @@ jobs:
       - name: Report scheduler token source
         run: |
           set -euo pipefail
-          if [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
-            echo "scheduler token source=opencode-approve-token"
-          else
-            echo "scheduler token source=github-token"
-          fi
+          echo "scheduler token source=github-token"
 
       - name: Self-test scheduler
         run: python3 scripts/ci/pr_review_merge_scheduler.py --self-test
@@ -94,5 +95,10 @@ jobs:
             args+=(--enable-auto-merge)
           else
             args+=(--no-enable-auto-merge)
+          fi
+          if [ "$UPDATE_BRANCHES" = "true" ]; then
+            args+=(--update-branches)
+          else
+            args+=(--no-update-branches)
           fi
           python3 scripts/ci/pr_review_merge_scheduler.py "${args[@]}"
