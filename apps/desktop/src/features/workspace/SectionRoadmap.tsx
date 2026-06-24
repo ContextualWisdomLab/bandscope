@@ -32,25 +32,43 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
     if (!onSongUpdate) return;
     const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
     if (newChord !== null && newChord.trim() !== "" && newChord !== role.harmony.chord) {
-      const updatedSong = structuredClone(song);
-      const section = updatedSong.sections.find(s => s.id === sectionId);
-      if (section) {
-        const targetRole = section.roles.find(r => r.id === role.id);
-        if (targetRole) {
-          targetRole.harmony = {
-            ...targetRole.harmony,
-            chord: newChord.trim(),
-            source: "user"
-          };
-          targetRole.manualOverrides = targetRole.manualOverrides.filter(o => o.field !== "harmony");
-          targetRole.manualOverrides.push({
-            field: "harmony",
-            value: { ...targetRole.harmony, source: "user" as const },
-            source: "user"
-          });
-          onSongUpdate(updatedSong);
-        }
-      }
+      // Performance: Replaced expensive `structuredClone` deep copy with an efficient shallow copy using object spread (`...`) and `.map()`.
+      // This avoids unnecessary memory allocation overhead when updating a nested property.
+      const updatedSong = {
+        ...song,
+        sections: song.sections.map(section => {
+          if (section.id === sectionId) {
+            return {
+              ...section,
+              roles: section.roles.map(r => {
+                if (r.id === role.id) {
+                  const updatedHarmony = {
+                    ...r.harmony,
+                    chord: newChord.trim(),
+                    source: "user" as const
+                  };
+                  return {
+                    ...r,
+                    harmony: updatedHarmony,
+                    manualOverrides: [
+                      ...r.manualOverrides.filter(o => o.field !== "harmony"),
+                      {
+                        field: "harmony" as const,
+                        value: updatedHarmony,
+                        source: "user" as const
+                      }
+                    ]
+                  };
+                }
+                return r;
+              })
+            };
+          }
+          return section;
+        })
+      };
+
+      onSongUpdate(updatedSong);
     }
   };
 
