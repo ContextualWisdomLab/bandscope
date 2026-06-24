@@ -17,6 +17,10 @@ on:
         description: Pull request base SHA
         required: true
         type: string
+      pr_head_ref:
+        description: Pull request head branch
+        required: false
+        type: string
       pr_head_sha:
         description: Pull request head SHA
         required: true
@@ -1636,7 +1640,7 @@ jobs:
               local helper_findings_file
               helper_findings_file="$(mktemp)"
               if "${repo_root%/}/scripts/ci/emit_opencode_failed_check_fallback_findings.sh" "$evidence_file" "$repo_root" >"$helper_findings_file"; then
-                if grep -Fq "No deterministic missing-string markers" "$helper_findings_file" ||
+                if grep -Eiq 'deterministic[ -]?missing[- ]string markers|strix report locations|map each failed check' "$helper_findings_file" ||
                   ! grep -Eq '^### [0-9]+\. ' "$helper_findings_file"; then
                   printf 'OpenCode failed-check fallback helper returned non-source-backed output. No PR review was posted; retry after current-head failed-check logs or annotations are available, or rerun the failed check to collect them.\n' >&2
                   rm -f "$helper_findings_file"

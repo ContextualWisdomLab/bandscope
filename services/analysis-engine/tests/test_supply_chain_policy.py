@@ -4967,15 +4967,19 @@ def test_opencode_failed_check_fallback_does_not_publish_generic_findings() -> N
     ).read_text(encoding="utf-8")
 
     banned_outputs = (
-        "No deterministic missing-string markers were recognized",
-        "No deterministic missing-string markers or Strix report locations were recognized",
-        "Use the failed-check evidence below",
+        "No deterministic " + "missing-string markers",
+        "No deterministic " + "missing string markers",
+        "Use the failed-check " + "evidence below",
     )
     for banned in banned_outputs:
         assert banned not in workflow
         assert banned not in helper
     assert "FAILED_CHECK_DIAGNOSIS_UNAVAILABLE" in workflow
     assert "No PR review was posted" in workflow
+    assert "pr_head_ref:" in workflow
+    assert "f\"pr_head_ref={pr['headRefName']}\"" in (
+        repo_root / "scripts" / "ci" / "pr_review_merge_scheduler.py"
+    ).read_text(encoding="utf-8")
 
 
 def test_opencode_approval_write_failure_updates_overview_only() -> None:
