@@ -1633,10 +1633,22 @@ jobs:
             local strix_evidence_file
 
             if [ -x "${repo_root%/}/scripts/ci/emit_opencode_failed_check_fallback_findings.sh" ]; then
-              if "${repo_root%/}/scripts/ci/emit_opencode_failed_check_fallback_findings.sh" "$evidence_file" "$repo_root"; then
+              local helper_findings_file
+              helper_findings_file="$(mktemp)"
+              if "${repo_root%/}/scripts/ci/emit_opencode_failed_check_fallback_findings.sh" "$evidence_file" "$repo_root" >"$helper_findings_file"; then
+                if grep -Fq "No deterministic missing-string markers" "$helper_findings_file" ||
+                  ! grep -Eq '^### [0-9]+\. ' "$helper_findings_file"; then
+                  printf 'OpenCode failed-check fallback helper returned non-source-backed output. No PR review was posted; retry after current-head failed-check logs or annotations are available, or rerun the failed check to collect them.\n' >&2
+                  rm -f "$helper_findings_file"
+                  return 1
+                fi
+                cat "$helper_findings_file"
+                rm -f "$helper_findings_file"
                 return 0
               fi
-              printf 'OpenCode failed-check fallback helper exited non-zero; using inline fallback.\n' >&2
+              rm -f "$helper_findings_file"
+              printf 'OpenCode failed-check fallback helper did not produce source-backed findings. No PR review was posted; retry after current-head failed-check logs or annotations are available, or rerun the failed check to collect them.\n' >&2
+              return 1
             fi
 
             extract_strix_failed_check_block() {
@@ -1767,7 +1779,8 @@ jobs:
             rm -f "$strix_evidence_file"
 
             if [ "$finding_index" -eq 0 ]; then
-              printf 'No deterministic missing-string markers were recognized. Use the failed-check evidence below to map each failed check to exact local source lines before approving.\n\n'
+              printf 'No automated source-backed fallback pattern matched this failed check. No PR review was posted; retry after current-head failed-check logs or annotations are available, or rerun the failed check to collect them.\n' >&2
+              return 1
             fi
           }
 
@@ -1775,13 +1788,20 @@ jobs:
             local failed_checks_file="$1"
             local evidence_file="$2"
             local body_file="$3"
+            local findings_file
+
+            findings_file="$(mktemp)"
+            if ! emit_line_specific_fallback_findings "$evidence_file" >"$findings_file"; then
+              rm -f "$findings_file"
+              return 1
+            fi
 
             {
               printf '## Pull request overview\n\n'
               printf 'OpenCode found current-head GitHub Check failures and could not approve until they are mapped to source-backed fixes.\n\n'
               printf '## Findings\n\n'
               printf 'Line-specific fallback findings:\n\n'
-              emit_line_specific_fallback_findings "$evidence_file"
+              cat "$findings_file"
               printf '## Verification\n\n'
               printf -- '- Review source: independent OpenCode failed-check diagnosis using current-head check evidence.\n'
               printf -- '- Result: REQUEST_CHANGES\n'
@@ -1799,6 +1819,24 @@ jobs:
                 printf 'Detailed failed-check evidence could not be collected. The review must not approve until the failed check log is available and mapped to exact source lines.\n'
               fi
             } >"$body_file"
+            rm -f "$findings_file"
+          }
+
+          stop_failed_check_fallback_unavailable() {
+            local body
+
+            body="$(printf '%s\n' \
+              "OpenCode could not derive source-backed failed-check findings after retries." \
+              "" \
+              "- Result: FAILED_CHECK_DIAGNOSIS_UNAVAILABLE" \
+              "- Reason: current-head failed checks were present, but neither model diagnosis nor deterministic fallback mapped them to concrete source-backed findings." \
+              "- Required next evidence: failed-check logs or annotations that identify an exact local file line and a concrete fix." \
+              "- Head SHA: \`${HEAD_SHA}\`" \
+              "- Workflow run: ${RUN_ID}" \
+              "- Workflow attempt: ${RUN_ATTEMPT}" \
+              "" \
+              "No PR review was posted because an evidence-mapping failure is a review-tool state, not a source finding.")"
+            stop_approval_without_review "FAILED_CHECK_DIAGNOSIS_UNAVAILABLE" "$body"
           }
 
           build_pending_check_body() {
@@ -2391,8 +2429,11 @@ jobs:
                 if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
                   create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
                 else
-                  build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
-                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                  if build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
+                    create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                  else
+                    stop_failed_check_fallback_unavailable
+                  fi
                 fi
               else
                 pending_checks_file="$(mktemp)"
@@ -2522,8 +2563,11 @@ jobs:
                 if run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
                   create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
                 else
-                  build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
-                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                  if build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
+                    create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                  else
+                    stop_failed_check_fallback_unavailable
+                  fi
                 fi
                 echo "::endgroup::"
                 exit 0
@@ -2597,8 +2641,11 @@ jobs:
                 elif run_failed_check_diagnosis "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"; then
                   create_pull_review_with_payload "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")" "$failed_check_review_payload_file" "$failed_check_inline_failure_body_file"
                 else
-                  build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"
-                  create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                  if build_failed_check_fallback_body "$failed_checks_file" "$failed_check_evidence_file" "$failed_check_review_body_file"; then
+                    create_pull_review "REQUEST_CHANGES" "$(cat "$failed_check_review_body_file")"
+                  else
+                    stop_failed_check_fallback_unavailable
+                  fi
                 fi
               else
                 publish_request_changes_from_control "$control_json"

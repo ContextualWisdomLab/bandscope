@@ -4956,6 +4956,28 @@ def test_opencode_review_unavailable_reports_provider_errors() -> None:
     assert ".error.data.metadata.url // empty" in workflow
 
 
+def test_opencode_failed_check_fallback_does_not_publish_generic_findings() -> None:
+    """Ensure failed-check mapping failures remain tool states, not PR findings."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+    helper = (
+        repo_root / "scripts" / "ci" / "emit_opencode_failed_check_fallback_findings.sh"
+    ).read_text(encoding="utf-8")
+
+    banned_outputs = (
+        "No deterministic missing-string markers were recognized",
+        "No deterministic missing-string markers or Strix report locations were recognized",
+        "Use the failed-check evidence below",
+    )
+    for banned in banned_outputs:
+        assert banned not in workflow
+        assert banned not in helper
+    assert "FAILED_CHECK_DIAGNOSIS_UNAVAILABLE" in workflow
+    assert "No PR review was posted" in workflow
+
+
 def test_opencode_approval_write_failure_updates_overview_only() -> None:
     """Ensure approval write failures are not reported as source findings."""
     repo_root = Path(__file__).resolve().parents[3]
@@ -4969,8 +4991,8 @@ def test_opencode_approval_write_failure_updates_overview_only() -> None:
     assert 'create_approval_or_report_unavailable "$body"' in workflow
 
 
-def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
-    """Ensure scheduled queue handling still runs when the app token secret is absent."""
+def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
+    """Ensure queue mutation is performed with the GitHub Actions token."""
     repo_root = Path(__file__).resolve().parents[3]
     workflow = (repo_root / ".github" / "workflows" / "pr-review-merge-scheduler.yml").read_text(
         encoding="utf-8"
@@ -4979,9 +5001,10 @@ def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
     assert "contents: write" in workflow
     assert "issues: write" in workflow
     assert "pull-requests: write" in workflow
-    assert "GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}" in workflow
+    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in workflow
+    assert "GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}" not in workflow
     assert "scheduler token source=github-token" in workflow
-    assert "Configure OPENCODE_APPROVE_TOKEN before running the scheduler" not in workflow
+    assert "opencode-approve-token" not in workflow
 
 
 def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
