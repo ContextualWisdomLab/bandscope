@@ -448,3 +448,10 @@ def test_audio_stem_separator_rejects_non_finite_band_profile(tmp_path) -> None:
                 model_profile_sha256=checksum,
             )
         )
+
+
+def test_audio_stem_separator_rejects_path_traversal(tmp_path) -> None:
+    """Ensure path traversal attempts are rejected outright."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+    with pytest.raises(ValueError, match="Path traversal sequences are not allowed"):
+        separator.separate(tmp_path / ".." / "missing.wav")
