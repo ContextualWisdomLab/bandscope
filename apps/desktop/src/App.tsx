@@ -514,7 +514,7 @@ export function App() {
                 aria-disabled={active ? undefined : true}
                 disabled={!active}
                 title={active ? undefined : "Coming soon"}
-                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold ${
+                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                   active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
                 }`}
               >
