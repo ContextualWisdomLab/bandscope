@@ -550,6 +550,7 @@ export function App() {
                 <Button
                   onClick={handleChooseLocalAudio}
                   disabled={analysisInFlight || isStarting || isImporting}
+                  title={(analysisInFlight || isStarting || isImporting) ? t("chooseLocalAudioDisabledBusy") : undefined}
                   variant="secondary"
                   className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
                   aria-label="Choose local audio"
@@ -572,6 +573,10 @@ export function App() {
                   <Button
                     onClick={handleImportYoutube}
                     disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    title={
+                      (analysisInFlight || isStarting || isImporting) ? t("importYoutubeDisabledBusy") :
+                      (!youtubeUrl) ? t("importYoutubeDisabledEmpty") : undefined
+                    }
                     variant="outline"
                     className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                     aria-label="Import YouTube"
@@ -585,7 +590,8 @@ export function App() {
               <div className="flex flex-wrap justify-start gap-2 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting}
+                  disabled={analysisInFlight || isStarting || isImporting}
+                  title={(analysisInFlight || isStarting || isImporting) ? t("openProjectDisabledBusy") : undefined}
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label="Open Project"
@@ -596,6 +602,7 @@ export function App() {
                 <Button
                   onClick={jobResult ? handleSaveProject : undefined}
                   disabled={!jobResult}
+                  title={!jobResult ? t("saveProjectDisabled") : undefined}
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label="Save Project"
@@ -606,6 +613,10 @@ export function App() {
                 <Button
                   onClick={handleStartAnalysis}
                   disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                  title={
+                    (analysisInFlight || isStarting || isImporting) ? t("startAnalysisDisabledBusy") :
+                    (!selectedBootstrap) ? t("startAnalysisDisabledNoAudio") : undefined
+                  }
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
                   aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}

@@ -65,5 +65,12 @@
   "youtubePlaceholder": "YouTube URL...",
   "importYoutube": "Import YouTube",
   "importingYoutube": "Importing...",
-  "youtubeImportFailed": "Failed to import YouTube URL."
+  "youtubeImportFailed": "Failed to import YouTube URL.",
+  "startAnalysisDisabledNoAudio": "Choose an audio file or import from YouTube to start analysis.",
+  "startAnalysisDisabledBusy": "Analysis or import is currently in progress.",
+  "saveProjectDisabled": "Complete analysis to save the project.",
+  "chooseLocalAudioDisabledBusy": "Action unavailable while analysis or import is in progress.",
+  "openProjectDisabledBusy": "Action unavailable while analysis or import is in progress.",
+  "importYoutubeDisabledEmpty": "Enter a YouTube URL to import.",
+  "importYoutubeDisabledBusy": "Action unavailable while analysis or import is in progress."
 }
