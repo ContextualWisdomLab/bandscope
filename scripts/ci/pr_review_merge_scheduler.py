@@ -422,10 +422,25 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def validate_gh_host() -> None:
+    """Validate GH_HOST environment variable to prevent SSRF."""
+
+    host = os.environ.get("GH_HOST")
+    if not host:
+        return
+    if not (
+        host == "github.com"
+        or host.endswith(".github.com")
+        or host.endswith(".githubapp.com")
+    ):
+        raise ValueError(f"Invalid GH_HOST: {host}")
+
+
 def main(argv: list[str]) -> int:
     """Run the PR review merge scheduler."""
 
     args = parse_args(argv)
+    validate_gh_host()
     if args.self_test:
         self_test()
         return 0
