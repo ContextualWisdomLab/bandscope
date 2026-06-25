@@ -517,7 +517,7 @@ def disable_auto_merge_decision(
     dry_run: bool,
     reason: str,
 ) -> Decision:
-    """Disable auto-merge and return a WAIT decision with the concrete unsafe reason."""
+    """Disable auto-merge and return a disable_auto_merge decision with the concrete unsafe reason."""
     disable_auto_merge(repo, pr, dry_run=dry_run)
     return Decision(pr["number"], "disable_auto_merge", f"auto-merge disabled; {reason}")
 
@@ -1129,6 +1129,60 @@ def self_test() -> None:
     )
     assert decision.action == "disable_auto_merge"
     assert "current-head OpenCode review requested changes" in decision.reason
+    sample["mergeStateStatus"] = "CLEAN"
+    sample["reviews"]["nodes"] = [
+        {
+            "state": "APPROVED",
+            "author": {"login": "opencode-agent"},
+            "submittedAt": "2026-01-01T00:01:00Z",
+            "commit": {"oid": "abc"},
+        }
+    ]
+    sample["reviewThreads"]["nodes"] = [{"isResolved": False}]
+    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "disable_auto_merge"
+    assert "unresolved review thread" in decision.reason
+    sample["autoMergeRequest"] = None
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "block"
+    assert decision.reason == "1 unresolved review thread(s)"
+    sample["reviewThreads"]["nodes"] = []
+    sample["reviews"]["nodes"] = []
+    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=False,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "disable_auto_merge"
+    assert "no OpenCode approval" in decision.reason
     sample["autoMergeRequest"] = None
     sample["statusCheckRollup"]["contexts"]["nodes"].append(
         {"__typename": "CheckRun", "name": "opencode-review", "status": "IN_PROGRESS"}
