@@ -5030,7 +5030,7 @@ def test_pr_review_merge_scheduler_writes_actions_summary(
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
     update_reason = (
         "current-head OpenCode review approved; "
-        "branch update requested with GitHub Actions bot token"
+        "branch update requested with workflow GH_TOKEN (github-actions[bot] in GitHub Actions)"
     )
     decisions = [
         scheduler.Decision(7, "block", "merge conflict: DIRTY; base=main, head=feature|x"),
