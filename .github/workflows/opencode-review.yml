@@ -1091,19 +1091,39 @@ jobs:
               printf '%s\n' "$body"
             } >"$overview_body_file"
 
+            local tmp_err
+            tmp_err="$(mktemp)"
+
             overview_comment_id="$(
               env GH_TOKEN="$overview_comment_token" \
                 gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
-                --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") and (.body | contains("<!-- opencode-review-overview -->")))] | sort_by(.created_at) | last.id // empty'
-            )"
+                --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") and (.body | contains("<!-- opencode-review-overview -->")))] | sort_by(.created_at) | last.id // empty' 2>"$tmp_err"
+            )" || {
+              if grep -q "HTTP 401" "$tmp_err"; then
+                if [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
+                  overview_comment_token="$OPENCODE_APPROVE_TOKEN"
+                elif [ -n "${GITHUB_TOKEN:-}" ]; then
+                  overview_comment_token="$GITHUB_TOKEN"
+                fi
+                overview_comment_id="$(
+                  env GH_TOKEN="$overview_comment_token" \
+                    gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+                    --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") and (.body | contains("<!-- opencode-review-overview -->")))] | sort_by(.created_at) | last.id // empty'
+                )"
+              else
+                cat "$tmp_err" >&2
+              fi
+            }
+            rm -f "$tmp_err"
+
             if [ -n "$overview_comment_id" ]; then
               jq -n --rawfile body "$overview_body_file" '{body: $body}' |
                 env GH_TOKEN="$overview_comment_token" \
-                  gh api -X PATCH "repos/${GH_REPOSITORY}/issues/comments/${overview_comment_id}" --input - >/dev/null
+                  gh api -X PATCH "repos/${GH_REPOSITORY}/issues/comments/${overview_comment_id}" --input - >/dev/null || true
             else
               jq -n --rawfile body "$overview_body_file" '{body: $body}' |
                 env GH_TOKEN="$overview_comment_token" \
-                  gh api -X POST "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --input - >/dev/null
+                  gh api -X POST "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --input - >/dev/null || true
             fi
             rm -f "$overview_body_file"
           }
@@ -2086,8 +2106,10 @@ jobs:
               if grep -q "HTTP 401" "$stderr_file"; then
                 if [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
                   export GH_TOKEN="$OPENCODE_APPROVE_TOKEN"
+                  overview_comment_token="$OPENCODE_APPROVE_TOKEN"
                 elif [ -n "${GITHUB_TOKEN:-}" ]; then
                   export GH_TOKEN="$GITHUB_TOKEN"
+                  overview_comment_token="$GITHUB_TOKEN"
                 fi
               fi
               : >"$output_file"
