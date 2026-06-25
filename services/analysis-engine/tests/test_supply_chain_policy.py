@@ -5028,9 +5028,13 @@ def test_pr_review_merge_scheduler_writes_actions_summary(
     spec.loader.exec_module(scheduler)
     summary_path = tmp_path / "summary.md"
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+    update_reason = (
+        "current-head OpenCode review approved; "
+        "branch update requested with GitHub Actions bot token"
+    )
     decisions = [
         scheduler.Decision(7, "block", "merge conflict: DIRTY; base=main, head=feature|x"),
-        scheduler.Decision(8, "update_branch", "current-head OpenCode review approved; branch update requested"),
+        scheduler.Decision(8, "update_branch", update_reason),
     ]
 
     scheduler.print_summary(
@@ -5052,7 +5056,7 @@ def test_pr_review_merge_scheduler_writes_actions_summary(
     summary = summary_path.read_text(encoding="utf-8")
     assert "## PR review merge scheduler" in summary
     assert "| #7 | block | merge conflict: DIRTY; base=main, head=feature\\|x |" in summary
-    assert "| #8 | update_branch | current-head OpenCode review approved; branch update requested |" in summary
+    assert f"| #8 | update_branch | {update_reason} |" in summary
 
 
 def test_pr_review_merge_scheduler_caps_graphql_page_size(
@@ -5086,9 +5090,7 @@ def test_pr_review_merge_scheduler_caps_graphql_page_size(
 
     monkeypatch.setattr(scheduler, "gh_graphql", fake_graphql)
 
-    assert scheduler.fetch_open_prs("owner/repo", 120) == [
-        {"number": scheduler.OPEN_PRS_PAGE_SIZE}
-    ]
+    assert scheduler.fetch_open_prs("owner/repo", 120) == [{"number": scheduler.OPEN_PRS_PAGE_SIZE}]
     assert seen[0]["pageSize"] == scheduler.OPEN_PRS_PAGE_SIZE
 
 
