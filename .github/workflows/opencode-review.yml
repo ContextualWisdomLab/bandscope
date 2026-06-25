@@ -123,7 +123,7 @@ jobs:
             # Exclude this OpenCode check run; otherwise the evidence step would
             # wait on itself until the bounded retry budget is exhausted.
             # shellcheck disable=SC2016
-            gh api graphql \
+            gh api --retry 3 graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -1069,7 +1069,7 @@ jobs:
           OPENCODE_SECOND_FALLBACK_OUTCOME: ${{ steps.opencode_review_second_fallback.outputs.review_status }}
           APPROVAL_CHECK_WAIT_ATTEMPTS: "180"
           APPROVAL_CHECK_WAIT_SLEEP_SECONDS: "30"
-          CHECK_LOOKUP_RETRY_ATTEMPTS: "15"
+          CHECK_LOOKUP_RETRY_ATTEMPTS: "30"
           CHECK_LOOKUP_RETRY_SLEEP_SECONDS: "15"
         run: |
           set -euo pipefail
@@ -1207,7 +1207,7 @@ jobs:
             }
           }
           GRAPHQL
-            gh api graphql \
+            gh api --retry 3 graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -2058,7 +2058,7 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
-            if ! gh api graphql \
+            if ! gh api --retry 3 graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -2159,7 +2159,7 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
-            if ! gh api graphql \
+            if ! gh api --retry 3 graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
