@@ -123,6 +123,9 @@ jobs:
             # Exclude this OpenCode check run; otherwise the evidence step would
             # wait on itself until the bounded retry budget is exhausted.
             # shellcheck disable=SC2016
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
@@ -2062,6 +2065,9 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             if ! gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
@@ -2163,6 +2169,9 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             if ! gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
