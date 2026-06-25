@@ -955,13 +955,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${OPENCODE_APP_TOKEN:-}" ]; then
-            export GH_TOKEN="${OPENCODE_APP_TOKEN:-${GITHUB_TOKEN:-}}"
+            export GH_TOKEN="${OPENCODE_APP_TOKEN:-$GITHUB_TOKEN}"
           elif [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
-            export GH_TOKEN="${OPENCODE_APPROVE_TOKEN:-${GITHUB_TOKEN:-}}"
+            export GH_TOKEN="${OPENCODE_APPROVE_TOKEN:-$GITHUB_TOKEN}"
           fi
-          if [ -z "${GH_TOKEN:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
-            export GH_TOKEN="$GITHUB_TOKEN"
-          fi
+
           if [ -z "${GH_TOKEN:-}" ]; then
             echo "::error::OpenCode review commenting requires an OpenCode app token, OPENCODE_APPROVE_TOKEN, or repository GITHUB_TOKEN with issues write access."
             exit 1
@@ -1082,15 +1080,13 @@ jobs:
           echo "PR=#${PR_NUMBER} head_sha=${HEAD_SHA} run_id=${RUN_ID} run_attempt=${RUN_ATTEMPT}"
           approval_token_source="github-token"
           if [ -n "${OPENCODE_APP_TOKEN:-}" ]; then
-            export GH_TOKEN="${OPENCODE_APP_TOKEN:-${GITHUB_TOKEN:-}}"
+            export GH_TOKEN="${OPENCODE_APP_TOKEN:-$GITHUB_TOKEN}"
             approval_token_source="opencode-app"
           elif [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
-            export GH_TOKEN="${OPENCODE_APPROVE_TOKEN:-${GITHUB_TOKEN:-}}"
+            export GH_TOKEN="${OPENCODE_APPROVE_TOKEN:-$GITHUB_TOKEN}"
             approval_token_source="opencode-approve-token"
           fi
-          if [ -z "${GH_TOKEN:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
-            export GH_TOKEN="$GITHUB_TOKEN"
-          fi
+
           if [ -z "${GH_TOKEN:-}" ]; then
             echo "::error::OpenCode approval requires an OpenCode app token, OPENCODE_APPROVE_TOKEN, or repository GITHUB_TOKEN with pull request write access."
             exit 1
