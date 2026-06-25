@@ -920,8 +920,8 @@ jobs:
               || steps.opencode_review_fallback.outputs.review_status == 'success'
               || steps.opencode_review_second_fallback.outputs.review_status == 'success')
         env:
-          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
-          OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_APP_TOKEN || steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
+          OPENCODE_APP_TOKEN: ${{ secrets.OPENCODE_APP_TOKEN || steps.opencode_app_token.outputs.token }}
           OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
@@ -1030,10 +1030,10 @@ jobs:
       - name: Approve PR if OpenCode review passed
         if: always()
         env:
-          GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_APP_TOKEN || steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
           GH_REPOSITORY: ${{ github.repository }}
           STRIX_GITHUB_MODELS_TOKEN: ${{ secrets.STRIX_GITHUB_MODELS_TOKEN }}
-          OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
+          OPENCODE_APP_TOKEN: ${{ secrets.OPENCODE_APP_TOKEN || steps.opencode_app_token.outputs.token }}
           OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
           OPENCODE_EVIDENCE_FILE: ${{ runner.temp }}/opencode-review-evidence.md
           OPENCODE_FAILED_CHECK_EVIDENCE_FILE: ${{ runner.temp }}/opencode-failed-check-evidence.md
