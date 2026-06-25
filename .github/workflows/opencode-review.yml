@@ -1067,7 +1067,7 @@ jobs:
           OPENCODE_PRIMARY_OUTCOME: ${{ steps.opencode_review_primary.outputs.review_status }}
           OPENCODE_FALLBACK_OUTCOME: ${{ steps.opencode_review_fallback.outputs.review_status }}
           OPENCODE_SECOND_FALLBACK_OUTCOME: ${{ steps.opencode_review_second_fallback.outputs.review_status }}
-          APPROVAL_CHECK_WAIT_ATTEMPTS: "241"
+          APPROVAL_CHECK_WAIT_ATTEMPTS: "110"
           APPROVAL_CHECK_WAIT_SLEEP_SECONDS: "30"
           CHECK_LOOKUP_RETRY_ATTEMPTS: "5"
           CHECK_LOOKUP_RETRY_SLEEP_SECONDS: "5"
