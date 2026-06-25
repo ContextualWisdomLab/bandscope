@@ -5055,6 +5055,43 @@ def test_pr_review_merge_scheduler_writes_actions_summary(
     assert "| #8 | update_branch | current-head OpenCode review approved; branch update requested |" in summary
 
 
+def test_pr_review_merge_scheduler_caps_graphql_page_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure large PR queues do not exceed GitHub GraphQL resource limits."""
+    repo_root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "pr_review_merge_scheduler_page_size",
+        repo_root / "scripts" / "ci" / "pr_review_merge_scheduler.py",
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    scheduler = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = scheduler
+    spec.loader.exec_module(scheduler)
+    seen = []
+
+    def fake_graphql(query: str, **fields: object) -> dict[str, object]:
+        seen.append(fields)
+        return {
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "nodes": [{"number": fields["pageSize"]}],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(scheduler, "gh_graphql", fake_graphql)
+
+    assert scheduler.fetch_open_prs("owner/repo", 120) == [
+        {"number": scheduler.OPEN_PRS_PAGE_SIZE}
+    ]
+    assert seen[0]["pageSize"] == scheduler.OPEN_PRS_PAGE_SIZE
+
+
 def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
     """Ensure transient artifact upload finalization resets do not request changes."""
     classifier = load_module(
