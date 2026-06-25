@@ -123,7 +123,7 @@ jobs:
             # Exclude this OpenCode check run; otherwise the evidence step would
             # wait on itself until the bounded retry budget is exhausted.
             # shellcheck disable=SC2016
-            gh api graphql \
+            env GH_TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}" gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -940,6 +940,7 @@ jobs:
           GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || secrets.GITHUB_TOKEN }}
           OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
           OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.inputs.pr_head_sha }}
@@ -1052,6 +1053,7 @@ jobs:
           STRIX_GITHUB_MODELS_TOKEN: ${{ secrets.STRIX_GITHUB_MODELS_TOKEN }}
           OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
           OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_EVIDENCE_FILE: ${{ runner.temp }}/opencode-review-evidence.md
           OPENCODE_FAILED_CHECK_EVIDENCE_FILE: ${{ runner.temp }}/opencode-failed-check-evidence.md
           OPENCODE_FAILED_CHECK_DIAGNOSIS_FILE: ${{ runner.temp }}/opencode-failed-check-diagnosis.md
@@ -1207,7 +1209,7 @@ jobs:
             }
           }
           GRAPHQL
-            gh api graphql \
+            env GH_TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}" gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -1999,7 +2001,7 @@ jobs:
 
             error_file="$(mktemp)"
             runs_json="$(mktemp)"
-            if ! gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json" 2>"$error_file"; then
+            if ! env GH_TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}" gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json" 2>"$error_file"; then
               if grep -Eiq 'HTTP 404|not found' "$error_file"; then
                 : >"$output_file"
                 rm -f "$error_file" "$runs_json"
@@ -2058,7 +2060,7 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
-            if ! gh api graphql \
+            if ! env GH_TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}" gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -2159,7 +2161,7 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
-            if ! gh api graphql \
+            if ! env GH_TOKEN="${GITHUB_TOKEN:-$GH_TOKEN}" gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
