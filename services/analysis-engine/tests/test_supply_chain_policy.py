@@ -7,6 +7,7 @@ import json
 import re
 import stat
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -5009,6 +5010,49 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}" not in workflow
     assert "scheduler token source=github-token" in workflow
     assert "opencode-approve-token" not in workflow
+
+
+def test_pr_review_merge_scheduler_writes_actions_summary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Ensure scheduler decisions are visible without digging through raw logs."""
+    repo_root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "pr_review_merge_scheduler_summary",
+        repo_root / "scripts" / "ci" / "pr_review_merge_scheduler.py",
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    scheduler = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = scheduler
+    spec.loader.exec_module(scheduler)
+    summary_path = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+    decisions = [
+        scheduler.Decision(7, "block", "merge conflict: DIRTY; base=main, head=feature|x"),
+        scheduler.Decision(8, "update_branch", "current-head OpenCode review approved; branch update requested"),
+    ]
+
+    scheduler.print_summary(
+        decisions,
+        dry_run=True,
+        base_branch="main",
+        project_flow="github-flow",
+    )
+
+    output = capsys.readouterr().out
+    assert "PR #7: block: merge conflict: DIRTY" in output
+    assert json.loads(output.splitlines()[-1]) == {
+        "base_branch": "main",
+        "counts": {"block": 1, "update_branch": 1},
+        "dry_run": True,
+        "inspected": 2,
+        "project_flow": "github-flow",
+    }
+    summary = summary_path.read_text(encoding="utf-8")
+    assert "## PR review merge scheduler" in summary
+    assert "| #7 | block | merge conflict: DIRTY; base=main, head=feature\\|x |" in summary
+    assert "| #8 | update_branch | current-head OpenCode review approved; branch update requested |" in summary
 
 
 def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
