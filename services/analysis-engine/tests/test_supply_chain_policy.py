@@ -4992,6 +4992,18 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "github-models/openai/o4-mini" in opencode_workflow
     assert "OPENCODE_THIRD_FALLBACK_OUTCOME" in opencode_workflow
     assert "opencode-review-third-fallback.md" in opencode_workflow
+    assert "OpenCode bounded control fallback" in opencode_workflow
+    assert "--agent ci-review \\" in opencode_workflow
+    assert '"edit": "deny"' in opencode_workflow
+    assert opencode_workflow.count('"bash": "allow"') >= 3
+    assert opencode_workflow.count('"task": "allow"') >= 3
+    assert opencode_workflow.count('"webfetch": "allow"') >= 3
+    assert opencode_workflow.count('"websearch": "allow"') >= 3
+    assert opencode_workflow.count('"lsp": "allow"') >= 3
+
+    opencode_config = (repo_root / "opencode.jsonc").read_text(encoding="utf-8")
+    assert '"openai/o3"' in opencode_config
+    assert '"openai/o4-mini"' in opencode_config
 
     scheduler = (repo_root / "scripts" / "ci" / "pr_review_merge_scheduler.py").read_text(
         encoding="utf-8"

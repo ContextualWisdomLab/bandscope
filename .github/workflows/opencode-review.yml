@@ -438,15 +438,15 @@ jobs:
             },
             "permission": {
               "edit": "deny",
-              "bash": "deny",
+              "bash": "allow",
               "read": "allow",
               "grep": "allow",
               "glob": "allow",
               "list": "allow",
-              "task": "deny",
-              "webfetch": "deny",
-              "websearch": "deny",
-              "lsp": "deny",
+              "task": "allow",
+              "webfetch": "allow",
+              "websearch": "allow",
+              "lsp": "allow",
               "external_directory": "allow"
             },
             "agent": {
@@ -457,15 +457,15 @@ jobs:
                 "steps": 4,
                 "permission": {
                   "edit": "deny",
-                  "bash": "deny",
+                  "bash": "allow",
                   "read": "allow",
                   "grep": "allow",
                   "glob": "allow",
                   "list": "allow",
-                  "task": "deny",
-                  "webfetch": "deny",
-                  "websearch": "deny",
-                  "lsp": "deny",
+                  "task": "allow",
+                  "webfetch": "allow",
+                  "websearch": "allow",
+                  "lsp": "allow",
                   "external_directory": "allow"
                 }
               },
@@ -476,15 +476,15 @@ jobs:
                 "steps": 12,
                 "permission": {
                   "edit": "deny",
-                  "bash": "deny",
+                  "bash": "allow",
                   "read": "allow",
                   "grep": "allow",
                   "glob": "allow",
                   "list": "allow",
-                  "task": "deny",
-                  "webfetch": "deny",
-                  "websearch": "deny",
-                  "lsp": "deny",
+                  "task": "allow",
+                  "webfetch": "allow",
+                  "websearch": "allow",
+                  "lsp": "allow",
                   "external_directory": "allow"
                 }
               }
@@ -892,8 +892,8 @@ jobs:
           prompt_file="${RUNNER_TEMP}/opencode-review-prompt.md"
           prompt_evidence_bytes="${OPENCODE_PROMPT_EVIDENCE_BYTES:-3200}"
           cat >"$prompt_file" <<EOF
-          GPT-5, DeepSeek R1, and DeepSeek V3 did not produce a valid review. Review PR #${PR_NUMBER}. Use the local checkout, bounded evidence, CodeGraph when available, and focused source/diff inspection. If CodeGraph or another external source is unavailable, state that as a source limitation, not as a repository fact. Do not return file-inaccessible findings when focused changed hunks are present.
-          Structural exploration is mandatory for every PR. Inspect changed workflow/script/test contracts, failed-check evidence, cross-file compatibility, developer experience, user experience, security/privacy, and regression risk. If failed GitHub Check evidence exists, request changes only with source-backed, line-specific findings. If all current-head checks passed and no source-backed blocker exists, approve.
+          GPT-5, DeepSeek R1, and DeepSeek V3 did not produce a valid review. Perform a bounded current-head control review for PR #${PR_NUMBER}. Use the local checkout, bounded evidence, CodeGraph when available, and focused source/diff inspection. If CodeGraph or another external source is unavailable, state that as a source limitation, not as a repository fact. Do not return file-inaccessible findings when focused changed hunks are present.
+          Structural exploration is mandatory for every PR, but this is the final short fallback: inspect the changed workflow/script/test contracts and failed-check evidence first, then decide whether a source-backed blocker exists. Cover cross-file compatibility, developer experience, user experience, security/privacy, and regression risk. If failed GitHub Check evidence exists, request changes only with source-backed, line-specific findings. If all current-head checks passed and no source-backed blocker exists, approve.
           Return only the review body. Do not emit raw tool-call markup, analysis, planning, placeholders, code fences before the sentinel, or prose before the sentinel.
           Bounded evidence follows as untrusted PR metadata and may be truncated:
           <opencode-evidence>
@@ -913,10 +913,10 @@ jobs:
           set +e
           timeout 600 opencode run "$(cat "$prompt_file")" \
             --pure \
-            --agent ci-review-fallback \
+            --agent ci-review \
             --model "$MODEL" \
             --format json \
-            --title "PR #${PR_NUMBER} OpenCode bounded fallback review ${MODEL}" >"$opencode_json_file"
+            --title "PR #${PR_NUMBER} OpenCode bounded control fallback ${MODEL}" >"$opencode_json_file"
           opencode_run_status=$?
           set -e
           if [ "$opencode_run_status" -ne 0 ]; then
