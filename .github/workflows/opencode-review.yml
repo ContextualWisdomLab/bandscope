@@ -921,6 +921,7 @@ jobs:
               || steps.opencode_review_second_fallback.outputs.review_status == 'success')
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_APP_TOKEN || steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
+          JOB_GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_APP_TOKEN: ${{ secrets.OPENCODE_APP_TOKEN || steps.opencode_app_token.outputs.token }}
           OPENCODE_APPROVE_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
@@ -1031,6 +1032,7 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_APP_TOKEN || steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
+          JOB_GITHUB_TOKEN: ${{ github.token }}
           GH_REPOSITORY: ${{ github.repository }}
           STRIX_GITHUB_MODELS_TOKEN: ${{ secrets.STRIX_GITHUB_MODELS_TOKEN }}
           OPENCODE_APP_TOKEN: ${{ secrets.OPENCODE_APP_TOKEN || steps.opencode_app_token.outputs.token }}
@@ -2076,13 +2078,12 @@ jobs:
             local attempt=1
 
             while [ "$attempt" -le "$attempts" ]; do
-              if "$collector" "$output_file"; then
+              if GH_TOKEN="$JOB_GITHUB_TOKEN" "$collector" "$output_file"; then
                 return 0
               fi
               : >"$output_file"
               if [ "$attempt" -lt "$attempts" ]; then
                 printf 'GitHub Checks lookup failed; retrying %s/%s before changing review state.\n' "$attempt" "$attempts" >&2
-                export GH_TOKEN="${INITIAL_GH_TOKEN:-$GH_TOKEN}"
                 sleep "$sleep_seconds"
               fi
               attempt=$((attempt + 1))
