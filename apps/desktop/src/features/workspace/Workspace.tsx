@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { useState, useMemo, memo } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
@@ -354,9 +355,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       <div className="mt-3 space-y-2">
                         {activeRoleAssignments.map((assignment) => (
                           <div key={assignment.id} className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.06] p-2">
-                            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">{assignment.assignee}</p>
-                            <p className="mt-1 text-sm text-slate-100">{assignment.summary}</p>
-                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{formatStatusLabel(assignment.status)}</p>
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">{DOMPurify.sanitize(assignment.assignee)}</p>
+                            <p className="mt-1 text-sm text-slate-100">{DOMPurify.sanitize(assignment.summary)}</p>
+                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{DOMPurify.sanitize(formatStatusLabel(assignment.status))}</p>
                           </div>
                         ))}
                       </div>
@@ -369,9 +370,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       <div className="mt-3 space-y-2">
                         {activeRoleComments.map((comment) => (
                           <div key={comment.id} className="rounded-lg border border-amber-300/15 bg-amber-300/[0.07] p-2">
-                            <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">{comment.author}</p>
-                            <p className="mt-1 text-sm text-slate-100">{comment.body}</p>
-                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{formatStatusLabel(comment.status)}</p>
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">{DOMPurify.sanitize(comment.author)}</p>
+                            <p className="mt-1 text-sm text-slate-100">{DOMPurify.sanitize(comment.body)}</p>
+                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{DOMPurify.sanitize(formatStatusLabel(comment.status))}</p>
                           </div>
                         ))}
                       </div>
