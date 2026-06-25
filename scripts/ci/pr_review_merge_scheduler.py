@@ -345,7 +345,7 @@ def review_matches_current_head(review: dict[str, Any], pr: dict[str, Any]) -> b
     if not head_time:
         return True
     submitted_at = review_submitted_datetime(review)
-    return bool(submitted_at and submitted_at >= head_time)
+    return bool(submitted_at and submitted_at > head_time)
 
 
 def stale_current_head_review_reason(pr: dict[str, Any]) -> str | None:
@@ -363,10 +363,10 @@ def stale_current_head_review_reason(pr: dict[str, Any]) -> str | None:
         submitted_at = review_submitted_datetime(review)
         if not submitted_at:
             return "OpenCode review has no submission timestamp for the current head"
-        if submitted_at < head_time:
+        if submitted_at <= head_time:
             return (
-                "OpenCode review predates the current head commit "
-                f"({submitted_at.isoformat()} < {head_time.isoformat()})"
+                "OpenCode review does not postdate the current head commit "
+                f"({submitted_at.isoformat()} <= {head_time.isoformat()})"
             )
         return None
     return None
@@ -979,7 +979,22 @@ def self_test() -> None:
         base_branch="main",
     )
     assert decision.action == "disable_auto_merge"
-    assert "predates the current head commit" in decision.reason
+    assert "does not postdate the current head commit" in decision.reason
+    sample["reviews"]["nodes"][0]["submittedAt"] = "2026-01-01T00:00:00Z"
+    assert not has_current_head_approval(sample)
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "disable_auto_merge"
+    assert "<=" in decision.reason
     sample["autoMergeRequest"] = None
     sample["reviews"]["nodes"][0]["submittedAt"] = "2026-01-01T00:01:00Z"
     sample["statusCheckRollup"]["contexts"]["nodes"] = [

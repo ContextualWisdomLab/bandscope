@@ -4985,6 +4985,26 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0" in workflow
     assert "Configure OPENCODE_APPROVE_TOKEN before running the scheduler" not in workflow
 
+    opencode_workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "Run OpenCode PR Review fallback (OpenAI o-series)" in opencode_workflow
+    assert "github-models/openai/o4-mini" in opencode_workflow
+    assert "OPENCODE_THIRD_FALLBACK_OUTCOME" in opencode_workflow
+    assert "opencode-review-third-fallback.md" in opencode_workflow
+    assert "OpenCode bounded control fallback" in opencode_workflow
+    assert "--agent ci-review \\" in opencode_workflow
+    assert '"edit": "deny"' in opencode_workflow
+    assert opencode_workflow.count('"bash": "allow"') >= 3
+    assert opencode_workflow.count('"task": "allow"') >= 3
+    assert opencode_workflow.count('"webfetch": "allow"') >= 3
+    assert opencode_workflow.count('"websearch": "allow"') >= 3
+    assert opencode_workflow.count('"lsp": "allow"') >= 3
+
+    opencode_config = (repo_root / "opencode.jsonc").read_text(encoding="utf-8")
+    assert '"openai/o3"' in opencode_config
+    assert '"openai/o4-mini"' in opencode_config
+
     scheduler = (repo_root / "scripts" / "ci" / "pr_review_merge_scheduler.py").read_text(
         encoding="utf-8"
     )
@@ -4998,6 +5018,9 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "committedDate" in scheduler
     assert "def stale_current_head_review_reason" in scheduler
     assert "review_submitted_datetime(review)" in scheduler
+    assert "submitted_at > head_time" in scheduler
+    assert "submitted_at <= head_time" in scheduler
+    assert "does not postdate the current head commit" in scheduler
     assert "def disable_auto_merge" in scheduler
     assert '"gh", "pr", "merge", number, "--repo", repo, "--disable-auto"' in scheduler
     assert "if is_opencode_context(node):" in scheduler
