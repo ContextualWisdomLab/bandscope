@@ -953,9 +953,9 @@ jobs:
           OPENCODE_SECOND_FALLBACK_OUTPUT_FILE: ${{ runner.temp }}/opencode-review-second-fallback.md
         run: |
           set -euo pipefail
-          if [ -n "${OPENCODE_APP_TOKEN:-}" ]; then
-            export GH_TOKEN="$OPENCODE_APP_TOKEN"
-          elif [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
+          # Always use the default GH_TOKEN (secrets.GITHUB_TOKEN) for publishing comments
+          # to avoid app token expiration issues, unless specifically needing an approve token.
+          if [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
             export GH_TOKEN="$OPENCODE_APPROVE_TOKEN"
           fi
           if [ -z "${GH_TOKEN:-}" ]; then
@@ -1076,18 +1076,18 @@ jobs:
           echo "::group::OpenCode Review Approval Gate"
           echo "PR=#${PR_NUMBER} head_sha=${HEAD_SHA} run_id=${RUN_ID} run_attempt=${RUN_ATTEMPT}"
           approval_token_source="secrets.GITHUB_TOKEN"
+          overview_comment_token="${GH_TOKEN:-}"
           if [ -n "${OPENCODE_APP_TOKEN:-}" ]; then
-            export GH_TOKEN="$OPENCODE_APP_TOKEN"
+            overview_comment_token="$OPENCODE_APP_TOKEN"
             approval_token_source="opencode-app"
           elif [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
-            export GH_TOKEN="$OPENCODE_APPROVE_TOKEN"
+            overview_comment_token="$OPENCODE_APPROVE_TOKEN"
             approval_token_source="opencode-approve-token"
           fi
-          if [ -z "${GH_TOKEN:-}" ]; then
+          if [ -z "${overview_comment_token:-}" ]; then
             echo "::error::OpenCode approval requires an OpenCode app token, OPENCODE_APPROVE_TOKEN, or repository GITHUB_TOKEN with pull request write access."
             exit 1
           fi
-          overview_comment_token="$GH_TOKEN"
           echo "approval token source=${approval_token_source}"
 
           update_review_overview() {
@@ -1130,7 +1130,8 @@ jobs:
               --arg body "$body" \
               --arg commit_id "$HEAD_SHA" \
               '{event: $event, body: $body, commit_id: $commit_id}' |
-              gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null
+              env GH_TOKEN="$overview_comment_token" \
+                gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null
             update_review_overview "$event" "$body"
           }
 
@@ -1144,7 +1145,8 @@ jobs:
               --arg body "$body" \
               --arg commit_id "$HEAD_SHA" \
               '{event: $event, body: $body, commit_id: $commit_id}' |
-              gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null 2>"$error_file"; then
+              env GH_TOKEN="$overview_comment_token" \
+                gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null 2>"$error_file"; then
               update_review_overview "APPROVE" "$body"
               rm -f "$error_file"
               return 0
@@ -1304,7 +1306,7 @@ jobs:
             local event="$1" body="$2" review_payload_file="$3" fallback_body_file="$4"
             local gh_error_file
             gh_error_file="$(mktemp)"
-            if ! gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input "$review_payload_file" >/dev/null 2>"$gh_error_file"; then
+            if ! env GH_TOKEN="$overview_comment_token" gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input "$review_payload_file" >/dev/null 2>"$gh_error_file"; then
               echo "::warning::OpenCode could not submit pull review inline comments; failing instead of falling back to body-only ${event} review."
               if [ -s "$gh_error_file" ]; then
                 sed -E 's/[[:space:]]+/ /g; s/^/::warning::GitHub API: /' "$gh_error_file" || true
