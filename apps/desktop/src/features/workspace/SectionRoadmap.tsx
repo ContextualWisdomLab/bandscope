@@ -183,14 +183,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
                         {role.setupNote && (
                           <div className="flex items-start gap-2 rounded-md border border-amber-300/20 bg-amber-300/[0.08] p-2 text-xs font-medium text-amber-100">
-                            <Lightbulb className="mt-0.5 size-3.5 shrink-0" />
+                            <Lightbulb className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                             <span className="leading-snug">{role.setupNote}</span>
                           </div>
                         )}
 
                         {role.simplification && (
                           <div className="flex items-start gap-2 rounded-md border border-indigo-300/20 bg-indigo-300/[0.08] p-2 text-xs font-medium text-indigo-100">
-                            <Wand2 className="mt-0.5 size-3.5 shrink-0" />
+                            <Wand2 className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                             <span className="leading-snug">{role.simplification}</span>
                           </div>
                         )}
@@ -199,7 +199,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           <div className="mt-2 space-y-1.5">
                             {role.overlapWarnings.map((warning, wIdx) => (
                               <div key={wIdx} className="flex items-start gap-2 rounded-md border border-rose-300/20 bg-rose-300/[0.08] p-2 text-xs font-medium text-rose-100">
-                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                                 <span className="leading-snug">{warning}</span>
                               </div>
                             ))}
