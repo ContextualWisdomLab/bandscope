@@ -1214,6 +1214,9 @@ jobs:
             }
           }
           GRAPHQL
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
