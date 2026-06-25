@@ -1107,17 +1107,17 @@ jobs:
             } >"$overview_body_file"
 
             overview_comment_id="$(
-              env GH_TOKEN="$overview_comment_token" \
+
                 env GH_TOKEN="$GH_TOKEN" gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
                 --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") and (.body | contains("<!-- opencode-review-overview -->")))] | sort_by(.created_at) | last.id // empty'
             )"
             if [ -n "$overview_comment_id" ]; then
               jq -n --rawfile body "$overview_body_file" '{body: $body}' |
-                env GH_TOKEN="$overview_comment_token" \
+
                   env GH_TOKEN="$GH_TOKEN" gh api -X PATCH "repos/${GH_REPOSITORY}/issues/comments/${overview_comment_id}" --input - >/dev/null
             else
               jq -n --rawfile body "$overview_body_file" '{body: $body}' |
-                env GH_TOKEN="$overview_comment_token" \
+
                   env GH_TOKEN="$GH_TOKEN" gh api -X POST "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --input - >/dev/null
             fi
             rm -f "$overview_body_file"
