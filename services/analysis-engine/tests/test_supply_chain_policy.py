@@ -4969,8 +4969,8 @@ def test_opencode_approval_write_failure_updates_overview_only() -> None:
     assert 'create_approval_or_report_unavailable "$body"' in workflow
 
 
-def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
-    """Ensure scheduled queue handling still runs when the app token secret is absent."""
+def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
+    """Ensure mechanical PR queue handling uses the workflow token, not the review app token."""
     repo_root = Path(__file__).resolve().parents[3]
     workflow = (repo_root / ".github" / "workflows" / "pr-review-merge-scheduler.yml").read_text(
         encoding="utf-8"
@@ -4979,9 +4979,23 @@ def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
     assert "contents: write" in workflow
     assert "issues: write" in workflow
     assert "pull-requests: write" in workflow
-    assert "GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}" in workflow
-    assert "scheduler token source=github-token" in workflow
+    assert "actions: write" not in workflow
+    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in workflow
+    assert "OPENCODE_APPROVE_TOKEN" not in workflow
+    assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0" in workflow
     assert "Configure OPENCODE_APPROVE_TOKEN before running the scheduler" not in workflow
+
+    scheduler = (repo_root / "scripts" / "ci" / "pr_review_merge_scheduler.py").read_text(
+        encoding="utf-8"
+    )
+    collector = (repo_root / "scripts" / "ci" / "collect_failed_check_evidence.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "def validate_gh_host" in scheduler
+    assert "unsupported GH_HOST" in scheduler
+    assert "if is_opencode_context(node):" in scheduler
+    assert '"strix security scan" | "strix security scan/"*' in collector
 
 
 def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
