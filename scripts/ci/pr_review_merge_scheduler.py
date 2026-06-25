@@ -148,11 +148,13 @@ def context_nodes(pr: dict[str, Any]) -> list[dict[str, Any]]:
 def is_opencode_context(node: dict[str, Any]) -> bool:
     """Return whether a check or status context belongs to OpenCode Review."""
     if node.get("__typename") == "CheckRun":
-        workflow = (
-            ((node.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow")
-            or {}
+        workflow = ((node.get("checkSuite") or {}).get("workflowRun") or {}).get(
+            "workflow"
+        ) or {}
+        return (
+            node.get("name") == "opencode-review"
+            or workflow.get("name") == "OpenCode Review"
         )
-        return node.get("name") == "opencode-review" or workflow.get("name") == "OpenCode Review"
     return node.get("context") == "opencode-review"
 
 
@@ -194,7 +196,6 @@ def strix_evidence_state(pr: dict[str, Any]) -> str:
         if node.get("__typename") == "CheckRun" and status != "COMPLETED":
             return "running"
     return "complete" if found else "missing"
-
 
 def unresolved_thread_count(pr: dict[str, Any]) -> int:
     """Count active, non-outdated unresolved review threads on a PR."""
@@ -264,7 +265,20 @@ def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     head = pr["headRefOid"]
     if dry_run:
         return
-    run(["gh", "pr", "merge", number, "--repo", repo, "--auto", "--merge", "--match-head-commit", head])
+    run(
+        [
+            "gh",
+            "pr",
+            "merge",
+            number,
+            "--repo",
+            repo,
+            "--auto",
+            "--merge",
+            "--match-head-commit",
+            head,
+        ]
+    )
 
 
 def update_branch(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
@@ -338,6 +352,17 @@ def dispatch_strix_evidence(repo: str, workflow: str, pr: dict[str, Any], *, dry
     )
 
 
+def merge_conflict_guidance(pr: dict[str, Any], merge_state: str) -> str:
+    """Return actionable conflict repair guidance for a conflicting PR."""
+    base_ref = pr.get("baseRefName") or "base"
+    head_ref = pr.get("headRefName") or "head"
+    return (
+        f"merge conflict: {merge_state}; base={base_ref}, head={head_ref}; "
+        f"merge or rebase origin/{base_ref} into {head_ref}, resolve conflict markers, "
+        f"rerun focused checks, and push {head_ref}"
+    )
+
+
 def inspect_pr(
     repo: str,
     pr: dict[str, Any],
@@ -364,14 +389,16 @@ def inspect_pr(
 
     merge_state = (pr.get("mergeStateStatus") or "").upper()
     if merge_state in {"DIRTY", "CONFLICTING"}:
-        return Decision(number, "block", f"merge conflict: {merge_state}")
+        return Decision(number, "block", merge_conflict_guidance(pr, merge_state))
 
     unresolved = unresolved_thread_count(pr)
     if unresolved:
         return Decision(number, "block", f"{unresolved} unresolved review thread(s)")
 
     if has_current_head_changes_requested(pr):
-        return Decision(number, "block", "current-head OpenCode review requested changes")
+        return Decision(
+            number, "block", "current-head OpenCode review requested changes"
+        )
 
     if merge_state == "BEHIND" and has_current_head_approval(pr):
         if not update_branches:
@@ -384,7 +411,9 @@ def inspect_pr(
         if failed_checks:
             return Decision(number, "block", f"failed check(s): {', '.join(failed_checks[:5])}")
         if pr.get("autoMergeRequest"):
-            return Decision(number, "wait", "current head is approved; auto-merge already enabled")
+            return Decision(
+                number, "wait", "current head is approved; auto-merge already enabled"
+            )
         if not enable_auto_merge_flag:
             return Decision(number, "wait", "current head is approved; auto-merge disabled by scheduler inputs")
         enable_auto_merge(repo, pr, dry_run=dry_run)
@@ -584,6 +613,21 @@ def self_test() -> None:
         base_branch="main",
     )
     assert decision.action == "update_branch"
+    sample["mergeStateStatus"] = "DIRTY"
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "block"
+    assert "merge or rebase origin/main into feature" in decision.reason
+    assert "resolve conflict markers" in decision.reason
     print("self-test passed")
 
 
@@ -604,9 +648,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def validate_gh_host() -> None:
+    """Validate GH_HOST environment variable to prevent SSRF."""
+
+    host = os.environ.get("GH_HOST")
+    if not host:
+        return
+    if not (
+        host == "github.com"
+        or host.endswith(".github.com")
+        or host.endswith(".githubapp.com")
+    ):
+        raise ValueError(f"Invalid GH_HOST: {host}")
+
+
 def main(argv: list[str]) -> int:
     """Run the scheduler CLI."""
     args = parse_args(argv)
+    validate_gh_host()
     if args.self_test:
         self_test()
         return 0
