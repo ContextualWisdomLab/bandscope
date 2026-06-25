@@ -85,6 +85,17 @@ query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
 OPEN_PRS_PAGE_SIZE = 25
 DEFAULT_STALE_OPENCODE_MINUTES = 45
 RUNNING_CHECK_STATES = {"PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"}
+REST_MERGEABLE_STATE_MAP = {
+    "behind": "BEHIND",
+    "blocked": "BLOCKED",
+    "clean": "CLEAN",
+    "dirty": "DIRTY",
+    "draft": "DRAFT",
+    "has_hooks": "HAS_HOOKS",
+    "unknown": "UNKNOWN",
+    "unstable": "UNSTABLE",
+}
+REST_MERGEABLE_STATES = set(REST_MERGEABLE_STATE_MAP.values())
 
 
 @dataclass
@@ -119,7 +130,7 @@ def decision_payload(
 ) -> dict[str, Any]:
     """Return the machine-readable scheduler decision contract."""
     return {
-        "schema_version": "pr-review-merge-scheduler/v1",
+        "schema_version": "pr-review-merge-scheduler/v2",
         "base_branch": base_branch,
         "dry_run": dry_run,
         "inspected": len(decisions),
@@ -197,9 +208,10 @@ def decision_guidance(decision: Decision) -> dict[str, Any] | None:
         }
     if decision.action == "disable_auto_merge":
         return {
-            "type": "fresh_head_review_required",
-            "summary": "Auto-merge was disabled because the PR needs fresh same-head review evidence before it can be merged.",
+            "type": "unsafe_auto_merge_disabled",
+            "summary": "Auto-merge was disabled because the current PR state is not safe to merge automatically.",
             "next_required_evidence": [
+                "the unsafe condition described in reason is repaired",
                 "OpenCode approval submitted after the current head commit was created",
                 "required GitHub Checks success on the current head",
                 "same-head Strix evidence",
@@ -273,7 +285,42 @@ def fetch_open_prs(repo: str, max_prs: int) -> list[dict[str, Any]]:
             break
         cursor = pr_page["pageInfo"]["endCursor"]
 
+    enrich_rest_mergeable_states(repo, prs)
     return prs
+
+
+def fetch_rest_mergeable_state(repo: str, number: int) -> str:
+    """Fetch and normalize GitHub REST mergeable_state for one pull request."""
+    raw_state = run(
+        [
+            "gh",
+            "api",
+            f"repos/{repo}/pulls/{number}",
+            "--jq",
+            ".mergeable_state // \"\"",
+        ]
+    ).strip()
+    return REST_MERGEABLE_STATE_MAP.get(raw_state.lower(), raw_state.upper())
+
+
+def enrich_rest_mergeable_states(repo: str, prs: list[dict[str, Any]]) -> None:
+    """Attach REST mergeability evidence to GraphQL pull request payloads."""
+    for pr in prs:
+        try:
+            pr["restMergeableState"] = fetch_rest_mergeable_state(repo, int(pr["number"]))
+        except RuntimeError as exc:
+            pr["restMergeableStateError"] = bounded_error_summary(str(exc))
+
+
+def effective_merge_state(pr: dict[str, Any]) -> str:
+    """Return the safest merge state from GraphQL plus REST mergeability evidence."""
+    graph_state = (pr.get("mergeStateStatus") or "").upper()
+    rest_state = (pr.get("restMergeableState") or "").upper()
+    if rest_state in REST_MERGEABLE_STATES:
+        return rest_state
+    if graph_state in {"BEHIND", "DIRTY", "CONFLICTING", "UNKNOWN"}:
+        return graph_state
+    return rest_state or graph_state
 
 
 def context_nodes(pr: dict[str, Any]) -> list[dict[str, Any]]:
@@ -321,55 +368,11 @@ def parse_github_datetime(value: str | None) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def head_commit_datetime(pr: dict[str, Any]) -> datetime | None:
-    """Return the current PR head commit time from the GraphQL commit edge."""
-    commits = ((pr.get("commits") or {}).get("nodes") or [])
-    if not commits:
-        return None
-    commit = (commits[-1].get("commit") or {})
-    return parse_github_datetime(commit.get("committedDate"))
-
-
-def review_submitted_datetime(review: dict[str, Any]) -> datetime | None:
-    """Return the review submission time as an aware UTC datetime."""
-    return parse_github_datetime(review.get("submittedAt"))
-
-
 def review_matches_current_head(review: dict[str, Any], pr: dict[str, Any]) -> bool:
     """Return whether a review is valid evidence for the current head commit."""
     head = pr.get("headRefOid")
     commit = (review.get("commit") or {}).get("oid")
-    if commit != head:
-        return False
-    head_time = head_commit_datetime(pr)
-    if not head_time:
-        return True
-    submitted_at = review_submitted_datetime(review)
-    return bool(submitted_at and submitted_at > head_time)
-
-
-def stale_current_head_review_reason(pr: dict[str, Any]) -> str | None:
-    """Explain why a same-commit OpenCode review is stale for the current head."""
-    head = pr.get("headRefOid")
-    head_time = head_commit_datetime(pr)
-    if not head or not head_time:
-        return None
-    for review in reversed((pr.get("reviews") or {}).get("nodes") or []):
-        if not is_opencode_review(review):
-            continue
-        commit = (review.get("commit") or {}).get("oid")
-        if commit != head:
-            continue
-        submitted_at = review_submitted_datetime(review)
-        if not submitted_at:
-            return "OpenCode review has no submission timestamp for the current head"
-        if submitted_at <= head_time:
-            return (
-                "OpenCode review does not postdate the current head commit "
-                f"({submitted_at.isoformat()} <= {head_time.isoformat()})"
-            )
-        return None
-    return None
+    return bool(head and commit == head)
 
 
 def running_check_state(node: dict[str, Any]) -> str:
@@ -509,6 +512,18 @@ def disable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     run(["gh", "pr", "merge", number, "--repo", repo, "--disable-auto"])
 
 
+def disable_auto_merge_decision(
+    repo: str,
+    pr: dict[str, Any],
+    *,
+    dry_run: bool,
+    reason: str,
+) -> Decision:
+    """Disable auto-merge and return a disable_auto_merge decision with the concrete unsafe reason."""
+    disable_auto_merge(repo, pr, dry_run=dry_run)
+    return Decision(pr["number"], "disable_auto_merge", f"auto-merge disabled; {reason}")
+
+
 def update_branch(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     """Ask GitHub to update a PR branch, guarded by the observed head SHA."""
     number = str(pr["number"])
@@ -620,39 +635,73 @@ def inspect_pr(
     if head_repo != repo:
         return Decision(number, "skip", f"fork or external head repo: {head_repo}")
 
-    merge_state = (pr.get("mergeStateStatus") or "").upper()
+    merge_state = effective_merge_state(pr)
+    if merge_state == "UNKNOWN":
+        if pr.get("autoMergeRequest"):
+            return disable_auto_merge_decision(
+                repo,
+                pr,
+                dry_run=dry_run,
+                reason="mergeability is still being calculated; wait for GitHub mergeability evidence before re-enabling auto-merge",
+            )
+        return Decision(number, "wait", "mergeability is still being calculated")
+
     if merge_state in {"DIRTY", "CONFLICTING"}:
+        if pr.get("autoMergeRequest"):
+            return disable_auto_merge_decision(
+                repo,
+                pr,
+                dry_run=dry_run,
+                reason=f"{merge_conflict_guidance(pr, merge_state)}; repair the conflict before re-enabling auto-merge",
+            )
         return Decision(number, "block", merge_conflict_guidance(pr, merge_state))
 
     unresolved = unresolved_thread_count(pr)
     if unresolved:
+        if pr.get("autoMergeRequest"):
+            return disable_auto_merge_decision(
+                repo,
+                pr,
+                dry_run=dry_run,
+                reason=f"{unresolved} unresolved review thread(s); resolve the active thread(s) before re-enabling auto-merge",
+            )
         return Decision(number, "block", f"{unresolved} unresolved review thread(s)")
 
     if has_current_head_changes_requested(pr):
+        if pr.get("autoMergeRequest"):
+            return disable_auto_merge_decision(
+                repo,
+                pr,
+                dry_run=dry_run,
+                reason="current-head OpenCode review requested changes; address the review before re-enabling auto-merge",
+            )
         return Decision(number, "block", "current-head OpenCode review requested changes")
 
     current_head_approved = has_current_head_approval(pr)
-    stale_review_reason = stale_current_head_review_reason(pr)
-    if stale_review_reason and pr.get("autoMergeRequest"):
-        disable_auto_merge(repo, pr, dry_run=dry_run)
-        return Decision(
-            number,
-            "disable_auto_merge",
-            f"auto-merge disabled; {stale_review_reason}; wait for a fresh same-head OpenCode review",
-        )
     if current_head_approved:
         failed_checks = failed_status_checks(pr)
         if failed_checks:
+            if pr.get("autoMergeRequest"):
+                return disable_auto_merge_decision(
+                    repo,
+                    pr,
+                    dry_run=dry_run,
+                    reason=f"failed check(s): {', '.join(failed_checks[:5])}; fix or rerun checks before re-enabling auto-merge",
+                )
             return Decision(number, "block", f"failed check(s): {', '.join(failed_checks[:5])}")
 
     if merge_state == "BEHIND" and current_head_approved:
         if not update_branches:
             return Decision(number, "wait", "current-head OpenCode review approved; branch update disabled")
+        had_auto_merge = bool(pr.get("autoMergeRequest"))
+        if had_auto_merge:
+            disable_auto_merge(repo, pr, dry_run=dry_run)
         update_branch(repo, pr, dry_run=dry_run)
+        prefix = "auto-merge disabled before branch update; " if had_auto_merge else ""
         return Decision(
             number,
             "update_branch",
-            "current-head OpenCode review approved; branch update requested with workflow GH_TOKEN (github-actions[bot] in GitHub Actions)",
+            f"{prefix}current-head OpenCode review approved; branch update requested with workflow GH_TOKEN (github-actions[bot] in GitHub Actions)",
         )
 
     if current_head_approved:
@@ -698,6 +747,14 @@ def inspect_pr(
             number,
             "review_dispatch",
             "current head has completed Strix evidence; same-head OpenCode dispatched",
+        )
+
+    if pr.get("autoMergeRequest"):
+        return disable_auto_merge_decision(
+            repo,
+            pr,
+            dry_run=dry_run,
+            reason="current head has no OpenCode approval; wait for fresh same-head approval before re-enabling auto-merge",
         )
 
     return Decision(number, "block", "current head has no OpenCode approval")
@@ -782,12 +839,14 @@ def write_actions_summary(
 def parse_conflict_reason(reason: str) -> tuple[str, str, str] | None:
     """Extract merge state, base branch, and head branch from conflict guidance."""
     prefix = "merge conflict: "
-    if not reason.startswith(prefix):
+    conflict_start = reason.find(prefix)
+    if conflict_start < 0:
         return None
-    state = reason[len(prefix) :].split(";", 1)[0].strip() or "UNKNOWN"
+    conflict_reason = reason[conflict_start:]
+    state = conflict_reason[len(prefix) :].split(";", 1)[0].strip() or "UNKNOWN"
     base_ref = "base"
     head_ref = "head"
-    for segment in reason.split(";"):
+    for segment in conflict_reason.split(";"):
         segment = segment.strip()
         if not segment.startswith("base="):
             continue
@@ -921,6 +980,7 @@ def self_test() -> None:
         "baseRefOid": "base",
         "headRefName": "feature",
         "mergeStateStatus": "CLEAN",
+        "restMergeableState": "CLEAN",
         "isDraft": False,
         "headRepository": {"nameWithOwner": "owner/repo"},
         "autoMergeRequest": None,
@@ -930,8 +990,8 @@ def self_test() -> None:
                 {
                     "commit": {
                         "oid": "abc",
-                        "authoredDate": "2026-01-01T00:00:00Z",
-                        "committedDate": "2026-01-01T00:00:00Z",
+                        "authoredDate": "2026-06-25T16:38:22Z",
+                        "committedDate": "2026-06-25T16:38:22Z",
                     }
                 }
             ]
@@ -943,7 +1003,7 @@ def self_test() -> None:
                     "state": "APPROVED",
                     "author": {"login": "opencode-agent"},
                     "body": "OpenCode Agent approved this head.",
-                    "submittedAt": "2026-01-01T00:01:00Z",
+                    "submittedAt": "2026-06-25T15:42:19Z",
                     "commit": {"oid": "abc"},
                 }
             ]
@@ -964,9 +1024,21 @@ def self_test() -> None:
         base_branch="main",
     )
     assert decision.action == "auto_merge"
+    sample["restMergeableState"] = "BEHIND"
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "update_branch"
+    sample["restMergeableState"] = "DIRTY"
     sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
-    sample["reviews"]["nodes"][0]["submittedAt"] = "2025-12-31T23:59:59Z"
-    assert not has_current_head_approval(sample)
     decision = inspect_pr(
         "owner/repo",
         sample,
@@ -979,24 +1051,55 @@ def self_test() -> None:
         base_branch="main",
     )
     assert decision.action == "disable_auto_merge"
-    assert "does not postdate the current head commit" in decision.reason
-    sample["reviews"]["nodes"][0]["submittedAt"] = "2026-01-01T00:00:00Z"
-    assert not has_current_head_approval(sample)
-    decision = inspect_pr(
-        "owner/repo",
-        sample,
-        dry_run=True,
-        trigger_reviews=True,
-        enable_auto_merge_flag=True,
-        update_branches=True,
-        workflow="OpenCode Review",
-        security_workflow="Strix Security Scan",
-        base_branch="main",
-    )
-    assert decision.action == "disable_auto_merge"
-    assert "<=" in decision.reason
+    assert "merge conflict: DIRTY" in decision.reason
+    sample["restMergeableState"] = "UNKNOWN"
     sample["autoMergeRequest"] = None
-    sample["reviews"]["nodes"][0]["submittedAt"] = "2026-01-01T00:01:00Z"
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "wait"
+    assert "mergeability is still being calculated" in decision.reason
+    sample["restMergeableState"] = "CLEAN"
+    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
+    assert has_current_head_approval(sample)
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "wait"
+    assert decision.reason == "current head is approved; auto-merge already enabled"
+    sample["statusCheckRollup"]["contexts"]["nodes"] = [
+        {"__typename": "CheckRun", "name": "strix", "status": "COMPLETED", "conclusion": "FAILURE"}
+    ]
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "disable_auto_merge"
+    assert "failed check(s): strix" in decision.reason
+    sample["autoMergeRequest"] = None
     sample["statusCheckRollup"]["contexts"]["nodes"] = [
         {"__typename": "CheckRun", "name": "strix", "status": "COMPLETED", "conclusion": "FAILURE"}
     ]
@@ -1035,12 +1138,91 @@ def self_test() -> None:
         }
     )
     assert not has_current_head_changes_requested(sample)
+    sample["reviews"]["nodes"] = [
+        {
+            "state": "CHANGES_REQUESTED",
+            "author": {"login": "opencode-agent"},
+            "submittedAt": "2026-01-01T00:01:00Z",
+            "commit": {"oid": "abc"},
+        }
+    ]
+    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
+    assert has_current_head_changes_requested(sample)
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "disable_auto_merge"
+    assert "current-head OpenCode review requested changes" in decision.reason
+    sample["mergeStateStatus"] = "CLEAN"
+    sample["reviews"]["nodes"] = [
+        {
+            "state": "APPROVED",
+            "author": {"login": "opencode-agent"},
+            "submittedAt": "2026-01-01T00:01:00Z",
+            "commit": {"oid": "abc"},
+        }
+    ]
+    sample["reviewThreads"]["nodes"] = [{"isResolved": False}]
+    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "disable_auto_merge"
+    assert "unresolved review thread" in decision.reason
+    sample["autoMergeRequest"] = None
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "block"
+    assert decision.reason == "1 unresolved review thread(s)"
+    sample["reviewThreads"]["nodes"] = []
+    sample["reviews"]["nodes"] = []
+    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=False,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "disable_auto_merge"
+    assert "no OpenCode approval" in decision.reason
+    sample["autoMergeRequest"] = None
     sample["statusCheckRollup"]["contexts"]["nodes"].append(
         {"__typename": "CheckRun", "name": "opencode-review", "status": "IN_PROGRESS"}
     )
     assert opencode_in_progress(sample)
     sample["statusCheckRollup"]["contexts"]["nodes"] = []
     sample["mergeStateStatus"] = "BEHIND"
+    sample["restMergeableState"] = ""
     sample["reviews"]["nodes"] = [
         {
             "state": "APPROVED",
@@ -1095,6 +1277,21 @@ def self_test() -> None:
         base_branch="main",
     )
     assert decision.action == "update_branch"
+    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "update_branch"
+    assert "auto-merge disabled before branch update" in decision.reason
+    sample["autoMergeRequest"] = None
     sample["statusCheckRollup"]["contexts"]["nodes"] = [
         {"__typename": "CheckRun", "name": "strix", "status": "COMPLETED", "conclusion": "FAILURE"}
     ]
@@ -1134,6 +1331,25 @@ def self_test() -> None:
     assert decision.action == "update_branch"
     sample["statusCheckRollup"]["contexts"]["nodes"] = []
     sample["mergeStateStatus"] = "DIRTY"
+    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
+    decision = inspect_pr(
+        "owner/repo",
+        sample,
+        dry_run=True,
+        trigger_reviews=True,
+        enable_auto_merge_flag=True,
+        update_branches=True,
+        workflow="OpenCode Review",
+        security_workflow="Strix Security Scan",
+        base_branch="main",
+    )
+    assert decision.action == "disable_auto_merge"
+    assert "merge conflict: DIRTY" in decision.reason
+    assert "repair the conflict" in decision.reason
+    conflict_guidance = decision_guidance(decision)
+    assert conflict_guidance
+    assert conflict_guidance["type"] == "merge_conflict_repair"
+    sample["autoMergeRequest"] = None
     decision = inspect_pr(
         "owner/repo",
         sample,
@@ -1175,7 +1391,7 @@ def self_test() -> None:
     assert update_guidance["head_guard"] == "expected_head_sha"
     disable_guidance = decision_guidance(Decision(1, "disable_auto_merge", "ok"))
     assert disable_guidance
-    assert disable_guidance["type"] == "fresh_head_review_required"
+    assert disable_guidance["type"] == "unsafe_auto_merge_disabled"
     assert decision_guidance(Decision(1, "wait", "ok")) is None
     payload = decision_payload(
         [Decision(1, "update_branch", "ok")],
@@ -1184,7 +1400,7 @@ def self_test() -> None:
         base_branch="main",
         project_flow="github-flow",
     )
-    assert payload["schema_version"] == "pr-review-merge-scheduler/v1"
+    assert payload["schema_version"] == "pr-review-merge-scheduler/v2"
     assert payload["decisions"][0]["contract_decision"] == "UPDATE_BRANCH"
     assert payload["decisions"][0]["guidance"]["actor"] == "github-actions[bot]"
     validate_gh_host({})
