@@ -4985,6 +4985,26 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0" in workflow
     assert "Configure OPENCODE_APPROVE_TOKEN before running the scheduler" not in workflow
 
+    opencode_workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "Run OpenCode PR Review fallback (OpenAI o-series)" in opencode_workflow
+    assert "github-models/openai/o4-mini" in opencode_workflow
+    assert "OPENCODE_THIRD_FALLBACK_OUTCOME" in opencode_workflow
+    assert "opencode-review-third-fallback.md" in opencode_workflow
+    assert "OpenCode bounded control fallback" in opencode_workflow
+    assert "--agent ci-review \\" in opencode_workflow
+    assert '"edit": "deny"' in opencode_workflow
+    assert opencode_workflow.count('"bash": "allow"') >= 3
+    assert opencode_workflow.count('"task": "allow"') >= 3
+    assert opencode_workflow.count('"webfetch": "allow"') >= 3
+    assert opencode_workflow.count('"websearch": "allow"') >= 3
+    assert opencode_workflow.count('"lsp": "allow"') >= 3
+
+    opencode_config = (repo_root / "opencode.jsonc").read_text(encoding="utf-8")
+    assert '"openai/o3"' in opencode_config
+    assert '"openai/o4-mini"' in opencode_config
+
     scheduler = (repo_root / "scripts" / "ci" / "pr_review_merge_scheduler.py").read_text(
         encoding="utf-8"
     )
@@ -4994,6 +5014,22 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
 
     assert "def validate_gh_host" in scheduler
     assert "unsupported GH_HOST" in scheduler
+    assert "commits(last: 1)" in scheduler
+    assert "committedDate" in scheduler
+    assert "def fetch_rest_mergeable_state" in scheduler
+    assert "mergeable_state" in scheduler
+    assert "def effective_merge_state" in scheduler
+    assert "restMergeableState" in scheduler
+    assert "restMergeableStateError" in scheduler
+    assert "def review_matches_current_head" in scheduler
+    assert "return bool(head and commit == head)" in scheduler
+    assert "def stale_current_head_review_reason" not in scheduler
+    assert "review_submitted_datetime(review)" not in scheduler
+    assert "submitted_at > head_time" not in scheduler
+    assert "submitted_at <= head_time" not in scheduler
+    assert "does not postdate the current head commit" not in scheduler
+    assert "def disable_auto_merge" in scheduler
+    assert '"gh", "pr", "merge", number, "--repo", repo, "--disable-auto"' in scheduler
     assert "if is_opencode_context(node):" in scheduler
     assert '"strix security scan" | "strix security scan/"*' in collector
 
