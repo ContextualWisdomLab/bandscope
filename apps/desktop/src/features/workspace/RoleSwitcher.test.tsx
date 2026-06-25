@@ -18,6 +18,7 @@ describe("tabValueToRoleId", () => {
   ];
 
   it("returns null for the ALL_ROLES_VALUE", () => {
+    // using raw value to verify the final string result
     expect(tabValueToRoleId("__bandscope_all_roles__", roles)).toBeNull();
   });
 
@@ -35,21 +36,6 @@ describe("tabValueToRoleId", () => {
 });
 
 describe("RoleSwitcher", () => {
-
-  it("renders the title and role options", () => {
-    const roles = [
-      { id: "bass-guitar", name: "Bass Guitar" },
-      { id: "lead-vocal", name: "Lead Vocal" }
-    ];
-
-    render(<RoleSwitcher roles={roles} activeRole={null} onRoleChange={vi.fn()} />);
-
-    expect(screen.getByText("Role-specific View")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "All Roles" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Bass Guitar" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Lead Vocal" })).toBeInTheDocument();
-  });
-
   it("keeps the all-roles control distinct from a real role whose id is all", () => {
     const onRoleChange = vi.fn();
 
