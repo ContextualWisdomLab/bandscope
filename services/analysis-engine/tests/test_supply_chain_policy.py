@@ -5016,6 +5016,11 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "unsupported GH_HOST" in scheduler
     assert "commits(last: 1)" in scheduler
     assert "committedDate" in scheduler
+    assert "def fetch_rest_mergeable_state" in scheduler
+    assert "mergeable_state" in scheduler
+    assert "def effective_merge_state" in scheduler
+    assert "restMergeableState" in scheduler
+    assert "restMergeableStateError" in scheduler
     assert "def review_matches_current_head" in scheduler
     assert "return bool(head and commit == head)" in scheduler
     assert "def stale_current_head_review_reason" not in scheduler
