@@ -222,7 +222,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               onClick={handleExportCueSheet}
                 className="min-h-10 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] hover:bg-cyan-300/20 hover:text-white"
             >
-                <Download className="mr-2 size-4 text-cyan-200" aria-hidden="true" />
+                <Download className="mr-2 size-4 text-cyan-200" />
               Export Cue Sheet (CSV)
             </Button>
             <Button
@@ -231,7 +231,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               onClick={handleExportChart}
                 className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 shadow-sm hover:bg-white/10 hover:text-white"
             >
-                <Download className="mr-2 size-4 text-slate-300" aria-hidden="true" />
+                <Download className="mr-2 size-4 text-slate-300" />
               Export Chart (JSON)
             </Button>
             <Button
@@ -240,7 +240,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               onClick={handleExportHandoff}
               className="min-h-10 border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 shadow-sm hover:bg-teal-300/20 hover:text-white"
             >
-              <Download className="mr-2 size-4 text-teal-200" aria-hidden="true" />
+              <Download className="mr-2 size-4 text-teal-200" />
               Export Handoff (JSON)
             </Button>
           </div>
