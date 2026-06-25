@@ -1066,6 +1066,8 @@ jobs:
             export GH_TOKEN="$OPENCODE_APPROVE_TOKEN"
             approval_token_source="opencode-approve-token"
           fi
+          # Save initial token in case it gets overwritten
+          export INITIAL_GH_TOKEN="${GH_TOKEN:-}"
           if [ -z "${GH_TOKEN:-}" ]; then
             echo "::error::OpenCode approval requires an OpenCode app token, OPENCODE_APPROVE_TOKEN, or repository GITHUB_TOKEN with pull request write access."
             exit 1
@@ -2080,6 +2082,7 @@ jobs:
               : >"$output_file"
               if [ "$attempt" -lt "$attempts" ]; then
                 printf 'GitHub Checks lookup failed; retrying %s/%s before changing review state.\n' "$attempt" "$attempts" >&2
+                export GH_TOKEN="${INITIAL_GH_TOKEN:-$GH_TOKEN}"
                 sleep "$sleep_seconds"
               fi
               attempt=$((attempt + 1))
