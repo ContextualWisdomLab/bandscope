@@ -4998,6 +4998,9 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "committedDate" in scheduler
     assert "def stale_current_head_review_reason" in scheduler
     assert "review_submitted_datetime(review)" in scheduler
+    assert "submitted_at > head_time" in scheduler
+    assert "submitted_at <= head_time" in scheduler
+    assert "does not postdate the current head commit" in scheduler
     assert "def disable_auto_merge" in scheduler
     assert '"gh", "pr", "merge", number, "--repo", repo, "--disable-auto"' in scheduler
     assert "if is_opencode_context(node):" in scheduler
