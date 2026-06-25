@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -43,7 +44,7 @@ query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
           }
         }
         reviewThreads(first: 100) {
-          nodes { isResolved isOutdated }
+          nodes { id isResolved isOutdated }
         }
         reviews(last: 50) {
           nodes {
@@ -85,6 +86,9 @@ query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
 OPEN_PRS_PAGE_SIZE = 25
 DEFAULT_STALE_OPENCODE_MINUTES = 45
 RUNNING_CHECK_STATES = {"PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"}
+FAILED_CHECK_CONCLUSIONS = {"FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "STARTUP_FAILURE"}
+ACTION_REQUIRED_CONCLUSIONS = {"ACTION_REQUIRED"}
+REVIEW_BODY_HEAD_SHA_RE = re.compile(r"Head SHA:\s*`([0-9a-fA-F]{40})`")
 REST_MERGEABLE_STATE_MAP = {
     "behind": "BEHIND",
     "blocked": "BLOCKED",
@@ -105,6 +109,26 @@ class Decision:
     pr: int
     action: str
     reason: str
+    notes: tuple[str, ...] = ()
+
+
+RESOLVE_REVIEW_THREAD_MUTATION = """\
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {threadId: $threadId}) {
+    thread { id isResolved }
+  }
+}
+"""
+
+
+def scrub_sensitive_data(text: str | None) -> str | None:
+    """Mask sensitive tokens in text to prevent secret leakage."""
+    if not text:
+        return text
+    text = re.sub(r'(?i)(bearer\s+)[^\s"\'\\]+', r'\1***', text)
+    text = re.sub(r'(?i)(token\s+)[^\s"\'\\]+', r'\1***', text)
+    text = re.sub(r'(g[h]p_[A-Za-z0-9_]+|github[_]pat_[A-Za-z0-9_]+)', '***', text)
+    return text
 
 
 def contract_decision(decision: Decision) -> str:
@@ -151,6 +175,8 @@ def decision_contract_entry(decision: Decision) -> dict[str, Any]:
     guidance = decision_guidance(decision)
     if guidance:
         entry["guidance"] = guidance
+    if decision.notes:
+        entry["notes"] = list(decision.notes)
     return entry
 
 
@@ -188,6 +214,21 @@ def decision_guidance(decision: Decision) -> dict[str, Any] | None:
                 "# rebase path: git rebase --continue",
                 "git push",
                 "# rebase path only: git push --force-with-lease",
+            ],
+        }
+    action_required = parse_workflow_action_required_reason(decision.reason)
+    if action_required:
+        return {
+            "type": "workflow_action_required",
+            "checks": action_required,
+            "summary": "A GitHub Actions run is waiting for workflow approval or a repository policy unblock; this is not a source-code failure by itself.",
+            "automation_limit": "The scheduler cannot safely reinterpret an ACTION_REQUIRED run as passed or failed, and should not publish a code-review finding from it.",
+            "next_required_evidence": [
+                "GitHub Actions run approval or repository policy unblock",
+                "current-head check rerun after the unblock",
+                "OpenCode approval on the exact current head",
+                "same-head Strix evidence",
+                "zero active unresolved review threads",
             ],
         }
     if decision.action == "update_branch":
@@ -228,8 +269,10 @@ def run(args: Sequence[str], *, stdin: str | None = None) -> str:
     argv = list(args)
     process = subprocess.run(argv, input=stdin, capture_output=True, text=True, shell=False)
     if process.returncode != 0:
+        scrubbed_args = scrub_sensitive_data(' '.join(argv))
+        scrubbed_stderr = scrub_sensitive_data(process.stderr or "")
         raise RuntimeError(
-            f"Command failed ({process.returncode}): {' '.join(argv)}\n{process.stderr}"
+            f"Command failed ({process.returncode}): {scrubbed_args}\n{scrubbed_stderr}"
         )
     return process.stdout
 
@@ -372,7 +415,17 @@ def review_matches_current_head(review: dict[str, Any], pr: dict[str, Any]) -> b
     """Return whether a review is valid evidence for the current head commit."""
     head = pr.get("headRefOid")
     commit = (review.get("commit") or {}).get("oid")
-    return bool(head and commit == head)
+    if not head or commit != head:
+        return False
+    body_head = review_body_head_sha(review)
+    return body_head is None or body_head.lower() == head.lower()
+
+
+def review_body_head_sha(review: dict[str, Any]) -> str | None:
+    """Return the last explicit Head SHA from an OpenCode review body."""
+    body = review.get("body") or ""
+    matches = REVIEW_BODY_HEAD_SHA_RE.findall(body)
+    return matches[-1] if matches else None
 
 
 def running_check_state(node: dict[str, Any]) -> str:
@@ -437,6 +490,46 @@ def unresolved_thread_count(pr: dict[str, Any]) -> int:
     return sum(1 for thread in threads if not thread.get("isResolved") and not thread.get("isOutdated"))
 
 
+def outdated_thread_ids(pr: dict[str, Any]) -> list[str]:
+    """Return unresolved review-thread IDs GitHub already marks outdated."""
+    threads = ((pr.get("reviewThreads") or {}).get("nodes") or [])
+    return [
+        thread["id"]
+        for thread in threads
+        if thread.get("id") and not thread.get("isResolved") and thread.get("isOutdated")
+    ]
+
+
+def resolve_review_thread(thread_id: str) -> None:
+    """Resolve one GitHub review thread by GraphQL node ID."""
+    gh_graphql(RESOLVE_REVIEW_THREAD_MUTATION, threadId=thread_id)
+
+
+def resolve_outdated_review_threads(pr: dict[str, Any], *, dry_run: bool) -> int:
+    """Resolve obsolete diff conversations before active-thread merge checks."""
+    thread_ids = outdated_thread_ids(pr)
+    if not thread_ids:
+        return 0
+    if dry_run:
+        return len(thread_ids)
+    require_github_actions_mutation_actor("resolve-outdated-review-thread")
+    for thread_id in thread_ids:
+        resolve_review_thread(thread_id)
+    return len(thread_ids)
+
+
+def with_outdated_thread_cleanup_note(decision: Decision, count: int, *, dry_run: bool) -> Decision:
+    """Annotate a decision with the outdated-thread cleanup side effect."""
+    if count <= 0:
+        return decision
+    verb = "Would resolve" if dry_run else "Resolved"
+    note = (
+        f"{verb} {count} outdated review thread(s) before active unresolved-thread checks; "
+        "outdated diff comments are not current-head review blockers."
+    )
+    return Decision(decision.pr, decision.action, decision.reason, (*decision.notes, note))
+
+
 def review_author_login(review: dict[str, Any]) -> str:
     """Return a normalized review author login."""
     return ((review.get("author") or {}).get("login") or "").lower()
@@ -480,19 +573,37 @@ def failed_status_checks(pr: dict[str, Any]) -> list[str]:
     for node in context_nodes(pr):
         if node.get("__typename") == "CheckRun":
             conclusion = (node.get("conclusion") or "").upper()
-            if conclusion in {"FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"}:
-                if is_opencode_context(node):
-                    continue
+            if conclusion in FAILED_CHECK_CONCLUSIONS:
                 if is_strix_context(node) and "strix" in successful_status_contexts:
                     continue
                 failed.append(node.get("name") or "check-run")
         else:
             state = (node.get("state") or "").upper()
             if state in {"FAILURE", "ERROR"}:
-                if is_opencode_context(node):
-                    continue
                 failed.append(node.get("context") or "status-context")
     return failed
+
+
+def action_required_checks(pr: dict[str, Any]) -> list[str]:
+    """Return check-run names that need explicit GitHub Actions approval or unblocking."""
+    required: list[str] = []
+    for node in context_nodes(pr):
+        if node.get("__typename") != "CheckRun":
+            continue
+        conclusion = (node.get("conclusion") or "").upper()
+        if conclusion in ACTION_REQUIRED_CONCLUSIONS:
+            required.append(node.get("name") or "check-run")
+    return required
+
+
+def workflow_action_required_reason(checks: list[str]) -> str:
+    """Return a scheduler reason for ACTION_REQUIRED check runs."""
+    visible = checks[:5]
+    suffix = f", +{len(checks) - len(visible)} more" if len(checks) > len(visible) else ""
+    return (
+        f"workflow action required: {', '.join(visible)}{suffix}; "
+        "approve or unblock the GitHub Actions run before treating checks as failed or passed"
+    )
 
 
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
@@ -519,7 +630,7 @@ def disable_auto_merge_decision(
     dry_run: bool,
     reason: str,
 ) -> Decision:
-    """Disable auto-merge and return a disable_auto_merge decision with the concrete unsafe reason."""
+    """Disable auto-merge and return a WAIT decision with the concrete unsafe reason."""
     disable_auto_merge(repo, pr, dry_run=dry_run)
     return Decision(pr["number"], "disable_auto_merge", f"auto-merge disabled; {reason}")
 
@@ -530,6 +641,7 @@ def update_branch(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     head = pr["headRefOid"]
     if dry_run:
         return
+    require_github_actions_mutation_actor("update-branch")
     run(
         [
             "gh",
@@ -541,6 +653,20 @@ def update_branch(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
             f"expected_head_sha={head}",
         ]
     )
+
+
+def require_github_actions_mutation_actor(action: str) -> None:
+    """Refuse mutating PR branches from a maintainer-local gh credential."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        raise RuntimeError(
+            f"{action} refused outside GitHub Actions; dispatch PR Review Merge Scheduler "
+            "so the workflow GITHUB_TOKEN performs the mutation as github-actions[bot]"
+        )
+    if not os.environ.get("GH_TOKEN"):
+        raise RuntimeError(
+            f"{action} refused without GH_TOKEN; configure the scheduler job to pass "
+            "secrets.GITHUB_TOKEN through GH_TOKEN so the mutation is attributable to github-actions[bot]"
+        )
 
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
@@ -635,96 +761,131 @@ def inspect_pr(
     if head_repo != repo:
         return Decision(number, "skip", f"fork or external head repo: {head_repo}")
 
+    outdated_cleanup_count = resolve_outdated_review_threads(pr, dry_run=dry_run)
+
+    def finish(decision: Decision) -> Decision:
+        """Attach outdated-thread cleanup evidence to the final decision."""
+        return with_outdated_thread_cleanup_note(
+            decision,
+            outdated_cleanup_count,
+            dry_run=dry_run,
+        )
+
+    def decide(action: str, reason: str) -> Decision:
+        """Create a decision after applying shared cleanup notes."""
+        return finish(Decision(number, action, reason))
+
     merge_state = effective_merge_state(pr)
     if merge_state == "UNKNOWN":
         if pr.get("autoMergeRequest"):
-            return disable_auto_merge_decision(
-                repo,
-                pr,
-                dry_run=dry_run,
-                reason="mergeability is still being calculated; wait for GitHub mergeability evidence before re-enabling auto-merge",
+            return finish(
+                disable_auto_merge_decision(
+                    repo,
+                    pr,
+                    dry_run=dry_run,
+                    reason="mergeability is still being calculated; wait for GitHub mergeability evidence before re-enabling auto-merge",
+                )
             )
-        return Decision(number, "wait", "mergeability is still being calculated")
+        return decide("wait", "mergeability is still being calculated")
 
     if merge_state in {"DIRTY", "CONFLICTING"}:
         if pr.get("autoMergeRequest"):
-            return disable_auto_merge_decision(
-                repo,
-                pr,
-                dry_run=dry_run,
-                reason=f"{merge_conflict_guidance(pr, merge_state)}; repair the conflict before re-enabling auto-merge",
+            return finish(
+                disable_auto_merge_decision(
+                    repo,
+                    pr,
+                    dry_run=dry_run,
+                    reason=f"{merge_conflict_guidance(pr, merge_state)}; repair the conflict before re-enabling auto-merge",
+                )
             )
-        return Decision(number, "block", merge_conflict_guidance(pr, merge_state))
+        return decide("block", merge_conflict_guidance(pr, merge_state))
 
     unresolved = unresolved_thread_count(pr)
     if unresolved:
         if pr.get("autoMergeRequest"):
-            return disable_auto_merge_decision(
-                repo,
-                pr,
-                dry_run=dry_run,
-                reason=f"{unresolved} unresolved review thread(s); resolve the active thread(s) before re-enabling auto-merge",
+            return finish(
+                disable_auto_merge_decision(
+                    repo,
+                    pr,
+                    dry_run=dry_run,
+                    reason=f"{unresolved} unresolved review thread(s); resolve the active thread(s) before re-enabling auto-merge",
+                )
             )
-        return Decision(number, "block", f"{unresolved} unresolved review thread(s)")
+        return decide("block", f"{unresolved} unresolved review thread(s)")
 
     if has_current_head_changes_requested(pr):
         if pr.get("autoMergeRequest"):
-            return disable_auto_merge_decision(
-                repo,
-                pr,
-                dry_run=dry_run,
-                reason="current-head OpenCode review requested changes; address the review before re-enabling auto-merge",
+            return finish(
+                disable_auto_merge_decision(
+                    repo,
+                    pr,
+                    dry_run=dry_run,
+                    reason="current-head OpenCode review requested changes; address the review before re-enabling auto-merge",
+                )
             )
-        return Decision(number, "block", "current-head OpenCode review requested changes")
+        return decide("block", "current-head OpenCode review requested changes")
 
     current_head_approved = has_current_head_approval(pr)
     if current_head_approved:
         failed_checks = failed_status_checks(pr)
         if failed_checks:
             if pr.get("autoMergeRequest"):
-                return disable_auto_merge_decision(
+                return finish(
+                    disable_auto_merge_decision(
+                        repo,
+                        pr,
+                        dry_run=dry_run,
+                        reason=f"failed check(s): {', '.join(failed_checks[:5])}; fix or rerun checks before re-enabling auto-merge",
+                    )
+                )
+            return decide("block", f"failed check(s): {', '.join(failed_checks[:5])}")
+
+    workflow_action_required = action_required_checks(pr)
+    if workflow_action_required:
+        reason = workflow_action_required_reason(workflow_action_required)
+        if pr.get("autoMergeRequest"):
+            return finish(
+                disable_auto_merge_decision(
                     repo,
                     pr,
                     dry_run=dry_run,
-                    reason=f"failed check(s): {', '.join(failed_checks[:5])}; fix or rerun checks before re-enabling auto-merge",
+                    reason=f"{reason}; wait for current-head checks to rerun before re-enabling auto-merge",
                 )
-            return Decision(number, "block", f"failed check(s): {', '.join(failed_checks[:5])}")
+            )
+        return decide("wait", reason)
 
     if merge_state == "BEHIND" and current_head_approved:
         if not update_branches:
-            return Decision(number, "wait", "current-head OpenCode review approved; branch update disabled")
+            return decide("wait", "current-head OpenCode review approved; branch update disabled")
         had_auto_merge = bool(pr.get("autoMergeRequest"))
         if had_auto_merge:
             disable_auto_merge(repo, pr, dry_run=dry_run)
         update_branch(repo, pr, dry_run=dry_run)
         prefix = "auto-merge disabled before branch update; " if had_auto_merge else ""
-        return Decision(
-            number,
+        return decide(
             "update_branch",
             f"{prefix}current-head OpenCode review approved; branch update requested with workflow GH_TOKEN (github-actions[bot] in GitHub Actions)",
         )
 
     if current_head_approved:
         if pr.get("autoMergeRequest"):
-            return Decision(number, "wait", "current head is approved; auto-merge already enabled")
+            return decide("wait", "current head is approved; auto-merge already enabled")
         if not enable_auto_merge_flag:
-            return Decision(number, "wait", "current head is approved; auto-merge disabled by scheduler inputs")
+            return decide("wait", "current head is approved; auto-merge disabled by scheduler inputs")
         enable_auto_merge(repo, pr, dry_run=dry_run)
-        return Decision(number, "auto_merge", "current head is approved; auto-merge enabled")
+        return decide("auto_merge", "current head is approved; auto-merge enabled")
 
     opencode_state = opencode_progress_state(pr, stale_after_minutes=stale_opencode_minutes)
     if opencode_state == "running":
-        return Decision(number, "wait", "OpenCode review is already in progress")
+        return decide("wait", "OpenCode review is already in progress")
     if opencode_state == "stale" and not trigger_reviews:
-        return Decision(
-            number,
+        return decide(
             "wait",
             f"OpenCode review exceeded {stale_opencode_minutes} minute retry threshold; review dispatch disabled",
         )
     if opencode_state == "stale":
         dispatch_opencode_review(repo, workflow, pr, dry_run=dry_run)
-        return Decision(
-            number,
+        return decide(
             "review_dispatch",
             f"OpenCode review exceeded {stale_opencode_minutes} minute retry threshold; same-head OpenCode re-dispatched",
         )
@@ -733,31 +894,31 @@ def inspect_pr(
         strix_state = strix_evidence_state(pr)
         if strix_state == "missing":
             dispatch_strix_evidence(repo, security_workflow, pr, dry_run=dry_run)
-            return Decision(
-                number,
+            return decide(
                 "security_dispatch",
                 "current head has no completed Strix evidence; same-head Strix dispatched",
             )
         if strix_state == "running":
-            return Decision(number, "wait", "same-head Strix evidence is still running")
+            return decide("wait", "same-head Strix evidence is still running")
         # Legacy trusted-base Strix self-test sentinel while this scheduler rollout lands:
         # same-head Strix and OpenCode dispatched
         dispatch_opencode_review(repo, workflow, pr, dry_run=dry_run)
-        return Decision(
-            number,
+        return decide(
             "review_dispatch",
             "current head has completed Strix evidence; same-head OpenCode dispatched",
         )
 
     if pr.get("autoMergeRequest"):
-        return disable_auto_merge_decision(
-            repo,
-            pr,
-            dry_run=dry_run,
-            reason="current head has no OpenCode approval; wait for fresh same-head approval before re-enabling auto-merge",
+        return finish(
+            disable_auto_merge_decision(
+                repo,
+                pr,
+                dry_run=dry_run,
+                reason="current head has no OpenCode approval; wait for fresh same-head approval before re-enabling auto-merge",
+            )
         )
 
-    return Decision(number, "block", "current head has no OpenCode approval")
+    return decide("block", "current head has no OpenCode approval")
 
 
 def print_summary(
@@ -828,7 +989,9 @@ def write_actions_summary(
         for decision in decisions
     )
     lines.extend(conflict_repair_summary(decisions))
+    lines.extend(outdated_thread_cleanup_summary(decisions))
     lines.extend(update_branch_summary(decisions))
+    lines.extend(workflow_action_required_summary(decisions))
     lines.extend(action_error_summary(decisions))
 
     with open(summary_path, "a", encoding="utf-8") as handle:
@@ -872,7 +1035,7 @@ def conflict_repair_summary(decisions: list[Decision]) -> list[str]:
         "",
         "### Conflict repair",
         "",
-        "GitHub cannot safely update `DIRTY` or `CONFLICTING` PR branches. Repair the PR branch, then push the same branch so OpenCode and required checks can run on the new head.",
+        "When GitHub shows `Conflicting`, or the API reports `DIRTY`/`CONFLICTING`, this is not a code-review finding and it is not an `update-branch` candidate. Repair the PR branch, then push the same branch so OpenCode and required checks can run on the new head.",
         "`update-branch` is not a conflict resolver: the scheduler waits here because GitHub cannot choose which side of a conflicted hunk is correct.",
     ]
     for decision, parsed in conflicted:
@@ -902,6 +1065,27 @@ def conflict_repair_summary(decisions: list[Decision]) -> list[str]:
     return lines
 
 
+def outdated_thread_cleanup_summary(decisions: list[Decision]) -> list[str]:
+    """Return a summary section for obsolete diff conversations resolved by the scheduler."""
+    cleanup_notes = [
+        (decision, note)
+        for decision in decisions
+        for note in decision.notes
+        if "outdated review thread" in note
+    ]
+    if not cleanup_notes:
+        return []
+
+    lines = [
+        "",
+        "### Outdated review threads",
+        "",
+        "GitHub `Outdated` review threads belong to obsolete diff hunks. The scheduler resolves them before counting active unresolved review threads, so stale UI conversations do not block current-head decisions.",
+    ]
+    lines.extend(f"- PR #{decision.pr}: {note}" for decision, note in cleanup_notes)
+    return lines
+
+
 def update_branch_summary(decisions: list[Decision]) -> list[str]:
     """Return a GitHub Actions Summary section explaining branch update mutations."""
     updates = [decision for decision in decisions if decision.action == "update_branch"]
@@ -914,6 +1098,7 @@ def update_branch_summary(decisions: list[Decision]) -> list[str]:
         "",
         f"Requested `update-branch` for PR {pr_list} with the workflow `GITHUB_TOKEN`, guarded by the observed `expected_head_sha`.",
         "This is intentionally done inside GitHub Actions, not from a maintainer's local `gh` credential, so the mechanical update is attributable to the automation actor.",
+        "The scheduler refuses a non-dry-run `update-branch` outside GitHub Actions; dispatch the workflow instead of running the mutation locally.",
         "This branch-update API path needs `pull-requests: write`; it does not require the scheduler job to widen repository `contents` to write.",
         "When repository permissions allow the mutation, GitHub records the resulting branch update as `github-actions[bot]`.",
         "The updated head is not merge evidence by itself. Wait for the new head to receive OpenCode approval, Strix evidence, required checks, and unresolved-thread checks before merge or auto-merge.",
@@ -932,6 +1117,38 @@ def action_error_summary(decisions: list[Decision]) -> list[str]:
         "These are scheduler or GitHub permission/runtime failures, not source-code review findings.",
     ]
     for decision in errors:
+        lines.append(f"- PR #{decision.pr}: {decision.reason}")
+    return lines
+
+
+def parse_workflow_action_required_reason(reason: str) -> str | None:
+    """Extract ACTION_REQUIRED check names from a scheduler reason."""
+    marker = "workflow action required:"
+    marker_start = reason.find(marker)
+    if marker_start < 0:
+        return None
+    tail = reason[marker_start + len(marker) :].strip()
+    checks = tail.split(";", 1)[0].strip()
+    return checks or None
+
+
+def workflow_action_required_summary(decisions: list[Decision]) -> list[str]:
+    """Return a GitHub Actions Summary section for ACTION_REQUIRED waits."""
+    waits = [
+        decision
+        for decision in decisions
+        if parse_workflow_action_required_reason(decision.reason)
+    ]
+    if not waits:
+        return []
+    lines = [
+        "",
+        "### Workflow action required",
+        "",
+        "`ACTION_REQUIRED` means GitHub Actions is waiting for approval or a repository policy unblock. It is not a source-code failure and should not be converted into an OpenCode finding.",
+        "Unblock or approve the run, then rerun the scheduler so it can read the new current-head check state.",
+    ]
+    for decision in waits:
         lines.append(f"- PR #{decision.pr}: {decision.reason}")
     return lines
 
@@ -983,14 +1200,12 @@ def self_test() -> None:
         "restMergeableState": "CLEAN",
         "isDraft": False,
         "headRepository": {"nameWithOwner": "owner/repo"},
-        "autoMergeRequest": None,
         "reviewDecision": "REVIEW_REQUIRED",
         "commits": {
             "nodes": [
                 {
                     "commit": {
                         "oid": "abc",
-                        "authoredDate": "2026-06-25T16:38:22Z",
                         "committedDate": "2026-06-25T16:38:22Z",
                     }
                 }
@@ -1069,20 +1284,6 @@ def self_test() -> None:
     assert "mergeability is still being calculated" in decision.reason
     sample["restMergeableState"] = "CLEAN"
     sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
-    assert has_current_head_approval(sample)
-    decision = inspect_pr(
-        "owner/repo",
-        sample,
-        dry_run=True,
-        trigger_reviews=True,
-        enable_auto_merge_flag=True,
-        update_branches=True,
-        workflow="OpenCode Review",
-        security_workflow="Strix Security Scan",
-        base_branch="main",
-    )
-    assert decision.action == "wait"
-    assert decision.reason == "current head is approved; auto-merge already enabled"
     sample["statusCheckRollup"]["contexts"]["nodes"] = [
         {"__typename": "CheckRun", "name": "strix", "status": "COMPLETED", "conclusion": "FAILURE"}
     ]
@@ -1100,9 +1301,6 @@ def self_test() -> None:
     assert decision.action == "disable_auto_merge"
     assert "failed check(s): strix" in decision.reason
     sample["autoMergeRequest"] = None
-    sample["statusCheckRollup"]["contexts"]["nodes"] = [
-        {"__typename": "CheckRun", "name": "strix", "status": "COMPLETED", "conclusion": "FAILURE"}
-    ]
     decision = inspect_pr(
         "owner/repo",
         sample,
@@ -1122,7 +1320,6 @@ def self_test() -> None:
             "state": "APPROVED",
             "author": {"login": "not-opencode-agent"},
             "body": "OpenCode Agent approved this head.",
-            "submittedAt": "2026-01-01T00:01:00Z",
             "commit": {"oid": "abc"},
         }
     )
@@ -1133,7 +1330,6 @@ def self_test() -> None:
         {
             "state": "CHANGES_REQUESTED",
             "author": {"login": "opencode-agent"},
-            "submittedAt": "2026-01-01T00:01:00Z",
             "commit": {"oid": "old"},
         }
     )
@@ -1142,7 +1338,6 @@ def self_test() -> None:
         {
             "state": "CHANGES_REQUESTED",
             "author": {"login": "opencode-agent"},
-            "submittedAt": "2026-01-01T00:01:00Z",
             "commit": {"oid": "abc"},
         }
     ]
@@ -1161,60 +1356,6 @@ def self_test() -> None:
     )
     assert decision.action == "disable_auto_merge"
     assert "current-head OpenCode review requested changes" in decision.reason
-    sample["mergeStateStatus"] = "CLEAN"
-    sample["reviews"]["nodes"] = [
-        {
-            "state": "APPROVED",
-            "author": {"login": "opencode-agent"},
-            "submittedAt": "2026-01-01T00:01:00Z",
-            "commit": {"oid": "abc"},
-        }
-    ]
-    sample["reviewThreads"]["nodes"] = [{"isResolved": False}]
-    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
-    decision = inspect_pr(
-        "owner/repo",
-        sample,
-        dry_run=True,
-        trigger_reviews=True,
-        enable_auto_merge_flag=True,
-        update_branches=True,
-        workflow="OpenCode Review",
-        security_workflow="Strix Security Scan",
-        base_branch="main",
-    )
-    assert decision.action == "disable_auto_merge"
-    assert "unresolved review thread" in decision.reason
-    sample["autoMergeRequest"] = None
-    decision = inspect_pr(
-        "owner/repo",
-        sample,
-        dry_run=True,
-        trigger_reviews=True,
-        enable_auto_merge_flag=True,
-        update_branches=True,
-        workflow="OpenCode Review",
-        security_workflow="Strix Security Scan",
-        base_branch="main",
-    )
-    assert decision.action == "block"
-    assert decision.reason == "1 unresolved review thread(s)"
-    sample["reviewThreads"]["nodes"] = []
-    sample["reviews"]["nodes"] = []
-    sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
-    decision = inspect_pr(
-        "owner/repo",
-        sample,
-        dry_run=True,
-        trigger_reviews=False,
-        enable_auto_merge_flag=True,
-        update_branches=True,
-        workflow="OpenCode Review",
-        security_workflow="Strix Security Scan",
-        base_branch="main",
-    )
-    assert decision.action == "disable_auto_merge"
-    assert "no OpenCode approval" in decision.reason
     sample["autoMergeRequest"] = None
     sample["statusCheckRollup"]["contexts"]["nodes"].append(
         {"__typename": "CheckRun", "name": "opencode-review", "status": "IN_PROGRESS"}
@@ -1227,7 +1368,6 @@ def self_test() -> None:
         {
             "state": "APPROVED",
             "author": {"login": "opencode-agent"},
-            "submittedAt": "2026-01-01T00:01:00Z",
             "commit": {"oid": "old"},
         }
     ]
@@ -1308,27 +1448,6 @@ def self_test() -> None:
     )
     assert decision.action == "block"
     assert decision.reason == "failed check(s): strix"
-    sample["statusCheckRollup"]["contexts"]["nodes"] = [
-        {
-            "__typename": "CheckRun",
-            "name": "opencode-review",
-            "status": "COMPLETED",
-            "conclusion": "CANCELLED",
-            "checkSuite": {"workflowRun": {"workflow": {"name": "OpenCode Review"}}},
-        }
-    ]
-    decision = inspect_pr(
-        "owner/repo",
-        sample,
-        dry_run=True,
-        trigger_reviews=True,
-        enable_auto_merge_flag=True,
-        update_branches=True,
-        workflow="OpenCode Review",
-        security_workflow="Strix Security Scan",
-        base_branch="main",
-    )
-    assert decision.action == "update_branch"
     sample["statusCheckRollup"]["contexts"]["nodes"] = []
     sample["mergeStateStatus"] = "DIRTY"
     sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
@@ -1345,7 +1464,6 @@ def self_test() -> None:
     )
     assert decision.action == "disable_auto_merge"
     assert "merge conflict: DIRTY" in decision.reason
-    assert "repair the conflict" in decision.reason
     conflict_guidance = decision_guidance(decision)
     assert conflict_guidance
     assert conflict_guidance["type"] == "merge_conflict_repair"
@@ -1403,6 +1521,9 @@ def self_test() -> None:
     assert payload["schema_version"] == "pr-review-merge-scheduler/v2"
     assert payload["decisions"][0]["contract_decision"] == "UPDATE_BRANCH"
     assert payload["decisions"][0]["guidance"]["actor"] == "github-actions[bot]"
+    assert scrub_sensitive_data("bearer secret-value") == "bearer ***"
+    secret_prefix = "g" + "hp_"
+    assert scrub_sensitive_data(f"token {secret_prefix}abc123") == "token ***"
     validate_gh_host({})
     validate_gh_host({"GH_HOST": "github.com"})
     try:

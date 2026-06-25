@@ -5022,7 +5022,9 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "restMergeableState" in scheduler
     assert "restMergeableStateError" in scheduler
     assert "def review_matches_current_head" in scheduler
-    assert "return bool(head and commit == head)" in scheduler
+    assert "def review_body_head_sha" in scheduler
+    assert "REVIEW_BODY_HEAD_SHA_RE" in scheduler
+    assert "body_head is None or body_head.lower() == head.lower()" in scheduler
     assert "def stale_current_head_review_reason" not in scheduler
     assert "review_submitted_datetime(review)" not in scheduler
     assert "submitted_at > head_time" not in scheduler
@@ -5030,7 +5032,8 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "does not postdate the current head commit" not in scheduler
     assert "def disable_auto_merge" in scheduler
     assert '"gh", "pr", "merge", number, "--repo", repo, "--disable-auto"' in scheduler
-    assert "if is_opencode_context(node):" in scheduler
+    assert "def opencode_progress_state" in scheduler
+    assert "if not is_opencode_context(node):" in scheduler
     assert '"strix security scan" | "strix security scan/"*' in collector
 
 
