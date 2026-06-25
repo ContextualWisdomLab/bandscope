@@ -4985,6 +4985,14 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0" in workflow
     assert "Configure OPENCODE_APPROVE_TOKEN before running the scheduler" not in workflow
 
+    opencode_workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "Run OpenCode PR Review fallback (OpenAI o-series)" in opencode_workflow
+    assert "github-models/openai/o4-mini" in opencode_workflow
+    assert "OPENCODE_THIRD_FALLBACK_OUTCOME" in opencode_workflow
+    assert "opencode-review-third-fallback.md" in opencode_workflow
+
     scheduler = (repo_root / "scripts" / "ci" / "pr_review_merge_scheduler.py").read_text(
         encoding="utf-8"
     )
