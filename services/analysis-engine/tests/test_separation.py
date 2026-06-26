@@ -207,6 +207,26 @@ def test_audio_stem_separator_assigns_boundary_frequency_to_drums_only() -> None
     assert vocal_peak < drum_peak * 0.001
 
 
+def test_audio_stem_separator_rejects_path_traversal_in_audio_path() -> None:
+    """Ensure path traversal attempts in the audio path are strictly rejected."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Path traversal detected in audio file path"):
+        separator.separate("../../../etc/passwd")
+
+
+def test_audio_stem_separator_rejects_path_traversal_in_model_profile() -> None:
+    """Ensure path traversal attempts in the model profile path are strictly rejected."""
+    config = AudioSeparationConfig(
+        target_sample_rate=8_000,
+        model_profile_path="../../../etc/passwd",
+        model_profile_sha256="fake_sha",
+    )
+
+    with pytest.raises(ValueError, match="Path traversal detected in model profile path"):
+        AudioStemSeparator(config)
+
+
 def test_audio_stem_separator_rejects_missing_audio_file(tmp_path) -> None:
     """Ensure missing local files fail before decode without leaking a full path."""
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
