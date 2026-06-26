@@ -15,3 +15,6 @@
 ## 2026-06-19 - Internationalization
 **Learning:** The desktop app uses i18n via json files located in `apps/desktop/src/locales/`
 **Action:** When adding new text strings, make sure to add it to all locale files.
+## 2024-06-26 - Enable tooltips on disabled buttons
+**Learning:** Standard HTML `title` attributes used as tooltips will not display on elements that are disabled via Tailwind's `disabled:pointer-events-none` class because pointer events are swallowed before they trigger hover interactions. Sighted users relying on these tooltips for "coming soon" or other reasons on disabled buttons will not get the context.
+**Action:** Always replace `disabled:pointer-events-none` with `disabled:cursor-not-allowed` on reusable components like Buttons, Inputs, and Tabs to ensure disabled elements still show the appropriate cursor and native tooltips.
