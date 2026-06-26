@@ -65,5 +65,8 @@
   "youtubePlaceholder": "YouTube URL...",
   "importYoutube": "Import YouTube",
   "importingYoutube": "Importing...",
-  "youtubeImportFailed": "Failed to import YouTube URL."
+  "youtubeImportFailed": "Failed to import YouTube URL.",
+  "comingSoon": "Coming soon",
+  "settingsComingSoon": "Settings coming soon",
+  "helpComingSoon": "Help coming soon"
 }

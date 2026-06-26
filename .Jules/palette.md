@@ -18,3 +18,6 @@
 ## 2026-06-25 - Native tooltips on disabled elements
 **Learning:** Standard HTML `title` attributes used as tooltips do not render on elements that use Tailwind's `pointer-events-none` class, which is often applied to `disabled:` variants in Base UI and styled components.
 **Action:** Do not rely on native `title` attributes for explaining disabled states on buttons with `pointer-events-none`. Instead, either use a custom tooltip component or ensure focus/interactive styles are preserved if an explanation is strictly required.
+## 2026-06-25 - Native tooltips on disabled elements
+**Learning:** Changing `disabled:pointer-events-none` to `disabled:cursor-not-allowed` globally is good for native disabled elements, but changing `aria-disabled:pointer-events-none` to `aria-disabled:cursor-not-allowed` is extremely dangerous because elements relying on `aria-disabled` do not have native click blocking. Without CSS blocking pointer events, disabled custom components will receive `onClick` events, potentially triggering actions that should be blocked.
+**Action:** Do not blindly replace all instances of `pointer-events-none`. Only change `disabled:pointer-events-none` to `disabled:cursor-not-allowed`. Leave `aria-disabled:pointer-events-none` intact.

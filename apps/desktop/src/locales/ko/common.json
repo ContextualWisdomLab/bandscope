@@ -65,5 +65,8 @@
   "youtubePlaceholder": "유튜브 URL...",
   "importYoutube": "유튜브 가져오기",
   "importingYoutube": "가져오는 중...",
-  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다."
+  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다.",
+  "comingSoon": "준비 중입니다",
+  "settingsComingSoon": "설정 기능은 준비 중입니다",
+  "helpComingSoon": "도움말 기능은 준비 중입니다"
 }
