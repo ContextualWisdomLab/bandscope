@@ -15,3 +15,6 @@
 ## 2026-06-19 - Internationalization
 **Learning:** The desktop app uses i18n via json files located in `apps/desktop/src/locales/`
 **Action:** When adding new text strings, make sure to add it to all locale files.
+## 2026-06-25 - Native tooltips on disabled elements
+**Learning:** Standard HTML `title` attributes used as tooltips do not render on elements that use Tailwind's `pointer-events-none` class, which is often applied to `disabled:` variants in Base UI and styled components.
+**Action:** Do not rely on native `title` attributes for explaining disabled states on buttons with `pointer-events-none`. Instead, either use a custom tooltip component or ensure focus/interactive styles are preserved if an explanation is strictly required.
