@@ -457,7 +457,7 @@ export function App() {
                 aria-current={active ? "page" : undefined}
                 aria-disabled={active ? undefined : true}
                 disabled={!active}
-                title={active ? undefined : "Coming soon"}
+                title={active ? undefined : t("comingSoon")}
                 className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                   active
                     ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
@@ -513,7 +513,7 @@ export function App() {
                 aria-label={`${label} compact view`}
                 aria-disabled={active ? undefined : true}
                 disabled={!active}
-                title={active ? undefined : "Coming soon"}
+                title={active ? undefined : t("comingSoon")}
                 className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                   active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
                 }`}
