@@ -18,3 +18,7 @@
 ## 2026-06-25 - Native tooltips on disabled elements
 **Learning:** Standard HTML `title` attributes used as tooltips do not render on elements that use Tailwind's `pointer-events-none` class, which is often applied to `disabled:` variants in Base UI and styled components.
 **Action:** Do not rely on native `title` attributes for explaining disabled states on buttons with `pointer-events-none`. Instead, either use a custom tooltip component or ensure focus/interactive styles are preserved if an explanation is strictly required.
+
+## 2026-06-27 - Native tooltips on Tailwind disabled buttons
+**Learning:** The `disabled:pointer-events-none` Tailwind class prevents native HTML tooltips (`title` attribute) from appearing when users hover over disabled buttons.
+**Action:** When adding descriptive tooltips to disabled primary action buttons, change `disabled:pointer-events-none` to `disabled:cursor-not-allowed` in the component's base variants so sighted users can discover why the action is unavailable on hover.

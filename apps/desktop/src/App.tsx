@@ -550,6 +550,7 @@ export function App() {
                 <Button
                   onClick={handleChooseLocalAudio}
                   disabled={analysisInFlight || isStarting || isImporting}
+                  title={(analysisInFlight || isStarting || isImporting) ? t("chooseLocalAudioDisabledReason") : undefined}
                   variant="secondary"
                   className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
                   aria-label="Choose local audio"

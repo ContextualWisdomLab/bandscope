@@ -65,5 +65,6 @@
   "youtubePlaceholder": "유튜브 URL...",
   "importYoutube": "유튜브 가져오기",
   "importingYoutube": "가져오는 중...",
-  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다."
+  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다.",
+  "chooseLocalAudioDisabledReason": "분석 중에는 실행할 수 없습니다"
 }

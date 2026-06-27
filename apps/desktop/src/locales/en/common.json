@@ -65,5 +65,6 @@
   "youtubePlaceholder": "YouTube URL...",
   "importYoutube": "Import YouTube",
   "importingYoutube": "Importing...",
-  "youtubeImportFailed": "Failed to import YouTube URL."
+  "youtubeImportFailed": "Failed to import YouTube URL.",
+  "chooseLocalAudioDisabledReason": "Action unavailable during analysis"
 }
