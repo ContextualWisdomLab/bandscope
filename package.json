@@ -27,7 +27,9 @@
     "test": "npm run test --workspaces --if-present && sh -c 'cd services/analysis-engine && uv run pytest tests --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100'",
     "build": "npm run build --workspaces --if-present",
     "check:rust": "./scripts/checks/check_rust.sh",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "coverage": "npm install && npm run test",
+    "docstring:coverage": "npm run check:python-docstrings"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
