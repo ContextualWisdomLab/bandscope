@@ -2078,9 +2078,13 @@ jobs:
             local attempt=1
 
             while [ "$attempt" -le "$attempts" ]; do
-              if GH_TOKEN="$JOB_GITHUB_TOKEN" "$collector" "$output_file"; then
+              local saved_token="${GH_TOKEN:-}"
+              export GH_TOKEN="$JOB_GITHUB_TOKEN"
+              if "$collector" "$output_file"; then
+                export GH_TOKEN="$saved_token"
                 return 0
               fi
+              export GH_TOKEN="$saved_token"
               : >"$output_file"
               if [ "$attempt" -lt "$attempts" ]; then
                 printf 'GitHub Checks lookup failed; retrying %s/%s before changing review state.\n' "$attempt" "$attempts" >&2
