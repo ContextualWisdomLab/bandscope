@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RoleSwitcher, tabValueToRoleId } from "./RoleSwitcher";
+// We should import the constants, but they are not exported!
+// They are internal to RoleSwitcher.tsx.
+// const ALL_ROLES_VALUE = "__bandscope_all_roles__";
+// const ROLE_VALUE_PREFIX = "role:";
 
 vi.mock("../../i18n", () => ({
   createTranslator: () => (key: string) =>
@@ -18,7 +22,7 @@ describe("tabValueToRoleId", () => {
   ];
 
   it("returns null for the ALL_ROLES_VALUE", () => {
-    // using raw value to verify the final string result
+    // using raw value to verify the final string result since constant isn't exported
     expect(tabValueToRoleId("__bandscope_all_roles__", roles)).toBeNull();
   });
 
