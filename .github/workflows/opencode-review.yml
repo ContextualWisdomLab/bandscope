@@ -1035,6 +1035,9 @@ jobs:
             cat "$comment_body_file"
           } >"$overview_body_file"
 
+          if [ -z "${GH_TOKEN:-}" ]; then
+              export GH_TOKEN="${GITHUB_TOKEN:-}"
+          fi
           overview_comment_id="$(
             gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
               --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") and (.body | contains("<!-- opencode-review-overview -->")))] | sort_by(.created_at) | last.id // empty'
@@ -1132,6 +1135,9 @@ jobs:
 
           create_pull_review() {
             local event="$1" body="$2"
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             jq -n \
               --arg event "$event" \
               --arg body "$body" \
@@ -1146,6 +1152,9 @@ jobs:
             local error_file unavailable_body
 
             error_file="$(mktemp)"
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             if jq -n \
               --arg event "APPROVE" \
               --arg body "$body" \
@@ -1314,6 +1323,9 @@ jobs:
             local event="$1" body="$2" review_payload_file="$3" fallback_body_file="$4"
             local gh_error_file
             gh_error_file="$(mktemp)"
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             if ! gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input "$review_payload_file" >/dev/null 2>"$gh_error_file"; then
               echo "::warning::OpenCode could not submit pull review inline comments; failing instead of falling back to body-only ${event} review."
               if [ -s "$gh_error_file" ]; then
@@ -1425,6 +1437,9 @@ jobs:
 
             changed_files_file="$(mktemp)"
             validation_log="$(mktemp)"
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             if ! gh api -X GET "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate \
               --jq '.[].filename' >"$changed_files_file"; then
               rm -f "$changed_files_file" "$validation_log"
@@ -2009,6 +2024,9 @@ jobs:
 
             error_file="$(mktemp)"
             runs_json="$(mktemp)"
+            if [ -z "${GH_TOKEN:-}" ]; then
+                export GH_TOKEN="${GITHUB_TOKEN:-}"
+            fi
             if ! gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json" 2>"$error_file"; then
               if grep -Eiq 'HTTP 404|not found' "$error_file"; then
                 : >"$output_file"
@@ -2367,6 +2385,9 @@ jobs:
             fi
           }
 
+          if [ -z "${GH_TOKEN:-}" ]; then
+              export GH_TOKEN="${GITHUB_TOKEN:-}"
+          fi
           live_head_sha="$(gh api -X GET "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
           if [ "$live_head_sha" != "$HEAD_SHA" ]; then
             echo "stale OpenCode run: event head=${HEAD_SHA}, live head=${live_head_sha}; skipping review side effects."
@@ -2465,6 +2486,9 @@ jobs:
           fi
 
           sentinel="<!-- opencode-review-gate head_sha=${HEAD_SHA} run_id=${RUN_ID} run_attempt=${RUN_ATTEMPT} -->"
+          if [ -z "${GH_TOKEN:-}" ]; then
+              export GH_TOKEN="${GITHUB_TOKEN:-}"
+          fi
           comment_json="$(
             gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
               --jq "[.[] | select((.user.login == \"github-actions[bot]\" or .user.login == \"opencode-agent[bot]\") and (.body | contains(\"${sentinel}\")))] | sort_by(.created_at) | last // {}"
