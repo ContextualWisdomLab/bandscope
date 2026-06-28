@@ -742,20 +742,22 @@ describe("App", () => {
       );
     });
 
-    latestStatusSubscription?.(
-      jobStatusResponse({
+    act(() => {
+      latestStatusSubscription?.(jobStatusResponse({
         jobId: "job-push-1",
         state: "running",
         progressLabel: "Separating stems... (45%)",
         progressStage: "separate",
         progressPercent: 45
-      })
-    );
+      }));
+    });
     await waitFor(() => {
       expect(screen.getByText(/separating stems/i)).toBeTruthy();
     });
 
-    latestStatusSubscription?.(succeededResult());
+    act(() => {
+      latestStatusSubscription?.(succeededResult());
+    });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
