@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "npx vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
