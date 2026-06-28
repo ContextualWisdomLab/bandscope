@@ -16,6 +16,7 @@ describe("SectionRoadmap", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("localizes roadmap controls and provenance badges", () => {
@@ -46,5 +47,135 @@ describe("SectionRoadmap", () => {
     expect(promptSpy).toHaveBeenCalledWith("새 코드 입력:", "C#m7");
     expect(screen.getAllByTitle("코드 수정").length).toBeGreaterThan(0);
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels chord editing without updating the song", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue(null);
+
+    render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+
+    expect(promptSpy).toHaveBeenCalledWith("새 코드 입력:", "C#m7");
+    expect(onSongUpdate).not.toHaveBeenCalled();
+  });
+
+  it("disables chord editing when no update handler is provided", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" })).toBeDisabled();
+  });
+
+  it("renders priority indicators for high, medium, and low roles", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    song.sections[0].roles.push({
+      ...song.sections[0].roles[0],
+      id: "medium-priority-role",
+      name: "Medium Role",
+      rehearsalPriority: "medium"
+    });
+    song.sections[0].roles.push({
+      ...song.sections[0].roles[0],
+      id: "low-priority-role",
+      name: "Low Role",
+      rehearsalPriority: "low"
+    });
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getAllByTitle("우선순위: high").length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle("우선순위: medium").length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle("우선순위: low").length).toBeGreaterThan(0);
+  });
+
+  it("renders low confidence badges for low-confidence sections and roles", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    song.sections[0].confidence.level = "low";
+    song.sections[0].roles[0].confidence.level = "low";
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getAllByText("확신이 낮음").length).toBeGreaterThan(0);
+  });
+
+  it("filters the roadmap to the active role", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
+
+    expect(screen.getByText("Bass Guitar")).toBeTruthy();
+    expect(screen.queryByText("Keyboard 1 Right Hand")).toBeNull();
+  });
+
+  it("does not update when cloned edit targets are missing", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("NewChord");
+    const originalStructuredClone = globalThis.structuredClone;
+    const cloneForTest = <T,>(value: T): T => {
+      if (typeof originalStructuredClone === "function") {
+        return originalStructuredClone(value);
+      }
+      return JSON.parse(JSON.stringify(value)) as T;
+    };
+
+    vi.stubGlobal("structuredClone", vi.fn().mockImplementation((value) => {
+      const cloned = cloneForTest(value);
+      cloned.sections = [];
+      return cloned;
+    }));
+
+    render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+    expect(promptSpy).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate).not.toHaveBeenCalled();
+
+    vi.stubGlobal("structuredClone", vi.fn().mockImplementation((value) => {
+      const cloned = cloneForTest(value);
+      cloned.sections[0].roles = [];
+      return cloned;
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+    expect(promptSpy).toHaveBeenCalledTimes(2);
+    expect(onSongUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not update when the entered chord is empty or whitespace", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    const promptSpy = vi.spyOn(window, "prompt");
+
+    promptSpy.mockReturnValueOnce("").mockReturnValueOnce("   ");
+    render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
+
+    const editButton = screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" });
+    fireEvent.click(editButton);
+    fireEvent.click(editButton);
+
+    expect(promptSpy).toHaveBeenCalledTimes(2);
+    expect(onSongUpdate).not.toHaveBeenCalled();
+  });
+
+  it("renders overlap warnings", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getByText("Density warning: competing with Keyboard Left Hand in low register.")).toBeTruthy();
   });
 });
