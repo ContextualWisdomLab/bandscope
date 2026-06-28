@@ -143,6 +143,25 @@ describe("export generation", () => {
     expect(parsed.headline).toBe("");
   });
 
+  it("generates chart summary JSON when exportSummary is undefined", () => {
+    const mockSongNoExportSummary: RehearsalSong = {
+      ...mockSong,
+      exportSummary: undefined
+    };
+    const parsed = JSON.parse(generateChartSummaryJson(mockSongNoExportSummary));
+
+    expect(parsed).toMatchObject({
+      title: "Test",
+      headline: "",
+      sections: [
+        {
+          label: "verse",
+          groove: "swing"
+        }
+      ]
+    });
+  });
+
   it("generates a metadata-only local handoff without source paths or transcription data", () => {
     const sourceBootstrap: ProjectBootstrapSummary = {
       projectId: "project-1",
