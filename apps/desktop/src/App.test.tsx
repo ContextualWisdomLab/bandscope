@@ -41,7 +41,7 @@ vi.mock("./lib/analysis", async (importActual) => {
   };
 });
 
-function succeededResult() {
+function succeededResult(overrides: Record<string, unknown> = {}) {
   return {
     jobId: "job-1",
     state: "succeeded",
@@ -123,7 +123,8 @@ function succeededResult() {
         headline: "Start with verse entrances before the chorus lift.",
         focusSections: ["verse"]
       }
-    }
+    },
+    ...overrides
   };
 }
 
@@ -170,6 +171,14 @@ function failedJobStatus(jobId: string, message: string) {
       message
     }
   });
+}
+
+async function waitForLatestStatusSubscription() {
+  await waitFor(() => {
+    expect(latestStatusSubscription).not.toBeNull();
+  });
+
+  return latestStatusSubscription as NonNullable<typeof latestStatusSubscription>;
 }
 
 describe("App", () => {
@@ -487,10 +496,11 @@ describe("App", () => {
       expect(screen.getAllByRole("status").some((status) => /queued for analysis/i.test(status.textContent ?? ""))).toBe(true);
     });
 
-    const completed = succeededResult();
+    const completed = succeededResult({ jobId: "job-unlabeled-status" });
     delete (completed as { progressLabel?: string }).progressLabel;
+    const pushStatus = await waitForLatestStatusSubscription();
     act(() => {
-      latestStatusSubscription?.(completed);
+      pushStatus(completed);
     });
 
     await waitFor(() => {
@@ -521,8 +531,9 @@ describe("App", () => {
       );
     });
 
+    const pushStatus = await waitForLatestStatusSubscription();
     act(() => {
-      latestStatusSubscription?.(jobStatusResponse({
+      pushStatus(jobStatusResponse({
         jobId: "job-unlabeled-failure",
         state: "failed",
         progressLabel: undefined
@@ -558,8 +569,9 @@ describe("App", () => {
       );
     });
 
+    const pushStatus = await waitForLatestStatusSubscription();
     act(() => {
-      latestStatusSubscription?.(jobStatusResponse({
+      pushStatus(jobStatusResponse({
         jobId: "job-terminal-progress",
         state: "failed",
         progressLabel: undefined,
@@ -668,8 +680,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
+    const pushStatus = await waitForLatestStatusSubscription();
     act(() => {
-      latestStatusSubscription?.(succeededResult());
+      pushStatus(succeededResult({ jobId: "job-stale-invalid-poll" }));
     });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
@@ -703,8 +716,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
+    const pushStatus = await waitForLatestStatusSubscription();
     act(() => {
-      latestStatusSubscription?.(succeededResult());
+      pushStatus(succeededResult({ jobId: "job-stale-transport-poll" }));
     });
     await act(async () => {
       rejectPoll?.(new Error("transport down"));
@@ -742,8 +756,9 @@ describe("App", () => {
       );
     });
 
+    const pushStatus = await waitForLatestStatusSubscription();
     act(() => {
-      latestStatusSubscription?.(jobStatusResponse({
+      pushStatus(jobStatusResponse({
         jobId: "job-push-1",
         state: "running",
         progressLabel: "Separating stems... (45%)",
@@ -755,8 +770,9 @@ describe("App", () => {
       expect(screen.getByText(/separating stems/i)).toBeTruthy();
     });
 
+    const completeStatus = await waitForLatestStatusSubscription();
     act(() => {
-      latestStatusSubscription?.(succeededResult());
+      completeStatus(succeededResult({ jobId: "job-push-1" }));
     });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
