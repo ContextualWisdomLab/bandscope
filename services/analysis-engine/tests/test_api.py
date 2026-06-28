@@ -91,8 +91,16 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
         ({"sourceKind": "file", "sourceLabel": "Late Night Set", "roleFocus": []}, "sourceKind"),
         ({"sourceKind": "demo", "roleFocus": []}, "sourceLabel"),
         ({"sourceKind": "demo", "sourceLabel": "   ", "roleFocus": []}, "sourceLabel"),
+        (
+            {"sourceKind": "demo", "sourceLabel": "test'; echo 'malicious'", "roleFocus": []},
+            "sourceLabel",
+        ),
         ({"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": {}}, "roleFocus"),
         ({"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [7]}, "roleFocus[0]"),
+        (
+            {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": ["test;ls"]},
+            "roleFocus[0]",
+        ),
         (
             {"sourceKind": "local_audio", "sourceLabel": "Late Night Set", "roleFocus": []},
             "projectId",

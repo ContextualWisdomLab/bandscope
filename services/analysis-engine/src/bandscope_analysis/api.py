@@ -249,10 +249,15 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         raise ValueError("Invalid analysis job request: invalid field 'sourceKind'")
     if not isinstance(source_label, str) or not source_label.strip():
         raise ValueError("Invalid analysis job request: invalid field 'sourceLabel'")
+    # Sanitize sourceLabel against potential injection attempts (e.g. quote escapes)
+    if any(char in source_label for char in ["'", '"', "\\", ";", "|", "`", "$", "<", ">", "&"]):
+        raise ValueError("Invalid analysis job request: invalid field 'sourceLabel'")
     if not isinstance(role_focus, list):
         raise ValueError("Invalid analysis job request: invalid field 'roleFocus'")
     for index, role in enumerate(role_focus):
         if not isinstance(role, str):
+            raise ValueError(f"Invalid analysis job request: invalid field 'roleFocus[{index}]'")
+        if any(char in role for char in ["'", '"', "\\", ";", "|", "`", "$", "<", ">", "&"]):
             raise ValueError(f"Invalid analysis job request: invalid field 'roleFocus[{index}]'")
 
     local_source = payload.get("localSource")
