@@ -1,27 +1,38 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-
+import { describe, expect, it, vi } from "vitest";
 import { LoadingState } from "./WorkspaceStates";
 
-describe("LoadingState", () => {
-  it("renders as a busy status region", () => {
-    render(<LoadingState />);
+vi.mock("../../i18n", () => ({
+  createTranslator: () => (key: string) =>
+    ({
+      workspaceAnalyzingAudioTitle: "Analyzing Audio",
+      workspaceLoadingState: "Please wait..."
+    })[key] ?? key,
+  detectPreferredLocale: () => "en"
+}));
 
-    const card = screen.getByRole("status");
-    expect(card).toHaveAttribute("aria-live", "polite");
-    expect(card).toHaveAttribute("aria-atomic", "true");
-    expect(card).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("heading", { name: "Analyzing Audio" })).toBeInTheDocument();
-    expect(
-      screen.getByText("Analyzing the song's form and instrument roles..."),
-    ).toBeInTheDocument();
-  });
+describe("WorkspaceStates", () => {
+  describe("LoadingState", () => {
+    it("renders with correct ARIA attributes", () => {
+      render(<LoadingState />);
+      const card = screen.getByRole("status");
+      expect(card).toBeTruthy();
+      expect(card.getAttribute("aria-live")).toBe("polite");
+      expect(card.getAttribute("aria-atomic")).toBe("true");
+      expect(card.getAttribute("aria-busy")).toBe("true");
+    });
 
-  it("hides the scoped spinner from assistive tech", () => {
-    render(<LoadingState />);
+    it("displays the correct loading text", () => {
+      render(<LoadingState />);
+      expect(screen.getByRole("heading", { name: "Analyzing Audio" })).toBeTruthy();
+      expect(screen.getByText("Please wait...")).toBeTruthy();
+    });
 
-    const card = screen.getByRole("status");
-    const spinner = card.querySelector(".animate-spin");
-    expect(spinner).toHaveAttribute("aria-hidden", "true");
+    it("includes the loading spinner icon hidden from screen readers", () => {
+      render(<LoadingState />);
+      const loaderIcon = document.querySelector(".animate-spin");
+      expect(loaderIcon).toBeTruthy();
+      expect(loaderIcon?.getAttribute("aria-hidden")).toBe("true");
+    });
   });
 });
