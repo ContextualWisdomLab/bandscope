@@ -4960,7 +4960,7 @@ def test_opencode_approval_write_failure_updates_overview_only() -> None:
 
     assert_local_review_workflows_removed()
     assert "approval publication failures" in policy
-    assert "not" in policy
+    assert "automation evidence, not" in policy
     assert "source-backed repository findings" in policy
 
 
