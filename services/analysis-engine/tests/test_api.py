@@ -2,6 +2,7 @@
 
 import queue
 import time
+from typing import Protocol
 from unittest.mock import patch
 
 import numpy as np
@@ -926,9 +927,33 @@ def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) ->
         assert archive["stem_bass"].shape == (4,)
 
 
-def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
-    """Ensure parent-side process helper maps worker result envelopes."""
+class _WorkerResultQueue(Protocol):
+    def get(self, timeout: float) -> tuple[str, object]: ...
 
+    def close(self) -> None: ...
+
+    def join_thread(self) -> None: ...
+
+
+class _WorkerProcess(Protocol):
+    def start(self) -> None: ...
+
+    def join(self, timeout: float | None = None) -> None: ...
+
+    def is_alive(self) -> bool: ...
+
+
+class _WorkerProcessFactory(Protocol):
+    def __call__(self, *_args: object, **_kwargs: object) -> _WorkerProcess: ...
+
+
+class _WorkerContext(Protocol):
+    Process: _WorkerProcessFactory
+
+    def Queue(self, maxsize: int) -> _WorkerResultQueue: ...
+
+
+def _make_fake_multiprocessing_context(item: tuple[str, object]) -> _WorkerContext:
     class FakeQueue:
         def __init__(self, item: tuple[str, object]) -> None:
             self.item = item
@@ -957,20 +982,31 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
             return False
 
     class FakeContext:
+        Process: _WorkerProcessFactory
+
         def __init__(self, item: tuple[str, object]) -> None:
             self.item = item
             self.Process = FakeProcess
 
-        def Queue(self, maxsize: int) -> FakeQueue:
+        def Queue(self, maxsize: int) -> _WorkerResultQueue:
             assert maxsize == 1
             return FakeQueue(self.item)
 
+    context: _WorkerContext = FakeContext(item)
+    return context
+
+
+def test_stem_separation_process_helper_maps_ok_envelope() -> None:
+    """Ensure parent-side process helper maps ok worker result envelopes."""
     with patch(
         "bandscope_analysis.api._multiprocessing_context",
-        return_value=FakeContext(("ok", {"stems": {}})),
+        return_value=_make_fake_multiprocessing_context(("ok", {"stems": {}})),
     ):
         assert _run_stem_separation_with_timeout("/tmp/audio.wav") == {"stems": {}}
 
+
+def test_stem_separation_process_helper_maps_ok_file_envelope(tmp_path) -> None:
+    """Ensure parent-side process helper maps ok_file worker result envelopes."""
     arrays_path = tmp_path / "worker-stems.npz"
     np.savez_compressed(arrays_path, stem_bass=np.ones(4))
     file_payload = {
@@ -982,7 +1018,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     }
     with patch(
         "bandscope_analysis.api._multiprocessing_context",
-        return_value=FakeContext(("ok_file", file_payload)),
+        return_value=_make_fake_multiprocessing_context(("ok_file", file_payload)),
     ):
         loaded = _run_stem_separation_with_timeout("/tmp/audio.wav")
     assert loaded["sr"] == 22050
@@ -990,6 +1026,9 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     assert loaded["stem_role_types"] == {"bass": "instrument"}
     assert not arrays_path.with_suffix(".json").exists()
 
+
+def test_stem_separation_process_helper_rejects_invalid_file_payloads(tmp_path) -> None:
+    """Ensure parent-side process helper rejects invalid ok_file payloads."""
     invalid_file_payloads = [
         ("not-a-dict", "Stem separation returned invalid metadata."),
         (
@@ -1016,7 +1055,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     for payload, expected_message in invalid_file_payloads:
         with patch(
             "bandscope_analysis.api._multiprocessing_context",
-            return_value=FakeContext(("ok_file", payload)),
+            return_value=_make_fake_multiprocessing_context(("ok_file", payload)),
         ):
             try:
                 _run_stem_separation_with_timeout("/tmp/audio.wav")
@@ -1025,6 +1064,9 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
             else:
                 raise AssertionError("Expected RuntimeError")
 
+
+def test_stem_separation_process_helper_maps_error_envelopes() -> None:
+    """Ensure parent-side process helper maps error envelopes to exceptions."""
     error_cases = [
         (("file_not_found", "missing"), FileNotFoundError),
         (("value_error", "bad media"), ValueError),
@@ -1033,7 +1075,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     for item, expected_error in error_cases:
         with patch(
             "bandscope_analysis.api._multiprocessing_context",
-            return_value=FakeContext(item),
+            return_value=_make_fake_multiprocessing_context(item),
         ):
             try:
                 _run_stem_separation_with_timeout("/tmp/audio.wav")
