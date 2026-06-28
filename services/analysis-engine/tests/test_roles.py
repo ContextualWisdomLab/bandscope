@@ -87,6 +87,8 @@ def test_role_extractor_basic() -> None:
 
 
 def test_most_common_chord_prefers_first_chord_on_ties() -> None:
+    """Ensure equal chord counts keep the first chord encountered."""
+
     assert _most_common_chord(["C", "C", "G"]) == "C"
     assert _most_common_chord(["C", "G", "G", "C", "G"]) == "G"
     assert _most_common_chord(["A", "B", "A", "B"]) == "A"
@@ -95,6 +97,8 @@ def test_most_common_chord_prefers_first_chord_on_ties() -> None:
 
 
 def test_extract_without_audio_features_sets_extraction_notes() -> None:
+    """Ensure extraction without audio features still reports notes."""
+
     result = RoleExtractor().extract([{"id": "intro"}])
 
     assert result["extraction_notes"] == "Extracted roles and computed handoffs."
