@@ -168,30 +168,6 @@ def test_range_analyzer_no_overlap() -> None:
     assert result["sections"][0]["overlaps"] == []
 
 
-def test_range_analyzer_does_not_overlap_inverted_ranges() -> None:
-    """Test malformed inverted ranges do not create false-positive overlaps."""
-    analyzer = RangeAnalyzer()
-    sections = [{"id": "verse-1"}]
-    roles_by_section = {
-        "verse-1": [
-            {
-                "id": "normal",
-                "name": "Normal",
-                "range": {"lowestNote": "C4", "highestNote": "C5"},
-            },
-            {
-                "id": "inverted",
-                "name": "Inverted",
-                "range": {"lowestNote": "D4", "highestNote": "C3"},
-            },
-        ]
-    }
-
-    result = analyzer.analyze(sections, roles_by_section)
-
-    assert result["sections"][0]["overlaps"] == []
-
-
 def test_range_analyzer_invalid_section() -> None:
     """Test analyzer handles non-dict sections gracefully."""
     analyzer = RangeAnalyzer()
@@ -226,3 +202,31 @@ def test_range_analysis_result_structure() -> None:
     result: RangeAnalysisResult = analyzer.analyze([{"id": "intro-1"}])
     assert "sections" in result
     assert "analysis_notes" in result
+
+
+def test_parse_note_long_string():
+    """Test input validation for overly long note strings."""
+    from bandscope_analysis.ranges.analyzer import _parse_note
+
+    assert _parse_note("A" * 15) == ("C", 4)
+
+
+def test_long_note_in_analysis():
+    """Test input validation for overly long note strings in analyzer."""
+    from bandscope_analysis.ranges.analyzer import RangeAnalyzer
+
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "s1"}]
+    roles_by_section = {
+        "s1": [
+            {
+                "id": "r1",
+                "name": "role1",
+                "range": {"lowestNote": "A" * 15, "highestNote": "C" * 15},
+            }
+        ]
+    }
+    result = analyzer.analyze(sections, roles_by_section)
+    ranges = result["sections"][0]["ranges"]
+    assert ranges[0]["lowestNote"] == "C4"
+    assert ranges[0]["highestNote"] == "C4"

@@ -1,0 +1,4 @@
+🛡️ Sentinel: [HIGH] Fix ReDoS Vulnerability in Note Parsing
+
+- regex를 비-탐욕적(non-greedy)이고 제한적인 형태로 최적화하여 ReDoS 방지
+- 과도한 길이의 입력값을 무시하도록 엄격한 길이 검증 추가
