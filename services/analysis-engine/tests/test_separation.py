@@ -215,6 +215,24 @@ def test_audio_stem_separator_rejects_path_traversal_audio() -> None:
         separator.separate("../passwd")
 
 
+def test_audio_stem_separator_allows_double_dot_audio_filename(tmp_path) -> None:
+    """Ensure non-traversal filenames containing two dots remain valid."""
+    sample_rate = 8_000
+    audio_path = tmp_path / "safe..take.wav"
+    sf.write(audio_path, np.zeros(sample_rate // 10, dtype=np.float32), sample_rate)
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(
+            target_sample_rate=sample_rate,
+            max_duration_seconds=1.0,
+            max_file_bytes=1_000_000,
+        )
+    )
+
+    result = separator.separate(audio_path)
+
+    assert result["sample_rate"] == sample_rate
+
+
 def test_audio_stem_separator_rejects_missing_audio_file(tmp_path) -> None:
     """Ensure missing local files fail before decode without leaking a full path."""
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
@@ -407,6 +425,26 @@ def test_audio_stem_separator_rejects_path_traversal_profile() -> None:
                 model_profile_sha256="fake",
             )
         )
+
+
+def test_audio_stem_separator_allows_double_dot_profile_filename(tmp_path) -> None:
+    """Ensure non-traversal profile filenames containing two dots remain valid."""
+    profile_path = tmp_path / "profile..local.json"
+    profile_path.write_text(
+        '{"bassCutoffHz": 100.0, "vocalLowHz": 120.0, "vocalHighHz": 350.0, "drumLowHz": 350.0}',
+        encoding="utf-8",
+    )
+    checksum = hashlib.sha256(profile_path.read_bytes()).hexdigest()
+
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(
+            target_sample_rate=8_000,
+            model_profile_path=str(profile_path),
+            model_profile_sha256=checksum,
+        )
+    )
+
+    assert separator._bass_cutoff_hz == pytest.approx(100.0)
 
 
 def test_audio_stem_separator_rejects_missing_local_model_profile(tmp_path) -> None:
