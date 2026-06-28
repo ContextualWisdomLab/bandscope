@@ -34,40 +34,46 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
     if (newChord !== null && newChord.trim() !== "" && newChord !== role.harmony.chord) {
       // Performance: Avoid deep cloning the entire RehearsalSong state (structuredClone)
       // which can be massive with many transcriptions. Use targeted shallow copy instead.
-      const updatedSong = {
-        ...song,
-        sections: song.sections.map((section) => {
-          if (section.id !== sectionId) return section;
-
-          return {
-            ...section,
-            roles: section.roles.map((r) => {
-              if (r.id !== role.id) return r;
-
-              const newHarmony = {
-                ...r.harmony,
-                chord: newChord.trim(),
-                source: "user" as const
-              };
+      const targetSection = song.sections.find(s => s.id === sectionId);
+      if (targetSection) {
+        const targetRoleMatch = targetSection.roles.find(r => r.id === role.id);
+        if (targetRoleMatch) {
+          const updatedSong = {
+            ...song,
+            sections: song.sections.map((section) => {
+              if (section.id !== sectionId) return section;
 
               return {
-                ...r,
-                harmony: newHarmony,
-                manualOverrides: [
-                  ...r.manualOverrides.filter(o => o.field !== "harmony"),
-                  {
-                    field: "harmony" as const,
-                    value: newHarmony,
+                ...section,
+                roles: section.roles.map((r) => {
+                  if (r.id !== role.id) return r;
+
+                  const newHarmony = {
+                    ...r.harmony,
+                    chord: newChord.trim(),
                     source: "user" as const
-                  }
-                ]
+                  };
+
+                  return {
+                    ...r,
+                    harmony: newHarmony,
+                    manualOverrides: [
+                      ...r.manualOverrides.filter(o => o.field !== "harmony"),
+                      {
+                        field: "harmony" as const,
+                        value: newHarmony,
+                        source: "user" as const
+                      }
+                    ]
+                  };
+                })
               };
             })
           };
-        })
-      };
 
-      onSongUpdate(updatedSong);
+          onSongUpdate(updatedSong);
+        }
+      }
     }
   };
 
