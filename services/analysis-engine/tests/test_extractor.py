@@ -93,6 +93,34 @@ def test_normalize_label() -> None:
     assert _normalize_label(123) == "123"
 
 
+def test_extract_sections_normalizes_labels_and_sequence_indexes() -> None:
+    """Verify extraction normalizes labels and indexes repeated form labels."""
+    arrangement = [
+        {"label": "Verse"},
+        {"label": "  CHORUS 2  "},
+        {"label": "Verse 2"},
+        {"label": "PRE-CHORUS"},
+        {"label": "Chorus"},
+    ]
+
+    result = extract_sections(arrangement)
+
+    assert [section["form_label"] for section in result["sections"]] == [
+        "verse",
+        "chorus",
+        "verse",
+        "pre-chorus",
+        "chorus",
+    ]
+    assert [section["id"] for section in result["sections"]] == [
+        "verse-1",
+        "chorus-1",
+        "verse-2",
+        "pre-chorus-1",
+        "chorus-2",
+    ]
+
+
 def test_extract_sections_empty() -> None:
     """Verify behavior with an empty arrangement."""
     result = extract_sections([])
