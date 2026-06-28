@@ -458,3 +458,49 @@ def test_audio_stem_separator_rejects_non_finite_band_profile(tmp_path) -> None:
                 model_profile_sha256=checksum,
             )
         )
+
+
+def test_audio_stem_separator_separate_chunks_and_trims_mocked_stems(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure separate() chunks uneven audio and trims combined stems to input length."""
+    sample_rate = 8_000
+    chunk_size = 4_000
+    audio_size = (chunk_size * 2) + 2_001
+    mock_audio = np.linspace(-1.0, 1.0, audio_size, dtype=np.float32)
+    chunk_lengths: list[int] = []
+
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(
+            target_sample_rate=sample_rate,
+            chunk_duration_seconds=chunk_size / sample_rate,
+        )
+    )
+
+    monkeypatch.setattr(separator, "_resolve_audio_file", lambda _: tmp_path / "dummy.wav")
+    monkeypatch.setattr(separator, "_load_audio", lambda _: (mock_audio, sample_rate))
+
+    def mock_separate_chunk(chunk: np.ndarray, sr: int) -> dict[str, np.ndarray]:
+        assert sr == sample_rate
+        chunk_lengths.append(chunk.size)
+        chunk_index = float(len(chunk_lengths))
+        return {
+            "vocals": np.full(chunk_size, chunk_index, dtype=np.float32),
+            "bass": np.full(chunk_size, chunk_index + 10.0, dtype=np.float32),
+            "drums": np.full(chunk_size, chunk_index + 20.0, dtype=np.float32),
+            "other": np.full(chunk_size, chunk_index + 30.0, dtype=np.float32),
+        }
+
+    monkeypatch.setattr(separator, "_separate_chunk", mock_separate_chunk)
+
+    result = separator.separate(tmp_path / "dummy.wav")
+
+    assert chunk_lengths == [chunk_size, chunk_size, 2_001]
+    assert result["sample_rate"] == sample_rate
+    assert result["duration_seconds"] == pytest.approx(audio_size / sample_rate)
+    assert result["chunk_count"] == 3
+    for stem_audio in result["stems"].values():
+        assert stem_audio.shape == (audio_size,)
+    assert result["stems"]["vocals"][-1] == pytest.approx(3.0)
+    assert result["stems"]["bass"][-1] == pytest.approx(13.0)
