@@ -318,3 +318,66 @@ def test_chord_recognizer_compute_confidence_downgrade_path() -> None:
             # Since first frame was high but subsequent were low,
             # the segment confidence should be low (conservative)
             assert non_n[0]["confidence"] == "low"
+
+
+def test_chord_recognizer_recognize_orchestrates_harmonic_flow() -> None:
+    """Test recognize() passes each helper's output to the next helper."""
+    recognizer = ChordRecognizer()
+    y = np.array([1.0, 2.0, 3.0])
+    y_harmonic = np.array([3.0, 2.0, 1.0])
+    sr = SAMPLE_RATE
+    chromagram = np.ones((12, 10))
+    rms = np.linspace(0.1, 1.0, 10)
+    similarity = np.ones((24, 10))
+    expected_chords = [{"start_time": 0.0, "end_time": 1.0, "chord": "C", "confidence": "high"}]
+
+    with (
+        patch.object(recognizer, "_separate_harmonic", return_value=y_harmonic) as separate,
+        patch.object(recognizer, "_extract_chromagram", return_value=chromagram) as extract,
+        patch.object(recognizer, "_calculate_rms", return_value=rms) as calculate_rms,
+        patch.object(
+            recognizer,
+            "_match_templates",
+            return_value=(similarity, np.zeros(10, dtype=int)),
+        ) as match_templates,
+        patch.object(
+            recognizer, "_create_chord_segments", return_value=expected_chords
+        ) as create_segments,
+    ):
+        result = recognizer.recognize(y, sr=sr)
+
+    assert result == expected_chords
+
+    separate.assert_called_once()
+    assert separate.call_args.args[0] is y
+
+    extract.assert_called_once()
+    assert extract.call_args.args[0] is y_harmonic
+    assert extract.call_args.args[1] == sr
+
+    calculate_rms.assert_called_once()
+    assert calculate_rms.call_args.args[0] is y
+    assert calculate_rms.call_args.args[1] == chromagram.shape[1]
+
+    match_templates.assert_called_once()
+    assert match_templates.call_args.args[0] is chromagram
+
+    create_segments.assert_called_once()
+    assert create_segments.call_args.args[0] is chromagram
+    assert create_segments.call_args.args[1] is similarity
+    assert create_segments.call_args.args[2] is rms
+    assert create_segments.call_args.args[3] == sr
+
+
+def test_chord_recognizer_create_segments_empty_chromagram() -> None:
+    """Test empty frame inputs produce no chord segments."""
+    recognizer = ChordRecognizer()
+
+    result = recognizer._create_chord_segments(
+        chromagram=np.zeros((12, 0)),
+        similarity=np.zeros((24, 0)),
+        rms=np.zeros(0),
+        sr=SAMPLE_RATE,
+    )
+
+    assert result == []
