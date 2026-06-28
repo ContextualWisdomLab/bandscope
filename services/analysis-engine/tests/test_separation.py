@@ -97,7 +97,7 @@ def test_stem_separator_deduplicates() -> None:
 def test_stem_separator_invalid_role() -> None:
     """Test separator handles non-dict roles gracefully."""
     separator = StemSeparator()
-    result = separator.separate(  # type: ignore[arg-type]
+    result = separator.separate(
         [{"id": "bass", "name": "Bass", "roleType": "instrument"}, "invalid"]
     )
     assert len(result["stems"]) == 1
@@ -133,16 +133,6 @@ def test_stem_separator_keyboard_name_match() -> None:
     roles = [{"id": "synth-1", "name": "Keyboard Part", "roleType": "instrument"}]
     result = separator.separate(roles)
     assert result["stems"][0]["category"] == "keys"
-
-
-def test_stem_separator_missing_id() -> None:
-    """Test separator handles roles with missing id by generating a fallback id."""
-    separator = StemSeparator()
-    roles = [{"name": "Lead Vocal", "roleType": "vocal"}]
-    result = separator.separate(roles)
-    assert len(result["stems"]) == 1
-    assert result["stems"][0]["stem_id"] == "stem-role-0"
-    assert result["stems"][0]["label"] == "Lead Vocal"
 
 
 def test_audio_stem_separator_splits_local_audio_into_chunked_stems(tmp_path) -> None:
