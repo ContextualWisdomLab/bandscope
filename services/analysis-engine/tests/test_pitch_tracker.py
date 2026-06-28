@@ -207,3 +207,32 @@ def test_pitch_tracker_confidence_returns_low() -> None:
 
     result = tracker._compute_confidence(voiced_probs, voiced_flag, y)
     assert result == "low"
+
+
+def test_pitch_tracker_nan_f0_returns_low() -> None:
+    """Test that NaN-only voiced pitch values fail closed."""
+    tracker = PitchTracker()
+    y = np.random.randn(22050)
+
+    with patch(
+        "librosa.pyin",
+        return_value=(np.array([np.nan, np.nan]), np.array([True, True]), np.array([1.0, 1.0])),
+    ):
+        result = tracker.track(y, sr=22050)
+
+    assert result["lowest_note"] is None
+    assert result["highest_note"] is None
+    assert result["confidence"] == "low"
+
+
+def test_pitch_tracker_low_average_voicing_probability_returns_low() -> None:
+    """Test that very low average voicing probability suppresses note output."""
+    tracker = PitchTracker()
+    y = np.random.randn(22050)
+
+    with patch("librosa.pyin", return_value=(np.array([440.0]), np.array([True]), np.array([0.1]))):
+        result = tracker.track(y, sr=22050)
+
+    assert result["lowest_note"] is None
+    assert result["highest_note"] is None
+    assert result["confidence"] == "low"
