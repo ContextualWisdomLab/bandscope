@@ -88,6 +88,7 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
     from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
 
     def fake_load(*args, **kwargs):
+        """Return a non-array payload to trigger the ndarray validation path."""
         return "not-an-array", 22050
 
     monkeypatch.setattr(librosa, "load", fake_load)
@@ -109,6 +110,7 @@ def test_temporal_analyzer_exception_handling(
     from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
 
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
+        """Raise a mocked general exception to exercise the exception-handling path."""
         raise Exception("Mocked general error")
 
     monkeypatch.setattr(librosa, "load", fake_load)
@@ -132,6 +134,7 @@ def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(analyzer_module, "MAX_AUDIO_FILE_BYTES", 1)
 
     def fake_load(*args, **kwargs):
+        """Raise AssertionError so the test can detect an accidental librosa.load call."""
         raise AssertionError("librosa.load should not be called for oversized files")
 
     monkeypatch.setattr(librosa, "load", fake_load)
@@ -150,12 +153,14 @@ def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> N
     captured_kwargs: dict[str, object] = {}
 
     def fake_load(path, **kwargs):
+        """Capture keyword arguments passed to librosa.load and return a dummy audio array."""
         captured_kwargs.update(kwargs)
         return np.zeros(44100, dtype=float), 44100
 
     monkeypatch.setattr(librosa, "load", fake_load)
 
     def fake_beat_track(y, sr):
+        """Return a constant BPM and a single beat frame to satisfy beat tracking."""
         return np.array([120.0]), np.array([0])
 
     monkeypatch.setattr(librosa.beat, "beat_track", fake_beat_track)
@@ -180,6 +185,7 @@ def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
     test_wav.write_bytes(b"dummy")
 
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
+        """Emit an unrelated FutureWarning before returning a dummy audio array."""
         warnings.warn("unrelated downstream warning", FutureWarning, stacklevel=2)
         return np.zeros(1024, dtype=float), 44100
 

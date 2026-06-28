@@ -867,6 +867,7 @@ def ossf_scorecard_publish_restriction_violations(
     in_jobs = False
 
     def evaluate_job(job_lines: list[str], start_line: int) -> None:
+        """Evaluate a single workflow job block for scorecard publish compliance."""
         if not job_lines:
             return
         job_content = "\n".join(job_lines)
@@ -930,6 +931,7 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
         return []
 
     def upload_step_sarif_file(step_lines: list[str], step_indent: int) -> str | None:
+        """Extract the sarif_file value from a codeql-action/upload-sarif step block."""
         with_indent: int | None = None
         for step_line in step_lines:
             raw_stripped = step_line.strip().partition("#")[0].strip()
@@ -949,6 +951,7 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
         return None
 
     def normalizer_output_file(command: str) -> str | None:
+        """Parse a shell command and return the output file argument if it invokes the normalizer."""
         try:
             tokens = shlex.split(command)
         except ValueError:
@@ -968,6 +971,7 @@ def scorecard_sarif_upload_normalization_violations(content: str) -> list[str]:
         return positional_args[1]
 
     def workflow_job_step_blocks(line_index: int) -> list[tuple[int, int, list[str]]]:
+        """Return all step blocks that belong to the same job as the step at line_index."""
         job_content = workflow_job_content_for_step(lines, line_index)
         return [
             block
@@ -1048,6 +1052,7 @@ def scorecard_artifact_download_decompression_violations(content: str) -> list[s
     step_blocks = workflow_step_blocks(lines)
 
     def invokes_scorecard_extractor(command: str) -> bool:
+        """Return True if command invokes the OSSF artifact extractor for scorecard artifacts."""
         try:
             tokens = shlex.split(command)
         except ValueError:
@@ -1137,6 +1142,7 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
     step_blocks = workflow_step_blocks(lines)
 
     def invokes_release_extractor(command: str) -> bool:
+        """Return True if command invokes the release artifact extractor script."""
         try:
             tokens = shlex.split(command)
         except ValueError:
@@ -1153,6 +1159,7 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
         )
 
     def is_blocking_required_step(block_lines: list[str], block_indent: int) -> bool:
+        """Return True if the step block is a required blocking step."""
         return step_is_required_blocking(block_lines, block_indent)
 
     violations: list[str] = []
@@ -1217,6 +1224,7 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
 
 
 def _verify_ci_coverage(missing: list[str]) -> None:
+    """Verify that the CI workflow file contains required trigger and check tokens."""
     ci = read_workflow(Path(".github/workflows/ci.yml"), "ci", missing)
     for token in ["develop", "main", "pull_request", "push", "ci / build-and-test"]:
         if ci and token not in ci:
@@ -1224,6 +1232,7 @@ def _verify_ci_coverage(missing: list[str]) -> None:
 
 
 def _verify_sbom_coverage(missing: list[str]) -> None:
+    """Verify that the SBOM workflow file contains required trigger tokens."""
     sbom = read_workflow(Path(".github/workflows/sbom.yml"), "sbom", missing)
     for token in ["develop", "main", "pull_request", "release:", "tags:"]:
         if sbom and token not in sbom:
@@ -1231,6 +1240,7 @@ def _verify_sbom_coverage(missing: list[str]) -> None:
 
 
 def _verify_dependency_review_coverage(missing: list[str]) -> None:
+    """Verify that the dependency-review workflow file contains required trigger tokens."""
     review = read_workflow(
         Path(".github/workflows/dependency-review.yml"), "dependency review", missing
     )
@@ -1240,6 +1250,7 @@ def _verify_dependency_review_coverage(missing: list[str]) -> None:
 
 
 def _verify_security_audit_coverage(missing: list[str]) -> None:
+    """Verify that the security-audit workflow runs required vulnerability audit commands."""
     audit = read_workflow(
         Path(".github/workflows/security-audit.yml"), "security audit", missing
     )
@@ -1269,6 +1280,7 @@ def _verify_security_audit_coverage(missing: list[str]) -> None:
 
 
 def _verify_codeql_coverage(missing: list[str]) -> None:
+    """Verify that the CodeQL workflow file contains required trigger and analysis tokens."""
     codeql = read_workflow(Path(".github/workflows/codeql.yml"), "codeql", missing)
     for token in ["develop", "main", "pull_request", "push", "codeql"]:
         if codeql and token not in codeql:
@@ -1276,6 +1288,7 @@ def _verify_codeql_coverage(missing: list[str]) -> None:
 
 
 def _verify_release_coverage(missing: list[str]) -> None:
+    """Verify that the release workflow file contains required trigger and job tokens."""
     release = read_workflow(Path(".github/workflows/release.yml"), "release", missing)
     for token in [
         "develop",
@@ -1290,6 +1303,7 @@ def _verify_release_coverage(missing: list[str]) -> None:
 
 
 def _verify_secret_scan_coverage(missing: list[str]) -> None:
+    """Verify that the secret-scan-gate workflow contains required trigger and check tokens."""
     secret_scan = read_workflow(
         Path(".github/workflows/secret-scan-gate.yml"), "secret scan", missing
     )
@@ -1299,6 +1313,7 @@ def _verify_secret_scan_coverage(missing: list[str]) -> None:
 
 
 def _verify_build_coverage(missing: list[str]) -> None:
+    """Verify that the build-baseline workflow covers required platforms, triggers, and artifacts."""
     build = read_workflow(
         Path(".github/workflows/build-baseline.yml"), "build baseline", missing
     )
@@ -1339,6 +1354,7 @@ def _verify_build_coverage(missing: list[str]) -> None:
 
 
 def _verify_scorecard_coverage(missing: list[str], workflow_paths: list[Path]) -> None:
+    """Verify that the OSSF Scorecard workflow contains required tokens and extractor steps."""
     scorecard = read_workflow(
         Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
     )
@@ -1479,6 +1495,7 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
             uses_workspace_exec: bool,
             workflow_path: Path,
         ) -> None:
+            """Record a workspace-exec violation for the current workflow step."""
             effective_working_directory = (
                 current_step_working_directory
                 if current_step_working_directory is not None
@@ -2032,6 +2049,7 @@ def cargo_lock_packages(lockfile: Path) -> list[dict[str, object]]:
     dependency_tokens: list[str] = []
 
     def store_current_package() -> None:
+        """Flush the current package dict into the packages list when a new package block begins."""
         if current_package is not None:
             if in_dependencies:
                 current_package["dependencies"] = dependency_tokens.copy()

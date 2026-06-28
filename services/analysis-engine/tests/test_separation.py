@@ -263,6 +263,7 @@ def test_audio_stem_separator_redacts_decoder_exceptions(
     audio_path.write_bytes(b"placeholder")
 
     def fail_decode(*args, **kwargs):
+        """Raise a RuntimeError containing the temp path to simulate a decoder failure."""
         raise RuntimeError(f"decoder failed under {tmp_path}")
 
     monkeypatch.setattr(

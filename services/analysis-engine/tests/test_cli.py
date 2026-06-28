@@ -344,7 +344,10 @@ def test_cli_main_temporal_analyzer_mock(monkeypatch: pytest.MonkeyPatch) -> Non
     stdout = io.StringIO()
 
     class FakeAnalyzer:
+        """Stub analyzer that always raises RuntimeError to test failure handling."""
+
         def analyze(self, path):
+            """Raise a mocked failure regardless of the given path."""
             raise RuntimeError("mocked failure")
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzer)
@@ -386,7 +389,10 @@ def test_cli_main_temporal_analyzer_mock_success(
     stdout = io.StringIO()
 
     class FakeAnalyzerSuccess:
+        """Stub analyzer that returns a minimal successful temporal result."""
+
         def analyze(self, path):
+            """Return a minimal BPM and empty beat list to simulate a successful analysis."""
             return {"bpm": 120.0, "beats": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
@@ -438,7 +444,10 @@ def test_cli_main_progress_jsonl_streams_status_updates(
     stdout = io.StringIO()
 
     class FakeAnalyzerSuccess:
+        """Stub analyzer returning a minimal successful result for the progress-JSONL test."""
+
         def analyze(self, path):
+            """Return a minimal BPM and empty beat list to simulate a successful analysis."""
             return {"bpm": 120.0, "beats": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)

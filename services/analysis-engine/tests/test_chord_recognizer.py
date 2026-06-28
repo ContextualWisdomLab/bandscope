@@ -87,6 +87,7 @@ def test_chord_recognizer_rms_padding() -> None:
 
     # Mock RMS to return something shorter than chromagram
     def mock_rms(*args, **kwargs):
+        """Return a shorter RMS array than the chromagram to exercise the length-mismatch path."""
         return np.array([[0.1, 0.1]])
 
     with patch("librosa.feature.rms", side_effect=mock_rms):
@@ -112,6 +113,7 @@ def test_chord_recognizer_rms_longer() -> None:
 
     # Mock RMS to return something longer than chromagram
     def mock_rms(*args, **kwargs):
+        """Return an RMS array longer than the chromagram to exercise the length-mismatch path."""
         # Return a very long array
         return np.array([np.ones(1000)])
 
@@ -301,6 +303,7 @@ def test_chord_recognizer_compute_confidence_downgrade_path() -> None:
     original_compute = recognizer._compute_confidence
 
     def mock_confidence(similarity, best_state):
+        """Return alternating high/low confidence values to exercise the downgrade path."""
         try:
             return next(confidence_values)
         except StopIteration:

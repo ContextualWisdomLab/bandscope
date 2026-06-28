@@ -10,6 +10,7 @@ from conftest import load_module
 
 
 def _write_release_metadata(repo_root: Path) -> None:
+    """Write minimal SBOM and supplemental inventory files required for release validation."""
     (repo_root / "bandscope-sbom.cdx.json").write_text("{}", encoding="utf-8")
     inventory = repo_root / "supply-chain" / "supplemental-component-inventory.json"
     inventory.parent.mkdir(parents=True)
@@ -17,6 +18,7 @@ def _write_release_metadata(repo_root: Path) -> None:
 
 
 def _write_installer(repo_root: Path, platform: str, arch: str, sha: str, suffix: str) -> str:
+    """Write a stub installer archive and its matching checksum and manifest sidecar files."""
     artifacts = repo_root / "artifacts"
     artifacts.mkdir(parents=True, exist_ok=True)
     archive_name = f"bandscope-{platform}-{arch}-{sha}{suffix}"

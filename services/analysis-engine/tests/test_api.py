@@ -719,16 +719,22 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     class BadArchive:
+        """Context manager stub returning an invalid value for a valid-looking key."""
+
         def __enter__(self):
+            """Return self as the archive context."""
             return self
 
         def __exit__(self, *_args: object) -> None:
+            """No-op exit for the context manager."""
             return None
 
         def __contains__(self, _key: str) -> bool:
+            """Report that any requested key is present in the archive."""
             return True
 
         def __getitem__(self, _key: str) -> object:
+            """Return a non-array payload to trigger the type validation failure path."""
             return "not-an-array"
 
     metadata_path.write_text(
@@ -841,10 +847,14 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
     """Ensure child worker errors are converted to serializable parent messages."""
 
     class FakeQueue:
+        """Minimal queue stub that records put calls for assertion in the worker test."""
+
         def __init__(self) -> None:
+            """Initialise the items list."""
             self.items: list[tuple[str, object]] = []
 
         def put(self, item: tuple[str, object]) -> None:
+            """Append the item to the captured items list."""
             self.items.append(item)
 
     cases = [
@@ -890,10 +900,14 @@ def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) ->
     arrays_path = tmp_path / "stems.npz"
 
     class FakeQueue:
+        """Minimal queue stub that records put calls for the file-envelope worker test."""
+
         def __init__(self) -> None:
+            """Initialise the items list."""
             self.items: list[tuple[str, object]] = []
 
         def put(self, item: tuple[str, object]) -> None:
+            """Append the item to the captured items list."""
             self.items.append(item)
 
     fake_queue = FakeQueue()
@@ -930,38 +944,54 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     """Ensure parent-side process helper maps worker result envelopes."""
 
     class FakeQueue:
+        """Single-item queue stub for the process-helper worker-result mapping test."""
+
         def __init__(self, item: tuple[str, object]) -> None:
+            """Store the pre-loaded result item."""
             self.item = item
 
         def get(self, timeout: float) -> tuple[str, object]:
+            """Return the stored item, asserting a positive timeout was requested."""
             assert timeout > 0
             return self.item
 
         def close(self) -> None:
+            """No-op close for the queue stub."""
             return None
 
         def join_thread(self) -> None:
+            """No-op join_thread for the queue stub."""
             return None
 
     class FakeProcess:
+        """Stub process that records start calls and reports itself as not alive."""
+
         def __init__(self, *_args: object, **_kwargs: object) -> None:
+            """Initialise the started flag to False."""
             self.started = False
 
         def start(self) -> None:
+            """Record that the process was started."""
             self.started = True
 
         def join(self, timeout: float | None = None) -> None:
+            """No-op join for the process stub."""
             return None
 
         def is_alive(self) -> bool:
+            """Report that the process has already exited."""
             return False
 
     class FakeContext:
+        """Multiprocessing context stub that injects FakeProcess and FakeQueue."""
+
         def __init__(self, item: tuple[str, object]) -> None:
+            """Initialise the context with the item to be returned by the queue."""
             self.item = item
             self.Process = FakeProcess
 
         def Queue(self, maxsize: int) -> FakeQueue:
+            """Return a FakeQueue pre-loaded with the stored item."""
             assert maxsize == 1
             return FakeQueue(self.item)
 
@@ -1097,32 +1127,46 @@ def test_stem_separation_process_helper_handles_empty_worker_exit() -> None:
     """Ensure a worker that exits without a result degrades safely."""
 
     class EmptyQueue:
+        """Queue stub that always raises queue.Empty to simulate a worker with no result."""
+
         def get(self, timeout: float) -> tuple[str, object]:
+            """Raise queue.Empty unconditionally to simulate a silent worker exit."""
             raise queue.Empty
 
         def close(self) -> None:
+            """No-op close for the empty queue stub."""
             return None
 
         def join_thread(self) -> None:
+            """No-op join_thread for the empty queue stub."""
             return None
 
     class EmptyProcess:
+        """Process stub that starts and exits without writing to the queue."""
+
         def __init__(self, *_args: object, **_kwargs: object) -> None:
+            """Accept and discard any arguments to satisfy the Process constructor signature."""
             return None
 
         def start(self) -> None:
+            """No-op start for the empty process stub."""
             return None
 
         def is_alive(self) -> bool:
+            """Report that the process has already exited."""
             return False
 
         def join(self, timeout: float | None = None) -> None:
+            """No-op join for the empty process stub."""
             return None
 
     class EmptyContext:
+        """Multiprocessing context stub that injects EmptyProcess and EmptyQueue."""
+
         Process = EmptyProcess
 
         def Queue(self, maxsize: int) -> EmptyQueue:
+            """Return an EmptyQueue that always raises queue.Empty on get."""
             assert maxsize == 1
             return EmptyQueue()
 
@@ -1139,20 +1183,27 @@ def test_stop_process_kills_stubborn_worker() -> None:
     """Ensure stubborn timed-out workers are killed after terminate."""
 
     class StubbornProcess:
+        """Process stub that stays alive after terminate to exercise the kill fallback path."""
+
         def __init__(self) -> None:
+            """Initialise the terminated and killed flags to False."""
             self.terminated = False
             self.killed = False
 
         def is_alive(self) -> bool:
+            """Report alive until kill() has been called."""
             return not self.killed
 
         def terminate(self) -> None:
+            """Record that terminate was called."""
             self.terminated = True
 
         def kill(self) -> None:
+            """Record that kill was called and mark the process as dead."""
             self.killed = True
 
         def join(self, timeout: float | None = None) -> None:
+            """No-op join for the stubborn process stub."""
             return None
 
     process = StubbornProcess()
@@ -1197,6 +1248,7 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
     """Ensure timed-out ML stem inference continues with fallback cues instead of hard failure."""
 
     def _slow_separate(_source_path: str) -> dict[str, object]:
+        """Simulate a slow stem separation that exceeds the configured timeout."""
         time.sleep(0.4)
         return {
             "stems": {
