@@ -19,7 +19,7 @@
     "check:supply-chain": "python3 scripts/checks/verify_supply_chain.py",
     "check:github-bootstrap": "python3 scripts/checks/verify_github_bootstrap_policy.py",
     "check:python-docstrings": "sh -c 'cd services/analysis-engine && uv run ruff check src tests ../../scripts --select D100,D101,D102,D103,D104,D105,D106,D107'",
-    "docs:coverage": "uv run --project services/analysis-engine interrogate --fail-under=100 --exclude node_modules . && npm run lint:workspaces",
+    "docs:coverage": "uv run --project services/analysis-engine interrogate --fail-under=100 services/analysis-engine/src services/analysis-engine/tests scripts && npm run lint:workspaces",
     "ruff:check": "sh -c 'cd services/analysis-engine && uv run ruff check src tests'",
     "ruff:format:check": "sh -c 'cd services/analysis-engine && uv run ruff format --check src tests'",
     "bandit:check": "sh -c 'cd services/analysis-engine && uv run bandit -c pyproject.toml -r src'",
