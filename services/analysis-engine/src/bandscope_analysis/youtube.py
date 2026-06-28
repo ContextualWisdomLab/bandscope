@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 import yt_dlp  # type: ignore
 
 YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
+MAX_YOUTUBE_URL_LENGTH = 2000
 SUPPORTED_AUDIO_EXTENSIONS = (".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg")
 YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
     "Failed to download audio from YouTube. Please use a local audio file instead."
@@ -33,6 +34,10 @@ def validate_url(url: str) -> bool:
     Returns:
         True if the URL is valid, False otherwise.
     """
+    # Pragmatic upper bound to avoid spending parser/downloader work on oversized user input.
+    if len(url) > MAX_YOUTUBE_URL_LENGTH:
+        return False
+
     try:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != "https":
