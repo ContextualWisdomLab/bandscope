@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2025-02-16 - Replacing structuredClone with shallow spread in React State
+**Learning:** Using `structuredClone()` to update deeply nested state objects (like `RehearsalSong`) performs a highly costly deep copy of the entire tree, wasting CPU and creating significant garbage collection pressure during simple user interactions like edits.
+**Action:** Replace `structuredClone()` with targeted shallow copying using the spread operator (`...`) combined with `.map()` to surgically update nested array items while maintaining structural sharing and avoiding full deep copy allocations.
