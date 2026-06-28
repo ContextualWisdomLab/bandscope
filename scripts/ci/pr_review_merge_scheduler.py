@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -85,6 +86,8 @@ query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
 OPEN_PRS_PAGE_SIZE = 25
 DEFAULT_STALE_OPENCODE_MINUTES = 45
 RUNNING_CHECK_STATES = {"PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS", "WAITING", "REQUESTED"}
+GIT_REF_RE = re.compile(r"^(?!-)[A-Za-z0-9._/-]+$")
+GIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 REST_MERGEABLE_STATE_MAP = {
     "behind": "BEHIND",
     "blocked": "BLOCKED",
@@ -241,6 +244,28 @@ def validate_gh_host(env: Mapping[str, str] | None = None) -> None:
         raise SystemExit(
             f"unsupported GH_HOST {host!r}; this scheduler may only call github.com"
         )
+
+
+def validate_git_ref(ref: str) -> str:
+    """Return a conservative Git ref name for gh workflow dispatch fields."""
+    if (
+        not isinstance(ref, str)
+        or not ref
+        or not GIT_REF_RE.fullmatch(ref)
+        or ref.startswith("/")
+        or ref.endswith(("/", "."))
+        or ".." in ref
+        or "//" in ref
+    ):
+        raise ValueError(f"invalid git ref: {ref!r}")
+    return ref
+
+
+def validate_git_sha(sha: str) -> str:
+    """Return a 40-character hex SHA for head-guarded GitHub operations."""
+    if not isinstance(sha, str) or not GIT_SHA_RE.fullmatch(sha):
+        raise ValueError(f"invalid git sha: {sha!r}")
+    return sha
 
 
 def split_repo(repo: str) -> tuple[str, str]:
@@ -498,7 +523,7 @@ def failed_status_checks(pr: dict[str, Any]) -> list[str]:
 def enable_auto_merge(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     """Enable merge-commit auto-merge for a PR at its current head."""
     number = str(pr["number"])
-    head = pr["headRefOid"]
+    head = validate_git_sha(pr["headRefOid"])
     if dry_run:
         return
     run(["gh", "pr", "merge", number, "--repo", repo, "--auto", "--merge", "--match-head-commit", head])
@@ -527,7 +552,7 @@ def disable_auto_merge_decision(
 def update_branch(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     """Ask GitHub to update a PR branch, guarded by the observed head SHA."""
     number = str(pr["number"])
-    head = pr["headRefOid"]
+    head = validate_git_sha(pr["headRefOid"])
     if dry_run:
         return
     run(
@@ -545,6 +570,10 @@ def update_branch(repo: str, pr: dict[str, Any], *, dry_run: bool) -> None:
 
 def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     """Dispatch the OpenCode Review workflow for the PR head."""
+    base_ref = validate_git_ref(pr["baseRefName"])
+    head_ref = validate_git_ref(pr["headRefName"])
+    base_sha = validate_git_sha(pr["baseRefOid"])
+    head_sha = validate_git_sha(pr["headRefOid"])
     if dry_run:
         return
     run(
@@ -556,23 +585,26 @@ def dispatch_opencode_review(repo: str, workflow: str, pr: dict[str, Any], *, dr
             "--repo",
             repo,
             "--ref",
-            pr["baseRefName"],
+            base_ref,
             "-f",
             f"pr_number={pr['number']}",
             "-f",
-            f"pr_base_ref={pr['baseRefName']}",
+            f"pr_base_ref={base_ref}",
             "-f",
-            f"pr_base_sha={pr['baseRefOid']}",
+            f"pr_base_sha={base_sha}",
             "-f",
-            f"pr_head_ref={pr['headRefName']}",
+            f"pr_head_ref={head_ref}",
             "-f",
-            f"pr_head_sha={pr['headRefOid']}",
+            f"pr_head_sha={head_sha}",
         ]
     )
 
 
 def dispatch_strix_evidence(repo: str, workflow: str, pr: dict[str, Any], *, dry_run: bool) -> None:
     """Dispatch same-head Strix workflow evidence before OpenCode reviews."""
+    base_ref = validate_git_ref(pr["baseRefName"])
+    base_sha = validate_git_sha(pr["baseRefOid"])
+    head_sha = validate_git_sha(pr["headRefOid"])
     if dry_run:
         return
     run(
@@ -584,13 +616,13 @@ def dispatch_strix_evidence(repo: str, workflow: str, pr: dict[str, Any], *, dry
             "--repo",
             repo,
             "--ref",
-            pr["baseRefName"],
+            base_ref,
             "-f",
             f"pr_number={pr['number']}",
             "-f",
-            f"pr_base_sha={pr['baseRefOid']}",
+            f"pr_base_sha={base_sha}",
             "-f",
-            f"pr_head_sha={pr['headRefOid']}",
+            f"pr_head_sha={head_sha}",
         ]
     )
 
@@ -973,11 +1005,14 @@ def summarize_action_error(exc: RuntimeError) -> str:
 
 def self_test() -> None:
     """Exercise scheduler invariants without GitHub network access."""
+    head_sha = "a" * 40
+    base_sha = "b" * 40
+    old_sha = "c" * 40
     sample = {
         "number": 1,
-        "headRefOid": "abc",
+        "headRefOid": head_sha,
         "baseRefName": "main",
-        "baseRefOid": "base",
+        "baseRefOid": base_sha,
         "headRefName": "feature",
         "mergeStateStatus": "CLEAN",
         "restMergeableState": "CLEAN",
@@ -989,7 +1024,7 @@ def self_test() -> None:
             "nodes": [
                 {
                     "commit": {
-                        "oid": "abc",
+                        "oid": head_sha,
                         "authoredDate": "2026-06-25T16:38:22Z",
                         "committedDate": "2026-06-25T16:38:22Z",
                     }
@@ -1004,7 +1039,7 @@ def self_test() -> None:
                     "author": {"login": "opencode-agent"},
                     "body": "OpenCode Agent approved this head.",
                     "submittedAt": "2026-06-25T15:42:19Z",
-                    "commit": {"oid": "abc"},
+                    "commit": {"oid": head_sha},
                 }
             ]
         },
@@ -1123,7 +1158,7 @@ def self_test() -> None:
             "author": {"login": "not-opencode-agent"},
             "body": "OpenCode Agent approved this head.",
             "submittedAt": "2026-01-01T00:01:00Z",
-            "commit": {"oid": "abc"},
+            "commit": {"oid": head_sha},
         }
     )
     assert has_current_head_approval(sample)
@@ -1134,7 +1169,7 @@ def self_test() -> None:
             "state": "CHANGES_REQUESTED",
             "author": {"login": "opencode-agent"},
             "submittedAt": "2026-01-01T00:01:00Z",
-            "commit": {"oid": "old"},
+            "commit": {"oid": old_sha},
         }
     )
     assert not has_current_head_changes_requested(sample)
@@ -1143,7 +1178,7 @@ def self_test() -> None:
             "state": "CHANGES_REQUESTED",
             "author": {"login": "opencode-agent"},
             "submittedAt": "2026-01-01T00:01:00Z",
-            "commit": {"oid": "abc"},
+            "commit": {"oid": head_sha},
         }
     ]
     sample["autoMergeRequest"] = {"enabledAt": "2026-01-01T00:02:00Z"}
@@ -1167,7 +1202,7 @@ def self_test() -> None:
             "state": "APPROVED",
             "author": {"login": "opencode-agent"},
             "submittedAt": "2026-01-01T00:01:00Z",
-            "commit": {"oid": "abc"},
+            "commit": {"oid": head_sha},
         }
     ]
     sample["reviewThreads"]["nodes"] = [{"isResolved": False}]
@@ -1228,7 +1263,7 @@ def self_test() -> None:
             "state": "APPROVED",
             "author": {"login": "opencode-agent"},
             "submittedAt": "2026-01-01T00:01:00Z",
-            "commit": {"oid": "old"},
+            "commit": {"oid": old_sha},
         }
     ]
     decision = inspect_pr(
@@ -1264,7 +1299,7 @@ def self_test() -> None:
         base_branch="main",
     )
     assert decision.action == "review_dispatch"
-    sample["reviews"]["nodes"][0]["commit"]["oid"] = "abc"
+    sample["reviews"]["nodes"][0]["commit"]["oid"] = head_sha
     decision = inspect_pr(
         "owner/repo",
         sample,
@@ -1411,6 +1446,22 @@ def self_test() -> None:
         pass
     else:
         raise AssertionError("invalid GH_HOST should be rejected")
+    assert validate_git_ref("feature/safe.branch-1") == "feature/safe.branch-1"
+    for bad_ref in ("", "-bad", "feature/../main", "feature//main", "feature/main.", "feat;echo pwned"):
+        try:
+            validate_git_ref(bad_ref)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid git ref should be rejected: {bad_ref!r}")
+    assert validate_git_sha("a" * 40) == "a" * 40
+    for bad_sha in ("", "a" * 39, "g" * 40, "a" * 40 + ";echo pwned"):
+        try:
+            validate_git_sha(bad_sha)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid git sha should be rejected: {bad_sha!r}")
     print("self-test passed")
 
 
