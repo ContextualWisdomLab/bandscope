@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AudioWaveform,
   CircleHelp,
@@ -191,6 +191,7 @@ export function App() {
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const activeJobIdRef = useRef<string | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
@@ -201,6 +202,10 @@ export function App() {
         roleFocus: defaultRequest.roleFocus
       }
     : defaultRequest;
+
+  useEffect(() => {
+    activeJobIdRef.current = jobStatus?.jobId ?? null;
+  }, [jobStatus?.jobId]);
 
   /** Documented. */
   const applyJobStatus = useCallback((nextStatus: AnalysisJobStatus) => {
@@ -278,20 +283,19 @@ export function App() {
         applyJobStatus(nextStatus);
       } catch (error) {
         if (error instanceof Error && error.message === "Invalid analysis job status response") {
+          if (activeJobIdRef.current !== jobStatus.jobId) {
+            return;
+          }
           const fallbackMessage = t("analysisCouldNotStart");
           setJobError(fallbackMessage);
-          setJobStatus((currentStatus) =>
-            currentStatus?.jobId === jobStatus.jobId
-              ? {
-                  ...currentStatus,
-                  state: "failed",
-                  error: {
-                    code: "engine_unavailable",
-                    message: fallbackMessage
-                  }
-                }
-              : currentStatus
-          );
+          setJobStatus({
+            ...jobStatus,
+            state: "failed",
+            error: {
+              code: "engine_unavailable",
+              message: fallbackMessage
+            }
+          });
           return;
         }
 
