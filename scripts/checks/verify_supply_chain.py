@@ -1686,6 +1686,8 @@ def verify_release_asset_allowlist_policy() -> list[str]:
 
 @dataclass
 class GlibLegacyContext:
+    """Dependency ownership context for allowed legacy glib advisory exceptions."""
+
     package_dependencies: dict[str, list[str]]
     glib_exception_owned_packages: set[str]
     legacy_glib_ancestors: set[str]
