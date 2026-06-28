@@ -101,6 +101,26 @@ def test_range_analyzer_no_roles() -> None:
     assert result["sections"][0]["overlaps"] == []
 
 
+def test_range_analyzer_missing_roles_for_section_id() -> None:
+    """Test analyzer returns empty results for sections missing from role data."""
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "verse-1"}, {"id": "chorus-1"}]
+    roles_by_section = {
+        "verse-1": [
+            {
+                "id": "bass",
+                "name": "Bass",
+                "range": {"lowestNote": "C2", "highestNote": "E3"},
+            }
+        ]
+    }
+    result = analyzer.analyze(sections, roles_by_section)
+    assert result["sections"][0]["ranges"][0]["role_id"] == "bass"
+    assert result["sections"][1]["section_id"] == "chorus-1"
+    assert result["sections"][1]["ranges"] == []
+    assert result["sections"][1]["overlaps"] == []
+
+
 def test_range_analyzer_with_roles() -> None:
     """Test analyzer extracts ranges from role data."""
     analyzer = RangeAnalyzer()
@@ -202,3 +222,117 @@ def test_range_analysis_result_structure() -> None:
     result: RangeAnalysisResult = analyzer.analyze([{"id": "intro-1"}])
     assert "sections" in result
     assert "analysis_notes" in result
+
+
+def test_range_analyzer_mixed_roles_and_missing_range() -> None:
+    """Test analyzer handles overlapping, disjoint, and range-less roles together."""
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "verse-1"}, {"id": "chorus-1"}]
+    roles_by_section = {
+        "verse-1": [
+            {
+                "id": "bass",
+                "name": "Bass",
+                "range": {"lowestNote": "C2", "highestNote": "C3"},
+            },
+            {
+                "id": "guitar",
+                "name": "Guitar",
+                "range": {"lowestNote": "E2", "highestNote": "E4"},
+            },
+            {
+                "id": "keys",
+                "name": "Keys",
+                "range": {"lowestNote": "G3", "highestNote": "C5"},
+            },
+            {
+                "id": "vocal",
+                "name": "Vocal",
+                "range": {"lowestNote": "A4", "highestNote": "A5"},
+            },
+        ],
+        "chorus-1": [
+            {"id": "drums", "name": "Drums"},
+            {
+                "id": "bass",
+                "name": "Bass",
+                "range": {"lowestNote": "C2", "highestNote": "E3"},
+            },
+            {
+                "id": "synth",
+                "name": "Synth",
+                "range": {"lowestNote": "D2", "highestNote": "D3"},
+            },
+        ],
+    }
+
+    result = analyzer.analyze(sections, roles_by_section)
+
+    verse_overlaps = result["sections"][0]["overlaps"]
+    assert {frozenset((overlap["role_a"], overlap["role_b"])) for overlap in verse_overlaps} == {
+        frozenset(("bass", "guitar")),
+        frozenset(("guitar", "keys")),
+        frozenset(("keys", "vocal")),
+    }
+
+    chorus_summary = result["sections"][1]
+    assert [role_range["role_id"] for role_range in chorus_summary["ranges"]] == [
+        "bass",
+        "synth",
+    ]
+    assert {
+        frozenset((overlap["role_a"], overlap["role_b"])) for overlap in chorus_summary["overlaps"]
+    } == {frozenset(("bass", "synth"))}
+
+
+def test_range_analyzer_sorted_non_overlapping_ranges_stop_cleanly() -> None:
+    """Test sorted single-note ranges do not produce overlap warnings."""
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "test"}]
+    roles_by_section = {
+        "test": [
+            {
+                "id": "role1",
+                "name": "R1",
+                "range": {"lowestNote": "D4", "highestNote": "D4"},
+            },
+            {
+                "id": "role2",
+                "name": "R2",
+                "range": {"lowestNote": "E4", "highestNote": "E4"},
+            },
+            {
+                "id": "role3",
+                "name": "R3",
+                "range": {"lowestNote": "C5", "highestNote": "C5"},
+            },
+        ]
+    }
+
+    result = analyzer.analyze(sections, roles_by_section)
+
+    assert result["sections"][0]["overlaps"] == []
+
+
+def test_range_analyzer_inverted_range_does_not_overlap() -> None:
+    """Test analyzer does not report inverted ranges as overlapping."""
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "test"}]
+    roles_by_section = {
+        "test": [
+            {
+                "id": "r1",
+                "name": "R1",
+                "range": {"lowestNote": "C4", "highestNote": "E4"},
+            },
+            {
+                "id": "r2",
+                "name": "R2",
+                "range": {"lowestNote": "D4", "highestNote": "Bb3"},
+            },
+        ]
+    }
+
+    result = analyzer.analyze(sections, roles_by_section)
+
+    assert result["sections"][0]["overlaps"] == []
