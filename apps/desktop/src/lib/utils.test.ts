@@ -8,7 +8,11 @@ describe("cn", () => {
   })
 
   it("handles conditional classes", () => {
-    expect(cn("foo", true && "bar", false && "baz")).toBe("foo bar")
+    const activeClasses = new Set(["bar"])
+
+    expect(cn("foo", activeClasses.has("bar") && "bar", activeClasses.has("baz") && "baz")).toBe(
+      "foo bar",
+    )
   })
 
   it("merges arrays of class names", () => {
