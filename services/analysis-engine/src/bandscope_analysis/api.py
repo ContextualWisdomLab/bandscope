@@ -220,6 +220,27 @@ def get_analysis_status() -> HealthReport:
     return build_health_report()
 
 
+def _has_parent_directory_reference(path: str) -> bool:
+    """Return whether a path string contains an actual parent-directory hop."""
+    normalized = path.replace("\\", "/")
+    has_drive_relative_parent = (
+        len(normalized) >= 4
+        and normalized[1] == ":"
+        and normalized[2:4] == ".."
+        and (len(normalized) == 4 or normalized[4] == "/")
+    )
+    return has_drive_relative_parent or any(part == ".." for part in normalized.split("/"))
+
+
+def _validate_workspace_root(field_name: str, value: object) -> str:
+    """Validate cache/temp root fields without leaking traversal-capable paths."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Invalid analysis job request: invalid field '{field_name}'")
+    if _has_parent_directory_reference(value):
+        raise ValueError(f"Invalid analysis job request: path traversal detected in '{field_name}'")
+    return value
+
+
 def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     """Validate and normalize an engine job request payload."""
     if not isinstance(payload, dict):
@@ -305,13 +326,9 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         },
     }
     if cache_root is not None:
-        if not isinstance(cache_root, str) or not cache_root.strip():
-            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
-        normalized["cacheRoot"] = cache_root
+        normalized["cacheRoot"] = _validate_workspace_root("cacheRoot", cache_root)
     if temp_root is not None:
-        if not isinstance(temp_root, str) or not temp_root.strip():
-            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
-        normalized["tempRoot"] = temp_root
+        normalized["tempRoot"] = _validate_workspace_root("tempRoot", temp_root)
 
     return normalized
 

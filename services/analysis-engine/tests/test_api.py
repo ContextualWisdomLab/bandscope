@@ -83,6 +83,29 @@ def test_validate_analysis_job_request_accepts_local_audio_payload() -> None:
     }
 
 
+def test_validate_analysis_job_request_allows_double_dot_root_names() -> None:
+    """Ensure root names containing two dots are not treated as traversal."""
+    assert (
+        validate_analysis_job_request(
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "late-night-set.wav",
+                "roleFocus": ["bass-guitar"],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "cacheRoot": "/tmp/bandscope/cache/safe..dir",
+                "tempRoot": "C:/bandscope/temp/safe..dir",
+            }
+        )["cacheRoot"]
+        == "/tmp/bandscope/cache/safe..dir"
+    )
+
+
 def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
     """Ensure the request validator reports every expected safe-failure path."""
     cases = [
@@ -260,6 +283,70 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
                 "tempRoot": [],
             },
             "tempRoot",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "cacheRoot": "/tmp/../app/foo",
+            },
+            "path traversal detected in 'cacheRoot'",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "cacheRoot": "C:../app/foo",
+            },
+            "path traversal detected in 'cacheRoot'",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "tempRoot": "/tmp/../app/foo",
+            },
+            "path traversal detected in 'tempRoot'",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "tempRoot": "C:..\\app\\foo",
+            },
+            "path traversal detected in 'tempRoot'",
         ),
     ]
 
