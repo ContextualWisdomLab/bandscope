@@ -1130,12 +1130,31 @@ jobs:
 
           create_pull_review() {
             local event="$1" body="$2"
+            local err_file
+            err_file="$(mktemp)"
             jq -n \
               --arg event "$event" \
               --arg body "$body" \
               --arg commit_id "$HEAD_SHA" \
               '{event: $event, body: $body, commit_id: $commit_id}' |
-              gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null
+              gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null 2>"$err_file" || {
+              if grep -q "HTTP 401" "$err_file"; then
+                if [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
+                  export GH_TOKEN="$OPENCODE_APPROVE_TOKEN"
+                elif [ -n "${GITHUB_TOKEN:-}" ]; then
+                  export GH_TOKEN="$GITHUB_TOKEN"
+                fi
+                jq -n \
+                  --arg event "$event" \
+                  --arg body "$body" \
+                  --arg commit_id "$HEAD_SHA" \
+                  '{event: $event, body: $body, commit_id: $commit_id}' |
+                  gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null || true
+              else
+                cat "$err_file" >&2
+              fi
+            }
+            rm -f "$err_file"
             update_review_overview "$event" "$body"
           }
 
@@ -1153,6 +1172,23 @@ jobs:
               update_review_overview "APPROVE" "$body"
               rm -f "$error_file"
               return 0
+            fi
+            if grep -q "HTTP 401" "$error_file"; then
+              if [ -n "${OPENCODE_APPROVE_TOKEN:-}" ]; then
+                export GH_TOKEN="$OPENCODE_APPROVE_TOKEN"
+              elif [ -n "${GITHUB_TOKEN:-}" ]; then
+                export GH_TOKEN="$GITHUB_TOKEN"
+              fi
+              if jq -n \
+                --arg event "APPROVE" \
+                --arg body "$body" \
+                --arg commit_id "$HEAD_SHA" \
+                '{event: $event, body: $body, commit_id: $commit_id}' |
+                gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null 2>/dev/null; then
+                update_review_overview "APPROVE" "$body"
+                rm -f "$error_file"
+                return 0
+              fi
             fi
 
             unavailable_body="$(printf '%s\n' \
