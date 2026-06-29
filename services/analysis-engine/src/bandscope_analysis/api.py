@@ -840,8 +840,8 @@ def _stem_separation_worker(
         result_queue.put(("value_error", str(error)))
     except RuntimeError as error:
         result_queue.put(("runtime_error", str(error)))
-    except Exception as error:
-        result_queue.put(("runtime_error", str(error)))
+    except Exception:
+        result_queue.put(("runtime_error", "An internal error occurred during stem separation."))
 
 
 def _multiprocessing_context() -> mp.context.BaseContext:
