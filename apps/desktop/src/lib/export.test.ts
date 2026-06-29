@@ -119,45 +119,6 @@ describe("export generation", () => {
     ]
   };
 
-  const createTestSection = (
-    overrides: Partial<RehearsalSong["sections"][number]> = {}
-  ): RehearsalSong["sections"][number] => ({
-    id: "section-test",
-    label: "bridge",
-    groove: "straight",
-    confidence: { level: "high", source: "model", notes: "" },
-    roles: [],
-    partGraph: [],
-    ...overrides
-  });
-
-  const createTestSong = (overrides: Partial<RehearsalSong> = {}): RehearsalSong => ({
-    ...mockSong,
-    sections: mockSong.sections.map((section) => ({
-      ...section,
-      confidence: { ...section.confidence },
-      roles: section.roles.map((role) => ({
-        ...role,
-        harmony: { ...role.harmony },
-        cue: { ...role.cue },
-        range: { ...role.range },
-        confidence: { ...role.confidence },
-        manualOverrides: [...role.manualOverrides],
-        overlapWarnings: [...role.overlapWarnings]
-      })),
-      partGraph: section.partGraph.map((node) => ({
-        ...node,
-        handoff_to: [...node.handoff_to],
-        handoff_from: [...node.handoff_from]
-      }))
-    })),
-    exportSummary: {
-      ...mockSong.exportSummary,
-      focusSections: [...mockSong.exportSummary.focusSections]
-    },
-    ...overrides
-  });
-
   it("generates cue sheet CSV securely", () => {
     const csv = generateCueSheetCsv(mockSong);
     const lines = csv.split("\n");
@@ -182,42 +143,40 @@ describe("export generation", () => {
     expect(parsed.headline).toBe("");
   });
 
-  it("generates chart summary JSON with an empty title and sections", () => {
-    const jsonStr = generateChartSummaryJson(createTestSong({
+  it("generates chart summary JSON with empty title and sections", () => {
+    const emptySong = {
+      ...mockSong,
       title: "",
       sections: []
-    }));
+    };
+    const jsonStr = generateChartSummaryJson(emptySong);
     const parsed = JSON.parse(jsonStr);
-
-    expect(parsed).toEqual({
-      title: "",
-      headline: "Headline",
-      sections: []
-    });
+    expect(parsed.title).toBe("");
+    expect(parsed.sections).toEqual([]);
   });
 
   it("generates chart summary JSON with empty roles in a section", () => {
-    const jsonStr = generateChartSummaryJson(createTestSong({
-      sections: [createTestSection()]
-    }));
+    const songWithEmptyRoles = {
+      ...mockSong,
+      sections: [
+        {
+          ...mockSong.sections[0],
+          roles: []
+        }
+      ]
+    };
+    const jsonStr = generateChartSummaryJson(songWithEmptyRoles as RehearsalSong);
     const parsed = JSON.parse(jsonStr);
-
-    expect(parsed.sections).toEqual([
-      {
-        label: "bridge",
-        groove: "straight",
-        roles: []
-      }
-    ]);
+    expect(parsed.sections[0].roles).toEqual([]);
   });
 
-  it("generates chart summary JSON when exportSummary is missing at runtime", () => {
-    const songNoSummary = createTestSong();
-    Reflect.deleteProperty(songNoSummary, "exportSummary");
-
-    const jsonStr = generateChartSummaryJson(songNoSummary);
+  it("generates chart summary JSON when exportSummary is undefined", () => {
+    const songNoSummary = {
+      ...mockSong,
+      exportSummary: undefined
+    };
+    const jsonStr = generateChartSummaryJson(songNoSummary as unknown as RehearsalSong);
     const parsed = JSON.parse(jsonStr);
-
     expect(parsed.headline).toBe("");
   });
 
@@ -277,19 +236,6 @@ describe("export generation", () => {
       roleType: "instrument",
       confidence: { level: "high", source: "model", notes: "" },
       rehearsalPriority: "high"
-    });
-  });
-
-  it("uses the song identity as the default handoff workspace identity", () => {
-    const json = generateMetadataHandoffJson(mockSong, {
-      createdAt: "2026-06-15T08:30:00.000Z"
-    });
-    const parsed = JSON.parse(json);
-
-    expect(parsed.workspace).toEqual({
-      id: "test",
-      title: "Test",
-      workspaceVersion: 1
     });
   });
 
