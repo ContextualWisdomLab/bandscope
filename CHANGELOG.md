@@ -53,3 +53,7 @@
 - Issue #36: Implemented rehearsal priority calculation and cue-sheet (CSV) / chart (JSON) exports
 - Issue #30: Added policy-constrained YouTube import with local fallback
 - Issue #26: Finalized roadmap and prepared application for initial release
+
+### Added
+
+- (추가) 합주 연습용 워크스페이스에 'Export Cue Sheet (CSV)'와 'Export Chart (JSON)' 기능 추가하여 연습 준비 데이터를 로컬로 저장할 수 있도록 지원.
