@@ -5,7 +5,6 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 """
 
 import argparse
-import glob
 import json
 import os
 import re
@@ -60,8 +59,9 @@ def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
     if not os.path.exists(actual_filepath):
         # Try to find the file with a different extension in case of conversion
         base_path = os.path.splitext(actual_filepath)[0]
-        for match in glob.iglob(glob.escape(base_path) + ".*"):
-            if match.endswith(SUPPORTED_AUDIO_EXTENSIONS):
+        for ext in SUPPORTED_AUDIO_EXTENSIONS:
+            match = base_path + ext
+            if os.path.exists(match):
                 return match
         return None
     return actual_filepath
