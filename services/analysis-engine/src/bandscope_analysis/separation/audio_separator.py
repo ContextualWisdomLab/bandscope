@@ -41,12 +41,6 @@ def _read_model_profile_bytes(profile_path: Path) -> bytes:
     return profile_bytes
 
 
-def _reject_parent_directory_reference(path: str | Path) -> None:
-    """Reject real parent-directory path components without blocking ordinary filenames."""
-    if ".." in Path(path).parts:
-        raise ValueError("Path traversal sequence detected")
-
-
 @dataclass(frozen=True)
 class AudioSeparationConfig:
     """Resource and band-split settings for local stem separation."""
@@ -138,7 +132,8 @@ class AudioStemSeparator:
 
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
-        _reject_parent_directory_reference(audio_path)
+        if ".." in str(audio_path):
+            raise ValueError("Path traversal sequence detected")
         candidate = Path(audio_path)
         try:
             path = candidate.resolve(strict=True)
@@ -222,7 +217,8 @@ class AudioStemSeparator:
         expected_sha256 = _BANDSPLIT_PROFILE_SHA256
 
         if self.config.model_profile_path:
-            _reject_parent_directory_reference(self.config.model_profile_path)
+            if ".." in str(self.config.model_profile_path):
+                raise ValueError("Path traversal sequence detected")
             profile_candidate = Path(self.config.model_profile_path)
             try:
                 profile_path = profile_candidate.resolve(strict=True)
