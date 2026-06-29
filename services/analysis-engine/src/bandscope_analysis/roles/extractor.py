@@ -173,8 +173,7 @@ class RoleExtractor:
 
         return vocal_range, vocal_chord, bass_range, bass_chord
 
-    @staticmethod
-    def _build_bass_role(bass_chord: str, bass_range: RangeSummary) -> RehearsalRole:
+    def _build_bass_role(self, bass_chord: str, bass_range: RangeSummary) -> RehearsalRole:
         """Build the rehearsal role for bass guitar."""
         return {
             "id": "bass-guitar",
@@ -205,8 +204,7 @@ class RoleExtractor:
             ],
         }
 
-    @staticmethod
-    def _build_keys_left_role() -> RehearsalRole:
+    def _build_keys_left_role(self) -> RehearsalRole:
         """Build the rehearsal role for left-hand keys."""
         return {
             "id": "keys-left",
@@ -235,8 +233,7 @@ class RoleExtractor:
             "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
         }
 
-    @staticmethod
-    def _build_keys_right_role() -> RehearsalRole:
+    def _build_keys_right_role(self) -> RehearsalRole:
         """Build the rehearsal role for right-hand keys."""
         return {
             "id": "keys-right",
@@ -265,8 +262,7 @@ class RoleExtractor:
             "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
         }
 
-    @staticmethod
-    def _build_vocal_role(vocal_chord: str, vocal_range: RangeSummary) -> RehearsalRole:
+    def _build_vocal_role(self, vocal_chord: str, vocal_range: RangeSummary) -> RehearsalRole:
         """Build the rehearsal role for lead vocal."""
         return {
             "id": "lead-vocal",
@@ -302,8 +298,7 @@ class RoleExtractor:
             "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
         }
 
-    @staticmethod
-    def _build_acoustic_guitar_role() -> RehearsalRole:
+    def _build_acoustic_guitar_role(self) -> RehearsalRole:
         """Build the rehearsal role for acoustic guitar."""
         return {
             "id": "acoustic-guitar",
@@ -339,18 +334,18 @@ class RoleExtractor:
         """Build the 5 rehearsal roles and compute their priorities."""
         bass_role = self._build_bass_role(bass_chord, bass_range)
         keys_left_role = self._build_keys_left_role()
-        keys_right_role = self._build_keys_right_role()
+        keys_role = self._build_keys_right_role()
         vocal_role = self._build_vocal_role(vocal_chord, vocal_range)
         acoustic_guitar_role = self._build_acoustic_guitar_role()
 
-        roles_list = [bass_role, keys_left_role, keys_right_role, vocal_role, acoustic_guitar_role]
+        roles_list = [bass_role, keys_left_role, keys_role, vocal_role, acoustic_guitar_role]
         for role in roles_list:
             role["rehearsalPriority"] = calculate_rehearsal_priority(role)
 
         return {
             "bass": bass_role,
             "keys_left": keys_left_role,
-            "keys_right": keys_right_role,
+            "keys_right": keys_role,
             "vocal": vocal_role,
             "acoustic_guitar": acoustic_guitar_role,
         }
