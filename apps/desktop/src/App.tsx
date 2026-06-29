@@ -138,15 +138,19 @@ function MetricCard({
 function ConfidenceMetric({ song }: { song: RehearsalSong | null }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
-  const lowestConfidence = song?.sections.reduce<RehearsalSong["sections"][number]["confidence"]["level"] | null>(
-    (current, section) => {
-      if (!current || confidenceOrder[section.confidence.level] < confidenceOrder[current]) {
-        return section.confidence.level;
+
+  // Performance: Avoid full array iteration by using a for...of loop with early exit (break) when the lowest possible confidence ('low') is found.
+  let lowestConfidence: RehearsalSong["sections"][number]["confidence"]["level"] | null = null;
+  if (song?.sections) {
+    for (const section of song.sections) {
+      const level = section.confidence.level;
+      if (!lowestConfidence || confidenceOrder[level] < confidenceOrder[lowestConfidence]) {
+        lowestConfidence = level;
+        if (lowestConfidence === "low") break;
       }
-      return current;
-    },
-    null
-  );
+    }
+  }
+
   const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : "Ready";
   const detail = sectionCount > 0 ? `${sectionCount} section${sectionCount === 1 ? "" : "s"}` : "Local analysis";
 
