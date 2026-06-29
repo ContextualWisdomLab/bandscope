@@ -378,6 +378,10 @@ fn app_owned_root<R: Runtime>(
     kind: &str,
     project_id: &str,
 ) -> Result<PathBuf, String> {
+    if project_id.contains("..") || project_id.contains('/') || project_id.contains('\\') {
+        return Err("Invalid project ID: path traversal detected.".to_string());
+    }
+
     let base_root = match kind {
         "projects" => app
             .path()
@@ -557,7 +561,11 @@ fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
             let Some(project_id) = project_id else {
                 return Err("Invalid analysis job request: invalid field 'projectId'".into());
             };
-            if project_id.trim().is_empty() {
+            if project_id.trim().is_empty()
+                || project_id.contains("..")
+                || project_id.contains('/')
+                || project_id.contains('\\')
+            {
                 return Err("Invalid analysis job request: invalid field 'projectId'".into());
             }
             if local_source.is_some() {
@@ -1309,6 +1317,42 @@ mod tests {
                 "focusSections": ["verse-1"]
             }
         })
+    }
+
+    #[test]
+    fn parse_request_payload_rejects_path_traversal() {
+        let payload = json!({
+            "sourceKind": "local_audio",
+            "projectId": "../malicious-project",
+            "sourceLabel": "My Song",
+            "roleFocus": ["lead-vocal"],
+        });
+
+        let result = parse_request_payload(payload);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Invalid analysis job request: invalid field 'projectId'"
+        );
+    }
+
+    #[test]
+    fn parse_request_payload_rejects_path_traversal_forward_slash() {
+        let payload = json!({
+            "sourceKind": "local_audio",
+            "projectId": "/malicious-project",
+            "sourceLabel": "My Song",
+            "roleFocus": ["lead-vocal"],
+        });
+
+        let result = parse_request_payload(payload);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Invalid analysis job request: invalid field 'projectId'"
+        );
     }
 
     #[test]
