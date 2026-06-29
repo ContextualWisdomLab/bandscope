@@ -6,12 +6,12 @@ import importlib
 import json
 import re
 import stat
-import subprocess
 import zipfile
 from pathlib import Path
 
 import pytest
 from conftest import load_module
+
 
 def central_required_workflow_policy_text() -> str:
     """Return the repository policy text that delegates review automation centrally."""
