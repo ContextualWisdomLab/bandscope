@@ -65,5 +65,10 @@
   "youtubePlaceholder": "YouTube URL...",
   "importYoutube": "Import YouTube",
   "importingYoutube": "Importing...",
-  "youtubeImportFailed": "Failed to import YouTube URL."
+  "youtubeImportFailed": "Failed to import YouTube URL.",
+  "actionDisabledAnalysis": "Disabled during analysis",
+  "actionDisabledImporting": "Disabled while importing",
+  "saveProjectDisabledNoResult": "Nothing to save yet",
+  "startAnalysisDisabledNoAudio": "Choose or import audio first",
+  "importYoutubeDisabledEmpty": "Enter a valid YouTube URL first"
 }

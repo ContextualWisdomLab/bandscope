@@ -15,3 +15,6 @@
 ## 2026-06-19 - Internationalization
 **Learning:** The desktop app uses i18n via json files located in `apps/desktop/src/locales/`
 **Action:** When adding new text strings, make sure to add it to all locale files.
+## 2026-06-22 - Disabled button tooltips accessibility
+**Learning:** Native `disabled` HTML attributes prevent elements from receiving keyboard focus and can block hover events in some browsers. Consequently, placing a `title` attribute directly on a disabled `<Button>` means the tooltip cannot be read by keyboard-only users and may be missed by mouse users.
+**Action:** When adding explanatory tooltips to disabled buttons, wrap the button in a focusable `span` (e.g., `<span tabIndex={0} title={...}>`) instead of attaching the `title` directly to the button, ensuring the tooltip is accessible via keyboard navigation.

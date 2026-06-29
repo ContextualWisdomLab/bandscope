@@ -547,16 +547,22 @@ export function App() {
               </div>
 
               <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center 2xl:grid-cols-[auto_1fr]">
-                <Button
-                  onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting}
-                  variant="secondary"
-                  className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
-                  aria-label="Choose local audio"
+                <span
+                  tabIndex={analysisInFlight || isStarting || isImporting ? 0 : undefined}
+                  title={analysisInFlight || isStarting ? t("actionDisabledAnalysis") : isImporting ? t("actionDisabledImporting") : undefined}
+                  className={analysisInFlight || isStarting || isImporting ? "inline-block cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 rounded-lg" : undefined}
                 >
-                  <Upload className="mr-2 size-4" aria-hidden="true" />
-                  {t("chooseLocalAudio")}
-                </Button>
+                  <Button
+                    onClick={handleChooseLocalAudio}
+                    disabled={analysisInFlight || isStarting || isImporting}
+                    variant="secondary"
+                    className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
+                    aria-label="Choose local audio"
+                  >
+                    <Upload className="mr-2 size-4" aria-hidden="true" />
+                    {t("chooseLocalAudio")}
+                  </Button>
+                </span>
 
                 <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
                   <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
@@ -569,54 +575,78 @@ export function App() {
                     className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                     aria-label="YouTube URL"
                   />
-                  <Button
-                    onClick={handleImportYoutube}
-                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
-                    variant="outline"
-                    className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
-                    aria-label="Import YouTube"
+                  <span
+                    tabIndex={!youtubeUrl || analysisInFlight || isStarting || isImporting ? 0 : undefined}
+                    title={!youtubeUrl ? t("importYoutubeDisabledEmpty") : analysisInFlight || isStarting ? t("actionDisabledAnalysis") : isImporting ? t("actionDisabledImporting") : undefined}
+                    className={!youtubeUrl || analysisInFlight || isStarting || isImporting ? "inline-block cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 rounded-lg" : undefined}
                   >
-                    {isImporting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
-                    {isImporting ? t("importingYoutube") : t("importYoutube")}
-                  </Button>
+                    <Button
+                      onClick={handleImportYoutube}
+                      disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                      variant="outline"
+                      className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                      aria-label="Import YouTube"
+                    >
+                      {isImporting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+                      {isImporting ? t("importingYoutube") : t("importYoutube")}
+                    </Button>
+                  </span>
                 </div>
               </div>
 
               <div className="flex flex-wrap justify-start gap-2 2xl:justify-end">
-                <Button
-                  onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting}
-                  variant="outline"
-                  className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
-                  aria-label="Open Project"
+                <span
+                  tabIndex={analysisInFlight || isStarting ? 0 : undefined}
+                  title={analysisInFlight || isStarting ? t("actionDisabledAnalysis") : undefined}
+                  className={analysisInFlight || isStarting ? "inline-block cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 rounded-lg" : undefined}
                 >
-                  <FolderOpen className="mr-2 size-4" aria-hidden="true" />
-                  Open Project
-                </Button>
-                <Button
-                  onClick={jobResult ? handleSaveProject : undefined}
-                  disabled={!jobResult}
-                  variant="outline"
-                  className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
-                  aria-label="Save Project"
+                  <Button
+                    onClick={handleLoadProject}
+                    disabled={analysisInFlight || isStarting}
+                    variant="outline"
+                    className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                    aria-label="Open Project"
+                  >
+                    <FolderOpen className="mr-2 size-4" aria-hidden="true" />
+                    Open Project
+                  </Button>
+                </span>
+                <span
+                  tabIndex={!jobResult ? 0 : undefined}
+                  title={!jobResult ? t("saveProjectDisabledNoResult") : undefined}
+                  className={!jobResult ? "inline-block cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 rounded-lg" : undefined}
                 >
-                  <Save className="mr-2 size-4" aria-hidden="true" />
-                  Save Project
-                </Button>
-                <Button
-                  onClick={handleStartAnalysis}
-                  disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
-                  size="lg"
-                  className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
-                  aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}
+                  <Button
+                    onClick={jobResult ? handleSaveProject : undefined}
+                    disabled={!jobResult}
+                    variant="outline"
+                    className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                    aria-label="Save Project"
+                  >
+                    <Save className="mr-2 size-4" aria-hidden="true" />
+                    Save Project
+                  </Button>
+                </span>
+                <span
+                  tabIndex={analysisInFlight || isStarting || !selectedBootstrap || isImporting ? 0 : undefined}
+                  title={analysisInFlight || isStarting ? t("actionDisabledAnalysis") : isImporting ? t("actionDisabledImporting") : !selectedBootstrap ? t("startAnalysisDisabledNoAudio") : undefined}
+                  className={analysisInFlight || isStarting || !selectedBootstrap || isImporting ? "inline-block cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 rounded-lg" : undefined}
                 >
-                  {isStarting ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Play className="mr-2 size-4 fill-current" aria-hidden="true" />
-                  )}
-                  {isStarting ? t("startingAnalysis") : t("startAnalysis")}
-                </Button>
+                  <Button
+                    onClick={handleStartAnalysis}
+                    disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                    size="lg"
+                    className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
+                    aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}
+                  >
+                    {isStarting ? (
+                      <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Play className="mr-2 size-4 fill-current" aria-hidden="true" />
+                    )}
+                    {isStarting ? t("startingAnalysis") : t("startAnalysis")}
+                  </Button>
+                </span>
               </div>
             </div>
 
