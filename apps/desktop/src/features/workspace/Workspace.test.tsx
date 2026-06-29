@@ -71,6 +71,32 @@ describe("Workspace", () => {
     expect(transcribeButton.title).toBe("Transcribe part");
   });
 
+  it("wraps disabled stem player buttons with an accessible tooltip container", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "Bass Guitar"
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    // Buttons should not have the title directly (or it would be inaccessible when disabled with pointer-events-none)
+    const playStemBtn = screen.getByRole("button", { name: /Play stem/i });
+    expect(playStemBtn.hasAttribute("title")).toBe(false);
+
+    // Instead, the accessible titles should be on wrappers
+    const wrappers = screen.getAllByTitle("Coming soon");
+    expect(wrappers.length).toBeGreaterThanOrEqual(3);
+
+    // Verify one of the wrappers is indeed the container with tabIndex for keyboard accessibility
+    const wrapper = playStemBtn.closest("span");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.getAttribute("title")).toBe("Coming soon");
+    expect(wrapper?.getAttribute("tabIndex")).toBe("0");
+    expect(wrapper?.className).toContain("cursor-not-allowed");
+  });
+
   it("renders bass transcription in the dark rehearsal cockpit system", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
