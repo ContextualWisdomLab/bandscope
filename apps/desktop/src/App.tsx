@@ -568,6 +568,7 @@ export function App() {
                     disabled={analysisInFlight || isStarting || isImporting}
                     className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                     aria-label="YouTube URL"
+                    maxLength={2048}
                   />
                   <Button
                     onClick={handleImportYoutube}

@@ -776,6 +776,12 @@ describe("App", () => {
     });
   });
 
+  it("enforces a maximum length on the YouTube URL input", () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    expect(input).toHaveAttribute("maxLength", "2048");
+  });
+
   it("rejects non-http YouTube URL", async () => {
     render(<App />);
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
