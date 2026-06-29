@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2026-06-29 - O(1) activeRoleDetails Check Optimization
+**Learning:** Expanding a boolean fallback check like `activeRoleDetails?.name.includes("bass") ?? false` into a multi-property boolean expression inside React components is more robust and prevents false negatives when handling legacy or variable data where `name` might be omitted but `id` is present.
+**Action:** When validating specialized role behaviors based on metadata constraints, expand the logic to check both `.name` and `.id` instead of assuming all data correctly formats the name property.

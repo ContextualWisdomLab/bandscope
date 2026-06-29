@@ -92,6 +92,70 @@ describe("Workspace", () => {
     expect(screen.getByText(/2 notes mapped for rehearsal/i)).toBeTruthy();
   });
 
+  it("renders a state when bass transcription is empty", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "Bass Guitar",
+      transcription: []
+    };
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    expect(screen.getByText(/No bass line transcription yet/i)).toBeTruthy();
+  });
+
+  it("keeps the bass transcription button disabled for non-bass roles and maintains stable role map keys", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0]!.name = "Guitar";
+    song.sections[0]!.roles[0]!.id = "rhythm-guitar";
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Guitar" }));
+    const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
+    expect(transcribeButton.disabled).toBe(true);
+  });
+
+  it("renders a safe focus fallback text when the song has no explicit focus sections and no sections", () => {
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    delete song.exportSummary?.focusSections;
+    render(<Workspace song={song} />);
+    expect(screen.getByText("Focus: first pass.")).toBeTruthy();
+  });
+
+  it("renders role comments when available", () => {
+    const song = createDemoRehearsalSong();
+    song.collaboration = {
+      syncMode: "local_only",
+      syncNote: "Local-only draft",
+      assignments: [],
+      approvals: [],
+      comments: [{ id: "comment1", author: "Tester", body: "Good work", status: "open", roleId: song.sections[0]!.roles[0]!.id }]
+    };
+    render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    expect(screen.getByText("Tester")).toBeTruthy();
+    expect(screen.getByText("Good work")).toBeTruthy();
+  });
+
+  it("handles missing role explanations using fallback text", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0]!.harmonicExplanation = "";
+    song.sections[0]!.roles[0]!.harmony.functionLabel = undefined as unknown as string;
+
+    render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    expect(screen.getByText(/The role-specific harmonic reason will appear here/i)).toBeTruthy();
+  });
+
+  it("handles exporting cue sheet and chart summaries", () => {
+    const song = createDemoRehearsalSong();
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: /Export Cue Sheet/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Export Chart \(JSON\)/i }));
+  });
+
   it("renders collaboration summaries and role-specific rehearsal planning details", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -211,6 +275,12 @@ describe("Workspace", () => {
     expect(() => {
       generateMetadataHandoffJson(song, { sourceBootstrap: invalidSourceBootstrap });
     }).toThrow("sourceMode");
+  });
+
+  it("returns null when safeProjectBootstrapSummary gets null", async () => {
+    const song = createDemoRehearsalSong();
+    render(<Workspace song={song} sourceBootstrap={null} />);
+    fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
   });
 
   it("localizes empty and loading state titles", () => {

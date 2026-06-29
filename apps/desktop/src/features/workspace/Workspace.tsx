@@ -143,7 +143,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     if (!activeRole) return undefined;
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
-  const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
+  const canTranscribeBass = activeRoleDetails != null && (
+    activeRoleDetails.name.toLowerCase().includes("bass") ||
+    activeRoleDetails.id.toLowerCase().includes("bass") ||
+    activeRoleDetails.id === "low-end"
+  );
   const collaborationAssignments = useMemo(
     () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
     [song.collaboration]
