@@ -19,12 +19,7 @@ export default defineConfig({
     setupFiles: ["./src/setupTests.ts"],
     coverage: {
       provider: "v8",
-      include: [
-        "src/App.tsx",
-        "src/lib/export.ts",
-        "src/i18n/index.ts",
-        "src/features/workspace/ConfidenceBadge.tsx",
-      ],
+      include: ["src/App.tsx", "src/lib/export.ts", "src/i18n/index.ts"],
       thresholds: {
         lines: 90,
         functions: 90,

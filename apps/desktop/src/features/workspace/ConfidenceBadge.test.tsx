@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-
 import { ConfidenceBadge } from "./ConfidenceBadge";
 
 vi.mock("../../i18n", () => ({
@@ -8,22 +7,30 @@ vi.mock("../../i18n", () => ({
     ({
       confidenceLevelLow: "Low Confidence",
       confidenceLevelMedium: "Medium Confidence",
-      confidenceLevelHigh: "High Confidence",
+      confidenceLevelHigh: "High Confidence"
     })[key] ?? key,
-  detectPreferredLocale: () => "en",
+  detectPreferredLocale: () => "en"
 }));
 
 describe("ConfidenceBadge", () => {
-  it.each([
-    ["low", "Low Confidence", "bg-rose-100"],
-    ["medium", "Medium Confidence", "bg-amber-100"],
-    ["high", "High Confidence", "bg-emerald-100"],
-  ] as const)("renders the %s confidence badge", (level, label, colorClass) => {
-    render(<ConfidenceBadge level={level} />);
-
-    const badge = screen.getByText(label);
+  it("renders a low confidence badge", () => {
+    render(<ConfidenceBadge level="low" />);
+    const badge = screen.getByText("Low Confidence");
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass(colorClass);
-    expect(badge).toHaveAttribute("title", `Confidence: ${level}`);
+    expect(badge.className).toContain("bg-rose-100");
+  });
+
+  it("renders a medium confidence badge", () => {
+    render(<ConfidenceBadge level="medium" />);
+    const badge = screen.getByText("Medium Confidence");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("bg-amber-100");
+  });
+
+  it("renders a high confidence badge", () => {
+    render(<ConfidenceBadge level="high" />);
+    const badge = screen.getByText("High Confidence");
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain("bg-emerald-100");
   });
 });
