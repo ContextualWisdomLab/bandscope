@@ -65,5 +65,9 @@
   "youtubePlaceholder": "YouTube URL...",
   "importYoutube": "Import YouTube",
   "importingYoutube": "Importing...",
-  "youtubeImportFailed": "Failed to import YouTube URL."
+  "youtubeImportFailed": "Failed to import YouTube URL.",
+  "practiceProgressRegionLabel": "Practice Progress",
+  "practiceProgressLabel": "Practice Progress",
+  "decreasePracticeProgressLabel": "Decrease progress",
+  "increasePracticeProgressLabel": "Increase progress"
 }

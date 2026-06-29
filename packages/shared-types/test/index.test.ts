@@ -881,6 +881,16 @@ describe("shared type helpers", () => {
     })).toThrow("sections[0].roles[0].manualOverrides[0].extraField");
   });
 
+  it("validates practiceProgress successfully when valid", () => {
+    const validPracticeProgressSong = createDemoRehearsalSong();
+    validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;
+    expect(isRehearsalSong(validPracticeProgressSong)).toBe(true);
+    validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 50;
+    expect(isRehearsalSong(validPracticeProgressSong)).toBe(true);
+    validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 100;
+    expect(isRehearsalSong(validPracticeProgressSong)).toBe(true);
+  });
+
   it("covers detailed validation branches", () => {
     const createInvalidSong = (mutate: (song: RehearsalSong) => unknown) => {
       const song = createDemoRehearsalSong();
@@ -1103,6 +1113,30 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].practiceProgress",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.practiceProgress = -1 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].practiceProgress",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.practiceProgress = 101 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].practiceProgress",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.practiceProgress = 50.5 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].practiceProgress",
+        payload: createInvalidSong((song) => {
+          (song.sections[0]!.roles[0] as unknown as Record<string, unknown>).practiceProgress = "50";
         })
       },
       {

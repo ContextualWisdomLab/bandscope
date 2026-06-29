@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -448,20 +448,24 @@ describe("App", () => {
       );
     });
 
-    latestStatusSubscription?.(
-      jobStatusResponse({
-        jobId: "job-push-1",
-        state: "running",
-        progressLabel: "Separating stems... (45%)",
-        progressStage: "separate",
-        progressPercent: 45
-      })
-    );
+    act(() => {
+      latestStatusSubscription?.(
+        jobStatusResponse({
+          jobId: "job-push-1",
+          state: "running",
+          progressLabel: "Separating stems... (45%)",
+          progressStage: "separate",
+          progressPercent: 45
+        })
+      );
+    });
     await waitFor(() => {
       expect(screen.getByText(/separating stems/i)).toBeTruthy();
     });
 
-    latestStatusSubscription?.(succeededResult());
+    act(() => {
+      latestStatusSubscription?.(succeededResult());
+    });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });

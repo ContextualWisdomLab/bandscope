@@ -123,7 +123,20 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   }
 
   if (command === "select_local_audio_source") {
-    throw new Error(UNSUPPORTED_LOCAL_AUDIO_MESSAGE);
+    // Mock local audio source
+    return {
+      projectId: "browser-demo-project",
+      sourceMode: "reference",
+      projectRoot: "/mock/project",
+      cacheRoot: "/mock/cache",
+      tempRoot: "/mock/temp",
+      source: {
+        sourcePath: "/mock/audio.wav",
+        fileName: "browser-audio.wav",
+        extension: "wav",
+        fileSizeBytes: 1024
+      }
+    };
   }
 
   if (command === "get_analysis_job_status") {
