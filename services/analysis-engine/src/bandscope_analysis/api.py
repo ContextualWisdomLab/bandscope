@@ -834,14 +834,15 @@ def _stem_separation_worker(
             )
             return
         result_queue.put(("ok", separation_result))
-    except FileNotFoundError as error:
-        result_queue.put(("file_not_found", str(error)))
-    except ValueError as error:
-        result_queue.put(("value_error", str(error)))
-    except RuntimeError as error:
-        result_queue.put(("runtime_error", str(error)))
-    except Exception as error:
-        result_queue.put(("runtime_error", str(error)))
+    except FileNotFoundError:
+        # SECURITY: Do not expose raw error objects or paths to prevent information leakage.
+        result_queue.put(("file_not_found", "Audio source file could not be found."))
+    except ValueError:
+        result_queue.put(("value_error", "An invalid audio parameter was provided."))
+    except RuntimeError:
+        result_queue.put(("runtime_error", "An internal engine error occurred."))
+    except Exception:
+        result_queue.put(("runtime_error", "An internal engine error occurred."))
 
 
 def _multiprocessing_context() -> mp.context.BaseContext:
@@ -976,6 +977,8 @@ def run_analysis_job_updates(
                 requested_at=requested_at,
                 error={
                     "code": "invalid_request",
+                    # SECURITY: Only return the error message for validation errors
+                    # as these are controlled by our schema and don't contain sensitive paths.
                     "message": str(error),
                 },
             )
@@ -1082,7 +1085,7 @@ def run_analysis_job_updates(
                 )
             )
             audio_features = None
-        except (FileNotFoundError, ValueError) as error:
+        except (FileNotFoundError, ValueError):
             updates.append(
                 _build_job_status(
                     job_id=job_id,
@@ -1094,7 +1097,8 @@ def run_analysis_job_updates(
                     cache_status=cache_status,
                     error={
                         "code": "engine_unavailable",
-                        "message": f"Stem separation failed: {error}",
+                        # SECURITY: Do not expose raw exception messages
+                        "message": "Stem separation failed due to an internal error.",
                     },
                 )
             )
