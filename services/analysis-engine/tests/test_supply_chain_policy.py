@@ -6,11 +6,27 @@ import importlib
 import json
 import re
 import stat
+import subprocess
 import zipfile
 from pathlib import Path
 
 import pytest
 from conftest import load_module
+
+OPTIONAL_STRUCTURAL_REVIEW_PHRASES = (
+    "structural exploration is not required",
+    "structural exploration not required",
+    "structural analysis is not required",
+    "structural analysis not required",
+    "structural review is not required",
+    "structural review not required",
+    "no structural exploration required",
+    "no structural analysis required",
+    "no structural review required",
+    "structural exploration is unnecessary",
+    "structural analysis is unnecessary",
+    "structural review is unnecessary",
+)
 
 
 def central_required_workflow_policy_text() -> str:
@@ -26,16 +42,6 @@ def assert_local_review_workflows_removed() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     assert not (repo_root / ".github" / "workflows" / "opencode-review.yml").exists()
     assert not (repo_root / ".github" / "workflows" / "pr-review-merge-scheduler.yml").exists()
-    for helper in (
-        "classify_failed_check_evidence.py",
-        "collect_failed_check_evidence.sh",
-        "emit_opencode_failed_check_fallback_findings.sh",
-        "opencode_review_approve_gate.sh",
-        "opencode_review_normalize_output.py",
-        "pr_review_merge_scheduler.py",
-        "validate_opencode_failed_check_review.sh",
-    ):
-        assert not (repo_root / "scripts" / "ci" / helper).exists()
 
 
 def test_supply_chain_check_requires_multi_arch_runner_labels(
@@ -4972,6 +4978,157 @@ def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
     assert "update-branch, auto-merge, and merge actions" in policy
 
 
+def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
+    """Ensure transient artifact upload finalization resets do not request changes."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: build-baseline/build / macos / amd64
+
+### Failed job steps
+
+- step 13: Upload macOS amd64 artifact (failure)
+
+### Failed log excerpt
+
+```text
+Finished `release` profile [optimized] target(s) in 6m 56s
+Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg
+Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+Finished uploading artifact content to blob storage!
+Finalizing artifact upload
+##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "external_infrastructure"
+    assert "rerun the failed workflow job" in result["reason"]
+    assert "build-baseline/build / macos / amd64" in result["signals"]
+    assert "Packaged .+ to artifacts/" not in result["signals"]
+    artifact_finalize_signals = [
+        signal
+        for signal in result["signals"]
+        if "Failed to FinalizeArtifact: Unable to make request: ECONNRESET" in signal
+    ]
+    assert artifact_finalize_signals == [
+        "artifact upload finalize request reset: "
+        "##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET"
+    ]
+    assert any(
+        "Failed to FinalizeArtifact: Unable to make request: ECONNRESET" in signal
+        for signal in result["signals"]
+    )
+    assert (
+        "Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg"
+        in result["signals"]
+    )
+
+
+def test_opencode_classifies_tauri_binary_release_502_as_external() -> None:
+    """Ensure Tauri binary release server errors do not request source changes."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence_tauri_binary_release",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: build-baseline/build / windows / amd64
+
+### Failed job steps
+
+- step 12: Build native shell (failure)
+
+### Failed log excerpt
+
+```text
+Finished `release` profile [optimized] target(s) in 4m 53s
+Built application at: D:\\a\\bandscope\\target\\release\\bandscope-desktop.exe
+Downloading https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip
+failed to bundle project `http status: 502`
+Error failed to bundle project `http status: 502`
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "external_infrastructure"
+    assert "Tauri binary release download server error" in result["reason"]
+    assert "build-baseline/build / windows / amd64" in result["signals"]
+    assert any("tauri-apps/binary-releases" in signal for signal in result["signals"])
+    assert any(
+        "failed to bundle project `http status: 502`" in signal for signal in result["signals"]
+    )
+
+
+def test_opencode_classifies_setup_uv_manifest_fetch_as_external() -> None:
+    """Ensure setup-uv manifest fetch failures do not request source changes."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence_setup_uv_fetch",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: build-baseline/build / macos / amd64
+
+### Failed job steps
+
+- step 5: Run astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 (failure)
+
+### Failed log excerpt
+
+```text
+Fetching manifest data from https://raw.githubusercontent.com/astral-sh/versions/
+##[error]fetch failed
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "external_infrastructure"
+    assert "setup-uv manifest fetch failure" in result["reason"]
+    assert "build-baseline/build / macos / amd64" in result["signals"]
+    assert any("##[error]fetch failed" in signal for signal in result["signals"])
+    assert any(
+        "raw.githubusercontent.com/astral-sh/versions" in signal for signal in result["signals"]
+    )
+
+
+def test_opencode_keeps_test_failures_actionable() -> None:
+    """Ensure ordinary failed checks still require source-backed diagnosis."""
+    classifier = load_module(
+        "scripts/ci/classify_failed_check_evidence.py",
+        "classify_failed_check_evidence_actionable",
+    )
+    evidence = """
+# Failed GitHub Check Evidence
+
+## Failed check: ci/ci / build-and-test
+
+### Failed job steps
+
+- step 7: Run tests (failure)
+
+### Failed log excerpt
+
+```text
+FAIL apps/desktop/src/App.test.tsx
+##[error]Process completed with exit code 1.
+```
+""".strip()
+
+    result = classifier.classify_failed_check_evidence(evidence)
+
+    assert result["classification"] == "actionable_or_unknown"
+
+
 def test_opencode_review_stops_external_check_failures_without_review() -> None:
     """Ensure external check failure handling is delegated to central review automation."""
     policy = central_required_workflow_policy_text()
@@ -4980,6 +5137,336 @@ def test_opencode_review_stops_external_check_failures_without_review() -> None:
     assert "external failed-check classification" in policy
     assert "review state" in policy
     assert "current-head evidence" in policy
+
+
+def test_opencode_normalizer_defaults_missing_approve_findings(tmp_path: Path) -> None:
+    """Ensure APPROVE control payloads without findings normalize to findings:[]."""
+    normalizer = load_module(
+        "scripts/ci/opencode_review_normalize_output.py",
+        "opencode_review_normalize_output",
+    )
+    output_file = tmp_path / "opencode-output.md"
+    output_file.write_text(
+        "\n".join(
+            [
+                "review text",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"checks and review passed",'
+                '"summary":"no source-backed blockers found"}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = normalizer.main(
+        [
+            "opencode_review_normalize_output.py",
+            "abc123",
+            "456",
+            "1",
+            str(output_file),
+        ]
+    )
+
+    assert result == 0
+    assert '"findings":[]' in output_file.read_text(encoding="utf-8")
+
+
+def test_opencode_review_gate_defaults_missing_approve_findings(tmp_path: Path) -> None:
+    """Ensure approval gate accepts APPROVE payloads that omit empty findings."""
+    repo_root = Path(__file__).resolve().parents[3]
+    comment_file = tmp_path / "comment.md"
+    normalized_file = tmp_path / "normalized.json"
+    comment_file.write_text(
+        "\n".join(
+            [
+                "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
+                "",
+                "<!-- opencode-review-control-v1",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"checks and review passed",'
+                '"summary":"no source-backed blockers found"}',
+                "-->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(repo_root / "scripts" / "ci" / "opencode_review_approve_gate.sh"),
+            "abc123",
+            "456",
+            "1",
+            str(comment_file),
+            str(normalized_file),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "APPROVE"
+    assert json.loads(normalized_file.read_text(encoding="utf-8"))["findings"] == []
+
+
+def test_opencode_normalizer_rejects_approve_without_structural_review(
+    tmp_path: Path,
+) -> None:
+    """Ensure OpenCode cannot approve after admitting structural review failed."""
+    normalizer = load_module(
+        "scripts/ci/opencode_review_normalize_output.py",
+        "opencode_review_normalize_missing_structure",
+    )
+    output_file = tmp_path / "opencode-output.md"
+    original_output = "\n".join(
+        [
+            "review text",
+            '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+            '"result":"APPROVE","reason":"no blockers found",'
+            '"summary":"No blockers found, but evidence was truncated",'
+            '"findings":[]}',
+        ]
+    )
+    output_file.write_text(original_output, encoding="utf-8")
+
+    result = normalizer.main(
+        [
+            "opencode_review_normalize_output.py",
+            "abc123",
+            "456",
+            "1",
+            str(output_file),
+        ]
+    )
+
+    assert result == 4
+    assert output_file.read_text(encoding="utf-8") == original_output
+
+
+def test_opencode_normalizer_rejects_optional_structural_review_variants(
+    tmp_path: Path,
+) -> None:
+    """Ensure optional structural-review phrasing cannot be normalized."""
+    normalizer = load_module(
+        "scripts/ci/opencode_review_normalize_output.py",
+        "opencode_review_normalize_optional_structure",
+    )
+
+    assert set(OPTIONAL_STRUCTURAL_REVIEW_PHRASES).issubset(normalizer.STRUCTURAL_FAILURE_PHRASES)
+
+    for field in ("reason", "summary"):
+        for phrase in OPTIONAL_STRUCTURAL_REVIEW_PHRASES:
+            output_file = tmp_path / f"{field}-{phrase.replace(' ', '-')}.md"
+            reason = phrase if field == "reason" else "no blockers found"
+            summary = phrase if field == "summary" else "structural exploration completed"
+            original_output = "\n".join(
+                [
+                    "review text",
+                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                    '"result":"APPROVE",'
+                    f'"reason":"{reason}",'
+                    f'"summary":"{summary}",'
+                    '"findings":[]}',
+                ]
+            )
+            output_file.write_text(original_output, encoding="utf-8")
+
+            result = normalizer.main(
+                [
+                    "opencode_review_normalize_output.py",
+                    "abc123",
+                    "456",
+                    "1",
+                    str(output_file),
+                ]
+            )
+
+            assert result == 4
+            assert output_file.read_text(encoding="utf-8") == original_output
+
+
+def test_opencode_review_gate_rejects_approve_without_structural_review(
+    tmp_path: Path,
+) -> None:
+    """Ensure approval gate rejects approvals that admit missing structure."""
+    repo_root = Path(__file__).resolve().parents[3]
+    comment_file = tmp_path / "comment.md"
+    normalized_file = tmp_path / "normalized.json"
+    comment_file.write_text(
+        "\n".join(
+            [
+                "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
+                "",
+                "<!-- opencode-review-control-v1",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"No blockers found, but evidence was truncated",'
+                '"findings":[]}',
+                "-->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(repo_root / "scripts" / "ci" / "opencode_review_approve_gate.sh"),
+            "abc123",
+            "456",
+            "1",
+            str(comment_file),
+            str(normalized_file),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 4
+    assert result.stdout.strip() == "NO_CONCLUSION"
+    assert not normalized_file.exists()
+
+
+def test_opencode_review_gate_rejects_optional_structural_review_variants(
+    tmp_path: Path,
+) -> None:
+    """Ensure approval gate rejects optional structural-review phrasing."""
+    repo_root = Path(__file__).resolve().parents[3]
+
+    for field in ("reason", "summary"):
+        for phrase in OPTIONAL_STRUCTURAL_REVIEW_PHRASES:
+            comment_file = tmp_path / f"{field}-{phrase.replace(' ', '-')}.md"
+            normalized_file = tmp_path / f"{field}-{phrase.replace(' ', '-')}.json"
+            reason = phrase if field == "reason" else "no blockers found"
+            summary = phrase if field == "summary" else "structural exploration completed"
+            comment_file.write_text(
+                "\n".join(
+                    [
+                        "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
+                        "",
+                        "<!-- opencode-review-control-v1",
+                        '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                        '"result":"APPROVE",'
+                        f'"reason":"{reason}",'
+                        f'"summary":"{summary}",'
+                        '"findings":[]}',
+                        "-->",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(repo_root / "scripts" / "ci" / "opencode_review_approve_gate.sh"),
+                    "abc123",
+                    "456",
+                    "1",
+                    str(comment_file),
+                    str(normalized_file),
+                ],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            assert result.returncode == 4
+            assert result.stdout.strip() == "NO_CONCLUSION"
+            assert not normalized_file.exists()
+
+
+def test_opencode_normalizer_accepts_completed_local_structural_fallback(
+    tmp_path: Path,
+) -> None:
+    """Ensure normalizer accepts tool fallback when structural review completed."""
+    normalizer = load_module(
+        "scripts/ci/opencode_review_normalize_output.py",
+        "opencode_review_normalize_structural_fallback",
+    )
+    output_file = tmp_path / "opencode-output.md"
+    output_file.write_text(
+        "\n".join(
+            [
+                "review text",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"Could not access CodeGraph; performed focused local '
+                'source/diff inspection and completed structural exploration",'
+                '"findings":[]}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = normalizer.main(
+        [
+            "opencode_review_normalize_output.py",
+            "abc123",
+            "456",
+            "1",
+            str(output_file),
+        ]
+    )
+
+    assert result == 0
+    assert '"findings":[]' in output_file.read_text(encoding="utf-8")
+
+
+def test_opencode_review_gate_accepts_completed_local_structural_fallback(
+    tmp_path: Path,
+) -> None:
+    """Ensure tool access failures do not block approvals after local structure review."""
+    repo_root = Path(__file__).resolve().parents[3]
+    comment_file = tmp_path / "comment.md"
+    normalized_file = tmp_path / "normalized.json"
+    comment_file.write_text(
+        "\n".join(
+            [
+                "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
+                "",
+                "<!-- opencode-review-control-v1",
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"Could not access CodeGraph; performed focused local '
+                'source/diff inspection and completed structural exploration",'
+                '"findings":[]}',
+                "-->",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(repo_root / "scripts" / "ci" / "opencode_review_approve_gate.sh"),
+            "abc123",
+            "456",
+            "1",
+            str(comment_file),
+            str(normalized_file),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "APPROVE"
+    assert json.loads(normalized_file.read_text(encoding="utf-8"))["findings"] == []
 
 
 def test_opencode_strix_lookup_reports_missing_actions_read_scope() -> None:
