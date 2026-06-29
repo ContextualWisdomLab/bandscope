@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- 베이스 트랙에 대한 Transcription(피치 추출 및 MIDI 다운로드) 기능 추가
+- `librosa.pyin` 기반의 베이스 음정 추적 백엔드 구현 (5분 길이 제한 포함)
+- 추출된 음정을 가로형 타임라인으로 시각화하는 `GrooveMap` React 컴포넌트 추가
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed
