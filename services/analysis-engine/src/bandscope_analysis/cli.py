@@ -46,8 +46,12 @@ def main() -> int:
                 try:
                     with open(input_data, "r", encoding="utf-8") as f:
                         input_data = f.read()
-                except Exception as e:
-                    json.dump(failed_cli_response(f"Failed to read job file: {e}"), sys.stdout)
+                except Exception:
+                    msg = (
+                        "Failed to read job file. "
+                        "Please ensure the file path is correct and accessible."
+                    )
+                    json.dump(failed_cli_response(msg), sys.stdout)
                     return 1
 
     if not input_data:
