@@ -7,8 +7,9 @@ describe("cn", () => {
   })
 
   it("handles conditional classes", () => {
-    // eslint-disable-next-line no-constant-binary-expression
-    expect(cn("foo", true && "bar", false && "baz")).toBe("foo bar")
+    const applyBar = true;
+    const applyBaz = false;
+    expect(cn("foo", applyBar && "bar", applyBaz && "baz")).toBe("foo bar")
   })
 
   it("merges arrays of class names", () => {
