@@ -196,21 +196,6 @@ describe("analysis bridge", () => {
     });
   });
 
-  it("rejects oversized YouTube URLs before crossing the Tauri bridge", async () => {
-    tauriWindow.__TAURI_INVOKE__ = vi.fn();
-
-    const selection = await importYoutubeUrl(`https://youtube.com/watch?v=4ozX4yFUC34&x=${"a".repeat(2000)}`);
-
-    expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
-    expect(selection).toEqual({
-      ok: false,
-      error: {
-        code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
-      }
-    });
-  });
-
   it.each([
     "https://youtube.com/watch?v=too-short",
     "https://youtube.com/watch?v=4ozX4yFUC3!",

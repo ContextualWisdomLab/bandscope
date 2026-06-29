@@ -43,7 +43,6 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   "Could not prepare the local temp workspace."
 ]);
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
-const MAX_YOUTUBE_URL_LENGTH = 2000;
 
 /** Documented. */
 export type LocalAudioSelectionResult =
@@ -75,7 +74,7 @@ export function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
   if (typeof rawUrl !== "string") {
     return false;
   }
-  if (rawUrl.length > MAX_YOUTUBE_URL_LENGTH) {
+  if (rawUrl.length > 2000) {
     return false;
   }
 
