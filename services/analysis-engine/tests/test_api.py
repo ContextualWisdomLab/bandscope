@@ -464,28 +464,29 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
 def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:
     """Ensure unsafe or undecodable local audio returns a typed failure envelope."""
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
-        separator_class.return_value.separate.side_effect = ValueError(
-            "Audio file is too large for stem separation: 16 bytes (max 8 bytes)"
-        )
-
-        updates = list(
-            run_analysis_job_updates(
-                "job-failed-stems",
-                {
-                    "sourceKind": "local_audio",
-                    "projectId": "project-1",
-                    "sourceLabel": "late-night-set.wav",
-                    "roleFocus": ["bass-guitar"],
-                    "localSource": {
-                        "sourcePath": "/Users/test/Music/late-night-set.wav",
-                        "fileName": "late-night-set.wav",
-                        "extension": "wav",
-                        "fileSizeBytes": 1024000,
-                    },
-                },
-                "2026-03-12T00:00:00Z",
+        with patch("bandscope_analysis.api.logger"):
+            separator_class.return_value.separate.side_effect = ValueError(
+                "Audio file is too large for stem separation: 16 bytes (max 8 bytes)"
             )
-        )
+
+            updates = list(
+                run_analysis_job_updates(
+                    "job-failed-stems",
+                    {
+                        "sourceKind": "local_audio",
+                        "projectId": "project-1",
+                        "sourceLabel": "late-night-set.wav",
+                        "roleFocus": ["bass-guitar"],
+                        "localSource": {
+                            "sourcePath": "/Users/test/Music/late-night-set.wav",
+                            "fileName": "late-night-set.wav",
+                            "extension": "wav",
+                            "fileSizeBytes": 1024000,
+                        },
+                    },
+                    "2026-03-12T00:00:00Z",
+                )
+            )
 
     assert [(update["state"], update.get("progressStage")) for update in updates] == [
         ("running", "decode"),
@@ -495,10 +496,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
     assert updates[-1]["progressPercent"] == 45
     assert updates[-1]["error"] == {
         "code": "engine_unavailable",
-        "message": (
-            "Stem separation failed: Audio file is too large for stem separation: "
-            "16 bytes (max 8 bytes)"
-        ),
+        "message": "Stem separation failed",
     }
 
 
@@ -857,9 +855,21 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
     for error, expected_kind in cases:
         fake_queue = FakeQueue()
         with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
-            separator_class.return_value.separate.side_effect = error
-            _stem_separation_worker("/tmp/audio.wav", fake_queue)
-        assert fake_queue.items == [(expected_kind, str(error))]
+            with patch("bandscope_analysis.api.logger"):
+                separator_class.return_value.separate.side_effect = error
+                _stem_separation_worker("/tmp/audio.wav", fake_queue)
+        if expected_kind == "file_not_found":
+            assert fake_queue.items == [(expected_kind, "Audio source file not found.")]
+        elif expected_kind == "value_error":
+            assert fake_queue.items == [(expected_kind, "Invalid audio source data.")]
+        elif expected_kind == "runtime_error" and "oom" in str(error):
+            assert fake_queue.items == [
+                (expected_kind, "Runtime error occurred during stem separation.")
+            ]
+        else:
+            assert fake_queue.items == [
+                (expected_kind, "An unexpected error occurred during stem separation.")
+            ]
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
@@ -871,7 +881,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
         separator_class.return_value.separate.return_value = {"stems": {}}
         _stem_separation_worker("/tmp/audio.wav", fake_queue, "/tmp/stems.npz")
-    assert fake_queue.items == [("runtime_error", "Stem separation returned invalid stems.")]
+    assert fake_queue.items == [("runtime_error", "Runtime error occurred during stem separation.")]
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
@@ -880,9 +890,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             "stem_role_types": {"bass": "percussion"},
         }
         _stem_separation_worker("/tmp/audio.wav", fake_queue, "/tmp/stems.npz")
-    assert fake_queue.items == [
-        ("runtime_error", "Stem separation returned invalid stem role metadata.")
-    ]
+    assert fake_queue.items == [("runtime_error", "Runtime error occurred during stem separation.")]
 
 
 def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) -> None:

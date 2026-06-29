@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import multiprocessing as mp
 import queue
 import time
@@ -23,6 +24,8 @@ MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
 FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
+
+logger = logging.getLogger(__name__)
 
 AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
 AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
@@ -835,13 +838,17 @@ def _stem_separation_worker(
             return
         result_queue.put(("ok", separation_result))
     except FileNotFoundError as error:
-        result_queue.put(("file_not_found", str(error)))
+        logger.error(f"Stem separation missing file: {error}", exc_info=True)
+        result_queue.put(("file_not_found", "Audio source file not found."))
     except ValueError as error:
-        result_queue.put(("value_error", str(error)))
+        logger.error(f"Stem separation value error: {error}", exc_info=True)
+        result_queue.put(("value_error", "Invalid audio source data."))
     except RuntimeError as error:
-        result_queue.put(("runtime_error", str(error)))
+        logger.error(f"Stem separation runtime error: {error}", exc_info=True)
+        result_queue.put(("runtime_error", "Runtime error occurred during stem separation."))
     except Exception as error:
-        result_queue.put(("runtime_error", str(error)))
+        logger.error(f"Stem separation unexpected error: {error}", exc_info=True)
+        result_queue.put(("runtime_error", "An unexpected error occurred during stem separation."))
 
 
 def _multiprocessing_context() -> mp.context.BaseContext:
@@ -1083,6 +1090,7 @@ def run_analysis_job_updates(
             )
             audio_features = None
         except (FileNotFoundError, ValueError) as error:
+            logger.error(f"Stem separation failed in worker: {error}", exc_info=True)
             updates.append(
                 _build_job_status(
                     job_id=job_id,
@@ -1094,7 +1102,7 @@ def run_analysis_job_updates(
                     cache_status=cache_status,
                     error={
                         "code": "engine_unavailable",
-                        "message": f"Stem separation failed: {error}",
+                        "message": "Stem separation failed",
                     },
                 )
             )
