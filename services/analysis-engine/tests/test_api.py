@@ -102,6 +102,22 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             "roleFocus[0]",
         ),
         (
+            {"sourceKind": "demo", "sourceLabel": "test\x00", "roleFocus": []},
+            "sourceLabel",
+        ),
+        (
+            {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": ["test\x00"]},
+            "roleFocus[0]",
+        ),
+        (
+            {"sourceKind": "demo", "sourceLabel": "test\n", "roleFocus": []},
+            "sourceLabel",
+        ),
+        (
+            {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": ["test\r"]},
+            "roleFocus[0]",
+        ),
+        (
             {"sourceKind": "local_audio", "sourceLabel": "Late Night Set", "roleFocus": []},
             "projectId",
         ),
@@ -252,6 +268,36 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
                 "cacheRoot": " ",
             },
             "cacheRoot",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "../late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "localSource.fileName",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/tmp/../../../etc/passwd",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "localSource.sourcePath",
         ),
         (
             {

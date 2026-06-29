@@ -250,14 +250,21 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if not isinstance(source_label, str) or not source_label.strip():
         raise ValueError("Invalid analysis job request: invalid field 'sourceLabel'")
     # Sanitize sourceLabel against potential injection attempts (e.g. quote escapes)
-    if any(char in source_label for char in ["'", '"', "\\", ";", "|", "`", "$", "<", ">", "&"]):
+    # Be more thorough to block any control characters as well
+    if any(
+        char in source_label
+        for char in ["'", '"', "\\", ";", "|", "`", "$", "<", ">", "&", "\x00", "\n", "\r"]
+    ):
         raise ValueError("Invalid analysis job request: invalid field 'sourceLabel'")
     if not isinstance(role_focus, list):
         raise ValueError("Invalid analysis job request: invalid field 'roleFocus'")
     for index, role in enumerate(role_focus):
         if not isinstance(role, str):
             raise ValueError(f"Invalid analysis job request: invalid field 'roleFocus[{index}]'")
-        if any(char in role for char in ["'", '"', "\\", ";", "|", "`", "$", "<", ">", "&"]):
+        if any(
+            char in role
+            for char in ["'", '"', "\\", ";", "|", "`", "$", "<", ">", "&", "\x00", "\n", "\r"]
+        ):
             raise ValueError(f"Invalid analysis job request: invalid field 'roleFocus[{index}]'")
 
     local_source = payload.get("localSource")
@@ -290,7 +297,13 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     file_size_bytes = local_source.get("fileSizeBytes")
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
+    # Sanitize source_path
+    if ".." in source_path:
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
     if not isinstance(file_name, str) or not file_name.strip():
+        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
+    # Sanitize file_name to not contain directory separators
+    if "/" in file_name or "\\" in file_name or ".." in file_name:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
     if extension not in {"wav", "mp3", "flac", "m4a"}:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.extension'")
@@ -575,7 +588,8 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
+    safe_cache_root = Path(cache_root).resolve()
+    return safe_cache_root / "analysis-cache-v1" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
@@ -609,7 +623,8 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(temp_root) / "stem-work-v1" / f"{digest}.npz"
+    safe_temp_root = Path(temp_root).resolve()
+    return safe_temp_root / "stem-work-v1" / f"{digest}.npz"
 
 
 def _load_cached_analysis(path: Path) -> RehearsalSong | None:
