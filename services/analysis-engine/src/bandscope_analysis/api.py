@@ -9,10 +9,9 @@ import queue
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Literal, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, Unpack, cast
 
 import numpy as np
-from typing_extensions import Unpack
 
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
@@ -523,18 +522,10 @@ class _JobStatusOptions(TypedDict, total=False):
     error: AnalysisJobError | None
 
 
-_JOB_STATUS_OPTION_KEYS = frozenset(_JobStatusOptions.__annotations__)
-
-
 def _build_job_status(
-    *, job_id: str, state: AnalysisJobState, requested_at: str, **kwargs: Unpack[_JobStatusOptions]
+    job_id: str, state: AnalysisJobState, requested_at: str, **kwargs: Unpack[_JobStatusOptions]
 ) -> AnalysisJobStatus:
     """Build a shared job status envelope with optional orchestration progress."""
-    unexpected_keys = set(kwargs) - _JOB_STATUS_OPTION_KEYS
-    if unexpected_keys:
-        unexpected = ", ".join(sorted(unexpected_keys))
-        raise TypeError(f"_build_job_status() got unexpected keyword argument(s): {unexpected}")
-
     status: AnalysisJobStatus = {
         "jobId": job_id,
         "state": state,
