@@ -209,8 +209,8 @@ def test_pitch_tracker_confidence_returns_low() -> None:
     assert result == "low"
 
 
-def test_pitch_tracker_nan_f0_returns_low() -> None:
-    """Test that NaN-only voiced pitch values fail closed."""
+def test_pitch_tracker_nan_f0() -> None:
+    """Test when pyin returns NaN for voiced f0 values."""
     tracker = PitchTracker()
     y = np.random.randn(22050)
 
@@ -219,20 +219,18 @@ def test_pitch_tracker_nan_f0_returns_low() -> None:
         return_value=(np.array([np.nan, np.nan]), np.array([True, True]), np.array([1.0, 1.0])),
     ):
         result = tracker.track(y, sr=22050)
+        assert result["lowest_note"] is None
+        assert result["highest_note"] is None
+        assert result["confidence"] == "low"
 
-    assert result["lowest_note"] is None
-    assert result["highest_note"] is None
-    assert result["confidence"] == "low"
 
-
-def test_pitch_tracker_low_average_voicing_probability_returns_low() -> None:
-    """Test that very low average voicing probability suppresses note output."""
+def test_pitch_tracker_low_avg_prob() -> None:
+    """Test when average voicing probability is less than 0.2."""
     tracker = PitchTracker()
     y = np.random.randn(22050)
 
     with patch("librosa.pyin", return_value=(np.array([440.0]), np.array([True]), np.array([0.1]))):
         result = tracker.track(y, sr=22050)
-
-    assert result["lowest_note"] is None
-    assert result["highest_note"] is None
-    assert result["confidence"] == "low"
+        assert result["lowest_note"] is None
+        assert result["highest_note"] is None
+        assert result["confidence"] == "low"
