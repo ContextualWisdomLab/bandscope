@@ -41,18 +41,15 @@ export function generateCueSheetCsv(song: RehearsalSong): string {
 
   for (const section of song.sections) {
     for (const role of section.roles) {
-      const notes = [role.setupNote, role.simplification].filter(Boolean).join(" | ");
-      const row = [
-        section.label,
-        section.groove,
-        role.name,
-        role.harmony.chord,
-        role.cue.value,
-        role.rehearsalPriority,
-        notes
-      ].map(escapeCsvField);
+      let notes = role.setupNote ?? "";
+      if (role.simplification) {
+        notes = notes ? `${notes} | ${role.simplification}` : role.simplification;
+      }
       
-      rows.push(row.join(","));
+      // Performance: Avoid intermediate array allocations from .map() inside tight serialization loops
+      rows.push(
+        `${escapeCsvField(section.label)},${escapeCsvField(section.groove)},${escapeCsvField(role.name)},${escapeCsvField(role.harmony.chord)},${escapeCsvField(role.cue.value)},${escapeCsvField(role.rehearsalPriority)},${escapeCsvField(notes)}`
+      );
     }
   }
 

@@ -42,6 +42,6 @@
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
 
-## 2026-06-23 - Replace .filter().map() with .reduce() to avoid intermediate array allocations
-**Learning:** Using `.filter().map()` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
-**Action:** Use `.reduce()` to filter and map elements in a single pass to avoid intermediate array allocations during React renders.
+## 2026-06-29 - 루프 내 불필요한 배열 생성 및 .map() 체인 제거
+**Learning:** 루프 내에서 데이터를 직렬화하기 위해 `[a, b, c].map(fn).join(',')` 패턴을 사용하면 반복마다 불필요한 중간 배열 객체들이 힙에 할당되어 가비지 컬렉션(GC) 부하를 심각하게 증가시킵니다.
+**Action:** 핫 패스 루프나 직렬화 과정에서는 템플릿 리터럴을 통해 직접 함수를 호출하여 중간 배열 생성을 방지하고 O(1) 메모리 할당으로 최적화하세요.
