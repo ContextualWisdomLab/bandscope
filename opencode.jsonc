@@ -70,24 +70,6 @@
             "context": 128000,
             "output": 4096
           }
-        },
-        "openai/o3": {
-          "name": "OpenAI o3",
-          "tool_call": true,
-          "reasoning": true,
-          "limit": {
-            "context": 200000,
-            "output": 100000
-          }
-        },
-        "openai/o4-mini": {
-          "name": "OpenAI o4-mini",
-          "tool_call": true,
-          "reasoning": true,
-          "limit": {
-            "context": 200000,
-            "output": 100000
-          }
         }
       }
     }

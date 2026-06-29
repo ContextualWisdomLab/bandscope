@@ -2,7 +2,6 @@
 
 import queue
 import time
-from typing import Protocol
 from unittest.mock import patch
 
 import numpy as np
@@ -927,33 +926,7 @@ def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) ->
         assert archive["stem_bass"].shape == (4,)
 
 
-class _WorkerResultQueue(Protocol):
-    def get(self, timeout: float) -> tuple[str, object]: ...
-
-    def close(self) -> None: ...
-
-    def join_thread(self) -> None: ...
-
-
-class _WorkerProcess(Protocol):
-    def start(self) -> None: ...
-
-    def join(self, timeout: float | None = None) -> None: ...
-
-    def is_alive(self) -> bool: ...
-
-
-class _WorkerProcessFactory(Protocol):
-    def __call__(self, *_args: object, **_kwargs: object) -> _WorkerProcess: ...
-
-
-class _WorkerContext(Protocol):
-    Process: _WorkerProcessFactory
-
-    def Queue(self, maxsize: int) -> _WorkerResultQueue: ...
-
-
-def _make_fake_multiprocessing_context(item: tuple[str, object]) -> _WorkerContext:
+def _make_fake_multiprocessing_context(item: tuple[str, object]) -> object:
     class FakeQueue:
         def __init__(self, item: tuple[str, object]) -> None:
             self.item = item
@@ -982,18 +955,15 @@ def _make_fake_multiprocessing_context(item: tuple[str, object]) -> _WorkerConte
             return False
 
     class FakeContext:
-        Process: _WorkerProcessFactory
-
         def __init__(self, item: tuple[str, object]) -> None:
             self.item = item
             self.Process = FakeProcess
 
-        def Queue(self, maxsize: int) -> _WorkerResultQueue:
+        def Queue(self, maxsize: int) -> FakeQueue:
             assert maxsize == 1
             return FakeQueue(self.item)
 
-    context: _WorkerContext = FakeContext(item)
-    return context
+    return FakeContext(item)
 
 
 def test_stem_separation_process_helper_maps_ok_envelope() -> None:
