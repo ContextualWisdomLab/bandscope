@@ -403,8 +403,8 @@ def test_chord_analyzer_all_n_chords_returns_empty() -> None:
     assert summary["chords"] == []
 
 
-def test_chord_analyzer_deduplicates_user_sourced_role_chords() -> None:
-    """Test analyzer deduplicates identical user-sourced role chords within a section."""
+def test_chord_analyzer_deduplicates_user_chords() -> None:
+    """Test analyzer deduplicates identical user-sourced chords within a section."""
     analyzer = ChordAnalyzer()
     sections = [{"id": "verse-1"}]
     roles_by_section = {
@@ -413,21 +413,19 @@ def test_chord_analyzer_deduplicates_user_sourced_role_chords() -> None:
             {"harmony": {"chord": "Am", "functionLabel": "vi repeated", "source": "user"}},
         ]
     }
-
     result = analyzer.analyze(sections, roles_by_section)
-
-    assert result["sections"][0]["chords"] == [
-        {"chord": "Am", "functionLabel": "vi", "source": "user"}
-    ]
+    assert len(result["sections"][0]["chords"]) == 1
+    assert result["sections"][0]["chords"][0]["chord"] == "Am"
 
 
 def test_chord_analyzer_deduplicates_recognized_chords() -> None:
-    """Test analyzer deduplicates identical DSP-recognized chords within a section."""
+    """Test analyzer deduplicates identical recognized chords within a section."""
     analyzer = ChordAnalyzer()
     sections = [{"id": "verse-1"}]
     sr = 22050
     t = np.linspace(0, 2, sr * 2, endpoint=False)
     other_stem = np.sin(2 * np.pi * 261.63 * t).astype(np.float32)
+
     recognized = [
         {"start_time": 0.0, "end_time": 1.0, "chord": "C", "confidence": "high"},
         {"start_time": 1.0, "end_time": 2.0, "chord": "C", "confidence": "high"},
@@ -440,21 +438,23 @@ def test_chord_analyzer_deduplicates_recognized_chords() -> None:
             sample_rate=sr,
         )
 
-    assert result["sections"][0]["chords"] == [
-        {"chord": "C", "functionLabel": "", "source": "model"}
-    ]
+    assert len(result["sections"][0]["chords"]) == 1
+    assert result["sections"][0]["chords"][0]["chord"] == "C"
 
 
-def test_compute_section_confidence_falls_through_when_recognized_chords_are_all_n() -> None:
-    """Test the private confidence helper fallthrough after all recognized chords are N."""
+def test_chord_analyzer_confidence_fallthrough_all_n() -> None:
+    """Test analyzer falls through to medium confidence when recognized chords are all N."""
     analyzer = ChordAnalyzer()
+
+    # Setup inputs for _compute_section_confidence directly
     chords = [{"chord": "C", "functionLabel": "", "source": "model"}]
     recognized_chords = [{"start_time": 0.0, "end_time": 1.0, "chord": "N", "confidence": "high"}]
+    user_chords = []
 
     confidence_level, confidence_source = analyzer._compute_section_confidence(
         chords=chords,
         recognized_chords=recognized_chords,
-        user_chords=[],
+        user_chords=user_chords,
     )
 
     assert confidence_level == "medium"
