@@ -1,7 +1,6 @@
-import pathlib
-
 """Tests for the source separation module."""
 
+import pathlib
 import hashlib
 
 import numpy as np
