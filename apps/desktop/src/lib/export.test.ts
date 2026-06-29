@@ -126,11 +126,46 @@ describe("export generation", () => {
     expect(lines[1]).toBe('verse,swing,Bass,\'=Cmaj7,"1, 2, 3",high,setup | simple');
   });
 
+
+  it("generates chart summary JSON as exact string", () => {
+    const jsonStr = generateChartSummaryJson(mockSong);
+    const expected = JSON.stringify({
+      title: "Test",
+      headline: "Headline",
+      sections: [
+        {
+          label: "verse",
+          groove: "swing",
+          roles: [
+            {
+              name: "Bass",
+              chord: "=Cmaj7",
+              cue: "1, 2, 3",
+              priority: "high"
+            }
+          ]
+        }
+      ]
+    }, null, 2);
+    expect(jsonStr).toBe(expected);
+  });
+
   it("generates chart summary JSON", () => {
     const jsonStr = generateChartSummaryJson(mockSong);
     const parsed = JSON.parse(jsonStr);
     expect(parsed.title).toBe("Test");
     expect(parsed.sections[0].roles[0].chord).toBe("=Cmaj7");
+  });
+
+
+  it("generates chart summary JSON when exportSummary is undefined", () => {
+    const mockSongNoExportSummary = {
+      ...mockSong,
+      exportSummary: undefined
+    };
+    const jsonStr = generateChartSummaryJson(mockSongNoExportSummary);
+    const parsed = JSON.parse(jsonStr);
+    expect(parsed.headline).toBe("");
   });
 
   it("generates chart summary JSON when headline is missing", () => {
@@ -143,22 +178,17 @@ describe("export generation", () => {
     expect(parsed.headline).toBe("");
   });
 
-  it("generates chart summary JSON when exportSummary is undefined", () => {
-    const mockSongNoExportSummary: RehearsalSong = {
-      ...mockSong,
-      exportSummary: undefined
-    };
-    const parsed = JSON.parse(generateChartSummaryJson(mockSongNoExportSummary));
 
-    expect(parsed).toMatchObject({
+  it("creates a metadata handoff artifact without workspaceId or workspaceTitle", () => {
+    const json = generateMetadataHandoffJson(mockSong, {
+      createdAt: "2026-06-15T08:30:00.000Z"
+    });
+    const parsed = JSON.parse(json);
+
+    expect(parsed.workspace).toEqual({
+      id: "test",
       title: "Test",
-      headline: "",
-      sections: [
-        {
-          label: "verse",
-          groove: "swing"
-        }
-      ]
+      workspaceVersion: 1
     });
   });
 
