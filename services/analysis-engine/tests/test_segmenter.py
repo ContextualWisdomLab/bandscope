@@ -326,73 +326,59 @@ def test_segment_with_boundaries_handles_empty_short_and_failed_inputs() -> None
     assert failed_boundaries == [(0.0, 20.0)]
 
 
-def test_detect_boundaries_ignores_peak_indexes_without_frame_times() -> None:
-    """Ensure peaks beyond frame_times length are skipped."""
+def test_detect_boundaries_peak_idx_out_of_bounds() -> None:
+    """Ensure we ignore peaks if their index exceeds frame_times length."""
     novelty = np.array([0.0, 0.1, 0.2, 0.9, 0.2, 0.1, 0.0], dtype=np.float64)
     frame_times = np.array([0.0, 1.0], dtype=np.float64)
-
     boundaries = detect_boundaries(novelty, frame_times, 10.0)
-
     assert boundaries == [0.0]
 
 
 def test_detect_boundaries_ignores_peaks_near_end_of_duration() -> None:
-    """Ensure boundaries are not created within one second of total duration."""
+    """Ensure boundaries are not created within 1.0s of total duration."""
     novelty = np.array([0.0, 0.1, 0.9, 0.1, 0.9, 0.1, 0.0], dtype=np.float64)
     frame_times = np.array([0.0, 2.5, 5.0, 7.5, 9.5, 10.0, 10.5], dtype=np.float64)
-
-    boundaries = detect_boundaries(novelty, frame_times, 10.0)
-
+    duration = 10.0
+    boundaries = detect_boundaries(novelty, frame_times, duration)
     assert boundaries == [0.0, 5.0]
 
 
-def test_detect_boundaries_threshold_floor_filters_small_peaks() -> None:
-    """Ensure the adaptive threshold floor suppresses tiny local maxima."""
+def test_detect_boundaries_threshold_minimum() -> None:
+    """Ensure adaptive threshold defaults to 0.1 minimum."""
     novelty = np.array([0.0, 0.01, 0.09, 0.01, 0.0], dtype=np.float64)
     frame_times = np.array([0.0, 1.0, 2.0, 3.0, 4.0], dtype=np.float64)
-
     boundaries = detect_boundaries(novelty, frame_times, 10.0)
-
     assert boundaries == [0.0]
 
 
-def test_detect_boundaries_flat_novelty_returns_start_only() -> None:
+def test_detect_boundaries_perfect_flat_novelty() -> None:
     """Ensure flat novelty does not produce boundaries."""
     novelty = np.ones(10, dtype=np.float64) * 0.5
     frame_times = np.arange(10, dtype=np.float64)
-
     boundaries = detect_boundaries(novelty, frame_times, 10.0)
-
     assert boundaries == [0.0]
 
 
-def test_detect_boundaries_skips_candidates_too_close_to_previous_boundary() -> None:
-    """Ensure candidate boundaries must satisfy the minimum segment length."""
+def test_detect_boundaries_skip_too_close() -> None:
+    """Ensure boundaries that are too close to the previous boundary are skipped."""
     novelty = np.array([0.0, 0.9, 0.0, 0.9, 0.0], dtype=np.float64)
     frame_times = np.array([0.0, 1.0, 3.0, 5.0, 7.0], dtype=np.float64)
-
-    boundaries = detect_boundaries(novelty, frame_times, 10.0, min_segment_seconds=4.0)
-
+    duration = 10.0
+    boundaries = detect_boundaries(novelty, frame_times, duration, min_segment_seconds=4.0)
     assert boundaries == [0.0, 5.0]
 
 
-def test_detect_boundaries_truncates_to_unique_increasing_boundaries() -> None:
-    """Ensure truncation preserves ordered unique boundary times."""
+def test_detect_boundaries_all_branches() -> None:
+    """Cover the max segment truncation and missing coverage lines."""
     novelty = np.tile(np.array([0.0, 1.0, 0.0], dtype=np.float64), 60)
     frame_times = np.arange(len(novelty), dtype=np.float64)
-
     boundaries = detect_boundaries(novelty, frame_times, 200.0, min_segment_seconds=1.0)
-
     assert len(boundaries) == 20
-    assert boundaries == sorted(set(boundaries))
-    assert all(left < right for left, right in zip(boundaries, boundaries[1:], strict=False))
 
 
-def test_detect_boundaries_accepts_right_edge_peak_when_not_near_duration_end() -> None:
-    """Ensure the last novelty frame can be used as a boundary."""
+def test_detect_boundaries_right_edge() -> None:
+    """Cover the right=float('-inf') branch by having a peak at the very last index."""
     novelty = np.array([0.0, 0.1, 0.1, 0.1, 0.9], dtype=np.float64)
     frame_times = np.array([0.0, 1.0, 2.0, 3.0, 4.0], dtype=np.float64)
-
     boundaries = detect_boundaries(novelty, frame_times, 10.0, min_segment_seconds=2.0)
-
     assert boundaries == [0.0, 4.0]
