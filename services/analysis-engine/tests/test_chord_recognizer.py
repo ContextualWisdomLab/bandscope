@@ -1,5 +1,6 @@
 """Tests for the chord recognizer module."""
 
+import typing
 from unittest.mock import patch
 
 import numpy as np
@@ -86,7 +87,7 @@ def test_chord_recognizer_rms_padding() -> None:
     y = np.random.randn(SAMPLE_RATE * DURATION_SECONDS)
 
     # Mock RMS to return something shorter than chromagram
-    def mock_rms(*args, **kwargs):
+    def mock_rms(*args: typing.Any, **kwargs: typing.Any) -> np.ndarray:
         return np.array([[0.1, 0.1]])
 
     with patch("librosa.feature.rms", side_effect=mock_rms):
@@ -111,7 +112,7 @@ def test_chord_recognizer_rms_longer() -> None:
     y = np.random.randn(SAMPLE_RATE * DURATION_SECONDS)
 
     # Mock RMS to return something longer than chromagram
-    def mock_rms(*args, **kwargs):
+    def mock_rms(*args: typing.Any, **kwargs: typing.Any) -> np.ndarray:
         # Return a very long array
         return np.array([np.ones(1000)])
 
@@ -300,11 +301,11 @@ def test_chord_recognizer_compute_confidence_downgrade_path() -> None:
 
     original_compute = recognizer._compute_confidence
 
-    def mock_confidence(similarity, best_state):
+    def mock_confidence(similarity: np.ndarray, best_state: int) -> str:
         try:
             return next(confidence_values)
         except StopIteration:
-            return original_compute(similarity, best_state)
+            return str(original_compute(similarity, best_state))
 
     with patch.object(recognizer, "_compute_confidence", side_effect=mock_confidence):
         result = recognizer.recognize(y, sr=sr)
