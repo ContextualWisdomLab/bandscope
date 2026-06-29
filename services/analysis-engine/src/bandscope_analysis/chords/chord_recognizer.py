@@ -158,14 +158,12 @@ class ChordRecognizer:
         # Initialization
         viterbi[:, 0] = log_pi + log_obs[:, 0]
 
-        # Forward pass: vectorize the state transition step and short-circuit
-        # Python-level loops while preserving the exact Viterbi recurrence.
+        # Forward pass
         for t in range(1, n_frames):
-            # M has shape (n_states_prev, n_states_curr)
-            M = viterbi[:, t - 1, np.newaxis] + log_trans
-            best_previous_states = np.argmax(M, axis=0)
-            backpointer[:, t] = best_previous_states
-            viterbi[:, t] = M[best_previous_states, np.arange(n_states)] + log_obs[:, t]
+            for s in range(n_states):
+                trans_probs = viterbi[:, t - 1] + log_trans[:, s]
+                backpointer[s, t] = int(np.argmax(trans_probs))
+                viterbi[s, t] = trans_probs[backpointer[s, t]] + log_obs[s, t]
 
         # Backtrace
         states = np.zeros(n_frames, dtype=np.intp)
