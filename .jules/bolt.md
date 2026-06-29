@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2025-02-18 - Array.from map allocation vs mapper
+**Learning:** Using `Array.from({ length }).map(...)` iterates the elements and maps them, but creates an unnecessary intermediate array of undefined items compared to using `Array.from`'s built-in mapper argument `Array.from({ length }, (...))` which does this inline while pre-allocating the correct size.
+**Action:** For simple array constructions for iterative rendering placeholder elements (e.g. dummy lines or grids), prefer using the mapping function argument of `Array.from()` directly to avoid allocating a temporary unmapped array.
