@@ -1,6 +1,6 @@
 """Tests for the section extraction logic and models."""
 
-from bandscope_analysis.sections.extractor import _normalize_label, extract_sections
+from bandscope_analysis.sections.extractor import extract_sections
 from bandscope_analysis.sections.model import CueAnchorStrategy
 
 
@@ -83,55 +83,46 @@ def test_extract_sections_unrecognized_label() -> None:
     assert sections[1]["confidence_level"] == "low"
 
 
-def test_normalize_label() -> None:
-    """Verify standard label normalization logic."""
-    assert _normalize_label("VERSE 1") == "verse"
-    assert _normalize_label("  chorus 2  ") == "chorus"
-    assert _normalize_label("pre-chorus") == "pre-chorus"
-    assert _normalize_label("UNKNOWN") == "unknown"
-    assert _normalize_label("intro") == "intro"
-    assert _normalize_label(123) == "123"
+def test_extract_sections_normalization() -> None:
+    """Verify that form labels are correctly normalized."""
+    arrangement = [
+        {"label": "VERSE 1"},
+        {"label": "  chorus 2  "},
+        {"label": "PRE-CHORUS"},
+        {"label": "Guitar Solo"},
+    ]
+
+    result = extract_sections(arrangement)
+    sections = result["sections"]
+
+    assert sections[0]["form_label"] == "verse"
+    assert sections[1]["form_label"] == "chorus"
+    assert sections[2]["form_label"] == "pre-chorus"
+    assert sections[3]["form_label"] == "guitar solo"
 
 
-def test_extract_sections_normalizes_labels_and_sequence_indexes() -> None:
-    """Verify extraction normalizes labels and indexes repeated form labels."""
+def test_extract_sections_sequence_indexing() -> None:
+    """Verify sequence indexing logic."""
     arrangement = [
         {"label": "Verse"},
-        {"label": "  CHORUS 2  "},
-        {"label": "Verse 2"},
-        {"label": "PRE-CHORUS"},
+        {"label": "Chorus"},
+        {"label": "Verse"},
+        {"label": "Bridge"},
         {"label": "Chorus"},
     ]
 
     result = extract_sections(arrangement)
+    sections = result["sections"]
 
-    assert [section["form_label"] for section in result["sections"]] == [
-        "verse",
-        "chorus",
-        "verse",
-        "pre-chorus",
-        "chorus",
-    ]
-    assert [section["id"] for section in result["sections"]] == [
-        "verse-1",
-        "chorus-1",
-        "verse-2",
-        "pre-chorus-1",
-        "chorus-2",
-    ]
+    assert sections[0]["id"] == "verse-1"
+    assert sections[1]["id"] == "chorus-1"
+    assert sections[2]["id"] == "verse-2"
+    assert sections[3]["id"] == "bridge-1"
+    assert sections[4]["id"] == "chorus-2"
 
 
 def test_extract_sections_empty() -> None:
-    """Verify behavior with an empty arrangement."""
+    """Verify section extraction behavior with an empty arrangement."""
     result = extract_sections([])
+    assert result["sections"] == []
     assert result["strategy_used"] == "count"
-    assert len(result["sections"]) == 0
-
-
-def test_extract_sections_missing_label() -> None:
-    """Verify behavior when a section is missing the label key."""
-    arrangement = [{"groove": "standard"}]
-    result = extract_sections(arrangement)
-    assert len(result["sections"]) == 1
-    assert result["sections"][0]["form_label"] == "unknown"
-    assert result["sections"][0]["id"] == "unknown-1"

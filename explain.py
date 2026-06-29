@@ -1,0 +1,1 @@
+print("The CI failure is caused by an intermittent network issue downloading a Rust dependency (`[16] Error in the HTTP2 framing layer`) during the `cargo +stable install cargo-audit` step in the `security-audit` job. This is unrelated to my Python test code changes.")
