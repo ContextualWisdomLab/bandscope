@@ -508,8 +508,7 @@ def test_audio_stem_separator_rejects_absolute_path_traversal_in_audio_file() ->
 
 
 def test_audio_stem_separator_absolute_path_allowed() -> None:
-    """Ensure absolute external audio file paths not containing .. are not falsely rejected by traversal checks."""
-    import sys
+    """Ensure absolute paths without .. are not falsely rejected."""
 
     separator = AudioStemSeparator(AudioSeparationConfig())
     # Instead of reading a real system file which might be flaky across platforms, we just
