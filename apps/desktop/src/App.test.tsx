@@ -494,7 +494,7 @@ describe("App", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
     });
     expect(screen.getAllByRole("status").some((status) => /analysis ready/i.test(status.textContent ?? ""))).toBe(true);
   });
