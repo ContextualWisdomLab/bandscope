@@ -45,3 +45,7 @@
 
 **Learning:** When finding a value in a collection using `Array.prototype.reduce()`, the iteration goes through the entire array unconditionally. If we are searching for a minimum value where the absolute lower bound is known, this introduces O(N) operations unnecessarily when the lower bound is found early.
 **Action:** Replace `reduce()` with a `for...of` loop and use `break` to short-circuit the loop early when the absolute minimum bound is reached, improving best-case performance to O(1).
+## 2025-02-15 - Ensure 100% test coverage when adding early exits
+
+**Learning:** When replacing `reduce()` with a `for...of` loop containing an early exit (`break`) to optimize performance, the `break` branch itself represents a new code path that requires explicit test coverage to satisfy the 100% coverage threshold in CI. The optimization caused the CI to fail because no existing test had a song where a section reached the "low" confidence bound.
+**Action:** Always write a test case to cover the early exit condition (e.g., provide test data where `confidence` equals `"low"`) after introducing a `break` or `return` in a loop optimization.
