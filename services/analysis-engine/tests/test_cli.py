@@ -101,7 +101,7 @@ def test_cli_returns_failed_status_for_invalid_request() -> None:
     assert response["state"] == "failed"
     assert response["error"] == {
         "code": "invalid_request",
-        "message": "Invalid analysis job request: invalid field 'sourceLabel'",
+        "message": "Invalid analysis job request",
     }
 
 
@@ -126,10 +126,7 @@ def test_cli_returns_failed_status_for_invalid_local_audio_request() -> None:
     )
 
     assert response["state"] == "failed"
-    assert (
-        response["error"]["message"]
-        == "Invalid analysis job request: invalid field 'localSource.extension'"
-    )
+    assert response["error"]["message"] == "Invalid analysis job request"
 
 
 def test_cli_main_reads_stdin_and_writes_stdout(monkeypatch: pytest.MonkeyPatch) -> None:

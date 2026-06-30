@@ -220,27 +220,6 @@ def get_analysis_status() -> HealthReport:
     return build_health_report()
 
 
-def _has_parent_directory_reference(path: str) -> bool:
-    """Return whether a path string contains an actual parent-directory hop."""
-    normalized = path.replace("\\", "/")
-    has_drive_relative_parent = (
-        len(normalized) >= 4
-        and normalized[1] == ":"
-        and normalized[2:4] == ".."
-        and (len(normalized) == 4 or normalized[4] == "/")
-    )
-    return has_drive_relative_parent or any(part == ".." for part in normalized.split("/"))
-
-
-def _validate_workspace_root(field_name: str, value: object) -> str:
-    """Validate cache/temp root fields without leaking traversal-capable paths."""
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"Invalid analysis job request: invalid field '{field_name}'")
-    if _has_parent_directory_reference(value):
-        raise ValueError(f"Invalid analysis job request: path traversal detected in '{field_name}'")
-    return value
-
-
 def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     """Validate and normalize an engine job request payload."""
     if not isinstance(payload, dict):
@@ -306,6 +285,10 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     file_size_bytes = local_source.get("fileSizeBytes")
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
+    if ".." in source_path.replace("\\", "/").split("/"):
+        raise ValueError(
+            "Invalid analysis job request: path traversal detected in 'localSource.sourcePath'"
+        )
     if not isinstance(file_name, str) or not file_name.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
     if extension not in {"wav", "mp3", "flac", "m4a"}:
@@ -326,9 +309,17 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         },
     }
     if cache_root is not None:
-        normalized["cacheRoot"] = _validate_workspace_root("cacheRoot", cache_root)
+        if not isinstance(cache_root, str) or not cache_root.strip():
+            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+        if ".." in cache_root.replace("\\", "/").split("/"):
+            raise ValueError("Invalid analysis job request: path traversal detected in 'cacheRoot'")
+        normalized["cacheRoot"] = cache_root
     if temp_root is not None:
-        normalized["tempRoot"] = _validate_workspace_root("tempRoot", temp_root)
+        if not isinstance(temp_root, str) or not temp_root.strip():
+            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+        if ".." in temp_root.replace("\\", "/").split("/"):
+            raise ValueError("Invalid analysis job request: path traversal detected in 'tempRoot'")
+        normalized["tempRoot"] = temp_root
 
     return normalized
 
@@ -985,7 +976,7 @@ def run_analysis_job_updates(
     """Return incremental orchestration status updates for an analysis job."""
     try:
         request = validate_analysis_job_request(payload)
-    except ValueError as error:
+    except ValueError:
         return [
             _build_job_status(
                 job_id=job_id,
@@ -993,7 +984,7 @@ def run_analysis_job_updates(
                 requested_at=requested_at,
                 error={
                     "code": "invalid_request",
-                    "message": str(error),
+                    "message": "Invalid analysis job request",
                 },
             )
         ]

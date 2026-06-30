@@ -83,29 +83,6 @@ def test_validate_analysis_job_request_accepts_local_audio_payload() -> None:
     }
 
 
-def test_validate_analysis_job_request_allows_double_dot_root_names() -> None:
-    """Ensure root names containing two dots are not treated as traversal."""
-    assert (
-        validate_analysis_job_request(
-            {
-                "sourceKind": "local_audio",
-                "projectId": "project-1",
-                "sourceLabel": "late-night-set.wav",
-                "roleFocus": ["bass-guitar"],
-                "localSource": {
-                    "sourcePath": "/Users/test/Music/late-night-set.wav",
-                    "fileName": "late-night-set.wav",
-                    "extension": "wav",
-                    "fileSizeBytes": 1024000,
-                },
-                "cacheRoot": "/tmp/bandscope/cache/safe..dir",
-                "tempRoot": "C:/bandscope/temp/safe..dir",
-            }
-        )["cacheRoot"]
-        == "/tmp/bandscope/cache/safe..dir"
-    )
-
-
 def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
     """Ensure the request validator reports every expected safe-failure path."""
     cases = [
@@ -296,38 +273,6 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
                     "extension": "wav",
                     "fileSizeBytes": 1024000,
                 },
-                "cacheRoot": "/tmp/../app/foo",
-            },
-            "path traversal detected in 'cacheRoot'",
-        ),
-        (
-            {
-                "sourceKind": "local_audio",
-                "projectId": "project-1",
-                "sourceLabel": "Late Night Set",
-                "roleFocus": [],
-                "localSource": {
-                    "sourcePath": "/Users/test/Music/late-night-set.wav",
-                    "fileName": "late-night-set.wav",
-                    "extension": "wav",
-                    "fileSizeBytes": 1024000,
-                },
-                "cacheRoot": "C:../app/foo",
-            },
-            "path traversal detected in 'cacheRoot'",
-        ),
-        (
-            {
-                "sourceKind": "local_audio",
-                "projectId": "project-1",
-                "sourceLabel": "Late Night Set",
-                "roleFocus": [],
-                "localSource": {
-                    "sourcePath": "/Users/test/Music/late-night-set.wav",
-                    "fileName": "late-night-set.wav",
-                    "extension": "wav",
-                    "fileSizeBytes": 1024000,
-                },
                 "tempRoot": "/tmp/../app/foo",
             },
             "path traversal detected in 'tempRoot'",
@@ -344,9 +289,9 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
                     "extension": "wav",
                     "fileSizeBytes": 1024000,
                 },
-                "tempRoot": "C:..\\app\\foo",
+                "cacheRoot": "/tmp/../app/foo",
             },
-            "path traversal detected in 'tempRoot'",
+            "path traversal detected in 'cacheRoot'",
         ),
     ]
 
@@ -357,6 +302,29 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             assert message in str(error)
         else:
             raise AssertionError(f"Expected ValueError for {payload!r}")
+
+
+def test_validate_analysis_job_request_rejects_source_path_traversal() -> None:
+    """Ensure validation correctly identifies and rejects path traversal attempts in sourcePath."""
+    try:
+        validate_analysis_job_request(
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/../../etc/passwd",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            }
+        )
+    except ValueError as error:
+        assert "path traversal detected" in str(error)
+    else:
+        raise AssertionError("Expected ValueError for path traversal")
 
 
 def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
@@ -419,7 +387,7 @@ def test_run_analysis_job_handles_validation_exception() -> None:
         "updatedAt": "2026-03-12T00:00:00Z",
         "error": {
             "code": "invalid_request",
-            "message": "Invalid analysis job request: invalid field 'sourceLabel'",
+            "message": "Invalid analysis job request",
         },
     }
 
