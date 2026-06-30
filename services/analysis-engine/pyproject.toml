@@ -28,6 +28,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/bandscope_analysis"]
 
+[tool.interrogate]
+exclude = ["build", "docs", "setup.py", ".venv"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
