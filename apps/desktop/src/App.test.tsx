@@ -1335,10 +1335,8 @@ describe("App", () => {
 
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
-    const saveButton = screen.getByRole("button", { name: /save project/i });
-    // Remove disabled attribute to force the click for coverage
-    saveButton.removeAttribute("disabled");
-    fireEvent.click(saveButton);
+    const saveSpan = screen.getByTitle("Analyze a song to enable saving");
+    fireEvent.click(saveSpan);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 

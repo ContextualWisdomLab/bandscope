@@ -603,16 +603,29 @@ export function App() {
                   <FolderOpen className="mr-2 size-4" aria-hidden="true" />
                   Open Project
                 </Button>
-                <Button
-                  onClick={jobResult ? handleSaveProject : undefined}
-                  disabled={!jobResult}
-                  variant="outline"
-                  className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
-                  aria-label="Save Project"
-                >
-                  <Save className="mr-2 size-4" aria-hidden="true" />
-                  Save Project
-                </Button>
+                {jobResult ? (
+                  <Button
+                    onClick={handleSaveProject}
+                    variant="outline"
+                    className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                    aria-label="Save Project"
+                  >
+                    <Save className="mr-2 size-4" aria-hidden="true" />
+                    Save Project
+                  </Button>
+                ) : (
+                  <span tabIndex={0} role="button" aria-disabled="true" title="Analyze a song to enable saving" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <Button
+                      disabled
+                      variant="outline"
+                      className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
+                      aria-label="Save Project"
+                    >
+                      <Save className="mr-2 size-4" aria-hidden="true" />
+                      Save Project
+                    </Button>
+                  </span>
+                )}
                 <Button
                   onClick={handleStartAnalysis}
                   disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
