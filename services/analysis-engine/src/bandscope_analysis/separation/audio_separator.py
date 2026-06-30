@@ -133,6 +133,17 @@ class AudioStemSeparator:
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
         candidate = Path(audio_path).expanduser()
+        audio_path_str = str(candidate)
+        has_dots = ".." in audio_path_str.split(os.sep)
+        if not has_dots:
+            has_dots = ".." in audio_path_str.split("/")
+        if not has_dots:
+            has_dots = ".." in audio_path_str.split("\\")
+        if has_dots:
+            logger.warning(
+                "Security: Path traversal attempt detected in audio path: %s", audio_path_str
+            )
+            raise ValueError("Path traversal attempt detected")
         try:
             path = candidate.resolve(strict=True)
         except FileNotFoundError as error:
@@ -216,6 +227,18 @@ class AudioStemSeparator:
 
         if self.config.model_profile_path:
             profile_candidate = Path(self.config.model_profile_path).expanduser()
+            profile_path_str = str(profile_candidate)
+            has_dots = ".." in profile_path_str.split(os.sep)
+            if not has_dots:
+                has_dots = ".." in profile_path_str.split("/")
+            if not has_dots:
+                has_dots = ".." in profile_path_str.split("\\")
+            if has_dots:
+                logger.warning(
+                    "Security: Path traversal attempt detected in profile path: %s",
+                    profile_path_str,
+                )
+                raise ValueError("Path traversal attempt detected")
             try:
                 profile_path = profile_candidate.resolve(strict=True)
             except FileNotFoundError as error:
