@@ -212,6 +212,17 @@ describe("App", () => {
     expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
   });
 
+  it("keeps source controls before the analysis summary", () => {
+    render(<App />);
+
+    const sourceControls = screen.getByLabelText("Source controls");
+    const analysisSummary = screen.getByLabelText("Analysis summary");
+
+    expect(sourceControls.compareDocumentPosition(analysisSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sourceControls).toHaveTextContent(/Choose local audio/i);
+    expect(sourceControls).toHaveTextContent(/Import YouTube/i);
+  });
+
   it("renders the loaded song as a dark rehearsal command board", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
