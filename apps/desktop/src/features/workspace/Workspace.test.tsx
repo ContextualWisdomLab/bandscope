@@ -240,4 +240,32 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("wraps disabled stem player buttons for accessibility", () => {
+    const song = createDemoRehearsalSong();
+    // Use an un-transcribable role so we hit the else branch on transcribe
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      id: "vocals",
+      name: "Lead Vocal"
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getAllByRole("tab", { name: "Lead Vocal" })[0]);
+
+    // Check tooltip wrappers exist
+    const tooltips = screen.getAllByTitle(/Coming soon/i);
+    expect(tooltips.length).toBe(4); // 3 stem buttons + 1 transcribe button
+
+    const transcribeTooltip = screen.getByTitle(/Lead Vocal transcription is coming soon. Bass is ready first./i);
+    expect(transcribeTooltip).toBeTruthy();
+    expect(transcribeTooltip.tagName).toBe("SPAN");
+    expect(transcribeTooltip.getAttribute("tabIndex")).toBe("0");
+
+    // Transcribe Bass button should be inside the span
+    const transcribeBtn = transcribeTooltip.querySelector("button") as HTMLButtonElement;
+    expect(transcribeBtn).toBeTruthy();
+    expect(transcribeBtn.disabled).toBe(true);
+    expect(transcribeBtn.className).toContain("pointer-events-none");
+  });
 });

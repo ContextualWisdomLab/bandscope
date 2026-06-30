@@ -25,3 +25,6 @@
 ## 2024-06-29 - 비활성화된 네이티브 버튼의 툴팁 차단
 **Learning:** 네이티브 `<button>` 요소에 `disabled` 속성을 사용하면 마우스 호버 이벤트를 포함한 포인터 이벤트가 완전히 차단되어 표준 HTML `title` 속성이 툴팁으로 표시되지 않으며, 키보드 탭 순서(tab order)에서도 제외됩니다.
 **Action:** "출시 예정" 등 설명 툴팁이 필요한 비활성화된 액션 버튼의 경우, `title`을 버튼에 직접 붙이는 대신 포커스 가능한 `span` (`<span tabIndex={0} title={...} role="button" aria-disabled="true">`)으로 버튼을 감싸서 시각적 및 스크린 리더 접근성을 모두 보장해야 합니다.
+## 2024-06-30 - 비활성화된 버튼의 툴팁 접근성 개선
+**Learning:** CSS `disabled:pointer-events-none`가 적용된 `<button>`(또는 React의 `disabled` 속성)에 사용된 네이티브 `title` 속성은 포인터 이벤트가 무시되기 때문에 툴팁이 동작하지 않습니다. 이는 비활성화된 기능에 대한 접근성을 떨어뜨립니다.
+**Action:** 버튼이 비활성화될 때, 툴팁을 제공하려면 해당 버튼을 `<span tabIndex={0} className="cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300" title="...">`로 감싸고 버튼 자체에는 `pointer-events-none` 클래스를 추가하여 마우스 및 키보드 접근성을 확보해야 합니다.
