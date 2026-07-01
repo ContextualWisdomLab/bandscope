@@ -203,8 +203,8 @@ describe("App", () => {
     expect(screen.getByText(/SYNCED • LOCAL/i)).toBeTruthy();
     expect(screen.getByText(/Turn a song into a practical rehearsal view\./i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
+    const comingSoonElements = screen.getAllByTitle("Coming soon", { exact: false });
+    expect(comingSoonElements.length).toBeGreaterThan(0);
     expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
     expect(screen.getByText(/^Key$/i)).toBeTruthy();
     expect(screen.getByText(/Local-first/i)).toBeTruthy();

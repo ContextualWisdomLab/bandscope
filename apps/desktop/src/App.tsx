@@ -492,24 +492,45 @@ export function App() {
           </div>
 
           <nav aria-label="Primary rehearsal views" className="space-y-2">
-            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-disabled={active ? undefined : true}
-                disabled={!active}
-                title={active ? undefined : "Coming soon"}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active
-                    ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
-                    : "cursor-not-allowed text-slate-500 opacity-70"
-                }`}
-              >
-                <Icon className="size-5" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+            {NAV_ITEMS.map(({ label, icon: Icon, active }) => {
+              const baseClass = `flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300`;
+
+              if (active) {
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-current="page"
+                    className={`${baseClass} bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]`}
+                  >
+                    <Icon className="size-5" aria-hidden="true" />
+                    {label}
+                  </button>
+                );
+              }
+
+              return (
+                <span
+                  key={label}
+                  tabIndex={0}
+                  role="button"
+                  aria-disabled="true"
+                  title="Coming soon"
+                  className="block w-full cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <span className="sr-only">{label} coming soon</span>
+                  <button
+                    type="button"
+                    disabled
+                    aria-hidden="true"
+                    className={`${baseClass} pointer-events-none cursor-not-allowed text-slate-500 opacity-70`}
+                  >
+                    <Icon className="size-5" aria-hidden="true" />
+                    {label}
+                  </button>
+                </span>
+              );
+            })}
           </nav>
 
           <div className="mt-auto space-y-5">
@@ -553,23 +574,46 @@ export function App() {
 
         <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label="Compact rehearsal views" className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
-            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-label={`${label} compact view`}
-                aria-disabled={active ? undefined : true}
-                disabled={!active}
-                title={active ? undefined : "Coming soon"}
-                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
-                }`}
-              >
-                <Icon className="size-4" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+            {NAV_ITEMS.map(({ label, icon: Icon, active }) => {
+              const baseClass = `inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300`;
+
+              if (active) {
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-current="page"
+                    aria-label={`${label} compact view`}
+                    className={`${baseClass} bg-blue-600/70 text-white`}
+                  >
+                    <Icon className="size-4" aria-hidden="true" />
+                    {label}
+                  </button>
+                );
+              }
+
+              return (
+                <span
+                  key={label}
+                  tabIndex={0}
+                  role="button"
+                  aria-disabled="true"
+                  title="Coming soon"
+                  className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <span className="sr-only">{label} coming soon</span>
+                  <button
+                    type="button"
+                    disabled
+                    aria-hidden="true"
+                    className={`${baseClass} pointer-events-none cursor-not-allowed text-slate-500 opacity-70`}
+                  >
+                    <Icon className="size-4" aria-hidden="true" />
+                    {label}
+                  </button>
+                </span>
+              );
+            })}
           </nav>
 
           <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
