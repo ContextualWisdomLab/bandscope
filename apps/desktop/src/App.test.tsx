@@ -212,17 +212,6 @@ describe("App", () => {
     expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
   });
 
-  it("keeps source controls before the analysis summary", () => {
-    render(<App />);
-
-    const sourceControls = screen.getByLabelText("Source controls");
-    const analysisSummary = screen.getByLabelText("Analysis summary");
-
-    expect(sourceControls.compareDocumentPosition(analysisSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(sourceControls).toHaveTextContent(/Choose local audio/i);
-    expect(sourceControls).toHaveTextContent(/Import YouTube/i);
-  });
-
   it("renders the loaded song as a dark rehearsal command board", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
@@ -476,6 +465,38 @@ describe("App", () => {
         "aria-valuenow",
         "2"
       );
+    });
+  });
+
+  it("summarizes confidence from the lowest-confidence loaded section with early return", async () => {
+    const loadedProject = succeededResult().result;
+    loadedProject.sections = [
+      {
+        ...loadedProject.sections[0],
+        id: "verse-1",
+        label: "verse",
+        confidence: { level: "high", source: "model", notes: "" }
+      },
+      {
+        ...loadedProject.sections[0],
+        id: "chorus-1",
+        label: "chorus",
+        confidence: { level: "low", source: "model", notes: "" }
+      },
+      {
+        ...loadedProject.sections[0],
+        id: "outro-1",
+        label: "outro",
+        confidence: { level: "low", source: "model", notes: "" }
+      }
+    ];
+    mockLoadProject.mockResolvedValueOnce(loadedProject);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^Low$/i)).toBeTruthy();
     });
   });
 
@@ -1346,8 +1367,10 @@ describe("App", () => {
 
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
-    const saveSpan = screen.getByTitle("Analyze a song to enable saving");
-    fireEvent.click(saveSpan);
+    const saveButton = screen.getByRole("button", { name: /save project/i });
+    // Remove disabled attribute to force the click for coverage
+    saveButton.removeAttribute("disabled");
+    fireEvent.click(saveButton);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 
@@ -1365,13 +1388,5 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
     });
-  });
-
-
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
-    render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
   });
 });

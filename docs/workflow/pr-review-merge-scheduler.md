@@ -8,10 +8,8 @@ as central required workflows.
 
 The central scheduler keeps the open `develop` PR queue moving without bypassing repository rules.
 It runs in the target repository context through the organization required workflow, so mechanical
-update-branch, auto-merge, and merge actions are performed by the selected workflow mutation
-credential, not by a maintainer's local `gh` session. The central scheduler may select
-`PR_REVIEW_MERGE_TOKEN`, `OPENCODE_APPROVE_TOKEN`, an exchanged OpenCode GitHub App token, or the
-workflow `GITHUB_TOKEN`, depending on which credential can perform the guarded repository mutation.
+update-branch, auto-merge, and merge actions are attributed to `github-actions[bot]`, not to the
+OpenCode review token. `OPENCODE_APPROVE_TOKEN` is not part of the scheduler contract.
 
 The local repository may keep product CI, security, release, and build workflows. It must not restore
 repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or their `scripts/ci` helper implementations.
@@ -49,7 +47,7 @@ repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or 
 - Realistic threats: spammed review comments, merging a PR with unresolved conversations, merging without required checks, or hiding conflicts behind automation.
 - Mitigations: central required workflow source pinning, idempotent per-head review comment marker,
   explicit unresolved-thread check, retry-bounded GitHub API reads, required-check verification
-  through GitHub, conflict skip, guarded merge with `--match-head-commit`, and no admin bypass path.
+  through GitHub, conflict skip, normal merge only, and no admin bypass path.
 - Remaining risk: CodeRabbit and GitHub check state can be delayed or stale; the scheduler therefore only advances eligible PRs and leaves code-fix work to agents or maintainers.
 - Test points: organization ruleset inheritance, current-head OpenCode approval, unresolved review
   thread count, required-check rollup, approved behind PR, approved conflict-free PR, approved dirty PR,
