@@ -7,7 +7,7 @@ Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 ## Source Of Truth
 
 - Visual structure, component anatomy, states, layout examples, implementation paths, prop/state translation, UI repair guidance, screen blueprints, and QA rules live in Figma.
-- Production component APIs, tokens, accessibility behavior, and implementation examples are mirrored in this directory for code review.
+- Production component APIs, tokens, accessibility behavior, implementation examples, IA, screen definitions, key screens, wireframes, and user stories are mirrored in this directory for code review.
 - Frontend work must resolve conflicts by checking both Figma-local contract pages and production code.
 - Figma component names and variant names should mirror the repo contract so visual review remains straightforward.
 - Do not introduce required Figma platform features into build, test, release, or CI flows.
@@ -17,12 +17,13 @@ Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 
 1. Start from the Figma component or screen to understand visual intent.
 2. Read `28 Implementation Contract`, `29 UI Repair Playbook`, `30 Publisher + QA Matrix`, `31 Component Contract Catalog`, `32 Screen Blueprints`, `33 Figma-Only Readiness Audit`, and `34 Workspace State Matrix` in the Figma file.
-3. Use [component-contract.md](component-contract.md) as a repo mirror of the Figma-only contract.
+3. Use [component-contract.md](component-contract.md) and [product-design-handoff.md](product-design-handoff.md) as repo mirrors of the Figma-only contract.
 4. Implement with the listed code component and allowed props before adding local markup.
 5. Use documented token classes and component variants first; add one-off classes only for domain-specific visual emphasis.
 6. Review the PR against the publisher and frontend checklists below.
 
 Codex and other implementation agents must follow [figma-to-code-workflow.md](figma-to-code-workflow.md) when using the Figma file as development input.
+Product Design additions must follow [product-design-handoff.md](product-design-handoff.md) before inventing new screens or components.
 
 ## Visual Audit Snapshot
 
