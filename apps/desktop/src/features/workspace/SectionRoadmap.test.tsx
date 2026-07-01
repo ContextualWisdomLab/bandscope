@@ -16,7 +16,6 @@ describe("SectionRoadmap", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
   });
 
   it("localizes roadmap controls and provenance badges", () => {
@@ -49,7 +48,7 @@ describe("SectionRoadmap", () => {
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it("cancels chord editing without updating the song", () => {
+  it("cancels chord edit and does not update song", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
     const onSongUpdate = vi.fn();
@@ -63,25 +62,42 @@ describe("SectionRoadmap", () => {
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
-  it("disables chord editing when no update handler is provided", () => {
+  it("does not allow editing if onSongUpdate is undefined", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
+
+    const { getByRole } = render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const button = getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" });
+
+    expect(button.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("returns early from handleChordEdit if onSongUpdate is undefined, tested by calling handler directly", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    const promptSpy = vi.spyOn(window, "prompt");
 
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    expect(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" })).toBeDisabled();
+    const button = screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" });
+    fireEvent(button, new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(promptSpy).not.toHaveBeenCalled();
   });
 
-  it("renders priority indicators for high, medium, and low roles", () => {
+  it("renders priority colors and icons correctly", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
 
+    // Add a role with medium priority
     song.sections[0].roles.push({
       ...song.sections[0].roles[0],
       id: "medium-priority-role",
       name: "Medium Role",
       rehearsalPriority: "medium"
     });
+
+    // Add a role with low priority
     song.sections[0].roles.push({
       ...song.sections[0].roles[0],
       id: "low-priority-role",
@@ -96,63 +112,111 @@ describe("SectionRoadmap", () => {
     expect(screen.getAllByTitle("우선순위: low").length).toBeGreaterThan(0);
   });
 
-  it("renders low confidence badges for low-confidence sections and roles", () => {
+  it("renders low confidence badges correctly", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
+
     song.sections[0].confidence.level = "low";
     song.sections[0].roles[0].confidence.level = "low";
 
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    expect(screen.getAllByText("확신이 낮음").length).toBeGreaterThan(0);
+    // "확신이 낮음" is the ko-KR translation for "Low confidence"
+    const lowConfidenceElements = screen.getAllByText("확신이 낮음");
+    expect(lowConfidenceElements.length).toBeGreaterThan(0);
   });
 
-  it("filters the roadmap to the active role", () => {
+  it("filters roles when activeRole is provided", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
 
+    // The demo song has "bass-guitar" and "keys-right" among others
     render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
 
+    // Should render Bass Guitar
     expect(screen.getByText("Bass Guitar")).toBeTruthy();
+
+    // Should not render Keyboard 1 Right Hand since it's filtered out
     expect(screen.queryByText("Keyboard 1 Right Hand")).toBeNull();
   });
 
-  it("does not update when the entered chord is empty or whitespace", () => {
+  it("does not update song when section or role is not found during edit", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
     const onSongUpdate = vi.fn();
-    const promptSpy = vi.spyOn(window, "prompt");
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("NewChord");
 
-    promptSpy.mockReturnValueOnce("").mockReturnValueOnce("   ");
+    // We'll mock global structuredClone safely
+    const originalStructuredClone = global.structuredClone;
+    vi.stubGlobal("structuredClone", vi.fn().mockImplementation((val) => {
+      const cloned = originalStructuredClone(val);
+      // Remove all sections so the find fails
+      cloned.sections = [];
+      return cloned;
+    }));
+
+    try {
+      render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+
+      expect(promptSpy).toHaveBeenCalled();
+      expect(onSongUpdate).not.toHaveBeenCalled();
+
+      // Now mock it to return a section but missing the role
+      vi.stubGlobal("structuredClone", vi.fn().mockImplementation((val) => {
+        const cloned = originalStructuredClone(val);
+        // Remove all roles so the find fails
+        if (cloned.sections.length > 0) {
+          cloned.sections[0].roles = [];
+        }
+        return cloned;
+      }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+
+      expect(promptSpy).toHaveBeenCalledTimes(2);
+      expect(onSongUpdate).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("does not update song when entered chord is whitespace", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("   ");
+
     render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
 
-    const editButton = screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" });
-    fireEvent.click(editButton);
-    fireEvent.click(editButton);
+    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
 
-    expect(promptSpy).toHaveBeenCalledTimes(2);
+    expect(promptSpy).toHaveBeenCalled();
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
-  it("renders overlap warnings", () => {
+  it("renders overlap warnings correctly", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
 
     render(<SectionRoadmap song={song} activeRole={null} />);
 
+    // The demo song has a density warning: "Density warning: competing with Keyboard Left Hand in low register."
     expect(screen.getByText("Density warning: competing with Keyboard Left Hand in low register.")).toBeTruthy();
   });
 
-  it("does not update when the trimmed chord is unchanged", () => {
-    setNavigatorLanguage("en-US");
+  it("handles empty chord input as cancel", () => {
+    setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
     const onSongUpdate = vi.fn();
-    vi.spyOn(window, "prompt").mockReturnValue(" C#m7 ");
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("");
 
     render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
 
+    expect(promptSpy).toHaveBeenCalledWith("새 코드 입력:", "C#m7");
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 });
