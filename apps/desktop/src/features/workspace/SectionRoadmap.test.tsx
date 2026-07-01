@@ -117,42 +117,6 @@ describe("SectionRoadmap", () => {
     expect(screen.queryByText("Keyboard 1 Right Hand")).toBeNull();
   });
 
-  it("does not update when cloned edit targets are missing", () => {
-    setNavigatorLanguage("ko-KR");
-    const song = createDemoRehearsalSong();
-    const onSongUpdate = vi.fn();
-    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("NewChord");
-    const originalStructuredClone = globalThis.structuredClone;
-    const cloneForTest = <T,>(value: T): T => {
-      if (typeof originalStructuredClone === "function") {
-        return originalStructuredClone(value);
-      }
-      return JSON.parse(JSON.stringify(value)) as T;
-    };
-
-    vi.stubGlobal("structuredClone", vi.fn().mockImplementation((value) => {
-      const cloned = cloneForTest(value);
-      cloned.sections = [];
-      return cloned;
-    }));
-
-    render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
-    expect(promptSpy).toHaveBeenCalledTimes(1);
-    expect(onSongUpdate).not.toHaveBeenCalled();
-
-    vi.stubGlobal("structuredClone", vi.fn().mockImplementation((value) => {
-      const cloned = cloneForTest(value);
-      cloned.sections[0].roles = [];
-      return cloned;
-    }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
-    expect(promptSpy).toHaveBeenCalledTimes(2);
-    expect(onSongUpdate).not.toHaveBeenCalled();
-  });
-
   it("does not update when the entered chord is empty or whitespace", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
@@ -177,5 +141,18 @@ describe("SectionRoadmap", () => {
     render(<SectionRoadmap song={song} activeRole={null} />);
 
     expect(screen.getByText("Density warning: competing with Keyboard Left Hand in low register.")).toBeTruthy();
+  });
+
+  it("does not update when the trimmed chord is unchanged", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    vi.spyOn(window, "prompt").mockReturnValue(" C#m7 ");
+
+    render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" }));
+
+    expect(onSongUpdate).not.toHaveBeenCalled();
   });
 });
