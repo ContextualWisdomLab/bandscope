@@ -212,6 +212,17 @@ describe("App", () => {
     expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
   });
 
+  it("keeps source controls before the analysis summary", () => {
+    render(<App />);
+
+    const sourceControls = screen.getByLabelText("Source controls");
+    const analysisSummary = screen.getByLabelText("Analysis summary");
+
+    expect(sourceControls.compareDocumentPosition(analysisSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sourceControls).toHaveTextContent(/Choose local audio/i);
+    expect(sourceControls).toHaveTextContent(/Import YouTube/i);
+  });
+
   it("renders the loaded song as a dark rehearsal command board", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
@@ -485,6 +496,12 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => {
       expect(screen.getAllByRole("status").some((status) => /queued for analysis/i.test(status.textContent ?? ""))).toBe(true);
+    });
+    await waitFor(() => {
+      expect(mockSubscribeToAnalysisJobUpdates).toHaveBeenCalledWith(
+        "job-unlabeled-status",
+        expect.any(Function)
+      );
     });
 
     const completed = succeededResult();
@@ -1173,6 +1190,33 @@ describe("App", () => {
     });
   });
 
+  it("redacts local paths from project load failures", async () => {
+    mockLoadProject.mockRejectedValueOnce(new Error("Could not open C:\\Users\\Seongho\\private-set.band\nstack detail"));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load project: Could not open \[local path\]/i)).toBeTruthy();
+    });
+    const alertText = screen.getByRole("alert").textContent ?? "";
+    expect(alertText).not.toMatch(/C:\\Users\\Seongho/i);
+    expect(alertText).not.toMatch(/stack detail/i);
+  });
+
+  it("truncates oversized project load failure details", async () => {
+    const longDetail = "A".repeat(260);
+    mockLoadProject.mockRejectedValueOnce(new Error(longDetail));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    const truncatedDetail = `${longDetail.slice(0, 217)}...`;
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain(`Failed to load project: ${truncatedDetail}`);
+    });
+  });
+
   it("ignores cancellation when loading a project with string error", async () => {
     mockLoadProject.mockRejectedValueOnce("User cancelled");
     render(<App />);
@@ -1268,6 +1312,32 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to save project: Disk full/i)).toBeTruthy();
     });
+  });
+
+  it("redacts links, local paths, and secret assignments from project save failures", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce(
+      new Error("Upload failed for https://example.com/report?token=abc access_token=secret123 at /Users/seongho/private.band")
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    let alertText = "";
+    await waitFor(() => {
+      alertText = screen.getByRole("alert").textContent ?? "";
+      expect(alertText).toMatch(/Failed to save project:/i);
+    });
+    expect(alertText).toMatch(/\[link\]/i);
+    expect(alertText).toMatch(/access_token=\[redacted\]/i);
+    expect(alertText).toMatch(/\[local path\]/i);
+    expect(alertText).not.toMatch(/example\.com|secret123|\/Users\/seongho/i);
   });
 
   it("ignores cancellation when saving a project with string error", async () => {
