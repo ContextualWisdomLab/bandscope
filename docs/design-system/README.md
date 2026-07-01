@@ -11,6 +11,7 @@ Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 - Frontend work must resolve conflicts by checking both Figma-local contract pages and production code.
 - Figma component names and variant names should mirror the repo contract so visual review remains straightforward.
 - Do not introduce required Figma platform features into build, test, release, or CI flows.
+- `Ponytail` and `Superpowers` are recorded on Figma page `33 Figma-Only Readiness Audit` as unavailable callable tools for this handoff. Treat them as named review perspectives only unless a future session exposes actual tools or project standards for them.
 
 ## Working Model
 
@@ -51,6 +52,7 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - Update Figma variants only after confirming the repo component supports the state or after opening a follow-up implementation task.
 - If a detail needed for implementation is absent from Figma, treat that absence as a design-system defect and update Figma before coding.
 - If Code Connect becomes available later, treat it as an optional publishing layer over this contract, not as the source of truth.
+- Keep the `Ponytail and Superpowers access note` on page 33 current whenever those tools or standards become available.
 
 ## Current UI Defects Covered
 
