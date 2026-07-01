@@ -507,8 +507,8 @@ done <"$failed_contexts"
 
 		annotations_tmp="$(mktemp)"
 		tmp_files+=("$annotations_tmp")
-		if gh api -X GET "repos/${GH_REPOSITORY}/check-runs/${check_run_id}/annotations" --paginate | \
-			jq '
+		if gh api -X GET "repos/${GH_REPOSITORY}/check-runs/${check_run_id}/annotations" --paginate \
+			--jq '
 				.[]?
 				| "- " + (.path // "unknown") + ":" + ((.start_line // 0) | tostring) + "-" + ((.end_line // .start_line // 0) | tostring) + " [" + (.annotation_level // "annotation") + "] " + ((.message // .title // "") | gsub("\r|\n"; " "))
 			' >"$annotations_tmp" 2>/dev/null; then
