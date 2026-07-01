@@ -29,21 +29,6 @@ OPTIONAL_STRUCTURAL_REVIEW_PHRASES = (
 )
 
 
-def central_required_workflow_policy_text() -> str:
-    """Return the repository policy text that delegates review automation centrally."""
-    repo_root = Path(__file__).resolve().parents[3]
-    return (repo_root / "docs" / "workflow" / "pr-review-merge-scheduler.md").read_text(
-        encoding="utf-8"
-    )
-
-
-def assert_local_review_workflows_removed() -> None:
-    """Ensure this repository does not carry local copies of central review workflows."""
-    repo_root = Path(__file__).resolve().parents[3]
-    assert not (repo_root / ".github" / "workflows" / "opencode-review.yml").exists()
-    assert not (repo_root / ".github" / "workflows" / "pr-review-merge-scheduler.yml").exists()
-
-
 def test_supply_chain_check_requires_multi_arch_runner_labels(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1248,14 +1233,13 @@ def test_supply_chain_check_accepts_repo_ossf_pr_code_scanning_upload() -> None:
 
 
 def test_opencode_review_declares_top_level_token_permissions() -> None:
-    """Ensure OpenCode token posture is delegated to the central required workflow."""
-    policy = central_required_workflow_policy_text()
+    """Ensure OpenCode review keeps workflow-level GITHUB_TOKEN restrictions."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
 
-    assert_local_review_workflows_removed()
-    assert "ContextualWisdomLab/.github" in policy
-    assert "opencode-review" in policy
-    assert "repo-local copies" in policy
-    assert "token permissions" in policy
+    assert "\npermissions: read-all\n" in workflow
 
 
 def test_supply_chain_check_rejects_unnormalized_scorecard_sarif_upload(
@@ -4936,46 +4920,68 @@ def test_supply_chain_check_accepts_repo_workspace_exec_policy(
 
 
 def test_opencode_review_gate_ignores_review_agent_status_contexts() -> None:
-    """Ensure peer-check handling is delegated to the central OpenCode workflow."""
-    policy = central_required_workflow_policy_text()
+    """Ensure OpenCode ignores review agents while waiting on regular peer checks."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
 
-    assert_local_review_workflows_removed()
-    assert "peer-check waits" in policy
-    assert "review-agent status contexts" in policy
-    assert "failed-check explanation" in policy
+    assert "def opencode_review_agent_status:" in workflow
+    assert '$context == "coderabbit"' in workflow
+    assert '$context == "copilot pull request reviewer"' in workflow
+    assert "current_peer_checks_still_running" in workflow
+    assert 'select((.name // "") != "opencode-review")' in workflow
+    assert (
+        'select((.checkSuite.workflowRun.workflow.name // "") != "OpenCode PR Review")' in workflow
+    )
+    assert (
+        'select((.state // "" | ascii_upcase) as $s | ["PENDING","EXPECTED"] | index($s))'
+        in workflow
+    )
+    assert "No completed failed GitHub Checks were present" in workflow
+    assert workflow.count("select(opencode_review_agent_status | not)") >= 2
 
 
 def test_opencode_review_unavailable_reports_provider_errors() -> None:
-    """Ensure provider failure reporting is a central OpenCode workflow responsibility."""
-    policy = central_required_workflow_policy_text()
+    """Ensure unavailable OpenCode reviews explain provider failures in the overview."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
 
-    assert_local_review_workflows_removed()
-    assert "provider/runtime failures" in policy
-    assert "OpenCode runtime evidence" in policy
+    assert "summarize_opencode_review_failures" in workflow
+    assert "OpenCode runtime evidence:" in workflow
+    assert ".error.data.statusCode // empty" in workflow
+    assert ".error.data.message // .error.message // .error.name // empty" in workflow
+    assert ".error.data.metadata.url // empty" in workflow
 
 
 def test_opencode_approval_write_failure_updates_overview_only() -> None:
-    """Ensure approval write failures remain central automation evidence."""
-    policy = central_required_workflow_policy_text()
-
-    assert_local_review_workflows_removed()
-    assert "approval publication failures" in policy
-    assert "automation evidence, not" in policy
-    assert "source-backed repository findings" in policy
-
-
-def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
-    """Ensure mechanical PR queue handling is attributed to GitHub Actions centrally."""
+    """Ensure approval write failures are not reported as source findings."""
     repo_root = Path(__file__).resolve().parents[3]
-    policy = central_required_workflow_policy_text()
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
 
-    opencode_config = (repo_root / "opencode.jsonc").read_text(encoding="utf-8")
-    assert '"openai/o3"' in opencode_config
-    assert '"openai/o4-mini"' in opencode_config
-    assert_local_review_workflows_removed()
-    assert "github-actions[bot]" in policy
-    assert "`OPENCODE_APPROVE_TOKEN` is not part of the scheduler contract" in policy
-    assert "update-branch, auto-merge, and merge actions" in policy
+    assert "create_approval_or_report_unavailable" in workflow
+    assert "APPROVAL_REVIEW_UNAVAILABLE" in workflow
+    assert "not a source-backed code finding" in workflow
+    assert 'create_approval_or_report_unavailable "$body"' in workflow
+
+
+def test_pr_review_merge_scheduler_uses_github_token_fallback() -> None:
+    """Ensure scheduled queue handling still runs when the app token secret is absent."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "pr-review-merge-scheduler.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "contents: write" in workflow
+    assert "issues: write" in workflow
+    assert "pull-requests: write" in workflow
+    assert "GH_TOKEN: ${{ secrets.OPENCODE_APPROVE_TOKEN || github.token }}" in workflow
+    assert "scheduler token source=github-token" in workflow
+    assert "Configure OPENCODE_APPROVE_TOKEN before running the scheduler" not in workflow
 
 
 def test_opencode_classifies_artifact_upload_reset_as_external() -> None:
@@ -5024,40 +5030,6 @@ Finalizing artifact upload
         "Failed to FinalizeArtifact: Unable to make request: ECONNRESET" in signal
         for signal in result["signals"]
     )
-    assert (
-        "Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg"
-        in result["signals"]
-    )
-
-
-def test_opencode_preserves_build_signals_when_artifact_upload_context_is_missing() -> None:
-    """Keep diagnostic build output when upload reset evidence lacks upload context."""
-    classifier = load_module(
-        "scripts/ci/classify_failed_check_evidence.py",
-        "classify_failed_check_evidence_artifact_upload_missing_context",
-    )
-    evidence = """
-# Failed GitHub Check Evidence
-
-## Failed check: build-baseline/build / macos / amd64
-
-### Failed job steps
-
-- step 13: Upload macOS amd64 artifact (failure)
-
-### Failed log excerpt
-
-```text
-Finished `release` profile [optimized] target(s) in 6m 56s
-Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg
-##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET
-```
-""".strip()
-
-    result = classifier.classify_failed_check_evidence(evidence)
-
-    assert result["classification"] == "actionable_or_unknown"
-    assert "artifact upload context was missing" in result["reason"]
     assert (
         "Packaged BandScope_0.1.3_x64.dmg to artifacts/bandscope-macos-amd64.dmg"
         in result["signals"]
@@ -5164,13 +5136,21 @@ FAIL apps/desktop/src/App.test.tsx
 
 
 def test_opencode_review_stops_external_check_failures_without_review() -> None:
-    """Ensure external check failure handling is delegated to central review automation."""
-    policy = central_required_workflow_policy_text()
+    """Ensure external check failures update overview instead of review state."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
 
-    assert_local_review_workflows_removed()
-    assert "external failed-check classification" in policy
-    assert "review state" in policy
-    assert "current-head evidence" in policy
+    assert "scripts/ci/classify_failed_check_evidence.py" in workflow
+    assert "stop_for_external_failed_check_if_needed" in workflow
+    assert 'stop_approval_without_review "EXTERNAL_CHECK_FAILURE"' in workflow
+    assert 'map(tostring | ltrimstr("- ") | "- " + .)' in workflow
+    assert 'if [ "$gate_status" -ne 0 ]; then' in workflow
+    assert "python3 scripts/ci/opencode_review_normalize_output.py" in workflow
+    assert '"$HEAD_SHA" "$RUN_ID" "$RUN_ATTEMPT" "$clean_output"' in workflow
+    assert 'if ! classification="$(' in workflow
+    assert "jq -r '.classification // empty' \"$classification_file\" 2>/dev/null" in workflow
 
 
 def test_opencode_normalizer_defaults_missing_approve_findings(tmp_path: Path) -> None:
@@ -5504,9 +5484,11 @@ def test_opencode_review_gate_accepts_completed_local_structural_fallback(
 
 
 def test_opencode_strix_lookup_reports_missing_actions_read_scope() -> None:
-    """Ensure Strix lookup token-scope diagnostics stay in central workflow policy."""
-    policy = central_required_workflow_policy_text()
+    """Ensure Strix lookup token-scope failures are diagnosable."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "opencode-review.yml").read_text(
+        encoding="utf-8"
+    )
 
-    assert_local_review_workflows_removed()
-    assert "Strix evidence lookup" in policy
-    assert "Actions read access" in policy
+    assert "HTTP 403|forbidden|resource not accessible" in workflow
+    assert "requires Actions read access" in workflow

@@ -150,7 +150,6 @@ def _classify_upload_artifact_failure(
                 failed_check,
                 upload_step_match.group(0),
                 *matched_infra_signals,
-                *build_success_signals,
             ],
         )
 
