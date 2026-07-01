@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createTranslator, detectPreferredLocale } from "./index";
+import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
   describe("detectPreferredLocale", () => {
@@ -63,7 +64,15 @@ describe("i18n", () => {
 
     it("falls back to English when a Korean translation is missing", () => {
       const t = createTranslator("ko");
-      expect(t("appTitle")).toBe("BandScope");
+      const koDictionary = koCommon as Record<string, string | undefined>;
+      const originalSubtitle = koDictionary.appSubtitle;
+      delete koDictionary.appSubtitle;
+
+      try {
+        expect(t("appSubtitle")).toBe("Local-first desktop analysis tool for rehearsal prep");
+      } finally {
+        koDictionary.appSubtitle = originalSubtitle;
+      }
     });
   });
 });
