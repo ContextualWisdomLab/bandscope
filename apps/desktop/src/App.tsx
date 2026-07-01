@@ -229,6 +229,7 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const activeJobIdRef = useRef<string | null>(null);
+  const youtubeUrlInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
@@ -603,6 +604,7 @@ export function App() {
                   <div className="relative flex min-w-0 items-center gap-2">
                     <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
                     <Input
+                      ref={youtubeUrlInputRef}
                       type="text"
                       placeholder={t("youtubePlaceholder")}
                       value={youtubeUrl}
@@ -614,8 +616,8 @@ export function App() {
                     {youtubeUrl && (
                       <button
                         type="button"
-                        onClick={(event) => {
-                          event.currentTarget.parentElement?.querySelector<HTMLInputElement>("input")?.focus();
+                        onClick={() => {
+                          youtubeUrlInputRef.current?.focus();
                           setYoutubeUrl("");
                         }}
                         disabled={analysisInFlight || isStarting || isImporting}
