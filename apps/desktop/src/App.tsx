@@ -49,6 +49,10 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
+const MAX_ERROR_DETAIL_LENGTH = 220;
+const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:Users|home|var|tmp|private|Volumes)\/[^\s"'<>]+)/g;
+const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
+const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
 const NAV_ITEMS = [
   { label: "Workspace", icon: Home, active: true },
@@ -83,6 +87,44 @@ function progressMessage(
     case "failed":
       return t("analysisStateFailed");
   }
+}
+
+/** Documented. */
+function rawErrorMessage(error: unknown): string | null {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return null;
+}
+
+/** Documented. */
+function isUserCancellation(error: unknown): boolean {
+  return rawErrorMessage(error)?.trim() === "User cancelled";
+}
+
+/** Documented. */
+function safeErrorDetail(error: unknown, fallback: string): string {
+  const raw = rawErrorMessage(error);
+  if (!raw?.trim()) {
+    return fallback;
+  }
+
+  const firstLine = raw
+    .split(/\r?\n/)[0]
+    .replace(/\s+/g, " ")
+    .trim();
+  const redacted = firstLine
+    .replace(URL_PATTERN, "[link]")
+    .replace(SECRET_ASSIGNMENT_PATTERN, (_match: string, key: string) => `${key}=[redacted]`)
+    .replace(LOCAL_PATH_PATTERN, "[local path]")
+    .trim();
+
+  return redacted.length > MAX_ERROR_DETAIL_LENGTH
+    ? `${redacted.slice(0, MAX_ERROR_DETAIL_LENGTH - 3)}...`
+    : redacted;
 }
 
 /** Documented. */
@@ -217,7 +259,7 @@ export function App() {
     }
     if (nextStatus.state === "failed") {
       setActiveAnalysisBootstrap(null);
-      setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
+      setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
     }
   }, [activeAnalysisBootstrap, t]);
 
@@ -348,7 +390,7 @@ export function App() {
     }
 
     setSelectedBootstrap(null);
-    setSelectionError(selection.error.message || t("unsupportedLocalAudio"));
+    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
     setJobStatus(null);
   };
 
@@ -373,7 +415,7 @@ export function App() {
         setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
       } else {
-        setSelectionError(selection.error.message || t("youtubeImportFailed"));
+        setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
       }
     } catch {
       setSelectionError(t("youtubeImportFailed"));
@@ -393,10 +435,8 @@ export function App() {
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
-      if (e instanceof Error && e.message !== "User cancelled") {
-        setJobError(`Failed to load project: ${e.message}`);
-      } else if (typeof e === "string" && e !== "User cancelled") {
-        setJobError(`Failed to load project: ${e}`);
+      if (!isUserCancellation(e)) {
+        setJobError(`Failed to load project: ${safeErrorDetail(e, "The selected project could not be loaded.")}`);
       }
     }
   };
@@ -406,10 +446,8 @@ export function App() {
     try {
       await saveProject(jobResult!);
     } catch (e) {
-      if (e instanceof Error && e.message !== "User cancelled") {
-        setJobError(`Failed to save project: ${e.message}`);
-      } else if (typeof e === "string" && e !== "User cancelled") {
-        setJobError(`Failed to save project: ${e}`);
+      if (!isUserCancellation(e)) {
+        setJobError(`Failed to save project: ${safeErrorDetail(e, "The project could not be saved.")}`);
       }
     }
   };
@@ -502,12 +540,18 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <button type="button" aria-label="Settings coming soon" title="Settings coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                <Settings className="size-5" aria-hidden="true" />
-              </button>
-              <button type="button" aria-label="Help coming soon" title="Help coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                <CircleHelp className="size-5" aria-hidden="true" />
-              </button>
+              <span tabIndex={0} role="button" aria-disabled="true" title="Settings coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <span className="sr-only">Settings coming soon</span>
+                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
+                  <Settings className="size-5" aria-hidden="true" />
+                </button>
+              </span>
+              <span tabIndex={0} role="button" aria-disabled="true" title="Help coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <span className="sr-only">Help coming soon</span>
+                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
+                  <CircleHelp className="size-5" aria-hidden="true" />
+                </button>
+              </span>
             </div>
           </div>
         </aside>
@@ -533,14 +577,6 @@ export function App() {
             ))}
           </nav>
 
-          <header className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
-            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
-            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
-            <ConfidenceMetric song={jobResult} />
-            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(jobResult)} detail={jobResult?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
-          </header>
-
           <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
             <div className="grid gap-4 2xl:grid-cols-[1.4fr_minmax(0,1fr)_auto] 2xl:items-center">
               <div>
@@ -555,28 +591,28 @@ export function App() {
                 </p>
               </div>
 
-              <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center 2xl:grid-cols-[auto_1fr]">
+              <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
                   onClick={handleChooseLocalAudio}
                   disabled={isBusy}
                   variant="secondary"
-                  className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
+                  className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
                   aria-label="Choose local audio"
                 >
                   <Upload className="mr-2 size-4" aria-hidden="true" />
                   {t("chooseLocalAudio")}
                 </Button>
 
-                <div className="relative flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
-                  <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
-                  <div className="relative flex flex-1 items-center">
+                <div className="grid min-w-0 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="relative flex min-w-0 items-center gap-2">
+                    <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
                     <Input
                       type="text"
                       placeholder={t("youtubePlaceholder")}
                       value={youtubeUrl}
                       onChange={(e) => setYoutubeUrl(e.target.value)}
                       disabled={isBusy}
-                      className="h-10 w-full border-0 bg-transparent pr-8 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
+                      className="h-10 flex-1 border-0 bg-transparent pr-8 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                       aria-label="YouTube URL"
                     />
                     {youtubeUrl && !isBusy && (
@@ -585,7 +621,7 @@ export function App() {
                         onClick={() => setYoutubeUrl("")}
                         aria-label="Clear YouTube URL"
                         title="Clear YouTube URL"
-                        className="absolute right-2 rounded-md p-0.5 text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                       >
                         <X className="size-4" aria-hidden="true" />
                       </button>
@@ -595,7 +631,7 @@ export function App() {
                     onClick={handleImportYoutube}
                     disabled={!youtubeUrl || isBusy}
                     variant="outline"
-                    className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                    className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
                     aria-label="Import YouTube"
                   >
                     {isImporting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
@@ -604,7 +640,7 @@ export function App() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap justify-start gap-2 2xl:justify-end">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
                   disabled={analysisInFlight || isStarting}
@@ -615,16 +651,29 @@ export function App() {
                   <FolderOpen className="mr-2 size-4" aria-hidden="true" />
                   Open Project
                 </Button>
-                <Button
-                  onClick={jobResult ? handleSaveProject : undefined}
-                  disabled={!jobResult}
-                  variant="outline"
-                  className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
-                  aria-label="Save Project"
-                >
-                  <Save className="mr-2 size-4" aria-hidden="true" />
-                  Save Project
-                </Button>
+                {jobResult ? (
+                  <Button
+                    onClick={handleSaveProject}
+                    variant="outline"
+                    className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                    aria-label="Save Project"
+                  >
+                    <Save className="mr-2 size-4" aria-hidden="true" />
+                    Save Project
+                  </Button>
+                ) : (
+                  <span tabIndex={0} role="button" aria-disabled="true" title="Analyze a song to enable saving" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <Button
+                      disabled
+                      variant="outline"
+                      className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
+                      aria-label="Save Project"
+                    >
+                      <Save className="mr-2 size-4" aria-hidden="true" />
+                      Save Project
+                    </Button>
+                  </span>
+                )}
                 <Button
                   onClick={handleStartAnalysis}
                   disabled={!selectedBootstrap || isBusy}
@@ -689,6 +738,14 @@ export function App() {
               </div>
             </div>
           </section>
+
+          <header aria-label="Analysis summary" className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
+            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
+            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
+            <ConfidenceMetric song={jobResult} />
+            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(jobResult)} detail={jobResult?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
+          </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
             {renderWorkspaceState()}
