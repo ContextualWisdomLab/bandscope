@@ -36,11 +36,10 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - Mobile 375x812 and desktop 1440x900 repair targets on `32 Screen Blueprints`.
 - Figma-only readiness evidence on `33 Figma-Only Readiness Audit`.
 - Whole-workspace empty, loading, error, ready, Groove Map, and Source Control Stack state contracts on `34 Workspace State Matrix`.
-- Tool access limits on `33 Figma-Only Readiness Audit`, including the 2026-07-01 `Ponytail` and `Superpowers` recheck note.
-- Visual audit evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms pages 28-33 have visible root frames and no remaining manual-height text clipping candidates.
-- Placeholder-section audit evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms page 32 has no remaining label-only blueprint sections.
-- Overflow/overlap repair evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms pages 28-33 have no remaining parent overflow candidates or sibling-overlap candidates after page 29, page 31, and page 32 geometry repairs.
-- Workspace state repair evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms page 34 covers the implemented `WorkspaceStates.tsx` state contract.
+- Review perspective notes on `33 Figma-Only Readiness Audit`, including how `Ponytail`, `Superpowers`, and `Product Design` were applied without adding Figma platform dependencies.
+- Fourth-pass restore evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 finding that pages 28-34 could appear empty or stale unless each page was loaded before inspection.
+- Structural audit evidence on `33 Figma-Only Readiness Audit`, including the post-restore pass that loads each page with `figma.setCurrentPageAsync(page)` and confirms pages 28-34 have one visible text-bearing root frame with no empty, duplicate-root, low-detail, parent-overflow, manual-height clipping, or top-level overlap candidates.
+- Workspace state repair evidence on `33 Figma-Only Readiness Audit`, including the rebuilt page 34 root `99:560` that covers the implemented `WorkspaceStates.tsx` state contract.
 - Domain patterns such as Source Control Stack, Groove Map, Section Roadmap Card, and Export Action Group.
 - UI-defect guidance for clipping, touch targets, source-control priority, and panel density.
 
@@ -69,7 +68,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - A required implementation detail exists only in repo docs and not in Figma.
 - A workspace empty, loading, error, ready, Groove Map, or Source Control Stack state is not represented on `34 Workspace State Matrix`, page `25 Groove Map`, page `26 Source Control Stack`, or page `31 Component Contract Catalog`.
 - A named review perspective such as `Ponytail` or `Superpowers` is treated as a tool-backed requirement without an actual available tool or documented project standard.
-- A page-level Figma metadata overview appears empty but the page root node has not been inspected directly.
+- A page-level Figma metadata overview or direct Plugin API page inspection appears empty before the page has been loaded with `figma.setCurrentPageAsync(page)`, or this repo mirror claims populated Figma content that is not present in the loaded Figma page.
 - A Figma screen blueprint has a large placeholder-only or label-only section and the matching runtime surface has not been checked.
 - A Figma row, card, or blueprint detail only reads correctly because text or nested content spills outside its parent or overlaps a neighboring element.
 - A generated Figma layout would require duplicating an existing component.
