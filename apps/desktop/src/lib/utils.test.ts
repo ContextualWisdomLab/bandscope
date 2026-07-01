@@ -7,9 +7,8 @@ describe("cn", () => {
   })
 
   it("handles conditional classes", () => {
-    const hasBar = true as boolean;
-    const hasBaz = false as boolean;
-    expect(cn("foo", hasBar ? "bar" : undefined, hasBaz ? "baz" : undefined)).toBe("foo bar")
+    const conditions = { hasBar: true, hasBaz: false };
+    expect(cn("foo", conditions.hasBar && "bar", conditions.hasBaz && "baz")).toBe("foo bar")
   })
 
   it("merges arrays of class names", () => {
