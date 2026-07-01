@@ -1,5 +1,6 @@
 """Tests for the public analysis-engine API helpers."""
 
+import json
 import queue
 import time
 from unittest.mock import patch
@@ -339,34 +340,35 @@ def test_run_analysis_job_handles_validation_exception() -> None:
 
 def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
     """Ensure local-audio requests separate stems before building rehearsal roles."""
+    separation_result = {
+        "stems": {
+            "vocals": np.zeros(1024),
+            "bass": np.zeros(1024),
+            "drums": np.zeros(1024),
+            "other": np.zeros(1024),
+        },
+        "sample_rate": 22050,
+        "duration_seconds": 1.0,
+        "chunk_count": 1,
+        "stem_role_types": {
+            "vocals": "vocal",
+            "bass": "instrument",
+            "drums": "instrument",
+            "other": "instrument",
+        },
+        "separation_notes": "Separated selected local audio into 4 canonical stems.",
+    }
     with (
-        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch(
+            "bandscope_analysis.api._run_stem_separation_with_timeout",
+            return_value=separation_result,
+        ),
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
     ):
-        separator = separator_class.return_value
-        separator.separate.return_value = {
-            "stems": {
-                "vocals": np.zeros(1024),
-                "bass": np.zeros(1024),
-                "drums": np.zeros(1024),
-                "other": np.zeros(1024),
-            },
-            "sample_rate": 22050,
-            "duration_seconds": 1.0,
-            "chunk_count": 1,
-            "stem_role_types": {
-                "vocals": "vocal",
-                "bass": "instrument",
-                "drums": "instrument",
-                "other": "instrument",
-            },
-            "separation_notes": "Separated selected local audio into 4 canonical stems.",
-        }
-
         success = run_analysis_job(
             "job-3",
             {
@@ -390,6 +392,24 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
 
 def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     """Ensure local-audio orchestration exposes stages and persists reusable cache."""
+    separation_result = {
+        "stems": {
+            "vocals": np.zeros(1024),
+            "bass": np.zeros(1024),
+            "drums": np.zeros(1024),
+            "other": np.zeros(1024),
+        },
+        "sample_rate": 22050,
+        "duration_seconds": 1.0,
+        "chunk_count": 1,
+        "stem_role_types": {
+            "vocals": "vocal",
+            "bass": "instrument",
+            "drums": "instrument",
+            "other": "instrument",
+        },
+        "separation_notes": "Separated selected local audio into 4 canonical stems.",
+    }
     payload = {
         "sourceKind": "local_audio",
         "projectId": "project-cache",
@@ -406,33 +426,16 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     }
 
     with (
-        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch(
+            "bandscope_analysis.api._run_stem_separation_with_timeout",
+            return_value=separation_result,
+        ),
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
     ):
-        separator = separator_class.return_value
-        separator.separate.return_value = {
-            "stems": {
-                "vocals": np.zeros(1024),
-                "bass": np.zeros(1024),
-                "drums": np.zeros(1024),
-                "other": np.zeros(1024),
-            },
-            "sample_rate": 22050,
-            "duration_seconds": 1.0,
-            "chunk_count": 1,
-            "stem_role_types": {
-                "vocals": "vocal",
-                "bass": "instrument",
-                "drums": "instrument",
-                "other": "instrument",
-            },
-            "separation_notes": "Separated selected local audio into 4 canonical stems.",
-        }
-
         updates = list(run_analysis_job_updates("job-cache", payload, "2026-03-12T00:00:00Z"))
 
         observed_progress = [
@@ -465,7 +468,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
     """Ensure unsafe or undecodable local audio returns a typed failure envelope."""
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
         separator_class.return_value.separate.side_effect = ValueError(
-            "Audio file is too large for stem separation: 16 bytes (max 8 bytes)"
+            "Audio file is too large for /Users/test/Music/late-night-set.wav"
         )
 
         updates = list(
@@ -497,6 +500,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
         "code": "engine_unavailable",
         "message": "Stem separation failed due to an internal error.",
     }
+    assert "/Users/test/Music" not in json.dumps(updates)
 
 
 def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
@@ -845,11 +849,23 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             self.items.append(item)
 
     cases = [
-        (FileNotFoundError("missing"), "file_not_found", "Audio source file not found."),
-        (ValueError("bad media"), "value_error", "Invalid audio format or parameters."),
-        (RuntimeError("oom"), "runtime_error", "Stem separation engine error."),
         (
-            Exception("unexpected"),
+            FileNotFoundError("/tmp/private/audio.wav"),
+            "file_not_found",
+            "Audio source file not found.",
+        ),
+        (
+            ValueError("bad media under /tmp/private/audio.wav"),
+            "value_error",
+            "Invalid audio format or parameters.",
+        ),
+        (
+            RuntimeError("oom under /tmp/private/audio.wav"),
+            "runtime_error",
+            "Stem separation engine error.",
+        ),
+        (
+            Exception("unexpected under /tmp/private/audio.wav"),
             "runtime_error",
             "An unexpected error occurred during separation.",
         ),
@@ -861,6 +877,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             separator_class.return_value.separate.side_effect = error
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
         assert fake_queue.items == [(expected_kind, expected_msg)]
+        assert "/tmp/private" not in repr(fake_queue.items)
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
