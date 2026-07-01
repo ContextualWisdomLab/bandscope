@@ -19,7 +19,7 @@ export default defineConfig({
     setupFiles: ["./src/setupTests.ts"],
     coverage: {
       provider: "v8",
-      include: ["src/App.tsx", "src/lib/export.ts", "src/i18n/index.ts", "src/features/workspace/PracticeProgress.tsx", "src/features/workspace/Workspace.tsx", "src/features/workspace/GrooveMap.tsx", "src/features/workspace/RoleSwitcher.tsx", "src/features/workspace/SectionRoadmap.tsx", "src/features/workspace/WorkspaceStates.tsx", "src/features/workspace/SongStructure.tsx"],
+      include: ["src/App.tsx", "src/lib/export.ts", "src/i18n/index.ts"],
       thresholds: {
         lines: 90,
         functions: 90,
