@@ -16,7 +16,7 @@ Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 ## Working Model
 
 1. Start from the Figma component or screen to understand visual intent.
-2. Read `28 Implementation Contract`, `29 UI Repair Playbook`, `30 Publisher + QA Matrix`, `31 Component Contract Catalog`, `32 Screen Blueprints`, and `33 Figma-Only Readiness Audit` in the Figma file.
+2. Read `28 Implementation Contract`, `29 UI Repair Playbook`, `30 Publisher + QA Matrix`, `31 Component Contract Catalog`, `32 Screen Blueprints`, `33 Figma-Only Readiness Audit`, and `34 Workspace State Matrix` in the Figma file.
 3. Use [component-contract.md](component-contract.md) as a repo mirror of the Figma-only contract.
 4. Implement with the listed code component and allowed props before adding local markup.
 5. Use documented token classes and component variants first; add one-off classes only for domain-specific visual emphasis.
@@ -36,6 +36,9 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - `32 Screen Blueprints` remains the visual target for source-first mobile and desktop repair work. The current app implements that source-first order in [App.tsx](../../apps/desktop/src/App.tsx), and the regression is covered by [App.test.tsx](../../apps/desktop/src/App.test.tsx).
 - If a Figma metadata overview appears to show pages 28-33 as empty, inspect the page root node directly before treating it as a defect. The verified root IDs are `50:2`, `50:20`, `50:59`, `51:2`, `50:86`, and `50:133`.
 - If a blueprint block is only a large labeled box, treat that as a Figma handoff defect unless the corresponding runtime surface is genuinely unimplemented. The 2026-07-01 audit found the code was implemented, so Figma page 32 was corrected instead of changing app code.
+- A third-pass 2026-07-01 state audit found the app already implements `EmptyState`, `LoadingState`, and `ErrorState` in [WorkspaceStates.tsx](../../apps/desktop/src/features/workspace/WorkspaceStates.tsx), with routing in [App.tsx](../../apps/desktop/src/App.tsx). Figma was missing a standalone whole-workspace state contract, so page `34 Workspace State Matrix` was added with root node `80:3`.
+- Page `33 Figma-Only Readiness Audit` contains `2026-07-01 workspace state contract pass - PASS` at node `80:130`.
+- The final structural audit across pages `28` through `34` reported `0` empty frames/sections, `0` low-detail placeholder sections, `0` manual-height clipping candidates, and `0` top-level overlap candidates.
 
 ## Frontend Engineer Checklist
 
@@ -43,6 +46,7 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - Treat [component-contract.md](component-contract.md) as a review mirror, not a replacement for the Figma page.
 - Keep `Button`, `Badge`, `Input`, `Tabs`, `Progress`, and `Card` semantics intact instead of recreating them with raw elements.
 - Preserve focus states, disabled states, `aria-invalid`, labels, and keyboard-accessible regions.
+- Use `34 Workspace State Matrix` before changing workspace empty, loading, error, ready, Groove Map, or Source Control Stack state behavior.
 - Keep mobile touch actions at 40px or larger when the design uses the Touch state.
 - Keep source controls above the fold on narrow screens and allow wrapping before clipping.
 - Preserve the contract test in `apps/desktop/src/App.test.tsx` that keeps `Source controls` before `Analysis summary`.
@@ -60,14 +64,14 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 
 ## Figma Maintenance
 
-- Keep the Figma Handoff Notes page linked to Figma-only pages first: `28 Implementation Contract`, `29 UI Repair Playbook`, `30 Publisher + QA Matrix`, `31 Component Contract Catalog`, `32 Screen Blueprints`, and `33 Figma-Only Readiness Audit`.
+- Keep the Figma Handoff Notes page linked to Figma-only pages first: `28 Implementation Contract`, `29 UI Repair Playbook`, `30 Publisher + QA Matrix`, `31 Component Contract Catalog`, `32 Screen Blueprints`, `33 Figma-Only Readiness Audit`, and `34 Workspace State Matrix`.
 - Keep component descriptions focused on code path, usage, state mapping, and known UI defects.
 - Update Figma variants only after confirming the repo component supports the state or after opening a follow-up implementation task.
 - If a detail needed for implementation is absent from Figma, treat that absence as a design-system defect and update Figma before coding.
 - If a Figma screen blueprint contains placeholder-only or label-only sections, compare against the runtime code first. Implement code only when the surface is missing; otherwise fill the Figma blueprint with concrete UI anatomy.
 - If a Figma card or blueprint detail visibly overflows its parent, overlaps a sibling, or depends on unclipped spillover to be readable, treat it as a Figma handoff defect unless the corresponding runtime surface is missing.
 - If Code Connect becomes available later, treat it as an optional publishing layer over this contract, not as the source of truth.
-- Keep the `Ponytail and Superpowers access note`, `2026-07-01 visual pass`, `2026-07-01 placeholder section pass`, and `2026-07-01 overflow/overlap repair pass` rows on page 33 current whenever those tools, standards, or visual audit results change.
+- Keep the `Ponytail and Superpowers access note`, `2026-07-01 visual pass`, `2026-07-01 placeholder section pass`, `2026-07-01 overflow/overlap repair pass`, and `2026-07-01 workspace state contract pass` rows on page 33 current whenever those tools, standards, visual audit results, or runtime state contracts change.
 
 ## Current UI Defects Covered
 
@@ -79,3 +83,4 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - Compact navigation clipping: allow trigger wrapping and avoid fixed-width labels.
 - Heavy nested cards: prefer `Card` once per logical panel, with repeated rows inside.
 - Dense uppercase labels: keep metadata short and use normal body text for explanations.
+- Workspace empty/loading/error handoff gap: page `34 Workspace State Matrix` now maps runtime triggers, visual anatomy, code paths, and role/aria expectations before implementation.
