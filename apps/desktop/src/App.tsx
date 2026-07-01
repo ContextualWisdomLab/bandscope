@@ -49,6 +49,10 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
+const MAX_ERROR_DETAIL_LENGTH = 220;
+const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:Users|home|var|tmp|private|Volumes)\/[^\s"'<>]+)/g;
+const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
+const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
 const NAV_ITEMS = [
   { label: "Workspace", icon: Home, active: true },
@@ -83,6 +87,44 @@ function progressMessage(
     case "failed":
       return t("analysisStateFailed");
   }
+}
+
+/** Documented. */
+function rawErrorMessage(error: unknown): string | null {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return null;
+}
+
+/** Documented. */
+function isUserCancellation(error: unknown): boolean {
+  return rawErrorMessage(error)?.trim() === "User cancelled";
+}
+
+/** Documented. */
+function safeErrorDetail(error: unknown, fallback: string): string {
+  const raw = rawErrorMessage(error);
+  if (!raw?.trim()) {
+    return fallback;
+  }
+
+  const firstLine = raw
+    .split(/\r?\n/)[0]
+    .replace(/\s+/g, " ")
+    .trim();
+  const redacted = firstLine
+    .replace(URL_PATTERN, "[link]")
+    .replace(SECRET_ASSIGNMENT_PATTERN, (_match: string, key: string) => `${key}=[redacted]`)
+    .replace(LOCAL_PATH_PATTERN, "[local path]")
+    .trim();
+
+  return redacted.length > MAX_ERROR_DETAIL_LENGTH
+    ? `${redacted.slice(0, MAX_ERROR_DETAIL_LENGTH - 3)}...`
+    : redacted;
 }
 
 /** Documented. */
@@ -213,7 +255,7 @@ export function App() {
     }
     if (nextStatus.state === "failed") {
       setActiveAnalysisBootstrap(null);
-      setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
+      setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
     }
   }, [activeAnalysisBootstrap, t]);
 
@@ -344,7 +386,7 @@ export function App() {
     }
 
     setSelectedBootstrap(null);
-    setSelectionError(selection.error.message || t("unsupportedLocalAudio"));
+    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
     setJobStatus(null);
   };
 
@@ -369,7 +411,7 @@ export function App() {
         setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
       } else {
-        setSelectionError(selection.error.message || t("youtubeImportFailed"));
+        setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
       }
     } catch {
       setSelectionError(t("youtubeImportFailed"));
@@ -389,10 +431,8 @@ export function App() {
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
-      if (e instanceof Error && e.message !== "User cancelled") {
-        setJobError(`Failed to load project: ${e.message}`);
-      } else if (typeof e === "string" && e !== "User cancelled") {
-        setJobError(`Failed to load project: ${e}`);
+      if (!isUserCancellation(e)) {
+        setJobError(`Failed to load project: ${safeErrorDetail(e, "The selected project could not be loaded.")}`);
       }
     }
   };
@@ -402,10 +442,8 @@ export function App() {
     try {
       await saveProject(jobResult!);
     } catch (e) {
-      if (e instanceof Error && e.message !== "User cancelled") {
-        setJobError(`Failed to save project: ${e.message}`);
-      } else if (typeof e === "string" && e !== "User cancelled") {
-        setJobError(`Failed to save project: ${e}`);
+      if (!isUserCancellation(e)) {
+        setJobError(`Failed to save project: ${safeErrorDetail(e, "The project could not be saved.")}`);
       }
     }
   };
