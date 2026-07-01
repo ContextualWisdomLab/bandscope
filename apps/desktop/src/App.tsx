@@ -534,14 +534,6 @@ export function App() {
             ))}
           </nav>
 
-          <header className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
-            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
-            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
-            <ConfidenceMetric song={jobResult} />
-            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(jobResult)} detail={jobResult?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
-          </header>
-
           <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
             <div className="grid gap-4 2xl:grid-cols-[1.4fr_minmax(0,1fr)_auto] 2xl:items-center">
               <div>
@@ -556,34 +548,36 @@ export function App() {
                 </p>
               </div>
 
-              <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center 2xl:grid-cols-[auto_1fr]">
+              <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
                   onClick={handleChooseLocalAudio}
                   disabled={analysisInFlight || isStarting || isImporting}
                   variant="secondary"
-                  className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
+                  className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
                   aria-label="Choose local audio"
                 >
                   <Upload className="mr-2 size-4" aria-hidden="true" />
                   {t("chooseLocalAudio")}
                 </Button>
 
-                <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
-                  <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
-                  <Input
-                    type="text"
-                    placeholder={t("youtubePlaceholder")}
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                    disabled={analysisInFlight || isStarting || isImporting}
-                    className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
-                    aria-label="YouTube URL"
-                  />
+                <div className="grid min-w-0 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
+                    <Input
+                      type="text"
+                      placeholder={t("youtubePlaceholder")}
+                      value={youtubeUrl}
+                      onChange={(e) => setYoutubeUrl(e.target.value)}
+                      disabled={analysisInFlight || isStarting || isImporting}
+                      className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
+                      aria-label="YouTube URL"
+                    />
+                  </div>
                   <Button
                     onClick={handleImportYoutube}
                     disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
                     variant="outline"
-                    className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                    className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
                     aria-label="Import YouTube"
                   >
                     {isImporting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
@@ -592,7 +586,7 @@ export function App() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap justify-start gap-2 2xl:justify-end">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
                   disabled={analysisInFlight || isStarting}
@@ -690,6 +684,14 @@ export function App() {
               </div>
             </div>
           </section>
+
+          <header aria-label="Analysis summary" className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
+            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
+            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
+            <ConfidenceMetric song={jobResult} />
+            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(jobResult)} detail={jobResult?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
+          </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
             {renderWorkspaceState()}
