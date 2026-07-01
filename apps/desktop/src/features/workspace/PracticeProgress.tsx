@@ -29,9 +29,8 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
 
   return (
     <div
-      className="mt-4 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+      className="mt-4 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-4 focus-within:ring-2 focus-within:ring-indigo-300"
       role="region"
-      tabIndex={0}
       aria-label={t("practiceProgressRegionLabel")}
     >
       <div className="mb-2 flex items-center justify-between">

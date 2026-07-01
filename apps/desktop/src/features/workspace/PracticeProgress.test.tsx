@@ -75,6 +75,14 @@ describe("PracticeProgress", () => {
     expect(handleChange).toHaveBeenCalledWith(75);
   });
 
+  it("keeps focus on interactive controls instead of the progress region", () => {
+    const handleChange = vi.fn();
+    render(<PracticeProgress progress={50} onChange={handleChange} />);
+
+    expect(screen.getByRole("region", { name: "practiceProgressRegionLabel" })).not.toHaveAttribute("tabindex");
+    expect(screen.getByRole("slider")).toBeInTheDocument();
+  });
+
   it("ignores invalid slider input gracefully", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
