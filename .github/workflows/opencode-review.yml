@@ -1573,7 +1573,7 @@ jobs:
             local payload_file="$3"
 
             # shellcheck disable=SC2016
-            jq -n               --rawfile body "$body_file"               --argjson control "[$(cat "$control_json")]"               --arg commit_id "$HEAD_SHA" '
+            jq -n               --rawfile body "$body_file"               --argjson control "[$(cat \"$control_json\")]"               --arg commit_id "$HEAD_SHA" '
                 def text($value): ($value // "" | tostring);
                 {
                   event: "REQUEST_CHANGES",
