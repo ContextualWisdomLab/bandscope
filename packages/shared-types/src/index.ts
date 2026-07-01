@@ -1815,7 +1815,7 @@ function validateSongRehearsalPack(
     if (value.song === undefined) return invalidField(`${path}.song`);
     const songError = validateRehearsalSong(value.song, options);
     if (songError) return songError;
-  } else if (value.packState === "failed") {
+  } else {
     const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel", "error"], path);
     if (extraKey) return extraKey;
     if (value.error === undefined) return invalidField(`${path}.error`);
