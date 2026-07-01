@@ -16,16 +16,17 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 2. Read Figma structure and variants through Figma MCP or the node URL.
 3. Read `31 Component Contract Catalog` for the matching source path, current runtime API, TSX example, and QA note.
 4. Read `32 Screen Blueprints` for mobile and desktop placement before changing layout.
-5. Check `33 Figma-Only Readiness Audit` for current visual audit evidence and tool access limits before deciding a Figma page is empty or a plugin-backed review is required.
-6. Use [component-contract.md](component-contract.md) only as a repo mirror when working in code review.
-7. Inspect the actual code component before editing.
-8. If a Figma blueprint block is placeholder-only, verify whether the matching runtime surface exists before coding. Fill Figma when the code already exists; implement code only when the surface is genuinely missing.
-9. If a Figma card, contract row, or blueprint detail overflows its parent or overlaps a sibling, repair Figma first unless the runtime surface is genuinely missing.
-10. Implement with existing components first.
-11. Add or update tests when behavior, accessibility, reading order, or reusable component APIs change.
-12. Verify with typecheck and the narrowest useful test command.
-13. For visible UI changes, run the app and compare desktop and mobile screenshots against Figma intent.
-14. If implementation needs to diverge from Figma, document whether the code API, accessibility, runtime behavior, or responsive layout caused the divergence.
+5. Read `34 Workspace State Matrix` before changing workspace empty, loading, error, ready, Groove Map, or Source Control Stack states.
+6. Check `33 Figma-Only Readiness Audit` for current visual audit evidence and tool access limits before deciding a Figma page is empty or a plugin-backed review is required.
+7. Use [component-contract.md](component-contract.md) only as a repo mirror when working in code review.
+8. Inspect the actual code component before editing.
+9. If a Figma blueprint block is placeholder-only, verify whether the matching runtime surface exists before coding. Fill Figma when the code already exists; implement code only when the surface is genuinely missing.
+10. If a Figma card, contract row, or blueprint detail overflows its parent or overlaps a sibling, repair Figma first unless the runtime surface is genuinely missing.
+11. Implement with existing components first.
+12. Add or update tests when behavior, accessibility, reading order, or reusable component APIs change.
+13. Verify with typecheck and the narrowest useful test command.
+14. For visible UI changes, run the app and compare desktop and mobile screenshots against Figma intent.
+15. If implementation needs to diverge from Figma, document whether the code API, accessibility, runtime behavior, or responsive layout caused the divergence.
 
 ## What Figma Can Provide
 
@@ -34,10 +35,12 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - Visual measurements, spacing, hierarchy, state examples, and screenshots.
 - Mobile 375x812 and desktop 1440x900 repair targets on `32 Screen Blueprints`.
 - Figma-only readiness evidence on `33 Figma-Only Readiness Audit`.
+- Whole-workspace empty, loading, error, ready, Groove Map, and Source Control Stack state contracts on `34 Workspace State Matrix`.
 - Tool access limits on `33 Figma-Only Readiness Audit`, including the 2026-07-01 `Ponytail` and `Superpowers` recheck note.
 - Visual audit evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms pages 28-33 have visible root frames and no remaining manual-height text clipping candidates.
 - Placeholder-section audit evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms page 32 has no remaining label-only blueprint sections.
 - Overflow/overlap repair evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms pages 28-33 have no remaining parent overflow candidates or sibling-overlap candidates after page 29, page 31, and page 32 geometry repairs.
+- Workspace state repair evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms page 34 covers the implemented `WorkspaceStates.tsx` state contract.
 - Domain patterns such as Source Control Stack, Groove Map, Section Roadmap Card, and Export Action Group.
 - UI-defect guidance for clipping, touch targets, source-control priority, and panel density.
 
@@ -54,6 +57,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - Translate Figma `Input` states through native `type`, `disabled`, and `aria-invalid`.
 - Translate Figma `Tabs Trigger` through `Tabs`, `TabsList`, and `TabsTrigger`.
 - Translate confidence UI through `ConfidenceBadge`, not local color classes.
+- Translate `34 Workspace State Matrix` through `EmptyState`, `LoadingState`, `ErrorState`, `Workspace`, `GrooveMap`, and the feature-local Source Control Stack. Do not replace these states with blank panels.
 - Translate Figma pattern components in the backlog as feature-local markup until reuse justifies extraction.
 - Keep generated Figma asset URLs out of production code unless the asset has been intentionally added to the repo.
 
@@ -63,6 +67,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - A Figma variant has no supported code prop or class strategy.
 - A Figma contract names a prop that does not exist in the current runtime component.
 - A required implementation detail exists only in repo docs and not in Figma.
+- A workspace empty, loading, error, ready, Groove Map, or Source Control Stack state is not represented on `34 Workspace State Matrix`, page `25 Groove Map`, page `26 Source Control Stack`, or page `31 Component Contract Catalog`.
 - A named review perspective such as `Ponytail` or `Superpowers` is treated as a tool-backed requirement without an actual available tool or documented project standard.
 - A page-level Figma metadata overview appears empty but the page root node has not been inspected directly.
 - A Figma screen blueprint has a large placeholder-only or label-only section and the matching runtime surface has not been checked.
