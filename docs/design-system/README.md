@@ -11,7 +11,7 @@ Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 - Frontend work must resolve conflicts by checking both Figma-local contract pages and production code.
 - Figma component names and variant names should mirror the repo contract so visual review remains straightforward.
 - Do not introduce required Figma platform features into build, test, release, or CI flows.
-- `Ponytail` and `Superpowers` are recorded on Figma page `33 Figma-Only Readiness Audit` as unavailable callable tools for this handoff. The explicit plugin links were rechecked on 2026-07-01 and still exposed no callable tools or install candidates, so treat them as named review perspectives only unless a future session exposes actual tools or project standards for them.
+- `Ponytail`, `Superpowers`, and `Product Design` are recorded on Figma page `33 Figma-Only Readiness Audit` as review perspectives for this handoff. The 2026-07-01 fourth pass applies those perspectives through the Figma readiness-audit page and this repo mirror: complexity trimming, review/verification discipline, and visual/state handoff quality. They are process/design lenses, not Figma platform dependencies.
 
 ## Working Model
 
@@ -26,19 +26,14 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 
 ## Visual Audit Snapshot
 
-- Figma page `33 Figma-Only Readiness Audit` contains the `2026-07-01 visual pass - PASS` evidence row.
-- Pages `28 Implementation Contract`, `29 UI Repair Playbook`, `30 Publisher + QA Matrix`, `31 Component Contract Catalog`, `32 Screen Blueprints`, and `33 Figma-Only Readiness Audit` each contain one visible root frame.
-- The 2026-07-01 Figma audit found no empty root, hidden root, top-level overlap candidate, or remaining manual-height text clipping candidate on pages 28-33 after the intro and gap text was changed to auto-height.
-- Figma page `33 Figma-Only Readiness Audit` also contains the `2026-07-01 placeholder section pass - PASS` evidence row.
-- Page `32 Screen Blueprints` was hardened after the first visual pass: its mobile and desktop blocks now show concrete UI anatomy for header/role controls, source controls, status/progress, metric cards, navigation, console details, section roadmap, groove map, and export actions.
-- The stricter page 32 audit found `0` label-only/empty blueprint sections and `0` text clipping candidates after those additions.
-- A second-pass 2026-07-01 Figma audit found `10` overflow candidates and `2` sibling-overlap candidates across pages 28-33. Page `29 UI Repair Playbook`, page `31 Component Contract Catalog`, and page `32 Screen Blueprints` were repaired in Figma; the final audit reports `0` overflow candidates and `0` sibling-overlap candidates.
+- The 2026-07-01 fourth pass found that Figma pages `28 Implementation Contract` through `34 Workspace State Matrix` could appear empty or stale unless each page was loaded before inspection. Some pages also had duplicate historical roots. That mismatch was treated as a design-system defect.
+- Pages `28` through `34` were loaded with `figma.setCurrentPageAsync(page)`, cleaned to one visible root each, and rebuilt in Figma with text-bearing nodes, code paths, state maps, QA rules, and concrete mobile/desktop screen anatomy.
+- Current verified Figma root IDs are `99:2` (`28 Implementation Contract`), `99:82` (`29 UI Repair Playbook`), `99:171` (`30 Publisher + QA Matrix`), `99:253` (`31 Component Contract Catalog`), `99:415` (`32 Screen Blueprints`), `99:714` (`33 Figma-Only Readiness Audit`), and `99:560` (`34 Workspace State Matrix`).
+- Use colon-form IDs such as `99:560` in Figma Plugin API calls. Use hyphen-form IDs such as `node-id=99-560` in Figma URLs.
+- The post-rebuild structural audit reported `0` empty pages, `0` duplicate roots, `0` empty roots, `0` low-detail placeholder sections, `0` manual-height clipping candidates, `0` parent-overflow candidates, and `0` top-level overlap candidates across pages `28` through `34`.
 - `32 Screen Blueprints` remains the visual target for source-first mobile and desktop repair work. The current app implements that source-first order in [App.tsx](../../apps/desktop/src/App.tsx), and the regression is covered by [App.test.tsx](../../apps/desktop/src/App.test.tsx).
-- If a Figma metadata overview appears to show pages 28-33 as empty, inspect the page root node directly before treating it as a defect. The verified root IDs are `50:2`, `50:20`, `50:59`, `51:2`, `50:86`, and `50:133`.
-- If a blueprint block is only a large labeled box, treat that as a Figma handoff defect unless the corresponding runtime surface is genuinely unimplemented. The 2026-07-01 audit found the code was implemented, so Figma page 32 was corrected instead of changing app code.
-- A third-pass 2026-07-01 state audit found the app already implements `EmptyState`, `LoadingState`, and `ErrorState` in [WorkspaceStates.tsx](../../apps/desktop/src/features/workspace/WorkspaceStates.tsx), with routing in [App.tsx](../../apps/desktop/src/App.tsx). Figma was missing a standalone whole-workspace state contract, so page `34 Workspace State Matrix` was added with root node `80:3`.
-- Page `33 Figma-Only Readiness Audit` contains `2026-07-01 workspace state contract pass - PASS` at node `80:130`.
-- The final structural audit across pages `28` through `34` reported `0` empty frames/sections, `0` low-detail placeholder sections, `0` manual-height clipping candidates, and `0` top-level overlap candidates.
+- If a Figma page or blueprint section is empty, label-only, or structurally detached from its visible text, treat that as a Figma handoff defect unless the corresponding runtime surface is genuinely unimplemented. The fourth pass found the relevant runtime surfaces already implemented, so Figma was corrected instead of adding code.
+- A runtime state audit found the app already implements `EmptyState`, `LoadingState`, and `ErrorState` in [WorkspaceStates.tsx](../../apps/desktop/src/features/workspace/WorkspaceStates.tsx), with routing in [App.tsx](../../apps/desktop/src/App.tsx). Page `34 Workspace State Matrix` now mirrors that contract with visible text nodes at root `99:560`.
 
 ## Frontend Engineer Checklist
 
@@ -71,7 +66,7 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - If a Figma screen blueprint contains placeholder-only or label-only sections, compare against the runtime code first. Implement code only when the surface is missing; otherwise fill the Figma blueprint with concrete UI anatomy.
 - If a Figma card or blueprint detail visibly overflows its parent, overlaps a sibling, or depends on unclipped spillover to be readable, treat it as a Figma handoff defect unless the corresponding runtime surface is missing.
 - If Code Connect becomes available later, treat it as an optional publishing layer over this contract, not as the source of truth.
-- Keep the `Ponytail and Superpowers access note`, `2026-07-01 visual pass`, `2026-07-01 placeholder section pass`, `2026-07-01 overflow/overlap repair pass`, and `2026-07-01 workspace state contract pass` rows on page 33 current whenever those tools, standards, visual audit results, or runtime state contracts change.
+- Keep the `Ponytail`, `Superpowers`, `Product Design`, fourth-pass empty-page restore, hierarchy audit, structural audit, and workspace state contract rows on page 33 current whenever those tools, standards, visual audit results, or runtime state contracts change.
 
 ## Current UI Defects Covered
 

@@ -497,6 +497,12 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getAllByRole("status").some((status) => /queued for analysis/i.test(status.textContent ?? ""))).toBe(true);
     });
+    await waitFor(() => {
+      expect(mockSubscribeToAnalysisJobUpdates).toHaveBeenCalledWith(
+        "job-unlabeled-status",
+        expect.any(Function)
+      );
+    });
 
     const completed = succeededResult();
     delete (completed as { progressLabel?: string }).progressLabel;
