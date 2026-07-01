@@ -497,18 +497,12 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <span tabIndex={0} role="button" aria-disabled="true" title="Settings coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                <span className="sr-only">Settings coming soon</span>
-                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
-                  <Settings className="size-5" aria-hidden="true" />
-                </button>
-              </span>
-              <span tabIndex={0} role="button" aria-disabled="true" title="Help coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                <span className="sr-only">Help coming soon</span>
-                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
-                  <CircleHelp className="size-5" aria-hidden="true" />
-                </button>
-              </span>
+              <button type="button" aria-label="Settings coming soon" title="Settings coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <Settings className="size-5" aria-hidden="true" />
+              </button>
+              <button type="button" aria-label="Help coming soon" title="Help coming soon" disabled className="cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <CircleHelp className="size-5" aria-hidden="true" />
+              </button>
             </div>
           </div>
         </aside>

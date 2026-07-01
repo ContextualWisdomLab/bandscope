@@ -12,7 +12,7 @@ update-branch, auto-merge, and merge actions are attributed to `github-actions[b
 OpenCode review token. `OPENCODE_APPROVE_TOKEN` is not part of the scheduler contract.
 
 The local repository may keep product CI, security, release, and build workflows. It must not restore
-repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or their `scripts/ci` helper implementations.
+repo-local copies of `opencode-review.yml` or `pr-review-merge-scheduler.yml`.
 
 ## Behavior
 
@@ -37,7 +37,7 @@ repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or 
 - It does not resolve review threads.
 - It does not use admin merge or ruleset bypass.
 - It does not weaken required checks, branch protection, or repository rulesets.
-- It does not require BandScope to carry repo-local OpenCode or scheduler workflow/helper copies.
+- It does not require BandScope to carry repo-local OpenCode or scheduler workflow copies.
 - It does not move central token permissions into this repository.
 
 ## Security Notes

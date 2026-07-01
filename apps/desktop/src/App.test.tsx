@@ -1357,12 +1357,4 @@ describe("App", () => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
     });
   });
-
-
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
-    render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
-  });
 });

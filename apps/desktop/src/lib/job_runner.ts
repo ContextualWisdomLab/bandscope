@@ -36,16 +36,22 @@ const mockWorkspace: RehearsalWorkspace = {
   workspaceVersion: 1
 };
 
-const mockSongsById = new Map<string, SongRehearsalPack>(
-  mockWorkspace.songs.map(song => [song.id, song])
-);
+const mockSongsById = new Map<string, SongRehearsalPack>();
 
 type MockListener = (event: { payload: unknown }) => void;
 const mockListeners = new Set<MockListener>();
 
 /** Documented. */
 function getMockSong(jobId: string): SongRehearsalPack | undefined {
-  return mockSongsById.get(jobId);
+  const cachedPack = mockSongsById.get(jobId);
+  if (cachedPack) {
+    return cachedPack;
+  }
+  const pack = mockWorkspace.songs.find(song => song.id === jobId);
+  if (pack) {
+    mockSongsById.set(jobId, pack);
+  }
+  return pack;
 }
 
 /**
