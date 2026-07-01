@@ -72,19 +72,14 @@ function progressMessage(
     return status.progressLabel;
   }
 
-/* v8 ignore next */
   switch (status.state) {
     case "queued":
-/* v8 ignore next */
       return t("analysisStateQueued");
     case "running":
-/* v8 ignore next */
       return t("analysisStateRunning");
     case "succeeded":
-/* v8 ignore next */
       return t("analysisStateSucceeded");
     case "failed":
-/* v8 ignore next */
       return t("analysisStateFailed");
   }
 }
@@ -223,26 +218,19 @@ export function App() {
       return;
     }
     if (jobStatus?.state === "failed" || jobStatus?.state === "succeeded") {
-/* v8 ignore next */
       setRenderedProgressPercent(targetPercent);
-/* v8 ignore next */
       return;
     }
 
     const currentPercent = renderedProgressPercent ?? 0;
     if (currentPercent >= targetPercent) {
-/* v8 ignore next */
       setRenderedProgressPercent(targetPercent);
-/* v8 ignore next */
       return;
     }
 
     const timer = window.setTimeout(() => {
-/* v8 ignore next */
       setRenderedProgressPercent((current) => {
-/* v8 ignore next */
         const base = current ?? 0;
-/* v8 ignore next */
         return Math.min(targetPercent, base + 1);
       });
     }, 20);
