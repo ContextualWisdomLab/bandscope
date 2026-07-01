@@ -8,7 +8,7 @@ import logging
 import os
 import warnings
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from typing import Any, cast
 
 import librosa
@@ -27,15 +27,6 @@ logger = logging.getLogger(__name__)
 _BANDSPLIT_PROFILE_PATH = Path(__file__).with_name("model_weights") / "bandsplit-v1.json"
 _BANDSPLIT_PROFILE_SHA256 = "ced4ae5c9077aace1694b6fafee1877e46e836e293545dcb6ea06cb579984254"
 _MAX_MODEL_PROFILE_BYTES = 16 * 1024
-
-
-def _has_parent_path_reference(path: str | Path) -> bool:
-    text = str(path)
-    return (
-        ".." in Path(text).parts
-        or ".." in PurePosixPath(text).parts
-        or ".." in PureWindowsPath(text).parts
-    )
 
 
 def _read_model_profile_bytes(profile_path: Path) -> bytes:
@@ -141,9 +132,9 @@ class AudioStemSeparator:
 
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
-        if _has_parent_path_reference(audio_path):
+        if ".." in str(audio_path):
             raise ValueError("Path traversal detected")
-        candidate = Path(audio_path).expanduser()
+        candidate = Path(audio_path)
         try:
             path = candidate.resolve(strict=True)
         except FileNotFoundError as error:
@@ -226,9 +217,9 @@ class AudioStemSeparator:
         expected_sha256 = _BANDSPLIT_PROFILE_SHA256
 
         if self.config.model_profile_path:
-            if _has_parent_path_reference(self.config.model_profile_path):
+            if ".." in str(self.config.model_profile_path):
                 raise ValueError("Path traversal detected")
-            profile_candidate = Path(self.config.model_profile_path).expanduser()
+            profile_candidate = Path(self.config.model_profile_path)
             try:
                 profile_path = profile_candidate.resolve(strict=True)
             except FileNotFoundError as error:

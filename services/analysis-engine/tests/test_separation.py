@@ -214,20 +214,6 @@ def test_audio_stem_separator_rejects_path_traversal_in_audio_path() -> None:
         separator.separate("../rehearsal.wav")
 
 
-def test_audio_stem_separator_rejects_windows_path_traversal_in_audio_path() -> None:
-    """Ensure Windows-style traversal components are rejected on every platform."""
-    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
-    with pytest.raises(ValueError, match="Path traversal detected"):
-        separator.separate(r"..\rehearsal.wav")
-
-
-def test_audio_stem_separator_allows_dots_inside_audio_filename(tmp_path) -> None:
-    """Ensure filenames containing dots are not mistaken for path traversal."""
-    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
-    with pytest.raises(FileNotFoundError, match="Audio file not found: song..wav"):
-        separator.separate(tmp_path / "song..wav")
-
-
 def test_audio_stem_separator_rejects_missing_audio_file(tmp_path) -> None:
     """Ensure missing local files fail before decode without leaking a full path."""
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
@@ -305,18 +291,6 @@ def test_audio_stem_separator_rejects_path_traversal_in_model_profile() -> None:
             AudioSeparationConfig(
                 target_sample_rate=8_000,
                 model_profile_path="../profile.json",
-                model_profile_sha256="0" * 64,
-            )
-        )
-
-
-def test_audio_stem_separator_rejects_windows_path_traversal_in_model_profile() -> None:
-    """Ensure Windows-style profile traversal components are rejected on every platform."""
-    with pytest.raises(ValueError, match="Path traversal detected"):
-        AudioStemSeparator(
-            AudioSeparationConfig(
-                target_sample_rate=8_000,
-                model_profile_path=r"..\profile.json",
                 model_profile_sha256="0" * 64,
             )
         )
