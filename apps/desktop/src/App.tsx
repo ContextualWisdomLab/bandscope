@@ -21,6 +21,7 @@ import {
   Users,
   Wand2,
   Loader2,
+  X,
 } from "lucide-react";
 import {
   SUPPORTED_AUDIO_FORMATS,
@@ -561,7 +562,7 @@ export function App() {
                 </Button>
 
                 <div className="grid min-w-0 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="relative flex min-w-0 items-center gap-2">
                     <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
                     <Input
                       type="text"
@@ -569,9 +570,21 @@ export function App() {
                       value={youtubeUrl}
                       onChange={(e) => setYoutubeUrl(e.target.value)}
                       disabled={analysisInFlight || isStarting || isImporting}
-                      className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
+                      className="h-10 flex-1 border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                       aria-label="YouTube URL"
                     />
+                    {youtubeUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setYoutubeUrl("")}
+                        disabled={analysisInFlight || isStarting || isImporting}
+                        aria-label="Clear YouTube URL"
+                        title="Clear YouTube URL"
+                        className="absolute right-2 flex size-6 items-center justify-center rounded-full text-slate-400 hover:bg-white/10 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <X className="size-4" aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                   <Button
                     onClick={handleImportYoutube}
