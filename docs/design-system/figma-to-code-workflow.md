@@ -18,7 +18,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 4. Read `32 Screen Blueprints` for mobile and desktop placement before changing layout.
 5. Read `34 Workspace State Matrix` before changing workspace empty, loading, error, ready, Groove Map, or Source Control Stack states.
 6. Check `33 Figma-Only Readiness Audit` for current visual audit evidence and tool access limits before deciding a Figma page is empty or a plugin-backed review is required.
-7. Use [component-contract.md](component-contract.md) only as a repo mirror when working in code review.
+7. Use [component-contract.md](component-contract.md) and [product-design-handoff.md](product-design-handoff.md) only as repo mirrors when working in code review.
 8. Inspect the actual code component before editing.
 9. If a Figma blueprint block is placeholder-only, verify whether the matching runtime surface exists before coding. Fill Figma when the code already exists; implement code only when the surface is genuinely missing.
 10. If a Figma card, contract row, or blueprint detail overflows its parent or overlaps a sibling, repair Figma first unless the runtime surface is genuinely missing.
@@ -40,6 +40,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - Fourth-pass restore evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 finding that pages 28-34 could appear empty or stale unless each page was loaded before inspection.
 - Structural audit evidence on `33 Figma-Only Readiness Audit`, including the post-restore pass that loads each page with `figma.setCurrentPageAsync(page)` and confirms pages 28-34 have one visible text-bearing root frame with no empty, duplicate-root, low-detail, parent-overflow, manual-height clipping, or top-level overlap candidates.
 - Workspace state repair evidence on `33 Figma-Only Readiness Audit`, including the rebuilt page 34 root `99:560` that covers the implemented `WorkspaceStates.tsx` state contract.
+- Product Design handoff material, including IA, screen definitions, key screens, wireframes, and user stories that must also be visible in Figma before a visual-change PR merges.
 - Domain patterns such as Source Control Stack, Groove Map, Section Roadmap Card, and Export Action Group.
 - UI-defect guidance for clipping, touch targets, source-control priority, and panel density.
 
