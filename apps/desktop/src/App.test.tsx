@@ -1439,14 +1439,15 @@ describe("App", () => {
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
     fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=dQw4w9WgXcQ" } });
 
-    // Clear button should be visible now
     const clearButton = screen.getByRole("button", { name: /Clear YouTube URL/i });
     expect(clearButton).toBeTruthy();
+    clearButton.focus();
+    expect(document.activeElement).toBe(clearButton);
 
-    // Click it
     fireEvent.click(clearButton);
 
-    // Input should be empty
     expect(input.getAttribute("value")).toBe("");
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
   });
 });

@@ -614,7 +614,10 @@ export function App() {
                     {youtubeUrl && (
                       <button
                         type="button"
-                        onClick={() => setYoutubeUrl("")}
+                        onClick={(event) => {
+                          event.currentTarget.parentElement?.querySelector<HTMLInputElement>("input")?.focus();
+                          setYoutubeUrl("");
+                        }}
                         disabled={analysisInFlight || isStarting || isImporting}
                         aria-label="Clear YouTube URL"
                         title="Clear YouTube URL"
