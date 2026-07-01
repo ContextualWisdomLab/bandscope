@@ -31,6 +31,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - Visual measurements, spacing, hierarchy, state examples, and screenshots.
 - Mobile 375x812 and desktop 1440x900 repair targets on `32 Screen Blueprints`.
 - Figma-only readiness evidence on `33 Figma-Only Readiness Audit`.
+- Tool access limits on `33 Figma-Only Readiness Audit`, including the current `Ponytail` and `Superpowers` note.
 - Domain patterns such as Source Control Stack, Groove Map, Section Roadmap Card, and Export Action Group.
 - UI-defect guidance for clipping, touch targets, source-control priority, and panel density.
 
@@ -56,6 +57,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - A Figma variant has no supported code prop or class strategy.
 - A Figma contract names a prop that does not exist in the current runtime component.
 - A required implementation detail exists only in repo docs and not in Figma.
+- A named review perspective such as `Ponytail` or `Superpowers` is treated as a tool-backed requirement without an actual available tool or documented project standard.
 - A generated Figma layout would require duplicating an existing component.
 - The implementation would add a Figma token, access token, publish step, or platform-plan requirement.
 - Visual parity conflicts with accessibility, keyboard behavior, localization, or responsive constraints.
