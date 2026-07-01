@@ -1,3 +1,8 @@
+## 2024-05-18 - CSV Formula Injection whitespace bypass
+**Vulnerability:** CSV formula injection mitigation was naive, missing leading whitespace, tabs, and newlines.
+**Learning:** Checking `/^[=+\-@]/` is not sufficient, as OWASP states that spaces and tabs before the formula triggers will also execute the formula in applications like Excel.
+**Prevention:** Use a regex that allows leading whitespace (e.g. `/^[\s\uFEFF\xA0]*[=+\-@\t\r\n]/`) and include standalone tabs or new lines which are also injection vectors.
+
 ## 2026-03-24 - [Path Traversal in project_id]
 **Vulnerability:** The `project_id` field in the analysis payload is supplied by the user (or remote client) and is used directly in `app_owned_root` (`base_root.join(project_id)`) to determine the directory for project caching, temp space, and data. This allows an attacker to pass `../` in the `project_id` string, causing path traversal and letting them access or overwrite directories outside the designated app boundaries.
 **Learning:** Even internal-looking identifiers (like `project_id`) are attack vectors if they originate from user input or IPC payloads. The codebase's `app-security.md` rule to "Defend against path traversal and parent directory escape" was missed in this initial implementation.
