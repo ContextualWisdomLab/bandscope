@@ -16,7 +16,8 @@ import {
 /** Documented. */
 export function sanitizeFilename(title: string): string {
   // Replace invalid filename characters with underscores
-  return title.replace(/[^a-zA-Z0-9_\-\s]/g, "_").trim() || "export";
+  const safe = title.replace(/[^a-zA-Z0-9_\-\s]/g, "_").trim();
+  return safe || "export";
 }
 
 /** Documented. */

@@ -283,8 +283,19 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     file_name = local_source.get("fileName")
     extension = local_source.get("extension")
     file_size_bytes = local_source.get("fileSizeBytes")
+    import re
+
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
+    # Prevent command injection by allowing only safe characters in the path
+    if not re.match(r"^[\w\.\/\-\\\s\:]+$", source_path):
+        raise ValueError(
+            "Invalid analysis job request: 'localSource.sourcePath' contains invalid characters"
+        )
+    if ".." in source_path or source_path.startswith("/"):
+        raise ValueError(
+            "Invalid analysis job request: 'localSource.sourcePath' contains traversal characters"
+        )
     if not isinstance(file_name, str) or not file_name.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
     if extension not in {"wav", "mp3", "flac", "m4a"}:
@@ -868,6 +879,14 @@ def _run_stem_separation_with_timeout(
     arrays_path: Path | None = None,
 ) -> dict[str, Any]:
     """Run local stem separation with a cross-platform process timeout."""
+    import re
+
+    # Validate the source path to prevent command injection
+    if not re.match(r"^[\w\.\/\-\\\s\:]+$", source_path):
+        raise ValueError("Invalid source path")
+    if ".." in source_path or source_path.startswith("/"):
+        raise ValueError("Path traversal detected")
+
     timeout_budget = STEM_SEPARATION_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
     context = _multiprocessing_context()
     result_queue = context.Queue(maxsize=1)
@@ -965,7 +984,6 @@ def _check_analysis_cache(
     job_id: str,
     requested_at: str,
 ) -> tuple[Path | None, AnalysisCacheStatus, list[AnalysisJobStatus] | None]:
-    """Return cached analysis updates when a reusable local-audio result exists."""
     cache_path = _analysis_cache_path(request)
     cache_status: AnalysisCacheStatus = "disabled" if cache_path is None else "miss"
     if cache_path is not None:
@@ -1005,7 +1023,6 @@ def _check_feature_cache(
     requested_at: str,
     cache_status: AnalysisCacheStatus,
 ) -> tuple[tuple[Path, Path] | None, dict[str, Any] | None, bool, list[AnalysisJobStatus]]:
-    """Load cached intermediate features and emit initial decode-stage progress."""
     decode_label = (
         "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
     )
@@ -1048,7 +1065,6 @@ def _try_separate_stems(
     requested_at: str,
     cache_status: AnalysisCacheStatus,
 ) -> tuple[dict[str, Any] | None, list[AnalysisJobStatus]]:
-    """Build stem features, downgrading timeout/unavailable errors to fallback progress."""
     updates = [
         _build_job_status(
             job_id=job_id,
@@ -1119,7 +1135,6 @@ def _finalize_caches(
     feature_cache_hit: bool,
     result: RehearsalSong,
 ) -> list[AnalysisJobStatus]:
-    """Persist reusable caches and return final orchestration status updates."""
     updates = [
         _build_job_status(
             job_id=job_id,
