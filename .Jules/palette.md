@@ -28,3 +28,8 @@
 ## 2024-06-30 - 비활성화된 버튼의 툴팁 접근성 개선
 **Learning:** CSS `disabled:pointer-events-none`가 적용된 `<button>`(또는 React의 `disabled` 속성)에 사용된 네이티브 `title` 속성은 포인터 이벤트가 무시되기 때문에 툴팁이 동작하지 않습니다. 이는 비활성화된 기능에 대한 접근성을 떨어뜨립니다.
 **Action:** 버튼이 비활성화될 때, 툴팁을 제공하려면 해당 버튼을 `<span tabIndex={0} className="cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300" title="...">`로 감싸고 버튼 자체에는 `pointer-events-none` 클래스를 추가하여 마우스 및 키보드 접근성을 확보해야 합니다.
+
+
+## 2024-07-01 - Testing components with focusable disabled button wrappers
+**Learning:** When native disabled buttons are wrapped in a focusable `span` to provide accessible tooltips, tests that previously found and clicked the `button` (by temporarily removing the `disabled` attribute) may fail or become overly complex. It is cleaner and more accurate to query the wrapper element (e.g. via its `title`) and fire events on it, reflecting the actual accessible DOM structure.
+**Action:** When testing UI components that wrap disabled buttons in a focusable span for accessibility (e.g., using a tooltip/title), use `screen.getByTitle(...)` to query the wrapper element for interactions like `fireEvent.click` rather than `screen.getByRole('button')`.
