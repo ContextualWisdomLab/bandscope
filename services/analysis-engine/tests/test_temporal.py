@@ -88,6 +88,7 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
     from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
 
     def fake_load(*args, **kwargs):
+        """fake_load docstring."""
         return "not-an-array", 22050
 
     monkeypatch.setattr(librosa, "load", fake_load)
@@ -132,6 +133,7 @@ def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(analyzer_module, "MAX_AUDIO_FILE_BYTES", 1)
 
     def fake_load(*args, **kwargs):
+        """fake_load docstring."""
         raise AssertionError("librosa.load should not be called for oversized files")
 
     monkeypatch.setattr(librosa, "load", fake_load)
@@ -150,12 +152,14 @@ def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> N
     captured_kwargs: dict[str, object] = {}
 
     def fake_load(path, **kwargs):
+        """fake_load docstring."""
         captured_kwargs.update(kwargs)
         return np.zeros(44100, dtype=float), 44100
 
     monkeypatch.setattr(librosa, "load", fake_load)
 
     def fake_beat_track(y, sr):
+        """fake_beat_track docstring."""
         return np.array([120.0]), np.array([0])
 
     monkeypatch.setattr(librosa.beat, "beat_track", fake_beat_track)

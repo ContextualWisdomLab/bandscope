@@ -719,7 +719,9 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     class BadArchive:
+        """BadArchive docstring."""
         def __enter__(self):
+            """__enter__ docstring."""
             return self
 
         def __exit__(self, *_args: object) -> None:
@@ -841,7 +843,9 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
     """Ensure child worker errors are converted to serializable parent messages."""
 
     class FakeQueue:
+        """FakeQueue docstring."""
         def __init__(self) -> None:
+            """__init__ docstring."""
             self.items: list[tuple[str, object]] = []
 
         def put(self, item: tuple[str, object]) -> None:
@@ -890,7 +894,9 @@ def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) ->
     arrays_path = tmp_path / "stems.npz"
 
     class FakeQueue:
+        """FakeQueue docstring."""
         def __init__(self) -> None:
+            """__init__ docstring."""
             self.items: list[tuple[str, object]] = []
 
         def put(self, item: tuple[str, object]) -> None:
@@ -930,6 +936,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     """Ensure parent-side process helper maps worker result envelopes."""
 
     class FakeQueue:
+        """FakeQueue docstring."""
         def __init__(self, item: tuple[str, object]) -> None:
             self.item = item
 
@@ -938,25 +945,31 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
             return self.item
 
         def close(self) -> None:
+            """close docstring."""
             return None
 
         def join_thread(self) -> None:
+            """join_thread docstring."""
             return None
 
     class FakeProcess:
+        """FakeProcess docstring."""
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             self.started = False
 
         def start(self) -> None:
+            """start docstring."""
             self.started = True
 
         def join(self, timeout: float | None = None) -> None:
             return None
 
         def is_alive(self) -> bool:
+            """is_alive docstring."""
             return False
 
     class FakeContext:
+        """FakeContext docstring."""
         def __init__(self, item: tuple[str, object]) -> None:
             self.item = item
             self.Process = FakeProcess
@@ -1097,29 +1110,36 @@ def test_stem_separation_process_helper_handles_empty_worker_exit() -> None:
     """Ensure a worker that exits without a result degrades safely."""
 
     class EmptyQueue:
+        """EmptyQueue docstring."""
         def get(self, timeout: float) -> tuple[str, object]:
             raise queue.Empty
 
         def close(self) -> None:
+            """close docstring."""
             return None
 
         def join_thread(self) -> None:
+            """join_thread docstring."""
             return None
 
     class EmptyProcess:
+        """EmptyProcess docstring."""
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             return None
 
         def start(self) -> None:
+            """start docstring."""
             return None
 
         def is_alive(self) -> bool:
+            """is_alive docstring."""
             return False
 
         def join(self, timeout: float | None = None) -> None:
             return None
 
     class EmptyContext:
+        """EmptyContext docstring."""
         Process = EmptyProcess
 
         def Queue(self, maxsize: int) -> EmptyQueue:
@@ -1139,17 +1159,22 @@ def test_stop_process_kills_stubborn_worker() -> None:
     """Ensure stubborn timed-out workers are killed after terminate."""
 
     class StubbornProcess:
+        """StubbornProcess docstring."""
         def __init__(self) -> None:
+            """__init__ docstring."""
             self.terminated = False
             self.killed = False
 
         def is_alive(self) -> bool:
+            """is_alive docstring."""
             return not self.killed
 
         def terminate(self) -> None:
+            """terminate docstring."""
             self.terminated = True
 
         def kill(self) -> None:
+            """kill docstring."""
             self.killed = True
 
         def join(self, timeout: float | None = None) -> None:

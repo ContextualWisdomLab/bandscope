@@ -344,7 +344,9 @@ def test_cli_main_temporal_analyzer_mock(monkeypatch: pytest.MonkeyPatch) -> Non
     stdout = io.StringIO()
 
     class FakeAnalyzer:
+        """FakeAnalyzer docstring."""
         def analyze(self, path):
+            """analyze docstring."""
             raise RuntimeError("mocked failure")
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzer)
@@ -386,7 +388,9 @@ def test_cli_main_temporal_analyzer_mock_success(
     stdout = io.StringIO()
 
     class FakeAnalyzerSuccess:
+        """FakeAnalyzerSuccess docstring."""
         def analyze(self, path):
+            """analyze docstring."""
             return {"bpm": 120.0, "beats": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
@@ -438,7 +442,9 @@ def test_cli_main_progress_jsonl_streams_status_updates(
     stdout = io.StringIO()
 
     class FakeAnalyzerSuccess:
+        """FakeAnalyzerSuccess docstring."""
         def analyze(self, path):
+            """analyze docstring."""
             return {"bpm": 120.0, "beats": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
