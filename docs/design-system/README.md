@@ -32,6 +32,7 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - Figma page `33 Figma-Only Readiness Audit` also contains the `2026-07-01 placeholder section pass - PASS` evidence row.
 - Page `32 Screen Blueprints` was hardened after the first visual pass: its mobile and desktop blocks now show concrete UI anatomy for header/role controls, source controls, status/progress, metric cards, navigation, console details, section roadmap, groove map, and export actions.
 - The stricter page 32 audit found `0` label-only/empty blueprint sections and `0` text clipping candidates after those additions.
+- A second-pass 2026-07-01 Figma audit found `10` overflow candidates and `2` sibling-overlap candidates across pages 28-33. Page `29 UI Repair Playbook`, page `31 Component Contract Catalog`, and page `32 Screen Blueprints` were repaired in Figma; the final audit reports `0` overflow candidates and `0` sibling-overlap candidates.
 - `32 Screen Blueprints` remains the visual target for source-first mobile and desktop repair work. The current app implements that source-first order in [App.tsx](../../apps/desktop/src/App.tsx), and the regression is covered by [App.test.tsx](../../apps/desktop/src/App.test.tsx).
 - If a Figma metadata overview appears to show pages 28-33 as empty, inspect the page root node directly before treating it as a defect. The verified root IDs are `50:2`, `50:20`, `50:59`, `51:2`, `50:86`, and `50:133`.
 - If a blueprint block is only a large labeled box, treat that as a Figma handoff defect unless the corresponding runtime surface is genuinely unimplemented. The 2026-07-01 audit found the code was implemented, so Figma page 32 was corrected instead of changing app code.
@@ -64,8 +65,9 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - Update Figma variants only after confirming the repo component supports the state or after opening a follow-up implementation task.
 - If a detail needed for implementation is absent from Figma, treat that absence as a design-system defect and update Figma before coding.
 - If a Figma screen blueprint contains placeholder-only or label-only sections, compare against the runtime code first. Implement code only when the surface is missing; otherwise fill the Figma blueprint with concrete UI anatomy.
+- If a Figma card or blueprint detail visibly overflows its parent, overlaps a sibling, or depends on unclipped spillover to be readable, treat it as a Figma handoff defect unless the corresponding runtime surface is missing.
 - If Code Connect becomes available later, treat it as an optional publishing layer over this contract, not as the source of truth.
-- Keep the `Ponytail and Superpowers access note`, `2026-07-01 visual pass`, and `2026-07-01 placeholder section pass` rows on page 33 current whenever those tools, standards, or visual audit results change.
+- Keep the `Ponytail and Superpowers access note`, `2026-07-01 visual pass`, `2026-07-01 placeholder section pass`, and `2026-07-01 overflow/overlap repair pass` rows on page 33 current whenever those tools, standards, or visual audit results change.
 
 ## Current UI Defects Covered
 
