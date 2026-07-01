@@ -20,11 +20,12 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 6. Use [component-contract.md](component-contract.md) only as a repo mirror when working in code review.
 7. Inspect the actual code component before editing.
 8. If a Figma blueprint block is placeholder-only, verify whether the matching runtime surface exists before coding. Fill Figma when the code already exists; implement code only when the surface is genuinely missing.
-9. Implement with existing components first.
-10. Add or update tests when behavior, accessibility, reading order, or reusable component APIs change.
-11. Verify with typecheck and the narrowest useful test command.
-12. For visible UI changes, run the app and compare desktop and mobile screenshots against Figma intent.
-13. If implementation needs to diverge from Figma, document whether the code API, accessibility, runtime behavior, or responsive layout caused the divergence.
+9. If a Figma card, contract row, or blueprint detail overflows its parent or overlaps a sibling, repair Figma first unless the runtime surface is genuinely missing.
+10. Implement with existing components first.
+11. Add or update tests when behavior, accessibility, reading order, or reusable component APIs change.
+12. Verify with typecheck and the narrowest useful test command.
+13. For visible UI changes, run the app and compare desktop and mobile screenshots against Figma intent.
+14. If implementation needs to diverge from Figma, document whether the code API, accessibility, runtime behavior, or responsive layout caused the divergence.
 
 ## What Figma Can Provide
 
@@ -36,6 +37,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - Tool access limits on `33 Figma-Only Readiness Audit`, including the 2026-07-01 `Ponytail` and `Superpowers` recheck note.
 - Visual audit evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms pages 28-33 have visible root frames and no remaining manual-height text clipping candidates.
 - Placeholder-section audit evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms page 32 has no remaining label-only blueprint sections.
+- Overflow/overlap repair evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms pages 28-33 have no remaining parent overflow candidates or sibling-overlap candidates after page 29, page 31, and page 32 geometry repairs.
 - Domain patterns such as Source Control Stack, Groove Map, Section Roadmap Card, and Export Action Group.
 - UI-defect guidance for clipping, touch targets, source-control priority, and panel density.
 
@@ -64,6 +66,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - A named review perspective such as `Ponytail` or `Superpowers` is treated as a tool-backed requirement without an actual available tool or documented project standard.
 - A page-level Figma metadata overview appears empty but the page root node has not been inspected directly.
 - A Figma screen blueprint has a large placeholder-only or label-only section and the matching runtime surface has not been checked.
+- A Figma row, card, or blueprint detail only reads correctly because text or nested content spills outside its parent or overlaps a neighboring element.
 - A generated Figma layout would require duplicating an existing component.
 - The implementation would add a Figma token, access token, publish step, or platform-plan requirement.
 - Visual parity conflicts with accessibility, keyboard behavior, localization, or responsive constraints.
