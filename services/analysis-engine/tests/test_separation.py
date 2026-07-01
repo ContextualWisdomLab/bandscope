@@ -452,7 +452,7 @@ def test_audio_stem_separator_rejects_non_finite_band_profile(tmp_path) -> None:
 
 
 def test_audio_stem_separator_separate_unit(
-    tmp_path: "pathlib.Path",
+    tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Unit test for the separate() method, isolated from file system and decoders."""
