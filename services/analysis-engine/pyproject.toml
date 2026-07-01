@@ -30,6 +30,22 @@ packages = ["src/bandscope_analysis"]
 
 [tool.interrogate]
 exclude = ["build", "docs", "setup.py", ".venv"]
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = false
+ignore-nested-functions = true
+ignore-nested-classes = true
+ignore-setters = false
+fail-under = 100
+ignore-regex = ["^get$", "^mock_.*", ".*BaseClass.*"]
+verbose = 0
+quiet = false
+whitelist-regex = []
+color = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
