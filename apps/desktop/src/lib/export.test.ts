@@ -202,6 +202,19 @@ describe("export generation", () => {
     });
   });
 
+  it("uses the song identity as the default handoff workspace identity", () => {
+    const json = generateMetadataHandoffJson(mockSong, {
+      createdAt: "2026-06-15T08:30:00.000Z"
+    });
+    const parsed = JSON.parse(json);
+
+    expect(parsed.workspace).toEqual({
+      id: "test",
+      title: "Test",
+      workspaceVersion: 1
+    });
+  });
+
   it("creates a local re-analysis request from a received handoff and selected replacement asset", () => {
     const handoff = JSON.parse(generateMetadataHandoffJson(mockSong, {
       createdAt: "2026-06-15T08:30:00.000Z",
