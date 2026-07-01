@@ -1374,4 +1374,20 @@ describe("App", () => {
     expect(settingsSpan).toHaveAttribute("tabIndex", "0");
     expect(settingsSpan).toHaveAttribute("role", "button");
   });
+
+  it("clears the YouTube URL when the clear button is clicked", async () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=dQw4w9WgXcQ" } });
+
+    // Clear button should be visible now
+    const clearButton = screen.getByRole("button", { name: /Clear YouTube URL/i });
+    expect(clearButton).toBeTruthy();
+
+    // Click it
+    fireEvent.click(clearButton);
+
+    // Input should be empty
+    expect(input.getAttribute("value")).toBe("");
+  });
 });
