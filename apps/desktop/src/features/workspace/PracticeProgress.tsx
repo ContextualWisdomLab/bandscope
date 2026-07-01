@@ -2,11 +2,13 @@ import { memo, useCallback } from "react";
 import { Minus, Plus } from "lucide-react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 
+/** Documented. */
 interface PracticeProgressProps {
   progress?: number;
   onChange: (newProgress: number) => void;
 }
 
+/** Documented. */
 function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressProps) {
   const t = createTranslator(detectPreferredLocale());
 
