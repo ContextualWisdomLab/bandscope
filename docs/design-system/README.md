@@ -11,7 +11,7 @@ Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 - Frontend work must resolve conflicts by checking both Figma-local contract pages and production code.
 - Figma component names and variant names should mirror the repo contract so visual review remains straightforward.
 - Do not introduce required Figma platform features into build, test, release, or CI flows.
-- `Ponytail`, `Superpowers`, and `Product Design` are recorded on Figma page `33 Figma-Only Readiness Audit` as review perspectives for this handoff. The 2026-07-01 fourth pass used the available local skill instructions and kept them as process/design lenses, not Figma platform dependencies.
+- `Ponytail`, `Superpowers`, and `Product Design` are recorded on Figma page `33 Figma-Only Readiness Audit` as review perspectives for this handoff. The 2026-07-01 fourth pass applies those perspectives through the Figma readiness-audit page and this repo mirror: complexity trimming, review/verification discipline, and visual/state handoff quality. They are process/design lenses, not Figma platform dependencies.
 
 ## Working Model
 
@@ -29,6 +29,7 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - The 2026-07-01 fourth pass found that Figma pages `28 Implementation Contract` through `34 Workspace State Matrix` could appear empty or stale unless each page was loaded before inspection. Some pages also had duplicate historical roots. That mismatch was treated as a design-system defect.
 - Pages `28` through `34` were loaded with `figma.setCurrentPageAsync(page)`, cleaned to one visible root each, and rebuilt in Figma with text-bearing nodes, code paths, state maps, QA rules, and concrete mobile/desktop screen anatomy.
 - Current verified Figma root IDs are `99:2` (`28 Implementation Contract`), `99:82` (`29 UI Repair Playbook`), `99:171` (`30 Publisher + QA Matrix`), `99:253` (`31 Component Contract Catalog`), `99:415` (`32 Screen Blueprints`), `99:714` (`33 Figma-Only Readiness Audit`), and `99:560` (`34 Workspace State Matrix`).
+- Use colon-form IDs such as `99:560` in Figma Plugin API calls. Use hyphen-form IDs such as `node-id=99-560` in Figma URLs.
 - The post-rebuild structural audit reported `0` empty pages, `0` duplicate roots, `0` empty roots, `0` low-detail placeholder sections, `0` manual-height clipping candidates, `0` parent-overflow candidates, and `0` top-level overlap candidates across pages `28` through `34`.
 - `32 Screen Blueprints` remains the visual target for source-first mobile and desktop repair work. The current app implements that source-first order in [App.tsx](../../apps/desktop/src/App.tsx), and the regression is covered by [App.test.tsx](../../apps/desktop/src/App.test.tsx).
 - If a Figma page or blueprint section is empty, label-only, or structurally detached from its visible text, treat that as a Figma handoff defect unless the corresponding runtime surface is genuinely unimplemented. The fourth pass found the relevant runtime surfaces already implemented, so Figma was corrected instead of adding code.
