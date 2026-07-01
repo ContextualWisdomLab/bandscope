@@ -12,9 +12,9 @@ from pathlib import Path
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest for a file."""
     if path.is_dir():
         return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" # Empty SHA256 for dirs to avoid crash
-    """Return the SHA-256 digest for a file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -132,9 +132,11 @@ def main() -> int:
                 tar.add(installer_path, arcname=installer_path.name)
             archive_name = tar_path.name
             installer_path = tar_path
+            archive_path = tar_path
 
         archive_path = output_dir / archive_name
-        shutil.copy2(installer_path, archive_path)
+        if not archive_path.exists():
+            shutil.copy2(installer_path, archive_path)
 
         checksum_path = output_dir / f"{archive_name}.sha256"
         checksum_path.write_text(f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8")
