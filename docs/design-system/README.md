@@ -11,7 +11,7 @@ Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 - Frontend work must resolve conflicts by checking both Figma-local contract pages and production code.
 - Figma component names and variant names should mirror the repo contract so visual review remains straightforward.
 - Do not introduce required Figma platform features into build, test, release, or CI flows.
-- `Ponytail` and `Superpowers` are recorded on Figma page `33 Figma-Only Readiness Audit` as unavailable callable tools for this handoff. Treat them as named review perspectives only unless a future session exposes actual tools or project standards for them.
+- `Ponytail` and `Superpowers` are recorded on Figma page `33 Figma-Only Readiness Audit` as unavailable callable tools for this handoff. The explicit plugin links were rechecked on 2026-07-01 and still exposed no callable tools or install candidates, so treat them as named review perspectives only unless a future session exposes actual tools or project standards for them.
 
 ## Working Model
 
@@ -23,6 +23,14 @@ Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 6. Review the PR against the publisher and frontend checklists below.
 
 Codex and other implementation agents must follow [figma-to-code-workflow.md](figma-to-code-workflow.md) when using the Figma file as development input.
+
+## Visual Audit Snapshot
+
+- Figma page `33 Figma-Only Readiness Audit` contains the `2026-07-01 visual pass - PASS` evidence row.
+- Pages `28 Implementation Contract`, `29 UI Repair Playbook`, `30 Publisher + QA Matrix`, `31 Component Contract Catalog`, `32 Screen Blueprints`, and `33 Figma-Only Readiness Audit` each contain one visible root frame.
+- The 2026-07-01 Figma audit found no empty root, hidden root, top-level overlap candidate, or remaining manual-height text clipping candidate on pages 28-33 after the intro and gap text was changed to auto-height.
+- `32 Screen Blueprints` remains the visual target for source-first mobile and desktop repair work. The current app implements that source-first order in [App.tsx](../../apps/desktop/src/App.tsx), and the regression is covered by [App.test.tsx](../../apps/desktop/src/App.test.tsx).
+- If a Figma metadata overview appears to show pages 28-33 as empty, inspect the page root node directly before treating it as a defect. The verified root IDs are `50:2`, `50:20`, `50:59`, `51:2`, `50:86`, and `50:133`.
 
 ## Frontend Engineer Checklist
 
@@ -52,7 +60,7 @@ Codex and other implementation agents must follow [figma-to-code-workflow.md](fi
 - Update Figma variants only after confirming the repo component supports the state or after opening a follow-up implementation task.
 - If a detail needed for implementation is absent from Figma, treat that absence as a design-system defect and update Figma before coding.
 - If Code Connect becomes available later, treat it as an optional publishing layer over this contract, not as the source of truth.
-- Keep the `Ponytail and Superpowers access note` on page 33 current whenever those tools or standards become available.
+- Keep the `Ponytail and Superpowers access note` and `2026-07-01 visual pass` row on page 33 current whenever those tools, standards, or visual audit results change.
 
 ## Current UI Defects Covered
 

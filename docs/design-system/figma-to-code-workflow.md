@@ -16,13 +16,14 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 2. Read Figma structure and variants through Figma MCP or the node URL.
 3. Read `31 Component Contract Catalog` for the matching source path, current runtime API, TSX example, and QA note.
 4. Read `32 Screen Blueprints` for mobile and desktop placement before changing layout.
-5. Use [component-contract.md](component-contract.md) only as a repo mirror when working in code review.
-6. Inspect the actual code component before editing.
-7. Implement with existing components first.
-8. Add or update tests when behavior, accessibility, reading order, or reusable component APIs change.
-9. Verify with typecheck and the narrowest useful test command.
-10. For visible UI changes, run the app and compare desktop and mobile screenshots against Figma intent.
-11. If implementation needs to diverge from Figma, document whether the code API, accessibility, runtime behavior, or responsive layout caused the divergence.
+5. Check `33 Figma-Only Readiness Audit` for current visual audit evidence and tool access limits before deciding a Figma page is empty or a plugin-backed review is required.
+6. Use [component-contract.md](component-contract.md) only as a repo mirror when working in code review.
+7. Inspect the actual code component before editing.
+8. Implement with existing components first.
+9. Add or update tests when behavior, accessibility, reading order, or reusable component APIs change.
+10. Verify with typecheck and the narrowest useful test command.
+11. For visible UI changes, run the app and compare desktop and mobile screenshots against Figma intent.
+12. If implementation needs to diverge from Figma, document whether the code API, accessibility, runtime behavior, or responsive layout caused the divergence.
 
 ## What Figma Can Provide
 
@@ -31,7 +32,8 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - Visual measurements, spacing, hierarchy, state examples, and screenshots.
 - Mobile 375x812 and desktop 1440x900 repair targets on `32 Screen Blueprints`.
 - Figma-only readiness evidence on `33 Figma-Only Readiness Audit`.
-- Tool access limits on `33 Figma-Only Readiness Audit`, including the current `Ponytail` and `Superpowers` note.
+- Tool access limits on `33 Figma-Only Readiness Audit`, including the 2026-07-01 `Ponytail` and `Superpowers` recheck note.
+- Visual audit evidence on `33 Figma-Only Readiness Audit`, including the 2026-07-01 pass that confirms pages 28-33 have visible root frames and no remaining manual-height text clipping candidates.
 - Domain patterns such as Source Control Stack, Groove Map, Section Roadmap Card, and Export Action Group.
 - UI-defect guidance for clipping, touch targets, source-control priority, and panel density.
 
@@ -58,6 +60,7 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - A Figma contract names a prop that does not exist in the current runtime component.
 - A required implementation detail exists only in repo docs and not in Figma.
 - A named review perspective such as `Ponytail` or `Superpowers` is treated as a tool-backed requirement without an actual available tool or documented project standard.
+- A page-level Figma metadata overview appears empty but the page root node has not been inspected directly.
 - A generated Figma layout would require duplicating an existing component.
 - The implementation would add a Figma token, access token, publish step, or platform-plan requirement.
 - Visual parity conflicts with accessibility, keyboard behavior, localization, or responsive constraints.
