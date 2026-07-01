@@ -49,10 +49,6 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
-const MAX_ERROR_DETAIL_LENGTH = 220;
-const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:Users|home|var|tmp|private|Volumes)\/[^\s"'<>]+)/g;
-const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
-const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
 const NAV_ITEMS = [
   { label: "Workspace", icon: Home, active: true },
@@ -87,44 +83,6 @@ function progressMessage(
     case "failed":
       return t("analysisStateFailed");
   }
-}
-
-/** Documented. */
-function rawErrorMessage(error: unknown): string | null {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === "string") {
-    return error;
-  }
-  return null;
-}
-
-/** Documented. */
-function isUserCancellation(error: unknown): boolean {
-  return rawErrorMessage(error)?.trim() === "User cancelled";
-}
-
-/** Documented. */
-function safeErrorDetail(error: unknown, fallback: string): string {
-  const raw = rawErrorMessage(error);
-  if (!raw?.trim()) {
-    return fallback;
-  }
-
-  const firstLine = raw
-    .split(/\r?\n/)[0]
-    .replace(/\s+/g, " ")
-    .trim();
-  const redacted = firstLine
-    .replace(URL_PATTERN, "[link]")
-    .replace(SECRET_ASSIGNMENT_PATTERN, (_match: string, key: string) => `${key}=[redacted]`)
-    .replace(LOCAL_PATH_PATTERN, "[local path]")
-    .trim();
-
-  return redacted.length > MAX_ERROR_DETAIL_LENGTH
-    ? `${redacted.slice(0, MAX_ERROR_DETAIL_LENGTH - 3)}...`
-    : redacted;
 }
 
 /** Documented. */
@@ -229,7 +187,7 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const activeJobIdRef = useRef<string | null>(null);
-  const youtubeUrlInputRef = useRef<HTMLInputElement | null>(null);
+  const youtubeInputRef = useRef<HTMLInputElement>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
@@ -256,7 +214,7 @@ export function App() {
     }
     if (nextStatus.state === "failed") {
       setActiveAnalysisBootstrap(null);
-      setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
+      setJobError(nextStatus.error?.message ?? t("analysisCouldNotStart"));
     }
   }, [activeAnalysisBootstrap, t]);
 
@@ -387,7 +345,7 @@ export function App() {
     }
 
     setSelectedBootstrap(null);
-    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
+    setSelectionError(selection.error.message || t("unsupportedLocalAudio"));
     setJobStatus(null);
   };
 
@@ -412,7 +370,7 @@ export function App() {
         setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
       } else {
-        setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
+        setSelectionError(selection.error.message || t("youtubeImportFailed"));
       }
     } catch {
       setSelectionError(t("youtubeImportFailed"));
@@ -432,8 +390,10 @@ export function App() {
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
-      if (!isUserCancellation(e)) {
-        setJobError(`Failed to load project: ${safeErrorDetail(e, "The selected project could not be loaded.")}`);
+      if (e instanceof Error && e.message !== "User cancelled") {
+        setJobError(`Failed to load project: ${e.message}`);
+      } else if (typeof e === "string" && e !== "User cancelled") {
+        setJobError(`Failed to load project: ${e}`);
       }
     }
   };
@@ -443,8 +403,10 @@ export function App() {
     try {
       await saveProject(jobResult!);
     } catch (e) {
-      if (!isUserCancellation(e)) {
-        setJobError(`Failed to save project: ${safeErrorDetail(e, "The project could not be saved.")}`);
+      if (e instanceof Error && e.message !== "User cancelled") {
+        setJobError(`Failed to save project: ${e.message}`);
+      } else if (typeof e === "string" && e !== "User cancelled") {
+        setJobError(`Failed to save project: ${e}`);
       }
     }
   };
@@ -604,7 +566,7 @@ export function App() {
                   <div className="relative flex min-w-0 items-center gap-2">
                     <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
                     <Input
-                      ref={youtubeUrlInputRef}
+                      ref={youtubeInputRef}
                       type="text"
                       placeholder={t("youtubePlaceholder")}
                       value={youtubeUrl}
@@ -617,7 +579,7 @@ export function App() {
                       <button
                         type="button"
                         onClick={() => {
-                          youtubeUrlInputRef.current?.focus();
+                          youtubeInputRef.current?.focus();
                           setYoutubeUrl("");
                         }}
                         disabled={analysisInFlight || isStarting || isImporting}

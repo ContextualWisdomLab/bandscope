@@ -34,7 +34,6 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 | Groove Map | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-526 | `apps/desktop/src/features/workspace/GrooveMap.tsx` | Use `notes?: TranscriptionNote[]` and `isLoading?: boolean`; preserve scrollable region semantics and note labels. |
 | Source Control Stack | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-655 | `apps/desktop/src/App.tsx` | Feature-local source controls for local audio, YouTube URL import, project actions, and Start Analysis; keep before metrics at 375px. |
 | Export Action Group | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-731 | `apps/desktop/src/features/workspace/Workspace.tsx` | Feature-local export buttons call `handleExportCueSheet`, `handleExportChart`, and `handleExportHandoff`. |
-| Workspace State Matrix | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=99-560 | `apps/desktop/src/features/workspace/WorkspaceStates.tsx`, `apps/desktop/src/App.tsx` | Whole-workspace empty, loading, error, and ready state routing; use before changing `renderWorkspaceState()`. |
 
 ## Prop And State Mapping
 
@@ -73,15 +72,6 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 - Tone-specific colors belong on `ProgressIndicator` or scoped child selectors.
 - Provide adjacent live text when progress reflects an active asynchronous job.
 
-### Workspace States
-
-- Figma page `34 Workspace State Matrix` maps `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates.
-- `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace`, otherwise `EmptyState`.
-- `LoadingState` keeps `role="status"`, `aria-live="polite"`, `aria-atomic="true"`, and `aria-busy="true"`.
-- `ErrorState` keeps `role="alert"`, `aria-live="assertive"`, and visible safe error detail copy.
-- `EmptyState` must remain an actionable state card, not a blank placeholder panel.
-- If a new workspace state is added in code, update Figma page 34 and page 33 audit evidence before merging.
-
 ## Pattern Backlog
 
 These Figma patterns are valid visual guidance but are not yet extracted as standalone code components. Use the existing feature markup and open a follow-up extraction task when reuse appears twice.
@@ -101,5 +91,4 @@ These Figma patterns are valid visual guidance but are not yet extracted as stan
 - A new component variant must update this file, the relevant component tests, and the Figma component notes.
 - A new Figma-only pattern must enter the Pattern Backlog before being reused.
 - Any deliberate visual divergence from Figma should state whether the repo contract or accessibility requirement caused it.
-- Workspace state changes must cite page `34 Workspace State Matrix` or explain why Figma was updated first.
 - Do not add Code Connect, Figma token, or Figma publish requirements to CI.
