@@ -274,6 +274,7 @@ def test_cli_main_job_arg_invalid_file(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert cli.main() == 1
     msg = "Failed to read job file. Please ensure the path is correct and accessible."
     assert msg in stdout.getvalue()
+    assert str(tmp_path) not in stdout.getvalue()
 
 
 def test_cli_main_job_arg_valid_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
