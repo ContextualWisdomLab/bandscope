@@ -4958,8 +4958,8 @@ def test_opencode_approval_write_failure_updates_overview_only() -> None:
     assert "source-backed repository findings" in policy
 
 
-def test_pr_review_merge_scheduler_uses_central_mutation_credential() -> None:
-    """Ensure mechanical PR queue handling uses the central mutation credential."""
+def test_pr_review_merge_scheduler_uses_github_actions_token() -> None:
+    """Ensure mechanical PR queue handling is attributed to GitHub Actions centrally."""
     repo_root = Path(__file__).resolve().parents[3]
     policy = central_required_workflow_policy_text()
 
@@ -4967,12 +4967,8 @@ def test_pr_review_merge_scheduler_uses_central_mutation_credential() -> None:
     assert '"openai/o3"' in opencode_config
     assert '"openai/o4-mini"' in opencode_config
     assert_local_review_workflows_removed()
-    assert "selected workflow mutation" in policy
-    assert "credential, not by a maintainer's local `gh` session" in policy
-    assert "PR_REVIEW_MERGE_TOKEN" in policy
-    assert "OPENCODE_APPROVE_TOKEN" in policy
-    assert "OpenCode GitHub App token" in policy
-    assert "workflow `GITHUB_TOKEN`" in policy
+    assert "github-actions[bot]" in policy
+    assert "`OPENCODE_APPROVE_TOKEN` is not part of the scheduler contract" in policy
     assert "update-branch, auto-merge, and merge actions" in policy
 
 

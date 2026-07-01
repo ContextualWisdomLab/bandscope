@@ -255,7 +255,7 @@ describe("Workspace", () => {
 
     // Check tooltip wrappers exist
     const tooltips = screen.getAllByTitle(/Coming soon/i);
-    expect(tooltips).toHaveLength(4);
+    expect(tooltips.length).toBe(4); // 3 stem buttons + 1 transcribe button
 
     const transcribeTooltip = screen.getByTitle(/Lead Vocal transcription is coming soon. Bass is ready first./i);
     expect(transcribeTooltip).toBeTruthy();

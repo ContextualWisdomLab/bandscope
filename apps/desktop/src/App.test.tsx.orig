@@ -252,7 +252,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     expect(screen.queryByText(/128 BPM/i)).toBeNull();
@@ -384,7 +384,7 @@ describe("App", () => {
     });
     expect(screen.getAllByRole("status").some((status) => /queued for analysis/i.test(status.textContent ?? ""))).toBe(true);
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     expect(screen.getAllByText(/Bass Guitar/i).length).toBeGreaterThan(0);
@@ -494,7 +494,7 @@ describe("App", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
     expect(screen.getAllByRole("status").some((status) => /analysis ready/i.test(status.textContent ?? ""))).toBe(true);
   });
@@ -672,7 +672,7 @@ describe("App", () => {
       latestStatusSubscription?.(succeededResult());
     });
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
     await act(async () => {
       resolvePoll?.({ jobId: "job-stale-invalid-poll", state: "running" });
@@ -711,7 +711,7 @@ describe("App", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     expect(screen.queryByText(/analysis could not start/i)).toBeNull();
   });
 
@@ -759,7 +759,7 @@ describe("App", () => {
       latestStatusSubscription?.(succeededResult());
     });
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
   });
 
@@ -805,7 +805,7 @@ describe("App", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
       await waitFor(() => {
-        expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+        expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
       });
 
       fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
@@ -906,7 +906,7 @@ describe("App", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("button", { name: /start analysis/i }).hasAttribute("disabled")).toBe(true);
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
   });
 
@@ -1131,7 +1131,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
     expect(mockLoadProject).toHaveBeenCalledTimes(1);
   });
@@ -1194,7 +1194,7 @@ describe("App", () => {
     // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockResolvedValueOnce(undefined);
@@ -1214,7 +1214,7 @@ describe("App", () => {
     // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce(new Error("Permission denied"));
@@ -1234,7 +1234,7 @@ describe("App", () => {
     // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce(new Error("User cancelled"));
@@ -1257,7 +1257,7 @@ describe("App", () => {
     // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce("Disk full");
@@ -1277,7 +1277,7 @@ describe("App", () => {
     // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce("User cancelled");
@@ -1300,7 +1300,7 @@ describe("App", () => {
     // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
-      expect(screen.getByText(/Late Night Set/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     // Mock prompt to simulate user entering a new chord
@@ -1358,9 +1358,8 @@ describe("App", () => {
     });
   });
 
-
   it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
-    render(<App />);
+    renderApp();
     const settingsSpan = screen.getByTitle("Settings coming soon");
     expect(settingsSpan).toHaveAttribute("tabIndex", "0");
     expect(settingsSpan).toHaveAttribute("role", "button");
