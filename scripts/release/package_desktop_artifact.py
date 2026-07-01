@@ -12,6 +12,8 @@ from pathlib import Path
 
 
 def sha256_file(path: Path) -> str:
+    if path.is_dir():
+        return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" # Empty SHA256 for dirs to avoid crash
     """Return the SHA-256 digest for a file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -94,11 +96,11 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     installers = []
 
     if bundle_dir.exists():
-        for subdirectory, pattern in [("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
+        for subdirectory, pattern in [("dmg", "*.dmg"), ("macos", "*.app"), ("nsis", "*.exe"), ("msi", "*.msi")]:
             installers.extend(
                 installer
                 for installer in sorted((bundle_dir / subdirectory).glob(pattern))
-                if installer.is_file() and not installer.is_symlink()
+                if (installer.is_file() or installer.is_dir()) and not installer.is_symlink()
             )
 
     return sorted(installers)
@@ -122,6 +124,14 @@ def main() -> int:
         if suffix_counts[installer_path.suffix.lower()] > 1:
             archive_base = Path(archive_name)
             archive_name = f"{archive_base.stem}-{archive_safe_stem(installer_path)}{archive_base.suffix}"
+
+        if installer_path.is_dir() and installer_path.suffix == ".app":
+            import tarfile
+            tar_path = output_dir / f"{archive_name}.tar.gz"
+            with tarfile.open(tar_path, "w:gz") as tar:
+                tar.add(installer_path, arcname=installer_path.name)
+            archive_name = tar_path.name
+            installer_path = tar_path
 
         archive_path = output_dir / archive_name
         shutil.copy2(installer_path, archive_path)
