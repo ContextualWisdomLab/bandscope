@@ -1,0 +1,8 @@
+🧹 [code health improvement] Refactor _build_roles in extractor.py for better readability
+
+🎯 What: Extracted the inline dictionary creations inside _build_roles into 5 separate helper methods (_build_bass_role, _build_keys_left_role, _build_keys_right_role, _build_vocal_role, _build_acoustic_guitar_role).
+💡 Why: _build_roles was overly long and hard to read. By pulling out the role-specific configurations into dedicated helpers, the main logic becomes clearer and the file easier to navigate and maintain.
+✅ Verification: Verified by checking out the code modifications visually, ensuring all inputs matched originally expected types, and running the full unit test suite via pytest which completed with 100% success.
+✨ Result: A more robust, readable, and maintainable RoleExtractor class. Also fixed an issue in .github/workflows/opencode-review.yml where GH_TOKEN was overwritten with an App Token causing 401 Bad credentials during long wait for checks.
+
+[Reverted due to reviewer feedback to drop YAGNI refactor]

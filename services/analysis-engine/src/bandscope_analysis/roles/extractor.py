@@ -173,9 +173,15 @@ class RoleExtractor:
 
         return vocal_range, vocal_chord, bass_range, bass_chord
 
-    def _build_bass_role(self, bass_chord: str, bass_range: RangeSummary) -> RehearsalRole:
-        """Build the rehearsal role for bass guitar."""
-        return {
+    def _build_roles(
+        self,
+        bass_chord: str,
+        bass_range: RangeSummary,
+        vocal_chord: str,
+        vocal_range: RangeSummary,
+    ) -> dict[str, RehearsalRole]:
+        """Build the 5 rehearsal roles and compute their priorities."""
+        bass_role: RehearsalRole = {
             "id": "bass-guitar",
             "name": "Bass Guitar",
             "roleType": RoleType.INSTRUMENT,
@@ -204,9 +210,7 @@ class RoleExtractor:
             ],
         }
 
-    def _build_keys_left_role(self) -> RehearsalRole:
-        """Build the rehearsal role for left-hand keys."""
-        return {
+        keys_left_role: RehearsalRole = {
             "id": "keys-left",
             "name": "Keyboard 1 Left Hand",
             "roleType": RoleType.HAND,
@@ -233,9 +237,7 @@ class RoleExtractor:
             "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
         }
 
-    def _build_keys_right_role(self) -> RehearsalRole:
-        """Build the rehearsal role for right-hand keys."""
-        return {
+        keys_role: RehearsalRole = {
             "id": "keys-right",
             "name": "Keyboard 1 Right Hand",
             "roleType": RoleType.HAND,
@@ -262,9 +264,7 @@ class RoleExtractor:
             "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
         }
 
-    def _build_vocal_role(self, vocal_chord: str, vocal_range: RangeSummary) -> RehearsalRole:
-        """Build the rehearsal role for lead vocal."""
-        return {
+        vocal_role: RehearsalRole = {
             "id": "lead-vocal",
             "name": "Lead Vocal",
             "roleType": RoleType.VOCAL,
@@ -298,9 +298,7 @@ class RoleExtractor:
             "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
         }
 
-    def _build_acoustic_guitar_role(self) -> RehearsalRole:
-        """Build the rehearsal role for acoustic guitar."""
-        return {
+        acoustic_guitar_role: RehearsalRole = {
             "id": "acoustic-guitar",
             "name": "Acoustic Guitar",
             "roleType": RoleType.INSTRUMENT,
@@ -323,20 +321,6 @@ class RoleExtractor:
             "manualOverrides": [],
             "overlapWarnings": [],
         }
-
-    def _build_roles(
-        self,
-        bass_chord: str,
-        bass_range: RangeSummary,
-        vocal_chord: str,
-        vocal_range: RangeSummary,
-    ) -> dict[str, RehearsalRole]:
-        """Build the 5 rehearsal roles and compute their priorities."""
-        bass_role = self._build_bass_role(bass_chord, bass_range)
-        keys_left_role = self._build_keys_left_role()
-        keys_role = self._build_keys_right_role()
-        vocal_role = self._build_vocal_role(vocal_chord, vocal_range)
-        acoustic_guitar_role = self._build_acoustic_guitar_role()
 
         roles_list = [bass_role, keys_left_role, keys_role, vocal_role, acoustic_guitar_role]
         for role in roles_list:
