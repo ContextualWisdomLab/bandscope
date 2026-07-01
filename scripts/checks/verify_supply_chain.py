@@ -1216,23 +1216,30 @@ def release_artifact_download_decompression_violations(content: str) -> list[str
     return []
 
 
-def verify_workflow_coverage() -> list[str]:
-    """Return workflow trigger and artifact coverage violations."""
-    missing: list[str] = []
+def _verify_ci_coverage(missing: list[str]) -> None:
     ci = read_workflow(Path(".github/workflows/ci.yml"), "ci", missing)
     for token in ["develop", "main", "pull_request", "push", "ci / build-and-test"]:
         if ci and token not in ci:
             missing.append(f"ci workflow missing token: {token}")
+
+
+def _verify_sbom_coverage(missing: list[str]) -> None:
     sbom = read_workflow(Path(".github/workflows/sbom.yml"), "sbom", missing)
     for token in ["develop", "main", "pull_request", "release:", "tags:"]:
         if sbom and token not in sbom:
             missing.append(f"sbom workflow missing trigger token: {token}")
+
+
+def _verify_dependency_review_coverage(missing: list[str]) -> None:
     review = read_workflow(
         Path(".github/workflows/dependency-review.yml"), "dependency review", missing
     )
     for token in ["develop", "main", "pull_request"]:
         if review and token not in review:
             missing.append(f"dependency review workflow missing trigger token: {token}")
+
+
+def _verify_security_audit_coverage(missing: list[str]) -> None:
     audit = read_workflow(
         Path(".github/workflows/security-audit.yml"), "security audit", missing
     )
@@ -1259,10 +1266,16 @@ def verify_workflow_coverage() -> list[str]:
             missing.append(
                 f"security audit workflow missing vulnerability audit token: {token}"
             )
+
+
+def _verify_codeql_coverage(missing: list[str]) -> None:
     codeql = read_workflow(Path(".github/workflows/codeql.yml"), "codeql", missing)
     for token in ["develop", "main", "pull_request", "push", "codeql"]:
         if codeql and token not in codeql:
             missing.append(f"codeql workflow missing token: {token}")
+
+
+def _verify_release_coverage(missing: list[str]) -> None:
     release = read_workflow(Path(".github/workflows/release.yml"), "release", missing)
     for token in [
         "develop",
@@ -1274,12 +1287,18 @@ def verify_workflow_coverage() -> list[str]:
     ]:
         if release and token not in release:
             missing.append(f"release workflow missing token: {token}")
+
+
+def _verify_secret_scan_coverage(missing: list[str]) -> None:
     secret_scan = read_workflow(
         Path(".github/workflows/secret-scan-gate.yml"), "secret scan", missing
     )
     for token in ["develop", "main", "pull_request", "push", "secret-scan-gate"]:
         if secret_scan and token not in secret_scan:
             missing.append(f"secret scan workflow missing token: {token}")
+
+
+def _verify_build_coverage(missing: list[str]) -> None:
     build = read_workflow(
         Path(".github/workflows/build-baseline.yml"), "build baseline", missing
     )
@@ -1317,14 +1336,9 @@ def verify_workflow_coverage() -> list[str]:
         missing.append(
             "build workflow should not rely on macos-latest for architecture coverage"
         )
-    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
-        Path(".github/workflows").glob("*.yaml")
-    )
-    for workflow_path in workflow_paths:
-        workflow_content = workflow_path.read_text(encoding="utf-8")
-        missing.extend(
-            release_artifact_download_decompression_violations(workflow_content)
-        )
+
+
+def _verify_scorecard_coverage(missing: list[str], workflow_paths: list[Path]) -> None:
     scorecard = read_workflow(
         Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
     )
@@ -1367,6 +1381,31 @@ def verify_workflow_coverage() -> list[str]:
                     workflow_content, workflow_path
                 )
             )
+
+
+def verify_workflow_coverage() -> list[str]:
+    """Return workflow trigger and artifact coverage violations."""
+    missing: list[str] = []
+    _verify_ci_coverage(missing)
+    _verify_sbom_coverage(missing)
+    _verify_dependency_review_coverage(missing)
+    _verify_security_audit_coverage(missing)
+    _verify_codeql_coverage(missing)
+    _verify_release_coverage(missing)
+    _verify_secret_scan_coverage(missing)
+    _verify_build_coverage(missing)
+
+    workflow_paths = sorted(Path(".github/workflows").glob("*.yml")) + sorted(
+        Path(".github/workflows").glob("*.yaml")
+    )
+    for workflow_path in workflow_paths:
+        workflow_content = workflow_path.read_text(encoding="utf-8")
+        missing.extend(
+            release_artifact_download_decompression_violations(workflow_content)
+        )
+
+    _verify_scorecard_coverage(missing, workflow_paths)
+
     return missing
 
 
