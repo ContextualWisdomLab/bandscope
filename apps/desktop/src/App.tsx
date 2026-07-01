@@ -240,11 +240,8 @@ export function App() {
     : defaultRequest;
 
   useEffect(() => {
-    activeJobIdRef.current =
-      jobStatus?.state === "queued" || jobStatus?.state === "running"
-        ? jobStatus.jobId
-        : null;
-  }, [jobStatus?.jobId, jobStatus?.state]);
+    activeJobIdRef.current = jobStatus?.jobId ?? null;
+  }, [jobStatus?.jobId]);
 
   /** Documented. */
   const applyJobStatus = useCallback((nextStatus: AnalysisJobStatus) => {
