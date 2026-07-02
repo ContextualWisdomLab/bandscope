@@ -64,6 +64,14 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
   }
 }
 
+const TIMELINE_DECORATION_NODES = Array.from({ length: 84 }).map((_, index) => (
+  <span
+    key={index}
+    className="w-1 flex-none rounded-full bg-gradient-to-t from-cyan-500 via-sky-400 to-violet-400 opacity-85"
+    style={{ height: `${18 + ((index * 23) % 62)}px` }}
+  />
+));
+
 /** Documented. */
 const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
   return (
@@ -96,13 +104,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
           <div className="flex h-24 items-center gap-1 overflow-hidden">
-            {Array.from({ length: 84 }).map((_, index) => (
-              <span
-                key={index}
-                className="w-1 flex-none rounded-full bg-gradient-to-t from-cyan-500 via-sky-400 to-violet-400 opacity-85"
-                style={{ height: `${18 + ((index * 23) % 62)}px` }}
-              />
-            ))}
+            {TIMELINE_DECORATION_NODES}
           </div>
           <div className="absolute inset-x-3 top-1/2 h-px bg-cyan-200/20" />
         </div>

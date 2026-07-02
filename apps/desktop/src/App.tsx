@@ -49,6 +49,14 @@ import { Progress } from "@/components/ui/progress";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 const MAX_ERROR_DETAIL_LENGTH = 220;
+
+const LOCAL_FIRST_DECORATION_NODES = Array.from({ length: 34 }).map((_, index) => (
+  <span
+    key={index}
+    className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"
+    style={{ height: `${14 + ((index * 19) % 38)}px` }}
+  />
+));
 const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:Users|home|var|tmp|private|Volumes)\/[^\s"'<>]+)/g;
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
@@ -523,13 +531,7 @@ export function App() {
               </p>
               <div className="mt-3 h-14 overflow-hidden rounded-xl bg-[linear-gradient(90deg,rgba(34,211,238,.12),rgba(124,58,237,.12))]">
                 <div className="flex h-full items-end gap-0.5 px-2 pb-1" aria-hidden="true">
-                  {Array.from({ length: 34 }).map((_, index) => (
-                    <span
-                      key={index}
-                      className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"
-                      style={{ height: `${14 + ((index * 19) % 38)}px` }}
-                    />
-                  ))}
+                  {LOCAL_FIRST_DECORATION_NODES}
                 </div>
               </div>
             </div>
