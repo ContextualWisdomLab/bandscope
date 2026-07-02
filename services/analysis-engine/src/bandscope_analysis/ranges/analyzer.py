@@ -256,9 +256,6 @@ class RangeAnalyzer:
                     if midi_low_b > midi_high_a:
                         break
 
-                    if not (midi_low_a <= midi_high_b and midi_low_b <= midi_high_a):
-                        continue
-
                     severity = _overlap_severity(
                         r_a["lowestNote"],
                         r_a["highestNote"],

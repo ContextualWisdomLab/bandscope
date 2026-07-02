@@ -77,6 +77,18 @@ def test_overlap_severity_low() -> None:
     assert result == "low"
 
 
+def test_overlap_severity_low_for_inverted_range() -> None:
+    """Test malformed inverted ranges fail closed to low severity."""
+    result = _overlap_severity("C5", "C4", "C4", "C5")
+    assert result == "low"
+
+
+def test_overlap_severity_low_for_touching_boundary() -> None:
+    """Test boundary-only overlap stays low severity."""
+    result = _overlap_severity("C4", "C5", "C5", "C6")
+    assert result == "low"
+
+
 def test_overlap_severity_medium() -> None:
     """Test medium severity overlap detection."""
     # C3-C5 = 24 semitones, A3-G6 = 34 semitones.
