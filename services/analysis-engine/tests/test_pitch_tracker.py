@@ -8,6 +8,11 @@ import numpy as np
 from bandscope_analysis.ranges.pitch_tracker import PitchTracker
 
 
+def patched_pyin_audio() -> np.ndarray:
+    """Return deterministic audio for tests that patch pYIN output."""
+    return np.zeros(22050, dtype=np.float32)
+
+
 def test_pitch_tracker_empty_audio() -> None:
     """Test pitch tracking with empty audio array."""
     tracker = PitchTracker()
@@ -76,9 +81,12 @@ def test_pitch_tracker_sweep() -> None:
 def test_pitch_tracker_pyin_exception():
     """Test fallback when pyin raises ParameterError."""
     tracker = PitchTracker()
-    y = np.random.randn(22050)
+    y = patched_pyin_audio()
 
-    with patch("librosa.pyin", side_effect=librosa.util.exceptions.ParameterError("Pyin Error")):
+    with patch(
+        "bandscope_analysis.ranges.pitch_tracker.librosa.pyin",
+        side_effect=librosa.util.exceptions.ParameterError("Pyin Error"),
+    ):
         result = tracker.track(y, sr=22050)
         assert result["lowest_note"] is None
         assert result["highest_note"] is None
@@ -101,9 +109,12 @@ def test_pitch_tracker_few_frames():
 def test_pitch_tracker_none_f0():
     """Test when pyin returns None for pitch array."""
     tracker = PitchTracker()
-    y = np.random.randn(22050)
+    y = patched_pyin_audio()
 
-    with patch("librosa.pyin", return_value=(None, np.array([False]), np.array([0.0]))):
+    with patch(
+        "bandscope_analysis.ranges.pitch_tracker.librosa.pyin",
+        return_value=(None, np.array([False]), np.array([0.0])),
+    ):
         result = tracker.track(y, sr=22050)
         assert result["lowest_note"] is None
 
@@ -117,7 +128,10 @@ def test_pitch_tracker_medium_confidence() -> None:
     voiced_flag = np.array([True, True, True, True, False, False, False, False, False, False])
     voiced_probs = np.full(10, 0.4)
 
-    with patch("librosa.pyin", return_value=(f0, voiced_flag, voiced_probs)):
+    with patch(
+        "bandscope_analysis.ranges.pitch_tracker.librosa.pyin",
+        return_value=(f0, voiced_flag, voiced_probs),
+    ):
         result = tracker.track(y, sr=sr)
 
     assert result["lowest_note"] == "A4"
@@ -134,7 +148,10 @@ def test_pitch_tracker_all_nan_voicing_probs_returns_low() -> None:
     voiced_flag = np.full(10, True)
     voiced_probs = np.full(10, np.nan)
 
-    with patch("librosa.pyin", return_value=(f0, voiced_flag, voiced_probs)):
+    with patch(
+        "bandscope_analysis.ranges.pitch_tracker.librosa.pyin",
+        return_value=(f0, voiced_flag, voiced_probs),
+    ):
         result = tracker.track(y, sr=sr)
 
     assert result["lowest_note"] is None
@@ -150,7 +167,10 @@ def test_pitch_tracker_none_voicing_probs_returns_low() -> None:
     f0 = np.full(10, 440.0)
     voiced_flag = np.full(10, True)
 
-    with patch("librosa.pyin", return_value=(f0, voiced_flag, None)):
+    with patch(
+        "bandscope_analysis.ranges.pitch_tracker.librosa.pyin",
+        return_value=(f0, voiced_flag, None),
+    ):
         result = tracker.track(y, sr=sr)
 
     assert result["lowest_note"] is None
@@ -212,10 +232,10 @@ def test_pitch_tracker_confidence_returns_low() -> None:
 def test_pitch_tracker_nan_f0_returns_low() -> None:
     """Test that NaN-only voiced pitch values fail closed."""
     tracker = PitchTracker()
-    y = np.random.randn(22050)
+    y = patched_pyin_audio()
 
     with patch(
-        "librosa.pyin",
+        "bandscope_analysis.ranges.pitch_tracker.librosa.pyin",
         return_value=(
             np.array([np.nan, np.nan]),
             np.array([True, True]),
@@ -232,10 +252,10 @@ def test_pitch_tracker_nan_f0_returns_low() -> None:
 def test_pitch_tracker_low_average_voicing_probability_returns_low() -> None:
     """Test that very low average voicing probability suppresses note output."""
     tracker = PitchTracker()
-    y = np.random.randn(22050)
+    y = patched_pyin_audio()
 
     with patch(
-        "librosa.pyin",
+        "bandscope_analysis.ranges.pitch_tracker.librosa.pyin",
         return_value=(np.array([440.0]), np.array([True]), np.array([0.1])),
     ):
         result = tracker.track(y, sr=22050)
