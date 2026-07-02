@@ -143,6 +143,34 @@ describe("export generation", () => {
     expect(parsed.headline).toBe("");
   });
 
+  it("generates chart summary JSON when export summary is absent", () => {
+    const songWithoutExportSummary: RehearsalSong = {
+      ...mockSong,
+      exportSummary: undefined
+    };
+
+    const parsed = JSON.parse(generateChartSummaryJson(songWithoutExportSummary));
+
+    expect(parsed).toMatchObject({
+      title: "Test",
+      headline: "",
+      sections: [
+        {
+          label: "verse",
+          groove: "swing",
+          roles: [
+            {
+              name: "Bass",
+              chord: "=Cmaj7",
+              cue: "1, 2, 3",
+              priority: "high"
+            }
+          ]
+        }
+      ]
+    });
+  });
+
   it("generates a metadata-only local handoff without source paths or transcription data", () => {
     const sourceBootstrap: ProjectBootstrapSummary = {
       projectId: "project-1",
@@ -213,6 +241,8 @@ describe("export generation", () => {
       title: "Test",
       workspaceVersion: 1
     });
+    expect(parsed.sourceAssets).toEqual([]);
+    expect(json).not.toContain("sourcePath");
   });
 
   it("creates a local re-analysis request from a received handoff and selected replacement asset", () => {
