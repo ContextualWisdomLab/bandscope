@@ -1030,6 +1030,21 @@ describe("App", () => {
     });
   });
 
+  it("clears the YouTube URL and returns focus to the input", () => {
+    render(<App />);
+
+    const input = screen.getByRole("textbox", { name: /YouTube URL/i });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+
+    const clearButton = screen.getByRole("button", { name: /Clear YouTube URL/i });
+    clearButton.focus();
+    fireEvent.click(clearButton);
+
+    expect(input).toHaveValue("");
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
+  });
+
   it("handles YouTube import failure with a message", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error("This video is age restricted."));
 
