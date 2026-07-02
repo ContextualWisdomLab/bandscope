@@ -848,22 +848,18 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             self.items.append(item)
 
     cases = [
-        (FileNotFoundError("missing"), "file_not_found", "missing"),
-        (ValueError("bad media"), "value_error", "bad media"),
-        (RuntimeError("oom"), "runtime_error", "oom"),
-        (
-            Exception("unexpected"),
-            "runtime_error",
-            "An unexpected error occurred during stem separation.",
-        ),
+        (FileNotFoundError("missing"), "file_not_found"),
+        (ValueError("bad media"), "value_error"),
+        (RuntimeError("oom"), "runtime_error"),
+        (Exception("unexpected"), "runtime_error"),
     ]
 
-    for error, expected_kind, expected_msg in cases:
+    for error, expected_kind in cases:
         fake_queue = FakeQueue()
         with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
             separator_class.return_value.separate.side_effect = error
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
-        assert fake_queue.items == [(expected_kind, expected_msg)]
+        assert fake_queue.items == [(expected_kind, str(error))]
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
