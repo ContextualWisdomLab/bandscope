@@ -1,33 +1,19 @@
-# Central PR Review And Merge Automation
+# PR Review Merge Scheduler
 
 ## Purpose
 
-BandScope does not keep repo-local copies of the OpenCode Review or PR Review Merge Scheduler workflows.
-Those checks are supplied by the ContextualWisdomLab organization ruleset from `ContextualWisdomLab/.github`
-as central required workflows.
-
-The central scheduler keeps the open `develop` PR queue moving without bypassing repository rules.
-It runs in the target repository context through the organization required workflow, so mechanical
-update-branch, auto-merge, and merge actions are performed by the selected workflow mutation
-credential, not by a maintainer's local `gh` session. The central scheduler may select
-`PR_REVIEW_MERGE_TOKEN`, `OPENCODE_APPROVE_TOKEN`, an exchanged OpenCode GitHub App token, or the
-workflow `GITHUB_TOKEN`, depending on which credential can perform the guarded repository mutation.
-
-The local repository may keep product CI, security, release, and build workflows. It must not restore
-repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or their `scripts/ci` helper implementations.
+The PR review merge scheduler keeps the open `develop` PR queue moving without bypassing repository rules.
+It runs hourly and can also be started manually from the `pr-review-merge-scheduler` workflow.
 
 ## Behavior
 
-- Inspect non-draft PRs targeting the repository default branch, currently `develop`.
-- Use central OpenCode Review for current-head evidence, CodeGraph-backed review, peer-check waits,
-  review-agent status contexts, failed-check explanation, provider/runtime failures, OpenCode runtime
-  evidence, and approval publication failures. Publication failures are automation evidence, not
-  source-backed repository findings, and they must be summarized as OpenCode runtime evidence.
-- Keep provider failure, external failed-check classification, and Strix evidence lookup diagnostics
-  in the central workflow. Strix evidence lookup failures must mention missing Actions read access
-  when that is the actual GitHub API scope problem.
+- Inspect up to 20 open, non-draft PRs targeting `develop` by default.
 - Skip PRs with unresolved review threads.
+- Request one CodeRabbit review per head SHA when a PR has zero unresolved threads but is not approved.
 - Check only GitHub-required checks before merge actions.
+- Retry transient GitHub CLI/API read failures and skip only the affected PR when review-thread
+  state remains unavailable after retries, while keeping command stdout separate from retry
+  diagnostics so parsed JSON, counts, and booleans stay clean.
 - Update approved PRs that are behind `develop` and wait for fresh checks.
 - Merge only PRs that are approved, thread-clean, conflict-free, and passing required checks.
 - Fall back to GitHub auto-merge only when a direct normal merge does not complete.
@@ -39,19 +25,12 @@ repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or 
 - It does not resolve review threads.
 - It does not use admin merge or ruleset bypass.
 - It does not weaken required checks, branch protection, or repository rulesets.
-- It does not require BandScope to carry repo-local OpenCode or scheduler workflow/helper copies.
-- It does not move central token permissions into this repository.
 
 ## Security Notes
 
-- Attack surface: organization required workflows with write access to PR comments, PR branch updates, and normal merges.
+- Attack surface: scheduled GitHub Actions automation with write access to PR comments, PR branch updates, and normal merges.
 - Trust boundary touched: GitHub repository governance, PR review state, status checks, and CodeRabbit review requests.
 - Realistic threats: spammed review comments, merging a PR with unresolved conversations, merging without required checks, or hiding conflicts behind automation.
-- Mitigations: central required workflow source pinning, idempotent per-head review comment marker,
-  explicit unresolved-thread check, retry-bounded GitHub API reads, required-check verification
-  through GitHub, conflict skip, guarded merge with `--match-head-commit`, and no admin bypass path.
+- Mitigations: idempotent per-head review comment marker, explicit unresolved-thread check, retry-bounded GitHub API reads, required-check verification through GitHub, conflict skip, normal merge only, and no admin bypass path.
 - Remaining risk: CodeRabbit and GitHub check state can be delayed or stale; the scheduler therefore only advances eligible PRs and leaves code-fix work to agents or maintainers.
-- Test points: organization ruleset inheritance, current-head OpenCode approval, unresolved review
-  thread count, required-check rollup, approved behind PR, approved conflict-free PR, approved dirty PR,
-  external failed-check classification, provider/runtime failure summary, and Strix evidence lookup
-  scope diagnostics.
+- Test points: `workflow_dispatch` dry run on a limited `max_prs`, transient GitHub API failure with stderr output, PR with unresolved thread, PR needing review, approved behind PR, approved conflict-free PR, and approved dirty PR.
