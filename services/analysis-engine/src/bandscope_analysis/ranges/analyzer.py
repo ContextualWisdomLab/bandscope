@@ -15,6 +15,8 @@ from .model import (
 
 logger = logging.getLogger(__name__)
 
+_MAX_NOTE_LENGTH = 12
+
 # Chromatic note order for comparison (octave-independent).
 _NOTE_ORDER = [
     "C",
@@ -54,16 +56,22 @@ def _parse_note(note: str) -> tuple[str, int]:
     """
     if not note:
         return ("C", 4)
-    import re
-
-    match = re.match(r"^([A-Ga-g](?:#|b|sharp|flat)?)(.*)$", note)
-    if not match:
+    if len(note) > _MAX_NOTE_LENGTH:
+        return ("C", 4)
+    if note[0].upper() not in {"A", "B", "C", "D", "E", "F", "G"}:
         return (note, 4)
 
-    name, octave_str = match.groups()
+    name = note[0].upper()
+    octave_str = note[1:]
+    for accidental_text, accidental in (("sharp", "#"), ("flat", "b"), ("#", "#"), ("b", "b")):
+        if octave_str.startswith(accidental_text):
+            name += accidental
+            octave_str = octave_str[len(accidental_text) :]
+            break
+
     if octave_str == "":
         return (name, 4)
-    if octave_str == "-" or not re.match(r"^-?\d+$", octave_str):
+    if octave_str == "-" or not octave_str.removeprefix("-").isdigit():
         return (name, 4)
 
     return (name, int(octave_str))
@@ -149,7 +157,7 @@ def _overlap_severity(
 
     range_a_size = midi_high_a - midi_low_a
     range_b_size = midi_high_b - midi_low_b
-    min_range = min(range_a_size, range_b_size) if min(range_a_size, range_b_size) > 0 else 1
+    min_range = max(1, min(range_a_size, range_b_size))
 
     ratio = overlap_size / min_range
     if ratio > 0.5:
@@ -192,12 +200,18 @@ class RangeAnalyzer:
             for role in section_roles:
                 role_range = role.get("range")
                 if isinstance(role_range, dict):
+                    lowest_note = str(role_range.get("lowestNote", ""))
+                    highest_note = str(role_range.get("highestNote", ""))
+                    if len(lowest_note) > _MAX_NOTE_LENGTH:
+                        lowest_note = "C4"
+                    if len(highest_note) > _MAX_NOTE_LENGTH:
+                        highest_note = "C4"
                     ranges.append(
                         {
                             "role_id": str(role.get("id", "")),
                             "role_name": str(role.get("name", "")),
-                            "lowestNote": str(role_range.get("lowestNote", "")),
-                            "highestNote": str(role_range.get("highestNote", "")),
+                            "lowestNote": lowest_note,
+                            "highestNote": highest_note,
                         }
                     )
 
@@ -215,8 +229,7 @@ class RangeAnalyzer:
             ranges_with_midi.sort(key=lambda x: x[1])
 
             # Detect overlaps between all pairs of ranges
-            for a_idx in range(len(ranges_with_midi)):
-                r_a, midi_low_a, midi_high_a = ranges_with_midi[a_idx]
+            for a_idx, (r_a, midi_low_a, midi_high_a) in enumerate(ranges_with_midi):
                 for b_idx in range(a_idx + 1, len(ranges_with_midi)):
                     r_b, midi_low_b, midi_high_b = ranges_with_midi[b_idx]
 
@@ -225,25 +238,26 @@ class RangeAnalyzer:
                     if midi_low_b > midi_high_a:
                         break
 
-                    # Check for overlap
-                    if midi_low_a <= midi_high_b and midi_low_b <= midi_high_a:
-                        severity = _overlap_severity(
-                            r_a["lowestNote"],
-                            r_a["highestNote"],
-                            r_b["lowestNote"],
-                            r_b["highestNote"],
-                        )
+                    if not (midi_low_a <= midi_high_b and midi_low_b <= midi_high_a):
+                        continue
 
-                        overlaps.append(
-                            {
-                                "role_a": r_a["role_id"],
-                                "role_b": r_b["role_id"],
-                                "overlap_region": (
-                                    f"{r_a['role_name']} and {r_b['role_name']} overlap"
-                                ),
-                                "severity": severity,
-                            }
-                        )
+                    severity = _overlap_severity(
+                        r_a["lowestNote"],
+                        r_a["highestNote"],
+                        r_b["lowestNote"],
+                        r_b["highestNote"],
+                    )
+
+                    overlaps.append(
+                        {
+                            "role_a": r_a["role_id"],
+                            "role_b": r_b["role_id"],
+                            "overlap_region": (
+                                f"{r_a['role_name']} and {r_b['role_name']} overlap"
+                            ),
+                            "severity": severity,
+                        }
+                    )
 
             summaries.append(
                 {

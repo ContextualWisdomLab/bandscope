@@ -15,6 +15,8 @@ def test_parse_note_basic() -> None:
     assert _parse_note("C4") == ("C", 4)
     assert _parse_note("G#3") == ("G#", 3)
     assert _parse_note("Bb2") == ("Bb", 2)
+    assert _parse_note("csharp4") == ("C#", 4)
+    assert _parse_note("bflat2") == ("Bb", 2)
     assert _parse_note("") == ("C", 4)
 
 
@@ -32,6 +34,11 @@ def test_parse_note_malformed_negative_octave_falls_back() -> None:
     """Test malformed trailing '-' octave inputs fail safely."""
     assert _parse_note("C-") == ("C", 4)
     assert _parse_note("C#-") == ("C#", 4)
+
+
+def test_parse_note_rejects_overlong_inputs() -> None:
+    """Test overlong note strings are bounded before parsing."""
+    assert _parse_note("A" * 64) == ("C", 4)
 
 
 def test_note_to_midi() -> None:
@@ -166,6 +173,51 @@ def test_range_analyzer_no_overlap() -> None:
     }
     result = analyzer.analyze(sections, roles_by_section)
     assert result["sections"][0]["overlaps"] == []
+
+
+def test_range_analyzer_does_not_overlap_inverted_ranges() -> None:
+    """Test malformed inverted ranges do not create false-positive overlaps."""
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "verse-1"}]
+    roles_by_section = {
+        "verse-1": [
+            {
+                "id": "normal",
+                "name": "Normal",
+                "range": {"lowestNote": "C4", "highestNote": "C5"},
+            },
+            {
+                "id": "inverted",
+                "name": "Inverted",
+                "range": {"lowestNote": "D4", "highestNote": "C3"},
+            },
+        ]
+    }
+
+    result = analyzer.analyze(sections, roles_by_section)
+
+    assert result["sections"][0]["overlaps"] == []
+
+
+def test_range_analyzer_bounds_overlong_note_strings() -> None:
+    """Test overlong note strings are replaced before result serialization."""
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "verse-1"}]
+    roles_by_section = {
+        "verse-1": [
+            {
+                "id": "bass",
+                "name": "Bass",
+                "range": {"lowestNote": "A" * 64, "highestNote": "B" * 64},
+            }
+        ]
+    }
+
+    result = analyzer.analyze(sections, roles_by_section)
+    ranges = result["sections"][0]["ranges"]
+
+    assert ranges[0]["lowestNote"] == "C4"
+    assert ranges[0]["highestNote"] == "C4"
 
 
 def test_range_analyzer_invalid_section() -> None:
