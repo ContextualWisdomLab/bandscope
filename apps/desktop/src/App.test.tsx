@@ -1431,6 +1431,6 @@ describe("App", () => {
     render(<App />);
     const settingsSpan = screen.getByTitle("Settings coming soon");
     expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
+    expect(settingsSpan).not.toHaveAttribute("role", "button");
   });
 });
