@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDemoAnalysisJobRequest, createDemoRehearsalSong } from "@bandscope/shared-types";
-import { getAnalysisJobStatus, importYoutubeUrl, startAnalysisJob } from "./analysis";
+import {
+  MAX_YOUTUBE_URL_LENGTH,
+  getAnalysisJobStatus,
+  importYoutubeUrl,
+  startAnalysisJob
+} from "./analysis";
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -198,10 +203,10 @@ describe("analysis bridge", () => {
 
   it("rejects oversized YouTube URLs before crossing the Tauri bridge", async () => {
     tauriWindow.__TAURI_INVOKE__ = vi.fn();
+    const urlPrefix = "https://youtube.com/watch?v=4ozX4yFUC34&x=";
+    const oversizedUrl = `${urlPrefix}${"a".repeat(MAX_YOUTUBE_URL_LENGTH - urlPrefix.length + 1)}`;
 
-    const selection = await importYoutubeUrl(
-      `https://youtube.com/watch?v=4ozX4yFUC34&x=${"a".repeat(2000)}`
-    );
+    const selection = await importYoutubeUrl(oversizedUrl);
 
     expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
     expect(selection).toEqual({

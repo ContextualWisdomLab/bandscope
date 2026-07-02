@@ -16,8 +16,11 @@ def test_validate_url() -> None:
     assert validate_url("https://youtu.be/abc123DEF45") is True
     assert validate_url("https://www.youtube.com/watch?v=abc123DEF45") is True
     assert validate_url("https://www.youtube.com/watch?v=abc123DEF45&t=10") is True
-    long_query_url = "https://youtube.com/watch?v=abc123DEF45&x=" + ("a" * MAX_YOUTUBE_URL_LENGTH)
+    url_prefix = "https://youtube.com/watch?v=abc123DEF45&x="
+    max_length_url = url_prefix + ("a" * (MAX_YOUTUBE_URL_LENGTH - len(url_prefix)))
+    long_query_url = max_length_url + "a"
 
+    assert validate_url(max_length_url) is True
     assert validate_url("https://m.youtube.com/watch?v=abc123DEF45") is False
     assert validate_url("https://music.youtube.com/watch?v=abc123DEF45") is False
     assert validate_url("https://evil.youtube.com/watch?v=abc123DEF45") is False
