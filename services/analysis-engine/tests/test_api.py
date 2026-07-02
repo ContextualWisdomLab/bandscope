@@ -862,7 +862,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             assert fake_queue.items == [(expected_kind, "Audio source file not found.")]
         elif expected_kind == "value_error":
             assert fake_queue.items == [(expected_kind, "Invalid audio source data.")]
-        elif expected_kind == "runtime_error" and "oom" in str(error):
+        elif isinstance(error, RuntimeError):
             assert fake_queue.items == [
                 (expected_kind, "Runtime error occurred during stem separation.")
             ]

@@ -837,17 +837,17 @@ def _stem_separation_worker(
             )
             return
         result_queue.put(("ok", separation_result))
-    except FileNotFoundError as error:
-        logger.error(f"Stem separation missing file: {error}", exc_info=True)
+    except FileNotFoundError:
+        logger.error("Stem separation missing file.", exc_info=True)
         result_queue.put(("file_not_found", "Audio source file not found."))
-    except ValueError as error:
-        logger.error(f"Stem separation value error: {error}", exc_info=True)
+    except ValueError:
+        logger.error("Stem separation value error.", exc_info=True)
         result_queue.put(("value_error", "Invalid audio source data."))
-    except RuntimeError as error:
-        logger.error(f"Stem separation runtime error: {error}", exc_info=True)
+    except RuntimeError:
+        logger.error("Stem separation runtime error.", exc_info=True)
         result_queue.put(("runtime_error", "Runtime error occurred during stem separation."))
-    except Exception as error:
-        logger.error(f"Stem separation unexpected error: {error}", exc_info=True)
+    except Exception:
+        logger.error("Stem separation unexpected error.", exc_info=True)
         result_queue.put(("runtime_error", "An unexpected error occurred during stem separation."))
 
 
@@ -1089,8 +1089,8 @@ def run_analysis_job_updates(
                 )
             )
             audio_features = None
-        except (FileNotFoundError, ValueError) as error:
-            logger.error(f"Stem separation failed in worker: {error}", exc_info=True)
+        except (FileNotFoundError, ValueError):
+            logger.error("Stem separation failed in worker.", exc_info=True)
             updates.append(
                 _build_job_status(
                     job_id=job_id,
