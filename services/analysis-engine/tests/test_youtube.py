@@ -151,10 +151,14 @@ def test_download_youtube_audio_converted_extension(
     mock_exists.side_effect = exists_side_effect
     mock_getsize.return_value = 10 * 1024 * 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    with patch("bandscope_analysis.youtube.glob.iglob") as mock_iglob:
+        mock_iglob.return_value = iter(["/tmp/abc123DEF45.opus"])
+
+        result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is True
     assert result["metadata"]["filepath"] == "/tmp/abc123DEF45.opus"
+    mock_iglob.assert_called_once_with("/tmp/abc123DEF45.*")
 
 
 @patch("bandscope_analysis.youtube.os.path.exists")
@@ -176,7 +180,10 @@ def test_download_youtube_audio_file_not_found(
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
     mock_exists.return_value = False
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    with patch("bandscope_analysis.youtube.glob.iglob") as mock_iglob:
+        mock_iglob.return_value = iter(())
+
+        result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
 
     assert result["ok"] is False
     assert result["error"]["code"] == "file_not_found"
