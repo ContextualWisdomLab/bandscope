@@ -65,3 +65,11 @@ reason = "Inherited through the current Tauri GTK3 owner chain and already track
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0429"
 reason = "glib 0.18.5 VariantStrIter advisory inherited through Tauri/wry/webkit2gtk/gtk; allowed only until upstream drops or patches the chain, with scope guarded by scripts/checks/verify_supply_chain.py."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0194"
+reason = "quick-xml 0.39.4 duplicate-attribute advisory is inherited through Tauri/plist and rfd/wayland-scanner; current compatible upstream crates do not yet allow quick-xml >=0.41.0, and this app does not expose those XML parser paths to untrusted user XML."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0195"
+reason = "quick-xml 0.39.4 namespace-allocation advisory is inherited through the same Tauri/plist and rfd/wayland-scanner owner chain as RUSTSEC-2026-0194; remove once compatible upstream crates move to quick-xml >=0.41.0."
