@@ -63,8 +63,8 @@ def validate_url(url: str) -> bool:
 
         logger.warning(f"Security: Invalid host {host}")
         return False
-    except ValueError as e:
-        logger.warning(f"Security: URL parsing error {e}")
+    except ValueError:
+        logger.warning("Security: URL parsing error")
         return False
 
 
@@ -205,10 +205,10 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                 },
             }
     except yt_dlp.utils.DownloadError as e:
-        logger.warning(f"Security: Download error: {e}")
+        logger.warning("Security: Download error occurred")
         return _handle_download_error(e)
-    except Exception as e:
-        logger.error(f"Security: Unexpected error during download: {e}")
+    except Exception:
+        logger.error("Security: Unexpected error during download")
         return {
             "ok": False,
             "error": {"code": "download_error", "message": YOUTUBE_IMPORT_FAILED_MESSAGE},
