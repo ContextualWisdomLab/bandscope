@@ -50,7 +50,7 @@ import { Progress } from "@/components/ui/progress";
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 const MAX_ERROR_DETAIL_LENGTH = 220;
 
-const LOCAL_FIRST_DECORATION_NODES = Array.from({ length: 34 }).map((_, index) => (
+const LOCAL_FIRST_DECORATION_NODES = Array.from({ length: 34 }, (_, index) => (
   <span
     key={index}
     className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"

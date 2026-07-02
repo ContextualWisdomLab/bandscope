@@ -64,7 +64,7 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
   }
 }
 
-const TIMELINE_DECORATION_NODES = Array.from({ length: 84 }).map((_, index) => (
+const TIMELINE_DECORATION_NODES = Array.from({ length: 84 }, (_, index) => (
   <span
     key={index}
     className="w-1 flex-none rounded-full bg-gradient-to-t from-cyan-500 via-sky-400 to-violet-400 opacity-85"
