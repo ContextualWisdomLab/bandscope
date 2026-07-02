@@ -59,12 +59,12 @@ describe("Workspace", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
-      id: "low-end",
-      name: "Bass Guitar"
+      id: "Low-End",
+      name: "Low End"
     };
 
     render(<Workspace song={song} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Low End" }));
 
     const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(false);
@@ -104,13 +104,16 @@ describe("Workspace", () => {
     expect(screen.getByText(/No bass line transcription yet/i)).toBeTruthy();
   });
 
-  it("keeps the bass transcription button disabled for non-bass roles and maintains stable role map keys", () => {
+  it("keeps the bass transcription button disabled for non-bass roles", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0]!.name = "Guitar";
     song.sections[0]!.roles[0]!.id = "rhythm-guitar";
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Guitar" }));
-    const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
+    const transcribeButton = screen
+      .getAllByRole("button", { name: "Transcribe Bass" })
+      .find((element): element is HTMLButtonElement => element instanceof HTMLButtonElement);
+    expect(transcribeButton).toBeDefined();
     expect(transcribeButton.disabled).toBe(true);
   });
 
@@ -149,11 +152,35 @@ describe("Workspace", () => {
     expect(screen.getByText(/The role-specific harmonic reason will appear here/i)).toBeTruthy();
   });
 
-  it("handles exporting cue sheet and chart summaries", () => {
+  it("downloads cue sheet and chart summaries", async () => {
     const song = createDemoRehearsalSong();
+    const createObjectUrl = vi.fn()
+      .mockReturnValueOnce("blob:cue-sheet")
+      .mockReturnValueOnce("blob:chart-summary");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("button", { name: /Export Cue Sheet/i }));
     fireEvent.click(screen.getByRole("button", { name: /Export Chart \(JSON\)/i }));
+
+    const cueSheetBlob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const chartBlob = createObjectUrl.mock.calls[1]?.[0] as Blob;
+    const chartPayload = JSON.parse(await chartBlob.text());
+
+    expect(await cueSheetBlob.text()).toContain("Section,Groove,Role,Harmony,Cue,Priority,Notes");
+    expect(chartPayload.title).toBe(song.title);
+    expect(click).toHaveBeenCalledTimes(2);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:cue-sheet");
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:chart-summary");
   });
 
   it("renders collaboration summaries and role-specific rehearsal planning details", () => {
