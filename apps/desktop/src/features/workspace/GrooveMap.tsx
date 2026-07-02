@@ -91,7 +91,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
         {/* Render note blocks */}
         {renderedNotes.map((note, index) => {
-          const pitchIndex = pitchIndexMap.get(note.pitch) ?? 0;
+          const pitchIndex = pitchIndexMap.get(note.pitch) as number;
           const leftPercent = (note.onset / maxTime) * 100;
           const widthPercent = ((note.offset - note.onset) / maxTime) * 100;
           const noteLabel = `${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`;

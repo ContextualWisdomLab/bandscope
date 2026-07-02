@@ -116,6 +116,27 @@ describe("Workspace", () => {
     expect(transcribeButton.disabled).toBe(true);
   });
 
+  it("keeps stale selected roles readable when role metadata is removed", () => {
+    const song = createDemoRehearsalSong();
+    const selectedRoleId = song.sections[0]!.roles[0]!.id;
+    const { rerender } = render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const withoutRoles = createDemoRehearsalSong();
+    withoutRoles.sections = withoutRoles.sections.map(section => ({
+      ...section,
+      roles: []
+    }));
+    rerender(<Workspace song={withoutRoles} />);
+
+    expect(screen.getByText(selectedRoleId)).toBeTruthy();
+    const transcribeButtons = screen.getAllByRole("button", { name: /Transcribe Bass/i });
+    const transcribeButton = transcribeButtons.find(b => b.getAttribute("aria-hidden") !== "true" && window.getComputedStyle(b).display !== "none") || transcribeButtons[0] as HTMLButtonElement;
+    expect(transcribeButton.disabled).toBe(true);
+    expect(transcribeButton.title).toBe("This role transcription is coming soon. Bass is ready first.");
+  });
+
   it("renders a safe focus fallback text when the song has no explicit focus sections and no sections", () => {
     const song = createDemoRehearsalSong();
     song.sections = [];
