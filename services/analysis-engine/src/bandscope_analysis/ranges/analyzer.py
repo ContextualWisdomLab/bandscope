@@ -59,12 +59,13 @@ def _parse_note(note: str) -> tuple[str, int]:
     if len(note) > _MAX_NOTE_LENGTH:
         return ("C", 4)
     if note[0].upper() not in {"A", "B", "C", "D", "E", "F", "G"}:
-        return (note, 4)
+        return ("C", 4)
 
     name = note[0].upper()
     octave_str = note[1:]
+    octave_str_lower = octave_str.lower()
     for accidental_text, accidental in (("sharp", "#"), ("flat", "b"), ("#", "#"), ("b", "b")):
-        if octave_str.startswith(accidental_text):
+        if octave_str_lower.startswith(accidental_text):
             name += accidental
             octave_str = octave_str[len(accidental_text) :]
             break
@@ -129,7 +130,11 @@ def _ranges_overlap(low_a: str, high_a: str, low_b: str, high_b: str) -> bool:
     midi_high_a = _note_to_midi(high_a)
     midi_low_b = _note_to_midi(low_b)
     midi_high_b = _note_to_midi(high_b)
-    return midi_low_a <= midi_high_b and midi_low_b <= midi_high_a
+    if midi_low_a > midi_high_a or midi_low_b > midi_high_b:
+        return False
+    overlap_low = max(midi_low_a, midi_low_b)
+    overlap_high = min(midi_high_a, midi_high_b)
+    return overlap_low <= overlap_high
 
 
 def _overlap_severity(
@@ -150,10 +155,14 @@ def _overlap_severity(
     midi_high_a = _note_to_midi(high_a)
     midi_low_b = _note_to_midi(low_b)
     midi_high_b = _note_to_midi(high_b)
+    if midi_low_a > midi_high_a or midi_low_b > midi_high_b:
+        return "low"
 
     overlap_low = max(midi_low_a, midi_low_b)
     overlap_high = min(midi_high_a, midi_high_b)
     overlap_size = overlap_high - overlap_low
+    if overlap_size <= 0:
+        return "low"
 
     range_a_size = midi_high_a - midi_low_a
     range_b_size = midi_high_b - midi_low_b
@@ -165,6 +174,15 @@ def _overlap_severity(
     if ratio > 0.25:
         return "medium"
     return "low"
+
+
+def _safe_note_string(value: object) -> str:
+    """Return a bounded note string or a safe default for untrusted range data."""
+    if not isinstance(value, str):
+        return "C4"
+    if len(value) > _MAX_NOTE_LENGTH:
+        return "C4"
+    return value
 
 
 class RangeAnalyzer:
@@ -200,12 +218,8 @@ class RangeAnalyzer:
             for role in section_roles:
                 role_range = role.get("range")
                 if isinstance(role_range, dict):
-                    lowest_note = str(role_range.get("lowestNote", ""))
-                    highest_note = str(role_range.get("highestNote", ""))
-                    if len(lowest_note) > _MAX_NOTE_LENGTH:
-                        lowest_note = "C4"
-                    if len(highest_note) > _MAX_NOTE_LENGTH:
-                        highest_note = "C4"
+                    lowest_note = _safe_note_string(role_range.get("lowestNote", ""))
+                    highest_note = _safe_note_string(role_range.get("highestNote", ""))
                     ranges.append(
                         {
                             "role_id": str(role.get("id", "")),
@@ -217,11 +231,15 @@ class RangeAnalyzer:
 
             ranges_with_midi = []
             for r in ranges:
+                midi_low = _note_to_midi(r["lowestNote"])
+                midi_high = _note_to_midi(r["highestNote"])
+                if midi_low > midi_high:
+                    continue
                 ranges_with_midi.append(
                     (
                         r,
-                        _note_to_midi(r["lowestNote"]),
-                        _note_to_midi(r["highestNote"]),
+                        midi_low,
+                        midi_high,
                     )
                 )
 

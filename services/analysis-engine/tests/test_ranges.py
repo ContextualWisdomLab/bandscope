@@ -16,7 +16,9 @@ def test_parse_note_basic() -> None:
     assert _parse_note("G#3") == ("G#", 3)
     assert _parse_note("Bb2") == ("Bb", 2)
     assert _parse_note("csharp4") == ("C#", 4)
+    assert _parse_note("CSharp4") == ("C#", 4)
     assert _parse_note("bflat2") == ("Bb", 2)
+    assert _parse_note("BFLAT2") == ("Bb", 2)
     assert _parse_note("") == ("C", 4)
 
 
@@ -27,7 +29,7 @@ def test_parse_note_without_octave() -> None:
 
 def test_parse_note_all_digits() -> None:
     """Test note parsing when input is all digits (edge case)."""
-    assert _parse_note("4") == ("4", 4)
+    assert _parse_note("4") == ("C", 4)
 
 
 def test_parse_note_malformed_negative_octave_falls_back() -> None:
@@ -58,6 +60,7 @@ def test_ranges_overlap_true() -> None:
 def test_ranges_overlap_false() -> None:
     """Test non-overlapping ranges are correctly identified."""
     assert _ranges_overlap("C2", "E2", "A4", "C5") is False
+    assert _ranges_overlap("C4", "C5", "C5", "C4") is False
 
 
 def test_overlap_severity_high() -> None:
@@ -189,7 +192,7 @@ def test_range_analyzer_does_not_overlap_inverted_ranges() -> None:
             {
                 "id": "inverted",
                 "name": "Inverted",
-                "range": {"lowestNote": "D4", "highestNote": "C3"},
+                "range": {"lowestNote": "C5", "highestNote": "C4"},
             },
         ]
     }
@@ -209,6 +212,27 @@ def test_range_analyzer_bounds_overlong_note_strings() -> None:
                 "id": "bass",
                 "name": "Bass",
                 "range": {"lowestNote": "A" * 64, "highestNote": "B" * 64},
+            }
+        ]
+    }
+
+    result = analyzer.analyze(sections, roles_by_section)
+    ranges = result["sections"][0]["ranges"]
+
+    assert ranges[0]["lowestNote"] == "C4"
+    assert ranges[0]["highestNote"] == "C4"
+
+
+def test_range_analyzer_defaults_non_string_note_values() -> None:
+    """Test non-string note values are replaced before result serialization."""
+    analyzer = RangeAnalyzer()
+    sections = [{"id": "verse-1"}]
+    roles_by_section = {
+        "verse-1": [
+            {
+                "id": "bass",
+                "name": "Bass",
+                "range": {"lowestNote": ["C4"], "highestNote": {"note": "G4"}},
             }
         ]
     }
