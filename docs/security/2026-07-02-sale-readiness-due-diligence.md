@@ -14,21 +14,22 @@ local repository commands.
 | Area | Current evidence | Sale-readiness interpretation |
 | --- | --- | --- |
 | GitHub repository | `ContextualWisdomLab/bandscope`, public MIT repo, default branch `develop` | Public diligence surface exists. |
-| Open PR queue | 61 open PRs from GitHub REST API | Queue needs product/security routing; review process is not a blocker. |
+| Open PR queue | 62 open PRs from GitHub REST API after closing superseded PR #502 and opening PR #524/#525 | Queue needs product/security routing; review process is not a blocker. |
 | Dependabot | Alert #1: `glib`, Rust, `GHSA-wrw7-89jp-8q8g`, medium; dismissed on 2026-07-02 as `tolerable_risk` with repo-controlled rationale | GitHub-facing disposition is closed; patched upstream chain is still the preferred final state. |
-| Code scanning | Two open Scorecard alerts: `VulnerabilitiesID` high and `CIIBestPracticesID` low | Must close or be replaced by explicit accepted-risk evidence. |
-| OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, baseline `0`, passing `Unmet`, silver `Unmet` | Baseline badge work is a due-diligence blocker. |
+| Code scanning | Two open Scorecard alerts: #30 `VulnerabilitiesID` high for `RUSTSEC-2026-0190`, and #29 `CIIBestPracticesID` low | PR #525 addresses #30; issue #526 tracks the external OpenSSF badge work for #29. |
+| OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, baseline `0`, passing `Unmet`, silver `Unmet`; issue #526 tracks completion | Baseline badge work is a due-diligence blocker outside normal PR-only flow. |
 | Figma handoff | Figma file `zthWmqfNKUgJBECvv002Qk` currently exposes only top-level page `00 Cover` via metadata | Repo handoff docs and actual Figma content are inconsistent. |
 | JavaScript audit | `npm audit --workspaces --audit-level=high` reports 0 vulnerabilities | JS workspace is not the current high-risk advisory lane. |
 | Rust advisory chain | `cargo tree --target all -i glib` resolves `glib 0.18.5` through the Tauri/wry/webkit2gtk/gtk GTK3 stack | Repo-controlled exception and Dependabot disposition now align. |
 
 ## PR Execution Tracks
 
-The 61 open PRs should be handled by track, not oldest-first.
+The open PRs should be handled by track, not oldest-first. This table started
+from the 61-PR snapshot and must be regenerated before batch execution.
 
 | Track | Count | First closure target |
 | --- | ---: | --- |
-| Due diligence governance | 1 | PR #502, OpenSSF readiness baseline |
+| Due diligence governance | 1 | Issue #526, OpenSSF Best Practices project `13428` |
 | Due diligence security | 15 | Canonicalize path traversal, information leakage, DoS, and command-injection PRs |
 | Buyer-demo product | 6 | PR #483 transcription, PR #499 practice progress, PR #481 export |
 | Design UX | 8 | YouTube input safety and disabled-state clarity after Figma state matrix repair |
@@ -61,7 +62,8 @@ source of truth for future queue counts.
 ### 2. OpenSSF Best Practices
 
 - Best Practices project `13428` reaches baseline 100%.
-- PR #502 or its canonical successor lands on `develop`.
+- Issue #526 closes with external Best Practices evidence; PR #502 stays closed
+  unless replaced by a non-duplicate workflow or documentation change.
 - Evidence exists for repository basics, license, contribution process,
   security reporting, build/test invocation, CI, release notes, vulnerability
   handling, and current documentation.
@@ -143,6 +145,10 @@ webkit2gtk/gtk GTK3 stack and `scripts/checks/verify_supply_chain.py` keeps
 guarding the exception scope. The final sale-readiness target is still a
 patched upstream chain.
 
+Scorecard alert #30 remains open until PR #525 merges and Scorecard reruns on
+`develop`. Scorecard alert #29 remains open until Best Practices project
+`13428` is completed on bestpractices.dev and the Scorecard signal refreshes.
+
 ### Test Points
 
 - `gh api repos/ContextualWisdomLab/bandscope/dependabot/alerts`
@@ -155,11 +161,12 @@ patched upstream chain.
 
 ## Next Execution Order
 
-1. Land or replace PR #502 with an evidence-backed OpenSSF baseline update.
-2. Keep the `glib` Dependabot disposition evidence current until upstream
+1. Merge PR #525 after checks pass to remove `RUSTSEC-2026-0190`.
+2. Complete issue #526 on bestpractices.dev for OpenSSF project `13428`.
+3. Keep the `glib` Dependabot disposition evidence current until upstream
    removes or patches the GTK3 chain.
-3. Canonicalize the P0 security PRs that touch path traversal, information
+4. Canonicalize the P0 security PRs that touch path traversal, information
    leakage, and command-injection risks.
-4. Restore Figma handoff pages before merging broad UX tooltip/state PRs.
-5. Merge buyer-demo product PRs in the order transcription, practice progress,
+5. Restore Figma handoff pages before merging broad UX tooltip/state PRs.
+6. Merge buyer-demo product PRs in the order transcription, practice progress,
    export, then supporting workspace views.
