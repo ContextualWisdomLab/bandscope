@@ -34,6 +34,7 @@ const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__";
 const YOUTUBE_IMPORT_TIMEOUT: Duration = Duration::from_secs(120);
+const MAX_YOUTUBE_URL_LENGTH: usize = 2000;
 
 impl Default for AppState {
     fn default() -> Self {
@@ -1057,6 +1058,10 @@ async fn import_youtube_url(
 }
 
 fn is_supported_youtube_url(url: &str) -> bool {
+    if url.len() > MAX_YOUTUBE_URL_LENGTH {
+        return false;
+    }
+
     let parsed_url = match url::Url::parse(url) {
         Ok(u) => u,
         Err(_) => return false,
@@ -1366,6 +1371,11 @@ mod tests {
         assert!(!is_supported_youtube_url(
             "https://youtube.com/watch?v=abc123DEF45&v=def456GHI78"
         ));
+        let oversized_url = format!(
+            "https://youtube.com/watch?v=abc123DEF45&x={}",
+            "a".repeat(MAX_YOUTUBE_URL_LENGTH)
+        );
+        assert!(!is_supported_youtube_url(&oversized_url));
         assert!(!is_supported_youtube_url("https://youtu.be/abc123"));
         assert!(!is_supported_youtube_url("https://youtu.be/abc123DEF4!"));
     }

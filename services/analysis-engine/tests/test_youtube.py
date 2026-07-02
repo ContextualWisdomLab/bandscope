@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yt_dlp  # type: ignore
 
-from bandscope_analysis.youtube import download_youtube_audio, validate_url
+from bandscope_analysis.youtube import MAX_YOUTUBE_URL_LENGTH, download_youtube_audio, validate_url
 
 
 def test_validate_url() -> None:
@@ -16,6 +16,7 @@ def test_validate_url() -> None:
     assert validate_url("https://youtu.be/abc123DEF45") is True
     assert validate_url("https://www.youtube.com/watch?v=abc123DEF45") is True
     assert validate_url("https://www.youtube.com/watch?v=abc123DEF45&t=10") is True
+    long_query_url = "https://youtube.com/watch?v=abc123DEF45&x=" + ("a" * MAX_YOUTUBE_URL_LENGTH)
 
     assert validate_url("https://m.youtube.com/watch?v=abc123DEF45") is False
     assert validate_url("https://music.youtube.com/watch?v=abc123DEF45") is False
@@ -34,6 +35,7 @@ def test_validate_url() -> None:
     assert validate_url("https://youtube.com/watch?v=abc123DEF45&v=") is False
     assert validate_url("https://youtube.com/watch?v=../../../etc/passwd") is False
     assert validate_url("https://youtu.be/../../../etc/passwd") is False
+    assert validate_url(long_query_url) is False
 
 
 def test_validate_url_edge_cases() -> None:
