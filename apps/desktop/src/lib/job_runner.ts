@@ -36,16 +36,22 @@ const mockWorkspace: RehearsalWorkspace = {
   workspaceVersion: 1
 };
 
-const mockSongsById = new Map<string, SongRehearsalPack>(
-  mockWorkspace.songs.map(song => [song.id, song])
-);
+const mockSongsById = new Map<string, SongRehearsalPack>();
 
 type MockListener = (event: { payload: unknown }) => void;
 const mockListeners = new Set<MockListener>();
 
 /** Documented. */
 function getMockSong(jobId: string): SongRehearsalPack | undefined {
-  return mockSongsById.get(jobId);
+  const cachedPack = mockSongsById.get(jobId);
+  if (cachedPack) {
+    return cachedPack;
+  }
+  const pack = mockWorkspace.songs.find(song => song.id === jobId);
+  if (pack) {
+    mockSongsById.set(jobId, pack);
+  }
+  return pack;
 }
 
 /**
@@ -167,7 +173,7 @@ export async function subscribeToWorkspaceUpdates(callback: WorkspaceUpdateCallb
         callback(parseRehearsalWorkspace(event.payload));
       } else {
         // eslint-disable-next-line no-console -- Warn about invalid payload structure
-        console.warn("Received invalid workspace update from Tauri");
+        console.warn("Received invalid workspace update from Tauri", event.payload);
       }
     });
   } else {
@@ -195,7 +201,7 @@ export async function getWorkspaceState(): Promise<RehearsalWorkspace | null> {
     return parseRehearsalWorkspace(response);
   } catch (error) {
     // eslint-disable-next-line no-console -- Error logging for workspace state fetch failure
-    console.error("Failed to get workspace state:", error instanceof Error ? error.message : "Unknown error");
+    console.error("Failed to get workspace state", error);
     return null;
   }
 }

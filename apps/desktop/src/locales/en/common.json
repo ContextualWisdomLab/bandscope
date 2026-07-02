@@ -65,5 +65,13 @@
   "youtubePlaceholder": "YouTube URL...",
   "importYoutube": "Import YouTube",
   "importingYoutube": "Importing...",
-  "youtubeImportFailed": "Failed to import YouTube URL."
+  "youtubeImportFailed": "Failed to import YouTube URL.",
+  "tooltipCannotChangeSource": "Cannot change source while operation is in progress",
+  "tooltipEnterUrlFirst": "Enter a URL first",
+  "tooltipCannotImportSource": "Cannot import while operation is in progress",
+  "tooltipCannotOpenProject": "Cannot open project while operation is in progress",
+  "tooltipNoActiveProject": "No active project to save",
+  "tooltipSelectAudioFirst": "Select an audio source first",
+  "tooltipAnalysisRunning": "Analysis is already running",
+  "tooltipImportingAudio": "Importing audio source"
 }

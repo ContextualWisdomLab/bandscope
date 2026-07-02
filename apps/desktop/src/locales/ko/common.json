@@ -65,5 +65,13 @@
   "youtubePlaceholder": "유튜브 URL...",
   "importYoutube": "유튜브 가져오기",
   "importingYoutube": "가져오는 중...",
-  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다."
+  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다.",
+  "tooltipCannotChangeSource": "작업이 진행 중일 때는 소스를 변경할 수 없습니다",
+  "tooltipEnterUrlFirst": "먼저 URL을 입력하세요",
+  "tooltipCannotImportSource": "작업이 진행 중일 때는 가져올 수 없습니다",
+  "tooltipCannotOpenProject": "작업이 진행 중일 때는 프로젝트를 열 수 없습니다",
+  "tooltipNoActiveProject": "저장할 활성 프로젝트가 없습니다",
+  "tooltipSelectAudioFirst": "먼저 오디오 소스를 선택하세요",
+  "tooltipAnalysisRunning": "분석이 이미 실행 중입니다",
+  "tooltipImportingAudio": "오디오 소스를 가져오는 중입니다"
 }
