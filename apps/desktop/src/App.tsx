@@ -53,6 +53,7 @@ const MAX_ERROR_DETAIL_LENGTH = 220;
 const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:Users|home|var|tmp|private|Volumes)\/[^\s"'<>]+)/g;
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
+const CLEAR_YOUTUBE_URL_LABEL = "Clear YouTube URL";
 
 const NAV_ITEMS = [
   { label: "Workspace", icon: Home, active: true },
@@ -425,7 +426,6 @@ export function App() {
   const handleClearYoutubeUrl = () => {
     youtubeInputRef.current?.focus();
     setYoutubeUrl("");
-    setSelectionError(null);
   };
 
   /** Documented. */
@@ -626,8 +626,8 @@ export function App() {
                           type="button"
                           onClick={handleClearYoutubeUrl}
                           className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                          aria-label="Clear YouTube URL"
-                          title="Clear YouTube URL"
+                          aria-label={CLEAR_YOUTUBE_URL_LABEL}
+                          title={CLEAR_YOUTUBE_URL_LABEL}
                         >
                           <X className="size-4" aria-hidden="true" />
                         </button>

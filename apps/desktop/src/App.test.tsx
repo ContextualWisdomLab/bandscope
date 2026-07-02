@@ -1030,8 +1030,15 @@ describe("App", () => {
     });
   });
 
-  it("clears the YouTube URL and returns focus to the input", () => {
+  it("clears the YouTube URL without clearing local selection errors and returns focus to the input", async () => {
+    tauriInvoke.mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."));
+
     render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
+    });
 
     const input = screen.getByRole("textbox", { name: /YouTube URL/i });
     fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
@@ -1043,6 +1050,7 @@ describe("App", () => {
     expect(input).toHaveValue("");
     expect(document.activeElement).toBe(input);
     expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
   });
 
   it("handles YouTube import failure with a message", async () => {
