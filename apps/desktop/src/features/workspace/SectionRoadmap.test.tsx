@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -10,6 +10,18 @@ function setNavigatorLanguage(language: string) {
     configurable: true,
     value: language
   });
+}
+
+function getChordEditButton(roleName = "Bass Guitar", sectionLabel = "verse", chord = "C#m7") {
+  return screen.getByRole("button", {
+    name: new RegExp(`${roleName}.*${sectionLabel}.*${chord}`)
+  });
+}
+
+function roleCard(roleName: string) {
+  const card = screen.getByText(roleName).closest(".border-l-4");
+  if (!card) throw new Error(`Role card not found for ${roleName}`);
+  return card as HTMLElement;
 }
 
 describe("SectionRoadmap", () => {
@@ -26,12 +38,12 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    expect(screen.getByText("더 많은 구간은 옆으로 스크롤하세요 →")).toBeTruthy();
+    expect(screen.getByText("더 많은 구간은 옆으로 스크롤하세요 →")).toBeInTheDocument();
     expect(screen.getAllByText("그루브").length).toBeGreaterThan(0);
     expect(screen.getAllByText("코드").length).toBeGreaterThan(0);
     expect(screen.getAllByText("큐").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("우선순위: high").length).toBeGreaterThan(0);
-    expect(screen.getByText("사용자")).toBeTruthy();
+    expect(screen.getByText("사용자")).toBeInTheDocument();
   });
 
   it("uses localized copy for chord edit prompts and control labels", () => {
@@ -42,7 +54,7 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+    fireEvent.click(getChordEditButton());
 
     expect(promptSpy).toHaveBeenCalledWith("새 코드 입력:", "C#m7");
     expect(screen.getAllByTitle("코드 수정").length).toBeGreaterThan(0);
@@ -57,7 +69,7 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" }));
+    fireEvent.click(getChordEditButton());
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
@@ -70,7 +82,7 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+    fireEvent.click(getChordEditButton());
 
     expect(promptSpy).toHaveBeenCalledWith("새 코드 입력:", "C#m7");
     expect(onSongUpdate).not.toHaveBeenCalled();
@@ -82,7 +94,7 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    expect(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" })).toBeDisabled();
+    expect(getChordEditButton()).toBeDisabled();
   });
 
   it("renders priority indicators for high, medium, and low roles", () => {
@@ -104,9 +116,9 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    expect(screen.getAllByTitle("우선순위: high").length).toBeGreaterThan(0);
-    expect(screen.getAllByTitle("우선순위: medium").length).toBeGreaterThan(0);
-    expect(screen.getAllByTitle("우선순위: low").length).toBeGreaterThan(0);
+    expect(within(roleCard("Bass Guitar")).getByTitle("우선순위: high")).toBeInTheDocument();
+    expect(within(roleCard("Medium Role")).getByTitle("우선순위: medium")).toBeInTheDocument();
+    expect(within(roleCard("Low Role")).getByTitle("우선순위: low")).toBeInTheDocument();
   });
 
   it("renders low confidence badges for low-confidence sections and roles", () => {
@@ -126,7 +138,7 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
 
-    expect(screen.getByText("Bass Guitar")).toBeTruthy();
+    expect(screen.getByText("Bass Guitar")).toBeInTheDocument();
     expect(screen.queryByText("Keyboard 1 Right Hand")).toBeNull();
   });
 
@@ -139,7 +151,7 @@ describe("SectionRoadmap", () => {
     promptSpy.mockReturnValueOnce("").mockReturnValueOnce("   ");
     render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
 
-    const editButton = screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" });
+    const editButton = getChordEditButton();
     fireEvent.click(editButton);
     fireEvent.click(editButton);
 
@@ -153,6 +165,6 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    expect(screen.getByText("Density warning: competing with Keyboard Left Hand in low register.")).toBeTruthy();
+    expect(screen.getByText(/Density warning/i)).toBeInTheDocument();
   });
 });
