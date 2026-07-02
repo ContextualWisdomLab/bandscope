@@ -43,12 +43,15 @@ env:
   GIT_CONFIG_KEY_0: init.defaultBranch
   GIT_CONFIG_VALUE_0: develop
 
+permissions:
+  contents: read
+
 jobs:
   scan-pr-queue:
     runs-on: ubuntu-latest
     permissions:
       checks: read
-      contents: write
+      contents: read
       issues: write
       pull-requests: write
     env:
