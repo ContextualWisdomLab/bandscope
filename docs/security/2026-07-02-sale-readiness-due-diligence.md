@@ -19,6 +19,7 @@ metadata, and local repository commands.
 | Code scanning | Two open Scorecard alerts on `develop`: #30 `VulnerabilitiesID` high for `RUSTSEC-2026-0190`, and #29 `CIIBestPracticesID` low | PR #525 and all other open PR heads now carry the RustSec policy update; alert #30 remains open until merge plus Scorecard refresh. Issue #526 tracks the external OpenSSF badge work for #29. |
 | OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, badge `in_progress`, `passing:null`, `name:null`, `license:null`, `homepage_url:""`, 193 unknown status fields, 2 unmet status fields | Baseline badge work is a due-diligence blocker outside normal PR-only flow and must be completed in bestpractices.dev. |
 | Figma/FigJam handoff | FigJam board `WEvhutQSFZITe0RUsZgzC2` section `13:900` records the 2026-07-02 21:59 KST security-audit refresh without Code Connect. Figma design file `zthWmqfNKUgJBECvv002Qk` remains the design-system source referenced by `docs/design-system/`. | Live design evidence exists, but final sale-readiness still needs Product Design screenshots for ready/error/export flows and any Figma file drift rechecked before visual PRs merge. |
+| Commercial model | `docs/business/bandscope-commercial-model.md` and `docs/business/pilot-evidence-template.md` define the bottom-up ARR path, pilot evidence fields, and redaction rules. | Repo now has commercial evidence structure, but ARR and pilot rows remain `presence-only` until real pilot records and screenshots exist. |
 | JavaScript audit | `npm audit --workspaces --audit-level=high` reports 0 vulnerabilities | JS workspace is not the current high-risk advisory lane. |
 | Rust advisory chain | `cargo tree --target all -i glib` resolves `glib 0.18.5` through the Tauri/wry/webkit2gtk/gtk GTK3 stack | Repo-controlled exception and Dependabot disposition now align. |
 
@@ -54,8 +55,8 @@ to decide whether an artifact supports sale readiness or is still provisional.
 | Buyer-demo activation | A new reviewer can complete source selection, analysis start, ready review, and export within 15 minutes. | Product Design screenshots for empty, selected, loading, error, ready, export, and mobile states; local smoke script or recorded demo notes. | Screenshots and demo transcript are still required before claiming final buyer-demo evidence. |
 | Analysis value | Ready workspace shows tempo/BPM, role guidance, groove or bass structure, section roadmap, confidence, and priority sections. | Current-head product PRs #489 and #499 plus workspace state tests or screenshots. | Feature PRs must merge and be rechecked on `develop`. |
 | Export value | Cue sheet, chart JSON, and handoff JSON are available only from a ready workspace and remain path/URL/secret redacted. | Export tests, Product Design ready/export screenshots, and release artifact evidence. | Final release package evidence must retain SBOM plus checksums or manifest sidecars. |
-| Pilot conversion | 3-5 named pilot teams or equivalent buyer personas have a documented rehearsal workflow, pain point, and acceptance note. | Pilot evidence template or issue/CRM entry with date, role, workflow, and result. | No repo-backed pilot evidence is final yet; treat this as `presence-only` until pilot notes exist. |
-| Commercial pacing | ARR path to 3-5억 KRW is backed by a simple bottom-up model: pilot count, conversion rate, annual price, and churn assumption. | A buyer-data-room model or validated spreadsheet linked from this packet. | No validated ARR model is in repo yet; do not cite valuation from this packet alone. |
+| Pilot conversion | 3-5 named pilot teams or equivalent buyer personas have a documented rehearsal workflow, pain point, and acceptance note. | `docs/business/pilot-evidence-template.md` records or issue/CRM entry with date, role, workflow, and result. | No completed pilot record is final yet; treat the template as `presence-only` until pilot notes exist. |
+| Commercial pacing | ARR path to 3-5억 KRW is backed by a simple bottom-up model: pilot count, conversion rate, annual price, and churn assumption. | `docs/business/bandscope-commercial-model.md` plus validated pilot conversion records. | The model exists, but it is provisional until pilot conversion and pricing evidence validate the assumptions. |
 
 Targets are intentionally operational. If a metric cannot be validated from a
 repo artifact, GitHub run, Figma screenshot, or named pilot record, it remains
@@ -129,6 +130,10 @@ audited through GitHub contents API for the same policy shape.
 - Empty, loading, error, and ready states are all covered by tests or Product
   Design screenshots.
 - Error messages remain path/URL/secret redacted.
+- `docs/business/pilot-evidence-template.md` has 3-5 completed pilot records
+  or linked issue/CRM equivalents with redaction checks.
+- `docs/business/bandscope-commercial-model.md` has current pilot conversion
+  assumptions and is marked provisional until real pilot evidence exists.
 
 ### 4. Figma Without Code Connect
 
@@ -218,6 +223,8 @@ without weakening release artifact evidence.
 - `cargo tree --target all -i glib`
 - `npm audit --workspaces --audit-level=high`
 - `python3 scripts/checks/verify_supply_chain.py`
+- `docs/business/bandscope-commercial-model.md`
+- `docs/business/pilot-evidence-template.md`
 - Figma metadata read for file `zthWmqfNKUgJBECvv002Qk`
 - FigJam read for board `WEvhutQSFZITe0RUsZgzC2`, section `13:900`
 
@@ -235,5 +242,7 @@ without weakening release artifact evidence.
 6. Capture Product Design screenshots for ready, error, export, and mobile
    buyer-demo flows, then mirror any material findings in FigJam without Code
    Connect.
-7. Merge buyer-demo product PRs in the order BPM, practice progress, export,
+7. Fill the pilot evidence template with 3-5 safely redacted pilot records and
+   update the commercial model assumptions from those records.
+8. Merge buyer-demo product PRs in the order BPM, practice progress, export,
    then supporting workspace views.
