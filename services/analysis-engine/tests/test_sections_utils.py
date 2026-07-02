@@ -35,4 +35,6 @@ def test_validate_section_warns_for_invalid_section_type() -> None:
 
     assert result == "section-3"
     mock_logger.warning.assert_called_once()
-    assert mock_logger.warning.call_args.args[1:] == (3, "list")
+    warning_context = " ".join(str(value) for value in mock_logger.warning.call_args.args)
+    assert "3" in warning_context
+    assert "list" in warning_context

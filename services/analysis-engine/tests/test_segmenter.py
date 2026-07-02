@@ -385,7 +385,7 @@ def test_detect_boundaries_truncates_to_unique_increasing_boundaries() -> None:
 
     assert len(boundaries) == 20
     assert boundaries == sorted(set(boundaries))
-    assert all(left < right for left, right in zip(boundaries, boundaries[1:], strict=False))
+    assert all(boundaries[index] < boundaries[index + 1] for index in range(len(boundaries) - 1))
 
 
 def test_detect_boundaries_accepts_right_edge_peak_when_not_near_duration_end() -> None:
