@@ -17,6 +17,6 @@ ignore = [
     "RUSTSEC-2025-0100", # unic-ucd-ident: unmaintained
     "RUSTSEC-2025-0098", # unic-ucd-version: unmaintained
     "RUSTSEC-2024-0429", # glib 0.18.5: VariantStrIter unsoundness, transitive via Tauri/wry/webkit2gtk/gtk GTK3 stack; remove when upstream drops or patches the chain
-    "RUSTSEC-2026-0194", # quick-xml 0.39.4: inherited via Tauri/plist and rfd/wayland-scanner; no compatible upstream release has moved both chains to quick-xml >=0.41.0 yet
-    "RUSTSEC-2026-0195", # quick-xml 0.39.4: same owner chain and removal condition as RUSTSEC-2026-0194
+    "RUSTSEC-2026-0194", # quick-xml Quadratic run time when checking a start tag for duplicate attribute names
+    "RUSTSEC-2026-0195"  # quick-xml Unbounded namespace-declaration allocation in NsReader enables memory-exhaustion denial of service
 ]
