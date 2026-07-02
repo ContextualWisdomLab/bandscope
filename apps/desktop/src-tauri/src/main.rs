@@ -373,11 +373,24 @@ fn next_project_id(state: &AppState) -> String {
     )
 }
 
+fn is_valid_project_id(project_id: &str) -> bool {
+    let project_id = project_id.trim();
+    !project_id.is_empty()
+        && project_id != "."
+        && project_id != ".."
+        && !project_id.contains('/')
+        && !project_id.contains('\\')
+}
+
 fn app_owned_root<R: Runtime>(
     app: &tauri::AppHandle<R>,
     kind: &str,
     project_id: &str,
 ) -> Result<PathBuf, String> {
+    if !is_valid_project_id(project_id) {
+        return Err("Invalid project ID: path traversal detected.".to_string());
+    }
+
     let base_root = match kind {
         "projects" => app
             .path()
@@ -557,7 +570,7 @@ fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
             let Some(project_id) = project_id else {
                 return Err("Invalid analysis job request: invalid field 'projectId'".into());
             };
-            if project_id.trim().is_empty() {
+            if !is_valid_project_id(project_id) {
                 return Err("Invalid analysis job request: invalid field 'projectId'".into());
             }
             if local_source.is_some() {
@@ -1309,6 +1322,68 @@ mod tests {
                 "focusSections": ["verse-1"]
             }
         })
+    }
+
+    fn local_audio_request(project_id: &str) -> Value {
+        json!({
+            "sourceKind": "local_audio",
+            "projectId": project_id,
+            "sourceLabel": "My Song",
+            "roleFocus": ["lead-vocal"],
+        })
+    }
+
+    #[test]
+    fn project_id_validation_rejects_path_components_and_separators() {
+        for project_id in ["", "   ", ".", "..", "../song", "set/song", "set\\song"] {
+            assert!(!is_valid_project_id(project_id));
+        }
+    }
+
+    #[test]
+    fn project_id_validation_allows_plain_identifier_with_dots() {
+        assert!(is_valid_project_id("my..id"));
+    }
+
+    #[test]
+    fn parse_request_payload_rejects_project_id_parent_component() {
+        let result = parse_request_payload(local_audio_request(".."));
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Invalid analysis job request: invalid field 'projectId'"
+        );
+    }
+
+    #[test]
+    fn parse_request_payload_rejects_project_id_forward_slash() {
+        let result = parse_request_payload(local_audio_request("set/song"));
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Invalid analysis job request: invalid field 'projectId'"
+        );
+    }
+
+    #[test]
+    fn parse_request_payload_rejects_project_id_backslash() {
+        let result = parse_request_payload(local_audio_request("set\\song"));
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Invalid analysis job request: invalid field 'projectId'"
+        );
+    }
+
+    #[test]
+    fn parse_request_payload_allows_non_component_dots() {
+        let parsed = parse_request_payload(local_audio_request("my..id"))
+            .expect("plain identifiers with interior dots should remain valid");
+
+        assert_eq!(parsed.project_id.as_deref(), Some("my..id"));
     }
 
     #[test]
