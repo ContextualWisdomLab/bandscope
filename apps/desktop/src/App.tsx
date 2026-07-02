@@ -607,6 +607,7 @@ export function App() {
                       value={youtubeUrl}
                       onChange={(e) => setYoutubeUrl(e.target.value)}
                       disabled={analysisInFlight || isStarting || isImporting}
+                      maxLength={2048}
                       className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                       aria-label="YouTube URL"
                     />

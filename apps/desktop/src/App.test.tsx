@@ -1433,4 +1433,10 @@ describe("App", () => {
     expect(settingsSpan).toHaveAttribute("tabIndex", "0");
     expect(settingsSpan).toHaveAttribute("role", "button");
   });
+
+  it("enforces a maximum length on the YouTube URL input", () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    expect(input).toHaveAttribute("maxLength", "2048");
+  });
 });
