@@ -247,7 +247,7 @@ class RangeAnalyzer:
             ranges_with_midi.sort(key=lambda x: x[1])
 
             # Detect overlaps between all pairs of ranges
-            for a_idx, (r_a, midi_low_a, midi_high_a) in enumerate(ranges_with_midi):
+            for a_idx, (r_a, _midi_low_a, midi_high_a) in enumerate(ranges_with_midi):
                 for b_idx in range(a_idx + 1, len(ranges_with_midi)):
                     r_b, midi_low_b, midi_high_b = ranges_with_midi[b_idx]
 
