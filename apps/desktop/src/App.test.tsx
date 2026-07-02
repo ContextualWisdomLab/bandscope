@@ -2,6 +2,17 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
+// eslint-disable-next-line no-console
+const originalConsoleError = console.error;
+beforeEach(() => {
+  // eslint-disable-next-line no-console
+  console.error = (...args) => {
+    if (typeof args[0] === 'string' && args[0].includes('not wrapped in act(...)')) {
+      return;
+    }
+    originalConsoleError(...args);
+  };
+});
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
