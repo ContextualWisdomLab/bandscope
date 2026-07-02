@@ -144,13 +144,12 @@ describe("export generation", () => {
   });
 
   it("generates chart summary JSON when export summary is absent", () => {
-    const songWithoutExportSummary: RehearsalSong = {
-      ...mockSong,
-      exportSummary: undefined
-    };
+    const songWithoutExportSummary: Partial<RehearsalSong> = { ...mockSong };
+    delete songWithoutExportSummary.exportSummary;
 
-    const parsed = JSON.parse(generateChartSummaryJson(songWithoutExportSummary));
+    const parsed = JSON.parse(generateChartSummaryJson(songWithoutExportSummary as RehearsalSong));
 
+    expect("exportSummary" in songWithoutExportSummary).toBe(false);
     expect(parsed).toMatchObject({
       title: "Test",
       headline: "",
@@ -230,7 +229,7 @@ describe("export generation", () => {
     });
   });
 
-  it("uses the song identity as the default handoff workspace identity", () => {
+  it("uses the song identity and an empty source asset list as the default handoff identity", () => {
     const json = generateMetadataHandoffJson(mockSong, {
       createdAt: "2026-06-15T08:30:00.000Z"
     });
@@ -241,6 +240,7 @@ describe("export generation", () => {
       title: "Test",
       workspaceVersion: 1
     });
+    expect(parsed).toHaveProperty("sourceAssets");
     expect(parsed.sourceAssets).toEqual([]);
     expect(json).not.toContain("sourcePath");
   });
