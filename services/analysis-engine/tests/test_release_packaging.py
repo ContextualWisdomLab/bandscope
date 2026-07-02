@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from conftest import load_module
 
 
@@ -20,13 +19,13 @@ def test_release_packaging_includes_architecture_in_artifact_identity(
     monkeypatch.setenv("BANDSCOPE_ARTIFACT_OS", "windows")
     monkeypatch.setenv("BANDSCOPE_ARTIFACT_ARCH", "arm64")
 
-    artifact = packaging.artifact_identity("installer.exe")
+    artifact = packaging.artifact_identity()
 
     assert artifact == {
         "platform": "windows",
         "arch": "arm64",
-        "archive_name": "bandscope-windows-arm64-abcdef123456.exe",
-        "manifest_name": "bandscope-windows-arm64-abcdef123456.exe.manifest.txt",
+        "archive_name": "bandscope-windows-arm64-abcdef123456.zip",
+        "manifest_name": "bandscope-windows-arm64-abcdef123456.manifest.txt",
     }
 
 
@@ -46,26 +45,27 @@ def test_release_packaging_derives_artifact_identity_from_target_triple(
     monkeypatch.setattr(packaging.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(packaging.platform, "machine", lambda: "arm64")
 
-    artifact = packaging.artifact_identity("installer.exe")
+    artifact = packaging.artifact_identity()
 
     assert artifact == {
         "platform": "windows",
         "arch": "amd64",
-        "archive_name": "bandscope-windows-amd64-fedcba987654.exe",
-        "manifest_name": "bandscope-windows-amd64-fedcba987654.exe.manifest.txt",
+        "archive_name": "bandscope-windows-amd64-fedcba987654.zip",
+        "manifest_name": "bandscope-windows-amd64-fedcba987654.manifest.txt",
     }
 
 
-def test_find_installer_packages_returns_dmg(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Ensure find_installer_packages finds dmg files."""
+def test_expected_binary_path_uses_target_triple_when_provided(monkeypatch, tmp_path: Path) -> None:
+    """Ensure target triples redirect packaging to the expected Tauri output path."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_target"
     )
 
     monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "aarch64-apple-darwin")
-    dmg_path = (
+
+    binary_path = packaging.expected_binary_path(tmp_path)
+
+    assert binary_path == (
         tmp_path
         / "apps"
         / "desktop"
@@ -73,19 +73,14 @@ def test_find_installer_packages_returns_dmg(
         / "target"
         / "aarch64-apple-darwin"
         / "release"
-        / "bundle"
-        / "dmg"
-        / "Test.dmg"
+        / "bandscope-desktop"
     )
-    dmg_path.parent.mkdir(parents=True)
-    dmg_path.write_bytes(b"dmg")
-
-    installers = packaging.find_installer_packages(tmp_path)
-    assert installers == [dmg_path]
 
 
-def test_find_installer_packages_returns_exe_and_msi(monkeypatch, tmp_path: Path) -> None:
-    """Ensure find_installer_packages finds exe and msi files."""
+def test_expected_binary_path_derives_windows_extension_from_target_triple(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Ensure Windows target triples select the .exe packaging path on non-Windows hosts."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_windows_target"
     )
@@ -94,7 +89,9 @@ def test_find_installer_packages_returns_exe_and_msi(monkeypatch, tmp_path: Path
     monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
     monkeypatch.setattr(packaging.platform, "system", lambda: "Darwin")
 
-    exe_path = (
+    binary_path = packaging.expected_binary_path(tmp_path)
+
+    assert binary_path == (
         tmp_path
         / "apps"
         / "desktop"
@@ -102,137 +99,11 @@ def test_find_installer_packages_returns_exe_and_msi(monkeypatch, tmp_path: Path
         / "target"
         / "x86_64-pc-windows-msvc"
         / "release"
-        / "bundle"
-        / "nsis"
-        / "Test.exe"
-    )
-    msi_path = (
-        tmp_path
-        / "apps"
-        / "desktop"
-        / "src-tauri"
-        / "target"
-        / "x86_64-pc-windows-msvc"
-        / "release"
-        / "bundle"
-        / "msi"
-        / "Test.msi"
-    )
-    exe_path.parent.mkdir(parents=True)
-    exe_path.write_bytes(b"exe")
-    msi_path.parent.mkdir(parents=True)
-    msi_path.write_bytes(b"msi")
-
-    installers = packaging.find_installer_packages(tmp_path)
-    assert set(installers) == {exe_path, msi_path}
-
-
-def test_find_installer_packages_ignores_unexpected_nested_executables(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Ensure installer discovery is limited to Tauri's expected bundle folders."""
-    packaging = load_module(
-        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_nested"
+        / "bandscope-desktop.exe"
     )
 
-    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
-    expected_path = (
-        tmp_path
-        / "apps"
-        / "desktop"
-        / "src-tauri"
-        / "target"
-        / "x86_64-pc-windows-msvc"
-        / "release"
-        / "bundle"
-        / "nsis"
-        / "Installer.exe"
-    )
-    stray_path = expected_path.parents[1] / "tools" / "helper.exe"
-    expected_path.parent.mkdir(parents=True)
-    expected_path.write_bytes(b"installer")
-    stray_path.parent.mkdir(parents=True)
-    stray_path.write_bytes(b"helper")
 
-    assert packaging.find_installer_packages(tmp_path) == [expected_path]
-
-
-def test_find_installer_packages_ignores_symlink_installers(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Ensure installer discovery does not package symlink targets."""
-    packaging = load_module(
-        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_symlink"
-    )
-
-    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
-    installer_path = (
-        tmp_path
-        / "apps"
-        / "desktop"
-        / "src-tauri"
-        / "target"
-        / "x86_64-pc-windows-msvc"
-        / "release"
-        / "bundle"
-        / "nsis"
-        / "Installer.exe"
-    )
-    installer_path.parent.mkdir(parents=True)
-    symlink_target = tmp_path / "outside-installer.exe"
-    symlink_target.write_bytes(b"external")
-    installer_path.symlink_to(symlink_target)
-
-    assert packaging.find_installer_packages(tmp_path) == []
-
-
-def test_release_packaging_main_keeps_same_extension_installers_unique(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Ensure duplicate installer extensions do not overwrite each other."""
-    packaging = load_module(
-        "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_duplicate_ext"
-    )
-    repo_root = tmp_path / "repo"
-    script_path = repo_root / "scripts" / "release" / "package_desktop_artifact.py"
-    script_path.parent.mkdir(parents=True)
-    script_path.write_text("# placeholder", encoding="utf-8")
-
-    nsis_path = (
-        repo_root
-        / "apps"
-        / "desktop"
-        / "src-tauri"
-        / "target"
-        / "x86_64-pc-windows-msvc"
-        / "release"
-        / "bundle"
-        / "nsis"
-    )
-    first_path = nsis_path / "Setup.exe"
-    second_path = nsis_path / "Setup-Web.exe"
-    nsis_path.mkdir(parents=True)
-    first_path.write_bytes(b"first")
-    second_path.write_bytes(b"second")
-
-    monkeypatch.setattr(packaging, "__file__", str(script_path))
-    monkeypatch.setenv("GITHUB_SHA", "abcdef1234567890")
-    monkeypatch.setenv("BANDSCOPE_ARTIFACT_OS", "windows")
-    monkeypatch.setenv("BANDSCOPE_ARTIFACT_ARCH", "amd64")
-    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "x86_64-pc-windows-msvc")
-
-    assert packaging.main() == 0
-
-    archives = sorted((repo_root / "artifacts").glob("*.exe"))
-    assert [archive.name for archive in archives] == [
-        "bandscope-windows-amd64-abcdef123456-Setup-Web.exe",
-        "bandscope-windows-amd64-abcdef123456-Setup.exe",
-    ]
-    assert archives[0].read_bytes() == b"second"
-    assert archives[1].read_bytes() == b"first"
-
-
-def test_release_packaging_maps_darwin_to_macos(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_release_packaging_maps_darwin_to_macos(monkeypatch) -> None:
     """Ensure Darwin hosts map to the repository's canonical macOS label."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_platform"
@@ -244,9 +115,7 @@ def test_release_packaging_maps_darwin_to_macos(monkeypatch: pytest.MonkeyPatch)
     assert packaging.normalized_platform() == "macos"
 
 
-def test_release_packaging_main_writes_arch_specific_manifest(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_release_packaging_main_writes_arch_specific_manifest(monkeypatch, tmp_path: Path) -> None:
     """Ensure the packaging entry point writes an architecture-aware manifest."""
     packaging = load_module(
         "scripts/release/package_desktop_artifact.py", "package_desktop_artifact_main"
@@ -255,8 +124,7 @@ def test_release_packaging_main_writes_arch_specific_manifest(
     script_path = repo_root / "scripts" / "release" / "package_desktop_artifact.py"
     script_path.parent.mkdir(parents=True)
     script_path.write_text("# placeholder", encoding="utf-8")
-
-    dmg_path = (
+    binary_path = (
         repo_root
         / "apps"
         / "desktop"
@@ -264,12 +132,21 @@ def test_release_packaging_main_writes_arch_specific_manifest(
         / "target"
         / "aarch64-apple-darwin"
         / "release"
-        / "bundle"
-        / "dmg"
-        / "App.dmg"
+        / "bandscope-desktop"
     )
-    dmg_path.parent.mkdir(parents=True)
-    dmg_path.write_bytes(b"dmg")
+    binary_path.parent.mkdir(parents=True)
+    binary_path.write_bytes(b"binary")
+    frontend_file = repo_root / "apps" / "desktop" / "dist" / "index.html"
+    frontend_file.parent.mkdir(parents=True)
+    frontend_file.write_text("<html></html>", encoding="utf-8")
+    for metadata_path in [
+        repo_root / "services" / "analysis-engine" / "uv.lock",
+        repo_root / "package-lock.json",
+        repo_root / "apps" / "desktop" / "src-tauri" / "Cargo.lock",
+        repo_root / "supply-chain" / "supplemental-component-inventory.json",
+    ]:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        metadata_path.write_text("metadata", encoding="utf-8")
 
     monkeypatch.setattr(packaging, "__file__", str(script_path))
     monkeypatch.setenv("GITHUB_SHA", "1234567890abcdef")
@@ -278,7 +155,7 @@ def test_release_packaging_main_writes_arch_specific_manifest(
     monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "aarch64-apple-darwin")
 
     assert packaging.main() == 0
-    manifest_path = repo_root / "artifacts" / "bandscope-macos-arm64-1234567890ab.dmg.manifest.txt"
+    manifest_path = repo_root / "artifacts" / "bandscope-macos-arm64-1234567890ab.manifest.txt"
 
     assert manifest_path.exists()
     assert "platform=macos" in manifest_path.read_text(encoding="utf-8")

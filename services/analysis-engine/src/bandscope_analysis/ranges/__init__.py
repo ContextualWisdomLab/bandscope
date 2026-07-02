@@ -7,14 +7,11 @@ from .model import (
     RangeOverlap,
     SectionRangeSummary,
 )
-from .pitch_tracker import PitchTracker, TrackedPitchRange
 
 __all__ = [
-    "PitchTracker",
     "RangeAnalyzer",
     "RangeAnalysisResult",
     "RangeInfo",
     "RangeOverlap",
     "SectionRangeSummary",
-    "TrackedPitchRange",
 ]

@@ -1,6 +1,8 @@
 """Verify that design-plan documents include a complete Security Notes section."""
 
 from pathlib import Path
+import sys
+
 
 SECURITY_NOTES_TEXT = "Security Notes"
 PLAN_DIR = Path("docs/plans")

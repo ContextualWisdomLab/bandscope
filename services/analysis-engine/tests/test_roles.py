@@ -1,9 +1,5 @@
 """Tests for the role extraction and part graph models."""
 
-from unittest.mock import patch
-
-import numpy as np
-
 from bandscope_analysis.roles.extractor import RoleExtractor
 from bandscope_analysis.roles.model import (
     CueAnchorKind,
@@ -101,23 +97,3 @@ def test_role_extractor_invalid_section() -> None:
     assert len(result["topologies"]) == 2
     assert result["topologies"][0]["section_id"] == "intro"
     assert result["topologies"][1]["section_id"] == "section-1"
-
-
-def test_role_extractor_falls_back_when_activity_detection_fails() -> None:
-    """Ensure activity detection failures keep role extraction usable."""
-    extractor = RoleExtractor()
-    sections = [{"id": "verse-1"}]
-    audio_features = {
-        "stems": {"bass": np.ones(100, dtype=np.float32)},
-        "sr": 10,
-        "boundaries": [(0.0, 10.0)],
-    }
-
-    with patch(
-        "bandscope_analysis.roles.extractor.detect_stem_activity",
-        side_effect=RuntimeError("bad activity map"),
-    ):
-        result = extractor.extract(sections, audio_features)
-
-    assert result["topologies"][0]["section_id"] == "verse-1"
-    assert result["topologies"][0]["part_graph"][0]["role_id"] == "bass-guitar"

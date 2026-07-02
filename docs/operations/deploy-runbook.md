@@ -14,7 +14,6 @@ BandScope currently relies on GitHub Actions CI/release workflows as deploy-qual
 - SBOM artifact generation (`.github/workflows/sbom.yml`)
 - Release preflight completion (`.github/workflows/release.yml`)
 - Cross-platform build baseline completion (`.github/workflows/build-baseline.yml`)
-- For immutable GitHub Releases, release assets are attached by the tag-driven draft release flow before publication, not by post-publication `release` events
 
 ## Runtime verification baseline
 

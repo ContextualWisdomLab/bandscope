@@ -42,5 +42,5 @@ GitHub is the source of truth for repository governance, PR review, CI/CD, Code 
 ## CI/CD and release flow
 
 - PRs into `develop` and `main` run CI, dependency review, security audit, secret-scan gate, SBOM generation, and CodeQL
-- release flows publish desktop artifacts plus SBOM evidence to GitHub Releases through a tag-driven draft-before-publish path
+- release flows publish desktop artifacts plus SBOM evidence to GitHub Releases
 - branch protection connects stable required checks after bootstrap workflows exist

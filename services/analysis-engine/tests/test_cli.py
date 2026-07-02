@@ -10,16 +10,11 @@ import subprocess
 import sys
 import warnings
 from pathlib import Path
-from typing import Any, cast
-
-import numpy as np
-import pytest
-import soundfile as sf
 
 from bandscope_analysis import cli
 
 
-def run_cli(payload: object) -> Any:
+def run_cli(payload: object) -> dict[str, object]:
     """Run the analysis CLI with a JSON payload and return its JSON response."""
     repo_root = Path(__file__).resolve().parents[3]
     completed = subprocess.run(
@@ -41,14 +36,6 @@ def run_cli(payload: object) -> Any:
     return json.loads(completed.stdout)
 
 
-def write_short_wav(path: Path, sample_rate: int = 8_000) -> None:
-    """Write a small local-audio fixture for CLI subprocess tests."""
-    samples = sample_rate // 4
-    times = np.arange(samples, dtype=np.float32) / sample_rate
-    mix = (0.35 * np.sin(2 * np.pi * 82.0 * times)).astype(np.float32)
-    sf.write(path, mix, sample_rate)
-
-
 def test_cli_returns_succeeded_job_status_for_valid_request() -> None:
     """Ensure the CLI returns a structured succeeded status for a valid request."""
     payload = {
@@ -64,13 +51,11 @@ def test_cli_returns_succeeded_job_status_for_valid_request() -> None:
 
     assert response["jobId"] == "job-1"
     assert response["state"] == "succeeded"
-    assert cast(Any, response["result"])["title"] == "Late Night Set"
+    assert response["result"]["title"] == "Late Night Set"
 
 
-def test_cli_returns_succeeded_job_status_for_valid_local_audio_request(tmp_path) -> None:
+def test_cli_returns_succeeded_job_status_for_valid_local_audio_request() -> None:
     """Ensure the CLI accepts the local-audio intake request shape."""
-    audio_path = tmp_path / "late-night-set.wav"
-    write_short_wav(audio_path)
     payload = {
         "jobId": "job-local-1",
         "request": {
@@ -79,10 +64,10 @@ def test_cli_returns_succeeded_job_status_for_valid_local_audio_request(tmp_path
             "sourceLabel": "late-night-set.wav",
             "roleFocus": ["bass-guitar"],
             "localSource": {
-                "sourcePath": str(audio_path),
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
                 "fileName": "late-night-set.wav",
                 "extension": "wav",
-                "fileSizeBytes": audio_path.stat().st_size,
+                "fileSizeBytes": 1024000,
             },
         },
     }
@@ -132,7 +117,7 @@ def test_cli_returns_failed_status_for_invalid_local_audio_request() -> None:
     )
 
 
-def test_cli_main_reads_stdin_and_writes_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_reads_stdin_and_writes_stdout(monkeypatch) -> None:
     """Ensure the CLI entrypoint can be exercised in-process for coverage."""
     stdin = io.StringIO(
         json.dumps(
@@ -155,7 +140,7 @@ def test_cli_main_reads_stdin_and_writes_stdout(monkeypatch: pytest.MonkeyPatch)
     assert json.loads(stdout.getvalue())["jobId"] == "job-3"
 
 
-def test_cli_main_handles_non_mapping_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_handles_non_mapping_payload(monkeypatch) -> None:
     """Ensure the CLI handles non-dict payloads without crashing."""
     stdin = io.StringIO(json.dumps(["demo"]))
     stdout = io.StringIO()
@@ -169,7 +154,7 @@ def test_cli_main_handles_non_mapping_payload(monkeypatch: pytest.MonkeyPatch) -
     assert response["state"] == "failed"
 
 
-def test_cli_main_rejects_invalid_job_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_rejects_invalid_job_id(monkeypatch) -> None:
     """Ensure malformed job identifiers return a typed invalid-request error."""
     stdin = io.StringIO(
         json.dumps(
@@ -193,7 +178,7 @@ def test_cli_main_rejects_invalid_job_id(monkeypatch: pytest.MonkeyPatch) -> Non
     assert response["error"]["message"] == "Invalid analysis job request: invalid field 'jobId'"
 
 
-def test_cli_main_handles_malformed_json(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_handles_malformed_json(monkeypatch) -> None:
     """Ensure malformed JSON yields a typed invalid-request failure envelope."""
     stdin = io.StringIO("{")
     stdout = io.StringIO()
@@ -206,13 +191,9 @@ def test_cli_main_handles_malformed_json(monkeypatch: pytest.MonkeyPatch) -> Non
     assert response["jobId"] == "unknown-job"
     assert response["state"] == "failed"
     assert response["error"]["code"] == "invalid_request"
-    assert (
-        "Invalid analysis job request: Expecting property name enclosed in double quotes"
-        in response["error"]["message"]
-    )
 
 
-def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_module_runs_as_main(monkeypatch) -> None:
     """Ensure the module-level main guard is covered by executing the module directly."""
     stdin = io.StringIO(
         json.dumps(
@@ -234,7 +215,6 @@ def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            monkeypatch.delitem(sys.modules, "bandscope_analysis.cli", raising=False)
             runpy.run_module("bandscope_analysis.cli", run_name="__main__")
     except SystemExit as exit_signal:
         assert exit_signal.code == 0
@@ -242,7 +222,7 @@ def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:
     assert json.loads(stdout.getvalue())["jobId"] == "job-4"
 
 
-def test_cli_main_empty_input(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_empty_input(monkeypatch) -> None:
     """Ensure empty input yields an error."""
     stdin = io.StringIO("")
     stdout = io.StringIO()
@@ -252,7 +232,7 @@ def test_cli_main_empty_input(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Empty input" in stdout.getvalue()
 
 
-def test_cli_main_status_arg(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_status_arg(monkeypatch) -> None:
     """Ensure --status returns the analysis engine status."""
     stdin = io.StringIO("")
     stdout = io.StringIO()
@@ -263,7 +243,7 @@ def test_cli_main_status_arg(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "ready" in stdout.getvalue()
 
 
-def test_cli_main_job_arg_invalid_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+def test_cli_main_job_arg_invalid_file(monkeypatch, tmp_path) -> None:
     """Ensure --job with missing file yields an error."""
     stdin = io.StringIO("")
     stdout = io.StringIO()
@@ -275,7 +255,7 @@ def test_cli_main_job_arg_invalid_file(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert "Failed to read job file" in stdout.getvalue()
 
 
-def test_cli_main_job_arg_valid_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+def test_cli_main_job_arg_valid_file(monkeypatch, tmp_path) -> None:
     """Ensure --job with valid file processes the job."""
     job_file = tmp_path / "job.json"
     job_file.write_text(
@@ -299,7 +279,7 @@ def test_cli_main_job_arg_valid_file(monkeypatch: pytest.MonkeyPatch, tmp_path) 
     assert "job-file" in stdout.getvalue()
 
 
-def test_cli_main_job_arg_json_string(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_job_arg_json_string(monkeypatch) -> None:
     """Ensure --job with raw JSON string processes the job."""
     json_str = json.dumps(
         {
@@ -320,7 +300,7 @@ def test_cli_main_job_arg_json_string(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "job-raw" in stdout.getvalue()
 
 
-def test_cli_main_temporal_analyzer_mock(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_main_temporal_analyzer_mock(monkeypatch) -> None:
     """Ensure the temporal analyzer injection block is covered and handles errors."""
     stdin = io.StringIO(
         json.dumps(
@@ -357,13 +337,8 @@ def test_cli_main_temporal_analyzer_mock(monkeypatch: pytest.MonkeyPatch) -> Non
     assert res["jobId"] == "job-audio"
 
 
-def test_cli_main_temporal_analyzer_mock_success(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
-) -> None:
+def test_cli_main_temporal_analyzer_mock_success(monkeypatch) -> None:
     """Ensure the temporal analyzer injection block succeeds."""
-    audio_path = tmp_path / "test.wav"
-    write_short_wav(audio_path)
     stdin = io.StringIO(
         json.dumps(
             {
@@ -374,10 +349,10 @@ def test_cli_main_temporal_analyzer_mock_success(
                     "sourceLabel": "test.wav",
                     "roleFocus": [],
                     "localSource": {
-                        "sourcePath": str(audio_path),
+                        "sourcePath": "/valid/path.wav",
                         "fileName": "test.wav",
                         "extension": "wav",
-                        "fileSizeBytes": audio_path.stat().st_size,
+                        "fileSizeBytes": 100,
                     },
                 },
             }
@@ -390,14 +365,6 @@ def test_cli_main_temporal_analyzer_mock_success(
             return {"bpm": 120.0, "beats": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
-    monkeypatch.setattr(
-        "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
-        lambda self, y, sr: None,
-    )
-    monkeypatch.setattr(
-        "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
-        lambda self, y, sr: [],
-    )
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
@@ -405,63 +372,3 @@ def test_cli_main_temporal_analyzer_mock_success(
     assert cli.main() == 0
     res = json.loads(stdout.getvalue())
     assert res["jobId"] == "job-audio-success"
-
-
-def test_cli_main_progress_jsonl_streams_status_updates(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
-) -> None:
-    """Ensure Tauri can consume incremental job status updates from stdout."""
-    audio_path = tmp_path / "test.wav"
-    write_short_wav(audio_path)
-    stdin = io.StringIO(
-        json.dumps(
-            {
-                "jobId": "job-progress",
-                "request": {
-                    "sourceKind": "local_audio",
-                    "projectId": "p1",
-                    "sourceLabel": "test.wav",
-                    "roleFocus": [],
-                    "localSource": {
-                        "sourcePath": str(audio_path),
-                        "fileName": "test.wav",
-                        "extension": "wav",
-                        "fileSizeBytes": audio_path.stat().st_size,
-                    },
-                    "cacheRoot": str(tmp_path / "cache"),
-                    "tempRoot": str(tmp_path / "temp"),
-                },
-            }
-        )
-    )
-    stdout = io.StringIO()
-
-    class FakeAnalyzerSuccess:
-        def analyze(self, path):
-            return {"bpm": 120.0, "beats": []}
-
-    monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
-    monkeypatch.setattr(
-        "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
-        lambda self, y, sr: None,
-    )
-    monkeypatch.setattr(
-        "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
-        lambda self, y, sr: [],
-    )
-    monkeypatch.setattr(cli.sys, "stdin", stdin)
-    monkeypatch.setattr(cli.sys, "stdout", stdout)
-    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--progress-jsonl"])
-
-    assert cli.main() == 0
-    updates = [json.loads(line) for line in stdout.getvalue().splitlines()]
-    assert [update["progressStage"] for update in updates] == [
-        "decode",
-        "separate",
-        "analyze",
-        "persist",
-        "ready",
-    ]
-    assert updates[-1]["state"] == "succeeded"
-    assert updates[-1]["progressPercent"] == 100

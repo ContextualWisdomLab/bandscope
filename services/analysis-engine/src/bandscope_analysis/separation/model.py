@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Literal, TypedDict
-
-import numpy as np
-from numpy.typing import NDArray
+from typing import Literal, TypedDict
 
 
 class StemCategory(str, Enum):
@@ -33,21 +30,4 @@ class SeparationResult(TypedDict):
     """Result returned by the source separation pipeline."""
 
     stems: list[StemDescriptor]
-    separation_notes: str
-
-
-AudioStemName = Literal["vocals", "bass", "drums", "other"]
-AudioStemArray = NDArray[np.floating[Any]]
-AudioStemPayload = dict[AudioStemName, AudioStemArray]
-StemRoleTypeMap = dict[AudioStemName, Literal["vocal", "instrument"]]
-
-
-class AudioSeparationResult(TypedDict):
-    """Audio stem payload returned by local source separation."""
-
-    stems: AudioStemPayload
-    sample_rate: int
-    duration_seconds: float
-    chunk_count: int
-    stem_role_types: StemRoleTypeMap
     separation_notes: str

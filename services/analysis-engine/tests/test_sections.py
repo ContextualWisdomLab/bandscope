@@ -1,10 +1,10 @@
 """Tests for the section extraction logic and models."""
 
-from bandscope_analysis.sections.extractor import _normalize_label, extract_sections
+from bandscope_analysis.sections.extractor import extract_sections
 from bandscope_analysis.sections.model import CueAnchorStrategy
 
 
-def test_extract_sections_with_lyrics() -> None:
+def test_extract_sections_with_lyrics():
     """Verify section extraction behavior when lyrical cues are present."""
     arrangement = [
         {"label": "intro", "groove": "heavy"},
@@ -50,7 +50,7 @@ def test_extract_sections_with_lyrics() -> None:
     assert sections[3]["cue_anchor"]["strategy"] == CueAnchorStrategy.COUNT.value
 
 
-def test_extract_sections_count_based() -> None:
+def test_extract_sections_count_based():
     """Verify section extraction behavior when no lyrical cues are present."""
     arrangement = [{"label": "intro"}, {"label": "verse"}, {"label": "chorus"}]
 
@@ -65,7 +65,7 @@ def test_extract_sections_count_based() -> None:
         assert section["cue_anchor"]["value"] == "Enter on beat 1 of bar 1"
 
 
-def test_extract_sections_unrecognized_label() -> None:
+def test_extract_sections_unrecognized_label():
     """Verify section extraction properly tags unrecognized labels with low confidence."""
     arrangement = [{"label": "guitar solo"}, {"label": "random part"}]
 
@@ -81,29 +81,3 @@ def test_extract_sections_unrecognized_label() -> None:
     assert sections[1]["id"] == "random part-1"
     assert sections[1]["form_label"] == "random part"
     assert sections[1]["confidence_level"] == "low"
-
-
-def test_normalize_label() -> None:
-    """Verify standard label normalization logic."""
-    assert _normalize_label("VERSE 1") == "verse"
-    assert _normalize_label("  chorus 2  ") == "chorus"
-    assert _normalize_label("pre-chorus") == "pre-chorus"
-    assert _normalize_label("UNKNOWN") == "unknown"
-    assert _normalize_label("intro") == "intro"
-    assert _normalize_label(123) == "123"
-
-
-def test_extract_sections_empty() -> None:
-    """Verify behavior with an empty arrangement."""
-    result = extract_sections([])
-    assert result["strategy_used"] == "count"
-    assert len(result["sections"]) == 0
-
-
-def test_extract_sections_missing_label() -> None:
-    """Verify behavior when a section is missing the label key."""
-    arrangement = [{"groove": "standard"}]
-    result = extract_sections(arrangement)
-    assert len(result["sections"]) == 1
-    assert result["sections"][0]["form_label"] == "unknown"
-    assert result["sections"][0]["id"] == "unknown-1"

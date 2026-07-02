@@ -1,7 +1,9 @@
 """Scan repository workspace source files for disallowed security patterns."""
 
-import re
 from pathlib import Path
+import re
+import sys
+
 
 RULES = [
     (
@@ -27,7 +29,7 @@ RULES = [
 ]
 
 TARGET_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".sh", ".yml", ".yaml"}
-EXCLUDED_PARTS = {"node_modules", ".venv", "dist", "coverage", "target", ".worktrees"}
+EXCLUDED_PARTS = {"node_modules", ".venv", "dist", "coverage", "target"}
 SELF_PATH = Path("scripts/checks/security_gates.py")
 
 

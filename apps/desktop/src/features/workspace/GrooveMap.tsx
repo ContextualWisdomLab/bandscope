@@ -1,123 +1,121 @@
-import { memo, useMemo } from "react";
 import type { TranscriptionNote } from "@bandscope/shared-types";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 
-const EMPTY_NOTES: TranscriptionNote[] = [];
-
-/** Documented. */
 interface GrooveMapProps {
   notes?: TranscriptionNote[];
   isLoading?: boolean;
 }
 
 /** Documented. */
-function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
-  const renderedNotes = notes ?? EMPTY_NOTES;
-
-  // Find max offset to determine timeline width
-  const maxTime = useMemo(() => {
-    return renderedNotes.reduce((max, n) => Math.max(max, n.offset), 10);
-  }, [renderedNotes]);
-
-  // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
-  const uniquePitches = useMemo(() => {
-    // Performance: Use a loop to populate the Set to avoid allocating an intermediate array from .map()
-    const pitches = new Set<string>();
-    for (const note of renderedNotes) {
-      pitches.add(note.pitch);
-    }
-    return Array.from(pitches).sort();
-  }, [renderedNotes]);
-
-  const pitchIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    uniquePitches.forEach((pitch, index) => map.set(pitch, index));
-    return map;
-  }, [uniquePitches]);
-
+export function GrooveMap({ notes, isLoading }: GrooveMapProps) {
   if (isLoading) {
     return (
       <div
         aria-live="polite"
-        className="mt-4 flex items-center justify-between rounded-lg border border-teal-300/20 bg-slate-950/72 p-6 shadow-inner shadow-cyan-950/40"
+        style={{
+          marginTop: "16px",
+          padding: "24px",
+          backgroundColor: "#fff",
+          borderRadius: "8px",
+          border: "1px dashed #d9d9d9",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}
       >
-        <span className="flex items-center font-medium text-teal-100">
-          <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
-          Checking the bass line... 45%
-        </span>
-        <Button variant="outline" size="sm" className="border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/20 hover:text-white">
-          Cancel
-        </Button>
+        <span style={{ color: "#1890ff" }}>Analyzing pitch... 45%</span>
+        <button style={{ padding: "4px 8px", cursor: "pointer" }}>Cancel</button>
       </div>
     );
   }
 
-  if (renderedNotes.length === 0) {
+  if (!notes || notes.length === 0) {
     return (
       <div
-        className="mt-4 rounded-lg border border-dashed border-cyan-200/15 bg-slate-950/60 p-6 text-center text-sm text-slate-400"
+        style={{
+          marginTop: "16px",
+          padding: "24px",
+          backgroundColor: "#fafafa",
+          borderRadius: "8px",
+          border: "1px dashed #d9d9d9",
+          textAlign: "center",
+          color: "#999",
+          fontStyle: "italic"
+        }}
       >
-        No bass line transcription yet. Use it when you want to check the groove before rehearsal.
+        No transcription yet. Click to analyze bass line.
       </div>
     );
   }
+
+  // Find max offset to determine timeline width
+  const maxTime = Math.max(...notes.map(n => n.offset), 10);
+  // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
+  const uniquePitches = Array.from(new Set(notes.map(n => n.pitch))).sort();
 
   return (
     <div
-      className="relative mt-4 overflow-x-auto rounded-lg border border-cyan-200/15 bg-slate-950/80 p-4 shadow-inner shadow-cyan-950/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+      style={{
+        marginTop: "16px",
+        padding: "16px",
+        backgroundColor: "#2c2c2c",
+        borderRadius: "8px",
+        overflowX: "auto",
+        position: "relative"
+      }}
       role="region"
-      tabIndex={0}
-      aria-label="Bass transcription groove map"
+      aria-label="Groove Map Transcription"
     >
-      <div className="sr-only">
-        Transcription complete. {renderedNotes.length} notes analyzed.
+      <div className="sr-only" style={{ position: "absolute", left: "-9999px" }}>
+        Transcription complete. {notes.length} notes analyzed.
       </div>
-      <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-        {renderedNotes.length} notes mapped for rehearsal
-      </p>
       
       <div style={{ position: "relative", minWidth: "100%", height: `${uniquePitches.length * 40}px` }}>
         {/* Render horizontal lanes for unique pitches */}
         {uniquePitches.map((pitch, index) => (
           <div
             key={pitch}
-            className="absolute inset-x-0 flex h-10 items-center border-b border-cyan-100/10 pl-2 text-xs font-semibold text-slate-400"
-            style={{ top: `${index * 40}px` }}
+            style={{
+              position: "absolute",
+              top: `${index * 40}px`,
+              left: 0,
+              right: 0,
+              height: "40px",
+              borderBottom: "1px solid #444",
+              display: "flex",
+              alignItems: "center",
+              color: "#aaa",
+              fontSize: "12px",
+              paddingLeft: "8px"
+            }}
           >
             {pitch}
           </div>
         ))}
 
         {/* Render note blocks */}
-        {renderedNotes.map((note, index) => {
-          const pitchIndex = pitchIndexMap.get(note.pitch) ?? 0;
+        {notes.map((note, index) => {
+          const pitchIndex = uniquePitches.indexOf(note.pitch);
           const leftPercent = (note.onset / maxTime) * 100;
           const widthPercent = ((note.offset - note.onset) / maxTime) * 100;
-          const noteLabel = `${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`;
 
           return (
             <div
               key={index}
-              className="absolute h-6 rounded bg-gradient-to-r from-teal-300 via-cyan-300 to-violet-300 shadow-[0_0_18px_rgba(94,234,212,0.28)]"
               style={{
+                position: "absolute",
                 top: `${pitchIndex * 40 + 8}px`,
                 left: `${leftPercent}%`,
-                width: `${widthPercent}%`
+                width: `${widthPercent}%`,
+                height: "24px",
+                backgroundColor: "#52c41a",
+                borderRadius: "4px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.5)"
               }}
-              title={noteLabel}
-            >
-              <span className="sr-only">
-                {noteLabel}
-              </span>
-            </div>
+              title={`${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`}
+            />
           );
         })}
       </div>
     </div>
   );
 }
-
-const GrooveMap = memo(GrooveMapComponent);
-
-export { GrooveMap };

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -18,12 +16,6 @@ logger = logging.getLogger(__name__)
 
 # Standard sample rate for BandScope analysis
 TARGET_SR = 44100
-MAX_AUDIO_FILE_BYTES = 100 * 1024 * 1024  # 100 MiB
-MAX_ANALYSIS_DURATION_SECONDS = 15 * 60  # 15 minutes
-KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
-    (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
-    (FutureWarning, r".*Numba.*", r".*numba.*"),
-)
 
 
 class TemporalAnalyzer:
@@ -42,44 +34,16 @@ class TemporalAnalyzer:
         Returns:
             TemporalFeatures containing BPM and beat grids.
         """
-        path = Path(audio_path)
-        path_str = str(path)
-        if not path.exists() or not path.is_file():
-            raise FileNotFoundError(f"Audio file not found: {path_str}")
-
+        path_str = str(audio_path)
         logger.info(f"Loading and decoding audio: {path_str}")
 
         try:
-            with path.open("rb") as fileobj:
-                file_size = os.fstat(fileobj.fileno()).st_size
-                if file_size > MAX_AUDIO_FILE_BYTES:
-                    raise ValueError(
-                        f"Audio file is too large for temporal analysis: {file_size} bytes "
-                        f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
-                    )
+            import warnings
 
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore", category=DeprecationWarning, module=r"^audioread"
-                    )
-                    warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
-
-                    # Keep the loader's known third-party churn quiet without hiding
-                    # unrelated decoder warnings that tests and callers should see.
-                    for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
-                        warnings.filterwarnings(
-                            "ignore",
-                            category=category,
-                            message=message,
-                            module=module,
-                        )
-                    # Load audio, converting to mono and standardizing sample rate
-                    y, sr = librosa.load(
-                        fileobj,
-                        sr=TARGET_SR,
-                        mono=True,
-                        duration=MAX_ANALYSIS_DURATION_SECONDS,
-                    )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                # Load audio, converting to mono and standardizing sample rate
+                y, sr = librosa.load(path_str, sr=TARGET_SR, mono=True)
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):

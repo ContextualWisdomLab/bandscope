@@ -14,7 +14,7 @@ BandScope generates machine-readable SBOMs in GitHub Actions as a bootstrap cont
 ## Retention
 
 - upload the SBOM as a GitHub Actions artifact
-- attach the SBOM to the GitHub Release before publication through the tag-driven draft release flow
+- attach the SBOM to the GitHub Release when a release event exists
 - retain the supplemental component inventory with the SBOM
 
 ## Supplemental inventory
