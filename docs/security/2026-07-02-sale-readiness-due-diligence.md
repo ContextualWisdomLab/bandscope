@@ -15,12 +15,12 @@ local repository commands.
 | --- | --- | --- |
 | GitHub repository | `ContextualWisdomLab/bandscope`, public MIT repo, default branch `develop` | Public diligence surface exists. |
 | Open PR queue | 61 open PRs from GitHub REST API | Queue needs product/security routing; review process is not a blocker. |
-| Dependabot | One open alert: `glib`, Rust, `GHSA-wrw7-89jp-8q8g`, medium | Must be closed, dismissed with durable rationale, or removed by upstream update before buyer diligence. |
+| Dependabot | Alert #1: `glib`, Rust, `GHSA-wrw7-89jp-8q8g`, medium; dismissed on 2026-07-02 as `tolerable_risk` with repo-controlled rationale | GitHub-facing disposition is closed; patched upstream chain is still the preferred final state. |
 | Code scanning | Two open Scorecard alerts: `VulnerabilitiesID` high and `CIIBestPracticesID` low | Must close or be replaced by explicit accepted-risk evidence. |
 | OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, baseline `0`, passing `Unmet`, silver `Unmet` | Baseline badge work is a due-diligence blocker. |
 | Figma handoff | Figma file `zthWmqfNKUgJBECvv002Qk` currently exposes only top-level page `00 Cover` via metadata | Repo handoff docs and actual Figma content are inconsistent. |
 | JavaScript audit | `npm audit --workspaces --audit-level=high` reports 0 vulnerabilities | JS workspace is not the current high-risk advisory lane. |
-| Rust advisory chain | `cargo tree --target all -i glib` resolves `glib 0.18.5` through the Tauri/wry/webkit2gtk/gtk GTK3 stack | Repo-controlled exception exists, but GitHub alert remains an external signal. |
+| Rust advisory chain | `cargo tree --target all -i glib` resolves `glib 0.18.5` through the Tauri/wry/webkit2gtk/gtk GTK3 stack | Repo-controlled exception and Dependabot disposition now align. |
 
 ## PR Execution Tracks
 
@@ -136,11 +136,12 @@ cache/temp roots, and exported cue/chart/handoff files.
 
 ### Remaining Risk
 
-The `glib 0.18.5` advisory is still open in GitHub Dependabot even though the
-repo has a controlled Cargo/OSV exception. That is acceptable only as a
-short-term diligence gap. The final sale-readiness target is either a patched
-upstream chain or a reviewed external alert disposition that points back to the
-repo-controlled exception.
+The `glib 0.18.5` advisory remains in the Rust dependency graph even though
+Dependabot alert #1 is dismissed as `tolerable_risk`. That disposition is
+acceptable only while the owner chain remains limited to the Tauri/wry/
+webkit2gtk/gtk GTK3 stack and `scripts/checks/verify_supply_chain.py` keeps
+guarding the exception scope. The final sale-readiness target is still a
+patched upstream chain.
 
 ### Test Points
 
@@ -155,7 +156,8 @@ repo-controlled exception.
 ## Next Execution Order
 
 1. Land or replace PR #502 with an evidence-backed OpenSSF baseline update.
-2. Decide the GitHub-facing disposition for the open `glib` Dependabot alert.
+2. Keep the `glib` Dependabot disposition evidence current until upstream
+   removes or patches the GTK3 chain.
 3. Canonicalize the P0 security PRs that touch path traversal, information
    leakage, and command-injection risks.
 4. Restore Figma handoff pages before merging broad UX tooltip/state PRs.
