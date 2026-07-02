@@ -14,13 +14,34 @@ metadata, and local repository commands.
 | Area | Current evidence | Sale-readiness interpretation |
 | --- | --- | --- |
 | GitHub repository | `ContextualWisdomLab/bandscope`, public MIT repo, default branch `develop` | Public diligence surface exists. |
-| Open PR queue | 34 open PRs. Unresolved review threads: `0`. Auto-merge missing: `0`. Failed/error checks: `0`. Current-head checks pending on all 34 PRs; 641 queued/pending check items at 2026-07-02 21:59 KST. | Queue is now routed and unblocked by review state; new CI failures, not review process, are the active execution risk. |
+| Open PR queue | 34 open PRs. Live 2026-07-03 06:46 KST routing: `BEHIND` 4, `BLOCKED` 30, `DIRTY` 0. Auto-merge missing: `0`. Completed failures are limited to #527/#528 coverage policy and #446/#367 Strix/OpenCode provider fallback tracks that are parked behind central `.github` PRs #291 and #292. | Queue is routed and no longer blocked by review state or queued checks. Source-backed completed failures and due-diligence evidence gaps are the active execution risk. |
 | Dependabot | `0` open alerts after alert #1 (`glib`, Rust, `GHSA-wrw7-89jp-8q8g`, medium) was dismissed on 2026-07-02 as `tolerable_risk` with repo-controlled rationale | GitHub-facing disposition is closed; patched upstream chain is still the preferred final state. |
 | Code scanning | Two open Scorecard alerts on `develop`: #30 `VulnerabilitiesID` high for `RUSTSEC-2026-0190`, and #29 `CIIBestPracticesID` low | PR #525 and all other open PR heads now carry the RustSec policy update; alert #30 remains open until merge plus Scorecard refresh. Issue #526 tracks the external OpenSSF badge work for #29. |
 | OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, badge `in_progress`, `passing:null`, `name:null`, `license:null`, `homepage_url:""`, 193 unknown status fields, 2 unmet status fields | Baseline badge work is a due-diligence blocker outside normal PR-only flow and must be completed in bestpractices.dev. |
 | Figma/FigJam handoff | FigJam board `WEvhutQSFZITe0RUsZgzC2` section `13:900` records the 2026-07-02 21:59 KST security-audit refresh without Code Connect. Figma design file `zthWmqfNKUgJBECvv002Qk` remains the design-system source referenced by `docs/design-system/`. | Live design evidence exists, but final sale-readiness still needs Product Design screenshots for ready/error/export flows and any Figma file drift rechecked before visual PRs merge. |
 | JavaScript audit | `npm audit --workspaces --audit-level=high` reports 0 vulnerabilities | JS workspace is not the current high-risk advisory lane. |
 | Rust advisory chain | `cargo tree --target all -i glib` resolves `glib 0.18.5` through the Tauri/wry/webkit2gtk/gtk GTK3 stack | Repo-controlled exception and Dependabot disposition now align. |
+
+## Buyer Data Room Evidence Semantics
+
+Buyer data-room files must separate "present in the repository" from "final
+evidence passed." A manifest, checklist, screenshot, or packet entry is useful
+only if a reviewer can see what validated it and what still remains provisional.
+
+Use these fields when turning this packet into a data-room manifest, release
+note, or acquisition audit:
+
+| Field | Meaning | BandScope examples |
+| --- | --- | --- |
+| `artifact` | The file, workflow artifact, release asset, issue, PR, or FigJam node being offered as evidence. | This packet, SBOM artifacts, OpenSSF project `13428`, buyer-demo screenshots, FigJam board `WEvhutQSFZITe0RUsZgzC2`. |
+| `evidenceType` | `presence-only`, `validated`, `accepted-risk`, or `external-blocked`. | A markdown packet is `presence-only` until checks and owner evidence validate it; the `glib` disposition is `accepted-risk`; OpenSSF is `external-blocked` until bestpractices.dev is completed. |
+| `validatedBy` | The command, workflow, release verification, issue, or human-owned external record that proves the artifact. | `scripts/checks/verify_supply_chain.py`, `npm audit --workspaces --audit-level=high`, current-head GitHub checks, release artifact manifest checks, issue #526. |
+| `validFor` | The diligence question this artifact answers. | Security posture, release reproducibility, design handoff, pilot evidence, transfer readiness, or package-boundary rationale. |
+| `openGap` | The concrete missing proof before a buyer can treat it as final evidence. | OpenSSF baseline completion, current-head CI failure closure, Product Design screenshots, or release SBOM/checksum retention. |
+
+Do not mark an item as final evidence just because the file exists. Final
+evidence requires a current validation path, a named owner or source of truth,
+and an explicit removal or refresh condition for accepted-risk items.
 
 ## PR Execution Tracks
 
