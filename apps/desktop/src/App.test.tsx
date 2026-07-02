@@ -223,6 +223,12 @@ describe("App", () => {
     expect(sourceControls).toHaveTextContent(/Import YouTube/i);
   });
 
+  it("caps the YouTube URL input before import-path validation", () => {
+    render(<App />);
+
+    expect(screen.getByRole("textbox", { name: /YouTube URL/i })).toHaveAttribute("maxlength", "2000");
+  });
+
   it("renders the loaded song as a dark rehearsal command board", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);

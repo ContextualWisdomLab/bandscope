@@ -45,6 +45,8 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
 
+export { MAX_YOUTUBE_URL_LENGTH };
+
 /** Documented. */
 export type LocalAudioSelectionResult =
   | { ok: true; bootstrap: ProjectBootstrapSummary }
