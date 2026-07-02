@@ -42,13 +42,13 @@ def _read_model_profile_bytes(profile_path: Path) -> bytes:
 
 
 def _contains_parent_path_segment(path: Path) -> bool:
-    """Return true when a raw path contains a parent traversal segment."""
+    """Return True when a raw path contains a parent traversal segment."""
     path_text = str(path)
-    return any(
-        part == ".."
-        for separator in {os.sep, "/", "\\"}
-        for part in path_text.split(separator)
-    )
+    normalized_path_text = path_text
+    for separator in {os.sep, os.altsep, "\\"}:
+        if separator and separator != "/":
+            normalized_path_text = normalized_path_text.replace(separator, "/")
+    return any(part == ".." for part in normalized_path_text.split("/"))
 
 
 @dataclass(frozen=True)
