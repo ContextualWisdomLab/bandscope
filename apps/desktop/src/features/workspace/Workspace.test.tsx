@@ -66,8 +66,8 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const transcribeButtons = screen.getAllByRole("button", { name: "Transcribe Bass" });
-    const transcribeButton = transcribeButtons.find(b => b.closest('div[role="region"]') === null) || transcribeButtons[0] as HTMLButtonElement;
+    const transcribeButtons = screen.getAllByRole("button", { name: /Transcribe Bass/i });
+    const transcribeButton = transcribeButtons.find(b => b.getAttribute("aria-hidden") !== "true" && window.getComputedStyle(b).display !== "none") || transcribeButtons[0] as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(false);
     expect(transcribeButton.title).toBe("Transcribe part");
   });
@@ -111,8 +111,8 @@ describe("Workspace", () => {
     song.sections[0]!.roles[0]!.id = "rhythm-guitar";
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Guitar" }));
-    const transcribeButtons = screen.getAllByRole("button", { name: "Transcribe Bass" });
-    const transcribeButton = transcribeButtons.find(b => b.closest('div[role="region"]') === null) || transcribeButtons[0] as HTMLButtonElement;
+    const transcribeButtons = screen.getAllByRole("button", { name: /Transcribe Bass/i });
+    const transcribeButton = transcribeButtons.find(b => b.getAttribute("aria-hidden") !== "true" && window.getComputedStyle(b).display !== "none") || transcribeButtons[0] as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(true);
   });
 
