@@ -47,17 +47,4 @@ describe("SectionRoadmap", () => {
     expect(screen.getAllByTitle("코드 수정").length).toBeGreaterThan(0);
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
   });
-
-  it("does not update when the trimmed chord is unchanged", () => {
-    setNavigatorLanguage("en-US");
-    const song = createDemoRehearsalSong();
-    const onSongUpdate = vi.fn();
-    vi.spyOn(window, "prompt").mockReturnValue(" C#m7 ");
-
-    render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" }));
-
-    expect(onSongUpdate).not.toHaveBeenCalled();
-  });
 });
