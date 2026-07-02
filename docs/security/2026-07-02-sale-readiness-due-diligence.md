@@ -43,6 +43,24 @@ Do not mark an item as final evidence just because the file exists. Final
 evidence requires a current validation path, a named owner or source of truth,
 and an explicit removal or refresh condition for accepted-risk items.
 
+## Commercial KPI And Pilot Evidence Gates
+
+The 20억 KRW discussion depends on proof that BandScope can become a repeatable
+local-first rehearsal product, not just a clean repository. Use these KPI gates
+to decide whether an artifact supports sale readiness or is still provisional.
+
+| Gate | Target evidence | Validation path | Open gap |
+| --- | --- | --- | --- |
+| Buyer-demo activation | A new reviewer can complete source selection, analysis start, ready review, and export within 15 minutes. | Product Design screenshots for empty, selected, loading, error, ready, export, and mobile states; local smoke script or recorded demo notes. | Screenshots and demo transcript are still required before claiming final buyer-demo evidence. |
+| Analysis value | Ready workspace shows tempo/BPM, role guidance, groove or bass structure, section roadmap, confidence, and priority sections. | Current-head product PRs #489 and #499 plus workspace state tests or screenshots. | Feature PRs must merge and be rechecked on `develop`. |
+| Export value | Cue sheet, chart JSON, and handoff JSON are available only from a ready workspace and remain path/URL/secret redacted. | Export tests, Product Design ready/export screenshots, and release artifact evidence. | Final release package evidence must retain SBOM plus checksums or manifest sidecars. |
+| Pilot conversion | 3-5 named pilot teams or equivalent buyer personas have a documented rehearsal workflow, pain point, and acceptance note. | Pilot evidence template or issue/CRM entry with date, role, workflow, and result. | No repo-backed pilot evidence is final yet; treat this as `presence-only` until pilot notes exist. |
+| Commercial pacing | ARR path to 3-5억 KRW is backed by a simple bottom-up model: pilot count, conversion rate, annual price, and churn assumption. | A buyer-data-room model or validated spreadsheet linked from this packet. | No validated ARR model is in repo yet; do not cite valuation from this packet alone. |
+
+Targets are intentionally operational. If a metric cannot be validated from a
+repo artifact, GitHub run, Figma screenshot, or named pilot record, it remains
+an open data-room gap rather than a sale-readiness claim.
+
 ## PR Execution Tracks
 
 The open PRs should be handled by track, not oldest-first. This table is the
