@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -205,6 +205,22 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
+    const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
+    for (const name of ["Import", "Export"]) {
+      const navButton = within(primaryNav).getByRole("button", { name: new RegExp(`^${name}$`, "i") });
+      expect(navButton).toHaveAttribute("aria-disabled", "true");
+      expect(navButton).toHaveAttribute("title", "Coming soon");
+      expect(navButton).not.toBeDisabled();
+    }
+    fireEvent.click(within(primaryNav).getByRole("button", { name: /^Import$/i }));
+    const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
+    for (const name of ["Import", "Export"]) {
+      const navButton = within(compactNav).getByRole("button", { name: new RegExp(`${name} compact view`, "i") });
+      expect(navButton).toHaveAttribute("aria-disabled", "true");
+      expect(navButton).toHaveAttribute("title", "Coming soon");
+      expect(navButton).not.toBeDisabled();
+    }
+    fireEvent.click(within(compactNav).getByRole("button", { name: /Import compact view/i }));
     expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
     expect(screen.getByText(/^Key$/i)).toBeTruthy();
     expect(screen.getByText(/Local-first/i)).toBeTruthy();
