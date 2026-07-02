@@ -8,39 +8,45 @@ about first.
 
 ## Current Evidence Snapshot
 
-Collected on 2026-07-02 KST from GitHub, Best Practices, Figma metadata, and
-local repository commands.
+Collected on 2026-07-02 KST from GitHub, Best Practices, Figma/FigJam
+metadata, and local repository commands.
 
 | Area | Current evidence | Sale-readiness interpretation |
 | --- | --- | --- |
 | GitHub repository | `ContextualWisdomLab/bandscope`, public MIT repo, default branch `develop` | Public diligence surface exists. |
-| Open PR queue | 62 open PRs from GitHub REST API after closing superseded PR #502 and opening PR #524/#525 | Queue needs product/security routing; review process is not a blocker. |
-| Dependabot | Alert #1: `glib`, Rust, `GHSA-wrw7-89jp-8q8g`, medium; dismissed on 2026-07-02 as `tolerable_risk` with repo-controlled rationale | GitHub-facing disposition is closed; patched upstream chain is still the preferred final state. |
-| Code scanning | Two open Scorecard alerts: #30 `VulnerabilitiesID` high for `RUSTSEC-2026-0190`, and #29 `CIIBestPracticesID` low | PR #525 addresses #30; issue #526 tracks the external OpenSSF badge work for #29. |
-| OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, baseline `0`, passing `Unmet`, silver `Unmet`; issue #526 tracks completion | Baseline badge work is a due-diligence blocker outside normal PR-only flow. |
-| Figma handoff | Figma file `zthWmqfNKUgJBECvv002Qk` currently exposes only top-level page `00 Cover` via metadata | Repo handoff docs and actual Figma content are inconsistent. |
+| Open PR queue | 34 open PRs. Unresolved review threads: `0`. Auto-merge missing: `0`. Failed/error checks: `0`. Current-head checks pending on all 34 PRs. | Queue is now routed and unblocked by review state; new CI failures, not review process, are the active execution risk. |
+| Dependabot | `0` open alerts after alert #1 (`glib`, Rust, `GHSA-wrw7-89jp-8q8g`, medium) was dismissed on 2026-07-02 as `tolerable_risk` with repo-controlled rationale | GitHub-facing disposition is closed; patched upstream chain is still the preferred final state. |
+| Code scanning | Two open Scorecard alerts on `develop`: #30 `VulnerabilitiesID` high for `RUSTSEC-2026-0190`, and #29 `CIIBestPracticesID` low | PR #525 and all other open PR heads now carry the RustSec policy update; alert #30 remains open until merge plus Scorecard refresh. Issue #526 tracks the external OpenSSF badge work for #29. |
+| OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, badge `in_progress`, `passing:null`, `name:null`, `license:null`, `homepage_url:""`, 193 unknown status fields, 2 unmet status fields | Baseline badge work is a due-diligence blocker outside normal PR-only flow and must be completed in bestpractices.dev. |
+| Figma/FigJam handoff | FigJam board `WEvhutQSFZITe0RUsZgzC2` section `13:900` records the 2026-07-02 21:20 KST security-audit refresh without Code Connect. Figma design file `zthWmqfNKUgJBECvv002Qk` remains the design-system source referenced by `docs/design-system/`. | Live design evidence exists, but final sale-readiness still needs Product Design screenshots for ready/error/export flows and any Figma file drift rechecked before visual PRs merge. |
 | JavaScript audit | `npm audit --workspaces --audit-level=high` reports 0 vulnerabilities | JS workspace is not the current high-risk advisory lane. |
 | Rust advisory chain | `cargo tree --target all -i glib` resolves `glib 0.18.5` through the Tauri/wry/webkit2gtk/gtk GTK3 stack | Repo-controlled exception and Dependabot disposition now align. |
 
 ## PR Execution Tracks
 
-The open PRs should be handled by track, not oldest-first. This table started
-from the 61-PR snapshot and must be regenerated before batch execution.
+The open PRs should be handled by track, not oldest-first. This table is the
+current 34-PR checkpoint after the RustSec policy was propagated to every open
+PR head except the canonical #525 source branch, which already contains it.
 
 | Track | Count | First closure target |
 | --- | ---: | --- |
-| Due diligence governance | 1 | Issue #526, OpenSSF Best Practices project `13428` |
-| Due diligence security | 15 | Canonicalize path traversal, information leakage, DoS, and command-injection PRs |
-| Buyer-demo product | 6 | PR #483 transcription, PR #499 practice progress, PR #481 export |
-| Design UX | 8 | YouTube input safety and disabled-state clarity after Figma state matrix repair |
-| Quality performance | 12 | PR #401 YouTube import reliability before cosmetic render micro-optimizations |
-| Quality tests | 7 | Analysis-engine and workspace tests that support buyer-demo claims |
-| Dependencies | 12 | Build/security dependency bumps before UI-only bumps |
+| Due diligence governance | 2 | PR #524 sale-readiness packet and issue #526/OpenSSF Best Practices project `13428` |
+| Due diligence security | 5 | PR #525 RustSec baseline, #527 project ID path guard, #537 traversal rejection, #538 error sanitization, #531 range parsing hardening |
+| Buyer-demo product | 2 | PR #489 BPM display and #499 practice progress |
+| Design UX | 3 | PR #528 YouTube URL cap, #529 clear button, #530 disabled nav tooltip/accessibility behavior |
+| Quality performance | 5 | PR #367, #401, #482, #506, #523 |
+| Quality tests | 6 | PR #395 and #532-#536 analysis/export/pitch/role/section coverage |
+| Dependencies | 11 | PR #436, #437, #440-#446, #508, #510, #511 |
 
 Regenerate the detailed PR routing table from the GitHub API before execution
 or publication, because the queue is expected to move while this work is in
-review. The table above is the 2026-07-02 evidence snapshot, not a durable
-source of truth for future queue counts.
+review. The table above is the 2026-07-02 21:20 KST evidence snapshot, not a
+durable source of truth for future queue counts.
+
+Every current open PR head now carries the `anyhow 1.0.103` RustSec update and
+the repo-controlled `quick-xml` audit/OSV exception policy. Local evidence
+passed on each refreshed head: `scripts/checks/verify_supply_chain.py`,
+`cargo audit`, `scripts/checks/security_gates.py`, and `git diff --check`.
 
 ## Closure Criteria
 
@@ -64,9 +70,10 @@ source of truth for future queue counts.
 - Best Practices project `13428` reaches baseline 100%.
 - Issue #526 closes with external Best Practices evidence; PR #502 stays closed
   unless replaced by a non-duplicate workflow or documentation change.
-- Evidence exists for repository basics, license, contribution process,
-  security reporting, build/test invocation, CI, release notes, vulnerability
-  handling, and current documentation.
+- Evidence exists and is entered in bestpractices.dev for project name,
+  description, homepage or justification, license, repository basics,
+  contribution process, security reporting, build/test invocation, CI, release
+  notes, vulnerability handling, and current documentation.
 - Scorecard `CIIBestPracticesID` no longer reports open.
 
 ### 3. Buyer-Demo v0.2
@@ -87,6 +94,8 @@ source of truth for future queue counts.
   audit, and buyer-demo flow.
 - Repo mirrors in `docs/design-system/` match the live Figma metadata and
   screenshots.
+- FigJam board `WEvhutQSFZITe0RUsZgzC2` keeps a current security/readiness
+  checkpoint section when repo state changes materially.
 - If Figma remains inaccessible or stale, the release notes call that out as a
   design-resource gap rather than claiming visual parity.
 
@@ -145,9 +154,17 @@ webkit2gtk/gtk GTK3 stack and `scripts/checks/verify_supply_chain.py` keeps
 guarding the exception scope. The final sale-readiness target is still a
 patched upstream chain.
 
-Scorecard alert #30 remains open until PR #525 merges and Scorecard reruns on
-`develop`. Scorecard alert #29 remains open until Best Practices project
-`13428` is completed on bestpractices.dev and the Scorecard signal refreshes.
+Scorecard alert #30 remains open until PR #525 or an equivalent RustSec policy
+head merges and Scorecard reruns on `develop`. Scorecard alert #29 remains open
+until Best Practices project `13428` is completed on bestpractices.dev and the
+Scorecard signal refreshes.
+
+All 34 open PRs still have current-head GitHub checks pending at this
+checkpoint. #525 already has successful macOS amd64 and macOS arm64 build jobs,
+but older #510/#511 evidence showed a macOS Intel DMG bundling failure before
+the current RustSec propagation. Treat any new current-head DMG failure as a
+release-readiness blocker and harden `.github/workflows/build-baseline.yml`
+without weakening release artifact evidence.
 
 ### Test Points
 
@@ -158,15 +175,21 @@ Scorecard alert #30 remains open until PR #525 merges and Scorecard reruns on
 - `npm audit --workspaces --audit-level=high`
 - `python3 scripts/checks/verify_supply_chain.py`
 - Figma metadata read for file `zthWmqfNKUgJBECvv002Qk`
+- FigJam read for board `WEvhutQSFZITe0RUsZgzC2`, section `13:900`
 
 ## Next Execution Order
 
-1. Merge PR #525 after checks pass to remove `RUSTSEC-2026-0190`.
-2. Complete issue #526 on bestpractices.dev for OpenSSF project `13428`.
-3. Keep the `glib` Dependabot disposition evidence current until upstream
+1. Keep polling current-head GitHub checks for all 34 open PRs; fix any new
+   failure before merging lower-value product or dependency work.
+2. Merge PR #525 or any equivalent branch carrying the same RustSec policy
+   after checks pass to remove `RUSTSEC-2026-0190` from `develop`.
+3. Complete issue #526 on bestpractices.dev for OpenSSF project `13428`.
+4. Keep the `glib` Dependabot disposition evidence current until upstream
    removes or patches the GTK3 chain.
-4. Canonicalize the P0 security PRs that touch path traversal, information
+5. Canonicalize the P0 security PRs that touch path traversal, information
    leakage, and command-injection risks.
-5. Restore Figma handoff pages before merging broad UX tooltip/state PRs.
-6. Merge buyer-demo product PRs in the order transcription, practice progress,
-   export, then supporting workspace views.
+6. Capture Product Design screenshots for ready, error, export, and mobile
+   buyer-demo flows, then mirror any material findings in FigJam without Code
+   Connect.
+7. Merge buyer-demo product PRs in the order BPM, practice progress, export,
+   then supporting workspace views.
