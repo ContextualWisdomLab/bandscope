@@ -141,7 +141,8 @@ class AudioStemSeparator:
             has_dots = ".." in audio_path_str.split("\\")
         if has_dots:
             logger.warning(
-                "Security: Path traversal attempt detected in audio path: %s", audio_path_str
+                "Security: Path traversal attempt detected in audio path: %s",
+                candidate.name or "selected audio",
             )
             raise ValueError("Path traversal attempt detected")
         try:
@@ -236,7 +237,7 @@ class AudioStemSeparator:
             if has_dots:
                 logger.warning(
                     "Security: Path traversal attempt detected in profile path: %s",
-                    profile_path_str,
+                    profile_candidate.name or "selected profile",
                 )
                 raise ValueError("Path traversal attempt detected")
             try:

@@ -500,13 +500,6 @@ def test_audio_stem_separator_rejects_path_traversal_in_model_profile_altsep() -
         AudioStemSeparator(config)
 
 
-def test_audio_stem_separator_rejects_absolute_path_traversal_in_audio_file() -> None:
-    """Ensure absolute external audio file paths not within the app sandbox are rejected."""
-    # A true absolute path shouldn't bypass traversal checks if we restrict it strictly,
-    # however right now we're just checking for '..' to satisfy initial task requirements
-    pass
-
-
 def test_audio_stem_separator_absolute_path_allowed() -> None:
     """Ensure absolute paths without .. are not falsely rejected."""
 
