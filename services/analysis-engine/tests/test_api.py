@@ -495,7 +495,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
     assert updates[-1]["progressPercent"] == 45
     assert updates[-1]["error"] == {
         "code": "engine_unavailable",
-        "message": ("Stem separation failed due to an internal error."),
+        "message": "Stem separation failed due to an internal error.",
     }
 
 
