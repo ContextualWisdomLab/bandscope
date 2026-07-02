@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from bandscope_analysis.roles.extractor import RoleExtractor
+from bandscope_analysis.roles.extractor import RoleExtractor, _most_common_chord
 from bandscope_analysis.roles.model import (
     CueAnchorKind,
     RehearsalPriority,
@@ -84,6 +84,22 @@ def test_role_extractor_basic() -> None:
     assert verse_graph[3]["is_active"] is False
     assert verse_graph[0]["role_id"] == "bass-guitar"
     assert verse_graph[0]["handoff_to"] == []
+
+
+def test_most_common_chord_prefers_first_chord_on_ties() -> None:
+    """Ensure equal chord counts keep the first chord encountered."""
+    assert _most_common_chord(["C", "C", "G"]) == "C"
+    assert _most_common_chord(["C", "G", "G", "C", "G"]) == "G"
+    assert _most_common_chord(["A", "B", "A", "B"]) == "A"
+    assert _most_common_chord(["B", "A", "B", "A"]) == "B"
+    assert _most_common_chord(["Am"]) == "Am"
+
+
+def test_extract_without_audio_features_sets_extraction_notes() -> None:
+    """Ensure extraction without audio features still reports fallback notes."""
+    result = RoleExtractor().extract([{"id": "intro"}])
+
+    assert result["extraction_notes"] == "Extracted roles and computed handoffs."
 
 
 def test_role_extractor_empty() -> None:
