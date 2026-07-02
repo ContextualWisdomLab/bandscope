@@ -14,11 +14,11 @@ metadata, and local repository commands.
 | Area | Current evidence | Sale-readiness interpretation |
 | --- | --- | --- |
 | GitHub repository | `ContextualWisdomLab/bandscope`, public MIT repo, default branch `develop` | Public diligence surface exists. |
-| Open PR queue | 34 open PRs. Unresolved review threads: `0`. Auto-merge missing: `0`. Failed/error checks: `0`. Current-head checks pending on all 34 PRs. | Queue is now routed and unblocked by review state; new CI failures, not review process, are the active execution risk. |
+| Open PR queue | 34 open PRs. Unresolved review threads: `0`. Auto-merge missing: `0`. Failed/error checks: `0`. Current-head checks pending on all 34 PRs; 641 queued/pending check items at 2026-07-02 21:59 KST. | Queue is now routed and unblocked by review state; new CI failures, not review process, are the active execution risk. |
 | Dependabot | `0` open alerts after alert #1 (`glib`, Rust, `GHSA-wrw7-89jp-8q8g`, medium) was dismissed on 2026-07-02 as `tolerable_risk` with repo-controlled rationale | GitHub-facing disposition is closed; patched upstream chain is still the preferred final state. |
 | Code scanning | Two open Scorecard alerts on `develop`: #30 `VulnerabilitiesID` high for `RUSTSEC-2026-0190`, and #29 `CIIBestPracticesID` low | PR #525 and all other open PR heads now carry the RustSec policy update; alert #30 remains open until merge plus Scorecard refresh. Issue #526 tracks the external OpenSSF badge work for #29. |
 | OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, badge `in_progress`, `passing:null`, `name:null`, `license:null`, `homepage_url:""`, 193 unknown status fields, 2 unmet status fields | Baseline badge work is a due-diligence blocker outside normal PR-only flow and must be completed in bestpractices.dev. |
-| Figma/FigJam handoff | FigJam board `WEvhutQSFZITe0RUsZgzC2` section `13:900` records the 2026-07-02 21:20 KST security-audit refresh without Code Connect. Figma design file `zthWmqfNKUgJBECvv002Qk` remains the design-system source referenced by `docs/design-system/`. | Live design evidence exists, but final sale-readiness still needs Product Design screenshots for ready/error/export flows and any Figma file drift rechecked before visual PRs merge. |
+| Figma/FigJam handoff | FigJam board `WEvhutQSFZITe0RUsZgzC2` section `13:900` records the 2026-07-02 21:59 KST security-audit refresh without Code Connect. Figma design file `zthWmqfNKUgJBECvv002Qk` remains the design-system source referenced by `docs/design-system/`. | Live design evidence exists, but final sale-readiness still needs Product Design screenshots for ready/error/export flows and any Figma file drift rechecked before visual PRs merge. |
 | JavaScript audit | `npm audit --workspaces --audit-level=high` reports 0 vulnerabilities | JS workspace is not the current high-risk advisory lane. |
 | Rust advisory chain | `cargo tree --target all -i glib` resolves `glib 0.18.5` through the Tauri/wry/webkit2gtk/gtk GTK3 stack | Repo-controlled exception and Dependabot disposition now align. |
 
@@ -26,7 +26,8 @@ metadata, and local repository commands.
 
 The open PRs should be handled by track, not oldest-first. This table is the
 current 34-PR checkpoint after the RustSec policy was propagated to every open
-PR head except the canonical #525 source branch, which already contains it.
+PR head, including the canonical #525 source branch and #523 restored-policy
+head `02fe673`.
 
 | Track | Count | First closure target |
 | --- | ---: | --- |
@@ -40,13 +41,17 @@ PR head except the canonical #525 source branch, which already contains it.
 
 Regenerate the detailed PR routing table from the GitHub API before execution
 or publication, because the queue is expected to move while this work is in
-review. The table above is the 2026-07-02 21:20 KST evidence snapshot, not a
+review. The table above is the 2026-07-02 21:59 KST evidence snapshot, not a
 durable source of truth for future queue counts.
 
 Every current open PR head now carries the `anyhow 1.0.103` RustSec update and
-the repo-controlled `quick-xml` audit/OSV exception policy. Local evidence
-passed on each refreshed head: `scripts/checks/verify_supply_chain.py`,
-`cargo audit`, `scripts/checks/security_gates.py`, and `git diff --check`.
+the repo-controlled `quick-xml` audit/OSV exception policy, with no inline
+quick-xml ignore in `.github/workflows/security-audit.yml`. PR #523 was
+repaired again at `02fe673` after bot commit `9413356` reverted the policy
+files. Local evidence passed on #523: `scripts/checks/verify_supply_chain.py`,
+`cargo audit`, `scripts/checks/security_gates.py`, `npm run check:supply-chain`,
+`npm run check:security-notes`, and `git diff --check`; all open heads were
+audited through GitHub contents API for the same policy shape.
 
 ## Closure Criteria
 
