@@ -293,7 +293,7 @@ describe("App", () => {
     expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
-  it("short-circuits confidence evaluation when a low confidence section is found", async () => {
+  it("reports low confidence when a loaded section has low confidence", async () => {
     const loadedProject = succeededResult().result;
     loadedProject.sections = [
       {
