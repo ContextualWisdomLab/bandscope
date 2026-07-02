@@ -205,6 +205,8 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
+    expect(fireEvent.click(screen.getByRole("button", { name: /settings coming soon/i }))).toBe(false);
+    expect(fireEvent.click(screen.getByRole("button", { name: /help coming soon/i }))).toBe(false);
     expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
     expect(screen.getByText(/^Key$/i)).toBeTruthy();
     expect(screen.getByText(/Local-first/i)).toBeTruthy();
