@@ -111,10 +111,7 @@ def test_role_extractor_prefers_first_detected_chord_on_ties() -> None:
 
         result = RoleExtractor().extract([{"id": "intro"}], audio_features)
 
-    roles_by_id = {
-        role["id"]: role
-        for role in result["topologies"][0]["active_roles"]
-    }
+    roles_by_id = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
     assert roles_by_id["bass-guitar"]["harmony"]["chord"] == "A"
     assert roles_by_id["lead-vocal"]["harmony"]["chord"] == "C"
 
