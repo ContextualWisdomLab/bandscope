@@ -135,7 +135,7 @@ def main() -> int:
             archive_path = tar_path
 
         archive_path = output_dir / archive_name
-        if not archive_path.exists():
+        if installer_path != archive_path and not archive_path.exists():
             shutil.copy2(installer_path, archive_path)
 
         checksum_path = output_dir / f"{archive_name}.sha256"
