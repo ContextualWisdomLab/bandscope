@@ -14,12 +14,12 @@ metadata, and local repository commands.
 | Area | Current evidence | Sale-readiness interpretation |
 | --- | --- | --- |
 | GitHub repository | `ContextualWisdomLab/bandscope`, public MIT repo, default branch `develop` | Public diligence surface exists. |
-| Open PR queue | 34 open PRs. Live 2026-07-03 06:46 KST routing: `BEHIND` 4, `BLOCKED` 30, `DIRTY` 0. Auto-merge missing: `0`. Completed failures are limited to #527/#528 coverage policy and #446/#367 Strix/OpenCode provider fallback tracks that are parked behind central `.github` PRs #291 and #292. | Queue is routed and no longer blocked by review state or queued checks. Source-backed completed failures and due-diligence evidence gaps are the active execution risk. |
+| Open PR queue | 34 open PRs. Live 2026-07-03 08:33 KST REST fallback sweep checked every open PR head through `commits/{sha}/check-runs` after GitHub GraphQL rollups returned HTTP 504; it found `0` completed `failure`, `timed_out`, `action_required`, `startup_failure`, or `cancelled` rows. | Queue is routed and no longer blocked by review state or queued checks. Source-backed completed failures and due-diligence evidence gaps are the active execution risk. |
 | Dependabot | `0` open alerts after alert #1 (`glib`, Rust, `GHSA-wrw7-89jp-8q8g`, medium) was dismissed on 2026-07-02 as `tolerable_risk` with repo-controlled rationale | GitHub-facing disposition is closed; patched upstream chain is still the preferred final state. |
-| Code scanning | Two open Scorecard alerts on `develop`: #30 `VulnerabilitiesID` high for `RUSTSEC-2026-0190`, and #29 `CIIBestPracticesID` low | PR #525 and all other open PR heads now carry the RustSec policy update; alert #30 remains open until merge plus Scorecard refresh. Issue #526 tracks the external OpenSSF badge work for #29. |
-| OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, badge `in_progress`, `passing:null`, `name:null`, `license:null`, `homepage_url:""`, 193 unknown status fields, 2 unmet status fields | Baseline badge work is a due-diligence blocker outside normal PR-only flow and must be completed in bestpractices.dev. |
-| Figma/FigJam handoff | FigJam board `WEvhutQSFZITe0RUsZgzC2` section `13:900` records the 2026-07-02 21:59 KST security-audit refresh without Code Connect. Figma design file `zthWmqfNKUgJBECvv002Qk` remains the design-system source referenced by `docs/design-system/`. | Live design evidence exists, but final sale-readiness still needs Product Design screenshots for ready/error/export flows and any Figma file drift rechecked before visual PRs merge. |
-| Commercial model | `docs/business/bandscope-commercial-model.md` and `docs/business/pilot-evidence-template.md` define the bottom-up ARR path, pilot evidence fields, and redaction rules. | Repo now has commercial evidence structure, but ARR and pilot rows remain `presence-only` until real pilot records and screenshots exist. |
+| Code scanning | Two open Scorecard alerts on `develop`: #30 `VulnerabilitiesID` for `RUSTSEC-2026-0190`, `RUSTSEC-2026-0194`, and `RUSTSEC-2026-0195`; #29 `CIIBestPracticesID` for an `InProgress` badge. Alert #30 still points at the 2026-06-29 Scorecard SARIF and #29 still points at the 2026-06-18 SARIF. | PR #525 merged the `anyhow` fix on 2026-07-02, but the latest published Scorecard run for `develop` predates that merge and the `quick-xml` findings remain controlled exceptions. #30 needs a default-branch Scorecard refresh and either closure or accepted-risk disposition for the remaining owner-chain exceptions. Issue #526 tracks the external OpenSSF badge work for #29. |
+| OpenSSF Best Practices | Project `13428`, repo URL `https://github.com/ContextualWisdomLab/bandscope`, `badge_percentage_0=0`, `badge_percentage_1=0`, `badge_percentage_2=0`, `tiered_percentage=0`, `name:null`, `homepage_url:""`, `updated_at=2026-06-29T14:06:03.700Z` | Baseline badge work is a due-diligence blocker outside normal PR-only flow and must be completed in bestpractices.dev before Scorecard #29 can be expected to clear. |
+| Figma/FigJam handoff | FigJam board `WEvhutQSFZITe0RUsZgzC2` now records queue, data-room, screenshot, mobile-demo, coverage/package, and #489 restored-evidence checkpoints through section `74:2829` without Code Connect. Figma design file `zthWmqfNKUgJBECvv002Qk` remains the design-system source referenced by `docs/design-system/`. | Live design evidence exists and current Product Design screenshots cover more buyer-demo states, but final sale-readiness still needs packaged-release proof, disabled-state/language polish, and any Figma file drift rechecked before visual PRs merge. |
+| Commercial model | `docs/business/bandscope-commercial-model.md` and `docs/business/pilot-evidence-template.md` define the bottom-up ARR path, pilot evidence fields, and redaction rules. | Repo now has commercial evidence structure and local screenshot evidence, but ARR and pilot rows remain `presence-only` until real pilot records and release/export proof exist. |
 | JavaScript audit | `npm audit --workspaces --audit-level=high` reports 0 vulnerabilities | JS workspace is not the current high-risk advisory lane. |
 | Rust advisory chain | `cargo tree --target all -i glib` resolves `glib 0.18.5` through the Tauri/wry/webkit2gtk/gtk GTK3 stack | Repo-controlled exception and Dependabot disposition now align. |
 
@@ -203,17 +203,20 @@ webkit2gtk/gtk GTK3 stack and `scripts/checks/verify_supply_chain.py` keeps
 guarding the exception scope. The final sale-readiness target is still a
 patched upstream chain.
 
-Scorecard alert #30 remains open until PR #525 or an equivalent RustSec policy
-head merges and Scorecard reruns on `develop`. Scorecard alert #29 remains open
-until Best Practices project `13428` is completed on bestpractices.dev and the
-Scorecard signal refreshes.
+Scorecard alert #30 remains open even after PR #525 merged because the published
+Scorecard SARIF still predates the merge and the alert also includes the
+repo-controlled `quick-xml` owner-chain exceptions. It must be refreshed on the
+default branch and then closed or explicitly dispositioned against the remaining
+accepted-risk evidence. Scorecard alert #29 remains open until Best Practices
+project `13428` is completed on bestpractices.dev and the Scorecard signal
+refreshes.
 
-All 34 open PRs still have current-head GitHub checks pending at this
-checkpoint. #525 already has successful macOS amd64 and macOS arm64 build jobs,
-but older #510/#511 evidence showed a macOS Intel DMG bundling failure before
-the current RustSec propagation. Treat any new current-head DMG failure as a
-release-readiness blocker and harden `.github/workflows/build-baseline.yml`
-without weakening release artifact evidence.
+All 34 open PRs still have review and/or queued-check gates pending at this
+checkpoint, but the 2026-07-03 08:33 KST REST fallback sweep found no completed
+current-head check-run failures. Treat any new completed current-head DMG
+failure as a release-readiness blocker and harden
+`.github/workflows/build-baseline.yml` without weakening release artifact
+evidence.
 
 ### Test Points
 
@@ -231,9 +234,9 @@ without weakening release artifact evidence.
 ## Next Execution Order
 
 1. Keep polling current-head GitHub checks for all 34 open PRs; fix any new
-   failure before merging lower-value product or dependency work.
-2. Merge PR #525 or any equivalent branch carrying the same RustSec policy
-   after checks pass to remove `RUSTSEC-2026-0190` from `develop`.
+   completed failure before merging lower-value product or dependency work.
+2. Trigger or wait for a default-branch Scorecard refresh after #525's merge to
+   confirm `RUSTSEC-2026-0190` is gone from published Scorecard evidence.
 3. Complete issue #526 on bestpractices.dev for OpenSSF project `13428`.
 4. Keep the `glib` Dependabot disposition evidence current until upstream
    removes or patches the GTK3 chain.
