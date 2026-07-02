@@ -853,19 +853,33 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             self.items.append(item)
 
     cases = [
-        (FileNotFoundError("missing /secret/audio.wav"), "file_not_found"),
-        (ValueError("bad media /secret/audio.wav"), "value_error"),
-        (RuntimeError("oom /secret/audio.wav"), "runtime_error"),
-        (Exception("unexpected /secret/audio.wav"), "runtime_error"),
+        (
+            FileNotFoundError("missing /secret/audio.wav"),
+            "file_not_found",
+            "Audio source file not found.",
+            "Stem separation failed because the source file was missing.",
+        ),
+        (
+            ValueError("bad media /secret/audio.wav"),
+            "value_error",
+            "Invalid audio source data.",
+            "Stem separation rejected invalid audio source data.",
+        ),
+        (
+            RuntimeError("oom /secret/audio.wav"),
+            "runtime_error",
+            "Runtime error occurred during stem separation.",
+            "Stem separation failed with a runtime error.",
+        ),
+        (
+            Exception("unexpected /secret/audio.wav"),
+            "runtime_error",
+            "An unexpected error occurred during stem separation.",
+            "Stem separation failed unexpectedly.",
+        ),
     ]
-    expected_messages = {
-        FileNotFoundError: "Audio source file not found.",
-        ValueError: "Invalid audio source data.",
-        RuntimeError: "Runtime error occurred during stem separation.",
-        Exception: "An unexpected error occurred during stem separation.",
-    }
 
-    for error, expected_kind in cases:
+    for error, expected_kind, expected_message, expected_log_message in cases:
         fake_queue = FakeQueue()
         with (
             patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
@@ -873,14 +887,9 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
         ):
             separator_class.return_value.separate.side_effect = error
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
-        expected_message = next(
-            message
-            for exception_type, message in expected_messages.items()
-            if isinstance(error, exception_type)
-        )
         assert fake_queue.items == [(expected_kind, expected_message)]
         assert "/secret" not in str(fake_queue.items)
-        logger.error.assert_called_once()
+        logger.exception.assert_called_once_with(expected_log_message)
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:

@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
 AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
 AnalysisCacheStatus = Literal["disabled", "miss", "hit", "stored"]
+StemSeparationFailureKind = Literal["file_not_found", "value_error", "runtime_error"]
 
 
 class AnalysisJobRequest(TypedDict):
@@ -837,18 +838,39 @@ def _stem_separation_worker(
             )
             return
         result_queue.put(("ok", separation_result))
-    except FileNotFoundError:
-        logger.error("Stem separation failed because the source file was missing.", exc_info=True)
-        result_queue.put(("file_not_found", "Audio source file not found."))
-    except ValueError:
-        logger.error("Stem separation rejected invalid audio source data.", exc_info=True)
-        result_queue.put(("value_error", "Invalid audio source data."))
-    except RuntimeError:
-        logger.error("Stem separation failed with a runtime error.", exc_info=True)
-        result_queue.put(("runtime_error", "Runtime error occurred during stem separation."))
-    except Exception:
-        logger.error("Stem separation failed unexpectedly.", exc_info=True)
-        result_queue.put(("runtime_error", "An unexpected error occurred during stem separation."))
+    except Exception as error:
+        kind, safe_message, log_message = _stem_separation_failure(error)
+        logger.exception(log_message)
+        result_queue.put((kind, safe_message))
+
+
+def _stem_separation_failure(
+    error: Exception,
+) -> tuple[StemSeparationFailureKind, str, str]:
+    """Map worker exceptions to safe parent payloads and stable log messages."""
+    if isinstance(error, FileNotFoundError):
+        return (
+            "file_not_found",
+            "Audio source file not found.",
+            "Stem separation failed because the source file was missing.",
+        )
+    if isinstance(error, ValueError):
+        return (
+            "value_error",
+            "Invalid audio source data.",
+            "Stem separation rejected invalid audio source data.",
+        )
+    if isinstance(error, RuntimeError):
+        return (
+            "runtime_error",
+            "Runtime error occurred during stem separation.",
+            "Stem separation failed with a runtime error.",
+        )
+    return (
+        "runtime_error",
+        "An unexpected error occurred during stem separation.",
+        "Stem separation failed unexpectedly.",
+    )
 
 
 def _multiprocessing_context() -> mp.context.BaseContext:
