@@ -225,7 +225,9 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: npm exec --workspace @bandscope/desktop -- tauri build --target "$BANDSCOPE_TARGET_TRIPLE" --bundles dmg
+        env:
+          BANDSCOPE_TAURI_BUILD_ATTEMPTS: "2"
+        run: scripts/release/build_tauri_bundle_with_retry.sh @bandscope/desktop "$BANDSCOPE_TARGET_TRIPLE" dmg
       - name: Package macOS amd64 artifact
         run: python3 scripts/release/package_desktop_artifact.py
       - name: Upload macOS amd64 artifact
@@ -271,7 +273,9 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: npm exec --workspace @bandscope/desktop -- tauri build --target "$BANDSCOPE_TARGET_TRIPLE" --bundles dmg
+        env:
+          BANDSCOPE_TAURI_BUILD_ATTEMPTS: "2"
+        run: scripts/release/build_tauri_bundle_with_retry.sh @bandscope/desktop "$BANDSCOPE_TARGET_TRIPLE" dmg
       - name: Package macOS arm64 artifact
         run: python3 scripts/release/package_desktop_artifact.py
       - name: Upload macOS arm64 artifact
