@@ -41,6 +41,16 @@ def _read_model_profile_bytes(profile_path: Path) -> bytes:
     return profile_bytes
 
 
+def _contains_parent_path_segment(path: Path) -> bool:
+    """Return true when a raw path contains a parent traversal segment."""
+    path_text = str(path)
+    return any(
+        part == ".."
+        for separator in {os.sep, "/", "\\"}
+        for part in path_text.split(separator)
+    )
+
+
 @dataclass(frozen=True)
 class AudioSeparationConfig:
     """Resource and band-split settings for local stem separation."""
@@ -133,6 +143,8 @@ class AudioStemSeparator:
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
         candidate = Path(audio_path).expanduser()
+        if _contains_parent_path_segment(candidate):
+            raise ValueError("Path traversal attempt detected in selected audio path")
         try:
             path = candidate.resolve(strict=True)
         except FileNotFoundError as error:
@@ -216,6 +228,8 @@ class AudioStemSeparator:
 
         if self.config.model_profile_path:
             profile_candidate = Path(self.config.model_profile_path).expanduser()
+            if _contains_parent_path_segment(profile_candidate):
+                raise ValueError("Path traversal attempt detected in selected model profile path")
             try:
                 profile_path = profile_candidate.resolve(strict=True)
             except FileNotFoundError as error:
