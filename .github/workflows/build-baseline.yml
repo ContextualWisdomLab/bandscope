@@ -224,10 +224,10 @@ jobs:
         run: uv sync --project services/analysis-engine --group dev --frozen
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
+      - name: Install create-dmg
+        run: brew install create-dmg
       - name: Build native shell
-        env:
-          BANDSCOPE_TAURI_BUILD_ATTEMPTS: "2"
-        run: scripts/release/build_tauri_bundle_with_retry.sh @bandscope/desktop "$BANDSCOPE_TARGET_TRIPLE" dmg
+        run: npm exec --workspace @bandscope/desktop -- tauri build --target "$BANDSCOPE_TARGET_TRIPLE" --bundles dmg
       - name: Package macOS amd64 artifact
         run: python3 scripts/release/package_desktop_artifact.py
       - name: Upload macOS amd64 artifact
@@ -272,10 +272,10 @@ jobs:
         run: uv sync --project services/analysis-engine --group dev --frozen
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
+      - name: Install create-dmg
+        run: brew install create-dmg
       - name: Build native shell
-        env:
-          BANDSCOPE_TAURI_BUILD_ATTEMPTS: "2"
-        run: scripts/release/build_tauri_bundle_with_retry.sh @bandscope/desktop "$BANDSCOPE_TARGET_TRIPLE" dmg
+        run: npm exec --workspace @bandscope/desktop -- tauri build --target "$BANDSCOPE_TARGET_TRIPLE" --bundles dmg
       - name: Package macOS arm64 artifact
         run: python3 scripts/release/package_desktop_artifact.py
       - name: Upload macOS arm64 artifact
