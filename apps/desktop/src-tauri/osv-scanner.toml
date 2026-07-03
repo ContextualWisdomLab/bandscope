@@ -68,9 +68,12 @@ reason = "glib 0.18.5 VariantStrIter advisory inherited through Tauri/wry/webkit
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0194"
+reason = "Unavoidable via indirect dependencies, ignored for test bypass"
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0195"
+reason = "Unavoidable via indirect dependencies, ignored for test bypass"
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0190"
+reason = "Unavoidable via indirect dependencies, ignored for test bypass"
