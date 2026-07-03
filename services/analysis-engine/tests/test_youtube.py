@@ -117,7 +117,10 @@ def test_download_youtube_audio_success(
     from unittest.mock import call
 
     assert mock_ydl.extract_info.call_count == 1
-
+    assert mock_ydl.process_ie_result.call_count == 1
+    assert mock_ydl.extract_info.call_count == 1
+    assert mock_ydl.process_ie_result.call_count == 1
+    assert mock_ydl.extract_info.call_count == 1
     assert mock_ydl.process_ie_result.call_count == 1
     mock_ydl.extract_info.assert_has_calls([call(input_url, download=False)])
     mock_ydl.process_ie_result.assert_has_calls([call(mock_info, download=True)])
@@ -294,6 +297,7 @@ def test_download_youtube_audio_size_exceeded(
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
     mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_ydl.process_ie_result.return_value = {"id": "abc123DEF45"}
     mock_exists.return_value = True
     mock_getsize.return_value = 51 * 1024 * 1024
 
@@ -353,8 +357,8 @@ def test_module_execution(
     mock_ydl = MagicMock()
     mock_yt_dlp.YoutubeDL.return_value.__enter__.return_value = mock_ydl
     mock_ydl.extract_info.return_value = {"id": "abc123DEF45"}
-    mock_ydl.process_ie_result.return_value = {"id": "abc123DEF45"}
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_ydl.process_ie_result.return_value = {"id": "abc123DEF45"}
     monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
 
     # Mock os to ensure runpy uses our mocked filesystem methods
@@ -366,10 +370,7 @@ def test_module_execution(
     monkeypatch.setitem(sys.modules, "os", mock_os)
 
     with patch.object(sys, "exit") as mock_exit:
-        try:
-            runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
-        except TypeError:
-            pass
+        runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
         mock_exit.assert_called_with(0)
 
 
