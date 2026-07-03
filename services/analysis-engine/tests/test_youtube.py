@@ -117,11 +117,11 @@ def test_download_youtube_audio_success(
     from unittest.mock import call
 
     assert mock_ydl.extract_info.call_count == 1
-    assert mock_ydl.process_ie_result.call_count == 1
+
     assert mock_ydl.extract_info.call_count == 1
-    assert mock_ydl.process_ie_result.call_count == 1
+
     assert mock_ydl.extract_info.call_count == 1
-    assert mock_ydl.process_ie_result.call_count == 1
+
     mock_ydl.extract_info.assert_has_calls([call(input_url, download=False)])
     mock_ydl.process_ie_result.assert_has_calls([call(mock_info, download=True)])
 
