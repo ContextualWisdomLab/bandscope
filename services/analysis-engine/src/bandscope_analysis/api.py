@@ -285,6 +285,10 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     file_size_bytes = local_source.get("fileSizeBytes")
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
+    if ".." in source_path.replace("\\", "/").split("/"):
+        raise ValueError(
+            "Invalid analysis job request: path traversal detected in 'localSource.sourcePath'"
+        )
     if not isinstance(file_name, str) or not file_name.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
     if extension not in {"wav", "mp3", "flac", "m4a"}:
@@ -307,10 +311,14 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if cache_root is not None:
         if not isinstance(cache_root, str) or not cache_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+        if ".." in cache_root.replace("\\", "/").split("/"):
+            raise ValueError("Invalid analysis job request: path traversal detected in 'cacheRoot'")
         normalized["cacheRoot"] = cache_root
     if temp_root is not None:
         if not isinstance(temp_root, str) or not temp_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+        if ".." in temp_root.replace("\\", "/").split("/"):
+            raise ValueError("Invalid analysis job request: path traversal detected in 'tempRoot'")
         normalized["tempRoot"] = temp_root
 
     return normalized
