@@ -14,15 +14,16 @@ export function ChordsFeature(props: { title: string; song?: RehearsalSong | nul
   }
 
   // Collect unique chords across all sections and roles
-  const chordsBySectionLabel = new Map<string, { chord: string; functionLabel: string; source: string; roleName: string }[]>();
+  const chordsBySectionLabel = new Map<string, { chord: string; functionLabel: string; source: string; roleName: string; transpositionPlan?: string }[]>();
   for (const section of song.sections) {
-    const entries: { chord: string; functionLabel: string; source: string; roleName: string }[] = [];
+    const entries: { chord: string; functionLabel: string; source: string; roleName: string; transpositionPlan?: string }[] = [];
     for (const role of section.roles) {
       entries.push({
         chord: role.harmony.chord,
         functionLabel: role.harmony.functionLabel,
         source: role.harmony.source,
         roleName: role.name,
+        transpositionPlan: role.transpositionPlan,
       });
     }
     chordsBySectionLabel.set(section.label, entries);
@@ -69,6 +70,11 @@ export function ChordsFeature(props: { title: string; song?: RehearsalSong | nul
                 <div style={{ fontSize: "0.8em", color: "#999" }}>
                   {role.name}
                 </div>
+                {role.transpositionPlan && (
+                  <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#d46b08", backgroundColor: "#fff7e6", padding: "4px", borderRadius: "2px" }}>
+                    <strong>Transpose:</strong> {role.transpositionPlan}
+                  </div>
+                )}
               </div>
             ))}
           </div>
