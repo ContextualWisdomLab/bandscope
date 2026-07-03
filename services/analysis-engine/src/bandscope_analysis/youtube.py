@@ -7,7 +7,6 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 import argparse
 import glob
 import json
-import logging
 import os
 import re
 import sys
@@ -23,8 +22,6 @@ YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
 )
 YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Please use a local audio file instead."
 
-logger = logging.getLogger(__name__)
-
 
 def validate_url(url: str) -> bool:
     """
@@ -39,32 +36,22 @@ def validate_url(url: str) -> bool:
     try:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != "https":
-            logger.warning(f"Security: Invalid scheme {parsed.scheme}")
             return False
         host = parsed.netloc.lower().split(":")[0]
 
         if host == "youtu.be":
             path = parsed.path.strip("/")
-            if bool(YOUTUBE_VIDEO_ID_PATTERN.match(path)):
-                return True
-            logger.warning("Security: Invalid youtu.be path")
-            return False
+            return bool(YOUTUBE_VIDEO_ID_PATTERN.match(path))
 
-        if host in {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}:
+        if host in {"youtube.com", "www.youtube.com"}:
             if parsed.path != "/watch":
-                logger.warning(f"Security: Invalid youtube.com path {parsed.path}")
                 return False
             query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
             video_ids = query.get("v", [])
-            if len(video_ids) == 1 and bool(YOUTUBE_VIDEO_ID_PATTERN.match(video_ids[0])):
-                return True
-            logger.warning("Security: Invalid youtube.com video ID")
-            return False
+            return len(video_ids) == 1 and bool(YOUTUBE_VIDEO_ID_PATTERN.match(video_ids[0]))
 
-        logger.warning(f"Security: Invalid host {host}")
         return False
     except ValueError:
-        logger.warning("Security: URL parsing error")
         return False
 
 
@@ -121,7 +108,6 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
         A dictionary containing the result of the download.
     """
     if not validate_url(url):
-        logger.warning(f"Security: Blocked unsupported YouTube URL: {url}")
         return {
             "ok": False,
             "error": {
@@ -163,17 +149,6 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
 
             actual_filepath = _find_downloaded_file(actual_filepath)
 
-            if actual_filepath is not None:
-                # Security: prevent directory traversal by validating the path remains in out_dir
-                # Ensure trailing separator on directory comparison
-                actual_filepath_abs = os.path.abspath(actual_filepath)
-                out_dir_abs = os.path.abspath(out_dir)
-                if not out_dir_abs.endswith(os.sep):
-                    out_dir_abs += os.sep
-                if not actual_filepath_abs.startswith(out_dir_abs):
-                    logger.warning(f"Security: Traversal attempt blocked: {actual_filepath}")
-                    actual_filepath = None
-
             if actual_filepath is None:
                 return {
                     "ok": False,
@@ -205,10 +180,8 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                 },
             }
     except yt_dlp.utils.DownloadError as e:
-        logger.warning("Security: Download error occurred")
         return _handle_download_error(e)
     except Exception:
-        logger.error("Security: Unexpected error during download")
         return {
             "ok": False,
             "error": {"code": "download_error", "message": YOUTUBE_IMPORT_FAILED_MESSAGE},

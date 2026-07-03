@@ -121,7 +121,7 @@ jobs:
             # Exclude this OpenCode check run; otherwise the evidence step would
             # wait on itself until the bounded retry budget is exhausted.
             # shellcheck disable=SC2016
-            env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api graphql \
+            gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -1016,22 +1016,21 @@ jobs:
           } >"$overview_body_file"
 
           overview_comment_id="$(
-            env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
               --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") and (.body | contains("<!-- opencode-review-overview -->")))] | sort_by(.created_at) | last.id // empty'
           )"
           if [ -n "$overview_comment_id" ]; then
             jq -n --rawfile body "$overview_body_file" '{body: $body}' |
-              gh api -X PATCH "repos/${GH_REPOSITORY}/issues/comments/${overview_comment_id}" --input - >/dev/null || echo "Failed to update review overview comment due to API error" || echo "Failed to update review overview comment due to API error"
+              gh api -X PATCH "repos/${GH_REPOSITORY}/issues/comments/${overview_comment_id}" --input - >/dev/null
           else
             jq -n --rawfile body "$overview_body_file" '{body: $body}' |
-              gh api -X POST "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --input - >/dev/null || echo "Failed to post review overview comment due to API error" || echo "Failed to post review overview comment due to API error"
+              gh api -X POST "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --input - >/dev/null
           fi
 
       - name: Approve PR if OpenCode review passed
         if: always()
         env:
           GH_TOKEN: ${{ steps.opencode_app_token.outputs.token || secrets.OPENCODE_APPROVE_TOKEN || github.token }}
-          GITHUB_TOKEN_READ: ${{ github.token }}
           GH_REPOSITORY: ${{ github.repository }}
           STRIX_GITHUB_MODELS_TOKEN: ${{ secrets.STRIX_GITHUB_MODELS_TOKEN }}
           OPENCODE_APP_TOKEN: ${{ steps.opencode_app_token.outputs.token }}
@@ -1091,18 +1090,18 @@ jobs:
             } >"$overview_body_file"
 
             overview_comment_id="$(
-              \
-                env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
-                --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") and (.body | contains("<!-- opencode-review-overview -->")))] | sort_by(.created_at) | last.id // empty' || echo ""
-            )" || overview_comment_id=""
+              env GH_TOKEN="$overview_comment_token" \
+                gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+                --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "opencode-agent[bot]") and (.body | contains("<!-- opencode-review-overview -->")))] | sort_by(.created_at) | last.id // empty'
+            )"
             if [ -n "$overview_comment_id" ]; then
               jq -n --rawfile body "$overview_body_file" '{body: $body}' |
-                \
-                  gh api -X PATCH "repos/${GH_REPOSITORY}/issues/comments/${overview_comment_id}" --input - >/dev/null || echo "Failed to update review overview comment due to API error" || echo "Failed to update review overview comment due to API error"
+                env GH_TOKEN="$overview_comment_token" \
+                  gh api -X PATCH "repos/${GH_REPOSITORY}/issues/comments/${overview_comment_id}" --input - >/dev/null
             else
               jq -n --rawfile body "$overview_body_file" '{body: $body}' |
-                \
-                  gh api -X POST "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --input - >/dev/null || echo "Failed to post review overview comment due to API error" || echo "Failed to post review overview comment due to API error"
+                env GH_TOKEN="$overview_comment_token" \
+                  gh api -X POST "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --input - >/dev/null
             fi
             rm -f "$overview_body_file"
           }
@@ -1114,7 +1113,7 @@ jobs:
               --arg body "$body" \
               --arg commit_id "$HEAD_SHA" \
               '{event: $event, body: $body, commit_id: $commit_id}' |
-              gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null || echo "Failed to post review due to API error" || echo "Failed to post review due to API error"
+              gh api -X POST "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}/reviews" --input - >/dev/null
             update_review_overview "$event" "$body"
           }
 
@@ -1191,7 +1190,7 @@ jobs:
             }
           }
           GRAPHQL
-            env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api graphql \
+            gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -1818,7 +1817,7 @@ jobs:
 
             error_file="$(mktemp)"
             runs_json="$(mktemp)"
-            if ! env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json" 2>"$error_file"; then
+            if ! gh api -X GET "repos/${GH_REPOSITORY}/actions/workflows/strix.yml/runs?event=pull_request_target&per_page=30" >"$runs_json" 2>"$error_file"; then
               if grep -Eiq 'HTTP 404|not found' "$error_file"; then
                 : >"$output_file"
                 rm -f "$error_file" "$runs_json"
@@ -1877,7 +1876,7 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
-            if ! env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api graphql \
+            if ! gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -1976,7 +1975,7 @@ jobs:
             rollup_file="$(mktemp)"
             strix_runs_file="$(mktemp)"
             # shellcheck disable=SC2016
-            if ! env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api graphql \
+            if ! gh api graphql \
               -f owner="$owner" \
               -f name="$name" \
               -F number="$PR_NUMBER" \
@@ -2168,7 +2167,7 @@ jobs:
             fi
           }
 
-          live_head_sha="$(env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api -X GET "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')" || live_head_sha=""
+          live_head_sha="$(gh api -X GET "repos/${GH_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
           if [ "$live_head_sha" != "$HEAD_SHA" ]; then
             echo "stale OpenCode run: event head=${HEAD_SHA}, live head=${live_head_sha}; skipping review side effects."
             echo "::endgroup::"
@@ -2267,9 +2266,9 @@ jobs:
 
           sentinel="<!-- opencode-review-gate head_sha=${HEAD_SHA} run_id=${RUN_ID} run_attempt=${RUN_ATTEMPT} -->"
           comment_json="$(
-            env GH_TOKEN="${GITHUB_TOKEN_READ:-$GH_TOKEN}" gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
-              --jq "[.[] | select((.user.login == \"github-actions[bot]\" or .user.login == \"opencode-agent[bot]\") and (.body | contains(\"${sentinel}\")))] | sort_by(.created_at) | last // {}" || echo "{}"
-          )" || comment_json="{}"
+            gh api -X GET "repos/${GH_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+              --jq "[.[] | select((.user.login == \"github-actions[bot]\" or .user.login == \"opencode-agent[bot]\") and (.body | contains(\"${sentinel}\")))] | sort_by(.created_at) | last // {}"
+          )"
           comment_body="$(jq -r '.body // ""' <<<"$comment_json")"
 
           if [ -z "$comment_body" ]; then
