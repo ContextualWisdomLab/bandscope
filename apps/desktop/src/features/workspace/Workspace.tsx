@@ -9,6 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4 } from "lucide-react";
 
+// Performance Optimization: Hoist purely static, mathematically generated JSX structures.
+// Previously, these 84 spans were generated via `Array.from().map()` inside the render function.
+// This causes unnecessary allocation and garbage collection overhead on every Workspace re-render.
+// Extracting it into a module-level constant allows us to reuse the exact same React elements.
+const WORKSPACE_WAVEFORM_BARS = Array.from({ length: 84 }).map((_, index) => (
+  <span
+    key={index}
+    className="w-1 flex-none rounded-full bg-gradient-to-t from-cyan-500 via-sky-400 to-violet-400 opacity-85"
+    style={{ height: `${18 + ((index * 23) % 62)}px` }}
+  />
+));
+
 interface WorkspaceProps {
   song: RehearsalSong;
   sourceBootstrap?: ProjectBootstrapSummary | null;
@@ -96,13 +108,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
           <div className="flex h-24 items-center gap-1 overflow-hidden">
-            {Array.from({ length: 84 }).map((_, index) => (
-              <span
-                key={index}
-                className="w-1 flex-none rounded-full bg-gradient-to-t from-cyan-500 via-sky-400 to-violet-400 opacity-85"
-                style={{ height: `${18 + ((index * 23) % 62)}px` }}
-              />
-            ))}
+            {WORKSPACE_WAVEFORM_BARS}
           </div>
           <div className="absolute inset-x-3 top-1/2 h-px bg-cyan-200/20" />
         </div>
