@@ -1,5 +1,7 @@
 [advisories]
 ignore = [
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
     "RUSTSEC-2024-0413", # atk: gtk-rs GTK3 bindings - no longer maintained
     "RUSTSEC-2024-0416", # atk-sys
     "RUSTSEC-2024-0412", # gdk

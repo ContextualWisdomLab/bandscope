@@ -65,3 +65,9 @@ reason = "Inherited through the current Tauri GTK3 owner chain and already track
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0429"
 reason = "glib 0.18.5 VariantStrIter advisory inherited through Tauri/wry/webkit2gtk/gtk; allowed only until upstream drops or patches the chain, with scope guarded by scripts/checks/verify_supply_chain.py."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0194"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0195"
