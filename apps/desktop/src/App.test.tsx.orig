@@ -1089,22 +1089,6 @@ describe("App", () => {
     });
   });
 
-  it("clears the YouTube URL and resets focus when the clear button is clicked", async () => {
-    render(<App />);
-    const input = screen.getByPlaceholderText(/YouTube URL.../i);
-    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
-
-    // Using simple assertions rather than toHaveValue because RTL setup might not include custom matchers
-    expect((input as HTMLInputElement).value).toBe("https://youtube.com/watch?v=abc123DEF45");
-
-    const clearBtn = screen.getByRole("button", { name: /Clear YouTube URL/i });
-    fireEvent.click(clearBtn);
-
-    expect((input as HTMLInputElement).value).toBe("");
-    expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
-    expect(document.activeElement).toBe(input);
-  });
-
   it("rejects non-http YouTube URL", async () => {
     render(<App />);
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
