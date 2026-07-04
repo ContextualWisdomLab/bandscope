@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2026-07-04 - Short-circuit extremum bound search
+**Learning:** Using `.reduce()` unconditionally to find a minimum or maximum value with a known absolute bound incurs O(N) overhead.
+**Action:** Replace `.reduce()` with a `for...of` loop and an early `break` when searching for a bounded extremum to transform an unconditional O(N) operation into one that can short-circuit.
