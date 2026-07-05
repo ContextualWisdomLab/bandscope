@@ -41,6 +41,12 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "./breadcrumb"
+import {
+  StepIndicator,
+  StepIndicatorMarker,
+  StepItem,
+  StepTitle,
+} from "./step-indicator"
 
 describe("added ui primitives (runtime render)", () => {
   it("Table renders header, row and cell", () => {
@@ -175,5 +181,28 @@ describe("added ui primitives (runtime render)", () => {
     const current = container.querySelector('[data-slot="breadcrumb-page"]')
     expect(current?.getAttribute("aria-current")).toBe("page")
     expect(screen.getByText("Workspace")).toBeTruthy()
+  })
+
+  it("StepIndicator reflects step state on marker and title", () => {
+    const { container } = render(
+      <StepIndicator>
+        <StepItem state="complete">
+          <StepIndicatorMarker state="complete" index={0} />
+          <StepTitle state="complete">가져오기</StepTitle>
+        </StepItem>
+        <StepItem state="current">
+          <StepIndicatorMarker state="current" index={1} />
+          <StepTitle state="current">분석</StepTitle>
+        </StepItem>
+      </StepIndicator>
+    )
+    const markers = container.querySelectorAll('[data-slot="step-marker"]')
+    expect(markers).toHaveLength(2)
+    expect(markers[0].getAttribute("data-state")).toBe("complete")
+    expect(markers[1].getAttribute("data-state")).toBe("current")
+    // completed marker shows a check icon rather than its number
+    expect(markers[0].querySelector("svg")).toBeTruthy()
+    expect(markers[1].textContent).toContain("2")
+    expect(screen.getByText("분석")).toBeTruthy()
   })
 })
