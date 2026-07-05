@@ -11,8 +11,10 @@ dependencies = [
     "demucs>=4.0.1",
     "librosa>=0.11.0",
     "numba<0.66.0",
-    "numpy>=1.26.0",
+    "numpy>=1.26,<2",
     "soundfile>=0.13.1",
+    "torch>=2.2,<2.3",
+    "torchaudio>=2.2,<2.3",
     "urllib3>=2.7.0",
     "yt-dlp>=2026.6.9",
 ]
@@ -42,6 +44,10 @@ source = ["src/bandscope_analysis"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+# numpy 1.26 (pinned for torch 2.2.x / macOS Intel wheels) drops the ndarray
+# type-param defaults numpy 2 provides, so bare `np.ndarray` annotations trip
+# disallow_any_generics. The code is correctly typed; relax just this sub-check.
+disallow_any_generics = false
 files = ["src"]
 
 [tool.ruff]
