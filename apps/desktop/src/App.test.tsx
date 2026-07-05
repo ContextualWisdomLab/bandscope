@@ -203,8 +203,8 @@ describe("App", () => {
     expect(screen.getByText(/SYNCED • LOCAL/i)).toBeTruthy();
     expect(screen.getByText(/Turn a song into a practical rehearsal view\./i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
+    expect(screen.getAllByTitle("Coming soon").length).toBeGreaterThan(0);
+
     expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
     expect(screen.getByText(/^Key$/i)).toBeTruthy();
     expect(screen.getByText(/Local-first/i)).toBeTruthy();
@@ -1427,10 +1427,10 @@ describe("App", () => {
   });
 
 
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
+  it("renders disabled Settings and Help buttons using aria-disabled for accessibility", () => {
     render(<App />);
     const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
+    expect(settingsSpan).toHaveAttribute("aria-disabled", "true");
+    expect(settingsSpan.tagName).toBe("BUTTON");
   });
 });

@@ -492,24 +492,32 @@ export function App() {
           </div>
 
           <nav aria-label="Primary rehearsal views" className="space-y-2">
-            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-disabled={active ? undefined : true}
-                disabled={!active}
-                title={active ? undefined : "Coming soon"}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active
-                    ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
-                    : "cursor-not-allowed text-slate-500 opacity-70"
-                }`}
-              >
-                <Icon className="size-5" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+            {NAV_ITEMS.map(({ label, icon: Icon, active }) =>
+              active ? (
+                <button
+                  key={label}
+                  type="button"
+                  aria-current="page"
+                  className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
+                >
+                  <Icon className="size-5" aria-hidden="true" />
+                  {label}
+                </button>
+              ) : (
+                <button
+                  key={label}
+                  type="button"
+                  aria-disabled="true"
+                  title="Coming soon"
+                  onClick={(e) => e.preventDefault()}
+                  className="flex min-h-11 w-full cursor-not-allowed items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-slate-500 opacity-70 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <span className="sr-only">Coming soon</span>
+                  <Icon className="size-5" aria-hidden="true" />
+                  {label}
+                </button>
+              )
+            )}
           </nav>
 
           <div className="mt-auto space-y-5">
@@ -535,41 +543,60 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <span tabIndex={0} role="button" aria-disabled="true" title="Settings coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+              <button
+                type="button"
+                aria-disabled="true"
+                title="Settings coming soon"
+                onClick={(e) => e.preventDefault()}
+                className="inline-block cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
                 <span className="sr-only">Settings coming soon</span>
-                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
-                  <Settings className="size-5" aria-hidden="true" />
-                </button>
-              </span>
-              <span tabIndex={0} role="button" aria-disabled="true" title="Help coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                <Settings className="size-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-disabled="true"
+                title="Help coming soon"
+                onClick={(e) => e.preventDefault()}
+                className="inline-block cursor-not-allowed rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
                 <span className="sr-only">Help coming soon</span>
-                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
-                  <CircleHelp className="size-5" aria-hidden="true" />
-                </button>
-              </span>
+                <CircleHelp className="size-5" aria-hidden="true" />
+              </button>
             </div>
           </div>
         </aside>
 
         <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label="Compact rehearsal views" className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
-            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-label={`${label} compact view`}
-                aria-disabled={active ? undefined : true}
-                disabled={!active}
-                title={active ? undefined : "Coming soon"}
-                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
-                }`}
-              >
-                <Icon className="size-4" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+            {NAV_ITEMS.map(({ label, icon: Icon, active }) =>
+              active ? (
+                <button
+                  key={label}
+                  type="button"
+                  aria-current="page"
+                  aria-label={`${label} compact view`}
+                  className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 bg-blue-600/70 text-white"
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                  {label}
+                </button>
+              ) : (
+                <button
+                  key={label}
+                  type="button"
+                  aria-disabled="true"
+                  title="Coming soon"
+                  aria-label={`${label} compact view`}
+                  onClick={(e) => e.preventDefault()}
+                  className="inline-flex min-h-10 shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 opacity-70 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <span className="sr-only">Coming soon</span>
+                  <Icon className="size-4" aria-hidden="true" />
+                  {label}
+                </button>
+              )
+            )}
           </nav>
 
           <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
@@ -646,17 +673,18 @@ export function App() {
                     Save Project
                   </Button>
                 ) : (
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Analyze a song to enable saving" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                    <Button
-                      disabled
-                      variant="outline"
-                      className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
-                      aria-label="Save Project"
-                    >
-                      <Save className="mr-2 size-4" aria-hidden="true" />
-                      Save Project
-                    </Button>
-                  </span>
+                  <Button
+                    type="button"
+                    aria-disabled="true"
+                    title="Analyze a song to enable saving"
+                    onClick={(e) => e.preventDefault()}
+                    variant="outline"
+                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-100 opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                  >
+                    <span className="sr-only">Analyze a song to enable saving</span>
+                    <Save className="mr-2 size-4" aria-hidden="true" />
+                    Save Project
+                  </Button>
                 )}
                 <Button
                   onClick={handleStartAnalysis}
