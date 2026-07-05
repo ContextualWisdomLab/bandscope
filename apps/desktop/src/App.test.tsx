@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, createEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -1429,8 +1429,13 @@ describe("App", () => {
 
   it("renders disabled Settings and Help buttons using aria-disabled for accessibility", () => {
     render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("aria-disabled", "true");
-    expect(settingsSpan.tagName).toBe("BUTTON");
+    const settingsButton = screen.getByTitle("Settings coming soon");
+    expect(settingsButton).toHaveAttribute("aria-disabled", "true");
+    expect(settingsButton.tagName).toBe("BUTTON");
+
+    // Simulate click and ensure it prevents default
+    const clickEvent = createEvent.click(settingsButton);
+    fireEvent(settingsButton, clickEvent);
+    expect(clickEvent.defaultPrevented).toBe(true);
   });
 });
