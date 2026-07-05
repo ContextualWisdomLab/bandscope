@@ -99,3 +99,52 @@ def test_bass_source_energy_leaks_across_stems(tmp_path) -> None:
     # A true source separator would keep ~all of a lone bass in the bass stem.
     # This heuristic leaks a meaningful share into other stems (measured ~11%).
     assert leaked_fraction >= 0.05
+
+
+def test_realistic_mix_scores_far_below_usable_separation(tmp_path) -> None:
+    """On overlapping instruments + broadband drums, mean SI-SDR is negative.
+
+    A realistic band (bass/keys/voice whose harmonics share bands, plus
+    broadband drums) is where frequency masking breaks down. Real neural
+    separators score a positive mean SI-SDR here (Demucs ~+9 dB, Open-Unmix
+    ~+5 dB on MUSDB18); this heuristic scores a *negative* mean, i.e. for
+    most stems the "separated" output is further from the true source than
+    the mixture itself. Re-baseline if a real model is introduced.
+    """
+    duration = 2.0
+    times = np.arange(int(_SR * duration), dtype=np.float32) / _SR
+    rng = np.random.default_rng(0)
+
+    def _norm(signal: np.ndarray) -> np.ndarray:
+        return signal / (float(np.max(np.abs(signal))) + 1e-12)
+
+    drums = np.zeros_like(times)
+    burst_len = int(0.12 * _SR)
+    for onset in np.arange(0.0, duration, 0.5):
+        start = int(onset * _SR)
+        burst = rng.standard_normal(burst_len) * np.exp(-np.linspace(0, 6, burst_len))
+        end = min(start + burst_len, drums.size)
+        drums[start:end] += burst[: end - start]
+
+    truth = {
+        "bass": _norm(_harmonic_bass(times, f0=55.0, harmonics=12)),
+        "other": _norm(_harmonic_bass(times, f0=220.0, harmonics=8)),
+        "vocals": _norm(_harmonic_bass(times, f0=261.0, harmonics=6)),
+        "drums": _norm(drums),
+    }
+    mix = np.sum([0.5 * source for source in truth.values()], axis=0).astype(np.float32)
+
+    audio_path = tmp_path / "band.wav"
+    sf.write(audio_path, mix, _SR)
+    stems = AudioStemSeparator(_config(duration)).separate(audio_path)["stems"]
+
+    scores = {
+        name: _si_sdr(stems[name][: times.size], (0.5 * truth[name]).astype(np.float64))
+        for name in truth
+    }
+    mean_si_sdr = float(np.mean(list(scores.values())))
+
+    # Decisively below any usable separator (Demucs/Open-Unmix are positive).
+    assert mean_si_sdr < 0.0
+    # Overlapping instruments contaminate the vocal band: worse than the mix.
+    assert scores["vocals"] < 0.0
