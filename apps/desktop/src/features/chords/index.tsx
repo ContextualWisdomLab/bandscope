@@ -13,21 +13,6 @@ export function ChordsFeature(props: { title: string; song?: RehearsalSong | nul
     );
   }
 
-  // Collect unique chords across all sections and roles
-  const chordsBySectionLabel = new Map<string, { chord: string; functionLabel: string; source: string; roleName: string }[]>();
-  for (const section of song.sections) {
-    const entries: { chord: string; functionLabel: string; source: string; roleName: string }[] = [];
-    for (const role of section.roles) {
-      entries.push({
-        chord: role.harmony.chord,
-        functionLabel: role.harmony.functionLabel,
-        source: role.harmony.source,
-        roleName: role.name,
-      });
-    }
-    chordsBySectionLabel.set(section.label, entries);
-  }
-
   return (
     <section style={{ padding: "24px" }}>
       <h2>{title}</h2>
