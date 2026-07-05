@@ -71,9 +71,7 @@ def _decode(stem_data: bytes) -> Optional[Tuple[np.ndarray, int]]:
     return y, int(sr)
 
 
-def _segment_notes(
-    f0: np.ndarray, voiced_flag: np.ndarray, times: np.ndarray
-) -> List[NoteEvent]:
+def _segment_notes(f0: np.ndarray, voiced_flag: np.ndarray, times: np.ndarray) -> List[NoteEvent]:
     """Group consecutive voiced frames of the same pitch into note events."""
     events: List[NoteEvent] = []
     frame_dt = float(times[1] - times[0]) if len(times) > 1 else 0.0

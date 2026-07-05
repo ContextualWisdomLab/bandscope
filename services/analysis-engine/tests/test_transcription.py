@@ -73,9 +73,7 @@ def test_transcription_pitch_accuracy_on_known_line():
     to the dummy output.
     """
     ground_truth = ["E2", "G2", "A2"]  # 82.41, 98.00, 110.00 Hz
-    events = transcribe_bass_stem(
-        _tone_bytes([(82.41, 0.6), (98.00, 0.6), (110.0, 0.6)])
-    )
+    events = transcribe_bass_stem(_tone_bytes([(82.41, 0.6), (98.00, 0.6), (110.0, 0.6)]))
     detected = _dominant_pitches(events, len(ground_truth))
     correct = sum(d == g for d, g in zip(detected, ground_truth, strict=False))
     accuracy = correct / len(ground_truth)
@@ -116,6 +114,7 @@ def test_audio_is_truncated_to_max_duration(monkeypatch):
 
 def test_pyin_failure_returns_empty(monkeypatch):
     """A failure inside the pitch tracker fails safely and returns []."""
+
     def boom(*args, **kwargs):
         raise RuntimeError("pyin exploded")
 
