@@ -8,3 +8,10 @@ yt_dlp/extractor/go.py
 yt_dlp/extractor/nbc.py
 yt_dlp/extractor/tbs.py
 yt_dlp/extractor/vice.py
+services/analysis-engine/.venv
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/shahid.py
+.venv
+services/analysis-engine/.venv/*
+*/yt_dlp/*
+*/site-packages/yt_dlp/*
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/shahid.py
