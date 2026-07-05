@@ -454,6 +454,29 @@ def test_cli_main_progress_jsonl_streams_status_updates(
     monkeypatch.setattr(cli.sys, "stdout", stdout)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--progress-jsonl"])
 
+    # Stem separation is real (Demucs) ML; a pipeline/progress test must not run it.
+    class _FakeSeparator:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def separate(self, path: Any) -> dict[str, Any]:
+            silence = np.zeros(1024, dtype=np.float32)
+            return {
+                "stems": {stem: silence for stem in ("vocals", "bass", "drums", "other")},
+                "sample_rate": 22050,
+                "duration_seconds": 1.0,
+                "chunk_count": 1,
+                "stem_role_types": {
+                    "vocals": "vocal",
+                    "bass": "instrument",
+                    "drums": "instrument",
+                    "other": "instrument",
+                },
+                "separation_notes": "mock",
+            }
+
+    monkeypatch.setattr("bandscope_analysis.api.AudioStemSeparator", _FakeSeparator)
+
     assert cli.main() == 0
     updates = [json.loads(line) for line in stdout.getvalue().splitlines()]
     assert [update["progressStage"] for update in updates] == [
