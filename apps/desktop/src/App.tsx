@@ -591,7 +591,6 @@ export function App() {
                   onClick={(e) => e.preventDefault()}
                   className="inline-flex min-h-10 shrink-0 cursor-not-allowed items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 opacity-70 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                 >
-                  <span className="sr-only">Coming soon</span>
                   <Icon className="size-4" aria-hidden="true" />
                   {label}
                 </button>

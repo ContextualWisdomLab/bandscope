@@ -360,7 +360,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
                       onClick={(e) => e.preventDefault()}
                       variant="outline"
-                      className="min-h-11 cursor-not-allowed border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                      className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                     >
                       <span className="sr-only">{`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}</span>
                       Transcribe Bass
