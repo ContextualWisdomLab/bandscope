@@ -47,6 +47,12 @@ import {
   StepItem,
   StepTitle,
 } from "./step-indicator"
+import {
+  InPageNav,
+  InPageNavItem,
+  InPageNavLink,
+  InPageNavList,
+} from "./in-page-nav"
 
 describe("added ui primitives (runtime render)", () => {
   it("Table renders header, row and cell", () => {
@@ -204,5 +210,31 @@ describe("added ui primitives (runtime render)", () => {
     expect(markers[0].querySelector("svg")).toBeTruthy()
     expect(markers[1].textContent).toContain("2")
     expect(screen.getByText("분석")).toBeTruthy()
+  })
+
+  it("InPageNav marks the active link with indicator and aria-current", () => {
+    const { container } = render(
+      <InPageNav>
+        <InPageNavList>
+          <InPageNavItem>
+            <InPageNavLink href="#a" active>
+              역할과 화성
+            </InPageNavLink>
+          </InPageNavItem>
+          <InPageNavItem>
+            <InPageNavLink href="#b">전조 / 단순화</InPageNavLink>
+          </InPageNavItem>
+        </InPageNavList>
+      </InPageNav>
+    )
+    const links = container.querySelectorAll('[data-slot="in-page-nav-link"]')
+    expect(links).toHaveLength(2)
+    expect(links[0].getAttribute("data-active")).toBe("true")
+    expect(links[0].getAttribute("aria-current")).toBe("location")
+    expect(links[1].getAttribute("data-active")).toBe("false")
+    expect(links[1].getAttribute("aria-current")).toBeNull()
+    // indicator + gap pair present on the link
+    expect(links[0].className).toContain("border-l-2")
+    expect(links[0].className).toContain("pl-3")
   })
 })
