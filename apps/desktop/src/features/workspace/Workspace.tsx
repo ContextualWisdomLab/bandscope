@@ -311,13 +311,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                  <span tabIndex={0} title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <span className="sr-only">Coming soon</span>
                     <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Play stem</Button>
                   </span>
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                  <span tabIndex={0} title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <span className="sr-only">Coming soon</span>
                     <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Loop section</Button>
                   </span>
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                  <span tabIndex={0} title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <span className="sr-only">Coming soon</span>
                     <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Solo / mute others</Button>
                   </span>
                   {canTranscribeBass ? (
@@ -330,7 +333,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       Transcribe Bass
                     </Button>
                   ) : (
-                    <span tabIndex={0} role="button" aria-disabled="true" title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`} className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <span tabIndex={0} title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`} className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                      <span className="sr-only">{`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}</span>
                       <Button
                         type="button"
                         disabled
