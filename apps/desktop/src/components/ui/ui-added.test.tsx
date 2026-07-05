@@ -1,0 +1,148 @@
+import { render, screen, waitFor } from "@testing-library/react"
+import { describe, expect, it } from "vitest"
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./table"
+import { Checkbox } from "./checkbox"
+import { Switch } from "./switch"
+import { RadioGroup, RadioGroupItem } from "./radio-group"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "./accordion"
+import { Label } from "./label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip"
+
+describe("added ui primitives (runtime render)", () => {
+  it("Table renders header, row and cell", () => {
+    const { container } = render(
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>구간</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell>구간 1</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    )
+    expect(container.querySelector('[data-slot="table"]')).toBeTruthy()
+    expect(screen.getByText("구간 1")).toBeTruthy()
+  })
+
+  it("Checkbox mounts and shows indicator when checked", () => {
+    const { container } = render(<Checkbox defaultChecked aria-label="c" />)
+    const root = container.querySelector('[data-slot="checkbox"]')
+    expect(root).toBeTruthy()
+    expect(root?.getAttribute("data-checked")).not.toBeNull()
+  })
+
+  it("Switch mounts with a thumb", () => {
+    const { container } = render(<Switch defaultChecked aria-label="s" />)
+    expect(container.querySelector('[data-slot="switch"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="switch-thumb"]')).toBeTruthy()
+  })
+
+  it("RadioGroup renders its items", () => {
+    const { container } = render(
+      <RadioGroup defaultValue="a">
+        <RadioGroupItem value="a" aria-label="a" />
+        <RadioGroupItem value="b" aria-label="b" />
+      </RadioGroup>
+    )
+    expect(container.querySelector('[data-slot="radio-group"]')).toBeTruthy()
+    expect(
+      container.querySelectorAll('[data-slot="radio-group-item"]')
+    ).toHaveLength(2)
+  })
+
+  it("Accordion renders trigger and expanded panel content", () => {
+    render(
+      <Accordion defaultValue={["one"]}>
+        <AccordionItem value="one">
+          <AccordionTrigger>역할과 화성</AccordionTrigger>
+          <AccordionContent>패널 내용</AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    )
+    expect(screen.getByText("역할과 화성")).toBeTruthy()
+    expect(screen.getByText("패널 내용")).toBeTruthy()
+  })
+
+  it("Label renders and associates via htmlFor", () => {
+    const { container } = render(<Label htmlFor="x">이메일</Label>)
+    const label = container.querySelector('[data-slot="label"]')
+    expect(label).toBeTruthy()
+    expect(label?.getAttribute("for")).toBe("x")
+  })
+
+  it("Dialog renders its content into a portal when open", async () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>삭제 확인</DialogTitle>
+          <DialogDescription>되돌릴 수 없습니다.</DialogDescription>
+        </DialogContent>
+      </Dialog>
+    )
+    await waitFor(() =>
+      expect(screen.getByText("삭제 확인")).toBeTruthy()
+    )
+    expect(
+      document.querySelector('[data-slot="dialog-content"]')
+    ).toBeTruthy()
+  })
+
+  it("Select renders a trigger with its value", () => {
+    const { container } = render(
+      <Select defaultValue="section">
+        <SelectTrigger aria-label="sel">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="section">구간</SelectItem>
+        </SelectContent>
+      </Select>
+    )
+    expect(
+      container.querySelector('[data-slot="select-trigger"]')
+    ).toBeTruthy()
+  })
+
+  it("Tooltip renders its trigger", () => {
+    const { container } = render(
+      <Tooltip>
+        <TooltipTrigger>도움말</TooltipTrigger>
+        <TooltipContent>이 화성이 먹히는 이유</TooltipContent>
+      </Tooltip>
+    )
+    expect(
+      container.querySelector('[data-slot="tooltip-trigger"]')
+    ).toBeTruthy()
+    expect(screen.getByText("도움말")).toBeTruthy()
+  })
+})
