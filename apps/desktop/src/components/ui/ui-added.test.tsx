@@ -33,6 +33,14 @@ import {
   SelectValue,
 } from "./select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./breadcrumb"
 
 describe("added ui primitives (runtime render)", () => {
   it("Table renders header, row and cell", () => {
@@ -144,5 +152,28 @@ describe("added ui primitives (runtime render)", () => {
       container.querySelector('[data-slot="tooltip-trigger"]')
     ).toBeTruthy()
     expect(screen.getByText("도움말")).toBeTruthy()
+  })
+
+  it("Breadcrumb renders links, current page and separator", () => {
+    const { container } = render(
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="#">Workspace</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Sections</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    )
+    expect(container.querySelector('[data-slot="breadcrumb"]')).toBeTruthy()
+    expect(
+      container.querySelector('[data-slot="breadcrumb-separator"]')
+    ).toBeTruthy()
+    const current = container.querySelector('[data-slot="breadcrumb-page"]')
+    expect(current?.getAttribute("aria-current")).toBe("page")
+    expect(screen.getByText("Workspace")).toBeTruthy()
   })
 })
