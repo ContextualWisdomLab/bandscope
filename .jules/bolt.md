@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2023-07-05 - Avoid intermediate array iteration and apply early breaks for minimum search
+**Learning:** `song?.sections.reduce(...)` causes unconditional O(N) operations and `Array.from({ length: X }).map(...)` creates intermediate arrays of `undefined` values, reducing React rendering performance.
+**Action:** Replace `reduce` with a `for...of` loop with an early `break` when searching for absolute bounds (like a low confidence level), and use the built-in mapping argument `Array.from({ length: X }, ...)` to avoid allocating intermediate arrays.

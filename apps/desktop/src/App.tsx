@@ -180,15 +180,18 @@ function MetricCard({
 function ConfidenceMetric({ song }: { song: RehearsalSong | null }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
-  const lowestConfidence = song?.sections.reduce<RehearsalSong["sections"][number]["confidence"]["level"] | null>(
-    (current, section) => {
-      if (!current || confidenceOrder[section.confidence.level] < confidenceOrder[current]) {
-        return section.confidence.level;
+  let lowestConfidence: RehearsalSong["sections"][number]["confidence"]["level"] | null = null;
+  if (song && song.sections.length > 0) {
+    lowestConfidence = "high";
+    for (const section of song.sections) {
+      if (confidenceOrder[section.confidence.level] < confidenceOrder[lowestConfidence]) {
+        lowestConfidence = section.confidence.level;
+        if (lowestConfidence === "low") {
+          break; // O(1) early exit when finding lowest possible confidence
+        }
       }
-      return current;
-    },
-    null
-  );
+    }
+  }
   const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : "Ready";
   const detail = sectionCount > 0 ? `${sectionCount} section${sectionCount === 1 ? "" : "s"}` : "Local analysis";
 
@@ -523,7 +526,7 @@ export function App() {
               </p>
               <div className="mt-3 h-14 overflow-hidden rounded-xl bg-[linear-gradient(90deg,rgba(34,211,238,.12),rgba(124,58,237,.12))]">
                 <div className="flex h-full items-end gap-0.5 px-2 pb-1" aria-hidden="true">
-                  {Array.from({ length: 34 }).map((_, index) => (
+                  {Array.from({ length: 34 }, (_, index) => (
                     <span
                       key={index}
                       className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"

@@ -1,3 +1,8 @@
+## [0.1.4] - 2023-07-05
+### 성능 (Performance)
+- React 컴포넌트(`App.tsx`, `Workspace.tsx`)에서 `Array.from` 매핑 시 중간 배열이 생성되지 않도록 built-in 인자를 활용하여 최적화
+- `ConfidenceMetric` 컴포넌트 내 `reduce`를 이용한 최솟값 탐색 시 `low` confidence를 찾으면 바로 조기 종료(early break)하도록 개선하여 O(N) 연산을 최적화
+
 # Changelog
 
 ## [Unreleased]

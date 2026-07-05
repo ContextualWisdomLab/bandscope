@@ -293,6 +293,33 @@ describe("App", () => {
     expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
+  it("short-circuits confidence summarization when encountering a low-confidence section", async () => {
+    const loadedProject = succeededResult().result;
+    loadedProject.sections.push(
+      {
+        ...loadedProject.sections[0],
+        id: "verse-2",
+        label: "verse",
+        confidence: { level: "low", source: "model", notes: "Hard to hear." }
+      },
+      {
+        ...loadedProject.sections[0],
+        id: "chorus-2",
+        label: "chorus",
+        confidence: { level: "high", source: "model", notes: "Very clear." }
+      }
+    );
+    mockLoadProject.mockResolvedValueOnce(loadedProject);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^Low$/i)).toBeTruthy();
+    });
+    expect(screen.getAllByText(/3 sections/i).length).toBeGreaterThan(0);
+  });
+
   it("selects a local audio source and starts a local-audio analysis job", async () => {
     tauriInvoke
       .mockResolvedValueOnce(bootstrapResponse())
