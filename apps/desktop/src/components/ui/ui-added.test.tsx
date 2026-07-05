@@ -53,6 +53,7 @@ import {
   InPageNavLink,
   InPageNavList,
 } from "./in-page-nav"
+import { Toaster, toast } from "./sonner"
 
 describe("added ui primitives (runtime render)", () => {
   it("Table renders header, row and cell", () => {
@@ -236,5 +237,12 @@ describe("added ui primitives (runtime render)", () => {
     // indicator + gap pair present on the link
     expect(links[0].className).toContain("border-l-2")
     expect(links[0].className).toContain("pl-3")
+  })
+
+  it("Toaster shows a fired toast message", async () => {
+    render(<Toaster />)
+    expect(typeof toast).toBe("function")
+    toast("분석 준비 완료")
+    expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
   })
 })
