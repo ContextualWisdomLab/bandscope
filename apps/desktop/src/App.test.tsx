@@ -293,6 +293,41 @@ describe("App", () => {
     expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
+  it("summarizes confidence from the lowest-confidence loaded section handling early exit for 'low'", async () => {
+    const baseProject = succeededResult().result;
+    // Clone sections to prevent mutating the shared fixture state and causing flaky tests
+    const loadedProject = {
+      ...baseProject,
+      sections: [
+        {
+          ...baseProject.sections[0],
+          id: "intro-1",
+          label: "intro",
+          confidence: { level: "low" as const, source: "model" as const, notes: "Hard to hear." }
+        },
+        ...baseProject.sections,
+        {
+          ...baseProject.sections[0],
+          id: "chorus-1",
+          label: "chorus",
+          confidence: { level: "high" as const, source: "model" as const, notes: "The chorus form is clear." }
+        }
+      ]
+    };
+    mockLoadProject.mockResolvedValueOnce(loadedProject);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^Low$/i)).toBeTruthy();
+    });
+
+    // Dynamically check the number of sections added
+    const sectionCountText = new RegExp(`${loadedProject.sections.length} sections`, "i");
+    expect(screen.getAllByText(sectionCountText).length).toBeGreaterThan(0);
+  });
+
   it("selects a local audio source and starts a local-audio analysis job", async () => {
     tauriInvoke
       .mockResolvedValueOnce(bootstrapResponse())
