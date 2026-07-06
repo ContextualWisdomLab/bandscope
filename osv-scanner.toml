@@ -1,0 +1,5 @@
+# OSV scanner exceptions. Keep aligned with docs/security/dependency-policy.md.
+
+[[IgnoredVulns]]
+id = "GHSA-53q9-r3pm-6pq6"
+reason = "torch<=2.2.2 torch.load RCE: torch 2.2.2 is the last release with macOS Intel wheels (cross-platform build policy mandates Intel mac). torch.load only consumes demucs's pinned model weights, never user-supplied data. Remove on ONNX migration or Intel-mac policy change."
