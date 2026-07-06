@@ -5,7 +5,7 @@ import { ConfidenceBadge } from "./ConfidenceBadge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, CheckCircle2, Music2, Wand2, Lightbulb, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, Music2, Wand2, Lightbulb, Info, Music } from "lucide-react";
 
 interface SectionRoadmapProps {
   song: RehearsalSong;
@@ -193,6 +193,13 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           <div className="flex items-start gap-2 rounded-md border border-indigo-300/20 bg-indigo-300/[0.08] p-2 text-xs font-medium text-indigo-100">
                             <Wand2 className="mt-0.5 size-3.5 shrink-0" />
                             <span className="leading-snug">{role.simplification}</span>
+                          </div>
+                        )}
+
+                        {role.transpositionPlan && (
+                          <div className="flex items-start gap-2 rounded-md border border-sky-300/20 bg-sky-300/[0.08] p-2 text-xs font-medium text-sky-100">
+                            <Music className="mt-0.5 size-3.5 shrink-0" />
+                            <span className="leading-snug">{role.transpositionPlan}</span>
                           </div>
                         )}
 

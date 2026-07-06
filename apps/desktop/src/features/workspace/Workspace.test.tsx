@@ -105,8 +105,8 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
-    expect(screen.getByText(/whole step lower/i)).toBeTruthy();
-    expect(screen.getByText(/Lock the bass entrance against the pickup/i)).toBeTruthy();
+    expect(screen.getAllByText(/whole step lower/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Lock the bass entrance against the pickup/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 

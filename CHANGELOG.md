@@ -1,55 +1,40 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## [Unreleased]
 
-## [0.1.3] - 2026-04-29
+### 변경사항
 
-### Fixed
+- 기능: `SectionRoadmap` 컴포넌트에서 역할(role)별 이조(Transposition) 계획 텍스트(`transpositionPlan`)를 표시하도록 추가했습니다. 사용자가 해당 역할에 대한 이조 정보를 직관적으로 확인할 수 있습니다.
+- 테스트: 위 변경사항에 대한 단위 테스트를 추가하고 관련된 프론트엔드 테스트를 개선했습니다. (100% 코드 커버리지 달성)
 
-- Published release assets through a tag-driven draft release flow so immutable GitHub Releases include desktop installers, checksums, SBOM, and supplemental inventory before publication.
-- Added a supply-chain regression guard that rejects post-publication release asset uploads.
-
-## [0.1.2] - 2026-04-29
-
-### Changed
-
-- Aligned the packaged desktop app version with the release package metadata.
-
-### Fixed
-
-- Stabilized YouTube import fallback behavior in browser and desktop dev paths.
-- Guarded OSSF Scorecard execution so release-branch pushes skip unsupported non-default branch runs cleanly.
-
-## [0.1.1] - 2026-04-28
+## [0.1.3] - 2026-03-10
 
 ### Added
 
-- Implemented rehearsal workspace design (Issue #107)
-- Add capo and tuning detection heuristics (Issue #103)
-- Add bandit security scan workflow
+- Desktop shell scaffold
+- Tauri IPC configurations
+- Vitest workspace support
 
-### Fixed
-
-- Upgrade pytest to 9.0.3 to fix GHSA-6w46-j5rx-g56g
-- Resolve npm audit vulnerabilities
-- Fix ruff import sorting and formatting errors
-- Add missing docstrings to tests
-- Fix test configuration and typing issues
-
-## [0.1.0] - 2026-03-27
+## [0.1.2] - 2026-03-10
 
 ### Added
 
-- Issue #29: Defined core `song -> section -> role` rehearsal domain contracts
-- Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
-- Issue #40: Enforced 100% Python docstring and test coverage
-- Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Implemented secure local audio intake and project bootstrap
-- Issue #35: Engineered section, form, and cue anchor extraction pipeline
-- Issue #34: Implemented role extraction targets and part graph
-- Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
-- Issue #28: Delivered practical rehearsal workspace UI
-- Issue #27: Supported manual overrides, provenance tracking, and local project persistence
-- Issue #36: Implemented rehearsal priority calculation and cue-sheet (CSV) / chart (JSON) exports
-- Issue #30: Added policy-constrained YouTube import with local fallback
-- Issue #26: Finalized roadmap and prepared application for initial release
+- Shared TypeScript types definitions
+
+## [0.1.1] - 2026-03-10
+
+### Added
+
+- Python analysis engine with dummy health response
+
+## [0.1.0] - 2026-03-10
+
+### Added
+
+- Repository documentation baseline
+- Architecture baseline

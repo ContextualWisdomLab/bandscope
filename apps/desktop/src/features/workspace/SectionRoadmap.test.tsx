@@ -60,4 +60,13 @@ describe("SectionRoadmap", () => {
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
+
+  it("renders transpositionPlan when provided", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0].roles[0].transpositionPlan = "Capo 2, play in G";
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getByText(/Capo 2, play in G/)).toBeTruthy();
+  });
 });
