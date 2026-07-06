@@ -307,10 +307,14 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if cache_root is not None:
         if not isinstance(cache_root, str) or not cache_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+        if ".." in cache_root.replace("\\", "/").split("/"):
+            raise ValueError("Invalid analysis job request: path traversal detected in cacheRoot")
         normalized["cacheRoot"] = cache_root
     if temp_root is not None:
         if not isinstance(temp_root, str) or not temp_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+        if ".." in temp_root.replace("\\", "/").split("/"):
+            raise ValueError("Invalid analysis job request: path traversal detected in tempRoot")
         normalized["tempRoot"] = temp_root
 
     return normalized

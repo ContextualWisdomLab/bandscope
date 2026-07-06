@@ -261,6 +261,38 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             },
             "tempRoot",
         ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "cacheRoot": "/tmp/../../../etc/passwd",
+            },
+            "path traversal detected in cacheRoot",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "tempRoot": "C:\\temp\\..\\..\\Windows\\System32",
+            },
+            "path traversal detected in tempRoot",
+        ),
     ]
 
     for payload, message in cases:
