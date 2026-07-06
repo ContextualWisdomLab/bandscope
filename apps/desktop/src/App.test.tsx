@@ -1438,5 +1438,13 @@ describe("App", () => {
     const event = createEvent.click(settingsButton);
     fireEvent(settingsButton, event);
     expect(event.defaultPrevented).toBe(true);
+
+    const helpButton = screen.getByTitle("Help coming soon");
+    expect(helpButton.tagName).toBe("BUTTON");
+    expect(helpButton).toHaveAttribute("aria-disabled", "true");
+
+    const helpEvent = createEvent.click(helpButton);
+    fireEvent(helpButton, helpEvent);
+    expect(helpEvent.defaultPrevented).toBe(true);
   });
 });
