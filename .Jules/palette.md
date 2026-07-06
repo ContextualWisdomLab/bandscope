@@ -29,3 +29,6 @@
 ## 2024-07-01 - Testing components with focusable disabled button wrappers
 **Learning:** When native disabled buttons are wrapped in a focusable `span` to provide accessible tooltips, tests that previously found and clicked the `button` (by temporarily removing the `disabled` attribute) may fail or become overly complex. It is cleaner and more accurate to query the wrapper element (e.g. via its `title`) and fire events on it, reflecting the actual accessible DOM structure.
 **Action:** When testing UI components that wrap disabled buttons in a focusable span for accessibility (e.g., using a tooltip/title), use `screen.getByTitle(...)` to query the wrapper element for interactions like `fireEvent.click` rather than `screen.getByRole('button')`.
+## 2026-07-06 - 스크린 리더 텍스트 접근성 및 ARIA 속성 주의점
+**Learning:** 비활성화된 버튼을 `span`으로 감싸 툴팁을 제공할 때, `role="button"`과 `aria-disabled="true"` 속성이 적용된 상태에서 시각적으로 숨겨진 스크린 리더 전용 텍스트(`sr-only`)를 자식 요소로 추가하면 화면 리더기에서 툴팁 내용이 중복해서 읽히거나 혼란을 줄 수 있습니다. 반대로, 포커스 가능하게 만든 엘리먼트에 역할(role)이 없는 상태로 `tabIndex={0}`만 있으면 접근성에 어긋납니다. 기존 구현의 의도를 정확히 파악하여 ARIA 속성 유지 여부를 신중하게 결정해야 합니다.
+**Action:** 접근성 개선 작업 시 기존 구현의 `role`과 `aria-disabled` 속성을 임의로 삭제하지 말고, 스크린 리더에서 읽어주는 기존 텍스트(예: `title` 속성이나 `aria-label`)와 충돌하거나 중복을 초래하는 `sr-only` 텍스트 추가를 피해야 합니다.
