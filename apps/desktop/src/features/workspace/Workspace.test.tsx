@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -133,6 +133,19 @@ describe("Workspace", () => {
 
     expect(screen.getByText("vi pedal anchor")).toBeTruthy();
     expect(screen.getAllByText("Stay on roots if the chorus entrance gets muddy.").length).toBeGreaterThan(0);
+  });
+
+  it("prevents default click events on aria-disabled coming soon buttons", () => {
+    const song = createDemoRehearsalSong();
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const playStemButton = screen.getByRole("button", { name: "Play stem" });
+    const event = createEvent.click(playStemButton);
+    fireEvent(playStemButton, event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(playStemButton.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("exports a metadata-only handoff artifact from the workspace", async () => {
