@@ -111,6 +111,18 @@ struct RehearsalSongPayload {
     title: String,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+/// Score attachment metadata persisted inside the song payload. Only the
+/// locally minted score id and the display file name cross the IPC boundary;
+/// the PDF bytes stay in the app-owned scores directory keyed by that id.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ScoreAttachmentMetadataPayload {
+    id: String,
+    file_name: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1540,6 +1552,56 @@ mod tests {
             .expect("shared rehearsal song contract should deserialize in Tauri");
 
         assert_eq!(parsed.sections[0].id, "verse-1");
+    }
+
+    #[test]
+    fn rehearsal_song_payload_round_trips_score_attachments() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["scoreAttachments"] = json!([
+            { "id": "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", "fileName": "opener.pdf" }
+        ]);
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with score attachments should deserialize");
+        let attachments = parsed
+            .score_attachments
+            .as_ref()
+            .expect("score attachments should survive deserialization");
+        assert_eq!(attachments[0].file_name, "opener.pdf");
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("song payload should serialize back to JSON");
+        assert_eq!(
+            serialized["scoreAttachments"][0]["fileName"],
+            json!("opener.pdf")
+        );
+    }
+
+    #[test]
+    fn rehearsal_song_payload_accepts_legacy_files_without_score_attachments() {
+        let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("legacy payload without score attachments should deserialize");
+
+        assert!(parsed.score_attachments.is_none());
+        let serialized =
+            serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
+        assert!(serialized.get("scoreAttachments").is_none());
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_unknown_score_attachment_fields() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["scoreAttachments"] = json!([
+            {
+                "id": "3f2c8f0e-1a2b-4c3d-8e9f-001122334455",
+                "fileName": "opener.pdf",
+                "sourcePath": "/etc/passwd"
+            }
+        ]);
+
+        assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
     }
 
     #[test]

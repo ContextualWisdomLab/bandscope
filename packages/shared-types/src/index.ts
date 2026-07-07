@@ -212,12 +212,19 @@ export type RehearsalWorkspace = {
 };
 
 /** Documented. */
+export type ScoreAttachment = {
+  id: string;
+  fileName: string;
+};
+
+/** Documented. */
 export type RehearsalSong = {
   id: string;
   title: string;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
   collaboration?: RehearsalCollaboration;
+  scoreAttachments?: ScoreAttachment[];
 };
 
 /** Documented. */
@@ -1728,6 +1735,25 @@ function migrateLegacySectionTimeRanges(value: unknown): unknown {
 }
 
 /** Documented. */
+function validateScoreAttachment(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["id", "fileName"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.id !== "string" || value.id.length === 0) {
+    return invalidField(`${path}.id`);
+  }
+  if (typeof value.fileName !== "string" || value.fileName.length === 0) {
+    return invalidField(`${path}.fileName`);
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateRehearsalSong(
   value: unknown,
   options: ValidationOptions = STRICT_VALIDATION_OPTIONS
@@ -1738,7 +1764,7 @@ function validateRehearsalSong(
   if (!isRecord(normalized)) {
     return invalidField("root");
   }
-  const extraKey = unexpectedKey(normalized, ["id", "title", "sections", "exportSummary", "collaboration"], "");
+  const extraKey = unexpectedKey(normalized, ["id", "title", "sections", "exportSummary", "collaboration", "scoreAttachments"], "");
   if (extraKey) {
     return extraKey;
   }
@@ -1761,6 +1787,17 @@ function validateRehearsalSong(
     const collaborationError = validateRehearsalCollaboration(normalized.collaboration, "collaboration");
     if (collaborationError) {
       return collaborationError;
+    }
+  }
+  if (normalized.scoreAttachments !== undefined) {
+    if (!isDenseArray(normalized.scoreAttachments)) {
+      return invalidField("scoreAttachments");
+    }
+    for (const [index, attachment] of normalized.scoreAttachments.entries()) {
+      const attachmentError = validateScoreAttachment(attachment, `scoreAttachments[${index}]`);
+      if (attachmentError) {
+        return attachmentError;
+      }
     }
   }
 

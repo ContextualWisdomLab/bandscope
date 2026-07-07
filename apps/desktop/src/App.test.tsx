@@ -2,6 +2,17 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
+// The Score view pulls in ScoreViewer -> pdfjs-dist, which needs DOMMatrix
+// (absent in jsdom). Stub the pdf.js bridge so App can mount the real
+// ScoreView without loading the WebGL/canvas-heavy library.
+vi.mock("./features/score/pdfjs", () => ({
+  configureScorePdfWorker: vi.fn(),
+  loadScorePdf: vi.fn(() => ({
+    promise: Promise.resolve({ numPages: 1, getPage: vi.fn() }),
+    destroy: vi.fn(() => Promise.resolve())
+  }))
+}));
+
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
@@ -1432,5 +1443,36 @@ describe("App", () => {
     const settingsSpan = screen.getByTitle("Settings coming soon");
     expect(settingsSpan).toHaveAttribute("tabIndex", "0");
     expect(settingsSpan).toHaveAttribute("role", "button");
+  });
+
+  it("keeps the Score view disabled until a song is loaded", () => {
+    render(<App />);
+
+    const scoreButtons = screen.getAllByRole("button", { name: /^Score$/i });
+    expect(scoreButtons.length).toBeGreaterThan(0);
+    for (const button of scoreButtons) {
+      expect(button).toBeDisabled();
+    }
+    expect(screen.queryByRole("heading", { name: /Score · Late Night Set/i })).toBeNull();
+  });
+
+  it("switches to the Score view after a project is loaded", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+    });
+
+    const scoreButton = screen.getAllByRole("button", { name: /^Score$/i })[0];
+    expect(scoreButton).toBeEnabled();
+    fireEvent.click(scoreButton);
+
+    expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
+    // Projects opened from a .bscope file have no live workspace, so score
+    // storage is gated behind the active-project notice.
+    expect(screen.getByText(/Scores attach to the active analysis project/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Song Timeline/i)).toBeNull();
   });
 });

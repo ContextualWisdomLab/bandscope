@@ -40,7 +40,8 @@ import {
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
-import { createTranslator, detectPreferredLocale } from "./i18n";
+import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
+import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
@@ -53,17 +54,25 @@ const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:User
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
-const NAV_ITEMS = [
-  { label: "Workspace", icon: Home, active: true },
-  { label: "Import", icon: Upload, active: false },
-  { label: "Export", icon: Save, active: false },
-  { label: "Sections", icon: ListMusic, active: false },
-  { label: "Roles", icon: Users, active: false },
-  { label: "Stem Lab", icon: AudioWaveform, active: false },
-  { label: "Cues", icon: Sparkles, active: false },
-  { label: "Transpose", icon: SlidersHorizontal, active: false },
-  { label: "Notes", icon: FileMusic, active: false }
-] as const;
+/** Rehearsal views the sidebar can switch between today. */
+type RehearsalView = "workspace" | "score";
+
+const NAV_ITEMS: ReadonlyArray<{
+  label: string;
+  labelKey?: TranslationKey;
+  icon: typeof Home;
+  view: RehearsalView | null;
+}> = [
+  { label: "Workspace", icon: Home, view: "workspace" },
+  { label: "Import", icon: Upload, view: null },
+  { label: "Export", icon: Save, view: null },
+  { label: "Sections", icon: ListMusic, view: null },
+  { label: "Roles", icon: Users, view: null },
+  { label: "Stem Lab", icon: AudioWaveform, view: null },
+  { label: "Cues", icon: Sparkles, view: null },
+  { label: "Transpose", icon: SlidersHorizontal, view: null },
+  { label: "Score", labelKey: "navScore", icon: FileMusic, view: "score" }
+];
 
 const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
 
@@ -227,6 +236,7 @@ export function App() {
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
@@ -466,6 +476,27 @@ export function App() {
     return <EmptyState />;
   };
 
+  // The score view needs a song; fall back to the workspace until one exists.
+  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+
+  /** Resolve label, enablement, and active state for one sidebar item. */
+  const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
+    const enabled = item.view === "workspace" || (item.view === "score" && jobResult !== null);
+    return {
+      label: item.labelKey ? t(item.labelKey) : item.label,
+      enabled,
+      active: enabled && item.view === currentView,
+      title: enabled ? undefined : item.view === "score" ? t("scoreNavDisabledHint") : "Coming soon"
+    };
+  };
+
+  /** Switch the main content to the clicked rehearsal view. */
+  const handleNavSelect = (view: RehearsalView | null) => {
+    if (view) {
+      setActiveView(view);
+    }
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bandscope-bg)] text-slate-100 selection:bg-cyan-300/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
@@ -492,24 +523,30 @@ export function App() {
           </div>
 
           <nav aria-label="Primary rehearsal views" className="space-y-2">
-            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-disabled={active ? undefined : true}
-                disabled={!active}
-                title={active ? undefined : "Coming soon"}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active
-                    ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
-                    : "cursor-not-allowed text-slate-500 opacity-70"
-                }`}
-              >
-                <Icon className="size-5" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+            {NAV_ITEMS.map((item) => {
+              const { label, enabled, active, title } = navButtonState(item);
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  aria-current={active ? "page" : undefined}
+                  aria-disabled={enabled ? undefined : true}
+                  disabled={!enabled}
+                  title={title}
+                  onClick={() => handleNavSelect(item.view)}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                    active
+                      ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
+                      : enabled
+                        ? "text-slate-200 hover:bg-white/5"
+                        : "cursor-not-allowed text-slate-500 opacity-70"
+                  }`}
+                >
+                  <item.icon className="size-5" aria-hidden="true" />
+                  {label}
+                </button>
+              );
+            })}
           </nav>
 
           <div className="mt-auto space-y-5">
@@ -553,23 +590,31 @@ export function App() {
 
         <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label="Compact rehearsal views" className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
-            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-label={`${label} compact view`}
-                aria-disabled={active ? undefined : true}
-                disabled={!active}
-                title={active ? undefined : "Coming soon"}
-                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
-                }`}
-              >
-                <Icon className="size-4" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+            {NAV_ITEMS.map((item) => {
+              const { label, enabled, active, title } = navButtonState(item);
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  aria-current={active ? "page" : undefined}
+                  aria-label={`${label} compact view`}
+                  aria-disabled={enabled ? undefined : true}
+                  disabled={!enabled}
+                  title={title}
+                  onClick={() => handleNavSelect(item.view)}
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                    active
+                      ? "bg-blue-600/70 text-white"
+                      : enabled
+                        ? "text-slate-200 hover:bg-white/5"
+                        : "cursor-not-allowed text-slate-500 opacity-70"
+                  }`}
+                >
+                  <item.icon className="size-4" aria-hidden="true" />
+                  {label}
+                </button>
+              );
+            })}
           </nav>
 
           <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
@@ -732,7 +777,15 @@ export function App() {
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-            {renderWorkspaceState()}
+            {currentView === "score" && jobResult ? (
+              <ScoreView
+                song={jobResult}
+                projectId={jobResultBootstrap?.projectId ?? null}
+                onSongUpdate={handleSongUpdate}
+              />
+            ) : (
+              renderWorkspaceState()
+            )}
           </section>
         </main>
       </div>
