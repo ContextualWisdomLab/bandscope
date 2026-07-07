@@ -647,7 +647,6 @@ export function App() {
                   </Button>
                 ) : (
                   <span tabIndex={0} role="button" aria-disabled="true" title="Analyze a song to enable saving" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                    <span className="sr-only">Analyze a song to enable saving</span>
                     <Button
                       disabled
                       variant="outline"
