@@ -19,8 +19,10 @@ Security Notes:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
+import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -120,6 +122,10 @@ class AudioStemSeparator:
         Demucs (and torch) are installed only on platforms with current torch
         wheels (see pyproject platform markers); elsewhere separation fails with a
         clear error the pipeline already surfaces safely.
+
+        The first load fetches model weights, whose download progress torch may
+        print to stdout — that would corrupt the CLI's JSON stdout protocol, so
+        stdout is redirected to stderr while the model is obtained.
         """
         if self._model is None:
             try:
@@ -129,7 +135,8 @@ class AudioStemSeparator:
                     "Stem separation is not available on this platform (demucs/torch not installed)"
                 ) from error
 
-            model = get_model(self.config.model_name)
+            with contextlib.redirect_stdout(sys.stderr):
+                model = get_model(self.config.model_name)
             model.eval()
             self._model = model
         return self._model
