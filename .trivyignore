@@ -8,3 +8,10 @@ yt_dlp/extractor/go.py
 yt_dlp/extractor/nbc.py
 yt_dlp/extractor/tbs.py
 yt_dlp/extractor/vice.py
+# glib 0.18.5 (GHSA-wrw7-89jp-8q8g / RUSTSEC-2024-0429 VariantStrIter): inherited
+# through the Tauri v2 wry/webkit2gtk/gtk GTK3 chain; no compatible upstream path
+# to glib >=0.20 yet. Already allowlisted in apps/desktop/src-tauri/osv-scanner.toml
+# and .cargo/audit.toml — this aligns the central trivy-fs scan with the same
+# documented exception. Remove when the Tauri GTK chain moves off glib 0.18.
+GHSA-wrw7-89jp-8q8g
+CVE-2024-3566
