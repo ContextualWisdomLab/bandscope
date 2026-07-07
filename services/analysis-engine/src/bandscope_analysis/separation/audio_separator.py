@@ -115,9 +115,19 @@ class AudioStemSeparator:
         return {name: _as_float_array(sources[name]) for name in _STEM_ORDER}
 
     def _load_model(self) -> Any:
-        """Lazily load and cache the Demucs model."""
+        """Lazily load and cache the Demucs model.
+
+        Demucs (and torch) are installed only on platforms with current torch
+        wheels (see pyproject platform markers); elsewhere separation fails with a
+        clear error the pipeline already surfaces safely.
+        """
         if self._model is None:
-            from demucs.pretrained import get_model
+            try:
+                from demucs.pretrained import get_model
+            except ImportError as error:
+                raise ValueError(
+                    "Stem separation is not available on this platform (demucs/torch not installed)"
+                ) from error
 
             model = get_model(self.config.model_name)
             model.eval()

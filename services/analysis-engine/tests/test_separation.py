@@ -368,3 +368,26 @@ def test_audio_stem_separator_real_demucs_isolates_bass(tmp_path) -> None:
 
     n = min(len(stems["bass"]), len(bass))
     assert sisdr(stems["bass"][:n], bass[:n]) > 5.0
+
+
+def test_audio_stem_separator_unavailable_platform(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Platforms without demucs/torch degrade with a clear, safe error."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_demucs(name: str, *args: object, **kwargs: object) -> object:
+        if name.startswith("demucs"):
+            raise ImportError("No module named 'demucs'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_demucs)
+    audio_path = tmp_path / "mix.wav"
+    sf.write(audio_path, np.zeros(4_000, dtype=np.float32), 8_000)
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=1_000_000)
+    )
+    with pytest.raises(ValueError, match="not available on this platform"):
+        separator.separate(audio_path)
