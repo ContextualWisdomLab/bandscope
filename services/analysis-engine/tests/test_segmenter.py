@@ -364,3 +364,17 @@ def test_labels_from_repetition_edges_and_bridge() -> None:
     labels = assign_section_labels([0.0, 5.0, 10.0, 19.0], 20.0, repetition_groups=[0, 1, 2, 1])
     names = [label for label, _ in labels]
     assert names == ["intro", "chorus", "bridge", "chorus"]
+
+
+def test_repetition_groups_empty_boundaries_returns_empty() -> None:
+    """No boundaries yields no repetition groups (no chroma is computed)."""
+    audio = np.zeros(22050, dtype=np.float32)
+    assert _segment_repetition_groups(audio, 22050, [], 1.0) == []
+
+
+def test_labels_from_repetition_last_unique_segment_is_outro() -> None:
+    """A unique, late-positioned final segment is labeled outro via repetition path."""
+    # All segments unique: seg0 -> intro, seg1 -> bridge (mid), seg2 -> outro (>0.85).
+    labels = assign_section_labels([0.0, 5.0, 18.0], 20.0, repetition_groups=[0, 1, 2])
+    names = [label for label, _ in labels]
+    assert names == ["intro", "bridge", "outro"]
