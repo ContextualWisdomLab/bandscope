@@ -3,9 +3,6 @@ name = "bandscope-desktop"
 version = "0.1.0"
 edition = "2021"
 
-[build-dependencies]
-tauri-build = { version = "2", default-features = false, features = [] }
-
 [dependencies]
 rfd = "0.17.2"
 serde = { version = "1", features = ["derive"] }

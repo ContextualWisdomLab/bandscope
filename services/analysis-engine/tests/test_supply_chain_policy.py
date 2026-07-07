@@ -5018,7 +5018,7 @@ Finalizing artifact upload
     ]
     assert artifact_finalize_signals == [
         "artifact upload finalize request reset: "
-        + "##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET"
+        "##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET"
     ]
     assert any(
         "Failed to FinalizeArtifact: Unable to make request: ECONNRESET" in signal
@@ -5150,11 +5150,9 @@ def test_opencode_normalizer_defaults_missing_approve_findings(tmp_path: Path) -
         "\n".join(
             [
                 "review text",
-                (
-                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                    + '"result":"APPROVE","reason":"checks and review passed",'
-                    + '"summary":"no source-backed blockers found"}'
-                ),
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"checks and review passed",'
+                '"summary":"no source-backed blockers found"}',
             ]
         ),
         encoding="utf-8",
@@ -5185,11 +5183,9 @@ def test_opencode_review_gate_defaults_missing_approve_findings(tmp_path: Path) 
                 "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
                 "",
                 "<!-- opencode-review-control-v1",
-                (
-                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                    + '"result":"APPROVE","reason":"checks and review passed",'
-                    + '"summary":"no source-backed blockers found"}'
-                ),
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"checks and review passed",'
+                '"summary":"no source-backed blockers found"}',
                 "-->",
                 "",
             ]
@@ -5230,12 +5226,10 @@ def test_opencode_normalizer_rejects_approve_without_structural_review(
     original_output = "\n".join(
         [
             "review text",
-            (
-                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                + '"result":"APPROVE","reason":"no blockers found",'
-                + '"summary":"No blockers found, but evidence was truncated",'
-                + '"findings":[]}'
-            ),
+            '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+            '"result":"APPROVE","reason":"no blockers found",'
+            '"summary":"No blockers found, but evidence was truncated",'
+            '"findings":[]}',
         ]
     )
     output_file.write_text(original_output, encoding="utf-8")
@@ -5273,13 +5267,11 @@ def test_opencode_normalizer_rejects_optional_structural_review_variants(
             original_output = "\n".join(
                 [
                     "review text",
-                    (
-                        '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                        + '"result":"APPROVE",'
-                        + f'"reason":"{reason}",'
-                        + f'"summary":"{summary}",'
-                        + '"findings":[]}'
-                    ),
+                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                    '"result":"APPROVE",'
+                    f'"reason":"{reason}",'
+                    f'"summary":"{summary}",'
+                    '"findings":[]}',
                 ]
             )
             output_file.write_text(original_output, encoding="utf-8")
@@ -5311,12 +5303,10 @@ def test_opencode_review_gate_rejects_approve_without_structural_review(
                 "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
                 "",
                 "<!-- opencode-review-control-v1",
-                (
-                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                    + '"result":"APPROVE","reason":"no blockers found",'
-                    + '"summary":"No blockers found, but evidence was truncated",'
-                    + '"findings":[]}'
-                ),
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"No blockers found, but evidence was truncated",'
+                '"findings":[]}',
                 "-->",
                 "",
             ]
@@ -5363,13 +5353,11 @@ def test_opencode_review_gate_rejects_optional_structural_review_variants(
                         "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
                         "",
                         "<!-- opencode-review-control-v1",
-                        (
-                            '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                            + '"result":"APPROVE",'
-                            + f'"reason":"{reason}",'
-                            + f'"summary":"{summary}",'
-                            + '"findings":[]}'
-                        ),
+                        '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                        '"result":"APPROVE",'
+                        f'"reason":"{reason}",'
+                        f'"summary":"{summary}",'
+                        '"findings":[]}',
                         "-->",
                         "",
                     ]
@@ -5411,13 +5399,11 @@ def test_opencode_normalizer_accepts_completed_local_structural_fallback(
         "\n".join(
             [
                 "review text",
-                (
-                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                    + '"result":"APPROVE","reason":"no blockers found",'
-                    + '"summary":"Could not access CodeGraph; performed focused local '
-                    + 'source/diff inspection and completed structural exploration",'
-                    + '"findings":[]}'
-                ),
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"Could not access CodeGraph; performed focused local '
+                'source/diff inspection and completed structural exploration",'
+                '"findings":[]}',
             ]
         ),
         encoding="utf-8",
@@ -5450,13 +5436,11 @@ def test_opencode_review_gate_accepts_completed_local_structural_fallback(
                 "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
                 "",
                 "<!-- opencode-review-control-v1",
-                (
-                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                    + '"result":"APPROVE","reason":"no blockers found",'
-                    + '"summary":"Could not access CodeGraph; performed focused local '
-                    + 'source/diff inspection and completed structural exploration",'
-                    + '"findings":[]}'
-                ),
+                '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                '"result":"APPROVE","reason":"no blockers found",'
+                '"summary":"Could not access CodeGraph; performed focused local '
+                'source/diff inspection and completed structural exploration",'
+                '"findings":[]}',
                 "-->",
                 "",
             ]
