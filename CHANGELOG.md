@@ -4,7 +4,7 @@
 
 ### Added
 
-- Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
+- 합주 워크스페이스에 분석된 곡의 템포(BPM)를 보여주는 기능 추가
 
 ## [0.1.3] - 2026-04-29
 
