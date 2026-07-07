@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed

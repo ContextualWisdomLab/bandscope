@@ -892,6 +892,33 @@ describe("shared type helpers", () => {
     })).toThrow("sections[0].roles[0].manualOverrides[0].extraField");
   });
 
+  it("validates tempo correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(isRehearsalSong(validSong)).toBe(true);
+    validSong.tempo = 140;
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    const withoutTempo = createDemoRehearsalSong();
+    delete withoutTempo.tempo;
+    expect(isRehearsalSong(withoutTempo)).toBe(true);
+    expect(parseRehearsalSong(withoutTempo)).toEqual(withoutTempo);
+
+    const invalidTempoString = { ...createDemoRehearsalSong(), tempo: "120" };
+    expect(() => parseRehearsalSong(invalidTempoString)).toThrow("tempo");
+
+    const invalidTempoZero = { ...createDemoRehearsalSong(), tempo: 0 };
+    expect(() => parseRehearsalSong(invalidTempoZero)).toThrow("tempo");
+
+    const invalidTempoNegative = { ...createDemoRehearsalSong(), tempo: -10 };
+    expect(() => parseRehearsalSong(invalidTempoNegative)).toThrow("tempo");
+
+    const invalidTempoNaN = { ...createDemoRehearsalSong(), tempo: NaN };
+    expect(() => parseRehearsalSong(invalidTempoNaN)).toThrow("tempo");
+
+    const invalidTempoInfinity = { ...createDemoRehearsalSong(), tempo: Infinity };
+    expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
+  });
+
   it("covers detailed validation branches", () => {
     const createInvalidSong = (mutate: (song: RehearsalSong) => unknown) => {
       const song = createDemoRehearsalSong();

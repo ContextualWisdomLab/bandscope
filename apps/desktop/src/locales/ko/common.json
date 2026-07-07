@@ -34,6 +34,7 @@
   "workspaceErrorState": "분석 중 오류가 발생했습니다. 다시 시도해주세요.",
   "workspaceRehearsalMapLabel": "오늘의 합주 지도",
   "workspaceRehearsalFallback": "합주 작업 공간",
+  "workspaceTempoLabel": "템포",
   "workspaceSongStructureLabel": "곡 구조",
   "workspaceRehearsalTimelineLabel": "합주 타임라인",
   "workspaceSongTimelineLabel": "곡 타임라인",

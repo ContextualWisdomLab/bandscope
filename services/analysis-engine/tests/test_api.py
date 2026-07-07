@@ -277,9 +277,35 @@ def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
     song = build_demo_rehearsal_song()
 
     assert song["title"] == "Late Night Set"
+    assert song.get("tempo") is None
     assert song["sections"][0]["timeRange"] == {"start": 10, "end": 30}
     assert song["sections"][0]["roles"][0]["id"] == "bass-guitar"
     assert song["sections"][0]["roles"][4]["manualOverrides"][0]["value"]["source"] == "user"
+
+
+def test_build_demo_rehearsal_song_with_tempo() -> None:
+    """Ensure build_demo_rehearsal_song incorporates tempo from audio features."""
+    song = build_demo_rehearsal_song({"bpm": 120.4})
+    assert song.get("tempo") == 120
+
+
+def test_coerce_tempo_bpm() -> None:
+    """Ensure _coerce_tempo_bpm handles various edge cases correctly."""
+    import numpy as np
+
+    from bandscope_analysis.api import _coerce_tempo_bpm
+
+    assert _coerce_tempo_bpm(120.4) == 120
+    assert _coerce_tempo_bpm(120) == 120
+    assert _coerce_tempo_bpm(True) is None
+    assert _coerce_tempo_bpm(False) is None
+    assert _coerce_tempo_bpm("120") is None
+    assert _coerce_tempo_bpm(None) is None
+    assert _coerce_tempo_bpm(np.nan) is None
+    assert _coerce_tempo_bpm(np.inf) is None
+    assert _coerce_tempo_bpm(-np.inf) is None
+    assert _coerce_tempo_bpm(0) is None
+    assert _coerce_tempo_bpm(-120) is None
 
 
 def test_build_section_time_range_matches_desktop_bounds() -> None:
