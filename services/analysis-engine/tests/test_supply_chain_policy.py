@@ -5018,7 +5018,7 @@ Finalizing artifact upload
     ]
     assert artifact_finalize_signals == [
         "artifact upload finalize request reset: "
-        "##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET"
+        + "##[error]Failed to FinalizeArtifact: Unable to make request: ECONNRESET"
     ]
     assert any(
         "Failed to FinalizeArtifact: Unable to make request: ECONNRESET" in signal
@@ -5273,11 +5273,13 @@ def test_opencode_normalizer_rejects_optional_structural_review_variants(
             original_output = "\n".join(
                 [
                     "review text",
-                    '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                    '"result":"APPROVE",'
-                    f'"reason":"{reason}",'
-                    f'"summary":"{summary}",'
-                    '"findings":[]}',
+                    (
+                        '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                        + '"result":"APPROVE",'
+                        + f'"reason":"{reason}",'
+                        + f'"summary":"{summary}",'
+                        + '"findings":[]}'
+                    ),
                 ]
             )
             output_file.write_text(original_output, encoding="utf-8")
@@ -5361,11 +5363,13 @@ def test_opencode_review_gate_rejects_optional_structural_review_variants(
                         "<!-- opencode-review-gate head_sha=abc123 run_id=456 run_attempt=1 -->",
                         "",
                         "<!-- opencode-review-control-v1",
-                        '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
-                        '"result":"APPROVE",'
-                        f'"reason":"{reason}",'
-                        f'"summary":"{summary}",'
-                        '"findings":[]}',
+                        (
+                            '{"head_sha":"abc123","run_id":"456","run_attempt":"1",'
+                            + '"result":"APPROVE",'
+                            + f'"reason":"{reason}",'
+                            + f'"summary":"{summary}",'
+                            + '"findings":[]}'
+                        ),
                         "-->",
                         "",
                     ]
