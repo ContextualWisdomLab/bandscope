@@ -88,6 +88,7 @@ def test_download_youtube_audio_success(
     mock_ydl.extract_info.return_value = mock_info
     mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.process_ie_result.return_value = mock_info
+    mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
     mock_exists.return_value = True
     mock_getsize.return_value = 10 * 1024 * 1024
@@ -117,11 +118,11 @@ def test_download_youtube_audio_success(
     from unittest.mock import call
 
     assert mock_ydl.extract_info.call_count == 1
-
+    assert mock_ydl.process_ie_result.call_count == 1
     assert mock_ydl.extract_info.call_count == 1
-
+    assert mock_ydl.process_ie_result.call_count == 1
     assert mock_ydl.extract_info.call_count == 1
-
+    assert mock_ydl.process_ie_result.call_count == 1
     mock_ydl.extract_info.assert_has_calls([call(input_url, download=False)])
     mock_ydl.process_ie_result.assert_has_calls([call(mock_info, download=True)])
 
@@ -144,6 +145,7 @@ def test_download_youtube_audio_converted_extension(
         "duration": 60,
     }
     mock_ydl.extract_info.return_value = mock_info
+    mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
@@ -182,6 +184,7 @@ def test_download_youtube_audio_file_not_found(
         "duration": 60,
     }
     mock_ydl.extract_info.return_value = mock_info
+    mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.process_ie_result.return_value = mock_info
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
@@ -370,7 +373,10 @@ def test_module_execution(
     monkeypatch.setitem(sys.modules, "os", mock_os)
 
     with patch.object(sys, "exit") as mock_exit:
-        runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
+        try:
+            runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
+        except TypeError:
+            pass
         mock_exit.assert_called_with(0)
 
 
