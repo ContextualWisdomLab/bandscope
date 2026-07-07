@@ -8,3 +8,9 @@ yt_dlp/extractor/go.py
 yt_dlp/extractor/nbc.py
 yt_dlp/extractor/tbs.py
 yt_dlp/extractor/vice.py
+
+# glib 0.18.5: unsoundness in VariantStrIter Iterator/DoubleEndedIterator impls (MEDIUM).
+# Transitive dependency of the tauri/gtk-rs 0.18 stack; no upgrade available without a
+# major gtk-rs bump. The canonical scan (.github/workflows/trivy.yml) already gates only
+# CRITICAL,HIGH; suppress here so the legacy all-severity fs scan agrees.
+GHSA-wrw7-89jp-8q8g
