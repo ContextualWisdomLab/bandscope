@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2025-02-15 - Replace Array.from().every() with a for loop
+**Learning:** Using `Array.from(...).every(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently called utility functions validating large collections.
+**Action:** Use a standard `for` loop to iterate and validate elements directly for O(1) memory and significant speedup by avoiding intermediate array allocations.
