@@ -29,6 +29,3 @@
 ## 2024-07-01 - Testing components with focusable disabled button wrappers
 **Learning:** When native disabled buttons are wrapped in a focusable `span` to provide accessible tooltips, tests that previously found and clicked the `button` (by temporarily removing the `disabled` attribute) may fail or become overly complex. It is cleaner and more accurate to query the wrapper element (e.g. via its `title`) and fire events on it, reflecting the actual accessible DOM structure.
 **Action:** When testing UI components that wrap disabled buttons in a focusable span for accessibility (e.g., using a tooltip/title), use `screen.getByTitle(...)` to query the wrapper element for interactions like `fireEvent.click` rather than `screen.getByRole('button')`.
-## 2026-07-06 - Accessible Disabled Buttons
-**Learning:** Wrapping disabled `<button>` elements in focusable `<span role="button" tabIndex={0}>` wrappers to enable tooltips is an anti-pattern that violates nested interactive control rules and breaks screen-reader semantics.
-**Action:** Always use a single native `<button aria-disabled="true">` combined with `onClick={(e) => e.preventDefault()}` and direct `title` attributes. This ensures semantic correctness, focusability, and tooltip functionality without breaking accessibility rules. Simulate the click events in tests to verify `event.defaultPrevented`.
