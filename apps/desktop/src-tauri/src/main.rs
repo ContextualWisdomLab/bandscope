@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Read, Write},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -374,18 +374,35 @@ fn next_project_id(state: &AppState) -> String {
 }
 
 fn sanitize_project_id(project_id: &str) -> Option<&str> {
-    let trimmed = project_id.trim();
-    if trimmed.is_empty()
-        || trimmed != project_id
-        || trimmed == "."
-        || trimmed == ".."
-        || trimmed.contains('/')
-        || trimmed.contains('\\')
-        || trimmed.contains(':')
-    {
-        None
-    } else {
-        Some(trimmed)
+    // Reject any ID whose surrounding whitespace (incl. \n/\t) would be
+    // silently persisted: validation and the value used for path joins must
+    // match exactly, so we forbid leading/trailing whitespace outright.
+    if project_id.is_empty() || project_id != project_id.trim() {
+        return None;
+    }
+
+    // Reject path separators and the Windows drive-letter marker up front so
+    // the guard behaves identically on every platform. On Unix a string like
+    // `C:tmp` is a single `Normal` component, so `Path::components()` alone
+    // would accept it; the explicit `:` check keeps rejection consistent with
+    // Windows (where `C:tmp` is a drive-relative `Prefix` component).
+    if project_id.contains(['/', '\\', ':']) {
+        return None;
+    }
+
+    // Validate structurally via `Path::components()` so that Windows drive
+    // prefixes (`C:tmp`, `C:..`) and root markers cannot slip past the
+    // separator checks and let `PathBuf::join` replace the base path.
+    let mut components = Path::new(project_id).components();
+    let first = components.next()?;
+    if components.next().is_some() {
+        // More than one component (e.g. `set/song`, `a/b`): reject.
+        return None;
+    }
+    match first {
+        // The single component must be a plain name and must not be `..`/`.`.
+        Component::Normal(os) if os.to_str() == Some(project_id) => Some(project_id),
+        _ => None,
     }
 }
 
