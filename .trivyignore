@@ -1,1 +1,3 @@
-services/analysis-engine/.venv/**
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/shahid.py
+*/yt_dlp/extractor/*
+**/*yt_dlp/extractor/*
