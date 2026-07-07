@@ -34,6 +34,8 @@ const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__";
 const YOUTUBE_IMPORT_TIMEOUT: Duration = Duration::from_secs(120);
+const MAX_SCORE_PDF_BYTES: u64 = 25 * 1024 * 1024;
+const PDF_MAGIC: &[u8] = b"%PDF-";
 
 impl Default for AppState {
     fn default() -> Self {
@@ -1233,6 +1235,225 @@ fn load_project() -> Result<RehearsalSongPayload, String> {
     project_payload_from_content(&content)
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScoreAttachmentPayload {
+    score_id: String,
+    file_name: String,
+    file_size_bytes: u64,
+}
+
+/// Security Notes: project ids never come from free-form user input. They are
+/// only ever minted by `next_project_id` as `project-<nanos>-<counter>`, so
+/// anything from the WebView that does not match that exact shape is rejected
+/// before it can influence a filesystem path (no separators, no `..`).
+fn is_valid_project_id(value: &str) -> bool {
+    let Some(rest) = value.strip_prefix("project-") else {
+        return false;
+    };
+    let mut segments = rest.split('-');
+    match (segments.next(), segments.next(), segments.next()) {
+        (Some(timestamp), Some(counter), None) => {
+            !timestamp.is_empty()
+                && !counter.is_empty()
+                && timestamp.bytes().all(|byte| byte.is_ascii_digit())
+                && counter.bytes().all(|byte| byte.is_ascii_digit())
+        }
+        _ => false,
+    }
+}
+
+/// Security Notes: score ids are minted locally via UUID v4 and must round-trip
+/// as exactly a lowercase hyphenated UUID (8-4-4-4-12). This is an allowlist
+/// check, so path traversal payloads (`..`, separators, null bytes) can never
+/// reach the path join below.
+fn is_valid_score_id(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() != 36 {
+        return false;
+    }
+    bytes.iter().enumerate().all(|(index, byte)| match index {
+        8 | 13 | 18 | 23 => *byte == b'-',
+        _ => matches!(byte, b'0'..=b'9' | b'a'..=b'f'),
+    })
+}
+
+/// Security Notes: the selected file is untrusted input (`User Input Boundary`).
+/// We refuse symlinks before canonicalizing, require a real non-empty regular
+/// file with a `.pdf` extension, cap the size at 25MB, and verify the `%PDF-`
+/// magic bytes so a mislabeled file cannot be attached as a score.
+fn validate_score_pdf_source(path: &Path) -> Result<(PathBuf, String, u64), String> {
+    let link_metadata = std::fs::symlink_metadata(path)
+        .map_err(|_| "Could not read the selected PDF file.".to_string())?;
+    if link_metadata.file_type().is_symlink() {
+        return Err("Could not read the selected PDF file.".to_string());
+    }
+
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| "Could not read the selected PDF file.".to_string())?;
+    let extension = canonical
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| "Choose a PDF file to attach as a score.".to_string())?;
+    if extension != "pdf" {
+        return Err("Choose a PDF file to attach as a score.".into());
+    }
+
+    let metadata = std::fs::metadata(&canonical)
+        .map_err(|_| "Could not read the selected PDF file.".to_string())?;
+    if !metadata.is_file() || metadata.len() == 0 {
+        return Err("Could not read the selected PDF file.".into());
+    }
+    if metadata.len() > MAX_SCORE_PDF_BYTES {
+        return Err("Score PDF is too large (exceeds 25MB limit).".into());
+    }
+
+    let mut header = [0u8; PDF_MAGIC.len()];
+    std::fs::File::open(&canonical)
+        .and_then(|mut file| file.read_exact(&mut header))
+        .map_err(|_| "Could not read the selected PDF file.".to_string())?;
+    if header != PDF_MAGIC {
+        return Err("The selected file is not a valid PDF.".into());
+    }
+
+    let file_name = canonical
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_string())
+        .ok_or_else(|| "Could not read the selected PDF file.".to_string())?;
+
+    let file_size_bytes = metadata.len();
+    Ok((canonical, file_name, file_size_bytes))
+}
+
+/// Security Notes: reads and deletes never accept an arbitrary path from the
+/// WebView. The path is rebuilt server-side from validated ids, symlinks are
+/// refused, and the canonicalized result must still live under the
+/// canonicalized app-owned scores root (path-traversal guard).
+fn resolve_existing_score_pdf(scores_root: &Path, score_id: &str) -> Result<PathBuf, String> {
+    if !is_valid_score_id(score_id) {
+        return Err("Score was not found.".to_string());
+    }
+    let candidate = scores_root.join(format!("{score_id}.pdf"));
+    let link_metadata =
+        std::fs::symlink_metadata(&candidate).map_err(|_| "Score was not found.".to_string())?;
+    if link_metadata.file_type().is_symlink() {
+        return Err("Score was not found.".to_string());
+    }
+
+    let canonical_root = scores_root
+        .canonicalize()
+        .map_err(|_| "Score was not found.".to_string())?;
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|_| "Score was not found.".to_string())?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err("Score was not found.".to_string());
+    }
+
+    let metadata = std::fs::metadata(&canonical).map_err(|_| "Score was not found.".to_string())?;
+    if !metadata.is_file() {
+        return Err("Score was not found.".to_string());
+    }
+    Ok(canonical)
+}
+
+fn scores_root_for_project<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    project_id: &str,
+) -> Result<PathBuf, String> {
+    // Callers must have validated `project_id` with `is_valid_project_id`
+    // before this join; the root stays inside the app-owned data directory.
+    let project_root = app_owned_root(app, "projects", project_id)?;
+    let root = project_root.join("scores");
+    std::fs::create_dir_all(&root)
+        .map_err(|_| "Could not prepare the local scores workspace.".to_string())?;
+    Ok(root)
+}
+
+/// Security Notes: the file path comes exclusively from the OS file dialog
+/// (never from JS), is validated (magic bytes, size, extension, no symlink),
+/// and is copied into the app-owned scores directory. The stored copy is named
+/// by a locally minted UUID v4, so no untrusted external path is ever
+/// referenced again after this command returns.
+#[tauri::command]
+fn attach_score_pdf(
+    project_id: String,
+    song_id: String,
+    app: tauri::AppHandle<impl Runtime>,
+) -> Result<ScoreAttachmentPayload, String> {
+    if !is_valid_project_id(&project_id) {
+        return Err("Invalid project id.".to_string());
+    }
+    // `song_id` is part of the viewer contract (score-to-song association is
+    // persisted on the JS side in a later slice); it never touches a path.
+    if song_id.trim().is_empty() {
+        return Err("Invalid song id.".to_string());
+    }
+
+    let path = FileDialog::new()
+        .add_filter("PDF Score", &["pdf"])
+        .pick_file()
+        .ok_or_else(|| "Choose a PDF file to attach as a score.".to_string())?;
+    let (source, file_name, file_size_bytes) = validate_score_pdf_source(&path)?;
+
+    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let score_id = uuid::Uuid::new_v4().to_string();
+    let destination = scores_root.join(format!("{score_id}.pdf"));
+    std::fs::copy(&source, &destination)
+        .map_err(|_| "Could not copy the PDF into the project workspace.".to_string())?;
+
+    Ok(ScoreAttachmentPayload {
+        score_id,
+        file_name,
+        file_size_bytes,
+    })
+}
+
+/// Security Notes: no path crosses the IPC boundary. Both ids are validated
+/// against strict allowlist shapes, the path is rebuilt locally, and the
+/// canonicalize-plus-prefix guard in `resolve_existing_score_pdf` rejects any
+/// escape from the app-owned scores root.
+#[tauri::command]
+fn read_score_pdf(
+    project_id: String,
+    score_id: String,
+    app: tauri::AppHandle<impl Runtime>,
+) -> Result<Vec<u8>, String> {
+    if !is_valid_project_id(&project_id) {
+        return Err("Invalid project id.".to_string());
+    }
+    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let path = resolve_existing_score_pdf(&scores_root, &score_id)?;
+    std::fs::read(path).map_err(|_| "Could not read the score PDF.".to_string())
+}
+
+/// Security Notes: same id validation and traversal guard as `read_score_pdf`;
+/// deletion is scoped to a single validated file inside the app-owned scores
+/// root. Returns `false` when the score does not exist (idempotent removal).
+#[tauri::command]
+fn remove_score_pdf(
+    project_id: String,
+    score_id: String,
+    app: tauri::AppHandle<impl Runtime>,
+) -> Result<bool, String> {
+    if !is_valid_project_id(&project_id) {
+        return Err("Invalid project id.".to_string());
+    }
+    if !is_valid_score_id(&score_id) {
+        return Err("Invalid score id.".to_string());
+    }
+    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
+        Ok(path) => path,
+        Err(_) => return Ok(false),
+    };
+    std::fs::remove_file(path).map_err(|_| "Could not remove the score PDF.".to_string())?;
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1503,6 +1724,134 @@ mod tests {
         let _ = std::fs::remove_dir_all(cache_root);
         let _ = std::fs::remove_dir_all(outside_root);
     }
+
+    #[test]
+    fn project_id_guard_accepts_generated_ids_only() {
+        let generated = next_project_id(&AppState::default());
+        assert!(is_valid_project_id(&generated));
+        assert!(is_valid_project_id("project-1751234567890123456-1"));
+
+        assert!(!is_valid_project_id(""));
+        assert!(!is_valid_project_id("project-"));
+        assert!(!is_valid_project_id("project-123"));
+        assert!(!is_valid_project_id("project-123-"));
+        assert!(!is_valid_project_id("project-123-4-5"));
+        assert!(!is_valid_project_id("project-abc-1"));
+        assert!(!is_valid_project_id("project-123-1x"));
+        assert!(!is_valid_project_id("other-123-1"));
+        assert!(!is_valid_project_id("../project-123-1"));
+        assert!(!is_valid_project_id("project-123-1/.."));
+        assert!(!is_valid_project_id("project-..-1"));
+        assert!(!is_valid_project_id("project-123-1/escape"));
+    }
+
+    #[test]
+    fn score_id_guard_accepts_lowercase_uuid_v4_only() {
+        let generated = uuid::Uuid::new_v4().to_string();
+        assert!(is_valid_score_id(&generated));
+        assert!(is_valid_score_id("6fa459ea-ee8a-3ca4-894e-db77e160355e"));
+
+        assert!(!is_valid_score_id(""));
+        assert!(!is_valid_score_id("not-a-uuid"));
+        assert!(!is_valid_score_id("6FA459EA-EE8A-3CA4-894E-DB77E160355E"));
+        assert!(!is_valid_score_id("6fa459eaee8a3ca4894edb77e160355e"));
+        assert!(!is_valid_score_id("{6fa459ea-ee8a-3ca4-894e-db77e160355e}"));
+        assert!(!is_valid_score_id("../../../../etc/passwd-aaaa-bbbb-cc"));
+        assert!(!is_valid_score_id(
+            "6fa459ea-ee8a-3ca4-894e-db77e160355e/.."
+        ));
+        assert!(!is_valid_score_id("6fa459ea-ee8a-3ca4-894e-db77e16035/e"));
+    }
+
+    #[test]
+    fn score_pdf_source_requires_pdf_magic_size_and_real_file() {
+        let root = unique_test_dir("score-source");
+        std::fs::create_dir_all(&root).expect("score source root should be created");
+
+        let valid = root.join("score.pdf");
+        std::fs::write(&valid, b"%PDF-1.7 fake body").expect("valid pdf should be written");
+        let (canonical, file_name, size) =
+            validate_score_pdf_source(&valid).expect("valid pdf should be accepted");
+        assert_eq!(file_name, "score.pdf");
+        assert_eq!(size, 18);
+        assert!(canonical.ends_with("score.pdf"));
+
+        let wrong_magic = root.join("not-really.pdf");
+        std::fs::write(&wrong_magic, b"PK\x03\x04 zip bytes")
+            .expect("wrong magic file should be written");
+        assert!(validate_score_pdf_source(&wrong_magic).is_err());
+
+        let short = root.join("short.pdf");
+        std::fs::write(&short, b"%PD").expect("short file should be written");
+        assert!(validate_score_pdf_source(&short).is_err());
+
+        let empty = root.join("empty.pdf");
+        std::fs::write(&empty, b"").expect("empty file should be written");
+        assert!(validate_score_pdf_source(&empty).is_err());
+
+        let wrong_extension = root.join("score.txt");
+        std::fs::write(&wrong_extension, b"%PDF-1.7").expect("txt file should be written");
+        assert!(validate_score_pdf_source(&wrong_extension).is_err());
+
+        let missing = root.join("missing.pdf");
+        assert!(validate_score_pdf_source(&missing).is_err());
+
+        let oversized = root.join("oversized.pdf");
+        {
+            let file = std::fs::File::create(&oversized).expect("oversized file should be created");
+            let mut file = file;
+            file.write_all(b"%PDF-1.7")
+                .expect("oversized header should be written");
+            file.set_len(MAX_SCORE_PDF_BYTES + 1)
+                .expect("oversized file should be extended");
+        }
+        assert!(validate_score_pdf_source(&oversized).is_err());
+
+        #[cfg(unix)]
+        {
+            let symlinked = root.join("linked.pdf");
+            std::os::unix::fs::symlink(&valid, &symlinked).expect("symlink should be created");
+            assert!(validate_score_pdf_source(&symlinked).is_err());
+        }
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn score_pdf_resolution_rejects_traversal_and_escapes() {
+        let scores_root = unique_test_dir("score-resolve");
+        let outside_root = unique_test_dir("score-outside");
+        std::fs::create_dir_all(&scores_root).expect("scores root should be created");
+        std::fs::create_dir_all(&outside_root).expect("outside root should be created");
+
+        let score_id = "6fa459ea-ee8a-3ca4-894e-db77e160355e";
+        let inside_file = scores_root.join(format!("{score_id}.pdf"));
+        std::fs::write(&inside_file, b"%PDF-1.7").expect("inside file should be written");
+
+        let resolved = resolve_existing_score_pdf(&scores_root, score_id)
+            .expect("stored score inside the root should resolve");
+        assert!(resolved.ends_with(format!("{score_id}.pdf")));
+
+        assert!(resolve_existing_score_pdf(&scores_root, "../escape").is_err());
+        assert!(resolve_existing_score_pdf(&scores_root, "..").is_err());
+        assert!(
+            resolve_existing_score_pdf(&scores_root, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+                .is_err()
+        );
+
+        #[cfg(unix)]
+        {
+            let outside_file = outside_root.join("secret.pdf");
+            std::fs::write(&outside_file, b"%PDF-1.7").expect("outside file should be written");
+            let linked_id = "11111111-2222-3333-4444-555555555555";
+            std::os::unix::fs::symlink(&outside_file, scores_root.join(format!("{linked_id}.pdf")))
+                .expect("symlink should be created");
+            assert!(resolve_existing_score_pdf(&scores_root, linked_id).is_err());
+        }
+
+        let _ = std::fs::remove_dir_all(scores_root);
+        let _ = std::fs::remove_dir_all(outside_root);
+    }
 }
 
 fn main() {
@@ -1514,7 +1863,10 @@ fn main() {
             start_analysis_job,
             get_analysis_job_status,
             save_project,
-            load_project
+            load_project,
+            attach_score_pdf,
+            read_score_pdf,
+            remove_score_pdf
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
