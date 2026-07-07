@@ -859,7 +859,12 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
         with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
             separator_class.return_value.separate.side_effect = error
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
-        assert fake_queue.items == [(expected_kind, str(error))]
+        expected_message = (
+            "An unexpected error occurred during stem separation."
+            if not isinstance(error, (FileNotFoundError, ValueError, RuntimeError))
+            else str(error)
+        )
+        assert fake_queue.items == [(expected_kind, expected_message)]
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
