@@ -41,7 +41,3 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
-
-## 2025-02-15 - Remove redundant map/list computations in React renders
-**Learning:** Computing derived state (such as aggregating roles into maps using nested loops) inside a React component's render body that is ultimately unused in the output JSX leads to wasted CPU cycles and unnecessary garbage collection overhead on every render.
-**Action:** Always verify that locally computed data structures are actively referenced in the return statement. Remove any dead code or unused computations to improve React render performance.
