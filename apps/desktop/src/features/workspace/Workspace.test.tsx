@@ -67,7 +67,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
-    expect(transcribeButton.disabled).toBe(false);
+    expect(transcribeButton.hasAttribute("aria-disabled")).toBe(false);
     expect(transcribeButton.title).toBe("Transcribe part");
   });
 
