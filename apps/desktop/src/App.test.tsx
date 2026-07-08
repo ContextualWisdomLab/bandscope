@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -1473,6 +1473,28 @@ describe("App", () => {
     // Projects opened from a .bscope file have no live workspace, so score
     // storage is gated behind the active-project notice.
     expect(screen.getByText(/Scores attach to the active analysis project/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Song Timeline/i)).toBeNull();
+  });
+
+  it("switches to the Score view from the compact mobile navigation", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+    });
+
+    // The compact nav is a separate rendered bar (shown on small viewports) with
+    // its own set of buttons; exercise it directly so the mobile navigation path
+    // is covered, not just the sidebar one.
+    const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
+    const compactScoreButton = within(compactNav).getByRole("button", { name: /Score compact view/i });
+    expect(compactScoreButton).toBeEnabled();
+
+    fireEvent.click(compactScoreButton);
+
+    expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
     expect(screen.queryByText(/Song Timeline/i)).toBeNull();
   });
 });

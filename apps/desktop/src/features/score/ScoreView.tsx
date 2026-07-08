@@ -47,11 +47,12 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const [error, setError] = useState<string | null>(null);
   const readRequestRef = useRef(0);
 
-  /** Load the stored PDF bytes for an attachment into the viewer. */
-  const openAttachment = async (attachment: ScoreAttachment) => {
-    if (!projectId) {
-      return;
-    }
+  /**
+   * Load the stored PDF bytes for an attachment into the viewer. Callers pass
+   * the active project id explicitly; the storage controls are only wired up
+   * (and enabled) when a workspace is present, so this never runs without one.
+   */
+  const openAttachment = async (activeProjectId: string, attachment: ScoreAttachment) => {
     const requestId = readRequestRef.current + 1;
     readRequestRef.current = requestId;
     setSelected(attachment);
@@ -59,7 +60,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
     setError(null);
     setIsOpening(true);
     try {
-      const bytes = await readScorePdf(projectId, attachment.id);
+      const bytes = await readScorePdf(activeProjectId, attachment.id);
       if (readRequestRef.current === requestId) {
         setPdfBytes(bytes);
       }
@@ -75,19 +76,20 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
     }
   };
 
-  /** Attach a new score PDF via the native picker and open it. */
-  const handleAttach = async () => {
-    if (!projectId || isAttaching) {
-      return;
-    }
+  /**
+   * Attach a new score PDF via the native picker and open it. The attach
+   * control is disabled while `isAttaching`, so overlapping attaches cannot be
+   * started; the active project id is supplied by the enabled control.
+   */
+  const handleAttach = async (activeProjectId: string) => {
     setError(null);
     setIsAttaching(true);
     try {
-      const result = await attachScorePdf(projectId, song.id);
+      const result = await attachScorePdf(activeProjectId, song.id);
       const attachment: ScoreAttachment = { id: result.id, fileName: result.fileName };
       onSongUpdate({ ...song, scoreAttachments: [...attachments, attachment] });
       setIsAttaching(false);
-      await openAttachment(attachment);
+      await openAttachment(activeProjectId, attachment);
     } catch (attachError) {
       setIsAttaching(false);
       setError(bridgeErrorDetail(attachError, t("scoreAttachFailed")));
@@ -95,10 +97,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   };
 
   /** Remove an attachment after confirmation (metadata and stored copy). */
-  const handleRemove = async (attachment: ScoreAttachment) => {
-    if (!projectId) {
-      return;
-    }
+  const handleRemove = async (activeProjectId: string, attachment: ScoreAttachment) => {
     const confirmed = window.confirm(
       t("scoreRemoveConfirm").replace("{fileName}", attachment.fileName)
     );
@@ -107,7 +106,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
     }
     setError(null);
     try {
-      await removeScorePdf(projectId, attachment.id);
+      await removeScorePdf(activeProjectId, attachment.id);
       onSongUpdate({
         ...song,
         scoreAttachments: attachments.filter((entry) => entry.id !== attachment.id)
@@ -135,7 +134,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
               <p className="mt-1 max-w-2xl text-sm text-slate-400">{t("scoreViewSubtitle")}</p>
             </div>
             <Button
-              onClick={handleAttach}
+              onClick={projectId ? () => void handleAttach(projectId) : undefined}
               disabled={!projectId || isAttaching}
               variant="secondary"
               className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
@@ -184,7 +183,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                   >
                     <button
                       type="button"
-                      onClick={() => void openAttachment(attachment)}
+                      onClick={projectId ? () => void openAttachment(projectId, attachment) : undefined}
                       disabled={!projectId}
                       aria-current={selected?.id === attachment.id ? "true" : undefined}
                       aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
@@ -196,7 +195,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => void handleRemove(attachment)}
+                      onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
                       disabled={!projectId}
                       aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
                       className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"

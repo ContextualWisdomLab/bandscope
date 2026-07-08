@@ -491,10 +491,8 @@ export function App() {
   };
 
   /** Switch the main content to the clicked rehearsal view. */
-  const handleNavSelect = (view: RehearsalView | null) => {
-    if (view) {
-      setActiveView(view);
-    }
+  const handleNavSelect = (view: RehearsalView) => {
+    setActiveView(view);
   };
 
   return (
@@ -525,6 +523,7 @@ export function App() {
           <nav aria-label="Primary rehearsal views" className="space-y-2">
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
+              const view = item.view;
               return (
                 <button
                   key={item.label}
@@ -533,7 +532,7 @@ export function App() {
                   aria-disabled={enabled ? undefined : true}
                   disabled={!enabled}
                   title={title}
-                  onClick={() => handleNavSelect(item.view)}
+                  onClick={view ? () => handleNavSelect(view) : undefined}
                   className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                     active
                       ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
@@ -592,6 +591,7 @@ export function App() {
           <nav aria-label="Compact rehearsal views" className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
+              const view = item.view;
               return (
                 <button
                   key={item.label}
@@ -601,7 +601,7 @@ export function App() {
                   aria-disabled={enabled ? undefined : true}
                   disabled={!enabled}
                   title={title}
-                  onClick={() => handleNavSelect(item.view)}
+                  onClick={view ? () => handleNavSelect(view) : undefined}
                   className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                     active
                       ? "bg-blue-600/70 text-white"

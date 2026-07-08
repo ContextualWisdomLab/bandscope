@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { invoke } from "@tauri-apps/api/core";
@@ -323,5 +323,94 @@ describe("ScoreView", () => {
       scoreId: SCORE_ID
     });
     expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the generic attach copy when the bridge rejects with a non-textual value", async () => {
+    // A rejection that is neither an Error nor a string exercises the
+    // `bridgeErrorDetail` fallback path (no usable message to surface).
+    mockInvoke.mockRejectedValueOnce({ code: 500 });
+
+    render(<ScoreView song={makeSong()} projectId="project-1-2" onSongUpdate={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add score" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not attach the score PDF.");
+  });
+
+  it("ignores a superseded read once a newer attachment is opened", async () => {
+    // Opening a second score before the first read resolves must make the
+    // stale first read a no-op (last-open-wins), so the viewer keeps the newer
+    // score and the stale resolution never overwrites it.
+    let resolveStale!: (value: unknown) => void;
+    mockInvoke
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveStale = resolve; }))
+      .mockResolvedValueOnce([9, 9]);
+    const song = makeSong([
+      { id: "id-1", fileName: "first.pdf" },
+      { id: "id-2", fileName: "second.pdf" }
+    ]);
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open score: first.pdf" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open score: second.pdf" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:second.pdf");
+    });
+
+    await act(async () => {
+      resolveStale([1, 1, 1, 1, 1]);
+    });
+
+    expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:second.pdf");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("swallows a superseded read failure instead of surfacing a stale error", async () => {
+    // A rejected stale read must not clobber the newer, successful selection
+    // with an error banner.
+    let rejectStale!: (reason: unknown) => void;
+    mockInvoke
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectStale = reject; }))
+      .mockResolvedValueOnce([4, 4]);
+    const song = makeSong([
+      { id: "id-1", fileName: "first.pdf" },
+      { id: "id-2", fileName: "second.pdf" }
+    ]);
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open score: first.pdf" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open score: second.pdf" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:second.pdf");
+    });
+
+    await act(async () => {
+      rejectStale(new Error("Stale read failed."));
+    });
+
+    expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:second.pdf");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("removes a score that is not currently open without resetting the viewer", async () => {
+    // With nothing open, removal updates metadata but must leave the (empty)
+    // viewer state untouched.
+    mockInvoke.mockResolvedValueOnce(true);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onSongUpdate = vi.fn();
+    const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
+
+    await waitFor(() => {
+      expect(onSongUpdate).toHaveBeenCalledWith({ ...song, scoreAttachments: [] });
+    });
+    expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
   });
 });
