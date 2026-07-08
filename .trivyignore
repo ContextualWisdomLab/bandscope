@@ -8,10 +8,3 @@ yt_dlp/extractor/go.py
 yt_dlp/extractor/nbc.py
 yt_dlp/extractor/tbs.py
 yt_dlp/extractor/vice.py
-
-# Wildcard patterns for yt-dlp false positives
-*/yt_dlp/extractor/shahid.py
-*/yt_dlp/extractor/go.py
-*/yt_dlp/extractor/nbc.py
-*/yt_dlp/extractor/tbs.py
-*/yt_dlp/extractor/vice.py

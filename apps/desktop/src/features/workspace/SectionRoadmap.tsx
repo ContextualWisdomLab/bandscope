@@ -31,29 +31,48 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;
     const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
-    if (newChord !== null && newChord.trim() !== "" && newChord !== role.harmony.chord) {
-      const updatedSong = structuredClone(song);
-      const section = updatedSong.sections.find(s => s.id === sectionId);
-      if (section) {
-        const targetRole = section.roles.find(r => r.id === role.id);
-        if (targetRole) {
-          targetRole.harmony = {
-            ...targetRole.harmony,
-            chord: newChord.trim(),
-            source: "user"
-          };
-          targetRole.manualOverrides = targetRole.manualOverrides.filter(o => o.field !== "harmony");
-          targetRole.manualOverrides.push({
-            field: "harmony",
-            value: { ...targetRole.harmony, source: "user" as const },
-            source: "user"
-          });
-          onSongUpdate(updatedSong);
-        }
-      }
-    }
-  };
+    if (newChord === null) return;
 
+    const trimmedChord = newChord.trim();
+    if (trimmedChord === "" || trimmedChord === role.harmony.chord) return;
+
+    let changed = false;
+    const updatedSong = {
+      ...song,
+      sections: song.sections.map((section) => {
+        if (section.id !== sectionId) return section;
+
+        return {
+          ...section,
+          roles: section.roles.map((targetRole) => {
+            if (targetRole.id !== role.id) return targetRole;
+            changed = true;
+
+            const harmony = {
+              ...targetRole.harmony,
+              chord: trimmedChord,
+              source: "user" as const
+            };
+
+            return {
+              ...targetRole,
+              harmony,
+              manualOverrides: [
+                ...targetRole.manualOverrides.filter((override) => override.field !== "harmony"),
+                {
+                  field: "harmony" as const,
+                  value: { ...harmony, source: "user" as const },
+                  source: "user" as const
+                }
+              ]
+            };
+          })
+        };
+      })
+    };
+
+    if (changed) onSongUpdate(updatedSong);
+  };
   /** Documented. */
   const getPriorityColor = (priority: string) => {
     if (priority === "high") return "border-rose-400 bg-rose-400/[0.08] shadow-[0_0_30px_rgba(251,113,133,0.10)]";
@@ -165,14 +184,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
                         {role.setupNote && (
                           <div className="flex items-start gap-2 rounded-md border border-amber-300/20 bg-amber-300/[0.08] p-2 text-xs font-medium text-amber-100">
-                            <Lightbulb className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                            <Lightbulb className="mt-0.5 size-3.5 shrink-0" />
                             <span className="leading-snug">{role.setupNote}</span>
                           </div>
                         )}
 
                         {role.simplification && (
                           <div className="flex items-start gap-2 rounded-md border border-indigo-300/20 bg-indigo-300/[0.08] p-2 text-xs font-medium text-indigo-100">
-                            <Wand2 className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                            <Wand2 className="mt-0.5 size-3.5 shrink-0" />
                             <span className="leading-snug">{role.simplification}</span>
                           </div>
                         )}
@@ -181,7 +200,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           <div className="mt-2 space-y-1.5">
                             {role.overlapWarnings.map((warning, wIdx) => (
                               <div key={wIdx} className="flex items-start gap-2 rounded-md border border-rose-300/20 bg-rose-300/[0.08] p-2 text-xs font-medium text-rose-100">
-                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
                                 <span className="leading-snug">{warning}</span>
                               </div>
                             ))}

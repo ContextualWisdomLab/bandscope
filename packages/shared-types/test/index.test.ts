@@ -221,6 +221,7 @@ describe("shared type helpers", () => {
       progressPercent: 0,
       cacheStatus: "disabled"
     });
+    expect(parseAnalysisJobStatus(queuedStatus)).toEqual(queuedStatus);
     expect(isAnalysisJobStatus({
       jobId: "job-1",
       state: "running",
@@ -342,6 +343,14 @@ describe("shared type helpers", () => {
       updatedAt: "2026-03-12T00:00:00.000Z",
       error: { code: "not_found", message: "Missing", extraField: true }
     })).toBe(false);
+    expect(() => parseAnalysisJobStatus({
+      jobId: "job-1",
+      state: "running",
+      requestedAt: "2026-03-12T00:00:00.000Z",
+      updatedAt: "2026-03-12T00:00:00.000Z",
+      cacheStatus: "warm"
+    })).toThrow("cacheStatus");
+    expect(() => parseAnalysisJobStatus({ jobId: 7 })).toThrow("jobId");
   });
 
   it("validates local audio sources and bootstrap requests", () => {
@@ -578,7 +587,9 @@ describe("shared type helpers", () => {
       { message: "sections[0].roleBuckets[0].id", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], id: 3 }] }] } },
       { message: "sections[0].roleBuckets[0].name", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], name: 3 }] }] } },
       { message: "sections[0].roleBuckets[0].roleType", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], roleType: "drums" }] }] } },
+      { message: "sections[0].roleBuckets[0].extraField", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], extraField: true }] }] } },
       { message: "sections[0].roleBuckets[0].rehearsalPriority", payload: { ...artifact, sections: [{ ...artifact.sections[0], roleBuckets: [{ ...artifact.sections[0]!.roleBuckets[0], rehearsalPriority: "urgent" }] }] } },
+      { message: "sections[0].extraField", payload: { ...artifact, sections: [{ ...artifact.sections[0], extraField: true }] } },
       { message: "sourceAssets", payload: { ...artifact, sourceAssets: "not-an-array" } },
       { message: "sourceAssets[0]", payload: { ...artifact, sourceAssets: [null] } },
       { message: "sourceAssets[0].referenceKind", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], referenceKind: "stem" }] } },
@@ -887,6 +898,11 @@ describe("shared type helpers", () => {
     validSong.tempo = 140;
     expect(isRehearsalSong(validSong)).toBe(true);
 
+    const withoutTempo = createDemoRehearsalSong();
+    delete withoutTempo.tempo;
+    expect(isRehearsalSong(withoutTempo)).toBe(true);
+    expect(parseRehearsalSong(withoutTempo)).toEqual(withoutTempo);
+
     const invalidTempoString = { ...createDemoRehearsalSong(), tempo: "120" };
     expect(() => parseRehearsalSong(invalidTempoString)).toThrow("tempo");
 
@@ -1128,6 +1144,58 @@ describe("shared type helpers", () => {
         })
       },
       {
+        message: "sections[0].roles[0].transcription",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transcription = "not-an-array" as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].transcription[0]",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transcription = [null as never];
+        })
+      },
+      {
+        message: "sections[0].roles[0].transcription[0].extraField",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transcription = [
+            { pitch: "E2", onset: 0, offset: 1, velocity: 0.7, extraField: true } as never
+          ];
+        })
+      },
+      {
+        message: "sections[0].roles[0].transcription[0].pitch",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transcription = [
+            { pitch: 42, onset: 0, offset: 1, velocity: 0.7 } as never
+          ];
+        })
+      },
+      {
+        message: "sections[0].roles[0].transcription[0].onset",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transcription = [
+            { pitch: "E2", onset: "0", offset: 1, velocity: 0.7 } as never
+          ];
+        })
+      },
+      {
+        message: "sections[0].roles[0].transcription[0].offset",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transcription = [
+            { pitch: "E2", onset: 0, offset: "1", velocity: 0.7 } as never
+          ];
+        })
+      },
+      {
+        message: "sections[0].roles[0].transcription[0].velocity",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.transcription = [
+            { pitch: "E2", onset: 0, offset: 1, velocity: "loud" } as never
+          ];
+        })
+      },
+      {
         message: "sections[0].roles[2].manualOverrides[0]",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[2]!.manualOverrides[0] = null as never;
@@ -1236,9 +1304,45 @@ describe("shared type helpers", () => {
         })
       },
       {
+        message: "collaboration",
+        payload: createInvalidSong((song) => {
+          song.collaboration = null as never;
+        })
+      },
+      {
+        message: "collaboration.extraField",
+        payload: createInvalidSong((song) => {
+          (song.collaboration as unknown as Record<string, unknown>).extraField = true;
+        })
+      },
+      {
         message: "collaboration.syncNote",
         payload: createInvalidSong((song) => {
           song.collaboration!.syncNote = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.assignments",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.assignments = "not-an-array" as never;
+        })
+      },
+      {
+        message: "collaboration.assignments[0]",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.assignments = [null as never];
+        })
+      },
+      {
+        message: "collaboration.assignments[0].extraField",
+        payload: createInvalidSong((song) => {
+          (song.collaboration!.assignments[0] as unknown as Record<string, unknown>).extraField = true;
+        })
+      },
+      {
+        message: "collaboration.assignments[0].id",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.assignments[0]!.id = 2 as never;
         })
       },
       {
@@ -1248,9 +1352,111 @@ describe("shared type helpers", () => {
         })
       },
       {
+        message: "collaboration.assignments[0].summary",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.assignments[0]!.summary = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.assignments[0].sectionId",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.assignments[0]!.sectionId = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.assignments[0].roleId",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.assignments[0]!.roleId = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.comments",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.comments = "not-an-array" as never;
+        })
+      },
+      {
+        message: "collaboration.comments[0]",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.comments = [null as never];
+        })
+      },
+      {
+        message: "collaboration.comments[0].extraField",
+        payload: createInvalidSong((song) => {
+          (song.collaboration!.comments[0] as unknown as Record<string, unknown>).extraField = true;
+        })
+      },
+      {
+        message: "collaboration.comments[0].id",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.comments[0]!.id = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.comments[0].author",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.comments[0]!.author = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.comments[0].body",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.comments[0]!.body = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.comments[0].sectionId",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.comments[0]!.sectionId = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.comments[0].roleId",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.comments[0]!.roleId = 2 as never;
+        })
+      },
+      {
         message: "collaboration.comments[0].status",
         payload: createInvalidSong((song) => {
           song.collaboration!.comments[0]!.status = "pending" as never;
+        })
+      },
+      {
+        message: "collaboration.approvals",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.approvals = "not-an-array" as never;
+        })
+      },
+      {
+        message: "collaboration.approvals[0]",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.approvals = [null as never];
+        })
+      },
+      {
+        message: "collaboration.approvals[0].extraField",
+        payload: createInvalidSong((song) => {
+          (song.collaboration!.approvals[0] as unknown as Record<string, unknown>).extraField = true;
+        })
+      },
+      {
+        message: "collaboration.approvals[0].id",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.approvals[0]!.id = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.approvals[0].scope",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.approvals[0]!.scope = 2 as never;
+        })
+      },
+      {
+        message: "collaboration.approvals[0].owner",
+        payload: createInvalidSong((song) => {
+          song.collaboration!.approvals[0]!.owner = 2 as never;
         })
       },
       {
@@ -1264,6 +1470,14 @@ describe("shared type helpers", () => {
     for (const testCase of cases) {
       expect(() => parseRehearsalSong(testCase.payload)).toThrow(testCase.message);
     }
+
+    const songWithTranscription = createDemoRehearsalSong();
+    songWithTranscription.sections[0]!.roles[0]!.transcription = [
+      { pitch: "E2", onset: 0, offset: 1, velocity: 0.7 }
+    ];
+    expect(parseRehearsalSong(songWithTranscription).sections[0]?.roles[0]?.transcription).toEqual([
+      { pitch: "E2", onset: 0, offset: 1, velocity: 0.7 }
+    ]);
   });
 
   it("validates SongRehearsalPack and RehearsalWorkspace", () => {
@@ -1281,10 +1495,39 @@ describe("shared type helpers", () => {
       workspaceVersion: 1,
       songs: [validPack]
     };
+    const queuedPack: SongRehearsalPack = {
+      id: "pack-queued",
+      packState: "queued",
+      engineState: "queued",
+      sourceLabel: "Queued Song"
+    };
+    const analyzingPack: SongRehearsalPack = {
+      id: "pack-analyzing",
+      packState: "analyzing",
+      engineState: "running",
+      sourceLabel: "Analyzing Song"
+    };
+    const failedPack: SongRehearsalPack = {
+      id: "pack-failed",
+      packState: "failed",
+      engineState: "failed",
+      sourceLabel: "Failed Song",
+      error: { code: "engine_unavailable", message: "Engine unavailable" }
+    };
 
     expect(parseSongRehearsalPack(validPack)).toEqual(validPack);
+    expect(parseSongRehearsalPack(queuedPack)).toEqual(queuedPack);
+    expect(parseSongRehearsalPack(analyzingPack)).toEqual(analyzingPack);
+    expect(parseSongRehearsalPack(failedPack)).toEqual(failedPack);
     expect(isRehearsalWorkspace(validWorkspace)).toBe(true);
     expect(parseRehearsalWorkspace(validWorkspace)).toEqual(validWorkspace);
+    expect(parseRehearsalWorkspace({
+      ...validWorkspace,
+      songs: [queuedPack, failedPack]
+    })).toEqual({
+      ...validWorkspace,
+      songs: [queuedPack, failedPack]
+    });
 
     const legacyNestedSong = createDemoRehearsalSong() as unknown as {
       sections: Array<Record<string, unknown>>;
@@ -1307,6 +1550,23 @@ describe("shared type helpers", () => {
     // Invalid packs
     expect(() => parseSongRehearsalPack({ ...validPack, packState: "invalid" })).toThrow("packState");
     expect(() => parseSongRehearsalPack({ ...validPack, extraField: true })).toThrow("extraField");
+    expect(() => parseSongRehearsalPack({
+      id: "pack-ready-missing-song",
+      packState: "ready",
+      sourceLabel: "Ready Song"
+    })).toThrow("song");
+    expect(() => parseSongRehearsalPack({ ...queuedPack, extraField: true })).toThrow("extraField");
+    expect(() => parseSongRehearsalPack({
+      id: "pack-queued-missing-engine",
+      packState: "queued",
+      sourceLabel: "Queued Song"
+    })).toThrow("engineState");
+    expect(() => parseSongRehearsalPack({ ...failedPack, extraField: true })).toThrow("extraField");
+    expect(() => parseSongRehearsalPack({
+      id: "pack-failed-missing-error",
+      packState: "failed",
+      sourceLabel: "Failed Song"
+    })).toThrow("error");
     
     // Invalid workspaces
     expect(isRehearsalWorkspace({ ...validWorkspace, songs: [{...validPack, packState: "bad"}] })).toBe(false);
