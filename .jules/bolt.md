@@ -41,3 +41,6 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+## 2025-02-16 - Replace unconditional Array.reduce with a breakable for...of loop for finding minimums
+**Learning:** Using `Array.reduce` unconditionally to find a minimum value iterates the entire array even if the absolute minimum possible value has already been found. This wastes CPU cycles when iterating large collections (like sections with confidence levels).
+**Action:** Replace `Array.reduce` with a `for...of` loop and implement an early `break` condition when the known absolute minimum (e.g. "low") is encountered.
