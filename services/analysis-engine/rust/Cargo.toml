@@ -1,0 +1,22 @@
+[package]
+name = "bandscope_numeric"
+version = "0.1.0"
+edition = "2021"
+description = "Rust numeric kernels for the BandScope analysis engine (checkerboard SSM novelty + Viterbi chord decoding)."
+license = "MIT"
+repository = "https://github.com/ContextualWisdomLab/bandscope"
+
+[lib]
+name = "bandscope_numeric"
+crate-type = ["cdylib"]
+
+# Permissive-licensed dependencies only (Apache-2.0 / MIT). No GPL/AGPL.
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module"] }
+numpy = "0.23"
+ndarray = "0.16"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
