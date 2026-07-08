@@ -94,11 +94,11 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     installers = []
 
     if bundle_dir.exists():
-        for subdirectory, pattern in [("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
+        for subdirectory, pattern in [("dmg", "*.dmg"), ("macos", "*.app"), ("nsis", "*.exe"), ("msi", "*.msi")]:
             installers.extend(
                 installer
                 for installer in sorted((bundle_dir / subdirectory).glob(pattern))
-                if installer.is_file() and not installer.is_symlink()
+                if (installer.is_file() or installer.is_dir()) and not installer.is_symlink()
             )
 
     return sorted(installers)
@@ -124,16 +124,23 @@ def main() -> int:
             archive_name = f"{archive_base.stem}-{archive_safe_stem(installer_path)}{archive_base.suffix}"
 
         archive_path = output_dir / archive_name
-        shutil.copy2(installer_path, archive_path)
+        if installer_path.is_dir() and installer_path.suffix == ".app":
+            import tarfile
+            archive_path = archive_path.with_name(archive_path.name.replace(".app", ".tar.gz"))
+            archive_name = archive_path.name
+            with tarfile.open(archive_path, "w:gz") as tar:
+                tar.add(installer_path, arcname=installer_path.name)
+        else:
+            shutil.copy2(installer_path, archive_path)
 
         checksum_path = output_dir / f"{archive_name}.sha256"
         checksum_path.write_text(f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8")
 
-        manifest_path = output_dir / (
-            f"{archive_name}.manifest.txt"
-            if suffix_counts[installer_path.suffix.lower()] > 1
-            else identity["manifest_name"]
-        )
+        manifest_name = f"{archive_name}.manifest.txt" if suffix_counts[installer_path.suffix.lower()] > 1 else identity["manifest_name"]
+        if installer_path.is_dir() and installer_path.suffix == ".app":
+            manifest_name = manifest_name.replace(".app.manifest.txt", ".tar.gz.manifest.txt")
+
+        manifest_path = output_dir / manifest_name
         manifest_path.write_text(
             "\n".join(
                 [

@@ -218,6 +218,8 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Add macOS Intel target
         run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
+      - name: Install create-dmg
+        run: brew install create-dmg
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -225,7 +227,7 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: npm exec --workspace @bandscope/desktop -- tauri build --target "$BANDSCOPE_TARGET_TRIPLE" --bundles app
+        run: npm exec --workspace @bandscope/desktop -- tauri build --target "$BANDSCOPE_TARGET_TRIPLE" --bundles dmg
       - name: Package macOS amd64 artifact
         run: python3 scripts/release/package_desktop_artifact.py
       - name: Upload macOS amd64 artifact
@@ -264,6 +266,8 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Add macOS arm target
         run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
+      - name: Install create-dmg
+        run: brew install create-dmg
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -271,7 +275,7 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: npm exec --workspace @bandscope/desktop -- tauri build --target "$BANDSCOPE_TARGET_TRIPLE" --bundles app
+        run: npm exec --workspace @bandscope/desktop -- tauri build --target "$BANDSCOPE_TARGET_TRIPLE" --bundles dmg
       - name: Package macOS arm64 artifact
         run: python3 scripts/release/package_desktop_artifact.py
       - name: Upload macOS arm64 artifact
