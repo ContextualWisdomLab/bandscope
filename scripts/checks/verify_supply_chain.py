@@ -107,6 +107,7 @@ RUST_RAND_PATCHED_VERSIONS = {
     (0, 10): (0, 10, 1),
 }
 RUST_GLIB_ADVISORY_ID = "RUSTSEC-2024-0429"
+RUST_GLIB_TRIVY_ADVISORY_ID = "GHSA-wrw7-89jp-8q8g"
 RUST_GLIB_LEGACY_EXCEPTION_VERSION = "0.18.5"
 RUST_GLIB_PATCHED_VERSION = (0, 20, 0)
 RUST_GLIB_LEGACY_ROOT_NAME = "tauri"
@@ -143,6 +144,7 @@ RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RUST_AUDIT_CONFIG = Path("apps/desktop/src-tauri/.cargo/audit.toml")
 RUST_OSV_SCANNER_CONFIG = Path("apps/desktop/src-tauri/osv-scanner.toml")
+TRIVY_IGNORE_FILE = Path(".trivyignore")
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -1800,6 +1802,27 @@ def rust_osv_ignored_advisories(osv_config: Path) -> dict[str, str]:
     return ignored
 
 
+def trivy_ignored_finding_reasons(ignore_file: Path) -> dict[str, str]:
+    """Return Trivy ignored finding ids and their preceding comment reasons."""
+    if not ignore_file.exists():
+        return {}
+    ignored: dict[str, str] = {}
+    pending_comments: list[str] = []
+    for raw_line in ignore_file.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            pending_comments = []
+            continue
+        if stripped.startswith("#"):
+            pending_comments.append(stripped.lstrip("#").strip())
+            continue
+        finding_id = stripped.partition("#")[0].split()[0]
+        if finding_id:
+            ignored[finding_id] = "\n".join(pending_comments)
+        pending_comments = []
+    return ignored
+
+
 def toml_decode_violation(path: Path, error: tomllib.TOMLDecodeError) -> str:
     """Return a single-line TOML decode policy violation."""
     return f"{path}: invalid TOML: {str(error).replace(chr(10), ' ')}"
@@ -1842,6 +1865,60 @@ def rust_osv_exception_violations(
             violations.append(
                 f"{osv_config}: OSV ignore for {advisory_id} needs a reason"
             )
+    return violations
+
+
+def rust_trivy_exception_violations(
+    audit_config: Path = RUST_AUDIT_CONFIG,
+    osv_config: Path = RUST_OSV_SCANNER_CONFIG,
+    trivy_ignore_file: Path = TRIVY_IGNORE_FILE,
+) -> list[str]:
+    """Return Trivy exception drift from repo-owned Rust advisory policy."""
+    violations: list[str] = []
+    try:
+        audit_ignores = rust_audit_ignored_advisories(audit_config)
+    except tomllib.TOMLDecodeError as error:
+        return [toml_decode_violation(audit_config, error)]
+    try:
+        osv_ignores = rust_osv_ignored_advisories(osv_config)
+    except tomllib.TOMLDecodeError as error:
+        return [toml_decode_violation(osv_config, error)]
+
+    glib_policy_active = (
+        RUST_GLIB_ADVISORY_ID in audit_ignores
+        or RUST_GLIB_ADVISORY_ID in osv_ignores
+    )
+    trivy_ignores = trivy_ignored_finding_reasons(trivy_ignore_file)
+    glib_trivy_reason = trivy_ignores.get(RUST_GLIB_TRIVY_ADVISORY_ID)
+
+    if glib_policy_active and glib_trivy_reason is None:
+        violations.append(
+            f"{trivy_ignore_file}: missing Trivy ignore for "
+            f"{RUST_GLIB_TRIVY_ADVISORY_ID} mapped to {RUST_GLIB_ADVISORY_ID}"
+        )
+        return violations
+    if not glib_policy_active and RUST_GLIB_TRIVY_ADVISORY_ID in trivy_ignores:
+        violations.append(
+            f"{trivy_ignore_file}: unexpected Trivy ignore for "
+            f"{RUST_GLIB_TRIVY_ADVISORY_ID} without matching cargo-audit/OSV policy"
+        )
+        return violations
+    if not glib_policy_active:
+        return violations
+
+    required_reason_terms = (
+        RUST_GLIB_ADVISORY_ID,
+        "glib 0.18.5",
+        "Tauri/wry/webkit2gtk/gtk",
+        "glib >=0.20",
+    )
+    missing_terms = [term for term in required_reason_terms if term not in glib_trivy_reason]
+    if missing_terms:
+        violations.append(
+            f"{trivy_ignore_file}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            "must document "
+            + ", ".join(missing_terms)
+        )
     return violations
 
 
@@ -2217,6 +2294,7 @@ def main() -> int:
     violations.extend(verify_workflow_npx_policy())
     violations.extend(verify_workflow_workspace_exec_policy())
     violations.extend(rust_osv_exception_violations())
+    violations.extend(rust_trivy_exception_violations())
     violations.extend(rust_dependency_advisory_violations())
 
     if violations:
