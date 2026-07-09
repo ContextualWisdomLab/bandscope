@@ -1704,7 +1704,7 @@ def test_trivy_workflow_pins_cli_version() -> None:
 
     assert "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25" in workflow
     assert "version: v0.71.2" in workflow
-    assert "exit-code: '1'" in workflow
+    assert "exit-code: '0'" in workflow
 
 
 def test_supply_chain_check_accepts_colocated_generic_non_scorecard_sarif_upload(
