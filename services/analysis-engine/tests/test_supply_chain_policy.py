@@ -3958,8 +3958,7 @@ reason = "glib 0.18.5 through Tauri/wry/webkit2gtk/gtk"
     )
 
     assert (
-        f"{trivy_ignore}: missing Trivy ignore for GHSA-wrw7-89jp-8q8g "
-        "mapped to RUSTSEC-2024-0429"
+        f"{trivy_ignore}: missing Trivy ignore for GHSA-wrw7-89jp-8q8g mapped to RUSTSEC-2024-0429"
     ) in violations
 
 
