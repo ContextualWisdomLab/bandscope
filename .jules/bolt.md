@@ -44,3 +44,7 @@
 ## 2025-02-16 - Replace unconditional Array.reduce with a breakable for...of loop for finding minimums
 **Learning:** Using `Array.reduce` unconditionally to find a minimum value iterates the entire array even if the absolute minimum possible value has already been found. This wastes CPU cycles when iterating large collections (like sections with confidence levels).
 **Action:** Replace `Array.reduce` with a `for...of` loop and implement an early `break` condition when the known absolute minimum (e.g. "low") is encountered.
+
+## 2025-02-16 - Tauri DMG bundle icon errors
+**Learning:** In Tauri v2, a cryptic 'failed to run bundle_dmg.sh' error during macOS DMG bundling is often caused by a missing `bundle.icon` array configuration in `tauri.conf.json` or missing required icon files (such as `128x128@2x.png`).
+**Action:** Ensure the `bundle.icon` array is correctly defined and all specified icon files exist before attempting to build a macOS DMG.
