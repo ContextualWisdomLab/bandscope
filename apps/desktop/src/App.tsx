@@ -535,18 +535,8 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <span tabIndex={0} role="button" aria-disabled="true" title="Settings coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                <span className="sr-only">Settings coming soon</span>
-                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
-                  <Settings className="size-5" aria-hidden="true" />
-                </button>
-              </span>
-              <span tabIndex={0} role="button" aria-disabled="true" title="Help coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                <span className="sr-only">Help coming soon</span>
-                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
-                  <CircleHelp className="size-5" aria-hidden="true" />
-                </button>
-              </span>
+              <button type="button" aria-disabled="true" title="Settings coming soon" onClick={(e) => e.preventDefault()} className="rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"><span className="sr-only">Settings coming soon</span><Settings className="size-5" aria-hidden="true" /></button>
+              <button type="button" aria-disabled="true" title="Help coming soon" onClick={(e) => e.preventDefault()} className="rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"><span className="sr-only">Help coming soon</span><CircleHelp className="size-5" aria-hidden="true" /></button>
             </div>
           </div>
         </aside>
@@ -646,17 +636,7 @@ export function App() {
                     Save Project
                   </Button>
                 ) : (
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Analyze a song to enable saving" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                    <Button
-                      disabled
-                      variant="outline"
-                      className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
-                      aria-label="Save Project"
-                    >
-                      <Save className="mr-2 size-4" aria-hidden="true" />
-                      Save Project
-                    </Button>
-                  </span>
+                  <Button aria-disabled="true" title="Analyze a song to enable saving" onClick={(e) => e.preventDefault()} variant="outline" className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" aria-label="Save Project"><Save className="mr-2 size-4" aria-hidden="true" />Save Project</Button>
                 )}
                 <Button
                   onClick={handleStartAnalysis}

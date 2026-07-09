@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, createEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -1427,10 +1427,21 @@ describe("App", () => {
   });
 
 
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
+  it("renders Settings and Help buttons with aria-disabled instead of HTML disabled for accessibility", () => {
     render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
+    const settingsBtn = screen.getByTitle("Settings coming soon");
+    const helpBtn = screen.getByTitle("Help coming soon");
+
+    expect(settingsBtn.tagName).toBe("BUTTON");
+    expect(settingsBtn.getAttribute("aria-disabled")).toBe("true");
+    const settingsEvent = createEvent.click(settingsBtn);
+    fireEvent(settingsBtn, settingsEvent);
+    expect(settingsEvent.defaultPrevented).toBe(true);
+
+    expect(helpBtn.tagName).toBe("BUTTON");
+    expect(helpBtn.getAttribute("aria-disabled")).toBe("true");
+    const helpEvent = createEvent.click(helpBtn);
+    fireEvent(helpBtn, helpEvent);
+    expect(helpEvent.defaultPrevented).toBe(true);
   });
 });
