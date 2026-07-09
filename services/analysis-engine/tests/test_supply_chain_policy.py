@@ -38,6 +38,16 @@ def assert_local_review_workflows_removed() -> None:
         assert not (repo_root / "scripts" / "ci" / helper).exists()
 
 
+def symlink_or_skip(
+    link_path: Path, target: Path, *, target_is_directory: bool = False
+) -> None:
+    """Create a symlink or skip when the local platform denies symlink creation."""
+    try:
+        link_path.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as error:
+        pytest.skip(f"symlink creation is unavailable in this environment: {error}")
+
+
 def test_supply_chain_check_requires_multi_arch_runner_labels(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -2519,7 +2529,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_artifact_zip(
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
     symlink_zip = tmp_path / "ossf-scorecard-results.zip"
-    symlink_zip.symlink_to(real_zip)
+    symlink_or_skip(symlink_zip, real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(symlink_zip, tmp_path / "scorecard-sarif")
@@ -2538,7 +2548,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_zip_in_artifact_directory(
     real_zip = tmp_path / "real-scorecard-results.zip"
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
-    (artifact_dir / "results.sarif.zip").symlink_to(real_zip)
+    symlink_or_skip(artifact_dir / "results.sarif.zip", real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
@@ -2559,7 +2569,7 @@ def test_scorecard_artifact_extractor_rejects_mixed_symlink_zip_directory(
     real_zip = tmp_path / "real-scorecard-results.zip"
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
-    (artifact_dir / "shadow.zip").symlink_to(real_zip)
+    symlink_or_skip(artifact_dir / "shadow.zip", real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
@@ -2621,7 +2631,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_output_dir(tmp_path: Path)
     real_output = tmp_path / "real-output"
     real_output.mkdir()
     symlink_output = tmp_path / "scorecard-sarif"
-    symlink_output.symlink_to(real_output, target_is_directory=True)
+    symlink_or_skip(symlink_output, real_output, target_is_directory=True)
     with zipfile.ZipFile(source_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
 
@@ -2642,7 +2652,7 @@ def test_scorecard_artifact_extractor_rejects_existing_target_symlink(
     output_dir.mkdir()
     outside_target = tmp_path / "outside.sarif"
     outside_target.write_text("outside", encoding="utf-8")
-    (output_dir / "results.sarif").symlink_to(outside_target)
+    symlink_or_skip(output_dir / "results.sarif", outside_target)
     with zipfile.ZipFile(source_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
 
