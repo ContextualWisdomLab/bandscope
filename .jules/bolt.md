@@ -45,3 +45,7 @@
 ## 2023-10-27 - [Tauri CI] Bypass DMG Bundling Failures in CI
 **Learning:** Tauri macOS `.dmg` builds frequently fail in GitHub Actions due to missing `create-dmg` tool or code signing issues during automated workflow steps.
 **Action:** Replace `--bundles dmg` with `--bundles app` in the macOS build workflow commands (e.g., `build-baseline.yml`) to successfully complete the CI build check and avoid PR check failures.
+
+## 2023-10-27 - [Python CI] Copying Directories as Artifacts
+**Learning:** `.app` bundles on macOS are directories, not files. When packaging release artifacts using `Path.glob()`, `is_file()` will filter them out, causing `FileNotFoundError`. Furthermore, `shutil.copy2` cannot copy directories.
+**Action:** When finding installers, use `is_file() or is_dir()`. When copying the artifact, handle directories separately by using `shutil.copytree()`, creating a zip archive via `shutil.make_archive()`, and then calculating the checksum of the resulting `.zip` file so the artifact is valid.

@@ -94,11 +94,11 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     installers = []
 
     if bundle_dir.exists():
-        for subdirectory, pattern in [("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
+        for subdirectory, pattern in [("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi"), ("macos", "*.app")]:
             installers.extend(
                 installer
                 for installer in sorted((bundle_dir / subdirectory).glob(pattern))
-                if installer.is_file() and not installer.is_symlink()
+                if (installer.is_file() or installer.is_dir()) and not installer.is_symlink()
             )
 
     return sorted(installers)
@@ -112,7 +112,7 @@ def main() -> int:
 
     installers = find_installer_packages(repo_root)
     if not installers:
-        raise FileNotFoundError("Could not find any built installers (DMG/EXE) in target/release/bundle/")
+        raise FileNotFoundError("Could not find any built installers (DMG/EXE/APP) in target/release/bundle/")
 
     suffix_counts = Counter(path.suffix.lower() for path in installers)
     for installer_path in installers:
@@ -124,7 +124,15 @@ def main() -> int:
             archive_name = f"{archive_base.stem}-{archive_safe_stem(installer_path)}{archive_base.suffix}"
 
         archive_path = output_dir / archive_name
-        shutil.copy2(installer_path, archive_path)
+        if installer_path.is_dir():
+            shutil.copytree(installer_path, archive_path, dirs_exist_ok=True)
+            # Cannot sha256 a directory, so let's zip it first and then checksum the zip
+            shutil.make_archive(str(archive_path), 'zip', str(installer_path))
+            shutil.rmtree(archive_path)
+            archive_path = archive_path.with_suffix('.app.zip')
+            archive_name = archive_path.name
+        else:
+            shutil.copy2(installer_path, archive_path)
 
         checksum_path = output_dir / f"{archive_name}.sha256"
         checksum_path.write_text(f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8")
