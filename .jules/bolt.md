@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2023-10-27 - [Tauri CI] Bypass DMG Bundling Failures in CI
+**Learning:** Tauri macOS `.dmg` builds frequently fail in GitHub Actions due to missing `create-dmg` tool or code signing issues during automated workflow steps.
+**Action:** Replace `--bundles dmg` with `--bundles app` in the macOS build workflow commands (e.g., `build-baseline.yml`) to successfully complete the CI build check and avoid PR check failures.
