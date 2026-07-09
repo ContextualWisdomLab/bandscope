@@ -1,0 +1,3 @@
+## 2024-07-09 - Accessible Disabled Buttons
+**Learning:** To make disabled buttons accessible and their tooltips functional, they should not be wrapped in `span role="button"` or have `aria-hidden="true"` applied to the nested button. This creates invalid nested interactive elements and breaks screen reader accessibility and test queries.
+**Action:** Use the native `<button>` element (or `Button` component), remove the HTML `disabled` and `pointer-events-none` attributes, apply `aria-disabled="true"`, block clicks with `onClick={(e) => e.preventDefault()}`, and place the `title` attribute directly on the button. Ensure tailwind configurations account for `aria-disabled:` where needed.

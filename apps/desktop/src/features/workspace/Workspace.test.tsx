@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -69,6 +69,29 @@ describe("Workspace", () => {
     const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(false);
     expect(transcribeButton.title).toBe("Transcribe part");
+  });
+
+  it("prevents default behavior when clicking disabled coming-soon workspace buttons", () => {
+    const song = createDemoRehearsalSong();
+    render(<Workspace song={song} />);
+
+    // Select a role to reveal the stem player buttons
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    const buttonsToTest = [
+      "Play stem",
+      "Loop section",
+      "Solo / mute others",
+      "Transcribe Bass"
+    ];
+
+    for (const name of buttonsToTest) {
+      const button = screen.getByRole("button", { name });
+      const event = createEvent.click(button);
+      fireEvent(button, event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(button).toHaveAttribute("aria-disabled", "true");
+    }
   });
 
   it("renders bass transcription in the dark rehearsal cockpit system", () => {

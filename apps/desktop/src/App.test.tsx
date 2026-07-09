@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -1427,10 +1427,32 @@ describe("App", () => {
   });
 
 
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
+  it("renders disabled Settings and Help buttons as focusable buttons for accessibility", () => {
     render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
+    const settingsButton = screen.getByTitle("Settings coming soon");
+    expect(settingsButton.tagName).toBe("BUTTON");
+    expect(settingsButton).toHaveAttribute("aria-disabled", "true");
+
+    const helpButton = screen.getByTitle("Help coming soon");
+    expect(helpButton.tagName).toBe("BUTTON");
+    expect(helpButton).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("prevents default behavior when clicking disabled buttons with aria-disabled=true", () => {
+    render(<App />);
+    const settingsButton = screen.getByTitle("Settings coming soon");
+    const event = createEvent.click(settingsButton);
+    fireEvent(settingsButton, event);
+    expect(event.defaultPrevented).toBe(true);
+
+    const helpButton = screen.getByTitle("Help coming soon");
+    const helpEvent = createEvent.click(helpButton);
+    fireEvent(helpButton, helpEvent);
+    expect(helpEvent.defaultPrevented).toBe(true);
+
+    const saveButton = screen.getByTitle("Analyze a song to enable saving");
+    const saveEvent = createEvent.click(saveButton);
+    fireEvent(saveButton, saveEvent);
+    expect(saveEvent.defaultPrevented).toBe(true);
   });
 });
