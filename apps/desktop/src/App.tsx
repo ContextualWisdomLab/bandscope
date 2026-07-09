@@ -21,6 +21,7 @@ import {
   Users,
   Wand2,
   Loader2,
+  type LucideIcon,
 } from "lucide-react";
 import {
   SUPPORTED_AUDIO_FORMATS,
@@ -63,7 +64,7 @@ const NAV_ITEMS = [
   { labelKey: "navCues", icon: Sparkles, active: false },
   { labelKey: "navTranspose", icon: SlidersHorizontal, active: false },
   { labelKey: "navNotes", icon: FileMusic, active: false }
-] as const;
+] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; active: boolean }[];
 
 const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
 
@@ -504,7 +505,7 @@ export function App() {
 
           <nav aria-label={t("primaryRehearsalViewsAriaLabel")} className="space-y-2">
             {NAV_ITEMS.map(({ labelKey, icon: Icon, active }) => {
-              const label = t(labelKey as TranslationKey);
+              const label = t(labelKey);
 
               return (
                 <button
@@ -569,7 +570,7 @@ export function App() {
         <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
             {NAV_ITEMS.map(({ labelKey, icon: Icon, active }) => {
-              const label = t(labelKey as TranslationKey);
+              const label = t(labelKey);
 
               return (
                 <button
