@@ -311,9 +311,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button type="button" aria-disabled="true" title="Coming soon" onClick={(e) => e.preventDefault()} variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Play stem</Button>
-                  <Button type="button" aria-disabled="true" title="Coming soon" onClick={(e) => e.preventDefault()} variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Loop section</Button>
-                  <Button type="button" aria-disabled="true" title="Coming soon" onClick={(e) => e.preventDefault()} variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Solo / mute others</Button>
+                  <Button type="button" aria-disabled="true" title="Coming soon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); } }} variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Play stem</Button>
+                  <Button type="button" aria-disabled="true" title="Coming soon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); } }} variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Loop section</Button>
+                  <Button type="button" aria-disabled="true" title="Coming soon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); } }} variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Solo / mute others</Button>
                   {canTranscribeBass ? (
                     <Button
                       type="button"
@@ -324,7 +324,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       Transcribe Bass
                     </Button>
                   ) : (
-                    <Button type="button" aria-disabled="true" title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`} onClick={(e) => e.preventDefault()} variant="outline" className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 aria-disabled:border-white/10 aria-disabled:bg-white/5 aria-disabled:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Transcribe Bass</Button>
+                    <Button type="button" aria-disabled="true" title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); } }} variant="outline" className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 aria-disabled:border-white/10 aria-disabled:bg-white/5 aria-disabled:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">Transcribe Bass</Button>
                   )}
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">

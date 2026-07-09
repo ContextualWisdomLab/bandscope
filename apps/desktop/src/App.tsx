@@ -497,7 +497,6 @@ export function App() {
                 key={label}
                 type="button"
                 aria-current={active ? "page" : undefined}
-                aria-disabled={active ? undefined : true}
                 disabled={!active}
                 title={active ? undefined : "Coming soon"}
                 className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
@@ -535,8 +534,8 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <button type="button" aria-disabled="true" title="Settings coming soon" onClick={(e) => e.preventDefault()} className="rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"><span className="sr-only">Settings coming soon</span><Settings className="size-5" aria-hidden="true" /></button>
-              <button type="button" aria-disabled="true" title="Help coming soon" onClick={(e) => e.preventDefault()} className="rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"><span className="sr-only">Help coming soon</span><CircleHelp className="size-5" aria-hidden="true" /></button>
+              <button type="button" aria-disabled="true" title="Settings coming soon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); } }} className="rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"><span className="sr-only">Settings coming soon</span><Settings className="size-5" aria-hidden="true" /></button>
+              <button type="button" aria-disabled="true" title="Help coming soon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); } }} className="rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"><span className="sr-only">Help coming soon</span><CircleHelp className="size-5" aria-hidden="true" /></button>
             </div>
           </div>
         </aside>
@@ -549,7 +548,6 @@ export function App() {
                 type="button"
                 aria-current={active ? "page" : undefined}
                 aria-label={`${label} compact view`}
-                aria-disabled={active ? undefined : true}
                 disabled={!active}
                 title={active ? undefined : "Coming soon"}
                 className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
@@ -636,7 +634,7 @@ export function App() {
                     Save Project
                   </Button>
                 ) : (
-                  <Button aria-disabled="true" title="Analyze a song to enable saving" onClick={(e) => e.preventDefault()} variant="outline" className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" aria-label="Save Project"><Save className="mr-2 size-4" aria-hidden="true" />Save Project</Button>
+                  <Button aria-disabled="true" title="Analyze a song to enable saving" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); } }} variant="outline" className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" aria-label="Save Project"><Save className="mr-2 size-4" aria-hidden="true" />Save Project</Button>
                 )}
                 <Button
                   onClick={handleStartAnalysis}

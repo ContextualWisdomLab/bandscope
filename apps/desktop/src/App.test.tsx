@@ -1443,5 +1443,18 @@ describe("App", () => {
     const helpEvent = createEvent.click(helpBtn);
     fireEvent(helpBtn, helpEvent);
     expect(helpEvent.defaultPrevented).toBe(true);
+
+    // Test onKeyDown
+    const settingsKeyEvent = createEvent.keyDown(settingsBtn, { key: "Enter" });
+    fireEvent(settingsBtn, settingsKeyEvent);
+    expect(settingsKeyEvent.defaultPrevented).toBe(true);
+
+    const settingsSpaceEvent = createEvent.keyDown(settingsBtn, { key: " " });
+    fireEvent(settingsBtn, settingsSpaceEvent);
+    expect(settingsSpaceEvent.defaultPrevented).toBe(true);
+
+    const helpKeyEvent = createEvent.keyDown(helpBtn, { key: "Enter" });
+    fireEvent(helpBtn, helpKeyEvent);
+    expect(helpKeyEvent.defaultPrevented).toBe(true);
   });
 });
