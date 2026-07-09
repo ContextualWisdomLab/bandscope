@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2026-07-09 - [Array density check optimization]
+**Learning:** [Using Array.from().every() to check for array density creates O(N) intermediate array allocations which add unnecessary garbage collection overhead on the critical path.]
+**Action:** [Use a standard for-loop with an early return (i in value) for an O(1) memory and faster check.]

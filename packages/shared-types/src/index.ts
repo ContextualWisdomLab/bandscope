@@ -379,7 +379,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Documented. */
 function isDenseArray(value: unknown): value is unknown[] {
-  return Array.isArray(value) && Array.from({ length: value.length }, (_, index) => index in value).every(Boolean);
+  if (!Array.isArray(value)) return false;
+  // Performance: Avoid O(N) allocation of intermediate array from Array.from()
+  for (let i = 0; i < value.length; i++) {
+    if (!(i in value)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** Documented. */
