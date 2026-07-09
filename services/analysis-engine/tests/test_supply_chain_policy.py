@@ -3848,13 +3848,18 @@ def test_supply_chain_check_requires_tracked_rust_glib_legacy_exception() -> Non
     """Ensure the remaining legacy glib advisory is narrowly documented."""
     repo_root = Path(__file__).resolve().parents[3]
     audit_config = repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml"
+    trivy_ignore = repo_root / ".trivyignore"
     content = audit_config.read_text(encoding="utf-8")
+    trivy_content = trivy_ignore.read_text(encoding="utf-8")
 
     assert (
         '"RUSTSEC-2024-0429", # glib 0.18.5: VariantStrIter unsoundness, '
         "transitive via Tauri/wry/webkit2gtk/gtk GTK3 stack; remove when upstream "
         "drops or patches the chain"
     ) in content
+    assert "GHSA-wrw7-89jp-8q8g exp:2027-01-31" in trivy_content
+    assert "RUSTSEC-2024-0429" in trivy_content
+    assert "glib >=0.20" in trivy_content
 
 
 def test_supply_chain_check_accepts_repo_osv_rust_exceptions() -> None:
@@ -3867,6 +3872,22 @@ def test_supply_chain_check_accepts_repo_osv_rust_exceptions() -> None:
     violations = supply_chain.rust_osv_exception_violations(
         repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml",
         repo_root / "apps" / "desktop" / "src-tauri" / "osv-scanner.toml",
+    )
+
+    assert not violations
+
+
+def test_supply_chain_check_accepts_repo_trivy_rust_exceptions() -> None:
+    """Ensure Trivy ignores stay aligned with Rust audit and OSV exceptions."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.rust_trivy_exception_violations(
+        repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml",
+        repo_root / "apps" / "desktop" / "src-tauri" / "osv-scanner.toml",
+        repo_root / ".trivyignore",
     )
 
     assert not violations
@@ -3907,6 +3928,82 @@ reason = ""
     assert f"{osv_config}: OSV ignore for RUSTSEC-2024-0413 needs a reason" in violations
 
 
+def test_supply_chain_check_rejects_trivy_exception_drift(tmp_path: Path) -> None:
+    """Ensure Trivy cannot miss a Rust exception that audit and OSV allow."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_drift"
+    )
+    audit_config = tmp_path / "audit.toml"
+    osv_config = tmp_path / "osv-scanner.toml"
+    trivy_ignore = tmp_path / ".trivyignore"
+    audit_config.write_text(
+        """
+[advisories]
+ignore = ["RUSTSEC-2024-0429"]
+""".strip(),
+        encoding="utf-8",
+    )
+    osv_config.write_text(
+        """
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "glib 0.18.5 through Tauri/wry/webkit2gtk/gtk"
+""".strip(),
+        encoding="utf-8",
+    )
+    trivy_ignore.write_text("GHSA-other-placeholder\n", encoding="utf-8")
+
+    violations = supply_chain.rust_trivy_exception_violations(
+        audit_config, osv_config, trivy_ignore
+    )
+
+    assert (
+        f"{trivy_ignore}: missing Trivy ignore for GHSA-wrw7-89jp-8q8g "
+        "mapped to RUSTSEC-2024-0429"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_trivy_exception_without_reason(tmp_path: Path) -> None:
+    """Ensure Trivy Rust exceptions include enough removal context."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_reason"
+    )
+    audit_config = tmp_path / "audit.toml"
+    osv_config = tmp_path / "osv-scanner.toml"
+    trivy_ignore = tmp_path / ".trivyignore"
+    audit_config.write_text(
+        """
+[advisories]
+ignore = ["RUSTSEC-2024-0429"]
+""".strip(),
+        encoding="utf-8",
+    )
+    osv_config.write_text(
+        """
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "glib 0.18.5 through Tauri/wry/webkit2gtk/gtk"
+""".strip(),
+        encoding="utf-8",
+    )
+    trivy_ignore.write_text(
+        """
+# RUSTSEC-2024-0429 only
+GHSA-wrw7-89jp-8q8g
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_trivy_exception_violations(
+        audit_config, osv_config, trivy_ignore
+    )
+
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document "
+        "glib 0.18.5, Tauri/wry/webkit2gtk/gtk, glib >=0.20"
+    ) in violations
+
+
 def test_supply_chain_check_reports_malformed_rust_exception_toml(tmp_path: Path) -> None:
     """Ensure malformed Rust exception configs produce actionable policy errors."""
     supply_chain = load_module(
@@ -3929,7 +4026,7 @@ def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     dependency_policy = repo_root / "docs" / "security" / "dependency-policy.md"
     content = dependency_policy.read_text(encoding="utf-8")
 
-    assert "`RUSTSEC-2024-0429` for `glib 0.18.5`" in content
+    assert "`RUSTSEC-2024-0429` / `GHSA-wrw7-89jp-8q8g` for `glib 0.18.5`" in content
     assert "VariantStrIter" in content
     assert "Tauri/wry/webkit2gtk/gtk GTK3 stack" in content
     assert "A compatible lockfile refresh can move the desktop stack to" in content
@@ -3937,6 +4034,8 @@ def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     assert "`wry 0.55.1`" in content
     assert "`tao 0.35.3`" in content
     assert "`muda 0.19.3`" in content
+    assert "`GHSA-wrw7-89jp-8q8g`" in content
+    assert "Trivy" in content
     assert "drops or patches the chain" in content
 
 

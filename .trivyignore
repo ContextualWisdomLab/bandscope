@@ -1,3 +1,7 @@
+# GHSA-wrw7-89jp-8q8g / RUSTSEC-2024-0429: glib 0.18.5 VariantStrIter
+# is inherited only through the Tauri/wry/webkit2gtk/gtk GTK3 desktop stack.
+# Remove when upstream releases a compatible GTK4/WebKitGTK or glib >=0.20 path.
+GHSA-wrw7-89jp-8q8g exp:2027-01-31
 services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/shahid.py
 services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/go.py
 services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/nbc.py
