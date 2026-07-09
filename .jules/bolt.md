@@ -49,3 +49,7 @@
 ## 2023-10-27 - [Python CI] Copying Directories as Artifacts
 **Learning:** `.app` bundles on macOS are directories, not files. When packaging release artifacts using `Path.glob()`, `is_file()` will filter them out, causing `FileNotFoundError`. Furthermore, `shutil.copy2` cannot copy directories.
 **Action:** When finding installers, use `is_file() or is_dir()`. When copying the artifact, handle directories separately by using `shutil.copytree()`, creating a zip archive via `shutil.make_archive()`, and then calculating the checksum of the resulting `.zip` file so the artifact is valid.
+
+## 2023-10-27 - [CI Debugging] Ignore centralized repository workflow auth failures
+**Learning:** If a centralized workflow (e.g. `opencode-review.yml` running from `.github` repository) fails with OIDC or git fetch `exit code 128` errors (e.g., `fatal: could not read Username for 'https://github.com': No such device or address`), it is an infrastructure or repository permission issue outside of the codebase scope.
+**Action:** When PR checks fail due to centralized token/fetch errors that do not stem from codebase changes, acknowledge the limitation and proceed with the submission as the fix is outside of your control.
