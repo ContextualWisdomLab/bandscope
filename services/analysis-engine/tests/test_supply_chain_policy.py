@@ -1222,23 +1222,37 @@ def test_supply_chain_check_accepts_repo_ossf_publish_restrictions(
     assert not any("ossf scorecard" in violation for violation in violations)
 
 
-def test_supply_chain_check_accepts_repo_ossf_pr_code_scanning_upload() -> None:
-    """Ensure checked-in Scorecard uploads SARIF for PR code-scanning gates."""
-    repo_root = Path(__file__).resolve().parents[3]
-    workflow = (repo_root / ".github" / "workflows" / "ossf-scorecard.yml").read_text(
-        encoding="utf-8"
-    )
+def test_central_governance_workflows_removed() -> None:
+    """Ensure governance controls centralized to ContextualWisdomLab/.github keep no local copies.
 
-    assert "pull_request:" in workflow
-    assert "github.event_name == 'pull_request'" in workflow
-    assert "github.event.pull_request.base.ref" in workflow
-    assert "path: trusted-scorecard-scripts" in workflow
-    assert (
-        "python3 trusted-scorecard-scripts/scripts/checks/extract_scorecard_artifact.py" in workflow
+    Dependency review, CodeQL, OSSF Scorecard, and Trivy now run via the org
+    central required workflows. Local duplicates cause double runs and duplicate
+    SARIF uploads, so they must stay removed and out of REQUIRED_FILES.
+    """
+    repo_root = Path(__file__).resolve().parents[3]
+    workflows_dir = repo_root / ".github" / "workflows"
+
+    for centralized in (
+        "codeql.yml",
+        "dependency-review.yml",
+        "ossf-scorecard.yml",
+        "trivy.yml",
+    ):
+        assert not (workflows_dir / centralized).exists(), (
+            f"{centralized} is provided by the org central required workflows; "
+            "the repo-local copy must stay removed to avoid duplicate runs"
+        )
+
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
     )
-    assert (
-        "python3 trusted-scorecard-scripts/scripts/checks/normalize_scorecard_sarif.py" in workflow
-    )
+    required = {str(path) for path in supply_chain.REQUIRED_FILES}
+    for centralized in (
+        ".github/workflows/codeql.yml",
+        ".github/workflows/dependency-review.yml",
+        ".github/workflows/ossf-scorecard.yml",
+    ):
+        assert centralized not in required
 
 
 def test_opencode_review_declares_top_level_token_permissions() -> None:
@@ -1695,16 +1709,6 @@ def test_supply_chain_check_accepts_colocated_non_scorecard_sarif_upload(
     violations = supply_chain.verify_workflow_coverage()
 
     assert not any("ossf scorecard SARIF upload" in violation for violation in violations)
-
-
-def test_trivy_workflow_pins_cli_version() -> None:
-    """Ensure Trivy scan uses the pinned CLI version proven by the CI gate."""
-    repo_root = Path(__file__).resolve().parents[3]
-    workflow = (repo_root / ".github" / "workflows" / "trivy.yml").read_text(encoding="utf-8")
-
-    assert "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25" in workflow
-    assert "version: v0.71.2" in workflow
-    assert "exit-code: '1'" in workflow
 
 
 def test_supply_chain_check_accepts_colocated_generic_non_scorecard_sarif_upload(

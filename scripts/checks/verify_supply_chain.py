@@ -16,14 +16,15 @@ REQUIRED_FILES = [
     Path("services/analysis-engine/uv.lock"),
     Path("apps/desktop/src-tauri/Cargo.lock"),
     Path(".github/dependabot.yml"),
-    Path(".github/workflows/dependency-review.yml"),
+    # Dependency review, CodeQL, and OSSF Scorecard run via the org-level
+    # required workflows in ContextualWisdomLab/.github, so repo-local copies are
+    # intentionally absent and are not required here (see
+    # docs/workflow/github-bootstrap-execution-policy.md).
     Path(".github/workflows/security-audit.yml"),
-    Path(".github/workflows/codeql.yml"),
     Path(".github/workflows/sbom.yml"),
     Path(".github/workflows/release.yml"),
     Path(".github/workflows/secret-scan-gate.yml"),
     Path(".github/workflows/build-baseline.yml"),
-    Path(".github/workflows/ossf-scorecard.yml"),
     Path("apps/desktop/src-tauri/osv-scanner.toml"),
     Path("docs/security/dependency-policy.md"),
     Path("docs/security/sbom-policy.md"),
@@ -849,10 +850,20 @@ def verify_dependabot_coverage() -> list[str]:
     return missing
 
 
-def read_workflow(path: Path, label: str, missing: list[str]) -> str:
-    """Read a workflow file, recording a missing-file violation when absent."""
+def read_workflow(
+    path: Path, label: str, missing: list[str], *, optional: bool = False
+) -> str:
+    """Read a workflow file, recording a missing-file violation when absent.
+
+    Centralized governance controls (dependency review, CodeQL, OSSF Scorecard)
+    are provided by the org-level required workflows in ContextualWisdomLab/
+    .github, so this repository intentionally carries no local copies. Pass
+    ``optional=True`` for those controls: an absent local file is skipped rather
+    than flagged, while any local copy that is present is still fully validated.
+    """
     if not path.exists():
-        missing.append(f"missing file: {path}")
+        if not optional:
+            missing.append(f"missing file: {path}")
         return ""
     return path.read_text(encoding="utf-8")
 
@@ -1232,7 +1243,10 @@ def _verify_sbom_coverage(missing: list[str]) -> None:
 
 def _verify_dependency_review_coverage(missing: list[str]) -> None:
     review = read_workflow(
-        Path(".github/workflows/dependency-review.yml"), "dependency review", missing
+        Path(".github/workflows/dependency-review.yml"),
+        "dependency review",
+        missing,
+        optional=True,
     )
     for token in ["develop", "main", "pull_request"]:
         if review and token not in review:
@@ -1269,7 +1283,9 @@ def _verify_security_audit_coverage(missing: list[str]) -> None:
 
 
 def _verify_codeql_coverage(missing: list[str]) -> None:
-    codeql = read_workflow(Path(".github/workflows/codeql.yml"), "codeql", missing)
+    codeql = read_workflow(
+        Path(".github/workflows/codeql.yml"), "codeql", missing, optional=True
+    )
     for token in ["develop", "main", "pull_request", "push", "codeql"]:
         if codeql and token not in codeql:
             missing.append(f"codeql workflow missing token: {token}")
@@ -1340,7 +1356,10 @@ def _verify_build_coverage(missing: list[str]) -> None:
 
 def _verify_scorecard_coverage(missing: list[str], workflow_paths: list[Path]) -> None:
     scorecard = read_workflow(
-        Path(".github/workflows/ossf-scorecard.yml"), "ossf scorecard", missing
+        Path(".github/workflows/ossf-scorecard.yml"),
+        "ossf scorecard",
+        missing,
+        optional=True,
     )
     if scorecard:
         missing.extend(
