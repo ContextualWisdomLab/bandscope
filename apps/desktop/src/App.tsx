@@ -556,7 +556,7 @@ export function App() {
                 tabIndex={0}
                 aria-disabled="true"
                 title="Settings coming soon"
-                onClick={(e) => e.preventDefault()}
+                onClick={(e) => { e.preventDefault(); }}
                 className="cursor-not-allowed rounded-xl p-2 text-slate-600 opacity-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
               >
                 <Settings className="size-5" aria-hidden="true" />
@@ -566,7 +566,7 @@ export function App() {
                 tabIndex={0}
                 aria-disabled="true"
                 title="Help coming soon"
-                onClick={(e) => e.preventDefault()}
+                onClick={(e) => { e.preventDefault(); }}
                 className="cursor-not-allowed rounded-xl p-2 text-slate-600 opacity-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
               >
                 <CircleHelp className="size-5" aria-hidden="true" />
