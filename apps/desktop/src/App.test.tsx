@@ -1482,10 +1482,11 @@ describe("App", () => {
   });
 
 
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
+  it("renders disabled Settings and Help buttons with accessible attributes directly", () => {
     render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
+    const settingsButton = screen.getByTitle("Settings coming soon");
+    expect(settingsButton).toHaveAttribute("tabIndex", "0");
+    expect(settingsButton).toHaveAttribute("aria-disabled", "true");
+    expect(settingsButton.tagName.toLowerCase()).toBe("button");
   });
 });
