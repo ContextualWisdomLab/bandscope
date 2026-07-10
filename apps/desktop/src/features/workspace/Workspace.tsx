@@ -3,6 +3,7 @@ import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type Rehear
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
+import { PracticeProgress } from "./PracticeProgress";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -144,6 +145,33 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
+
+  /** Handle the practice progress change internally by immutably updating the song state. */
+  const handlePracticeProgressChange = (newProgress: number) => {
+    if (!activeRole || !onSongUpdate) return;
+
+    // Performance: Use shallow copying to avoid expensive structuredClone
+    const nextSong = {
+      ...song,
+      sections: song.sections.map(section => {
+        const roleIndex = section.roles.findIndex(r => r.id === activeRole);
+        if (roleIndex === -1) return section;
+
+        const nextRoles = [...section.roles];
+        nextRoles[roleIndex] = {
+          ...nextRoles[roleIndex]!,
+          practiceProgress: newProgress
+        };
+
+        return {
+          ...section,
+          roles: nextRoles
+        };
+      })
+    };
+
+    onSongUpdate(nextSong);
+  };
   const collaborationAssignments = useMemo(
     () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
     [song.collaboration]
@@ -411,6 +439,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     </div>
                   </div>
                 )}
+                <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
                 <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
               </div>
             )}

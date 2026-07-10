@@ -340,15 +340,14 @@ def test_run_analysis_job_handles_validation_exception() -> None:
 def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
     """Ensure local-audio requests separate stems before building rehearsal roles."""
     with (
-        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
     ):
-        separator = separator_class.return_value
-        separator.separate.return_value = {
+        separator.return_value = {
             "stems": {
                 "vocals": np.zeros(1024),
                 "bass": np.zeros(1024),
@@ -406,15 +405,14 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     }
 
     with (
-        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
     ):
-        separator = separator_class.return_value
-        separator.separate.return_value = {
+        separator.return_value = {
             "stems": {
                 "vocals": np.zeros(1024),
                 "bass": np.zeros(1024),
@@ -463,8 +461,8 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
 
 def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:
     """Ensure unsafe or undecodable local audio returns a typed failure envelope."""
-    with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
-        separator_class.return_value.separate.side_effect = ValueError(
+    with patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator:
+        separator.side_effect = ValueError(
             "Audio file is too large for stem separation: 16 bytes (max 8 bytes)"
         )
 
