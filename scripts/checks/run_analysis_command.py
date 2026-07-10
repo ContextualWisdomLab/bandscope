@@ -29,12 +29,24 @@ def _analysis_command(argv: list[str]) -> list[str]:
     return [_fallback_python(), "-m", *argv]
 
 
+def _normalize_args(argv: list[str]) -> list[str]:
+    """Remove npm-forwarded flags that are already represented for Python tools."""
+    if argv[0] == "pytest" and "--coverage" in argv:
+        print(
+            "Ignoring forwarded npm --coverage flag for pytest; "
+            "Python coverage is configured with --cov."
+        )
+        return [arg for arg in argv if arg != "--coverage"]
+    return argv
+
+
 def main(argv: list[str]) -> int:
     """Run a uv-backed command from the analysis-engine package directory."""
     if not argv:
         print("No analysis command was provided.", file=sys.stderr)
         return 2
 
+    argv = _normalize_args(argv)
     command = _analysis_command(argv)
     print(f"Running analysis command in {ANALYSIS_ENGINE_DIR}: {subprocess.list2cmdline(command)}")
     try:
