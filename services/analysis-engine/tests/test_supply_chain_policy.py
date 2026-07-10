@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from conftest import load_module
+from conftest import load_module, make_symlink_or_skip
 
 
 def central_required_workflow_policy_text() -> str:
@@ -36,16 +36,6 @@ def assert_local_review_workflows_removed() -> None:
         "validate_opencode_failed_check_review.sh",
     ):
         assert not (repo_root / "scripts" / "ci" / helper).exists()
-
-
-def symlink_or_skip(
-    link_path: Path, target: Path, *, target_is_directory: bool = False
-) -> None:
-    """Create a symlink or skip when the local platform denies symlink creation."""
-    try:
-        link_path.symlink_to(target, target_is_directory=target_is_directory)
-    except OSError as error:
-        pytest.skip(f"symlink creation is unavailable in this environment: {error}")
 
 
 def test_supply_chain_check_requires_multi_arch_runner_labels(
@@ -2529,7 +2519,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_artifact_zip(
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
     symlink_zip = tmp_path / "ossf-scorecard-results.zip"
-    symlink_or_skip(symlink_zip, real_zip)
+    make_symlink_or_skip(symlink_zip, real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(symlink_zip, tmp_path / "scorecard-sarif")
@@ -2548,7 +2538,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_zip_in_artifact_directory(
     real_zip = tmp_path / "real-scorecard-results.zip"
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
-    symlink_or_skip(artifact_dir / "results.sarif.zip", real_zip)
+    make_symlink_or_skip(artifact_dir / "results.sarif.zip", real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
@@ -2569,7 +2559,7 @@ def test_scorecard_artifact_extractor_rejects_mixed_symlink_zip_directory(
     real_zip = tmp_path / "real-scorecard-results.zip"
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
-    symlink_or_skip(artifact_dir / "shadow.zip", real_zip)
+    make_symlink_or_skip(artifact_dir / "shadow.zip", real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
@@ -2631,7 +2621,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_output_dir(tmp_path: Path)
     real_output = tmp_path / "real-output"
     real_output.mkdir()
     symlink_output = tmp_path / "scorecard-sarif"
-    symlink_or_skip(symlink_output, real_output, target_is_directory=True)
+    make_symlink_or_skip(symlink_output, real_output, target_is_directory=True)
     with zipfile.ZipFile(source_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
 
@@ -2652,7 +2642,7 @@ def test_scorecard_artifact_extractor_rejects_existing_target_symlink(
     output_dir.mkdir()
     outside_target = tmp_path / "outside.sarif"
     outside_target.write_text("outside", encoding="utf-8")
-    symlink_or_skip(output_dir / "results.sarif", outside_target)
+    make_symlink_or_skip(output_dir / "results.sarif", outside_target)
     with zipfile.ZipFile(source_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
 
@@ -3867,7 +3857,7 @@ def test_supply_chain_check_requires_tracked_rust_glib_legacy_exception() -> Non
         "transitive via Tauri/wry/webkit2gtk/gtk GTK3 stack; remove when upstream "
         "drops or patches the chain"
     ) in content
-    assert "GHSA-wrw7-89jp-8q8g exp:2027-01-31" in trivy_content
+    assert "GHSA-wrw7-89jp-8q8g exp:2026-10-31" in trivy_content
     assert "RUSTSEC-2024-0429" in trivy_content
     assert "glib >=0.20" in trivy_content
 
@@ -3887,17 +3877,17 @@ def test_supply_chain_check_accepts_repo_osv_rust_exceptions() -> None:
     assert not violations
 
 
-def test_supply_chain_check_accepts_repo_trivy_rust_exceptions() -> None:
-    """Ensure Trivy ignores stay aligned with Rust audit and OSV exceptions."""
+def test_supply_chain_check_accepts_repo_trivy_rust_exception() -> None:
+    """Ensure Trivy carries the same narrow glib exception with a revisit date."""
     supply_chain = load_module(
         "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_repo"
     )
     repo_root = Path(__file__).resolve().parents[3]
 
     violations = supply_chain.rust_trivy_exception_violations(
+        repo_root / ".trivyignore",
         repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml",
         repo_root / "apps" / "desktop" / "src-tauri" / "osv-scanner.toml",
-        repo_root / ".trivyignore",
     )
 
     assert not violations
@@ -3964,12 +3954,11 @@ reason = "glib 0.18.5 through Tauri/wry/webkit2gtk/gtk"
     trivy_ignore.write_text("GHSA-other-placeholder\n", encoding="utf-8")
 
     violations = supply_chain.rust_trivy_exception_violations(
-        audit_config, osv_config, trivy_ignore
+        trivy_ignore, audit_config, osv_config
     )
 
     assert (
-        f"{trivy_ignore}: missing Trivy ignore for GHSA-wrw7-89jp-8q8g "
-        "mapped to RUSTSEC-2024-0429"
+        f"{trivy_ignore}: missing Trivy ignore for GHSA-wrw7-89jp-8q8g tracked as RUSTSEC-2024-0429"
     ) in violations
 
 
@@ -4005,12 +3994,18 @@ GHSA-wrw7-89jp-8q8g
     )
 
     violations = supply_chain.rust_trivy_exception_violations(
-        audit_config, osv_config, trivy_ignore
+        trivy_ignore, audit_config, osv_config
     )
 
     assert (
-        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document "
-        "glib 0.18.5, Tauri/wry/webkit2gtk/gtk, glib >=0.20"
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document glib 0.18.5"
+    ) in violations
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document glib >=0.20"
+    ) in violations
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g "
+        "must include an exp:YYYY-MM-DD revisit date"
     ) in violations
 
 

@@ -3,6 +3,7 @@
 import functools
 import re
 import shlex
+from datetime import date
 from itertools import pairwise
 from pathlib import Path
 
@@ -24,6 +25,7 @@ REQUIRED_FILES = [
     Path(".github/workflows/secret-scan-gate.yml"),
     Path(".github/workflows/build-baseline.yml"),
     Path(".github/workflows/ossf-scorecard.yml"),
+    Path(".trivyignore"),
     Path("apps/desktop/src-tauri/osv-scanner.toml"),
     Path("docs/security/dependency-policy.md"),
     Path("docs/security/sbom-policy.md"),
@@ -144,7 +146,7 @@ RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RUST_AUDIT_CONFIG = Path("apps/desktop/src-tauri/.cargo/audit.toml")
 RUST_OSV_SCANNER_CONFIG = Path("apps/desktop/src-tauri/osv-scanner.toml")
-TRIVY_IGNORE_FILE = Path(".trivyignore")
+TRIVY_IGNORE_CONFIG = Path(".trivyignore")
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -158,13 +160,6 @@ RELEASE_CREATE_VALUE_FLAGS = {
 RELEASE_CREATE_ALLOWED_ASSET_TOKENS = {"${release_assets[@]}", "${release_assets[*]}"}
 WorkflowStepBlock = tuple[int, int, list[str]]
 WorkflowRunStep = tuple[int, str, str, bool]
-
-
-def policy_path(path: Path) -> str:
-    """Return a stable path spelling for policy messages across platforms."""
-    if path.is_absolute():
-        return str(path)
-    return path.as_posix()
 
 
 def workflow_step_blocks(lines: list[str]) -> list[WorkflowStepBlock]:
@@ -589,6 +584,11 @@ def clean_package_token(token: str) -> str:
     return token.strip().strip("`").strip()
 
 
+def repo_display_path(path: Path) -> str:
+    """Return repo-relative paths in the slash form used by GitHub logs."""
+    return path.as_posix()
+
+
 def npx_package_from_command(command: str) -> str | None:
     """Return the package fetched by an unsafe npx command, when present."""
     try:
@@ -640,7 +640,7 @@ def npx_package_from_command(command: str) -> str | None:
 def release_asset_allowlist_violation(path: Path) -> str:
     """Return the standard release asset allowlist violation for a workflow."""
     return (
-        f"{policy_path(path)}: release asset upload must use an explicit allowlist, not artifacts/*"
+        f"{repo_display_path(path)}: release asset upload must use an explicit allowlist, not artifacts/*"
     )
 
 
@@ -709,7 +709,7 @@ def release_create_explicit_asset_tokens(command: str) -> list[str]:
 
 def verify_required_files() -> list[str]:
     """Return missing files required by the supply-chain baseline."""
-    return [policy_path(path) for path in REQUIRED_FILES if not path.exists()]
+    return [str(path) for path in REQUIRED_FILES if not path.exists()]
 
 
 def verify_pinned_actions() -> list[str]:
@@ -731,7 +731,7 @@ def verify_pinned_actions() -> list[str]:
             ):
                 continue
             violations.append(
-                f"{policy_path(path)}:{idx} -> workflow action must be pinned by SHA"
+                f"{repo_display_path(path)}:{idx} -> workflow action must be pinned by SHA"
             )
     return violations
 
@@ -836,7 +836,7 @@ def verify_checkout_default_branch_guard() -> list[str]:
             ):
                 continue
             violations.append(
-                f"{policy_path(path)}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
+                f"{repo_display_path(path)}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
             )
             continue
         env = workflow_top_level_env(content)
@@ -846,7 +846,7 @@ def verify_checkout_default_branch_guard() -> list[str]:
         ):
             continue
         violations.append(
-            f"{policy_path(path)}: {CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
+            f"{repo_display_path(path)}: {CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
         )
     return violations
 
@@ -855,7 +855,7 @@ def verify_dependabot_coverage() -> list[str]:
     """Return missing Dependabot ecosystems from the repo configuration."""
     path = Path(".github/dependabot.yml")
     if not path.exists():
-        return [f"missing file: {policy_path(path)}"]
+        return [f"missing file: {path}"]
     content = path.read_text(encoding="utf-8")
     missing: list[str] = []
     for ecosystem in ["npm", "pip", "cargo", "github-actions"]:
@@ -867,7 +867,7 @@ def verify_dependabot_coverage() -> list[str]:
 def read_workflow(path: Path, label: str, missing: list[str]) -> str:
     """Read a workflow file, recording a missing-file violation when absent."""
     if not path.exists():
-        missing.append(f"missing file: {policy_path(path)}")
+        missing.append(f"missing file: {path}")
         return ""
     return path.read_text(encoding="utf-8")
 
@@ -898,7 +898,7 @@ def ossf_scorecard_publish_restriction_violations(
                 violations.append(OSSF_PUBLISH_USES_ONLY_VIOLATION)
             else:
                 violations.append(
-                    f"{policy_path(path)}:{start_line or 1} -> {OSSF_PUBLISH_USES_ONLY_VIOLATION}"
+                    f"{repo_display_path(path)}:{start_line or 1} -> {OSSF_PUBLISH_USES_ONLY_VIOLATION}"
                 )
 
     if workflow_publishes_scorecard_results(content):
@@ -909,7 +909,7 @@ def ossf_scorecard_publish_restriction_violations(
                 violations.append(OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION)
             else:
                 violations.append(
-                    f"{policy_path(path)}:{line_number} -> {OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION}"
+                    f"{repo_display_path(path)}:{line_number} -> {OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION}"
                 )
 
     for idx, line in enumerate(content.splitlines(), start=1):
@@ -1437,7 +1437,7 @@ def verify_immutable_release_upload_policy() -> list[str]:
         if "gh release upload" not in content:
             continue
         violations.append(
-            f"{policy_path(path)}: release published workflows must not upload GitHub Release assets; "
+            f"{repo_display_path(path)}: release published workflows must not upload GitHub Release assets; "
             "immutable releases require draft-before-publish asset attachment"
         )
     return violations
@@ -1455,7 +1455,7 @@ def verify_workflow_npx_policy() -> list[str]:
             if package is None:
                 continue
             violations.append(
-                f"{policy_path(path)}:{idx} -> workflow npx package execution must use "
+                f"{repo_display_path(path)}:{idx} -> workflow npx package execution must use "
                 f"npm exec or npx --no-install: {package}"
             )
     return violations
@@ -1505,7 +1505,7 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
                 and effective_working_directory not in root_working_directories
             ):
                 violations.append(
-                    f"{policy_path(workflow_path)}: workflow npm exec --workspace commands "
+                    f"{repo_display_path(workflow_path)}: workflow npm exec --workspace commands "
                     "must run from the repository root"
                 )
 
@@ -1668,7 +1668,7 @@ def verify_release_asset_allowlist_policy() -> list[str]:
                 previous_release_create_index = release_create_index
             if not (has_generator_before_publish and all_release_creates_revalidated):
                 violations.append(
-                    f"{policy_path(path)}: release asset upload must use scripts/release/select_release_assets.py"
+                    f"{repo_display_path(path)}: release asset upload must use scripts/release/select_release_assets.py"
                     " to generate and revalidate release-assets.txt"
                 )
                 break
@@ -1704,7 +1704,7 @@ def rust_dependency_advisory_violations(
     """Return Rust lockfile dependency versions with known required patches."""
     violations: list[str] = []
     if not lockfile.exists():
-        return [f"Cargo.lock missing: {policy_path(lockfile)}"]
+        return [f"Cargo.lock missing: {lockfile}"]
     package_dependencies = cargo_lock_package_dependencies(lockfile)
     glib_exception_owned_packages = cargo_lock_reachable_package_keys_by_name(
         package_dependencies, RUST_GLIB_LEGACY_ROOT_NAME
@@ -1720,7 +1720,7 @@ def rust_dependency_advisory_violations(
         version = str(package.get("version", ""))
         if current_name == "fastrand" and version == RUST_FASTRAND_YANKED_VERSION:
             violations.append(
-                f"{policy_path(lockfile)}: fastrand {version} is yanked and must stay updated"
+                f"{lockfile}: fastrand {version} is yanked and must stay updated"
             )
             continue
         if current_name != "rand":
@@ -1738,7 +1738,7 @@ def rust_dependency_advisory_violations(
             continue
         if version == RUST_RAND_RETIRED_LEGACY_VERSION:
             violations.append(
-                f"{policy_path(lockfile)}: rand {version} is not allowed for "
+                f"{lockfile}: rand {version} is not allowed for "
                 f"{RUST_RAND_ADVISORY_ID}; the former legacy owner-chain "
                 "exception has been removed"
             )
@@ -1747,13 +1747,13 @@ def rust_dependency_advisory_violations(
         segments = version.split(".")
         if any(not segment.isdecimal() for segment in segments):
             violations.append(
-                f"{policy_path(lockfile)}: rand {version} has a non-numeric version segment "
+                f"{lockfile}: rand {version} has a non-numeric version segment "
                 f"for {RUST_RAND_ADVISORY_ID}"
             )
             continue
         if len(segments) > 3:
             violations.append(
-                f"{policy_path(lockfile)}: rand {version} has a non-standard extra version segment "
+                f"{lockfile}: rand {version} has a non-standard extra version segment "
                 f"for {RUST_RAND_ADVISORY_ID}"
             )
             continue
@@ -1767,7 +1767,7 @@ def rust_dependency_advisory_violations(
         rand_series = (parts[0], parts[1])
         if rand_series == (0, 7):
             violations.append(
-                f"{policy_path(lockfile)}: rand {version} is not allowed for "
+                f"{lockfile}: rand {version} is not allowed for "
                 f"{RUST_RAND_ADVISORY_ID}; the former legacy owner-chain "
                 "exception has been removed"
             )
@@ -1776,7 +1776,7 @@ def rust_dependency_advisory_violations(
         if patched_version is not None and parts < patched_version:
             patched = ".".join(str(part) for part in patched_version)
             violations.append(
-                f"{policy_path(lockfile)}: rand {version} is below patched {patched} "
+                f"{lockfile}: rand {version} is below patched {patched} "
                 f"for {RUST_RAND_ADVISORY_ID}"
             )
     return violations
@@ -1815,30 +1815,38 @@ def rust_osv_ignored_advisories(osv_config: Path) -> dict[str, str]:
     return ignored
 
 
-def trivy_ignored_finding_reasons(ignore_file: Path) -> dict[str, str]:
-    """Return Trivy ignored finding ids and their preceding comment reasons."""
-    if not ignore_file.exists():
+def trivy_ignored_advisories(trivy_config: Path) -> dict[str, dict[str, str]]:
+    """Return advisory ids, expiry dates, and comments from Trivy's ignore file."""
+    if not trivy_config.exists():
         return {}
-    ignored: dict[str, str] = {}
-    pending_comments: list[str] = []
-    for raw_line in ignore_file.read_text(encoding="utf-8").splitlines():
+    ignored: dict[str, dict[str, str]] = {}
+    comment_buffer: list[str] = []
+    for raw_line in trivy_config.read_text(encoding="utf-8").splitlines():
         stripped = raw_line.strip()
         if not stripped:
-            pending_comments = []
+            comment_buffer = []
             continue
         if stripped.startswith("#"):
-            pending_comments.append(stripped.lstrip("#").strip())
+            comment_buffer.append(stripped[1:].strip())
             continue
-        finding_id = stripped.partition("#")[0].split()[0]
-        if finding_id:
-            ignored[finding_id] = "\n".join(pending_comments)
-        pending_comments = []
+        tokens = stripped.split()
+        advisory_id = tokens[0]
+        expiry = ""
+        for token in tokens[1:]:
+            if token.startswith("exp:"):
+                expiry = token.removeprefix("exp:")
+                break
+        ignored[advisory_id] = {
+            "expiry": expiry,
+            "reason": " ".join(part for part in comment_buffer if part),
+        }
+        comment_buffer = []
     return ignored
 
 
 def toml_decode_violation(path: Path, error: tomllib.TOMLDecodeError) -> str:
     """Return a single-line TOML decode policy violation."""
-    return f"{policy_path(path)}: invalid TOML: {str(error).replace(chr(10), ' ')}"
+    return f"{path}: invalid TOML: {str(error).replace(chr(10), ' ')}"
 
 
 def rust_osv_exception_violations(
@@ -1848,9 +1856,9 @@ def rust_osv_exception_violations(
     """Return OSV Scanner exception drift from the cargo-audit exception scope."""
     violations: list[str] = []
     if not audit_config.exists():
-        return [f"cargo audit config missing: {policy_path(audit_config)}"]
+        return [f"cargo audit config missing: {audit_config}"]
     if not osv_config.exists():
-        return [f"OSV scanner config missing: {policy_path(osv_config)}"]
+        return [f"OSV scanner config missing: {osv_config}"]
 
     try:
         audit_ignores = rust_audit_ignored_advisories(audit_config)
@@ -1867,24 +1875,24 @@ def rust_osv_exception_violations(
 
     for advisory_id in sorted(audit_ignores - set(osv_ignores)):
         violations.append(
-            f"{policy_path(osv_config)}: missing OSV ignore for {advisory_id} tracked in cargo audit config"
+            f"{osv_config}: missing OSV ignore for {advisory_id} tracked in cargo audit config"
         )
     for advisory_id in sorted(set(osv_ignores) - audit_ignores):
         violations.append(
-            f"{policy_path(osv_config)}: unexpected OSV ignore for {advisory_id} not tracked in cargo audit config"
+            f"{osv_config}: unexpected OSV ignore for {advisory_id} not tracked in cargo audit config"
         )
     for advisory_id, reason in sorted(osv_ignores.items()):
         if not reason.strip():
             violations.append(
-                f"{policy_path(osv_config)}: OSV ignore for {advisory_id} needs a reason"
+                f"{osv_config}: OSV ignore for {advisory_id} needs a reason"
             )
     return violations
 
 
 def rust_trivy_exception_violations(
+    trivy_config: Path = TRIVY_IGNORE_CONFIG,
     audit_config: Path = RUST_AUDIT_CONFIG,
     osv_config: Path = RUST_OSV_SCANNER_CONFIG,
-    trivy_ignore_file: Path = TRIVY_IGNORE_FILE,
 ) -> list[str]:
     """Return Trivy exception drift from repo-owned Rust advisory policy."""
     violations: list[str] = []
@@ -1901,36 +1909,63 @@ def rust_trivy_exception_violations(
         RUST_GLIB_ADVISORY_ID in audit_ignores
         or RUST_GLIB_ADVISORY_ID in osv_ignores
     )
-    trivy_ignores = trivy_ignored_finding_reasons(trivy_ignore_file)
-    glib_trivy_reason = trivy_ignores.get(RUST_GLIB_TRIVY_ADVISORY_ID)
+    if not trivy_config.exists():
+        return [f"Trivy ignore config missing: {trivy_config}"]
 
-    if glib_policy_active and glib_trivy_reason is None:
+    trivy_ignores = trivy_ignored_advisories(trivy_config)
+    entry = trivy_ignores.get(RUST_GLIB_TRIVY_ADVISORY_ID)
+
+    if glib_policy_active and entry is None:
         violations.append(
-            f"{policy_path(trivy_ignore_file)}: missing Trivy ignore for "
-            f"{RUST_GLIB_TRIVY_ADVISORY_ID} mapped to {RUST_GLIB_ADVISORY_ID}"
+            f"{trivy_config}: missing Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            f"tracked as {RUST_GLIB_ADVISORY_ID}"
         )
         return violations
     if not glib_policy_active and RUST_GLIB_TRIVY_ADVISORY_ID in trivy_ignores:
         violations.append(
-            f"{policy_path(trivy_ignore_file)}: unexpected Trivy ignore for "
+            f"{trivy_config}: unexpected Trivy ignore for "
             f"{RUST_GLIB_TRIVY_ADVISORY_ID} without matching cargo-audit/OSV policy"
         )
         return violations
     if not glib_policy_active:
         return violations
 
-    required_reason_terms = (
+    reason = entry["reason"]
+    required_reason_tokens = (
         RUST_GLIB_ADVISORY_ID,
         "glib 0.18.5",
-        "Tauri/wry/webkit2gtk/gtk",
         "glib >=0.20",
+        "Tauri/wry/webkit2gtk/gtk GTK3 stack",
+        "Windows/macOS artifacts only",
+        "verify_supply_chain.py",
+        "remove when upstream drops or patches the chain",
     )
-    missing_terms = [term for term in required_reason_terms if term not in glib_trivy_reason]
-    if missing_terms:
+    for token in required_reason_tokens:
+        if token not in reason:
+            violations.append(
+                f"{trivy_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+                f"must document {token}"
+            )
+
+    expiry = entry["expiry"]
+    if not expiry:
         violations.append(
-            f"{policy_path(trivy_ignore_file)}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
-            "must document "
-            + ", ".join(missing_terms)
+            f"{trivy_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            "must include an exp:YYYY-MM-DD revisit date"
+        )
+        return violations
+    try:
+        expiry_date = date.fromisoformat(expiry)
+    except ValueError:
+        violations.append(
+            f"{trivy_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            f"has invalid exp date {expiry}"
+        )
+        return violations
+    if expiry_date <= date.today():
+        violations.append(
+            f"{trivy_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            f"expired on {expiry}; re-check upstream and remove or renew with evidence"
         )
     return violations
 
@@ -1953,7 +1988,7 @@ def rust_glib_advisory_violations(
         ):
             return []
         return [
-            f"{policy_path(lockfile)}: glib {version} matches the legacy exception version but "
+            f"{lockfile}: glib {version} matches the legacy exception version but "
             "does not have the documented Tauri/wry/webkit2gtk/gtk owner chain "
             f"for {RUST_GLIB_ADVISORY_ID}"
         ]
@@ -1966,13 +2001,13 @@ def rust_glib_advisory_violations(
     parsed_version = parse_numeric_semver(version)
     if parsed_version is None:  # Defensive; unsupported forms returned above.
         return [
-            f"{policy_path(lockfile)}: glib {version} has an unsupported version form "
+            f"{lockfile}: glib {version} has an unsupported version form "
             f"for {RUST_GLIB_ADVISORY_ID}"
         ]
     if parsed_version < RUST_GLIB_PATCHED_VERSION:
         patched = ".".join(str(part) for part in RUST_GLIB_PATCHED_VERSION)
         return [
-            f"{policy_path(lockfile)}: glib {version} is below patched {patched} "
+            f"{lockfile}: glib {version} is below patched {patched} "
             f"for {RUST_GLIB_ADVISORY_ID}"
         ]
     return []
@@ -2071,12 +2106,12 @@ def unsupported_numeric_semver_violation(
     segments = version.split(".")
     if any(not segment.isdecimal() for segment in segments):
         return (
-            f"{policy_path(lockfile)}: {package_name} {version} has a non-numeric version segment "
+            f"{lockfile}: {package_name} {version} has a non-numeric version segment "
             f"for {advisory_id}"
         )
     if len(segments) > 3:
         return (
-            f"{policy_path(lockfile)}: {package_name} {version} has a non-standard extra version segment "
+            f"{lockfile}: {package_name} {version} has a non-standard extra version segment "
             f"for {advisory_id}"
         )
     return None
