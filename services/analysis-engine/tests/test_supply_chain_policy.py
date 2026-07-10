@@ -2604,8 +2604,8 @@ def test_scorecard_artifact_extractor_rejects_missing_results_sarif(
         "extract_scorecard_artifact_missing",
     )
     source_zip = tmp_path / "ossf-scorecard-results.zip"
-    with zipfile.ZipFile(source_zip, "w"):
-        pass
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.comment = b"empty artifact fixture"
 
     with pytest.raises(ValueError, match="expected only results.sarif"):
         extractor.extract_scorecard_artifact(source_zip, tmp_path / "scorecard-sarif")

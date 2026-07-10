@@ -188,10 +188,6 @@ def _safe_note_string(value: object) -> str:
 class RangeAnalyzer:
     """Analyzes pitch ranges and detects overlaps between roles."""
 
-    def __init__(self) -> None:
-        """Initialize the range analyzer."""
-        pass
-
     def analyze(
         self,
         sections: list[dict[str, Any]],
