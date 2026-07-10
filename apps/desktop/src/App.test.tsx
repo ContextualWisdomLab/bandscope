@@ -206,6 +206,8 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
+    expect(fireEvent.click(screen.getByRole("button", { name: /settings coming soon/i }))).toBe(false);
+    expect(fireEvent.click(screen.getByRole("button", { name: /help coming soon/i }))).toBe(false);
     const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
     const activePrimaryNavButton = within(primaryNav).getByRole("button", { name: "Workspace" });
     expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
@@ -1482,10 +1484,13 @@ describe("App", () => {
   });
 
 
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
+  it("renders Settings and Help as focusable aria-disabled controls", () => {
     render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
+    const settingsButton = screen.getByRole("button", { name: "Settings coming soon" });
+    const helpButton = screen.getByRole("button", { name: "Help coming soon" });
+    expect(settingsButton).toHaveAttribute("aria-disabled", "true");
+    expect(settingsButton).not.toHaveAttribute("disabled");
+    expect(helpButton).toHaveAttribute("aria-disabled", "true");
+    expect(helpButton).not.toHaveAttribute("disabled");
   });
 });

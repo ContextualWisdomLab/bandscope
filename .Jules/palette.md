@@ -30,6 +30,10 @@
 **Learning:** When native disabled buttons are wrapped in a focusable `span` to provide accessible tooltips, tests that previously found and clicked the `button` (by temporarily removing the `disabled` attribute) may fail or become overly complex. It is cleaner and more accurate to query the wrapper element (e.g. via its `title`) and fire events on it, reflecting the actual accessible DOM structure.
 **Action:** When testing UI components that wrap disabled buttons in a focusable span for accessibility (e.g., using a tooltip/title), use `screen.getByTitle(...)` to query the wrapper element for interactions like `fireEvent.click` rather than `screen.getByRole('button')`.
 
+## 2024-05-24 - Avoid nesting native buttons with ARIA role button on wrappers
+**Learning:** Adding `role="button"` to a `span` or `div` wrapper that contains a native `<button>` element inside violates ARIA specifications. Interactive roles (like `button`) must not contain other interactive elements (even if the inner element is disabled or has `aria-hidden`), as this causes invalid/redundant accessibility trees and screen reader confusion.
+**Action:** Always verify wrappers used to implement tooltips for disabled buttons are standard elements (e.g., `<span tabIndex={0} title="...">`) but *do not* assign `role="button"` to the wrapper itself.
+
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
