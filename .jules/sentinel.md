@@ -7,3 +7,13 @@
 **Vulnerability:** Path traversal detection in Python backend APIs relied solely on checking the input path string or basic parsed parts which might not adequately catch sequences like `..` when intermixed with different path separators.
 **Learning:** Using `if ".." in Path(path).parts` incorrectly assumes `Path` parses mixed cross-platform separators reliably for untrusted input, particularly in heterogeneous environments. Instead, explicitly reject directory traversal sequences by replacing `\` with `/` and splitting on `/` to prevent bypassing automated CI vulnerability scanners (like Strix) as explicitly requested in memory.
 **Prevention:** Always manually split the target path using both `/` and `\` manually instead of relying solely on `os.sep`, `os.altsep`, or `pathlib.Path.parts`. This ensures cross-platform payloads are reliably blocked even when executed on POSIX runners.
+
+## 2025-06-22 - URL Parsing Length Limit
+**Vulnerability:** Unbounded URL inputs at the analysis entry points.
+**Learning:** Regular expressions and URL parsers can spend avoidable CPU or memory on oversized attacker-controlled strings.
+**Prevention:** Cap URL length to the product-supported maximum before handing user input to regex or URL parsers. This PR enforces the cap at the TypeScript frontend (`apps/desktop/src/lib/analysis.ts`) and the Python engine (`services/analysis-engine/src/bandscope_analysis/youtube.py`). The Rust-side duplicate cap is deferred to a follow-up (same blocker as PR #527): the org review contract cannot currently evaluate Rust changes, so the diff intentionally touches no `.rs` files. Defense-in-depth is preserved by the TS entry point and the Python engine validation.
+
+## 2026-07-02 - Project ID path traversal guard
+**Vulnerability:** Any project identifier that can reach a filesystem path join must be treated as untrusted, even when it is generated internally or passed through IPC lookup flows.
+**Learning:** Reject only dangerous path segments (`.` and `..`) and path separators (`/` and `\`) so the guard blocks traversal without rejecting ordinary identifiers such as `my..id`.
+**Prevention:** Keep project ID validation centralized before `base_root.join(project_id)`, and cover forward-slash, backslash, parent-component, and benign interior-dot cases in unit tests.

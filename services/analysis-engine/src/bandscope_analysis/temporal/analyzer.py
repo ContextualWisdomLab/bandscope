@@ -29,10 +29,6 @@ KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
 class TemporalAnalyzer:
     """Analyzes temporal features (BPM, beats) from audio files."""
 
-    def __init__(self) -> None:
-        """Initialize the temporal analyzer."""
-        pass
-
     def analyze(self, audio_path: str | Path) -> TemporalFeatures:
         """Decode audio and extract temporal features.
 
