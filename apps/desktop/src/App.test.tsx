@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { MAX_YOUTUBE_URL_LENGTH } from "./lib/analysis";
 
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
@@ -243,6 +244,15 @@ describe("App", () => {
     expect(sourceControls.compareDocumentPosition(analysisSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(sourceControls).toHaveTextContent(/Choose local audio/i);
     expect(sourceControls).toHaveTextContent(/Import YouTube/i);
+  });
+
+  it("caps the YouTube URL input before import-path validation", () => {
+    render(<App />);
+
+    expect(screen.getByRole("textbox", { name: /YouTube URL/i })).toHaveAttribute(
+      "maxlength",
+      String(MAX_YOUTUBE_URL_LENGTH)
+    );
   });
 
   it("renders the loaded song as a dark rehearsal command board", async () => {
@@ -1050,6 +1060,29 @@ describe("App", () => {
       });
       expect(screen.getByText(/youtube\.wav/i)).toBeTruthy();
     });
+  });
+
+  it("clears the YouTube URL without clearing local selection errors and returns focus to the input", async () => {
+    tauriInvoke.mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
+    });
+
+    const input = screen.getByRole("textbox", { name: /YouTube URL/i });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+
+    const clearButton = screen.getByRole("button", { name: /Clear YouTube URL/i });
+    clearButton.focus();
+    fireEvent.click(clearButton);
+
+    expect(input).toHaveValue("");
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
   });
 
   it("handles YouTube import failure with a message", async () => {
