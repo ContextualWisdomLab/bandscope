@@ -360,16 +360,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       Transcribe Bass
                     </Button>
                   ) : (
-                    <span tabIndex={0} role="button" aria-disabled="true" title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`} className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                      <Button
+                    <button
                         type="button"
-                        disabled
-                        variant="outline"
-                        className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
+                        aria-disabled="true"
+                        onClick={(e) => e.preventDefault()}
+                        title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
+                        className={cn(buttonVariants({ variant: "outline" }), "min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500 cursor-not-allowed focus-visible:ring-cyan-300 focus-visible:ring-2 focus-visible:outline-none rounded-xl")}
                       >
                         Transcribe Bass
-                      </Button>
-                    </span>
+                      </button>
                   )}
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
