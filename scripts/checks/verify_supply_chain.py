@@ -1891,23 +1891,50 @@ def rust_osv_exception_violations(
 
 def rust_trivy_exception_violations(
     trivy_config: Path = TRIVY_IGNORE_CONFIG,
+    audit_config: Path = RUST_AUDIT_CONFIG,
+    osv_config: Path = RUST_OSV_SCANNER_CONFIG,
 ) -> list[str]:
-    """Return Trivy exception drift for the remaining upstream-owned glib advisory."""
+    """Return Trivy exception drift from repo-owned Rust advisory policy."""
+    violations: list[str] = []
+    try:
+        audit_ignores = rust_audit_ignored_advisories(audit_config)
+    except tomllib.TOMLDecodeError as error:
+        return [toml_decode_violation(audit_config, error)]
+    try:
+        osv_ignores = rust_osv_ignored_advisories(osv_config)
+    except tomllib.TOMLDecodeError as error:
+        return [toml_decode_violation(osv_config, error)]
+
+    glib_policy_active = (
+        RUST_GLIB_ADVISORY_ID in audit_ignores
+        or RUST_GLIB_ADVISORY_ID in osv_ignores
+    )
     if not trivy_config.exists():
         return [f"Trivy ignore config missing: {trivy_config}"]
 
     trivy_ignores = trivy_ignored_advisories(trivy_config)
     entry = trivy_ignores.get(RUST_GLIB_TRIVY_ADVISORY_ID)
-    if entry is None:
-        return [
+
+    if glib_policy_active and entry is None:
+        violations.append(
             f"{trivy_config}: missing Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
             f"tracked as {RUST_GLIB_ADVISORY_ID}"
-        ]
+        )
+        return violations
+    if not glib_policy_active and RUST_GLIB_TRIVY_ADVISORY_ID in trivy_ignores:
+        violations.append(
+            f"{trivy_config}: unexpected Trivy ignore for "
+            f"{RUST_GLIB_TRIVY_ADVISORY_ID} without matching cargo-audit/OSV policy"
+        )
+        return violations
+    if not glib_policy_active:
+        return violations
 
-    violations: list[str] = []
     reason = entry["reason"]
     required_reason_tokens = (
         RUST_GLIB_ADVISORY_ID,
+        "glib 0.18.5",
+        "glib >=0.20",
         "Tauri/wry/webkit2gtk/gtk GTK3 stack",
         "Windows/macOS artifacts only",
         "verify_supply_chain.py",

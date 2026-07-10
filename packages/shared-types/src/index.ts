@@ -216,6 +216,7 @@ export type RehearsalWorkspace = {
 export type RehearsalSong = {
   id: string;
   title: string;
+  tempo?: number;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
   collaboration?: RehearsalCollaboration;
@@ -412,6 +413,7 @@ function invalidProjectSummaryField(path: string): string {
 const demoRehearsalSongSeed: RehearsalSong = {
   id: "demo-song",
   title: "Late Night Set",
+  tempo: 120,
   sections: [
     {
       id: "verse-1",
@@ -1746,7 +1748,7 @@ function validateRehearsalSong(
   if (!isRecord(normalized)) {
     return invalidField("root");
   }
-  const extraKey = unexpectedKey(normalized, ["id", "title", "sections", "exportSummary", "collaboration"], "");
+  const extraKey = unexpectedKey(normalized, ["id", "title", "tempo", "sections", "exportSummary", "collaboration"], "");
   if (extraKey) {
     return extraKey;
   }
@@ -1755,6 +1757,12 @@ function validateRehearsalSong(
   }
   if (typeof normalized.title !== "string") {
     return invalidField("title");
+  }
+  if (
+    normalized.tempo !== undefined &&
+    (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)
+  ) {
+    return invalidField("tempo");
   }
   if (!isDenseArray(normalized.sections)) {
     return invalidField("sections");

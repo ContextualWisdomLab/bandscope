@@ -34,6 +34,7 @@
   "workspaceErrorState": "An error occurred during analysis. Please try again.",
   "workspaceRehearsalMapLabel": "Tonight's rehearsal map",
   "workspaceRehearsalFallback": "Rehearsal Workspace",
+  "workspaceTempoLabel": "Tempo",
   "workspaceSongStructureLabel": "Song Structure",
   "workspaceRehearsalTimelineLabel": "Rehearsal timeline",
   "workspaceSongTimelineLabel": "Song Timeline",

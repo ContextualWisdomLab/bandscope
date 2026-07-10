@@ -237,7 +237,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         <CardHeader className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))] p-5 pb-6 md:p-7">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
-              <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">{t("workspaceRehearsalMapLabel")}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">{t("workspaceRehearsalMapLabel")}</p>
+                {song.tempo && (
+                  <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[0.65rem] font-bold text-cyan-100">
+                    {t("workspaceTempoLabel")}: {song.tempo} BPM
+                  </span>
+                )}
+              </div>
               <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">{song.title}</h2>
               <CardDescription className="text-base font-medium text-slate-300">
               {song.exportSummary?.headline || t("workspaceRehearsalFallback")}
