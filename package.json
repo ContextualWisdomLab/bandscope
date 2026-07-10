@@ -24,7 +24,7 @@
     "bandit:check": "python3 scripts/checks/run_analysis_command.py bandit -c pyproject.toml -r src",
     "lint": "npm run lint:workspaces && npm run check:docs && npm run check:security-notes && npm run check:security-gates && npm run check:supply-chain && npm run check:github-bootstrap && npm run check:python-docstrings && npm run ruff:check && npm run ruff:format:check && npm run bandit:check",
     "typecheck": "npm run typecheck --workspaces --if-present && python3 scripts/checks/run_analysis_command.py mypy src",
-    "test": "npm run test --workspaces --if-present && python3 scripts/checks/run_analysis_command.py pytest tests --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100",
+    "test": "node scripts/checks/run_root_tests.mjs",
     "build": "npm run build --workspaces --if-present",
     "check:rust": "./scripts/checks/check_rust.sh",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build"
