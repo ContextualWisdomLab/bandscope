@@ -3998,12 +3998,10 @@ GHSA-wrw7-89jp-8q8g
     )
 
     assert (
-        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document "
-        "glib 0.18.5"
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document glib 0.18.5"
     ) in violations
     assert (
-        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document "
-        "glib >=0.20"
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document glib >=0.20"
     ) in violations
     assert (
         f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g "
