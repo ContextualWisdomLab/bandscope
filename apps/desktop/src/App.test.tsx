@@ -1427,10 +1427,15 @@ describe("App", () => {
   });
 
 
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
+  it("renders disabled Settings and Help buttons as focusable buttons for accessibility", () => {
     render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
+    const settingsBtn = screen.getByTitle("Settings coming soon");
+    fireEvent.click(settingsBtn);
+    const helpBtn = screen.getByTitle("Help coming soon");
+    fireEvent.click(helpBtn);
+    const saveBtn = screen.getByTitle("Analyze a song to enable saving");
+    fireEvent.click(saveBtn);
+    expect(settingsBtn.tagName).toBe("BUTTON");
+    expect(settingsBtn).toHaveAttribute("aria-disabled", "true");
   });
 });

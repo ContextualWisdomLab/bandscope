@@ -6,7 +6,8 @@ import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4 } from "lucide-react";
 
@@ -346,15 +347,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                    <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Play stem</Button>
-                  </span>
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                    <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Loop section</Button>
-                  </span>
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                    <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Solo / mute others</Button>
-                  </span>
+                  <button type="button" aria-disabled="true" onClick={(e) => e.preventDefault()} className={cn(buttonVariants({ variant: "outline" }), "min-h-11 border-white/10 bg-white/5 text-slate-400 cursor-not-allowed focus-visible:ring-cyan-300 focus-visible:ring-2 focus-visible:outline-none rounded-xl")} title="Coming soon">Play stem</button>
+                  <button type="button" aria-disabled="true" onClick={(e) => e.preventDefault()} className={cn(buttonVariants({ variant: "outline" }), "min-h-11 border-white/10 bg-white/5 text-slate-400 cursor-not-allowed focus-visible:ring-cyan-300 focus-visible:ring-2 focus-visible:outline-none rounded-xl")} title="Coming soon">Loop section</button>
+                  <button type="button" aria-disabled="true" onClick={(e) => e.preventDefault()} className={cn(buttonVariants({ variant: "outline" }), "min-h-11 border-white/10 bg-white/5 text-slate-400 cursor-not-allowed focus-visible:ring-cyan-300 focus-visible:ring-2 focus-visible:outline-none rounded-xl")} title="Coming soon">Solo / mute others</button>
                   {canTranscribeBass ? (
                     <Button
                       type="button"
