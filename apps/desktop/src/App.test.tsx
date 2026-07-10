@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { MAX_YOUTUBE_URL_LENGTH } from "./lib/analysis";
 
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
@@ -221,6 +222,15 @@ describe("App", () => {
     expect(sourceControls.compareDocumentPosition(analysisSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(sourceControls).toHaveTextContent(/Choose local audio/i);
     expect(sourceControls).toHaveTextContent(/Import YouTube/i);
+  });
+
+  it("caps the YouTube URL input before import-path validation", () => {
+    render(<App />);
+
+    expect(screen.getByRole("textbox", { name: /YouTube URL/i })).toHaveAttribute(
+      "maxlength",
+      String(MAX_YOUTUBE_URL_LENGTH)
+    );
   });
 
   it("renders the loaded song as a dark rehearsal command board", async () => {

@@ -35,6 +35,7 @@ import {
   importYoutubeUrl,
   isSupportedYoutubeUrl,
   loadProject,
+  MAX_YOUTUBE_URL_LENGTH,
   saveProject,
   subscribeToAnalysisJobUpdates,
   selectLocalAudioSource,
@@ -614,6 +615,7 @@ export function App() {
                       type="text"
                       placeholder={t("youtubePlaceholder")}
                       value={youtubeUrl}
+                      maxLength={MAX_YOUTUBE_URL_LENGTH}
                       onChange={(e) => setYoutubeUrl(e.target.value)}
                       disabled={analysisInFlight || isStarting || isImporting}
                       className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"

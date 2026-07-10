@@ -23,9 +23,7 @@ def resolve_artifact_zip(source: Path) -> Path:
         raise ValueError(f"artifact source does not exist: {source}")
     ensure_non_symlink_path(source, path_kind="artifact path")
     candidates: list[Path] = []
-    for path in sorted(
-        candidate for candidate in source.iterdir() if candidate.suffix == ".zip"
-    ):
+    for path in sorted(candidate for candidate in source.iterdir() if candidate.suffix == ".zip"):
         ensure_non_symlink_path(path, path_kind="artifact path")
         candidates.append(path)
     if len(candidates) != 1:
@@ -65,9 +63,7 @@ def ensure_non_symlink_path(path: Path, *, path_kind: str = "output path") -> No
             raise ValueError(f"symlinked {path_kind} is not allowed: {component}")
 
 
-def write_new_file_without_following_symlinks(
-    target: Path, source_file: IO[bytes]
-) -> None:
+def write_new_file_without_following_symlinks(target: Path, source_file: IO[bytes]) -> None:
     """Stream-write to a new file without following an existing symlink."""
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
     if hasattr(os, "O_NOFOLLOW"):
