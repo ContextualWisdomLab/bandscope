@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2025-02-15 - Optimizing sub-matrix diagonal vectorization
+**Learning:** Using Python for-loops to slice and sum square sub-matrices along a main diagonal creates huge overhead from loop array allocations and interpretation, especially in tight signal processing inner loops like audio structure analysis (`kernel_size=64`, `n=4096`).
+**Action:** Use `numpy.lib.stride_tricks.sliding_window_view` coupled with `np.diagonal(..., axis1=0, axis2=1)` and `np.einsum` to extract strictly diagonal patches and sum them over a given kernel in a highly optimized vectorized way, removing linear time constant overhead.

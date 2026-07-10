@@ -110,10 +110,22 @@ def _checkerboard_novelty(
     kernel[half:, half:] = -1.0
 
     # Extract all valid diagonal patches and compute dot products.
-    valid_range = range(half, n - half)
-    for i in valid_range:
-        patch = ssm[i - half : i + half, i - half : i + half]
-        novelty[i] = np.sum(patch * kernel)
+    # Performance: Use sub-matrix diagonal vectorization instead of Python array slicing loops.
+    # We use sliding_window_view and np.diagonal to extract the diagonal patches efficiently.
+    from numpy.lib.stride_tricks import sliding_window_view
+
+    sliding = sliding_window_view(ssm, window_shape=(kernel_size, kernel_size))
+
+    # Extract the main diagonal patches which yields shape
+    # (kernel_size, kernel_size, num_valid_plus_one)
+    diag_patches = np.diagonal(sliding, axis1=0, axis2=1)
+
+    # We only need the valid patches which matches the range (half to n - half).
+    num_valid = n - kernel_size
+    valid_patches = diag_patches[..., :num_valid]
+
+    # Compute dot products using einsum for speed and memory efficiency
+    novelty[half : n - half] = np.einsum("ijk,ij->k", valid_patches, kernel)
 
     # Normalize by peak absolute magnitude, preserving sign.
     max_val = np.max(np.abs(novelty))
