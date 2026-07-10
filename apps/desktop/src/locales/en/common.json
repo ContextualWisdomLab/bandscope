@@ -34,6 +34,7 @@
   "workspaceErrorState": "An error occurred during analysis. Please try again.",
   "workspaceRehearsalMapLabel": "Tonight's rehearsal map",
   "workspaceRehearsalFallback": "Rehearsal Workspace",
+  "workspaceTempoLabel": "Tempo",
   "workspaceSongStructureLabel": "Song Structure",
   "workspaceRehearsalTimelineLabel": "Rehearsal timeline",
   "workspaceSongTimelineLabel": "Song Timeline",
@@ -92,6 +93,7 @@
   "workspaceHomeTitle": "Workspace Home",
   "workspaceHomeSummary": "Turn a song into a practical rehearsal view.",
   "youtubeUrlAriaLabel": "YouTube URL",
+  "clearYoutubeUrl": "Clear YouTube URL",
   "openProject": "Open Project",
   "saveProject": "Save Project",
   "saveRequiresAnalysis": "Analyze a song to enable saving",
@@ -116,5 +118,9 @@
   "loadProjectFailedPrefix": "Failed to load project",
   "loadProjectFailedFallback": "The selected project could not be loaded.",
   "saveProjectFailedPrefix": "Failed to save project",
-  "saveProjectFailedFallback": "The project could not be saved."
+  "saveProjectFailedFallback": "The project could not be saved.",
+  "practiceProgressRegionLabel": "Practice Progress",
+  "practiceProgressLabel": "Practice Progress",
+  "decreasePracticeProgressLabel": "Decrease progress",
+  "increasePracticeProgressLabel": "Increase progress"
 }
