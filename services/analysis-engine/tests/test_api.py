@@ -872,18 +872,18 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             self.items.append(item)
 
     cases = [
-        (FileNotFoundError("missing"), "file_not_found"),
-        (ValueError("bad media"), "value_error"),
-        (RuntimeError("oom"), "runtime_error"),
-        (Exception("unexpected"), "runtime_error"),
+        (FileNotFoundError("missing"), "file_not_found", "Audio source file not found."),
+        (ValueError("bad media"), "value_error", "Invalid audio source or stem request."),
+        (RuntimeError("oom"), "runtime_error", "Audio separation process failed."),
+        (Exception("unexpected"), "runtime_error", "Unexpected error during audio separation."),
     ]
 
-    for error, expected_kind in cases:
+    for error, expected_kind, expected_message in cases:
         fake_queue = FakeQueue()
         with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
             separator_class.return_value.separate.side_effect = error
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
-        assert fake_queue.items == [(expected_kind, str(error))]
+        assert fake_queue.items == [(expected_kind, expected_message)]
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
@@ -895,7 +895,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
         separator_class.return_value.separate.return_value = {"stems": {}}
         _stem_separation_worker("/tmp/audio.wav", fake_queue, "/tmp/stems.npz")
-    assert fake_queue.items == [("runtime_error", "Stem separation returned invalid stems.")]
+    assert fake_queue.items == [("runtime_error", "Audio separation process failed.")]
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
@@ -904,9 +904,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             "stem_role_types": {"bass": "percussion"},
         }
         _stem_separation_worker("/tmp/audio.wav", fake_queue, "/tmp/stems.npz")
-    assert fake_queue.items == [
-        ("runtime_error", "Stem separation returned invalid stem role metadata.")
-    ]
+    assert fake_queue.items == [("runtime_error", "Audio separation process failed.")]
 
 
 def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) -> None:

@@ -859,14 +859,14 @@ def _stem_separation_worker(
             )
             return
         result_queue.put(("ok", separation_result))
-    except FileNotFoundError as error:
-        result_queue.put(("file_not_found", str(error)))
-    except ValueError as error:
-        result_queue.put(("value_error", str(error)))
-    except RuntimeError as error:
-        result_queue.put(("runtime_error", str(error)))
-    except Exception as error:
-        result_queue.put(("runtime_error", str(error)))
+    except FileNotFoundError:
+        result_queue.put(("file_not_found", "Audio source file not found."))
+    except ValueError:
+        result_queue.put(("value_error", "Invalid audio source or stem request."))
+    except RuntimeError:
+        result_queue.put(("runtime_error", "Audio separation process failed."))
+    except Exception:
+        result_queue.put(("runtime_error", "Unexpected error during audio separation."))
 
 
 def _multiprocessing_context() -> mp.context.BaseContext:

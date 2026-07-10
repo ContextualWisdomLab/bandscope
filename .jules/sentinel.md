@@ -12,3 +12,7 @@
 **Vulnerability:** Any project identifier that can reach a filesystem path join must be treated as untrusted, even when it is generated internally or passed through IPC lookup flows.
 **Learning:** Reject only dangerous path segments (`.` and `..`) and path separators (`/` and `\`) so the guard blocks traversal without rejecting ordinary identifiers such as `my..id`.
 **Prevention:** Keep project ID validation centralized before `base_root.join(project_id)`, and cover forward-slash, backslash, parent-component, and benign interior-dot cases in unit tests.
+## 2026-07-10 - Exception Information Leakage Prevention
+**Vulnerability:** The `_stem_separation_worker` exposed raw exception objects via `str(error)` in its queue messages, risking exposure of internal file paths and details.
+**Learning:** In worker processes, errors must be caught and mapped to generic, user-safe messages before being sent over IPC mechanisms or queues to prevent internal structure exposure.
+**Prevention:** Map exceptions (e.g. `FileNotFoundError`, `ValueError`) to static, safe string literals when passing error messages across boundaries.
