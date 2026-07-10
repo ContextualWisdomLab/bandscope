@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import load_module
+from conftest import load_module, make_symlink_or_skip
 
 
 def _write_release_metadata(repo_root: Path) -> None:
@@ -117,7 +117,7 @@ def test_select_release_assets_rejects_symlink_artifact(tmp_path: Path) -> None:
     artifacts.mkdir(parents=True)
     symlink_target = tmp_path / "payload.exe"
     symlink_target.write_text("payload", encoding="utf-8")
-    (artifacts / linked_archive).symlink_to(symlink_target)
+    make_symlink_or_skip(artifacts / linked_archive, symlink_target)
     (artifacts / f"{linked_archive}.sha256").write_text(f"0  {linked_archive}\n", encoding="utf-8")
     (artifacts / f"{linked_archive}.manifest.txt").write_text(
         f"platform=windows\narch=amd64\narchive={linked_archive}\n",
@@ -142,7 +142,7 @@ def test_select_release_assets_rejects_symlink_metadata(tmp_path: Path) -> None:
     sha = "abc123def456"
     sbom_target = tmp_path / "sbom-target.json"
     sbom_target.write_text("{}", encoding="utf-8")
-    (tmp_path / "bandscope-sbom.cdx.json").symlink_to(sbom_target)
+    make_symlink_or_skip(tmp_path / "bandscope-sbom.cdx.json", sbom_target)
     inventory = tmp_path / "supply-chain" / "supplemental-component-inventory.json"
     inventory.parent.mkdir(parents=True)
     inventory.write_text("{}", encoding="utf-8")

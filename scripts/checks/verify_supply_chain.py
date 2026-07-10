@@ -3,6 +3,7 @@
 import functools
 import re
 import shlex
+from datetime import date
 from itertools import pairwise
 from pathlib import Path
 
@@ -24,6 +25,7 @@ REQUIRED_FILES = [
     Path(".github/workflows/secret-scan-gate.yml"),
     Path(".github/workflows/build-baseline.yml"),
     Path(".github/workflows/ossf-scorecard.yml"),
+    Path(".trivyignore"),
     Path("apps/desktop/src-tauri/osv-scanner.toml"),
     Path("docs/security/dependency-policy.md"),
     Path("docs/security/sbom-policy.md"),
@@ -144,7 +146,7 @@ RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RUST_AUDIT_CONFIG = Path("apps/desktop/src-tauri/.cargo/audit.toml")
 RUST_OSV_SCANNER_CONFIG = Path("apps/desktop/src-tauri/osv-scanner.toml")
-TRIVY_IGNORE_FILE = Path(".trivyignore")
+TRIVY_IGNORE_CONFIG = Path(".trivyignore")
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -582,6 +584,11 @@ def clean_package_token(token: str) -> str:
     return token.strip().strip("`").strip()
 
 
+def repo_display_path(path: Path) -> str:
+    """Return repo-relative paths in the slash form used by GitHub logs."""
+    return path.as_posix()
+
+
 def npx_package_from_command(command: str) -> str | None:
     """Return the package fetched by an unsafe npx command, when present."""
     try:
@@ -633,7 +640,7 @@ def npx_package_from_command(command: str) -> str | None:
 def release_asset_allowlist_violation(path: Path) -> str:
     """Return the standard release asset allowlist violation for a workflow."""
     return (
-        f"{path}: release asset upload must use an explicit allowlist, not artifacts/*"
+        f"{repo_display_path(path)}: release asset upload must use an explicit allowlist, not artifacts/*"
     )
 
 
@@ -723,7 +730,9 @@ def verify_pinned_actions() -> list[str]:
                 or DOCKER_ACTION.match(line)
             ):
                 continue
-            violations.append(f"{path}:{idx} -> workflow action must be pinned by SHA")
+            violations.append(
+                f"{repo_display_path(path)}:{idx} -> workflow action must be pinned by SHA"
+            )
     return violations
 
 
@@ -826,7 +835,9 @@ def verify_checkout_default_branch_guard() -> list[str]:
                 for step_indent, step_lines in checkout_steps
             ):
                 continue
-            violations.append(f"{path}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}")
+            violations.append(
+                f"{repo_display_path(path)}: {OSSF_CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
+            )
             continue
         env = workflow_top_level_env(content)
         if all(
@@ -834,7 +845,9 @@ def verify_checkout_default_branch_guard() -> list[str]:
             for key, value in CHECKOUT_DEFAULT_BRANCH_GUARD_ENV.items()
         ):
             continue
-        violations.append(f"{path}: {CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}")
+        violations.append(
+            f"{repo_display_path(path)}: {CHECKOUT_DEFAULT_BRANCH_GUARD_VIOLATION}"
+        )
     return violations
 
 
@@ -885,7 +898,7 @@ def ossf_scorecard_publish_restriction_violations(
                 violations.append(OSSF_PUBLISH_USES_ONLY_VIOLATION)
             else:
                 violations.append(
-                    f"{path}:{start_line or 1} -> {OSSF_PUBLISH_USES_ONLY_VIOLATION}"
+                    f"{repo_display_path(path)}:{start_line or 1} -> {OSSF_PUBLISH_USES_ONLY_VIOLATION}"
                 )
 
     if workflow_publishes_scorecard_results(content):
@@ -896,7 +909,7 @@ def ossf_scorecard_publish_restriction_violations(
                 violations.append(OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION)
             else:
                 violations.append(
-                    f"{path}:{line_number} -> {OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION}"
+                    f"{repo_display_path(path)}:{line_number} -> {OSSF_PUBLISH_GLOBAL_CONFIG_VIOLATION}"
                 )
 
     for idx, line in enumerate(content.splitlines(), start=1):
@@ -1424,7 +1437,7 @@ def verify_immutable_release_upload_policy() -> list[str]:
         if "gh release upload" not in content:
             continue
         violations.append(
-            f"{path}: release published workflows must not upload GitHub Release assets; "
+            f"{repo_display_path(path)}: release published workflows must not upload GitHub Release assets; "
             "immutable releases require draft-before-publish asset attachment"
         )
     return violations
@@ -1442,7 +1455,7 @@ def verify_workflow_npx_policy() -> list[str]:
             if package is None:
                 continue
             violations.append(
-                f"{path}:{idx} -> workflow npx package execution must use "
+                f"{repo_display_path(path)}:{idx} -> workflow npx package execution must use "
                 f"npm exec or npx --no-install: {package}"
             )
     return violations
@@ -1492,7 +1505,7 @@ def verify_workflow_workspace_exec_policy() -> list[str]:
                 and effective_working_directory not in root_working_directories
             ):
                 violations.append(
-                    f"{workflow_path}: workflow npm exec --workspace commands "
+                    f"{repo_display_path(workflow_path)}: workflow npm exec --workspace commands "
                     "must run from the repository root"
                 )
 
@@ -1655,7 +1668,7 @@ def verify_release_asset_allowlist_policy() -> list[str]:
                 previous_release_create_index = release_create_index
             if not (has_generator_before_publish and all_release_creates_revalidated):
                 violations.append(
-                    f"{path}: release asset upload must use scripts/release/select_release_assets.py"
+                    f"{repo_display_path(path)}: release asset upload must use scripts/release/select_release_assets.py"
                     " to generate and revalidate release-assets.txt"
                 )
                 break
@@ -1802,24 +1815,32 @@ def rust_osv_ignored_advisories(osv_config: Path) -> dict[str, str]:
     return ignored
 
 
-def trivy_ignored_finding_reasons(ignore_file: Path) -> dict[str, str]:
-    """Return Trivy ignored finding ids and their preceding comment reasons."""
-    if not ignore_file.exists():
+def trivy_ignored_advisories(trivy_config: Path) -> dict[str, dict[str, str]]:
+    """Return advisory ids, expiry dates, and comments from Trivy's ignore file."""
+    if not trivy_config.exists():
         return {}
-    ignored: dict[str, str] = {}
-    pending_comments: list[str] = []
-    for raw_line in ignore_file.read_text(encoding="utf-8").splitlines():
+    ignored: dict[str, dict[str, str]] = {}
+    comment_buffer: list[str] = []
+    for raw_line in trivy_config.read_text(encoding="utf-8").splitlines():
         stripped = raw_line.strip()
         if not stripped:
-            pending_comments = []
+            comment_buffer = []
             continue
         if stripped.startswith("#"):
-            pending_comments.append(stripped.lstrip("#").strip())
+            comment_buffer.append(stripped[1:].strip())
             continue
-        finding_id = stripped.partition("#")[0].split()[0]
-        if finding_id:
-            ignored[finding_id] = "\n".join(pending_comments)
-        pending_comments = []
+        tokens = stripped.split()
+        advisory_id = tokens[0]
+        expiry = ""
+        for token in tokens[1:]:
+            if token.startswith("exp:"):
+                expiry = token.removeprefix("exp:")
+                break
+        ignored[advisory_id] = {
+            "expiry": expiry,
+            "reason": " ".join(part for part in comment_buffer if part),
+        }
+        comment_buffer = []
     return ignored
 
 
@@ -1869,9 +1890,9 @@ def rust_osv_exception_violations(
 
 
 def rust_trivy_exception_violations(
+    trivy_config: Path = TRIVY_IGNORE_CONFIG,
     audit_config: Path = RUST_AUDIT_CONFIG,
     osv_config: Path = RUST_OSV_SCANNER_CONFIG,
-    trivy_ignore_file: Path = TRIVY_IGNORE_FILE,
 ) -> list[str]:
     """Return Trivy exception drift from repo-owned Rust advisory policy."""
     violations: list[str] = []
@@ -1888,36 +1909,63 @@ def rust_trivy_exception_violations(
         RUST_GLIB_ADVISORY_ID in audit_ignores
         or RUST_GLIB_ADVISORY_ID in osv_ignores
     )
-    trivy_ignores = trivy_ignored_finding_reasons(trivy_ignore_file)
-    glib_trivy_reason = trivy_ignores.get(RUST_GLIB_TRIVY_ADVISORY_ID)
+    if not trivy_config.exists():
+        return [f"Trivy ignore config missing: {trivy_config}"]
 
-    if glib_policy_active and glib_trivy_reason is None:
+    trivy_ignores = trivy_ignored_advisories(trivy_config)
+    entry = trivy_ignores.get(RUST_GLIB_TRIVY_ADVISORY_ID)
+
+    if glib_policy_active and entry is None:
         violations.append(
-            f"{trivy_ignore_file}: missing Trivy ignore for "
-            f"{RUST_GLIB_TRIVY_ADVISORY_ID} mapped to {RUST_GLIB_ADVISORY_ID}"
+            f"{trivy_config}: missing Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            f"tracked as {RUST_GLIB_ADVISORY_ID}"
         )
         return violations
     if not glib_policy_active and RUST_GLIB_TRIVY_ADVISORY_ID in trivy_ignores:
         violations.append(
-            f"{trivy_ignore_file}: unexpected Trivy ignore for "
+            f"{trivy_config}: unexpected Trivy ignore for "
             f"{RUST_GLIB_TRIVY_ADVISORY_ID} without matching cargo-audit/OSV policy"
         )
         return violations
     if not glib_policy_active:
         return violations
 
-    required_reason_terms = (
+    reason = entry["reason"]
+    required_reason_tokens = (
         RUST_GLIB_ADVISORY_ID,
         "glib 0.18.5",
-        "Tauri/wry/webkit2gtk/gtk",
         "glib >=0.20",
+        "Tauri/wry/webkit2gtk/gtk GTK3 stack",
+        "Windows/macOS artifacts only",
+        "verify_supply_chain.py",
+        "remove when upstream drops or patches the chain",
     )
-    missing_terms = [term for term in required_reason_terms if term not in glib_trivy_reason]
-    if missing_terms:
+    for token in required_reason_tokens:
+        if token not in reason:
+            violations.append(
+                f"{trivy_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+                f"must document {token}"
+            )
+
+    expiry = entry["expiry"]
+    if not expiry:
         violations.append(
-            f"{trivy_ignore_file}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
-            "must document "
-            + ", ".join(missing_terms)
+            f"{trivy_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            "must include an exp:YYYY-MM-DD revisit date"
+        )
+        return violations
+    try:
+        expiry_date = date.fromisoformat(expiry)
+    except ValueError:
+        violations.append(
+            f"{trivy_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            f"has invalid exp date {expiry}"
+        )
+        return violations
+    if expiry_date <= date.today():
+        violations.append(
+            f"{trivy_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            f"expired on {expiry}; re-check upstream and remove or renew with evidence"
         )
     return violations
 

@@ -142,6 +142,7 @@ export type RehearsalRole = {
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
+  practiceProgress?: number;
 };
 
 /** Documented. */
@@ -1480,7 +1481,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "transpositionPlan",
       "manualOverrides",
       "overlapWarnings",
-      "transcription"
+      "transcription",
+      "practiceProgress"
     ],
     path
   );
@@ -1559,6 +1561,12 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       if (noteError) {
         return noteError;
       }
+    }
+  }
+
+  if (value.practiceProgress !== undefined) {
+    if (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100) {
+      return invalidField(`${path}.practiceProgress`);
     }
   }
 

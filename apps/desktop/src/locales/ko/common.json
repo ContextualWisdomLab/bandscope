@@ -66,5 +66,9 @@
   "youtubePlaceholder": "유튜브 URL...",
   "importYoutube": "유튜브 가져오기",
   "importingYoutube": "가져오는 중...",
-  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다."
+  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다.",
+  "practiceProgressRegionLabel": "연습 진척도",
+  "practiceProgressLabel": "연습 진척도",
+  "decreasePracticeProgressLabel": "진척도 감소",
+  "increasePracticeProgressLabel": "진척도 증가"
 }
