@@ -21,6 +21,7 @@ import {
   Users,
   Wand2,
   Loader2,
+  X,
 } from "lucide-react";
 import {
   SUPPORTED_AUDIO_FORMATS,
@@ -35,6 +36,7 @@ import {
   importYoutubeUrl,
   isSupportedYoutubeUrl,
   loadProject,
+  MAX_YOUTUBE_URL_LENGTH,
   saveProject,
   subscribeToAnalysisJobUpdates,
   selectLocalAudioSource,
@@ -52,6 +54,7 @@ const MAX_ERROR_DETAIL_LENGTH = 220;
 const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:Users|home|var|tmp|private|Volumes)\/[^\s"'<>]+)/g;
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
+const CLEAR_YOUTUBE_URL_LABEL = "Clear YouTube URL";
 
 const NAV_ITEMS = [
   { label: "Workspace", icon: Home, active: true },
@@ -70,6 +73,13 @@ const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
 /** Documented. */
 function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
   event.preventDefault();
+  event.stopPropagation();
+}
+
+/** Documented. */
+function blockInactiveNavActivation(event: MouseEvent<HTMLButtonElement>) {
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 /** Documented. */
@@ -233,6 +243,7 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const activeJobIdRef = useRef<string | null>(null);
+  const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
@@ -425,6 +436,12 @@ export function App() {
   };
 
   /** Documented. */
+  const handleClearYoutubeUrl = () => {
+    youtubeInputRef.current?.focus();
+    setYoutubeUrl("");
+  };
+
+  /** Documented. */
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
@@ -503,8 +520,8 @@ export function App() {
                 type="button"
                 aria-current={active ? "page" : undefined}
                 aria-disabled={active ? undefined : true}
-                disabled={!active}
                 title={active ? undefined : "Coming soon"}
+                onClick={active ? undefined : blockInactiveNavActivation}
                 className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                   active
                     ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
@@ -573,8 +590,8 @@ export function App() {
                 aria-current={active ? "page" : undefined}
                 aria-label={`${label} compact view`}
                 aria-disabled={active ? undefined : true}
-                disabled={!active}
                 title={active ? undefined : "Coming soon"}
+                onClick={active ? undefined : blockInactiveNavActivation}
                 className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                   active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
                 }`}
@@ -614,15 +631,30 @@ export function App() {
                 <div className="grid min-w-0 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="flex min-w-0 items-center gap-2">
                     <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
-                    <Input
-                      type="text"
-                      placeholder={t("youtubePlaceholder")}
-                      value={youtubeUrl}
-                      onChange={(e) => setYoutubeUrl(e.target.value)}
-                      disabled={analysisInFlight || isStarting || isImporting}
-                      className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
-                      aria-label="YouTube URL"
-                    />
+                    <div className="relative min-w-0 flex-1">
+                      <Input
+                        ref={youtubeInputRef}
+                        type="text"
+                        placeholder={t("youtubePlaceholder")}
+                        value={youtubeUrl}
+                        maxLength={MAX_YOUTUBE_URL_LENGTH}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        disabled={analysisInFlight || isStarting || isImporting}
+                        className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
+                        aria-label="YouTube URL"
+                      />
+                      {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
+                        <button
+                          type="button"
+                          onClick={handleClearYoutubeUrl}
+                          className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                          aria-label={CLEAR_YOUTUBE_URL_LABEL}
+                          title={CLEAR_YOUTUBE_URL_LABEL}
+                        >
+                          <X className="size-4" aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                   <Button
                     onClick={handleImportYoutube}

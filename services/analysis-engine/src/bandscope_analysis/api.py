@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import multiprocessing as mp
 import queue
 import time
@@ -24,9 +25,12 @@ ANALYSIS_CACHE_SCHEMA_VERSION = 1
 FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
+logger = logging.getLogger(__name__)
+
 AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
 AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
 AnalysisCacheStatus = Literal["disabled", "miss", "hit", "stored"]
+StemSeparationFailureKind = Literal["file_not_found", "value_error", "runtime_error"]
 
 
 class AnalysisJobRequest(TypedDict):
@@ -153,6 +157,7 @@ class RehearsalSong(TypedDict):
 
     id: str
     title: str
+    tempo: NotRequired[int]
     sections: list[RehearsalSectionPayload]
     exportSummary: ExportSummaryPayload
 
@@ -422,7 +427,7 @@ def _build_from_pipeline(
     # Build export summary from detected structure
     headline = _build_export_headline(detected_sections)
 
-    return {
+    song: RehearsalSong = {
         "id": "analyzed-song",
         "title": features.get("title", "Analyzed Track"),
         "sections": payload_sections,
@@ -432,6 +437,8 @@ def _build_from_pipeline(
             "focusSections": focus_sections,
         },
     }
+    _apply_tempo(song, features)
+    return song
 
 
 def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
@@ -445,7 +452,7 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
     verse_topology = role_result["topologies"][0]
     verse_roles = verse_topology["active_roles"]
 
-    return {
+    song: RehearsalSong = {
         "id": "demo-song",
         "title": "Late Night Set",
         "sections": [
@@ -469,6 +476,28 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
             "focusSections": ["verse"],
         },
     }
+    _apply_tempo(song, audio_features)
+    return song
+
+
+def _coerce_tempo_bpm(bpm_val: Any) -> int | None:
+    """Return an integer tempo if the input represents a finite positive number."""
+    if isinstance(bpm_val, bool):
+        return None
+    if not isinstance(bpm_val, (int, float)):
+        return None
+    if np.isnan(bpm_val) or np.isinf(bpm_val) or bpm_val <= 0:
+        return None
+    return int(round(bpm_val))
+
+
+def _apply_tempo(song: RehearsalSong, audio_features: dict[str, Any] | None) -> None:
+    """Attach a sanitized integer tempo property to a rehearsal song."""
+    if not audio_features:
+        return
+    bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
+    if bpm is not None:
+        song["tempo"] = bpm
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
@@ -834,14 +863,39 @@ def _stem_separation_worker(
             )
             return
         result_queue.put(("ok", separation_result))
-    except FileNotFoundError as error:
-        result_queue.put(("file_not_found", str(error)))
-    except ValueError as error:
-        result_queue.put(("value_error", str(error)))
-    except RuntimeError as error:
-        result_queue.put(("runtime_error", str(error)))
     except Exception as error:
-        result_queue.put(("runtime_error", str(error)))
+        kind, safe_message, log_message = _stem_separation_failure(error)
+        logger.exception(log_message)
+        result_queue.put((kind, safe_message))
+
+
+def _stem_separation_failure(
+    error: Exception,
+) -> tuple[StemSeparationFailureKind, str, str]:
+    """Map worker exceptions to safe parent payloads and stable log messages."""
+    if isinstance(error, FileNotFoundError):
+        return (
+            "file_not_found",
+            "Audio source file not found.",
+            "Stem separation failed because the source file was missing.",
+        )
+    if isinstance(error, ValueError):
+        return (
+            "value_error",
+            "Invalid audio source data.",
+            "Stem separation rejected invalid audio source data.",
+        )
+    if isinstance(error, RuntimeError):
+        return (
+            "runtime_error",
+            "Runtime error occurred during stem separation.",
+            "Stem separation failed with a runtime error.",
+        )
+    return (
+        "runtime_error",
+        "An unexpected error occurred during stem separation.",
+        "Stem separation failed unexpectedly.",
+    )
 
 
 def _multiprocessing_context() -> mp.context.BaseContext:
@@ -1082,7 +1136,8 @@ def run_analysis_job_updates(
                 )
             )
             audio_features = None
-        except (FileNotFoundError, ValueError) as error:
+        except (FileNotFoundError, ValueError):
+            logger.exception("Stem separation failed before analysis job completion.")
             updates.append(
                 _build_job_status(
                     job_id=job_id,
@@ -1094,7 +1149,7 @@ def run_analysis_job_updates(
                     cache_status=cache_status,
                     error={
                         "code": "engine_unavailable",
-                        "message": f"Stem separation failed: {error}",
+                        "message": "Stem separation failed",
                     },
                 )
             )

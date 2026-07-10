@@ -33,3 +33,7 @@
 ## 2024-05-24 - Avoid nesting native buttons with ARIA role button on wrappers
 **Learning:** Adding `role="button"` to a `span` or `div` wrapper that contains a native `<button>` element inside violates ARIA specifications. Interactive roles (like `button`) must not contain other interactive elements (even if the inner element is disabled or has `aria-hidden`), as this causes invalid/redundant accessibility trees and screen reader confusion.
 **Action:** Always verify wrappers used to implement tooltips for disabled buttons are standard elements (e.g., `<span tabIndex={0} title="...">`) but *do not* assign `role="button"` to the wrapper itself.
+
+## 2026-07-02 - Inline clear buttons preserve focus
+**Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
+**Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
