@@ -277,9 +277,35 @@ def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
     song = build_demo_rehearsal_song()
 
     assert song["title"] == "Late Night Set"
+    assert song.get("tempo") is None
     assert song["sections"][0]["timeRange"] == {"start": 10, "end": 30}
     assert song["sections"][0]["roles"][0]["id"] == "bass-guitar"
     assert song["sections"][0]["roles"][4]["manualOverrides"][0]["value"]["source"] == "user"
+
+
+def test_build_demo_rehearsal_song_with_tempo() -> None:
+    """Ensure build_demo_rehearsal_song incorporates tempo from audio features."""
+    song = build_demo_rehearsal_song({"bpm": 120.4})
+    assert song.get("tempo") == 120
+
+
+def test_coerce_tempo_bpm() -> None:
+    """Ensure _coerce_tempo_bpm handles various edge cases correctly."""
+    import numpy as np
+
+    from bandscope_analysis.api import _coerce_tempo_bpm
+
+    assert _coerce_tempo_bpm(120.4) == 120
+    assert _coerce_tempo_bpm(120) == 120
+    assert _coerce_tempo_bpm(True) is None
+    assert _coerce_tempo_bpm(False) is None
+    assert _coerce_tempo_bpm("120") is None
+    assert _coerce_tempo_bpm(None) is None
+    assert _coerce_tempo_bpm(np.nan) is None
+    assert _coerce_tempo_bpm(np.inf) is None
+    assert _coerce_tempo_bpm(-np.inf) is None
+    assert _coerce_tempo_bpm(0) is None
+    assert _coerce_tempo_bpm(-120) is None
 
 
 def test_build_section_time_range_matches_desktop_bounds() -> None:
@@ -340,15 +366,14 @@ def test_run_analysis_job_handles_validation_exception() -> None:
 def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
     """Ensure local-audio requests separate stems before building rehearsal roles."""
     with (
-        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
     ):
-        separator = separator_class.return_value
-        separator.separate.return_value = {
+        separator.return_value = {
             "stems": {
                 "vocals": np.zeros(1024),
                 "bass": np.zeros(1024),
@@ -406,15 +431,14 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     }
 
     with (
-        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
     ):
-        separator = separator_class.return_value
-        separator.separate.return_value = {
+        separator.return_value = {
             "stems": {
                 "vocals": np.zeros(1024),
                 "bass": np.zeros(1024),
@@ -464,10 +488,10 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
 def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:
     """Ensure unsafe or undecodable local audio returns a typed failure envelope."""
     with (
-        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
+        patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
         patch("bandscope_analysis.api.logger") as logger,
     ):
-        separator_class.return_value.separate.side_effect = ValueError(
+        separator.side_effect = ValueError(
             "Audio file is too large for stem separation: 16 bytes (max 8 bytes)"
         )
 
@@ -501,9 +525,8 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
         "message": "Stem separation failed",
     }
     assert "/Users/test/Music" not in str(updates[-1]["error"])
-    logger.error.assert_called_once_with(
-        "Stem separation failed before analysis job completion.",
-        exc_info=True,
+    logger.exception.assert_called_once_with(
+        "Stem separation failed before analysis job completion."
     )
 
 

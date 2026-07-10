@@ -157,6 +157,7 @@ class RehearsalSong(TypedDict):
 
     id: str
     title: str
+    tempo: NotRequired[int]
     sections: list[RehearsalSectionPayload]
     exportSummary: ExportSummaryPayload
 
@@ -426,7 +427,7 @@ def _build_from_pipeline(
     # Build export summary from detected structure
     headline = _build_export_headline(detected_sections)
 
-    return {
+    song: RehearsalSong = {
         "id": "analyzed-song",
         "title": features.get("title", "Analyzed Track"),
         "sections": payload_sections,
@@ -436,6 +437,8 @@ def _build_from_pipeline(
             "focusSections": focus_sections,
         },
     }
+    _apply_tempo(song, features)
+    return song
 
 
 def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
@@ -449,7 +452,7 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
     verse_topology = role_result["topologies"][0]
     verse_roles = verse_topology["active_roles"]
 
-    return {
+    song: RehearsalSong = {
         "id": "demo-song",
         "title": "Late Night Set",
         "sections": [
@@ -473,6 +476,28 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
             "focusSections": ["verse"],
         },
     }
+    _apply_tempo(song, audio_features)
+    return song
+
+
+def _coerce_tempo_bpm(bpm_val: Any) -> int | None:
+    """Return an integer tempo if the input represents a finite positive number."""
+    if isinstance(bpm_val, bool):
+        return None
+    if not isinstance(bpm_val, (int, float)):
+        return None
+    if np.isnan(bpm_val) or np.isinf(bpm_val) or bpm_val <= 0:
+        return None
+    return int(round(bpm_val))
+
+
+def _apply_tempo(song: RehearsalSong, audio_features: dict[str, Any] | None) -> None:
+    """Attach a sanitized integer tempo property to a rehearsal song."""
+    if not audio_features:
+        return
+    bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
+    if bpm is not None:
+        song["tempo"] = bpm
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
@@ -1112,7 +1137,7 @@ def run_analysis_job_updates(
             )
             audio_features = None
         except (FileNotFoundError, ValueError):
-            logger.error("Stem separation failed before analysis job completion.", exc_info=True)
+            logger.exception("Stem separation failed before analysis job completion.")
             updates.append(
                 _build_job_status(
                     job_id=job_id,
