@@ -237,6 +237,27 @@ describe("App", () => {
     expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
   });
 
+  it("renders localized Korean shell copy for buyer-demo surfaces", () => {
+    const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
+
+    try {
+      render(<App />);
+
+      expect(screen.getByRole("navigation", { name: /주요 합주 보기/i })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /작업 공간 홈/i })).toBeTruthy();
+      expect(screen.getByText(/동기화됨 • 로컬/i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: /^작업 공간$/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /프로젝트 열기/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /유튜브 가져오기/i })).toBeTruthy();
+      expect(screen.getByText(/로컬 우선/i)).toBeTruthy();
+      expect(screen.getByText(/합주 지도는 이 기기에 머뭅니다/i)).toBeTruthy();
+      expect(screen.getByText(/^템포$/i)).toBeTruthy();
+      expect(screen.queryByRole("heading", { name: /Workspace Home/i })).toBeNull();
+    } finally {
+      languageSpy.mockRestore();
+    }
+  });
+
   it("keeps source controls before the analysis summary", () => {
     render(<App />);
 
