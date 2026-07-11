@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from conftest import load_module
+from conftest import load_module, make_symlink_or_skip
 
 
 def central_required_workflow_policy_text() -> str:
@@ -2519,7 +2519,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_artifact_zip(
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
     symlink_zip = tmp_path / "ossf-scorecard-results.zip"
-    symlink_zip.symlink_to(real_zip)
+    make_symlink_or_skip(symlink_zip, real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(symlink_zip, tmp_path / "scorecard-sarif")
@@ -2538,7 +2538,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_zip_in_artifact_directory(
     real_zip = tmp_path / "real-scorecard-results.zip"
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
-    (artifact_dir / "results.sarif.zip").symlink_to(real_zip)
+    make_symlink_or_skip(artifact_dir / "results.sarif.zip", real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
@@ -2559,7 +2559,7 @@ def test_scorecard_artifact_extractor_rejects_mixed_symlink_zip_directory(
     real_zip = tmp_path / "real-scorecard-results.zip"
     with zipfile.ZipFile(real_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
-    (artifact_dir / "shadow.zip").symlink_to(real_zip)
+    make_symlink_or_skip(artifact_dir / "shadow.zip", real_zip)
 
     with pytest.raises(ValueError, match="symlinked artifact path"):
         extractor.extract_scorecard_artifact(artifact_dir, tmp_path / "scorecard-sarif")
@@ -2604,8 +2604,8 @@ def test_scorecard_artifact_extractor_rejects_missing_results_sarif(
         "extract_scorecard_artifact_missing",
     )
     source_zip = tmp_path / "ossf-scorecard-results.zip"
-    with zipfile.ZipFile(source_zip, "w"):
-        pass
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.comment = b"empty artifact fixture"
 
     with pytest.raises(ValueError, match="expected only results.sarif"):
         extractor.extract_scorecard_artifact(source_zip, tmp_path / "scorecard-sarif")
@@ -2621,7 +2621,7 @@ def test_scorecard_artifact_extractor_rejects_symlink_output_dir(tmp_path: Path)
     real_output = tmp_path / "real-output"
     real_output.mkdir()
     symlink_output = tmp_path / "scorecard-sarif"
-    symlink_output.symlink_to(real_output, target_is_directory=True)
+    make_symlink_or_skip(symlink_output, real_output, target_is_directory=True)
     with zipfile.ZipFile(source_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
 
@@ -2642,7 +2642,7 @@ def test_scorecard_artifact_extractor_rejects_existing_target_symlink(
     output_dir.mkdir()
     outside_target = tmp_path / "outside.sarif"
     outside_target.write_text("outside", encoding="utf-8")
-    (output_dir / "results.sarif").symlink_to(outside_target)
+    make_symlink_or_skip(output_dir / "results.sarif", outside_target)
     with zipfile.ZipFile(source_zip, "w") as archive:
         archive.writestr("results.sarif", "{}")
 
@@ -3848,13 +3848,18 @@ def test_supply_chain_check_requires_tracked_rust_glib_legacy_exception() -> Non
     """Ensure the remaining legacy glib advisory is narrowly documented."""
     repo_root = Path(__file__).resolve().parents[3]
     audit_config = repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml"
+    trivy_ignore = repo_root / ".trivyignore"
     content = audit_config.read_text(encoding="utf-8")
+    trivy_content = trivy_ignore.read_text(encoding="utf-8")
 
     assert (
         '"RUSTSEC-2024-0429", # glib 0.18.5: VariantStrIter unsoundness, '
         "transitive via Tauri/wry/webkit2gtk/gtk GTK3 stack; remove when upstream "
         "drops or patches the chain"
     ) in content
+    assert "GHSA-wrw7-89jp-8q8g exp:2026-10-31" in trivy_content
+    assert "RUSTSEC-2024-0429" in trivy_content
+    assert "glib >=0.20" in trivy_content
 
 
 def test_supply_chain_check_accepts_repo_osv_rust_exceptions() -> None:
@@ -3865,6 +3870,22 @@ def test_supply_chain_check_accepts_repo_osv_rust_exceptions() -> None:
     repo_root = Path(__file__).resolve().parents[3]
 
     violations = supply_chain.rust_osv_exception_violations(
+        repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml",
+        repo_root / "apps" / "desktop" / "src-tauri" / "osv-scanner.toml",
+    )
+
+    assert not violations
+
+
+def test_supply_chain_check_accepts_repo_trivy_rust_exception() -> None:
+    """Ensure Trivy carries the same narrow glib exception with a revisit date."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.rust_trivy_exception_violations(
+        repo_root / ".trivyignore",
         repo_root / "apps" / "desktop" / "src-tauri" / ".cargo" / "audit.toml",
         repo_root / "apps" / "desktop" / "src-tauri" / "osv-scanner.toml",
     )
@@ -3907,6 +3928,87 @@ reason = ""
     assert f"{osv_config}: OSV ignore for RUSTSEC-2024-0413 needs a reason" in violations
 
 
+def test_supply_chain_check_rejects_trivy_exception_drift(tmp_path: Path) -> None:
+    """Ensure Trivy cannot miss a Rust exception that audit and OSV allow."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_drift"
+    )
+    audit_config = tmp_path / "audit.toml"
+    osv_config = tmp_path / "osv-scanner.toml"
+    trivy_ignore = tmp_path / ".trivyignore"
+    audit_config.write_text(
+        """
+[advisories]
+ignore = ["RUSTSEC-2024-0429"]
+""".strip(),
+        encoding="utf-8",
+    )
+    osv_config.write_text(
+        """
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "glib 0.18.5 through Tauri/wry/webkit2gtk/gtk"
+""".strip(),
+        encoding="utf-8",
+    )
+    trivy_ignore.write_text("GHSA-other-placeholder\n", encoding="utf-8")
+
+    violations = supply_chain.rust_trivy_exception_violations(
+        trivy_ignore, audit_config, osv_config
+    )
+
+    assert (
+        f"{trivy_ignore}: missing Trivy ignore for GHSA-wrw7-89jp-8q8g tracked as RUSTSEC-2024-0429"
+    ) in violations
+
+
+def test_supply_chain_check_rejects_trivy_exception_without_reason(tmp_path: Path) -> None:
+    """Ensure Trivy Rust exceptions include enough removal context."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_reason"
+    )
+    audit_config = tmp_path / "audit.toml"
+    osv_config = tmp_path / "osv-scanner.toml"
+    trivy_ignore = tmp_path / ".trivyignore"
+    audit_config.write_text(
+        """
+[advisories]
+ignore = ["RUSTSEC-2024-0429"]
+""".strip(),
+        encoding="utf-8",
+    )
+    osv_config.write_text(
+        """
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "glib 0.18.5 through Tauri/wry/webkit2gtk/gtk"
+""".strip(),
+        encoding="utf-8",
+    )
+    trivy_ignore.write_text(
+        """
+# RUSTSEC-2024-0429 only
+GHSA-wrw7-89jp-8q8g
+""".strip(),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.rust_trivy_exception_violations(
+        trivy_ignore, audit_config, osv_config
+    )
+
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document glib 0.18.5"
+    ) in violations
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g must document glib >=0.20"
+    ) in violations
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g "
+        "must include an exp:YYYY-MM-DD revisit date"
+    ) in violations
+
+
 def test_supply_chain_check_reports_malformed_rust_exception_toml(tmp_path: Path) -> None:
     """Ensure malformed Rust exception configs produce actionable policy errors."""
     supply_chain = load_module(
@@ -3929,7 +4031,7 @@ def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     dependency_policy = repo_root / "docs" / "security" / "dependency-policy.md"
     content = dependency_policy.read_text(encoding="utf-8")
 
-    assert "`RUSTSEC-2024-0429` for `glib 0.18.5`" in content
+    assert "`RUSTSEC-2024-0429` / `GHSA-wrw7-89jp-8q8g` for `glib 0.18.5`" in content
     assert "VariantStrIter" in content
     assert "Tauri/wry/webkit2gtk/gtk GTK3 stack" in content
     assert "A compatible lockfile refresh can move the desktop stack to" in content
@@ -3937,6 +4039,8 @@ def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     assert "`wry 0.55.1`" in content
     assert "`tao 0.35.3`" in content
     assert "`muda 0.19.3`" in content
+    assert "`GHSA-wrw7-89jp-8q8g`" in content
+    assert "Trivy" in content
     assert "drops or patches the chain" in content
 
 

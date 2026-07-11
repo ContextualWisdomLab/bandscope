@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
   AudioWaveform,
   CircleHelp,
@@ -21,6 +21,8 @@ import {
   Users,
   Wand2,
   Loader2,
+  X,
+  type LucideIcon,
 } from "lucide-react";
 import {
   SUPPORTED_AUDIO_FORMATS,
@@ -35,12 +37,13 @@ import {
   importYoutubeUrl,
   isSupportedYoutubeUrl,
   loadProject,
+  MAX_YOUTUBE_URL_LENGTH,
   saveProject,
   subscribeToAnalysisJobUpdates,
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
-import { createTranslator, detectPreferredLocale } from "./i18n";
+import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
@@ -55,18 +58,30 @@ const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
 const NAV_ITEMS = [
-  { label: "Workspace", icon: Home, active: true },
-  { label: "Import", icon: Upload, active: false },
-  { label: "Export", icon: Save, active: false },
-  { label: "Sections", icon: ListMusic, active: false },
-  { label: "Roles", icon: Users, active: false },
-  { label: "Stem Lab", icon: AudioWaveform, active: false },
-  { label: "Cues", icon: Sparkles, active: false },
-  { label: "Transpose", icon: SlidersHorizontal, active: false },
-  { label: "Notes", icon: FileMusic, active: false }
-] as const;
+  { labelKey: "navWorkspace", icon: Home, active: true },
+  { labelKey: "navImport", icon: Upload, active: false },
+  { labelKey: "navExport", icon: Save, active: false },
+  { labelKey: "navSections", icon: ListMusic, active: false },
+  { labelKey: "navRoles", icon: Users, active: false },
+  { labelKey: "navStemLab", icon: AudioWaveform, active: false },
+  { labelKey: "navCues", icon: Sparkles, active: false },
+  { labelKey: "navTranspose", icon: SlidersHorizontal, active: false },
+  { labelKey: "navNotes", icon: FileMusic, active: false }
+] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; active: boolean }[];
 
 const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
+
+/** Documented. */
+function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+/** Documented. */
+function blockInactiveNavActivation(event: MouseEvent<HTMLButtonElement>) {
+  event.preventDefault();
+  event.stopPropagation();
+}
 
 /** Documented. */
 function progressMessage(
@@ -128,11 +143,11 @@ function safeErrorDetail(error: unknown, fallback: string): string {
 }
 
 /** Documented. */
-function BandScopeMark() {
+function BandScopeMark({ ariaLabel }: { ariaLabel: string }) {
   return (
     <span
       role="img"
-      aria-label="BandScope circular equalizer mark"
+      aria-label={ariaLabel}
       className="relative grid size-11 shrink-0 place-items-center rounded-full border border-cyan-200/45 bg-cyan-200/10 shadow-[0_0_28px_rgba(103,232,249,0.34)]"
     >
       <span className="absolute inset-1 rounded-full border border-teal-200/20" aria-hidden="true" />
@@ -178,7 +193,18 @@ function MetricCard({
 }
 
 /** Documented. */
-function ConfidenceMetric({ song }: { song: RehearsalSong | null }) {
+function sectionCountDetail(t: ReturnType<typeof createTranslator>, sectionCount: number): string {
+  if (sectionCount === 0) {
+    return t("metricConfidenceLocalAnalysis");
+  }
+  if (sectionCount === 1) {
+    return `1 ${t("metricConfidenceSectionSingular")}`;
+  }
+  return `${sectionCount} ${t("metricConfidenceSectionPlural")}`;
+}
+
+/** Documented. */
+function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnType<typeof createTranslator> }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
   const lowestConfidence = song?.sections.reduce<RehearsalSong["sections"][number]["confidence"]["level"] | null>(
@@ -190,13 +216,13 @@ function ConfidenceMetric({ song }: { song: RehearsalSong | null }) {
     },
     null
   );
-  const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : "Ready";
-  const detail = sectionCount > 0 ? `${sectionCount} section${sectionCount === 1 ? "" : "s"}` : "Local analysis";
+  const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : t("metricConfidenceReady");
+  const detail = sectionCountDetail(t, sectionCount);
 
   return (
     <MetricCard
       icon={<Gauge className="size-5" aria-hidden="true" />}
-      label="Confidence"
+      label={t("metricConfidenceLabel")}
       value={confidence}
       detail={detail}
       accent="text-emerald-300"
@@ -205,12 +231,12 @@ function ConfidenceMetric({ song }: { song: RehearsalSong | null }) {
 }
 
 /** Documented. */
-function priorityLabel(song: RehearsalSong | null): string {
+function priorityLabel(song: RehearsalSong | null, t: ReturnType<typeof createTranslator>): string {
   const firstFocus = song?.exportSummary?.focusSections?.[0];
   if (firstFocus) {
     return firstFocus;
   }
-  return song?.sections?.[0]?.label ?? "Pick track";
+  return song?.sections?.[0]?.label ?? t("metricPriorityFallback");
 }
 
 /** Documented. */
@@ -229,6 +255,7 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const activeJobIdRef = useRef<string | null>(null);
+  const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
@@ -421,6 +448,12 @@ export function App() {
   };
 
   /** Documented. */
+  const handleClearYoutubeUrl = () => {
+    youtubeInputRef.current?.focus();
+    setYoutubeUrl("");
+  };
+
+  /** Documented. */
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
@@ -432,7 +465,7 @@ export function App() {
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
-        setJobError(`Failed to load project: ${safeErrorDetail(e, "The selected project could not be loaded.")}`);
+        setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
       }
     }
   };
@@ -443,7 +476,7 @@ export function App() {
       await saveProject(jobResult!);
     } catch (e) {
       if (!isUserCancellation(e)) {
-        setJobError(`Failed to save project: ${safeErrorDetail(e, "The project could not be saved.")}`);
+        setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
       }
     }
   };
@@ -481,46 +514,50 @@ export function App() {
           </div>
 
           <div className="mb-9 flex items-center gap-3">
-            <BandScopeMark />
+            <BandScopeMark ariaLabel={t("brandMarkAriaLabel")} />
             <div>
               <div className="text-2xl font-black tracking-tight">
                 Band<span className="text-cyan-300">Scope</span>
               </div>
               <div className="text-xs font-semibold uppercase text-slate-400">
-                Rehearsal cockpit
+                {t("rehearsalCockpit")}
               </div>
             </div>
           </div>
 
-          <nav aria-label="Primary rehearsal views" className="space-y-2">
-            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-disabled={active ? undefined : true}
-                disabled={!active}
-                title={active ? undefined : "Coming soon"}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active
-                    ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
-                    : "cursor-not-allowed text-slate-500 opacity-70"
-                }`}
-              >
-                <Icon className="size-5" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+          <nav aria-label={t("primaryRehearsalViewsAriaLabel")} className="space-y-2">
+            {NAV_ITEMS.map(({ labelKey, icon: Icon, active }) => {
+              const label = t(labelKey);
+
+              return (
+                <button
+                  key={labelKey}
+                  type="button"
+                  aria-current={active ? "page" : undefined}
+                  aria-disabled={active ? undefined : true}
+                  title={active ? undefined : t("comingSoon")}
+                  onClick={active ? undefined : blockInactiveNavActivation}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                    active
+                      ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
+                      : "cursor-not-allowed text-slate-500 opacity-70"
+                  }`}
+                >
+                  <Icon className="size-5" aria-hidden="true" />
+                  {label}
+                </button>
+              );
+            })}
           </nav>
 
           <div className="mt-auto space-y-5">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
                 <CloudOff className="size-4 text-cyan-300" aria-hidden="true" />
-                Local-first
+                {t("localFirst")}
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                Your rehearsal map stays on this device. Project files stay local. YouTube only leaves the app when you choose import.
+                {t("localFirstDetail")}
               </p>
               <div className="mt-3 h-14 overflow-hidden rounded-xl bg-[linear-gradient(90deg,rgba(34,211,238,.12),rgba(124,58,237,.12))]">
                 <div className="flex h-full items-end gap-0.5 px-2 pb-1" aria-hidden="true">
@@ -536,54 +573,66 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <span tabIndex={0} role="button" aria-disabled="true" title="Settings coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                <span className="sr-only">Settings coming soon</span>
-                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
-                  <Settings className="size-5" aria-hidden="true" />
-                </button>
-              </span>
-              <span tabIndex={0} role="button" aria-disabled="true" title="Help coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                <span className="sr-only">Help coming soon</span>
-                <button type="button" disabled aria-hidden="true" className="pointer-events-none rounded-xl p-2 text-slate-600 transition">
-                  <CircleHelp className="size-5" aria-hidden="true" />
-                </button>
-              </span>
+              <button
+                type="button"
+                aria-disabled={true}
+                aria-label={t("settingsComingSoon")}
+                title={t("settingsComingSoon")}
+                onClick={preventUnavailableAction}
+                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <Settings className="size-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-disabled={true}
+                aria-label={t("helpComingSoon")}
+                title={t("helpComingSoon")}
+                onClick={preventUnavailableAction}
+                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <CircleHelp className="size-5" aria-hidden="true" />
+              </button>
             </div>
           </div>
         </aside>
 
         <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
-          <nav aria-label="Compact rehearsal views" className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
-            {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                aria-label={`${label} compact view`}
-                aria-disabled={active ? undefined : true}
-                disabled={!active}
-                title={active ? undefined : "Coming soon"}
-                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                  active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
-                }`}
-              >
-                <Icon className="size-4" aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+          <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
+            {NAV_ITEMS.map(({ labelKey, icon: Icon, active }) => {
+              const label = t(labelKey);
+
+              return (
+                <button
+                  key={labelKey}
+                  type="button"
+                  aria-current={active ? "page" : undefined}
+                  aria-label={`${label} ${t("compactViewSuffix")}`}
+                  aria-disabled={active ? undefined : true}
+                  title={active ? undefined : t("comingSoon")}
+                  onClick={active ? undefined : blockInactiveNavActivation}
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                    active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
+                  }`}
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                  {label}
+                </button>
+              );
+            })}
           </nav>
 
-          <section aria-label="Source controls" className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+          <section aria-label={t("sourceControlsAriaLabel")} className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
             <div className="grid gap-4 2xl:grid-cols-[1.4fr_minmax(0,1fr)_auto] 2xl:items-center">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.26em] text-cyan-300">
-                  {jobResult ? "READY • REHEARSAL" : "SYNCED • LOCAL"}
+                  {jobResult ? t("statusReadyRehearsal") : t("statusSyncedLocal")}
                 </p>
                 <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                  {jobResult ? "Rehearsal Console" : "Workspace Home"}
+                  {jobResult ? t("rehearsalConsoleTitle") : t("workspaceHomeTitle")}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                  {jobResult?.exportSummary?.headline ?? "Turn a song into a practical rehearsal view."}
+                  {jobResult?.exportSummary?.headline ?? t("workspaceHomeSummary")}
                 </p>
               </div>
 
@@ -593,7 +642,7 @@ export function App() {
                   disabled={analysisInFlight || isStarting || isImporting}
                   variant="secondary"
                   className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
-                  aria-label="Choose local audio"
+                  aria-label={t("chooseLocalAudio")}
                 >
                   <Upload className="mr-2 size-4" aria-hidden="true" />
                   {t("chooseLocalAudio")}
@@ -602,22 +651,37 @@ export function App() {
                 <div className="grid min-w-0 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="flex min-w-0 items-center gap-2">
                     <Music2 className="ml-2 size-4 shrink-0 text-rose-300" aria-hidden="true" />
-                    <Input
-                      type="text"
-                      placeholder={t("youtubePlaceholder")}
-                      value={youtubeUrl}
-                      onChange={(e) => setYoutubeUrl(e.target.value)}
-                      disabled={analysisInFlight || isStarting || isImporting}
-                      className="h-10 flex-1 border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
-                      aria-label="YouTube URL"
-                    />
+                    <div className="relative min-w-0 flex-1">
+                      <Input
+                        ref={youtubeInputRef}
+                        type="text"
+                        placeholder={t("youtubePlaceholder")}
+                        value={youtubeUrl}
+                        maxLength={MAX_YOUTUBE_URL_LENGTH}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        disabled={analysisInFlight || isStarting || isImporting}
+                        className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
+                        aria-label={t("youtubeUrlAriaLabel")}
+                      />
+                      {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
+                        <button
+                          type="button"
+                          onClick={handleClearYoutubeUrl}
+                          className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                          aria-label={t("clearYoutubeUrl")}
+                          title={t("clearYoutubeUrl")}
+                        >
+                          <X className="size-4" aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                   <Button
                     onClick={handleImportYoutube}
                     disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
                     variant="outline"
                     className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
-                    aria-label="Import YouTube"
+                    aria-label={t("importYoutube")}
                   >
                     {isImporting && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
                     {isImporting ? t("importingYoutube") : t("importYoutube")}
@@ -631,31 +695,31 @@ export function App() {
                   disabled={analysisInFlight || isStarting}
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
-                  aria-label="Open Project"
+                  aria-label={t("openProject")}
                 >
                   <FolderOpen className="mr-2 size-4" aria-hidden="true" />
-                  Open Project
+                  {t("openProject")}
                 </Button>
                 {jobResult ? (
                   <Button
                     onClick={handleSaveProject}
                     variant="outline"
                     className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
-                    aria-label="Save Project"
+                    aria-label={t("saveProject")}
                   >
                     <Save className="mr-2 size-4" aria-hidden="true" />
-                    Save Project
+                    {t("saveProject")}
                   </Button>
                 ) : (
-                  <span tabIndex={0} role="button" aria-disabled="true" title="Analyze a song to enable saving" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                  <span tabIndex={0} role="button" aria-disabled="true" title={t("saveRequiresAnalysis")} className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
                     <Button
                       disabled
                       variant="outline"
                       className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
-                      aria-label="Save Project"
+                      aria-label={t("saveProject")}
                     >
                       <Save className="mr-2 size-4" aria-hidden="true" />
-                      Save Project
+                      {t("saveProject")}
                     </Button>
                   </span>
                 )}
@@ -678,7 +742,7 @@ export function App() {
 
             <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 text-sm text-slate-400 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <span className="mr-2 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">Formats</span>
+                <span className="mr-2 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">{t("formatsLabel")}</span>
                 {SUPPORTED_AUDIO_FORMATS.join(", ")}
               </div>
 
@@ -707,7 +771,7 @@ export function App() {
                     </div>
                     {jobStatus.progressPercent !== undefined && (
                       <Progress
-                        aria-label="Analysis progress"
+                        aria-label={t("analysisProgressAriaLabel")}
                         value={renderedProgressPercent ?? jobStatus.progressPercent}
                         className="mt-2"
                       />
@@ -724,12 +788,12 @@ export function App() {
             </div>
           </section>
 
-          <header aria-label="Analysis summary" className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label="Tempo" value="Pending" detail="Awaiting reliable detection" accent="text-sky-300" />
-            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label="Key" value="Pending" detail="No trusted key yet" accent="text-cyan-300" />
-            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label="Transpose" value="Pending" detail="Review after key detection" accent="text-blue-300" />
-            <ConfidenceMetric song={jobResult} />
-            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label="Priority" value={priorityLabel(jobResult)} detail={jobResult?.exportSummary?.headline ?? "Choose or open audio"} accent="text-amber-300" />
+          <header aria-label={t("analysisSummaryAriaLabel")} className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label={t("metricTempoLabel")} value={t("metricPendingValue")} detail={t("metricTempoPendingDetail")} accent="text-sky-300" />
+            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label={t("metricKeyLabel")} value={t("metricPendingValue")} detail={t("metricKeyPendingDetail")} accent="text-cyan-300" />
+            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label={t("metricTransposeLabel")} value={t("metricPendingValue")} detail={t("metricTransposePendingDetail")} accent="text-blue-300" />
+            <ConfidenceMetric song={jobResult} t={t} />
+            <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label={t("metricPriorityLabel")} value={priorityLabel(jobResult, t)} detail={jobResult?.exportSummary?.headline ?? t("metricPriorityPendingDetail")} accent="text-amber-300" />
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
