@@ -97,7 +97,9 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: npm exec --workspace @bandscope/desktop -- tauri build --target $env:BANDSCOPE_TARGET_TRIPLE --bundles nsis
+        env:
+          BANDSCOPE_TAURI_BUILD_ATTEMPTS: "3"
+        run: bash scripts/release/build_tauri_bundle_with_retry.sh @bandscope/desktop "$env:BANDSCOPE_TARGET_TRIPLE" nsis
       - name: Package Windows amd64 artifact
         run: python scripts/release/package_desktop_artifact.py
       - name: Upload Windows amd64 artifact
@@ -191,7 +193,9 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: npm exec --workspace @bandscope/desktop -- tauri build --target $env:BANDSCOPE_TARGET_TRIPLE --bundles nsis
+        env:
+          BANDSCOPE_TAURI_BUILD_ATTEMPTS: "3"
+        run: bash scripts/release/build_tauri_bundle_with_retry.sh @bandscope/desktop "$env:BANDSCOPE_TARGET_TRIPLE" nsis
       - name: Package Windows arm64 artifact
         run: python scripts/release/package_desktop_artifact.py
       - name: Upload Windows arm64 artifact
