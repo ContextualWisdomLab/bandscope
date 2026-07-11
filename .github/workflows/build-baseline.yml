@@ -62,12 +62,19 @@ jobs:
           }
 
           if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) {
-            $status = Get-MpComputerStatus
-            Write-AntivirusEvidence "Antivirus check: Defender status AntivirusEnabled=$($status.AntivirusEnabled) RealTimeProtectionEnabled=$($status.RealTimeProtectionEnabled)."
-            if ($status.AntivirusEnabled) {
-              return
+            $status = $null
+            try {
+              $status = Get-MpComputerStatus -ErrorAction Stop
+            } catch {
+              Write-AntivirusEvidence "Antivirus check: Defender telemetry query failed: $($_.Exception.Message)."
             }
-            Write-AntivirusEvidence "Antivirus check: Defender telemetry is present but antivirus is not reported as enabled on this hosted runner."
+            if ($status) {
+              Write-AntivirusEvidence "Antivirus check: Defender status AntivirusEnabled=$($status.AntivirusEnabled) RealTimeProtectionEnabled=$($status.RealTimeProtectionEnabled)."
+              if ($status.AntivirusEnabled) {
+                return
+              }
+              Write-AntivirusEvidence "Antivirus check: Defender telemetry is present but antivirus is not reported as enabled on this hosted runner."
+            }
           }
 
           $products = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
@@ -148,12 +155,19 @@ jobs:
           }
 
           if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) {
-            $status = Get-MpComputerStatus
-            Write-AntivirusEvidence "Antivirus check: Defender status AntivirusEnabled=$($status.AntivirusEnabled) RealTimeProtectionEnabled=$($status.RealTimeProtectionEnabled)."
-            if ($status.AntivirusEnabled) {
-              return
+            $status = $null
+            try {
+              $status = Get-MpComputerStatus -ErrorAction Stop
+            } catch {
+              Write-AntivirusEvidence "Antivirus check: Defender telemetry query failed: $($_.Exception.Message)."
             }
-            Write-AntivirusEvidence "Antivirus check: Defender telemetry is present but antivirus is not reported as enabled on this hosted runner."
+            if ($status) {
+              Write-AntivirusEvidence "Antivirus check: Defender status AntivirusEnabled=$($status.AntivirusEnabled) RealTimeProtectionEnabled=$($status.RealTimeProtectionEnabled)."
+              if ($status.AntivirusEnabled) {
+                return
+              }
+              Write-AntivirusEvidence "Antivirus check: Defender telemetry is present but antivirus is not reported as enabled on this hosted runner."
+            }
           }
 
           $products = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
