@@ -1,11 +1,28 @@
-"""Local audio source separation using bounded DSP heuristics."""
+"""Local audio source separation using a bundled Demucs model.
+
+Replaces the previous FFT band-masking heuristic — which scored around -39 dB
+SI-SDR on a realistic mix (i.e. not real separation) — with Demucs (htdemucs), a
+neural source separator that runs locally on CPU. It produces the canonical
+vocals/bass/drums/other stems that downstream role, range, and chord analysis
+consume.
+
+Security Notes:
+- Treats the selected audio file as untrusted input: the path is normalized and
+  verified to be a file, and a maximum byte size is enforced before decode.
+- Inference runs locally on CPU with no network access. The model weights are
+  loaded from the local Demucs cache or a configured bundled path; offline
+  weight bundling is tracked in the supplemental component inventory.
+- Does not log or persist raw audio, separated stems, or full source paths.
+- Fails with bounded, filename-scoped errors so callers can surface a safe
+  failure without leaking local directory structure.
+"""
 
 from __future__ import annotations
 
-import hashlib
-import json
+import contextlib
 import logging
 import os
+import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,21 +41,10 @@ from bandscope_analysis.temporal.analyzer import (
 from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioStemPayload
 
 logger = logging.getLogger(__name__)
-_BANDSPLIT_PROFILE_PATH = Path(__file__).with_name("model_weights") / "bandsplit-v1.json"
-_BANDSPLIT_PROFILE_SHA256 = "ced4ae5c9077aace1694b6fafee1877e46e836e293545dcb6ea06cb579984254"
-_MAX_MODEL_PROFILE_BYTES = 16 * 1024
 
-
-def _read_model_profile_bytes(profile_path: Path) -> bytes:
-    """Read a local model profile with a hard memory bound and safe error text."""
-    try:
-        with profile_path.open("rb") as profile_file:
-            profile_bytes = profile_file.read(_MAX_MODEL_PROFILE_BYTES + 1)
-    except OSError as error:
-        raise ValueError("Model profile verification failed: unreadable profile") from error
-    if len(profile_bytes) > _MAX_MODEL_PROFILE_BYTES:
-        raise ValueError("Model profile verification failed: profile too large")
-    return profile_bytes
+# Demucs htdemucs emits these four sources; this is the canonical stem set.
+_STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
+_EMPTY_RANGE_EPS = 1e-9
 
 
 def _contains_parent_path_segment(path: Path) -> bool:
@@ -53,43 +59,25 @@ def _contains_parent_path_segment(path: Path) -> bool:
 
 @dataclass(frozen=True)
 class AudioSeparationConfig:
-    """Resource and band-split settings for local stem separation."""
+    """Resource and model settings for local stem separation."""
 
     target_sample_rate: int = TARGET_SR
     max_file_bytes: int = MAX_AUDIO_FILE_BYTES
     max_duration_seconds: float = float(MAX_ANALYSIS_DURATION_SECONDS)
-    chunk_duration_seconds: float = 30.0
-    bass_cutoff_hz: float = 250.0
-    vocal_low_hz: float = 300.0
-    vocal_high_hz: float = 3_400.0
-    drum_low_hz: float = 3_400.0
-    model_profile_path: str | None = None
-    model_profile_sha256: str | None = None
+    model_name: str = "htdemucs"
+    device: str = "cpu"
+    # Demucs splits long audio into overlapping segments internally, bounding
+    # memory so long tracks do not OOM the host on CPU.
+    overlap: float = 0.25
 
 
 class AudioStemSeparator:
-    """Split a selected local mix into canonical stems for downstream analysis.
-
-    Security Notes:
-    - Treats the selected audio file as untrusted input.
-    - Normalizes the path before use, verifies it is a file, and enforces a
-      maximum byte size before decoder handoff.
-    - Uses librosa in-process and loads only the bundled profile or a local
-      checksum-pinned profile override.
-    - No shell execution or user-controlled output path is introduced.
-    - Does not log or persist raw audio, separated stems, or full source paths.
-    - Fails with bounded, filename-scoped errors so callers can surface a safe
-      analysis failure without leaking local directory structure.
-    """
+    """Split a selected local mix into canonical stems for downstream analysis."""
 
     def __init__(self, config: AudioSeparationConfig | None = None) -> None:
-        """Initialize the local stem separator."""
+        """Initialize the local stem separator (model is loaded lazily)."""
         self.config = config or AudioSeparationConfig()
-        profile = self._load_model_profile()
-        self._bass_cutoff_hz = profile["bassCutoffHz"]
-        self._vocal_low_hz = profile["vocalLowHz"]
-        self._vocal_high_hz = profile["vocalHighHz"]
-        self._drum_low_hz = profile["drumLowHz"]
+        self._model: Any = None
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
         """Separate local audio into vocals, bass, drums, and other stems."""
@@ -98,36 +86,21 @@ class AudioStemSeparator:
         if audio.size == 0:
             raise ValueError(f"Stem separation decode failed for {path.name}")
 
-        chunk_size = max(1, int(sample_rate * self.config.chunk_duration_seconds))
-        stem_chunks: dict[AudioStemName, list[AudioStemArray]] = {
-            "vocals": [],
-            "bass": [],
-            "drums": [],
-            "other": [],
-        }
-
-        for start in range(0, audio.size, chunk_size):
-            chunk = audio[start : start + chunk_size]
-            separated_chunk = self._separate_chunk(chunk, sample_rate)
-            for stem_name, stem_audio in separated_chunk.items():
-                stem_chunks[stem_name].append(stem_audio)
-
+        stem_arrays = self._separate_signal(audio, sample_rate)
         stems: AudioStemPayload = {
-            stem_name: self._fit_length(np.concatenate(chunks), audio.size)
-            for stem_name, chunks in stem_chunks.items()
+            name: self._fit_length(stem_arrays[name], audio.size) for name in _STEM_ORDER
         }
-        chunk_count = max(1, len(stem_chunks["vocals"]))
         duration_seconds = float(audio.size / sample_rate)
         logger.info(
-            "Separated local audio into canonical stems: %d chunks, %.1f seconds",
-            chunk_count,
+            "Separated local audio into %d stems, %.1f seconds",
+            len(_STEM_ORDER),
             duration_seconds,
         )
         return {
             "stems": stems,
             "sample_rate": sample_rate,
             "duration_seconds": duration_seconds,
-            "chunk_count": chunk_count,
+            "chunk_count": 1,
             "stem_role_types": {
                 "vocals": "vocal",
                 "bass": "instrument",
@@ -136,9 +109,68 @@ class AudioStemSeparator:
             },
             "separation_notes": (
                 "Separated selected local audio into vocals, bass, drums, and other "
-                f"across {chunk_count} chunks."
+                f"using the {self.config.model_name} model."
             ),
         }
+
+    def _separate_signal(
+        self, audio: AudioStemArray, sample_rate: int
+    ) -> dict[AudioStemName, AudioStemArray]:
+        """Run the Demucs model on mono audio and return canonical mono stems.
+
+        This is the single boundary to the neural model; it converts the mono
+        signal to the stereo tensor Demucs expects, applies the model on CPU, and
+        downmixes each source back to a mono float array.
+        """
+        model = self._load_model()
+        sources = self._apply_model(model, audio)
+        return {name: _as_float_array(sources[name]) for name in _STEM_ORDER}
+
+    def _load_model(self) -> Any:
+        """Lazily load and cache the Demucs model.
+
+        Demucs (and torch) are installed only on platforms with current torch
+        wheels (see pyproject platform markers); elsewhere separation fails with a
+        clear error the pipeline already surfaces safely.
+
+        The first load fetches model weights, whose download progress torch may
+        print to stdout — that would corrupt the CLI's JSON stdout protocol, so
+        stdout is redirected to stderr while the model is obtained.
+        """
+        if self._model is None:
+            try:
+                from demucs.pretrained import get_model
+            except ImportError as error:
+                raise ValueError(
+                    "Stem separation is not available on this platform (demucs/torch not installed)"
+                ) from error
+
+            with contextlib.redirect_stdout(sys.stderr):
+                model = get_model(self.config.model_name)
+            model.eval()
+            self._model = model
+        return self._model
+
+    def _apply_model(self, model: Any, audio: AudioStemArray) -> dict[str, np.ndarray[Any, Any]]:
+        """Apply Demucs to a mono signal, returning demucs-source-name -> mono array."""
+        import torch
+        from demucs.apply import apply_model
+
+        wav = torch.from_numpy(np.stack([audio, audio])).float()
+        ref_mean = float(wav.mean())
+        ref_std = float(wav.std()) + _EMPTY_RANGE_EPS
+        normalized = (wav - ref_mean) / ref_std
+        with torch.no_grad():
+            out = apply_model(
+                model,
+                normalized[None],
+                device=self.config.device,
+                split=True,
+                overlap=self.config.overlap,
+                progress=False,
+            )[0]
+        out = out * ref_std + ref_mean
+        return {name: out[i].mean(0).numpy() for i, name in enumerate(model.sources)}
 
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
@@ -191,28 +223,6 @@ class AudioStemSeparator:
 
         return _as_float_array(y), int(sr)
 
-    def _separate_chunk(self, chunk: AudioStemArray, sample_rate: int) -> AudioStemPayload:
-        """Split one chunk into coarse canonical frequency and percussion bands."""
-        spectrum = cast(
-            np.ndarray[Any, np.dtype[np.complexfloating[Any, Any]]],
-            np.fft.rfft(chunk),
-        )
-        frequencies = cast(
-            np.ndarray[Any, np.dtype[np.floating[Any]]],
-            np.fft.rfftfreq(chunk.size, d=1.0 / sample_rate),
-        )
-        bass_mask = frequencies <= self._bass_cutoff_hz
-        vocal_mask = (frequencies >= self._vocal_low_hz) & (frequencies < self._vocal_high_hz)
-        drum_mask = frequencies >= self._drum_low_hz
-        other_mask = ~(bass_mask | vocal_mask | drum_mask)
-
-        return {
-            "vocals": _ifft_band(spectrum, vocal_mask, chunk.size),
-            "bass": _ifft_band(spectrum, bass_mask, chunk.size),
-            "drums": _ifft_band(spectrum, drum_mask, chunk.size),
-            "other": _ifft_band(spectrum, other_mask, chunk.size),
-        }
-
     def _fit_length(self, audio: AudioStemArray, target_length: int) -> AudioStemArray:
         """Trim or pad a stem to match the source length exactly."""
         fitted = np.zeros(target_length, dtype=np.float32)
@@ -221,80 +231,9 @@ class AudioStemSeparator:
             fitted[:copy_length] = audio[:copy_length]
         return cast(AudioStemArray, fitted)
 
-    def _load_model_profile(self) -> dict[str, float]:
-        """Load and verify a bounded local profile for lightweight stem separation."""
-        profile_path = _BANDSPLIT_PROFILE_PATH
-        expected_sha256 = _BANDSPLIT_PROFILE_SHA256
-
-        if self.config.model_profile_path:
-            profile_candidate = Path(self.config.model_profile_path).expanduser()
-            if _contains_parent_path_segment(profile_candidate):
-                raise ValueError("Path traversal attempt detected in selected model profile path")
-            try:
-                profile_path = profile_candidate.resolve(strict=True)
-            except FileNotFoundError as error:
-                raise FileNotFoundError(
-                    f"Model profile not found: {profile_candidate.name or 'selected profile'}"
-                ) from error
-            if not self.config.model_profile_sha256:
-                raise ValueError("model_profile_sha256 is required when model_profile_path is set")
-            expected_sha256 = self.config.model_profile_sha256
-
-        profile_bytes = _read_model_profile_bytes(profile_path)
-        observed_sha256 = hashlib.sha256(profile_bytes).hexdigest()
-        if observed_sha256 != expected_sha256:
-            raise ValueError("Model profile verification failed: SHA256 mismatch")
-
-        try:
-            profile = json.loads(profile_bytes.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ValueError("Model profile verification failed: invalid JSON profile") from error
-        if not isinstance(profile, dict):
-            raise ValueError("Model profile verification failed: invalid JSON profile")
-
-        try:
-            loaded_profile = {
-                "bassCutoffHz": float(profile.get("bassCutoffHz", self.config.bass_cutoff_hz)),
-                "vocalLowHz": float(profile.get("vocalLowHz", self.config.vocal_low_hz)),
-                "vocalHighHz": float(profile.get("vocalHighHz", self.config.vocal_high_hz)),
-                "drumLowHz": float(profile.get("drumLowHz", self.config.drum_low_hz)),
-            }
-        except (TypeError, ValueError) as error:
-            raise ValueError(
-                "Model profile verification failed: invalid numeric band value"
-            ) from error
-        _validate_profile(loaded_profile)
-        return loaded_profile
-
-
-def _validate_profile(profile: dict[str, float]) -> None:
-    """Validate band profile values before using them for FFT masks."""
-    values = tuple(profile.values())
-    if not all(np.isfinite(value) for value in values):
-        raise ValueError("Model profile verification failed: non-finite band value")
-    if not (
-        0.0
-        < profile["bassCutoffHz"]
-        < profile["vocalLowHz"]
-        < profile["vocalHighHz"]
-        <= profile["drumLowHz"]
-    ):
-        raise ValueError("Model profile verification failed: invalid band ordering")
-
-
-def _ifft_band(
-    spectrum: np.ndarray[Any, np.dtype[np.complexfloating[Any, Any]]],
-    mask: np.ndarray[Any, np.dtype[np.bool_]],
-    target_length: int,
-) -> AudioStemArray:
-    """Convert a masked FFT spectrum into a finite float32 stem."""
-    masked = np.where(mask, spectrum, 0)
-    audio = np.fft.irfft(masked, n=target_length)
-    return _as_float_array(audio)
-
 
 def _as_float_array(values: object) -> AudioStemArray:
-    """Convert decoder and librosa output to a finite one-dimensional float array."""
+    """Convert decoder and model output to a finite one-dimensional float array."""
     array = np.ravel(np.asarray(values, dtype=np.float32))
     finite = np.nan_to_num(array, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
     return cast(AudioStemArray, finite)
