@@ -4031,15 +4031,18 @@ def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     dependency_policy = repo_root / "docs" / "security" / "dependency-policy.md"
     content = dependency_policy.read_text(encoding="utf-8")
 
-    assert "`RUSTSEC-2024-0429` / `GHSA-wrw7-89jp-8q8g` for `glib 0.18.5`" in content
+    assert "`RUSTSEC-2024-0429`" in content
+    assert "`GHSA-wrw7-89jp-8q8g`" in content
+    assert "for `glib 0.18.5`" in content
     assert "VariantStrIter" in content
     assert "Tauri/wry/webkit2gtk/gtk GTK3 stack" in content
     assert "A compatible lockfile refresh can move the desktop stack to" in content
-    assert "`tauri 2.11.3`" in content
+    assert "`tauri 2.11.4`" in content
     assert "`wry 0.55.1`" in content
     assert "`tao 0.35.3`" in content
     assert "`muda 0.19.3`" in content
-    assert "`GHSA-wrw7-89jp-8q8g`" in content
+    assert "crates.io metadata for `tauri 2.11.5`" in content
+    assert "Linux GTK stack is absent from the Windows and macOS artifacts" in content
     assert "Trivy" in content
     assert "drops or patches the chain" in content
 
