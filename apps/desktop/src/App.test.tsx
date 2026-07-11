@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { MAX_YOUTUBE_URL_LENGTH } from "./lib/analysis";
 
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
@@ -205,11 +206,56 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
+    expect(fireEvent.click(screen.getByRole("button", { name: /settings coming soon/i }))).toBe(false);
+    expect(fireEvent.click(screen.getByRole("button", { name: /help coming soon/i }))).toBe(false);
+    const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
+    const activePrimaryNavButton = within(primaryNav).getByRole("button", { name: "Workspace" });
+    expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
+    for (const name of ["Import", "Export"]) {
+      const navButton = within(primaryNav).getByRole("button", { name });
+      expect(navButton).toHaveAttribute("aria-disabled", "true");
+      expect(navButton).toHaveAttribute("title", "Coming soon");
+      expect(navButton).not.toBeDisabled();
+    }
+    fireEvent.click(within(primaryNav).getByRole("button", { name: "Import" }));
+    expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
+    const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
+    const activeCompactNavButton = within(compactNav).getByRole("button", { name: "Workspace compact view" });
+    expect(activeCompactNavButton).toHaveAttribute("aria-current", "page");
+    for (const name of ["Import", "Export"]) {
+      const navButton = within(compactNav).getByRole("button", { name: `${name} compact view` });
+      expect(navButton).toHaveAttribute("aria-disabled", "true");
+      expect(navButton).toHaveAttribute("title", "Coming soon");
+      expect(navButton).not.toBeDisabled();
+    }
+    fireEvent.click(within(compactNav).getByRole("button", { name: "Import compact view" }));
+    expect(activeCompactNavButton).toHaveAttribute("aria-current", "page");
     expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
     expect(screen.getByText(/^Key$/i)).toBeTruthy();
     expect(screen.getByText(/Local-first/i)).toBeTruthy();
     expect(screen.getByText(/Project files stay local/i)).toBeTruthy();
     expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
+  });
+
+  it("renders localized Korean shell copy for buyer-demo surfaces", () => {
+    const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
+
+    try {
+      render(<App />);
+
+      expect(screen.getByRole("navigation", { name: /주요 합주 보기/i })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /작업 공간 홈/i })).toBeTruthy();
+      expect(screen.getByText(/동기화됨 • 로컬/i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: /^작업 공간$/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /프로젝트 열기/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /유튜브 가져오기/i })).toBeTruthy();
+      expect(screen.getByText(/로컬 우선/i)).toBeTruthy();
+      expect(screen.getByText(/합주 지도는 이 기기에 머뭅니다/i)).toBeTruthy();
+      expect(screen.getByText(/^템포$/i)).toBeTruthy();
+      expect(screen.queryByRole("heading", { name: /Workspace Home/i })).toBeNull();
+    } finally {
+      languageSpy.mockRestore();
+    }
   });
 
   it("keeps source controls before the analysis summary", () => {
@@ -221,6 +267,15 @@ describe("App", () => {
     expect(sourceControls.compareDocumentPosition(analysisSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(sourceControls).toHaveTextContent(/Choose local audio/i);
     expect(sourceControls).toHaveTextContent(/Import YouTube/i);
+  });
+
+  it("caps the YouTube URL input before import-path validation", () => {
+    render(<App />);
+
+    expect(screen.getByRole("textbox", { name: /YouTube URL/i })).toHaveAttribute(
+      "maxlength",
+      String(MAX_YOUTUBE_URL_LENGTH)
+    );
   });
 
   it("renders the loaded song as a dark rehearsal command board", async () => {
@@ -1030,6 +1085,29 @@ describe("App", () => {
     });
   });
 
+  it("clears the YouTube URL without clearing local selection errors and returns focus to the input", async () => {
+    tauriInvoke.mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
+    });
+
+    const input = screen.getByRole("textbox", { name: /YouTube URL/i });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+
+    const clearButton = screen.getByRole("button", { name: /Clear YouTube URL/i });
+    clearButton.focus();
+    fireEvent.click(clearButton);
+
+    expect(input).toHaveValue("");
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
+  });
+
   it("handles YouTube import failure with a message", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error("This video is age restricted."));
 
@@ -1427,10 +1505,13 @@ describe("App", () => {
   });
 
 
-  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
+  it("renders Settings and Help as focusable aria-disabled controls", () => {
     render(<App />);
-    const settingsSpan = screen.getByTitle("Settings coming soon");
-    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
-    expect(settingsSpan).toHaveAttribute("role", "button");
+    const settingsButton = screen.getByRole("button", { name: "Settings coming soon" });
+    const helpButton = screen.getByRole("button", { name: "Help coming soon" });
+    expect(settingsButton).toHaveAttribute("aria-disabled", "true");
+    expect(settingsButton).not.toHaveAttribute("disabled");
+    expect(helpButton).toHaveAttribute("aria-disabled", "true");
+    expect(helpButton).not.toHaveAttribute("disabled");
   });
 });
