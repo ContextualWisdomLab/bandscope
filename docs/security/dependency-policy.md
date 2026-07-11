@@ -109,6 +109,7 @@ Current controlled exceptions:
 Retired third-party deprecation and advisory signal:
 
 - `proc-macro-hack v0.5.20+deprecated`, `RUSTSEC-2025-0057` for `fxhash`, and `RUSTSEC-2026-0097` for legacy `rand 0.7.3` were removed by a compatible Tauri lockfile refresh that moved `tauri` to `2.11.0` and `tauri-utils` to `2.9.0`, dropping the `kuchikiki`/`selectors`/`phf 0.8` owner chain. Do not reintroduce this chain or restore the `RUSTSEC-2026-0097` Cargo audit exception; `scripts/checks/verify_supply_chain.py` rejects any future `rand 0.7.x` lockfile entry.
+- `GHSA-53q9-r3pm-6pq6` (`torch.load` RCE, fixed in torch 2.6) is allowed only for `torch 2.2.2` in `services/analysis-engine`: torch 2.2.2 is the last release publishing macOS Intel (x86_64) wheels, and the cross-platform build policy mandates macOS Intel + arm64. The vulnerable API only ever loads demucs's pinned model weights (bundled/checksum-tracked per this policy); user-supplied audio never reaches `torch.load`. The exception is encoded in `.github/workflows/dependency-review.yml` (`allow-ghsas`) and `services/analysis-engine/osv-scanner.toml`, and must be removed when the engine migrates off torch (e.g. ONNX runtime) or the Intel-mac mandate changes.
 - Yanked `fastrand 2.4.0` was transiently inherited through target-specific `wry`/`dom_query` HTML parsing dependencies and must stay updated to `2.4.1` or newer in `apps/desktop/src-tauri/Cargo.lock`; `scripts/checks/verify_supply_chain.py` guards against reintroducing the yanked version.
 
 ## Required checks intent
