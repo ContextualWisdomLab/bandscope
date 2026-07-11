@@ -56,6 +56,11 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
                     ))}
                   </div>
                 )}
+                {role.transcription && role.transcription.length > 0 && (
+                  <div style={{ marginTop: "8px", fontSize: "0.8em", color: "#08979c", backgroundColor: "#e6fffb", padding: "4px 6px", borderRadius: "4px" }}>
+                    <strong>Transcription available:</strong> {role.transcription.length} notes
+                  </div>
+                )}
               </div>
             ))}
           </div>
