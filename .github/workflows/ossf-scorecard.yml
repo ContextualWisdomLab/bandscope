@@ -1,6 +1,7 @@
 name: ossf-scorecard
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - develop
