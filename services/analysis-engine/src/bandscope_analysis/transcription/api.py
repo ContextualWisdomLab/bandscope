@@ -1,35 +1,22 @@
-"""Transcription API — monophonic bass transcription via probabilistic YIN.
-
-Replaces the previous fixed-dummy stub with a real pitch tracker (``librosa.pyin``)
-so that the transcribed notes reflect the actual audio instead of a hardcoded
-sequence. Bass lines are effectively monophonic, which is exactly the case YIN
-handles well; polyphonic transcription remains future work (Basic Pitch / CREPE).
-"""
+"""Transcription API endpoints."""
 
 from __future__ import annotations
 
 import io
-import logging
+import warnings
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 import librosa
 import numpy as np
-import soundfile as sf  # type: ignore[import-untyped]
+from numpy.typing import NDArray
 
-logger = logging.getLogger(__name__)
-
-_NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
-
-# Bass band: E1 (~41 Hz) up to ~E4. Bounds pyin search and keeps MIDI in range.
-_FMIN_HZ = 41.0
-_FMAX_HZ = 330.0
-_FRAME_LENGTH = 2048
-_HOP_LENGTH = 512
-# Notes shorter than this are treated as transients/noise, not rehearsal-relevant.
-_MIN_NOTE_DURATION_S = 0.08
-# Bound processed audio so untrusted input cannot force unbounded computation.
-_MAX_DURATION_S = 600.0
+TARGET_SR = 22050
+MAX_STEM_BYTES = 50 * 1024 * 1024
+MAX_TRANSCRIPTION_DURATION_SECONDS = 120
+FRAME_LENGTH = 2048
+HOP_LENGTH = 512
+MIN_NOTE_DURATION_SECONDS = 0.05
+MIN_SIGNAL_PEAK = 1e-5
 
 
 @dataclass
@@ -41,106 +28,147 @@ class NoteEvent:
     duration: float
 
 
-def _hz_to_midi(freq: float) -> int:
-    """Convert a frequency in Hz to the nearest MIDI note number."""
-    return int(round(69.0 + 12.0 * np.log2(freq / 440.0)))
-
-
-def _midi_to_name(midi: int) -> str:
-    """Convert a MIDI note number to scientific pitch notation (e.g. 28 -> 'E1')."""
-    return f"{_NOTE_NAMES[midi % 12]}{midi // 12 - 1}"
-
-
-def _decode(stem_data: bytes) -> Optional[Tuple[np.ndarray, int]]:
-    """Decode untrusted audio bytes to a bounded mono float32 signal and sample rate.
-
-    Returns ``None`` on any decode failure or empty/invalid audio.
-    """
-    try:
-        y, sr = sf.read(io.BytesIO(stem_data), dtype="float32", always_2d=False)
-    except Exception:
-        return None
-    y = np.asarray(y, dtype=np.float32)
-    if y.ndim > 1:
-        y = y.mean(axis=1)
-    if y.size == 0 or sr <= 0:
-        return None
-    max_samples = int(_MAX_DURATION_S * sr)
-    if y.size > max_samples:
-        y = y[:max_samples]
-    return y, int(sr)
-
-
-def _segment_notes(f0: np.ndarray, voiced_flag: np.ndarray, times: np.ndarray) -> List[NoteEvent]:
-    """Group consecutive voiced frames of the same pitch into note events."""
-    events: List[NoteEvent] = []
-    frame_dt = float(times[1] - times[0]) if len(times) > 1 else 0.0
-    cur_midi: Optional[int] = None
-    start_t = 0.0
-    last_t = 0.0
-
-    def flush(end_t: float) -> None:
-        nonlocal cur_midi
-        if cur_midi is not None and (end_t - start_t) >= _MIN_NOTE_DURATION_S:
-            events.append(
-                NoteEvent(
-                    pitch=_midi_to_name(cur_midi),
-                    start_time=round(start_t, 3),
-                    duration=round(end_t - start_t, 3),
-                )
-            )
-        cur_midi = None
-
-    for freq, voiced, t in zip(f0, voiced_flag, times, strict=False):
-        is_voiced = bool(voiced) and np.isfinite(freq) and freq > 0
-        midi = _hz_to_midi(float(freq)) if is_voiced else None
-        if midi != cur_midi:
-            flush(float(t))
-            if midi is not None:
-                cur_midi = midi
-                start_t = float(t)
-        last_t = float(t)
-    flush(last_t + frame_dt)
-    return events
-
-
-def transcribe_bass_stem(stem_data: bytes) -> List[NoteEvent]:
-    """Transcribe a monophonic bass stem into a list of :class:`NoteEvent`.
-
-    Estimates the fundamental frequency per frame with probabilistic YIN
-    (``librosa.pyin``) inside the bass band, then segments consecutive voiced
-    frames of the same pitch into notes. The output reflects the actual audio.
-
-    Security Notes:
-    - ``stem_data`` is untrusted binary audio, decoded via soundfile and never
-      executed. No file, network, or shell access.
-    - Bounded computation: audio is truncated to ``_MAX_DURATION_S`` and the
-      pitch search is confined to the bass band.
-    - Safe failure: empty, undecodable, or degenerate input returns ``[]``.
+def transcribe_bass_stem(stem_data: bytes) -> list[NoteEvent]:
+    """Transcribe a bass stem into note events using local pitch tracking.
 
     Args:
         stem_data: Binary data representing the audio stem.
 
     Returns:
-        List of :class:`NoteEvent` in time order (may be empty).
+        Note events containing pitch, start time, and duration.
     """
     if not stem_data:
         return []
-    decoded = _decode(stem_data)
-    if decoded is None:
-        return []
-    y, sr = decoded
-    try:
-        f0, voiced_flag, _ = librosa.pyin(
-            y,
-            sr=sr,
-            fmin=_FMIN_HZ,
-            fmax=_FMAX_HZ,
-            frame_length=_FRAME_LENGTH,
-            hop_length=_HOP_LENGTH,
+    if len(stem_data) > MAX_STEM_BYTES:
+        raise ValueError("Stem data is too large for transcription.")
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
+        y, sr = librosa.load(
+            io.BytesIO(stem_data),
+            sr=TARGET_SR,
+            mono=True,
+            duration=MAX_TRANSCRIPTION_DURATION_SECONDS,
         )
-    except Exception:
-        logger.warning("pyin pitch tracking failed on bass stem", exc_info=True)
+
+    y_array = np.asarray(y, dtype=np.float32)
+    if y_array.size == 0 or float(np.max(np.abs(y_array))) < MIN_SIGNAL_PEAK:
         return []
-    times = librosa.times_like(f0, sr=sr, hop_length=_HOP_LENGTH)
-    return _segment_notes(f0, voiced_flag, times)
+
+    fmin = float(librosa.note_to_hz("C1"))
+    fmax = float(librosa.note_to_hz("C5"))
+    try:
+        f0, voiced_flag, _voiced_probs = librosa.pyin(
+            y_array,
+            fmin=fmin,
+            fmax=fmax,
+            sr=sr,
+            frame_length=FRAME_LENGTH,
+            hop_length=HOP_LENGTH,
+        )
+    except librosa.util.exceptions.ParameterError as error:
+        raise ValueError(f"Pitch tracking failed: {error}") from error
+
+    if f0 is None or voiced_flag is None:
+        return []
+
+    f0_array = np.asarray(f0, dtype=np.float64)
+    voiced_frames = np.asarray(voiced_flag, dtype=bool) & np.isfinite(f0_array)
+    voiced_frames &= _energy_mask(y_array, len(f0_array))
+    return _note_events_from_frames(f0_array, voiced_frames, int(sr))
+
+
+def _energy_mask(y: NDArray[np.float32], frame_count: int) -> NDArray[np.bool_]:
+    """Return frame-level mask that removes silence and decoder padding."""
+    rms = librosa.feature.rms(
+        y=y,
+        frame_length=FRAME_LENGTH,
+        hop_length=HOP_LENGTH,
+        center=True,
+    )[0]
+    rms_array = np.asarray(rms, dtype=np.float64)
+    if rms_array.size == 0:
+        return np.zeros(frame_count, dtype=bool)
+
+    threshold = max(float(np.max(rms_array)) * 0.08, 1e-4)
+    mask = rms_array >= threshold
+    if mask.size >= frame_count:
+        return mask[:frame_count]
+
+    padded = np.zeros(frame_count, dtype=bool)
+    padded[: mask.size] = mask
+    return padded
+
+
+def _note_events_from_frames(
+    f0: NDArray[np.float64],
+    voiced_frames: NDArray[np.bool_],
+    sr: int,
+) -> list[NoteEvent]:
+    """Convert voiced pYIN frames into contiguous note events."""
+    frame_times = librosa.frames_to_time(
+        np.arange(f0.size + 1),
+        sr=sr,
+        hop_length=HOP_LENGTH,
+    )
+    events: list[NoteEvent] = []
+
+    for start_frame, end_frame in _contiguous_regions(voiced_frames):
+        frequency_slice = f0[start_frame : end_frame + 1]
+        frequency_slice = frequency_slice[np.isfinite(frequency_slice)]
+        if frequency_slice.size == 0:
+            continue
+
+        start_time = float(frame_times[start_frame])
+        end_time = float(frame_times[min(end_frame + 1, frame_times.size - 1)])
+        duration = end_time - start_time
+        if duration < MIN_NOTE_DURATION_SECONDS:
+            continue
+
+        median_hz = float(np.median(frequency_slice))
+        pitch = str(librosa.hz_to_note(median_hz, unicode=False))
+        events.append(
+            NoteEvent(
+                pitch=pitch,
+                start_time=start_time,
+                duration=duration,
+            )
+        )
+
+    return _merge_adjacent_equal_pitches(events)
+
+
+def _contiguous_regions(mask: NDArray[np.bool_]) -> list[tuple[int, int]]:
+    """Return inclusive frame ranges for true regions in a boolean mask."""
+    regions: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, is_voiced in enumerate(mask):
+        if bool(is_voiced) and start is None:
+            start = index
+        elif not bool(is_voiced) and start is not None:
+            regions.append((start, index - 1))
+            start = None
+    if start is not None:
+        regions.append((start, len(mask) - 1))
+    return regions
+
+
+def _merge_adjacent_equal_pitches(events: list[NoteEvent]) -> list[NoteEvent]:
+    """Merge short pitch-equivalent fragments split by frame-level voicing gaps."""
+    merged: list[NoteEvent] = []
+    for event in events:
+        if not merged:
+            merged.append(event)
+            continue
+
+        previous = merged[-1]
+        gap = event.start_time - (previous.start_time + previous.duration)
+        if previous.pitch == event.pitch and gap <= 0.08:
+            merged[-1] = NoteEvent(
+                pitch=previous.pitch,
+                start_time=previous.start_time,
+                duration=event.start_time + event.duration - previous.start_time,
+            )
+        else:
+            merged.append(event)
+    return merged
