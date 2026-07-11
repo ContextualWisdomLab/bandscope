@@ -215,6 +215,36 @@ def test_audio_stem_separator_rejects_missing_audio_file(tmp_path) -> None:
         separator.separate(tmp_path / "missing.wav")
 
 
+def test_audio_stem_separator_rejects_parent_traversal_in_audio_file(tmp_path) -> None:
+    """Ensure parent path segments are rejected before source path resolution."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        separator.separate(tmp_path / "nested" / ".." / "rehearsal.wav")
+
+
+def test_audio_stem_separator_rejects_altsep_parent_traversal_in_audio_file() -> None:
+    """Ensure backslash traversal is rejected on non-Windows hosts."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        separator.separate("safe\\..\\rehearsal.wav")
+
+
+@pytest.mark.parametrize(
+    "audio_path",
+    ["safe/..\\rehearsal.wav", "safe\\../rehearsal.wav"],
+)
+def test_audio_stem_separator_rejects_mixed_separator_parent_traversal(
+    audio_path: str,
+) -> None:
+    """Ensure mixed-separator traversal is rejected before path resolution."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        separator.separate(audio_path)
+
+
 def test_audio_stem_separator_rejects_directory_source(tmp_path) -> None:
     """Ensure directories are not accepted as audio files."""
     source_dir = tmp_path / "source-dir"
@@ -275,6 +305,15 @@ def test_audio_stem_separator_redacts_decoder_exceptions(
         separator.separate(audio_path)
 
     assert str(tmp_path) not in str(error.value)
+
+
+def test_audio_stem_separator_fit_length_zero() -> None:
+    """Ensure zero-length targets stay bounded and return an empty stem."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    fitted = separator._fit_length(np.ones(4, dtype=np.float32), 0)
+
+    assert fitted.shape == (0,)
 
 
 def test_audio_stem_separator_uses_verified_local_model_profile(tmp_path) -> None:
@@ -398,6 +437,48 @@ def test_audio_stem_separator_rejects_missing_local_model_profile(tmp_path) -> N
             AudioSeparationConfig(
                 target_sample_rate=8_000,
                 model_profile_path=str(profile_path),
+                model_profile_sha256="0" * 64,
+            )
+        )
+
+
+def test_audio_stem_separator_rejects_parent_traversal_in_model_profile(tmp_path) -> None:
+    """Ensure parent path segments are rejected before profile path resolution."""
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=str(tmp_path / "profiles" / ".." / "profile.json"),
+                model_profile_sha256="0" * 64,
+            )
+        )
+
+
+def test_audio_stem_separator_rejects_altsep_parent_traversal_in_model_profile() -> None:
+    """Ensure backslash traversal in profile paths is rejected on non-Windows hosts."""
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path="profiles\\..\\profile.json",
+                model_profile_sha256="0" * 64,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "model_profile_path",
+    ["profiles/..\\profile.json", "profiles\\../profile.json"],
+)
+def test_audio_stem_separator_rejects_mixed_separator_parent_traversal_in_model_profile(
+    model_profile_path: str,
+) -> None:
+    """Ensure mixed-separator traversal is rejected in model profile paths."""
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        AudioStemSeparator(
+            AudioSeparationConfig(
+                target_sample_rate=8_000,
+                model_profile_path=model_profile_path,
                 model_profile_sha256="0" * 64,
             )
         )
