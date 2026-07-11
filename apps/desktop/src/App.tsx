@@ -49,7 +49,6 @@ import { EmptyState, ErrorState, LoadingState } from "./features/workspace/Works
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Toaster } from "@/components/ui/sonner";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 const MAX_ERROR_DETAIL_LENGTH = 220;
@@ -801,8 +800,6 @@ export function App() {
           </section>
         </main>
       </div>
-
-      <Toaster />
     </div>
   );
 }
