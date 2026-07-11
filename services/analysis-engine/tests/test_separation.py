@@ -1,5 +1,7 @@
 """Tests for the source separation module."""
 
+from __future__ import annotations
+
 import os
 import sys
 from types import ModuleType
@@ -162,6 +164,57 @@ class _FakeModel:
         return self
 
 
+class _FakeTensor:
+    """Tiny torch.Tensor stand-in for exercising the Demucs apply boundary."""
+
+    def __init__(self, array: np.ndarray) -> None:
+        self.array = np.asarray(array, dtype=np.float32)
+
+    def float(self) -> "_FakeTensor":
+        """Match torch.Tensor.float()."""
+        return _FakeTensor(self.array.astype(np.float32))
+
+    def mean(self, axis: int | None = None) -> float | "_FakeTensor":
+        """Return scalar means or tensor means like the torch call sites need."""
+        value = self.array.mean(axis=axis)
+        if axis is None:
+            return float(value)
+        return _FakeTensor(np.asarray(value, dtype=np.float32))
+
+    def std(self) -> float:
+        """Return the scalar standard deviation used for Demucs normalization."""
+        return float(self.array.std())
+
+    def numpy(self) -> np.ndarray:
+        """Return the wrapped numpy array."""
+        return self.array
+
+    def __getitem__(self, key: object) -> "_FakeTensor":
+        return _FakeTensor(self.array[key])
+
+    def __add__(self, value: float) -> "_FakeTensor":
+        return _FakeTensor(self.array + value)
+
+    def __sub__(self, value: float) -> "_FakeTensor":
+        return _FakeTensor(self.array - value)
+
+    def __mul__(self, value: float) -> "_FakeTensor":
+        return _FakeTensor(self.array * value)
+
+    def __truediv__(self, value: float) -> "_FakeTensor":
+        return _FakeTensor(self.array / value)
+
+
+class _FakeNoGrad:
+    """Context manager stand-in for torch.no_grad()."""
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+
 def _install_fake_demucs(monkeypatch: pytest.MonkeyPatch, get_model: object) -> None:
     """Install a lightweight fake demucs package for import-boundary tests."""
     demucs_module = ModuleType("demucs")
@@ -286,6 +339,66 @@ def test_audio_stem_separator_caches_model(tmp_path, monkeypatch: pytest.MonkeyP
     separator.separate(audio_path)
     separator.separate(audio_path)
     assert calls["n"] == 1
+
+
+def test_audio_stem_separator_apply_model_uses_demucs_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure Demucs receives normalized stereo input and returns mono stems by source."""
+    calls: dict[str, object] = {}
+    samples = 4
+
+    fake_torch = ModuleType("torch")
+    fake_torch.from_numpy = lambda array: _FakeTensor(array)  # type: ignore[attr-defined]
+    fake_torch.no_grad = _FakeNoGrad  # type: ignore[attr-defined]
+
+    def fake_apply_model(
+        model: _FakeModel,
+        batch: _FakeTensor,
+        *,
+        device: str,
+        split: bool,
+        overlap: float,
+        progress: bool,
+    ) -> _FakeTensor:
+        calls.update(
+            {
+                "batch_shape": batch.array.shape,
+                "device": device,
+                "split": split,
+                "overlap": overlap,
+                "progress": progress,
+            }
+        )
+        source_values = np.arange(len(model.sources), dtype=np.float32).reshape(-1, 1, 1)
+        separated = np.broadcast_to(source_values, (len(model.sources), 2, samples)).copy()
+        return _FakeTensor(separated[None])
+
+    demucs_module = ModuleType("demucs")
+    apply_module = ModuleType("demucs.apply")
+    apply_module.apply_model = fake_apply_model  # type: ignore[attr-defined]
+    demucs_module.apply = apply_module  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "demucs", demucs_module)
+    monkeypatch.setitem(sys.modules, "demucs.apply", apply_module)
+
+    audio = np.array([0.0, 1.0, -1.0, 0.5], dtype=np.float32)
+    separator = AudioStemSeparator(AudioSeparationConfig(device="cpu", overlap=0.375))
+    result = separator._apply_model(_FakeModel(), audio)
+
+    ref = np.stack([audio, audio])
+    ref_mean = float(ref.mean())
+    ref_std = float(ref.std()) + 1e-9
+    assert calls == {
+        "batch_shape": (1, 2, samples),
+        "device": "cpu",
+        "split": True,
+        "overlap": 0.375,
+        "progress": False,
+    }
+    for index, source in enumerate(_DEMUCS_SOURCES):
+        expected = np.full(samples, index * ref_std + ref_mean, dtype=np.float32)
+        np.testing.assert_allclose(result[source], expected)
 
 
 def test_audio_stem_separator_rejects_missing_audio_file(tmp_path) -> None:
