@@ -349,7 +349,7 @@ def test_audio_stem_separator_apply_model_uses_demucs_boundary(
     samples = 4
 
     fake_torch = ModuleType("torch")
-    fake_torch.from_numpy = lambda array: _FakeTensor(array)  # type: ignore[attr-defined]
+    fake_torch.from_numpy = _FakeTensor  # type: ignore[attr-defined]
     fake_torch.no_grad = _FakeNoGrad  # type: ignore[attr-defined]
 
     def fake_apply_model(
