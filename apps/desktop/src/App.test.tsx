@@ -348,6 +348,32 @@ describe("App", () => {
     expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
+  it("short-circuits confidence summarization when a low confidence section is encountered", async () => {
+    const loadedProject = succeededResult().result;
+    // Add a 'low' confidence section, then a 'medium' one. The early break should stop at 'low'.
+    loadedProject.sections.push({
+      ...loadedProject.sections[0],
+      id: "bridge-1",
+      label: "bridge",
+      confidence: { level: "low", source: "model", notes: "The bridge form is unclear." }
+    });
+    loadedProject.sections.push({
+      ...loadedProject.sections[0],
+      id: "chorus-1",
+      label: "chorus",
+      confidence: { level: "medium", source: "model", notes: "The chorus form is okay." }
+    });
+    mockLoadProject.mockResolvedValueOnce(loadedProject);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/^Low$/i)).toBeTruthy();
+    });
+    expect(screen.getAllByText(/3 sections/i).length).toBeGreaterThan(0);
+  });
+
   it("selects a local audio source and starts a local-audio analysis job", async () => {
     tauriInvoke
       .mockResolvedValueOnce(bootstrapResponse())
