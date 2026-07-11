@@ -171,20 +171,120 @@ def detect_boundaries(
     return boundary_times
 
 
-def assign_section_labels(
+# Two segments whose mean-chroma cosine similarity meets this are treated as the
+# same repeated section (e.g. two choruses).
+_REPETITION_SIMILARITY = 0.9
+
+
+def _segment_repetition_groups(
+    audio: NDArray[np.floating[Any]],
+    sr: int,
+    boundaries: list[float],
+    duration: float,
+) -> list[int]:
+    """Group segments that repeat, by mean-chroma similarity.
+
+    Returns a group id per segment; segments sharing an id are acoustically
+    similar (a repeated section). Reuses the chroma the boundary detector relies
+    on, so labels reflect the audio rather than a segment's position.
+
+    Args:
+        audio: Mono audio signal.
+        sr: Sample rate.
+        boundaries: Sorted boundary start times.
+        duration: Total audio duration.
+
+    Returns:
+        A group id per segment, in segment order.
+    """
+    n = len(boundaries)
+    if n == 0:
+        return []
+    hop = max(512, math.ceil(audio.size / MAX_SSM_FRAMES))
+    chroma = librosa.feature.chroma_cqt(y=audio, sr=sr, hop_length=hop)
+    n_frames = chroma.shape[1]
+    reps: list[NDArray[np.floating[Any]]] = []
+    groups: list[int] = []
+    for i in range(n):
+        start = boundaries[i]
+        end = boundaries[i + 1] if i + 1 < n else duration
+        f0 = min(int(start * sr / hop), n_frames - 1)
+        f1 = min(max(int(end * sr / hop), f0 + 1), n_frames)
+        vec = chroma[:, f0:f1].mean(axis=1)
+        unit = vec / (float(np.linalg.norm(vec)) + 1e-9)
+        match = next(
+            (g for g, rep in enumerate(reps) if float(np.dot(unit, rep)) >= _REPETITION_SIMILARITY),
+            -1,
+        )
+        if match < 0:
+            match = len(reps)
+            reps.append(unit)
+        groups.append(match)
+    return groups
+
+
+def _labels_from_repetition(
+    groups: list[int],
     boundaries: list[float],
     duration: float,
 ) -> list[tuple[str, int]]:
+    """Name segments from their repetition groups.
+
+    The most-repeated group is the chorus, other repeated groups are verses, and
+    non-repeating segments are intro/outro (by position) or bridge.
+
+    Args:
+        groups: Repetition group id per segment.
+        boundaries: Sorted boundary start times.
+        duration: Total audio duration.
+
+    Returns:
+        List of (label, sequence_index) tuples, one per segment.
+    """
+    n = len(groups)
+    sizes: dict[int, int] = {}
+    first_seen: dict[int, int] = {}
+    for i, g in enumerate(groups):
+        sizes[g] = sizes.get(g, 0) + 1
+        first_seen.setdefault(g, i)
+    repeated = sorted(
+        (g for g, count in sizes.items() if count >= 2),
+        key=lambda g: (-sizes[g], first_seen[g]),
+    )
+    group_label = {g: ("chorus" if rank == 0 else "verse") for rank, g in enumerate(repeated)}
+
+    labels: list[tuple[str, int]] = []
+    counts: dict[str, int] = {}
+    for i, g in enumerate(groups):
+        if g in group_label:
+            label = group_label[g]
+        elif i == 0:
+            label = "intro"
+        elif i == n - 1 and boundaries[i] / max(duration, 1.0) > 0.85:
+            label = "outro"
+        else:
+            label = "bridge"
+        counts[label] = counts.get(label, 0) + 1
+        labels.append((label, counts[label]))
+    return labels
+
+
+def assign_section_labels(
+    boundaries: list[float],
+    duration: float,
+    repetition_groups: list[int] | None = None,
+) -> list[tuple[str, int]]:
     """Assign canonical section labels to detected segments.
 
-    Uses structural position heuristics:
-    - First short segment -> intro
-    - Last segment -> outro
-    - Repeating patterns -> verse/chorus alternation
+    When ``repetition_groups`` is provided, labels come from actual acoustic
+    repetition (most-repeated group -> chorus, other repeats -> verse, unique
+    edges -> intro/outro, unique middles -> bridge). Without it, falls back to
+    structural position heuristics.
 
     Args:
         boundaries: Sorted boundary start times.
         duration: Total audio duration.
+        repetition_groups: Optional repetition group id per segment.
 
     Returns:
         List of (label, sequence_index) tuples, one per segment.
@@ -192,6 +292,9 @@ def assign_section_labels(
     n_segments = len(boundaries)
     if n_segments == 0:
         return []
+
+    if repetition_groups is not None:
+        return _labels_from_repetition(repetition_groups, boundaries, duration)
 
     labels: list[tuple[str, int]] = []
     label_counts: dict[str, int] = {}
@@ -251,7 +354,7 @@ def segment_audio(
         logger.warning("Structural segmentation failed, falling back to single section: %s", e)
         return _single_section_fallback(f"Segmentation fallback: {e}")
 
-    return _sections_from_boundaries(boundaries, duration)
+    return _sections_from_boundaries(boundaries, duration, audio, sr)
 
 
 def segment_boundaries_from_audio(
@@ -324,9 +427,9 @@ def segment_with_boundaries(
         logger.warning("Structural segmentation failed, falling back to single section: %s", e)
         return _single_section_fallback(f"Segmentation fallback: {e}"), [(0.0, duration)]
 
-    return _sections_from_boundaries(boundaries, duration), _boundary_pairs_from_boundaries(
-        boundaries, duration
-    )
+    return _sections_from_boundaries(
+        boundaries, duration, audio, sr
+    ), _boundary_pairs_from_boundaries(boundaries, duration)
 
 
 def _single_section_fallback(confidence_notes: str) -> list[SectionCandidate]:
@@ -348,9 +451,15 @@ def _single_section_fallback(confidence_notes: str) -> list[SectionCandidate]:
     ]
 
 
-def _sections_from_boundaries(boundaries: list[float], duration: float) -> list[SectionCandidate]:
+def _sections_from_boundaries(
+    boundaries: list[float],
+    duration: float,
+    audio: NDArray[np.floating[Any]],
+    sr: int,
+) -> list[SectionCandidate]:
     """Build section candidates from precomputed boundary start times."""
-    labels = assign_section_labels(boundaries, duration)
+    groups = _segment_repetition_groups(audio, sr, boundaries, duration)
+    labels = assign_section_labels(boundaries, duration, groups)
     sections: list[SectionCandidate] = []
     n_boundaries = len(boundaries)
 
