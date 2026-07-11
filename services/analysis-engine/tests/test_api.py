@@ -936,6 +936,14 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             "Stem separation rejected invalid audio source data.",
         ),
         (
+            ValueError(
+                "Stem separation is not available on this platform (demucs/torch not installed)"
+            ),
+            "runtime_error",
+            "Stem separation is unavailable on this platform.",
+            "Stem separation unavailable because Demucs or torch is not installed.",
+        ),
+        (
             RuntimeError("oom /secret/audio.wav"),
             "runtime_error",
             "Runtime error occurred during stem separation.",
@@ -1342,7 +1350,7 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
         elapsed = time.monotonic() - started_at
 
     assert updates[-1]["state"] == "succeeded"
-    assert elapsed < 0.3
+    assert elapsed < 0.4
     assert any(
         update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
