@@ -113,9 +113,21 @@ def test_role_extractor_falls_back_when_activity_detection_fails() -> None:
         "boundaries": [(0.0, 10.0)],
     }
 
-    with patch(
-        "bandscope_analysis.roles.extractor.detect_stem_activity",
-        side_effect=RuntimeError("bad activity map"),
+    with (
+        patch(
+            "bandscope_analysis.roles.extractor.detect_stem_activity",
+            side_effect=RuntimeError("bad activity map"),
+        ),
+        patch.object(
+            RoleExtractor,
+            "_extract_features",
+            return_value=(
+                {"lowestNote": "", "highestNote": ""},
+                "",
+                {"lowestNote": "", "highestNote": ""},
+                "",
+            ),
+        ),
     ):
         result = extractor.extract(sections, audio_features)
 
