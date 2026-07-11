@@ -13,6 +13,8 @@ yt_dlp/extractor/vice.py
 # unsoundness inherited only through the Tauri/wry/webkit2gtk/gtk GTK3 stack.
 # BandScope ships Windows/macOS artifacts only; Cargo target trees for those
 # release targets do not include this Linux GTK stack. No compatible glib >=0.20
-# path exists for this owner chain yet. Guarded by scripts/checks/verify_supply_chain.py
-# and remove when upstream drops or patches the chain.
+# path exists for this owner chain yet: as of 2026-07-11, tauri 2.11.5 still
+# routes Linux through gtk ^0.18 and webkit2gtk 2.0.2 requires glib ^0.18.
+# Guarded by scripts/checks/verify_supply_chain.py and remove when upstream
+# drops or patches the chain. Revisit by 2026-10-31.
 GHSA-wrw7-89jp-8q8g exp:2026-10-31
