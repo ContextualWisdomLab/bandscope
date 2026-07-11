@@ -24,6 +24,36 @@ KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
     (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
     (FutureWarning, r".*Numba.*", r".*numba.*"),
 )
+# ponytail: assumes 4/4; upgrade to meter estimation or a madmom DBN if other meters matter.
+BEATS_PER_BAR = 4
+
+
+def _estimate_downbeats(
+    onset_env: NDArray[np.floating[Any]],
+    beat_frames: NDArray[np.integer[Any]],
+    beat_times: NDArray[np.floating[Any]],
+    beats_per_bar: int = BEATS_PER_BAR,
+) -> list[float]:
+    """Pick the bar phase whose beats carry the most onset energy as the downbeats.
+
+    Downbeats are typically the strongest onset in a bar, so instead of blindly
+    treating beat 0 as the downbeat we sample the onset-strength envelope at each
+    beat and choose the phase (0..beats_per_bar-1) with the highest mean strength.
+    This looks at the actual audio rather than assuming beat 0 starts the bar.
+    """
+    if len(beat_times) == 0:
+        return []
+    if len(beat_times) < beats_per_bar or len(onset_env) == 0:
+        return [float(beat_times[0])]
+    idx = np.clip(beat_frames, 0, len(onset_env) - 1)
+    beat_strength = onset_env[idx]
+    best_phase, best_score = 0, -np.inf
+    for phase in range(beats_per_bar):
+        window = beat_strength[phase::beats_per_bar]
+        score = float(np.mean(window)) if len(window) else -np.inf
+        if score > best_score:
+            best_score, best_phase = score, phase
+    return [float(bt) for i, bt in enumerate(beat_times) if (i - best_phase) % beats_per_bar == 0]
 
 
 class TemporalAnalyzer:
@@ -91,9 +121,10 @@ class TemporalAnalyzer:
             # Convert frame indices to time (seconds)
             beat_times: NDArray[np.floating[Any]] = librosa.frames_to_time(beat_frames, sr=sr)
 
-            # Extract downbeats (simple approximation: every 4th beat)
-            # A real model might use madmom or complex DBNs for precise downbeats
-            downbeat_times = [float(bt) for i, bt in enumerate(beat_times) if i % 4 == 0]
+            # Place downbeats on the strongest-onset bar phase (looks at the audio,
+            # not a blind "every 4th beat from index 0").
+            onset_env = librosa.onset.onset_strength(y=y_array, sr=sr)
+            downbeat_times = _estimate_downbeats(onset_env, beat_frames, beat_times)
 
             bpm_val = float(tempo[0]) if isinstance(tempo, np.ndarray) else float(tempo)
 

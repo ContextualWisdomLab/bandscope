@@ -9,6 +9,7 @@ import pytest
 import soundfile as sf  # type: ignore
 
 from bandscope_analysis.temporal import TemporalAnalyzer
+from bandscope_analysis.temporal.analyzer import _estimate_downbeats
 
 
 @pytest.fixture
@@ -200,3 +201,27 @@ def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
         features = TemporalAnalyzer().analyze(test_wav)
 
     assert features["bpm"] == 120.0
+
+
+def test_estimate_downbeats_picks_strongest_onset_phase() -> None:
+    """Downbeats land on the bar phase with the most onset energy, not index 0."""
+    onset = np.full(200, 1.0)
+    beat_frames = np.arange(16) * 10
+    beat_times = beat_frames * 0.1
+    # Accent phase 2 (beats 2, 6, 10, 14) — the old "every 4th from 0" would miss this.
+    for i in range(2, 16, 4):
+        onset[beat_frames[i]] = 10.0
+    downbeats = _estimate_downbeats(onset, beat_frames, beat_times)
+    assert downbeats == [float(beat_times[i]) for i in range(2, 16, 4)]
+
+
+def test_estimate_downbeats_empty() -> None:
+    """No beats yields no downbeats."""
+    empty = np.array([])
+    assert _estimate_downbeats(empty, empty, empty) == []
+
+
+def test_estimate_downbeats_too_few_beats_returns_first() -> None:
+    """Fewer beats than a bar falls back to the first beat as the downbeat."""
+    onset = np.ones(50)
+    assert _estimate_downbeats(onset, np.array([0, 10]), np.array([0.0, 0.5])) == [0.0]

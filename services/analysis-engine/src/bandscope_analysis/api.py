@@ -881,6 +881,7 @@ def _stem_separation_failure(
     error: Exception,
 ) -> tuple[StemSeparationFailureKind, str, str]:
     """Map worker exceptions to safe parent payloads and stable log messages."""
+    error_message = str(error)
     if isinstance(error, FileNotFoundError):
         return (
             "file_not_found",
@@ -888,6 +889,12 @@ def _stem_separation_failure(
             "Stem separation failed because the source file was missing.",
         )
     if isinstance(error, ValueError):
+        if "not available on this platform" in error_message or "demucs/torch" in error_message:
+            return (
+                "runtime_error",
+                "Stem separation is unavailable on this platform.",
+                "Stem separation unavailable because Demucs or torch is not installed.",
+            )
         return (
             "value_error",
             "Invalid audio source data.",
