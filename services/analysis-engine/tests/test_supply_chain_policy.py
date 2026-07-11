@@ -118,6 +118,19 @@ def test_build_baseline_upload_artifact_pins_are_consistent() -> None:
     assert len(set(pins)) == 1
 
 
+def test_windows_antivirus_probe_logs_defender_provider_failures() -> None:
+    """Ensure hosted-runner Defender provider errors do not fail Windows builds."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "build-baseline.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert workflow.count("Get-MpComputerStatus -ErrorAction Stop") == 2
+    assert workflow.count("Antivirus check: Defender telemetry query failed") == 2
+    assert workflow.count("$products = Get-CimInstance -Namespace root/SecurityCenter2") == 2
+    assert workflow.count("$defenderService = Get-Service -Name WinDefend") == 2
+
+
 def test_supply_chain_check_requires_checkout_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
