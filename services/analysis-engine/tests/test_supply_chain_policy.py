@@ -3857,6 +3857,43 @@ def test_supply_chain_check_requires_tracked_rust_glib_legacy_exception() -> Non
     ) in content
 
 
+def test_supply_chain_check_accepts_repo_trivy_rust_glib_exception() -> None:
+    """Ensure Trivy's GHSA alias for the legacy glib advisory is tracked."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_repo"
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.rust_trivy_exception_violations(repo_root / ".trivyignore")
+
+    assert not violations
+
+
+def test_supply_chain_check_rejects_unscoped_trivy_rust_glib_exception(
+    tmp_path: Path,
+) -> None:
+    """Ensure Trivy ignores include a removal date and owner-chain reason."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_trivy_drift"
+    )
+    trivy_ignore = tmp_path / ".trivyignore"
+    trivy_ignore.write_text("GHSA-wrw7-89jp-8q8g\n", encoding="utf-8")
+
+    violations = supply_chain.rust_trivy_exception_violations(trivy_ignore)
+
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g needs an exp: removal date"
+    ) in violations
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g "
+        "needs documented RUSTSEC-2024-0429 scope"
+    ) in violations
+    assert (
+        f"{trivy_ignore}: Trivy ignore for GHSA-wrw7-89jp-8q8g "
+        "needs documented glib 0.18.5 scope"
+    ) in violations
+
+
 def test_supply_chain_check_accepts_repo_osv_rust_exceptions() -> None:
     """Ensure OSV Scanner ignores stay aligned with cargo-audit exceptions."""
     supply_chain = load_module(
@@ -3929,14 +3966,17 @@ def test_dependency_policy_documents_rust_glib_legacy_exception() -> None:
     dependency_policy = repo_root / "docs" / "security" / "dependency-policy.md"
     content = dependency_policy.read_text(encoding="utf-8")
 
-    assert "`RUSTSEC-2024-0429` for `glib 0.18.5`" in content
+    assert "`RUSTSEC-2024-0429`" in content
+    assert "`GHSA-wrw7-89jp-8q8g`" in content
+    assert "for `glib 0.18.5`" in content
     assert "VariantStrIter" in content
     assert "Tauri/wry/webkit2gtk/gtk GTK3 stack" in content
     assert "A compatible lockfile refresh can move the desktop stack to" in content
-    assert "`tauri 2.11.3`" in content
+    assert "`tauri 2.11.4`" in content
     assert "`wry 0.55.1`" in content
     assert "`tao 0.35.3`" in content
     assert "`muda 0.19.3`" in content
+    assert "crates.io metadata for `tauri 2.11.5`" in content
     assert "drops or patches the chain" in content
 
 

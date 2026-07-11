@@ -8,3 +8,9 @@ yt_dlp/extractor/go.py
 yt_dlp/extractor/nbc.py
 yt_dlp/extractor/tbs.py
 yt_dlp/extractor/vice.py
+
+# GHSA-wrw7-89jp-8q8g / RUSTSEC-2024-0429: glib 0.18.5 VariantStrIter
+# is inherited only through Tauri/wry/webkit2gtk/gtk GTK3. As of
+# 2026-07-11, tauri 2.11.5 still routes Linux through gtk ^0.18 and
+# webkit2gtk 2.0.2 requires glib ^0.18. Revisit by 2026-10-31.
+GHSA-wrw7-89jp-8q8g exp:2026-10-31

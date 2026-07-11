@@ -107,6 +107,7 @@ RUST_RAND_PATCHED_VERSIONS = {
     (0, 10): (0, 10, 1),
 }
 RUST_GLIB_ADVISORY_ID = "RUSTSEC-2024-0429"
+RUST_GLIB_TRIVY_ADVISORY_ID = "GHSA-wrw7-89jp-8q8g"
 RUST_GLIB_LEGACY_EXCEPTION_VERSION = "0.18.5"
 RUST_GLIB_PATCHED_VERSION = (0, 20, 0)
 RUST_GLIB_LEGACY_ROOT_NAME = "tauri"
@@ -143,6 +144,7 @@ RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
 RUST_AUDIT_CONFIG = Path("apps/desktop/src-tauri/.cargo/audit.toml")
 RUST_OSV_SCANNER_CONFIG = Path("apps/desktop/src-tauri/osv-scanner.toml")
+TRIVY_IGNORE_CONFIG = Path(".trivyignore")
 RELEASE_CREATE_VALUE_FLAGS = {
     "--discussion-category",
     "--latest",
@@ -1845,6 +1847,57 @@ def rust_osv_exception_violations(
     return violations
 
 
+def trivy_ignored_vulnerability_ids(ignore_config: Path) -> set[str]:
+    """Return vulnerability IDs from Trivy's repo-owned ignore file."""
+    if not ignore_config.exists():
+        return set()
+    ignored: set[str] = set()
+    for line in ignore_config.read_text(encoding="utf-8").splitlines():
+        clean = line.partition("#")[0].strip()
+        if clean:
+            ignored.add(clean.split()[0])
+    return ignored
+
+
+def rust_trivy_exception_violations(
+    ignore_config: Path = TRIVY_IGNORE_CONFIG,
+) -> list[str]:
+    """Return Trivy exception drift for the legacy Rust glib advisory."""
+    if not ignore_config.exists():
+        return [f"Trivy ignore config missing: {ignore_config}"]
+
+    content = ignore_config.read_text(encoding="utf-8")
+    ignored_ids = trivy_ignored_vulnerability_ids(ignore_config)
+    violations: list[str] = []
+    if RUST_GLIB_TRIVY_ADVISORY_ID not in ignored_ids:
+        violations.append(
+            f"{ignore_config}: missing Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} "
+            f"matching {RUST_GLIB_ADVISORY_ID}"
+        )
+
+    glib_lines = [
+        line
+        for line in content.splitlines()
+        if line.strip().startswith(RUST_GLIB_TRIVY_ADVISORY_ID)
+    ]
+    if not glib_lines:
+        return violations
+    if not any("exp:" in line for line in glib_lines):
+        violations.append(
+            f"{ignore_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} needs an exp: removal date"
+        )
+    for required_text in [
+        RUST_GLIB_ADVISORY_ID,
+        RUST_GLIB_LEGACY_EXCEPTION_PACKAGE,
+        "Tauri/wry/webkit2gtk/gtk",
+    ]:
+        if required_text not in content:
+            violations.append(
+                f"{ignore_config}: Trivy ignore for {RUST_GLIB_TRIVY_ADVISORY_ID} needs documented {required_text} scope"
+            )
+    return violations
+
+
 def rust_glib_advisory_violations(
     lockfile: Path,
     version: str,
@@ -2217,6 +2270,7 @@ def main() -> int:
     violations.extend(verify_workflow_npx_policy())
     violations.extend(verify_workflow_workspace_exec_policy())
     violations.extend(rust_osv_exception_violations())
+    violations.extend(rust_trivy_exception_violations())
     violations.extend(rust_dependency_advisory_violations())
 
     if violations:
