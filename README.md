@@ -1,6 +1,6 @@
 # BandScope
 
-BandScope is a public GitHub project for a local-first desktop app that turns a song into a practical rehearsal view: likely harmony by section and by instrument or vocal role, section roadmap, tempo and groove cues, separated stems, playable ranges, simplification hints, transposition or capo guidance, overlap cues, visible confidence, and rehearsal priorities without DAW complexity.
+BandScope is a public GitHub project for a local-first desktop app that turns a song into a practical rehearsal view: likely harmony by section and by instrument or vocal role, section roadmap, tempo and groove cues, rough stem previews, playable ranges, simplification hints, transposition or capo guidance, overlap cues, visible confidence, and rehearsal priorities without DAW complexity.
 
 It does not promise notation-grade full arrangement transcription or DAW-style production editing.
 
