@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, createEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { MAX_YOUTUBE_URL_LENGTH } from "./lib/analysis";
@@ -1513,5 +1513,14 @@ describe("App", () => {
     expect(settingsButton).not.toHaveAttribute("disabled");
     expect(helpButton).toHaveAttribute("aria-disabled", "true");
     expect(helpButton).not.toHaveAttribute("disabled");
+  });
+
+  it("prevents default click on disabled Save Project button", () => {
+    render(<App />);
+    const saveButton = screen.getByRole("button", { name: /Save project/i });
+    expect(saveButton).toHaveAttribute("aria-disabled", "true");
+    const event = createEvent.click(saveButton);
+    fireEvent(saveButton, event);
+    expect(event.defaultPrevented).toBe(true);
   });
 });

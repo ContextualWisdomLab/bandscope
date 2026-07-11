@@ -1,0 +1,4 @@
+
+## 2024-07-11 - Accessible Disabled Buttons and Tooltips
+**Learning:** Wrapping disabled `<button>` elements inside a `span role="button"` just to attach a `title` tooltip breaks valid HTML semantics, keyboard accessibility, and standard screen reader behavior, as it creates invalid nested interactive elements. Test queries looking for `getByRole('button')` can easily fail if there are two conceptual buttons nested together.
+**Action:** When a button needs to be visually disabled but still require a tooltip on hover/focus, use a native `<button>` element, remove the HTML `disabled` attribute, set `aria-disabled="true"`, block clicks using `onClick={(e) => e.preventDefault()}`, and apply `title` directly to the button. Ensure matching Tailwind variants (`aria-disabled:opacity-50`) are added to handle styling.
