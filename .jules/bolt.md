@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2025-02-15 - Vectorize diagonal windowed operations
+**Learning:** Iterating through a large NumPy matrix along the diagonal using a Python `for` loop with array slicing and summation causes high constant time overhead due to repeated inner-loop allocations.
+**Action:** When performing windowed operations strictly along the diagonal of large matrices, use sub-matrix diagonal vectorization (`numpy.lib.stride_tricks.sliding_window_view` coupled with `np.diagonal` and `np.einsum`) to delegate iteration and computation to optimized C-level routines.
