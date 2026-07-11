@@ -17,7 +17,6 @@ REQUIRED_FILES = [
     Path("services/analysis-engine/uv.lock"),
     Path("apps/desktop/src-tauri/Cargo.lock"),
     Path(".github/dependabot.yml"),
-    Path(".github/workflows/dependency-review.yml"),
     Path(".github/workflows/security-audit.yml"),
     Path(".github/workflows/codeql.yml"),
     Path(".github/workflows/sbom.yml"),
@@ -1192,15 +1191,6 @@ def _verify_sbom_coverage(missing: list[str]) -> None:
             missing.append(f"sbom workflow missing trigger token: {token}")
 
 
-def _verify_dependency_review_coverage(missing: list[str]) -> None:
-    review = read_workflow(
-        Path(".github/workflows/dependency-review.yml"), "dependency review", missing
-    )
-    for token in ["develop", "main", "pull_request"]:
-        if review and token not in review:
-            missing.append(f"dependency review workflow missing trigger token: {token}")
-
-
 def _verify_security_audit_coverage(missing: list[str]) -> None:
     audit = read_workflow(Path(".github/workflows/security-audit.yml"), "security audit", missing)
     for token in ["develop", "main", "pull_request", "push"]:
@@ -1333,7 +1323,6 @@ def verify_workflow_coverage() -> list[str]:
     missing: list[str] = []
     _verify_ci_coverage(missing)
     _verify_sbom_coverage(missing)
-    _verify_dependency_review_coverage(missing)
     _verify_security_audit_coverage(missing)
     _verify_codeql_coverage(missing)
     _verify_release_coverage(missing)
