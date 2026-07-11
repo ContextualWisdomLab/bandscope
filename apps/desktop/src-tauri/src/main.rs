@@ -1107,7 +1107,13 @@ async fn import_youtube_url(
     Err("YouTube import failed with an unknown error.".to_string())
 }
 
+const MAX_YOUTUBE_URL_LENGTH: usize = 2000;
+
 fn is_supported_youtube_url(url: &str) -> bool {
+    if url.len() > MAX_YOUTUBE_URL_LENGTH {
+        return false;
+    }
+
     let parsed_url = match url::Url::parse(url) {
         Ok(u) => u,
         Err(_) => return false,
@@ -1520,6 +1526,9 @@ mod tests {
         ));
         assert!(!is_supported_youtube_url("https://youtu.be/abc123"));
         assert!(!is_supported_youtube_url("https://youtu.be/abc123DEF4!"));
+
+        let long_url = format!("https://youtube.com/watch?v={}", "a".repeat(2000));
+        assert!(!is_supported_youtube_url(&long_url));
     }
 
     #[test]
