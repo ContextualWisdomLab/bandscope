@@ -1483,8 +1483,10 @@ describe("App", () => {
 
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
-    const saveSpan = screen.getByTitle("Analyze a song to enable saving");
-    fireEvent.click(saveSpan);
+    const saveBtn = screen.getByRole("button", { name: "Save Project" });
+    expect(saveBtn).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.click(saveBtn);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 

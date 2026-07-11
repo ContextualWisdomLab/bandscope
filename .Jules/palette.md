@@ -37,3 +37,7 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+
+## 2024-07-11 - Global Button support for aria-disabled
+**Learning:** Native `disabled` attributes on buttons remove them from the tab order and prevent pointer events, which breaks hover tooltips. Using a `span role="button"` wrapper around a disabled button violates ARIA specs (interactive elements cannot contain interactive elements). The correct approach is to remove the native `disabled` attribute, apply `aria-disabled="true"`, and use `preventUnavailableAction` (or similar) on `onClick`. However, global components like `<Button>` often only style `disabled:` states.
+**Action:** When updating a disabled button to use `aria-disabled="true"` for accessibility, ensure the base Button component (e.g., `apps/desktop/src/components/ui/button.tsx`) includes `aria-disabled:opacity-50`, `aria-disabled:cursor-not-allowed`, and mirrors all `disabled:hover` overrides with `aria-disabled:hover` variants so the visual state matches the semantic state without needing one-off wrapper hacks.
