@@ -47,6 +47,16 @@ _STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
 _EMPTY_RANGE_EPS = 1e-9
 
 
+def _contains_parent_path_segment(path: Path) -> bool:
+    """Return True when a raw path contains a parent traversal segment."""
+    path_text = str(path)
+    normalized_path_text = path_text
+    for separator in {os.sep, os.altsep, "\\"}:
+        if separator and separator != "/":
+            normalized_path_text = normalized_path_text.replace(separator, "/")
+    return any(part == ".." for part in normalized_path_text.split("/"))
+
+
 @dataclass(frozen=True)
 class AudioSeparationConfig:
     """Resource and model settings for local stem separation."""
@@ -165,6 +175,8 @@ class AudioStemSeparator:
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
         candidate = Path(audio_path).expanduser()
+        if _contains_parent_path_segment(candidate):
+            raise ValueError("Path traversal attempt detected in selected audio path")
         try:
             path = candidate.resolve(strict=True)
         except FileNotFoundError as error:

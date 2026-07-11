@@ -1,6 +1,8 @@
 """Tests for the source separation module."""
 
 import os
+import sys
+from types import ModuleType
 
 import numpy as np
 import pytest
@@ -160,30 +162,41 @@ class _FakeModel:
         return self
 
 
+def _install_fake_demucs(monkeypatch: pytest.MonkeyPatch, get_model: object) -> None:
+    """Install a lightweight fake demucs package for import-boundary tests."""
+    demucs_module = ModuleType("demucs")
+    pretrained_module = ModuleType("demucs.pretrained")
+    pretrained_module.get_model = get_model  # type: ignore[attr-defined]
+    demucs_module.pretrained = pretrained_module  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "demucs", demucs_module)
+    monkeypatch.setitem(sys.modules, "demucs.pretrained", pretrained_module)
+
+
 def _patch_demucs(monkeypatch: pytest.MonkeyPatch, per_source: dict | None = None) -> None:
     """Patch the Demucs boundary so separation runs without the real model.
 
     ``per_source`` optionally maps a demucs source name to a mono numpy array to
     return for that stem; unspecified sources return silence.
     """
-    import torch
 
     def fake_get_model(name: str) -> _FakeModel:
         return _FakeModel()
 
-    def fake_apply_model(model, wav, **kwargs):
-        samples = wav.shape[-1]
-        out = torch.zeros((1, len(_DEMUCS_SOURCES), 2, samples))
+    def fake_apply_model(
+        self: AudioStemSeparator, model: _FakeModel, audio: np.ndarray
+    ) -> dict[str, np.ndarray]:
+        samples = int(audio.size)
+        out = {name: np.zeros(samples, dtype=np.float32) for name in _DEMUCS_SOURCES}
         if per_source:
-            for i, name in enumerate(_DEMUCS_SOURCES):
+            for name in _DEMUCS_SOURCES:
                 if name in per_source:
-                    row = torch.from_numpy(per_source[name].astype(np.float32))
-                    out[0, i, 0, : row.shape[0]] = row
-                    out[0, i, 1, : row.shape[0]] = row
+                    row = per_source[name].astype(np.float32)
+                    copy_length = min(samples, int(row.size))
+                    out[name][:copy_length] = row[:copy_length]
         return out
 
-    monkeypatch.setattr("demucs.pretrained.get_model", fake_get_model)
-    monkeypatch.setattr("demucs.apply.apply_model", fake_apply_model)
+    _install_fake_demucs(monkeypatch, fake_get_model)
+    monkeypatch.setattr(AudioStemSeparator, "_apply_model", fake_apply_model)
 
 
 def test_audio_stem_separator_splits_local_audio_into_canonical_stems(
@@ -253,17 +266,17 @@ def test_audio_stem_separator_caches_model(tmp_path, monkeypatch: pytest.MonkeyP
     """Ensure the model is loaded once and reused across calls."""
     calls = {"n": 0}
 
-    import torch
-
     def fake_get_model(name: str) -> _FakeModel:
         calls["n"] += 1
         return _FakeModel()
 
-    def fake_apply_model(model, wav, **kwargs):
-        return torch.zeros((1, len(_DEMUCS_SOURCES), 2, wav.shape[-1]))
+    def fake_apply_model(
+        self: AudioStemSeparator, model: _FakeModel, audio: np.ndarray
+    ) -> dict[str, np.ndarray]:
+        return {name: np.zeros(audio.size, dtype=np.float32) for name in _DEMUCS_SOURCES}
 
-    monkeypatch.setattr("demucs.pretrained.get_model", fake_get_model)
-    monkeypatch.setattr("demucs.apply.apply_model", fake_apply_model)
+    _install_fake_demucs(monkeypatch, fake_get_model)
+    monkeypatch.setattr(AudioStemSeparator, "_apply_model", fake_apply_model)
 
     audio_path = tmp_path / "mix.wav"
     sf.write(audio_path, np.zeros(4_000, dtype=np.float32), 8_000)
@@ -280,6 +293,36 @@ def test_audio_stem_separator_rejects_missing_audio_file(tmp_path) -> None:
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
     with pytest.raises(FileNotFoundError, match="Audio file not found: missing.wav"):
         separator.separate(tmp_path / "missing.wav")
+
+
+def test_audio_stem_separator_rejects_parent_traversal_in_audio_file(tmp_path) -> None:
+    """Ensure parent path segments are rejected before source path resolution."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        separator.separate(tmp_path / "nested" / ".." / "rehearsal.wav")
+
+
+def test_audio_stem_separator_rejects_altsep_parent_traversal_in_audio_file() -> None:
+    """Ensure backslash traversal is rejected on non-Windows hosts."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        separator.separate("safe\\..\\rehearsal.wav")
+
+
+@pytest.mark.parametrize(
+    "audio_path",
+    ["safe/..\\rehearsal.wav", "safe\\../rehearsal.wav"],
+)
+def test_audio_stem_separator_rejects_mixed_separator_parent_traversal(
+    audio_path: str,
+) -> None:
+    """Ensure mixed-separator traversal is rejected before path resolution."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    with pytest.raises(ValueError, match="Path traversal attempt detected"):
+        separator.separate(audio_path)
 
 
 def test_audio_stem_separator_rejects_directory_source(tmp_path) -> None:
@@ -337,6 +380,15 @@ def test_audio_stem_separator_redacts_decoder_exceptions(
     with pytest.raises(ValueError, match="Stem separation decode failed for broken.wav") as error:
         separator.separate(audio_path)
     assert str(tmp_path) not in str(error.value)
+
+
+def test_audio_stem_separator_fit_length_zero() -> None:
+    """Ensure zero-length targets stay bounded and return an empty stem."""
+    separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
+
+    fitted = separator._fit_length(np.ones(4, dtype=np.float32), 0)
+
+    assert fitted.shape == (0,)
 
 
 @pytest.mark.skipif(
