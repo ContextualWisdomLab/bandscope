@@ -359,22 +359,24 @@ describe("App", () => {
     expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
-  it("summarizes low confidence when any loaded section is low confidence", async () => {
-    const loadedProject = succeededResult().result;
-    loadedProject.sections = [
+  it("short-circuits confidence evaluation when encountering a low confidence section", async () => {
+    const loadedProject = succeededResult().result; // medium is first
+    // Add low and high sections. High shouldn't matter since low is lowest.
+    // And low will trigger the early break in the loop.
+    loadedProject.sections.push(
       {
         ...loadedProject.sections[0],
-        id: "verse-1",
-        label: "verse",
-        confidence: { level: "low", source: "model", notes: "Hard to hear." }
+        id: "bridge-1",
+        label: "bridge",
+        confidence: { level: "low", source: "model", notes: "Low confidence bridge" }
       },
       {
         ...loadedProject.sections[0],
-        id: "chorus-1",
-        label: "chorus",
-        confidence: { level: "high", source: "model", notes: "The chorus form is clear." }
+        id: "outro-1",
+        label: "outro",
+        confidence: { level: "high", source: "model", notes: "High confidence outro" }
       }
-    ];
+    );
     mockLoadProject.mockResolvedValueOnce(loadedProject);
     render(<App />);
 
@@ -383,6 +385,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/^Low$/i)).toBeTruthy();
     });
+    expect(screen.getAllByText(/3 sections/i).length).toBeGreaterThan(0);
   });
 
   it("selects a local audio source and starts a local-audio analysis job", async () => {

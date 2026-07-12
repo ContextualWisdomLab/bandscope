@@ -45,3 +45,7 @@
 ## 2026-07-07 - Replace reduce() with a short-circuiting for...of loop
 **Learning:** Unconditional `.reduce()` calls cannot short-circuit when searching for a known absolute bound such as low confidence.
 **Action:** Use a `for...of` loop and break as soon as the absolute minimum value is found.
+
+## 2026-03-12 - O(1) early exit for confidence level
+**Learning:** Using `.reduce()` unconditionally iterates over the entire array for operations with an absolute bound (e.g. finding if there's any 'low' confidence section).
+**Action:** Replace unconditional `.reduce()` with a `for...of` loop and early `break` to short-circuit upon finding the minimum possible bound, changing O(N) worst-case into an O(K) best-case execution, yielding measurable performance gains on large documents.
