@@ -43,7 +43,7 @@ export function RoleSwitcher({ roles, activeRole, onRoleChange }: RoleSwitcherPr
   return (
     <div className="flex flex-col gap-4 py-2 sm:flex-row sm:items-center">
       <div className="flex whitespace-nowrap text-sm font-semibold text-slate-200">
-        <Users className="mr-2 size-4 text-cyan-300" aria-hidden="true" />
+        <Users className="mr-2 size-4 text-cyan-300" />
         {t("roleSwitcherTitle")}
       </div>
       <Tabs
