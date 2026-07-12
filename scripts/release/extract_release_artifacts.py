@@ -60,7 +60,7 @@ def validate_member(member: zipfile.ZipInfo) -> None:
     if (
         RELEASE_MEMBER.fullmatch(member.filename) is None
         or member_path.is_absolute()
-        or ".." in member_path.parts
+        or ".." in member.filename.replace("\\", "/").split("/")
         or member.is_dir()
         or stat.S_ISLNK(unix_mode)
     ):
