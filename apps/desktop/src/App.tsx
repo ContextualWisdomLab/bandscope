@@ -748,8 +748,8 @@ export function App() {
                 ) : (
                   <Button
                     aria-disabled="true"
-                    onClick={(e) => e.preventDefault()}
                     title={t("saveRequiresAnalysis")}
+                    onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
                     aria-label={t("saveProject")}
