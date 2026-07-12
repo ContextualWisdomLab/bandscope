@@ -144,7 +144,7 @@ describe("ScoreViewer", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Could not display the score")).toBeInTheDocument();
     expect(screen.getByText("broken bytes")).toBeInTheDocument();
-    expect(onStatusChange).toHaveBeenLastCalledWith("FAILED");
+    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith("FAILED"));
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
