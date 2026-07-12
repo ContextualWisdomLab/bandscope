@@ -44,6 +44,7 @@ import {
   startAnalysisJob
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
+import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
@@ -57,17 +58,19 @@ const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:User
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
+type RehearsalView = "workspace" | "score";
+
 const NAV_ITEMS = [
-  { labelKey: "navWorkspace", icon: Home, active: true },
-  { labelKey: "navImport", icon: Upload, active: false },
-  { labelKey: "navExport", icon: Save, active: false },
-  { labelKey: "navSections", icon: ListMusic, active: false },
-  { labelKey: "navRoles", icon: Users, active: false },
-  { labelKey: "navStemLab", icon: AudioWaveform, active: false },
-  { labelKey: "navCues", icon: Sparkles, active: false },
-  { labelKey: "navTranspose", icon: SlidersHorizontal, active: false },
-  { labelKey: "navNotes", icon: FileMusic, active: false }
-] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; active: boolean }[];
+  { labelKey: "navWorkspace", icon: Home, view: "workspace" },
+  { labelKey: "navImport", icon: Upload, view: null },
+  { labelKey: "navExport", icon: Save, view: null },
+  { labelKey: "navSections", icon: ListMusic, view: null },
+  { labelKey: "navRoles", icon: Users, view: null },
+  { labelKey: "navStemLab", icon: AudioWaveform, view: null },
+  { labelKey: "navCues", icon: Sparkles, view: null },
+  { labelKey: "navTranspose", icon: SlidersHorizontal, view: null },
+  { labelKey: "navScore", icon: FileMusic, view: "score" }
+] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; view: RehearsalView | null }[];
 
 const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
 
@@ -254,6 +257,7 @@ export function App() {
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -500,6 +504,24 @@ export function App() {
     return <EmptyState />;
   };
 
+  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+
+  /** Resolve label, enablement, and active state for one sidebar item. */
+  const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
+    const enabled = item.view === "workspace" || (item.view === "score" && jobResult !== null);
+    return {
+      label: t(item.labelKey),
+      enabled,
+      active: enabled && item.view === currentView,
+      title: enabled ? undefined : item.view === "score" ? t("scoreNavDisabledHint") : t("comingSoon")
+    };
+  };
+
+  /** Switch the main content to the clicked rehearsal view. */
+  const handleNavSelect = (view: RehearsalView) => {
+    setActiveView(view);
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bandscope-bg)] text-slate-100 selection:bg-cyan-300/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
@@ -526,21 +548,24 @@ export function App() {
           </div>
 
           <nav aria-label={t("primaryRehearsalViewsAriaLabel")} className="space-y-2">
-            {NAV_ITEMS.map(({ labelKey, icon: Icon, active }) => {
-              const label = t(labelKey);
+            {NAV_ITEMS.map((item) => {
+              const { label, enabled, active, title } = navButtonState(item);
+              const { icon: Icon, view } = item;
 
               return (
                 <button
-                  key={labelKey}
+                  key={item.labelKey}
                   type="button"
                   aria-current={active ? "page" : undefined}
-                  aria-disabled={active ? undefined : true}
-                  title={active ? undefined : t("comingSoon")}
-                  onClick={active ? undefined : blockInactiveNavActivation}
+                  aria-disabled={enabled ? undefined : true}
+                  title={title}
+                  onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
                   className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                     active
                       ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
-                      : "cursor-not-allowed text-slate-500 opacity-70"
+                      : enabled
+                        ? "text-slate-200 hover:bg-white/5"
+                        : "cursor-not-allowed text-slate-500 opacity-70"
                   }`}
                 >
                   <Icon className="size-5" aria-hidden="true" />
@@ -599,20 +624,25 @@ export function App() {
 
         <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
-            {NAV_ITEMS.map(({ labelKey, icon: Icon, active }) => {
-              const label = t(labelKey);
+            {NAV_ITEMS.map((item) => {
+              const { label, enabled, active, title } = navButtonState(item);
+              const { icon: Icon, view } = item;
 
               return (
                 <button
-                  key={labelKey}
+                  key={item.labelKey}
                   type="button"
                   aria-current={active ? "page" : undefined}
                   aria-label={`${label} ${t("compactViewSuffix")}`}
-                  aria-disabled={active ? undefined : true}
-                  title={active ? undefined : t("comingSoon")}
-                  onClick={active ? undefined : blockInactiveNavActivation}
+                  aria-disabled={enabled ? undefined : true}
+                  title={title}
+                  onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
                   className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                    active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
+                    active
+                      ? "bg-blue-600/70 text-white"
+                      : enabled
+                        ? "text-slate-200 hover:bg-white/5"
+                        : "cursor-not-allowed text-slate-500 opacity-70"
                   }`}
                 >
                   <Icon className="size-4" aria-hidden="true" />
@@ -797,7 +827,15 @@ export function App() {
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-            {renderWorkspaceState()}
+            {currentView === "score" && jobResult ? (
+              <ScoreView
+                song={jobResult}
+                projectId={jobResultBootstrap?.projectId ?? null}
+                onSongUpdate={handleSongUpdate}
+              />
+            ) : (
+              renderWorkspaceState()
+            )}
           </section>
         </main>
       </div>
