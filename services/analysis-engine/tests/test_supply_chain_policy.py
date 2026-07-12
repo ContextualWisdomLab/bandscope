@@ -118,19 +118,6 @@ def test_build_baseline_upload_artifact_pins_are_consistent() -> None:
     assert len(set(pins)) == 1
 
 
-def test_windows_antivirus_probe_logs_defender_provider_failures() -> None:
-    """Ensure hosted-runner Defender provider errors do not fail Windows builds."""
-    repo_root = Path(__file__).resolve().parents[3]
-    workflow = (repo_root / ".github" / "workflows" / "build-baseline.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert workflow.count("Get-MpComputerStatus -ErrorAction Stop") == 2
-    assert workflow.count("Antivirus check: Defender telemetry query failed") == 2
-    assert workflow.count("$products = Get-CimInstance -Namespace root/SecurityCenter2") == 2
-    assert workflow.count("$defenderService = Get-Service -Name WinDefend") == 2
-
-
 def test_supply_chain_check_requires_checkout_default_branch_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1235,28 +1222,23 @@ def test_supply_chain_check_accepts_repo_ossf_publish_restrictions(
     assert not any("ossf scorecard" in violation for violation in violations)
 
 
-def test_central_governance_workflows_are_push_only_where_local_signals_remain() -> None:
-    """Ensure central PR governance keeps only repo-local push security signals."""
+def test_supply_chain_check_accepts_repo_ossf_pr_code_scanning_upload() -> None:
+    """Ensure checked-in Scorecard uploads SARIF for PR code-scanning gates."""
     repo_root = Path(__file__).resolve().parents[3]
-    workflows_dir = repo_root / ".github" / "workflows"
-
-    assert not (workflows_dir / "dependency-review.yml").exists()
-
-    for local_signal in ("codeql.yml", "ossf-scorecard.yml", "trivy.yml"):
-        workflow = workflows_dir / local_signal
-        assert workflow.exists(), (
-            f"{local_signal} keeps repository-local security-tab/SAST signal "
-            "while central required workflows handle PR enforcement"
-        )
-        assert "pull_request:" not in workflow.read_text(encoding="utf-8")
-
-    supply_chain = load_module(
-        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
+    workflow = (repo_root / ".github" / "workflows" / "ossf-scorecard.yml").read_text(
+        encoding="utf-8"
     )
-    required = {path.as_posix() for path in supply_chain.REQUIRED_FILES}
-    assert ".github/workflows/dependency-review.yml" not in required
-    assert ".github/workflows/codeql.yml" in required
-    assert ".github/workflows/ossf-scorecard.yml" in required
+
+    assert "pull_request:" in workflow
+    assert "github.event_name == 'pull_request'" in workflow
+    assert "github.event.pull_request.base.ref" in workflow
+    assert "path: trusted-scorecard-scripts" in workflow
+    assert (
+        "python3 trusted-scorecard-scripts/scripts/checks/extract_scorecard_artifact.py" in workflow
+    )
+    assert (
+        "python3 trusted-scorecard-scripts/scripts/checks/normalize_scorecard_sarif.py" in workflow
+    )
 
 
 def test_opencode_review_declares_top_level_token_permissions() -> None:
@@ -1713,6 +1695,16 @@ def test_supply_chain_check_accepts_colocated_non_scorecard_sarif_upload(
     violations = supply_chain.verify_workflow_coverage()
 
     assert not any("ossf scorecard SARIF upload" in violation for violation in violations)
+
+
+def test_trivy_workflow_pins_cli_version() -> None:
+    """Ensure Trivy scan uses the pinned CLI version proven by the CI gate."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflow = (repo_root / ".github" / "workflows" / "trivy.yml").read_text(encoding="utf-8")
+
+    assert "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25" in workflow
+    assert "version: v0.71.2" in workflow
+    assert "exit-code: '1'" in workflow
 
 
 def test_supply_chain_check_accepts_colocated_generic_non_scorecard_sarif_upload(

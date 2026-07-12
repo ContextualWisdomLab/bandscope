@@ -36,11 +36,6 @@ cleanup_macos_dmg_state() {
   fi
 }
 
-cleanup_windows_nsis_state() {
-  local nsis_dir="${repo_root}/apps/desktop/src-tauri/target/${target_triple}/release/bundle/nsis"
-  rm -rf "$nsis_dir"
-}
-
 for ((attempt = 1; attempt <= attempts; attempt++)); do
   echo "Tauri bundle build attempt ${attempt}/${attempts} for ${target_triple} (${bundles})"
   if npm exec --workspace "$workspace" -- tauri build --target "$target_triple" --bundles "$bundles"; then
@@ -50,16 +45,12 @@ for ((attempt = 1; attempt <= attempts; attempt++)); do
   fi
 
   if [ "$attempt" -eq "$attempts" ]; then
-    echo "::error::Tauri bundle build failed after ${attempts} attempt(s) for ${target_triple} (${bundles}); last exit status ${status}."
     exit "$status"
   fi
 
-  echo "::warning::Tauri bundle build failed with exit ${status}; cleaning partial bundle state before retry."
+  echo "::warning::Tauri bundle build failed with exit ${status}; cleaning partial DMG state before retry."
   if [[ "$bundles" == *dmg* ]]; then
     cleanup_macos_dmg_state
-  fi
-  if [[ "$bundles" == *nsis* ]]; then
-    cleanup_windows_nsis_state
   fi
   sleep 10
 done
