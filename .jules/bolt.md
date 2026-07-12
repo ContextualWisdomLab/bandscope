@@ -41,3 +41,7 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+
+## 2026-07-08 - Vectorize SSM novelty extraction
+**Learning:** Extracting checkerboard kernel responses one diagonal window at a time repeats Python slicing and summation overhead for every SSM frame.
+**Action:** Sum each checkerboard offset across the full valid diagonal with `np.diagonal(...)`, and keep a loop-reference parity test so boundary scoring stays numerically stable.
