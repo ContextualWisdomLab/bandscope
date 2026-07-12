@@ -252,6 +252,8 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Add macOS Intel target
         run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
+      - name: Install create-dmg
+        run: brew install create-dmg
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -308,6 +310,8 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Add macOS arm target
         run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
+      - name: Install create-dmg
+        run: brew install create-dmg
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
