@@ -177,46 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Enables the attach_score_pdf command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-attach-score-pdf",
-          "markdownDescription": "Enables the attach_score_pdf command without any pre-configured scope."
-        },
-        {
           "description": "Enables the get_analysis_job_status command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-analysis-job-status",
           "markdownDescription": "Enables the get_analysis_job_status command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the import_youtube_url command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-import-youtube-url",
-          "markdownDescription": "Enables the import_youtube_url command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the load_project command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-load-project",
-          "markdownDescription": "Enables the load_project command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the read_score_pdf command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-read-score-pdf",
-          "markdownDescription": "Enables the read_score_pdf command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the remove_score_pdf command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-remove-score-pdf",
-          "markdownDescription": "Enables the remove_score_pdf command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the save_project command without any pre-configured scope.",
-          "type": "string",
-          "const": "allow-save-project",
-          "markdownDescription": "Enables the save_project command without any pre-configured scope."
         },
         {
           "description": "Enables the select_local_audio_source command without any pre-configured scope.",
@@ -231,46 +195,10 @@
           "markdownDescription": "Enables the start_analysis_job command without any pre-configured scope."
         },
         {
-          "description": "Denies the attach_score_pdf command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-attach-score-pdf",
-          "markdownDescription": "Denies the attach_score_pdf command without any pre-configured scope."
-        },
-        {
           "description": "Denies the get_analysis_job_status command without any pre-configured scope.",
           "type": "string",
           "const": "deny-get-analysis-job-status",
           "markdownDescription": "Denies the get_analysis_job_status command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the import_youtube_url command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-import-youtube-url",
-          "markdownDescription": "Denies the import_youtube_url command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the load_project command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-load-project",
-          "markdownDescription": "Denies the load_project command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the read_score_pdf command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-read-score-pdf",
-          "markdownDescription": "Denies the read_score_pdf command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the remove_score_pdf command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-remove-score-pdf",
-          "markdownDescription": "Denies the remove_score_pdf command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the save_project command without any pre-configured scope.",
-          "type": "string",
-          "const": "deny-save-project",
-          "markdownDescription": "Denies the save_project command without any pre-configured scope."
         },
         {
           "description": "Denies the select_local_audio_source command without any pre-configured scope.",

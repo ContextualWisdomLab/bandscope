@@ -3,11 +3,6 @@
 **Learning:** Checking `/^[=+\-@]/` is not sufficient, as OWASP states that spaces and tabs before the formula triggers will also execute the formula in applications like Excel.
 **Prevention:** Use a regex that allows leading whitespace (e.g. `/^[\s\uFEFF\xA0]*[=+\-@\t\r\n]/`) and include standalone tabs or new lines which are also injection vectors.
 
-## 2024-05-20 - Python Path Traversal Mitigation bypass
-**Vulnerability:** Path traversal detection in Python backend APIs relied solely on checking the input path string or basic parsed parts which might not adequately catch sequences like `..` when intermixed with different path separators.
-**Learning:** Using `if ".." in Path(path).parts` incorrectly assumes `Path` parses mixed cross-platform separators reliably for untrusted input, particularly in heterogeneous environments. Instead, explicitly reject directory traversal sequences by replacing `\` with `/` and splitting on `/` to prevent bypassing automated CI vulnerability scanners (like Strix) as explicitly requested in memory.
-**Prevention:** Always manually split the target path using both `/` and `\` manually instead of relying solely on `os.sep`, `os.altsep`, or `pathlib.Path.parts`. This ensures cross-platform payloads are reliably blocked even when executed on POSIX runners.
-
 ## 2025-06-22 - URL Parsing Length Limit
 **Vulnerability:** Unbounded URL inputs at the analysis entry points.
 **Learning:** Regular expressions and URL parsers can spend avoidable CPU or memory on oversized attacker-controlled strings.
@@ -17,9 +12,3 @@
 **Vulnerability:** Any project identifier that can reach a filesystem path join must be treated as untrusted, even when it is generated internally or passed through IPC lookup flows.
 **Learning:** Reject only dangerous path segments (`.` and `..`) and path separators (`/` and `\`) so the guard blocks traversal without rejecting ordinary identifiers such as `my..id`.
 **Prevention:** Keep project ID validation centralized before `base_root.join(project_id)`, and cover forward-slash, backslash, parent-component, and benign interior-dot cases in unit tests.
-
-## 2025-02-09 - Ensure Maximum URL Length Limit on Backend
-
-**Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
-**Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
-**Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.

@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 class RoleExtractor:
     """Extracts roles and builds the part graph for song sections."""
 
+    def __init__(self) -> None:
+        """Initialize the role extractor."""
+        pass
+
     def extract(
         self,
         sections: list[Any],
