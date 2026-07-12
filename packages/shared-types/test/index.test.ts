@@ -756,6 +756,33 @@ describe("shared type helpers", () => {
     })).toThrow("exportSummary.format");
   });
 
+  it("round-trips score attachment metadata and rejects malformed entries", () => {
+    const song = createDemoRehearsalSong() as unknown as Record<string, unknown>;
+    const attachment = { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" };
+
+    expect(parseRehearsalSong({ ...song, scoreAttachments: [attachment] }).scoreAttachments).toEqual([attachment]);
+    expect(parseRehearsalSong({ ...song }).scoreAttachments).toBeUndefined();
+
+    expect(() => parseRehearsalSong({ ...song, scoreAttachments: {} })).toThrow("scoreAttachments");
+    expect(() => parseRehearsalSong({ ...song, scoreAttachments: [null] })).toThrow("scoreAttachments[0]");
+    expect(() => parseRehearsalSong({
+      ...song,
+      scoreAttachments: [{ ...attachment, extra: true }]
+    })).toThrow("scoreAttachments[0].extra");
+    expect(() => parseRehearsalSong({
+      ...song,
+      scoreAttachments: [{ id: "", fileName: "opener.pdf" }]
+    })).toThrow("scoreAttachments[0].id");
+    expect(() => parseRehearsalSong({
+      ...song,
+      scoreAttachments: [{ id: 42, fileName: "opener.pdf" }]
+    })).toThrow("scoreAttachments[0].id");
+    expect(() => parseRehearsalSong({
+      ...song,
+      scoreAttachments: [{ id: attachment.id, fileName: "" }]
+    })).toThrow("scoreAttachments[0].fileName");
+  });
+
   it("reports the first invalid field path for nested contract failures", () => {
     const roleSparse = createDemoRehearsalSong() as unknown as {
       sections: Array<{ roles: unknown[] }>;
