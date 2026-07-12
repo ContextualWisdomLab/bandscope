@@ -210,15 +210,15 @@ function sectionCountDetail(t: ReturnType<typeof createTranslator>, sectionCount
 function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnType<typeof createTranslator> }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
-  const lowestConfidence = song?.sections.reduce<RehearsalSong["sections"][number]["confidence"]["level"] | null>(
-    (current, section) => {
-      if (!current || confidenceOrder[section.confidence.level] < confidenceOrder[current]) {
-        return section.confidence.level;
+  let lowestConfidence: RehearsalSong["sections"][number]["confidence"]["level"] | null = null;
+  for (const section of song?.sections ?? []) {
+    if (!lowestConfidence || confidenceOrder[section.confidence.level] < confidenceOrder[lowestConfidence]) {
+      lowestConfidence = section.confidence.level;
+      if (lowestConfidence === "low") {
+        break;
       }
-      return current;
-    },
-    null
-  );
+    }
+  }
   const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : t("metricConfidenceReady");
   const detail = sectionCountDetail(t, sectionCount);
 
