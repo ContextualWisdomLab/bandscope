@@ -144,7 +144,10 @@ describe("ScoreViewer", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Could not display the score")).toBeInTheDocument();
     expect(screen.getByText("broken bytes")).toBeInTheDocument();
-    expect(onStatusChange).toHaveBeenLastCalledWith("FAILED");
+    // The FAILED status is set from the load promise's catch (a microtask), and
+    // onStatusChange fires from a passive effect that may not have flushed the
+    // instant the alert appears. Poll for it, matching the READY assertion below.
+    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith("FAILED"));
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -246,7 +249,17 @@ describe("ScoreViewer", () => {
 
     expect(await screen.findByText("Page 1 of 1")).toBeInTheDocument();
 
-    act(() => {
+    // The ResizeObserver is registered by a READY-gated effect that commits
+    // after the "Page 1 of 1" text appears. Wait for that effect to capture the
+    // callback before driving a resize; otherwise the optional call below is a
+    // silent no-op and the fit-width recompute never runs.
+    await waitFor(() => {
+      expect(resizeCallback).not.toBeNull();
+    });
+
+    // Wrap the resize in an async act() so the resulting re-render and its async
+    // getPage()/getViewport() calls flush deterministically before we assert.
+    await act(async () => {
       resizeCallback?.(
         [{ contentRect: { width: 300 } } as ResizeObserverEntry],
         {} as ResizeObserver
