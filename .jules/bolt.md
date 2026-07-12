@@ -42,6 +42,10 @@
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
 
+## 2026-03-12 - O(1) early exit for confidence level
+**Learning:** Using `.reduce()` unconditionally iterates over the entire array for operations with an absolute bound (e.g. finding if there's any 'low' confidence section).
+**Action:** Replace unconditional `.reduce()` with a `for...of` loop and early `break` to short-circuit upon finding the minimum possible bound, changing O(N) worst-case into an O(K) best-case execution, yielding measurable performance gains on large documents.
+
 ## 2026-03-12 - Early exit with for...of in reduce replacements
-**Learning:** For performance optimizations involving finding a minimum or maximum value with a known absolute bound (e.g., finding a 'low' confidence level), replace unconditional `.reduce()` calls with a `for...of` loop and an early `break`. This transforms an unconditional O(N) operation into one that can short-circuit, yielding measurable performance gains.
+**Learning:** For performance optimizations involving finding a minimum or maximum value with a known absolute bound, unconditional `.reduce()` calls cannot stop once the bound is found.
 **Action:** Use a `for...of` loop over arrays when searching for extrema with known bounds to allow short-circuiting.
