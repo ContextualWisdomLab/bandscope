@@ -51,7 +51,6 @@ vi.mock("./lib/analysis", async (importActual) => {
     loadProject: () => mockLoadProject(),
     saveProject: (song: unknown) => mockSaveProject(song)
   };
-
 });
 
 function succeededResult() {
