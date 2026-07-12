@@ -23,6 +23,17 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Run Trivy filesystem scan summary
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0; SHA pinning retained as supply-chain attack mitigation, do not replace with tag.
+        with:
+          scan-type: fs
+          scan-ref: .
+          version: v0.71.2
+          format: table
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: '0'
+          skip-dirs: 'services/analysis-engine/.venv'
+          trivyignores: ./.trivyignore
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0; SHA pinning retained as supply-chain attack mitigation, do not replace with tag.
         with:
