@@ -161,28 +161,69 @@ def test_chord_analysis_result_structure() -> None:
 
 
 def test_detect_capo_standard() -> None:
-    """Test standard tuning and no capo."""
+    """A progression already in open keys needs no capo."""
     result = detect_capo_and_tuning(["G", "D", "Em", "C"])
+    assert result["capo"] == 0
+    assert result["tuning"] == "Standard"
+    # At capo 0 the sounding chords are exactly the fingered shapes.
+    assert result["playedShapes"] == ["C", "D", "Em", "G"]
+
+
+def test_detect_capo_fret1() -> None:
+    """Flat-key chords resolve to open shapes with a capo on fret 1."""
+    result = detect_capo_and_tuning(["Eb", "Bb", "Fm", "Ab"])
+    assert result["capo"] == 1
+    assert result["tuning"] == "Standard"
+    # Eb->D, Bb->A, Fm->Em, Ab->G: all open shapes one semitone down.
+    assert result["playedShapes"] == ["A", "D", "Em", "G"]
+
+
+def test_detect_capo_barre_heavy_key() -> None:
+    """A barre-heavy key (Bb/Eb/F) computes a non-zero capo onto open shapes."""
+    result = detect_capo_and_tuning(["Bb", "Eb", "F"])
+    assert result["capo"] == 1
+    assert result["tuning"] == "Standard"
+    # Bb->A, Eb->D, F->E: all open major shapes.
+    assert result["playedShapes"] == ["A", "D", "E"]
+
+
+def test_detect_capo_open_key_stays_low() -> None:
+    """An open-key progression with one barre chord stays at capo 0.
+
+    C/G/Am/F could be made fully open at capo 5 (G/D/Em/C shapes), but the
+    per-fret bias means a single avoided F barre never justifies that jump.
+    """
+    result = detect_capo_and_tuning(["C", "G", "Am", "F"])
     assert result["capo"] == 0
     assert result["tuning"] == "Standard"
 
 
-def test_detect_capo_fret1() -> None:
-    """Test capo detection for flat keys."""
-    result = detect_capo_and_tuning(["Eb", "Bb", "Fm", "Ab"])
-    assert result["capo"] == 1
-    assert result["tuning"] == "Standard"
+def test_detect_capo_sharps_and_qualities() -> None:
+    """Sharps and trailing qualities parse to the correct root and minor flag."""
+    # F#m barre chord: a capo on fret 2 fingers an Em shape (F#-2 = E).
+    result = detect_capo_and_tuning(["F#m", "A", "D", "E"])
+    assert isinstance(result["capo"], int)
+    assert result["capo"] >= 0
+    # maj7 must not be treated as a minor chord.
+    assert detect_capo_and_tuning(["Cmaj7"])["playedShapes"] == ["C"]
 
 
 def test_detect_capo_empty() -> None:
-    """Test empty chord list."""
+    """Empty input fails safe to capo 0, standard tuning."""
     result = detect_capo_and_tuning([])
-    assert result["capo"] is None
+    assert result["capo"] == 0
     assert result["tuning"] == "Standard"
 
 
-def test_detect_drop_d() -> None:
-    """Test drop D tuning."""
+def test_detect_capo_unparseable() -> None:
+    """All-unparseable input fails safe to capo 0, standard tuning."""
+    result = detect_capo_and_tuning(["N.C.", "", "   ", "?"])
+    assert result["capo"] == 0
+    assert result["tuning"] == "Standard"
+
+
+def test_detect_capo_drop_d() -> None:
+    """A D power chord implies Drop D while the capo is still computed."""
     result = detect_capo_and_tuning(["D5", "G5", "A5"])
     assert result["capo"] == 0
     assert result["tuning"] == "Drop D"

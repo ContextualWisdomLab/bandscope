@@ -142,6 +142,7 @@ export type RehearsalRole = {
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
+  practiceProgress?: number;
 };
 
 /** Documented. */
@@ -215,6 +216,7 @@ export type RehearsalWorkspace = {
 export type RehearsalSong = {
   id: string;
   title: string;
+  tempo?: number;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
   collaboration?: RehearsalCollaboration;
@@ -418,6 +420,7 @@ function invalidProjectSummaryField(path: string): string {
 const demoRehearsalSongSeed: RehearsalSong = {
   id: "demo-song",
   title: "Late Night Set",
+  tempo: 120,
   sections: [
     {
       id: "verse-1",
@@ -1485,7 +1488,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "transpositionPlan",
       "manualOverrides",
       "overlapWarnings",
-      "transcription"
+      "transcription",
+      "practiceProgress"
     ],
     path
   );
@@ -1564,6 +1568,12 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       if (noteError) {
         return noteError;
       }
+    }
+  }
+
+  if (value.practiceProgress !== undefined) {
+    if (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100) {
+      return invalidField(`${path}.practiceProgress`);
     }
   }
 
@@ -1745,7 +1755,7 @@ function validateRehearsalSong(
   if (!isRecord(normalized)) {
     return invalidField("root");
   }
-  const extraKey = unexpectedKey(normalized, ["id", "title", "sections", "exportSummary", "collaboration"], "");
+  const extraKey = unexpectedKey(normalized, ["id", "title", "tempo", "sections", "exportSummary", "collaboration"], "");
   if (extraKey) {
     return extraKey;
   }
@@ -1754,6 +1764,12 @@ function validateRehearsalSong(
   }
   if (typeof normalized.title !== "string") {
     return invalidField("title");
+  }
+  if (
+    normalized.tempo !== undefined &&
+    (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)
+  ) {
+    return invalidField("tempo");
   }
   if (!isDenseArray(normalized.sections)) {
     return invalidField("sections");

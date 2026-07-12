@@ -124,9 +124,7 @@ def read_asset_list(input_path: Path) -> list[str]:
     if input_path.is_symlink() or not input_path.is_file():
         raise ValueError(f"missing release asset list: {input_path.as_posix()}")
     return [
-        line.strip()
-        for line in input_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
+        line.strip() for line in input_path.read_text(encoding="utf-8").splitlines() if line.strip()
     ]
 
 
