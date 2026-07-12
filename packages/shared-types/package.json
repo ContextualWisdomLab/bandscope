@@ -6,7 +6,8 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "node -e \"require('node:fs').mkdirSync('coverage/.tmp', { recursive: true })\" && vitest run",
+    "coverage": "node -e \"require('node:fs').mkdirSync('coverage/.tmp', { recursive: true })\" && vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 
-const workspaceArgs = process.argv.slice(2).filter((arg) => arg !== "--coverage");
+const workspaceArgs = process.argv.slice(2);
 
 function run(command, args) {
   const executable = process.platform === "win32" && command === "npm" ? process.execPath : command;
@@ -29,6 +29,7 @@ function runPython(args) {
   const candidates =
     process.platform === "win32"
       ? [
+          ["py", ["-3.12"]],
           ["py", ["-3"]],
           ["python", []],
           ["python3", []],
