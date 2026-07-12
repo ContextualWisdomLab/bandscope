@@ -746,17 +746,17 @@ export function App() {
                     {t("saveProject")}
                   </Button>
                 ) : (
-                  <span tabIndex={0} role="button" aria-disabled="true" title={t("saveRequiresAnalysis")} className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
-                    <Button
-                      disabled
-                      variant="outline"
-                      className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
-                      aria-label={t("saveProject")}
-                    >
-                      <Save className="mr-2 size-4" aria-hidden="true" />
-                      {t("saveProject")}
-                    </Button>
-                  </span>
+                  <Button
+                    aria-disabled="true"
+                    title={t("saveRequiresAnalysis")}
+                    onClick={preventUnavailableAction}
+                    variant="outline"
+                    className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
+                    aria-label={t("saveProject")}
+                  >
+                    <Save className="mr-2 size-4" aria-hidden="true" />
+                    {t("saveProject")}
+                  </Button>
                 )}
                 <Button
                   onClick={handleStartAnalysis}
