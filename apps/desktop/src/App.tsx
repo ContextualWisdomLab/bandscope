@@ -692,6 +692,8 @@ export function App() {
                         disabled={analysisInFlight || isStarting || isImporting}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
+                        aria-invalid={selectionError ? true : undefined}
+                        aria-describedby={selectionError ? "selection-error" : undefined}
                       />
                       {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
                         <button
@@ -810,7 +812,7 @@ export function App() {
                 )}
 
                 {selectionError && (
-                  <div className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                  <div id="selection-error" className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
                     {selectionError}
                   </div>
                 )}

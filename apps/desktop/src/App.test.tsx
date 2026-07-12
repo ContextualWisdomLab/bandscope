@@ -1168,13 +1168,17 @@ describe("App", () => {
 
   it("rejects malformed YouTube URL", async () => {
     render(<App />);
-    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    const input = screen.getByRole("textbox", { name: /YouTube URL/i });
     fireEvent.change(input, { target: { value: "not-a-url" } });
     const button = screen.getByRole("button", { name: /Import YouTube/i });
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent(/Failed to import YouTube URL./i);
+      expect(alert).toHaveAttribute("id", "selection-error");
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(input).toHaveAttribute("aria-describedby", "selection-error");
     });
   });
 

@@ -37,3 +37,7 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+
+## 2026-07-12 - Accessible Form Validation Feedback
+**Learning:** Visual proximity is not enough when an inline error appears near a form input; screen reader users need the failing input to reference the error programmatically.
+**Action:** Add a stable `id` to the error container and set `aria-invalid` plus `aria-describedby` on the input while the error is active, then cover the association in DOM tests.
