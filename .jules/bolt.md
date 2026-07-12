@@ -41,17 +41,3 @@
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
-## 2025-02-16 - Replace unconditional Array.reduce with a breakable for...of loop for finding minimums
-**Learning:** Using `Array.reduce` unconditionally to find a minimum value iterates the entire array even if the absolute minimum possible value has already been found. This wastes CPU cycles when iterating large collections (like sections with confidence levels).
-**Action:** Replace `Array.reduce` with a `for...of` loop and implement an early `break` condition when the known absolute minimum (e.g. "low") is encountered.
-
-## 2025-02-16 - CI Flakiness with Trivy and open code models
-**Learning:** External or temporary model caches, tools, and environments might trigger CI tool errors (like Trivy or OpenCode failures).
-**Action:** Be prepared to add exclusions to tools like `.trivyignore` when scanning third-party dependencies triggers false positives in CI.
-
-## 2025-02-16 - Strix OpenCode AI Scanning Issue With Icon Images
-**Learning:** CI failures on the Strix action indicate `pull request changed file path is unsafe: apps/desktop/src-tauri/icons/128x128@2x.png` when submitting binary image modifications.
-**Action:** The Strix CI tool is configured to fail if pull request changes include binaries or unsupported files (like `@2x.png`). To avoid breaking the CI process for security checks, do not include `.png` files when not absolutely necessary.
-## 2025-02-16 - Tauri DMG bundle missing @2x icon workaround
-**Learning:** Adding a binary file like `128x128@2x.png` breaks the `strix` CI scanner. However, Tauri DMG bundling will fail without a specified `bundle.icon` list that covers 2x.
-**Action:** When a true `128x128@2x.png` is missing or cannot be committed due to CI constraints, specify an existing icon (like `128x128.png`) in its place inside the `tauri.conf.json`'s `bundle.icon` array.
