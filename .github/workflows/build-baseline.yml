@@ -43,7 +43,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           version: "0.8.6"
           enable-cache: false
@@ -62,12 +62,19 @@ jobs:
           }
 
           if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) {
-            $status = Get-MpComputerStatus
-            Write-AntivirusEvidence "Antivirus check: Defender status AntivirusEnabled=$($status.AntivirusEnabled) RealTimeProtectionEnabled=$($status.RealTimeProtectionEnabled)."
-            if ($status.AntivirusEnabled) {
-              return
+            $status = $null
+            try {
+              $status = Get-MpComputerStatus -ErrorAction Stop
+            } catch {
+              Write-AntivirusEvidence "Antivirus check: Defender telemetry query failed: $($_.Exception.Message)."
             }
-            Write-AntivirusEvidence "Antivirus check: Defender telemetry is present but antivirus is not reported as enabled on this hosted runner."
+            if ($status) {
+              Write-AntivirusEvidence "Antivirus check: Defender status AntivirusEnabled=$($status.AntivirusEnabled) RealTimeProtectionEnabled=$($status.RealTimeProtectionEnabled)."
+              if ($status.AntivirusEnabled) {
+                return
+              }
+              Write-AntivirusEvidence "Antivirus check: Defender telemetry is present but antivirus is not reported as enabled on this hosted runner."
+            }
           }
 
           $products = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
@@ -90,7 +97,9 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: npm exec --workspace @bandscope/desktop -- tauri build --target $env:BANDSCOPE_TARGET_TRIPLE --bundles nsis
+        env:
+          BANDSCOPE_TAURI_BUILD_ATTEMPTS: "3"
+        run: bash scripts/release/build_tauri_bundle_with_retry.sh @bandscope/desktop "$env:BANDSCOPE_TARGET_TRIPLE" nsis
       - name: Package Windows amd64 artifact
         run: python scripts/release/package_desktop_artifact.py
       - name: Upload Windows amd64 artifact
@@ -129,7 +138,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           version: "0.8.6"
           enable-cache: false
@@ -148,12 +157,19 @@ jobs:
           }
 
           if (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue) {
-            $status = Get-MpComputerStatus
-            Write-AntivirusEvidence "Antivirus check: Defender status AntivirusEnabled=$($status.AntivirusEnabled) RealTimeProtectionEnabled=$($status.RealTimeProtectionEnabled)."
-            if ($status.AntivirusEnabled) {
-              return
+            $status = $null
+            try {
+              $status = Get-MpComputerStatus -ErrorAction Stop
+            } catch {
+              Write-AntivirusEvidence "Antivirus check: Defender telemetry query failed: $($_.Exception.Message)."
             }
-            Write-AntivirusEvidence "Antivirus check: Defender telemetry is present but antivirus is not reported as enabled on this hosted runner."
+            if ($status) {
+              Write-AntivirusEvidence "Antivirus check: Defender status AntivirusEnabled=$($status.AntivirusEnabled) RealTimeProtectionEnabled=$($status.RealTimeProtectionEnabled)."
+              if ($status.AntivirusEnabled) {
+                return
+              }
+              Write-AntivirusEvidence "Antivirus check: Defender telemetry is present but antivirus is not reported as enabled on this hosted runner."
+            }
           }
 
           $products = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
@@ -177,7 +193,9 @@ jobs:
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Build native shell
-        run: npm exec --workspace @bandscope/desktop -- tauri build --target $env:BANDSCOPE_TARGET_TRIPLE --bundles nsis
+        env:
+          BANDSCOPE_TAURI_BUILD_ATTEMPTS: "3"
+        run: bash scripts/release/build_tauri_bundle_with_retry.sh @bandscope/desktop "$env:BANDSCOPE_TARGET_TRIPLE" nsis
       - name: Package Windows arm64 artifact
         run: python scripts/release/package_desktop_artifact.py
       - name: Upload Windows arm64 artifact
@@ -226,7 +244,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           version: "0.8.6"
           enable-cache: false
@@ -282,7 +300,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           version: "0.8.6"
           enable-cache: false
