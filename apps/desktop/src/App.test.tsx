@@ -359,21 +359,22 @@ describe("App", () => {
     expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
-  it("short-circuits confidence evaluation early when a 'low' confidence section is encountered", async () => {
-    const loadedProject = succeededResult().result;
-    // Add multiple sections to verify the loop breaks early and handles subsequent items correctly
+  it("short-circuits confidence evaluation when encountering a low confidence section", async () => {
+    const loadedProject = succeededResult().result; // medium is first
+    // Add low and high sections. High shouldn't matter since low is lowest.
+    // And low will trigger the early break in the loop.
     loadedProject.sections.push(
       {
         ...loadedProject.sections[0],
-        id: "verse-2",
-        label: "verse",
-        confidence: { level: "low", source: "model", notes: "Difficult section." }
+        id: "bridge-1",
+        label: "bridge",
+        confidence: { level: "low", source: "model", notes: "Low confidence bridge" }
       },
       {
         ...loadedProject.sections[0],
-        id: "chorus-2",
-        label: "chorus",
-        confidence: { level: "high", source: "model", notes: "Very clear." }
+        id: "outro-1",
+        label: "outro",
+        confidence: { level: "high", source: "model", notes: "High confidence outro" }
       }
     );
     mockLoadProject.mockResolvedValueOnce(loadedProject);

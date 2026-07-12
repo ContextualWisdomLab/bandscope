@@ -210,15 +210,17 @@ function sectionCountDetail(t: ReturnType<typeof createTranslator>, sectionCount
 function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnType<typeof createTranslator> }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
+
+  // Performance: Avoid O(N) array scan with .reduce() to find minimum confidence.
+  // Instead use a for loop that can early exit (O(K)) as soon as the lowest bound ("low") is hit.
   let lowestConfidence: RehearsalSong["sections"][number]["confidence"]["level"] | null = null;
   if (song?.sections) {
     for (const section of song.sections) {
       if (!lowestConfidence || confidenceOrder[section.confidence.level] < confidenceOrder[lowestConfidence]) {
         lowestConfidence = section.confidence.level;
-      }
-      // Performance: Early break if we found the absolute minimum
-      if (lowestConfidence === "low") {
-        break;
+        if (lowestConfidence === "low") {
+          break; // Short-circuit early since "low" is the lowest possible confidence bound
+        }
       }
     }
   }
