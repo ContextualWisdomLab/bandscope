@@ -115,6 +115,10 @@ fn app_owned_root<R: Runtime>(
     kind: &str,
     project_id: &str,
 ) -> Result<PathBuf, String> {
+    if !is_valid_project_id(project_id) {
+        return Err("Invalid project ID: path traversal detected.".to_string());
+    }
+
     let base_root = match kind {
         "projects" => app
             .path()
@@ -226,19 +230,28 @@ fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
             let Some(project_id) = project_id else {
                 return Err("Invalid analysis job request: invalid field 'projectId'".into());
             };
-            if project_id.trim().is_empty() {
-                return Err("Invalid analysis job request: invalid field 'projectId'".into());
+            if !is_valid_project_id(project_id) {
+                return Err("Invalid analysis job request: invalid field 'projectId'".to_string());
             }
             if local_source.is_some() {
                 return Err("Invalid analysis job request: invalid field 'localSource'".into());
             }
+            return Ok(AnalysisJobRequest {
+                source_kind: "local_audio".to_string(),
+                project_id: Some(project_id.to_string()),
+                source_label: source_label.to_string(),
+                role_focus: parsed_role_focus,
+                local_source,
+                cache_root: None,
+                temp_root: None,
+            });
         }
         _ => {}
     }
 
     Ok(AnalysisJobRequest {
         source_kind: source_kind.unwrap_or("demo").to_string(),
-        project_id: project_id.map(|value| value.to_string()),
+        project_id: None,
         source_label: source_label.to_string(),
         role_focus: parsed_role_focus,
         local_source,

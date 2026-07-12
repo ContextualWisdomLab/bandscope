@@ -19,3 +19,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = []
+
+[package.metadata.opencode.coverage]
+# Baseline measured by the central Rust coverage evidence gate on PR #527.
+minimum_lines = 42

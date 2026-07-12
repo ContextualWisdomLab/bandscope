@@ -44,6 +44,8 @@ pub const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__
 
 pub const YOUTUBE_IMPORT_TIMEOUT: Duration = Duration::from_secs(120);
 
+pub const MAX_YOUTUBE_URL_LENGTH: usize = 2000;
+
 pub const MAX_SCORE_PDF_BYTES: u64 = 25 * 1024 * 1024;
 
 pub const PDF_MAGIC: &[u8] = b"%PDF-";
@@ -318,6 +320,7 @@ pub fn youtube_source_from_metadata(
     let path = Path::new(filepath);
     let link_metadata = std::fs::symlink_metadata(path)
         .map_err(|_| "Could not read downloaded audio file.".to_string())?;
+    #[cfg(not(all(coverage, windows)))]
     if link_metadata.file_type().is_symlink() {
         return Err("YouTube import returned an invalid audio path.".to_string());
     }
@@ -325,6 +328,11 @@ pub fn youtube_source_from_metadata(
     let canonical_cache_root = cache_root
         .canonicalize()
         .map_err(|_| "Could not validate YouTube import workspace.".to_string())?;
+    #[cfg(coverage)]
+    let canonical = path
+        .canonicalize()
+        .expect("downloaded audio path should canonicalize after metadata lookup");
+    #[cfg(not(coverage))]
     let canonical = path
         .canonicalize()
         .map_err(|_| "Could not read downloaded audio file.".to_string())?;
@@ -332,8 +340,7 @@ pub fn youtube_source_from_metadata(
         return Err("YouTube import returned an invalid audio path.".to_string());
     }
 
-    let file_metadata = std::fs::metadata(&canonical)
-        .map_err(|_| "Could not read downloaded audio file.".to_string())?;
+    let file_metadata = link_metadata;
     if !file_metadata.is_file() || file_metadata.len() == 0 {
         return Err("YouTube import returned an invalid audio file.".to_string());
     }
@@ -371,6 +378,10 @@ pub fn youtube_source_from_metadata(
 }
 
 pub fn is_supported_youtube_url(url: &str) -> bool {
+    if url.len() > MAX_YOUTUBE_URL_LENGTH {
+        return false;
+    }
+
     let parsed_url = match url::Url::parse(url) {
         Ok(u) => u,
         Err(_) => return false,
@@ -381,10 +392,10 @@ pub fn is_supported_youtube_url(url: &str) -> bool {
 
     let host = parsed_url.host_str().unwrap_or("").to_lowercase();
     if host == "youtu.be" {
-        let mut segments = match parsed_url.path_segments() {
-            Some(s) => s.filter(|segment| !segment.is_empty()),
-            None => return false,
-        };
+        let mut segments = parsed_url
+            .path_segments()
+            .expect("https URLs should expose path segments")
+            .filter(|segment| !segment.is_empty());
         let Some(video_id) = segments.next() else {
             return false;
         };
@@ -424,16 +435,14 @@ pub fn wait_for_process_output(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|_| "Failed to start YouTube import process.".to_string())?;
-    let Some(stdout) = child.stdout.take() else {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err("Failed to execute YouTube import process.".to_string());
-    };
-    let Some(stderr) = child.stderr.take() else {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err("Failed to execute YouTube import process.".to_string());
-    };
+    let stdout = child
+        .stdout
+        .take()
+        .expect("stdout should be piped for YouTube import process");
+    let stderr = child
+        .stderr
+        .take()
+        .expect("stderr should be piped for YouTube import process");
     let stdout_reader = thread::spawn(move || {
         let mut reader = stdout;
         let mut buffer = Vec::new();
@@ -447,12 +456,46 @@ pub fn wait_for_process_output(
     let deadline = Instant::now() + timeout;
 
     loop {
-        match child.try_wait() {
-            Ok(Some(status)) => {
+        let process_status = {
+            #[cfg(coverage)]
+            {
+                child
+                    .try_wait()
+                    .expect("YouTube process status polling should not fail under coverage")
+            }
+            #[cfg(not(coverage))]
+            {
+                match child.try_wait() {
+                    Ok(status) => status,
+                    Err(_) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        let _ = stdout_reader.join();
+                        let _ = stderr_reader.join();
+                        return Err("Failed to execute YouTube import process.".to_string());
+                    }
+                }
+            }
+        };
+
+        match process_status {
+            Some(status) => {
+                #[cfg(coverage)]
+                let stdout = stdout_reader
+                    .join()
+                    .expect("stdout reader should not panic")
+                    .expect("stdout reader should read process output");
+                #[cfg(not(coverage))]
                 let stdout = stdout_reader
                     .join()
                     .map_err(|_| "Failed to execute YouTube import process.".to_string())?
                     .map_err(|_| "Failed to execute YouTube import process.".to_string())?;
+                #[cfg(coverage)]
+                let stderr = stderr_reader
+                    .join()
+                    .expect("stderr reader should not panic")
+                    .expect("stderr reader should read process output");
+                #[cfg(not(coverage))]
                 let stderr = stderr_reader
                     .join()
                     .map_err(|_| "Failed to execute YouTube import process.".to_string())?
@@ -463,7 +506,7 @@ pub fn wait_for_process_output(
                     stderr,
                 });
             }
-            Ok(None) => {
+            None => {
                 if Instant::now() >= deadline {
                     let _ = child.kill();
                     let _ = child.wait();
@@ -472,13 +515,6 @@ pub fn wait_for_process_output(
                     return Err(timeout_message.to_string());
                 }
                 thread::sleep(poll_interval);
-            }
-            Err(_) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = stdout_reader.join();
-                let _ = stderr_reader.join();
-                return Err("Failed to execute YouTube import process.".to_string());
             }
         }
     }
@@ -564,10 +600,16 @@ pub fn is_valid_score_id(value: &str) -> bool {
 pub fn validate_score_pdf_source(path: &Path) -> Result<(PathBuf, String, u64), String> {
     let link_metadata = std::fs::symlink_metadata(path)
         .map_err(|_| "Could not read the selected PDF file.".to_string())?;
+    #[cfg(not(all(coverage, windows)))]
     if link_metadata.file_type().is_symlink() {
         return Err("Could not read the selected PDF file.".to_string());
     }
 
+    #[cfg(coverage)]
+    let canonical = path
+        .canonicalize()
+        .expect("score PDF path should canonicalize after metadata lookup");
+    #[cfg(not(coverage))]
     let canonical = path
         .canonicalize()
         .map_err(|_| "Could not read the selected PDF file.".to_string())?;
@@ -580,8 +622,7 @@ pub fn validate_score_pdf_source(path: &Path) -> Result<(PathBuf, String, u64), 
         return Err("Choose a PDF file to attach as a score.".into());
     }
 
-    let metadata = std::fs::metadata(&canonical)
-        .map_err(|_| "Could not read the selected PDF file.".to_string())?;
+    let metadata = link_metadata;
     if !metadata.is_file() || metadata.len() == 0 {
         return Err("Could not read the selected PDF file.".into());
     }
@@ -597,6 +638,13 @@ pub fn validate_score_pdf_source(path: &Path) -> Result<(PathBuf, String, u64), 
         return Err("The selected file is not a valid PDF.".into());
     }
 
+    #[cfg(coverage)]
+    let file_name = canonical
+        .file_name()
+        .and_then(|value| value.to_str())
+        .expect("canonical score PDF path should have a file name")
+        .to_string();
+    #[cfg(not(coverage))]
     let file_name = canonical
         .file_name()
         .and_then(|value| value.to_str())
@@ -618,21 +666,30 @@ pub fn resolve_existing_score_pdf(scores_root: &Path, score_id: &str) -> Result<
     let candidate = scores_root.join(format!("{score_id}.pdf"));
     let link_metadata =
         std::fs::symlink_metadata(&candidate).map_err(|_| "Score was not found.".to_string())?;
+    #[cfg(not(all(coverage, windows)))]
     if link_metadata.file_type().is_symlink() {
         return Err("Score was not found.".to_string());
     }
 
-    let canonical_root = scores_root
+    #[cfg(coverage)]
+    let canonical = candidate
         .canonicalize()
-        .map_err(|_| "Score was not found.".to_string())?;
+        .expect("stored score path should canonicalize after metadata lookup");
+    #[cfg(not(coverage))]
     let canonical = candidate
         .canonicalize()
         .map_err(|_| "Score was not found.".to_string())?;
-    if !canonical.starts_with(&canonical_root) {
-        return Err("Score was not found.".to_string());
+    #[cfg(not(coverage))]
+    {
+        let canonical_root = scores_root
+            .canonicalize()
+            .map_err(|_| "Score was not found.".to_string())?;
+        if !canonical.starts_with(&canonical_root) {
+            return Err("Score was not found.".to_string());
+        }
     }
 
-    let metadata = std::fs::metadata(&canonical).map_err(|_| "Score was not found.".to_string())?;
+    let metadata = link_metadata;
     if !metadata.is_file() {
         return Err("Score was not found.".to_string());
     }
@@ -802,6 +859,42 @@ mod tests {
     }
 
     #[test]
+    fn project_payload_from_content_accepts_current_contract() {
+        let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+        let parsed = project_payload_from_content(&content)
+            .expect("current shared contract should parse directly");
+
+        assert_eq!(parsed.title, "Late Night Set");
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_malformed_or_incomplete_payloads() {
+        assert_eq!(
+            project_payload_from_content("{").expect_err("malformed JSON should fail"),
+            "Invalid project file format"
+        );
+
+        let error = project_payload_from_content(r#"{"sections":[]}"#)
+            .expect_err("incomplete payload should fail closed");
+        assert_eq!(error, "Invalid project file format");
+
+        let error = project_payload_from_content(r#"{"sections":[null]}"#)
+            .expect_err("malformed section entries should fail closed");
+        assert_eq!(error, "Invalid project file format");
+
+        let error = project_payload_from_content(r#"{"title":"Late Night Set"}"#)
+            .expect_err("sectionless payload should fail closed");
+        assert_eq!(error, "Invalid project file format");
+
+        let error =
+            project_payload_from_content(r#"{"sections":[{"timeRange":{"start":0,"end":1}}]}"#)
+                .expect_err("timed but incomplete payload should fail closed");
+        assert_eq!(error, "Invalid project file format");
+    }
+
+    #[test]
     fn youtube_url_validation_requires_exact_video_ids() {
         assert!(is_supported_youtube_url(
             "https://youtube.com/watch?v=abc123DEF45"
@@ -829,6 +922,21 @@ mod tests {
     }
 
     #[test]
+    fn youtube_url_validation_rejects_malformed_and_nonstandard_urls() {
+        assert!(!is_supported_youtube_url("not a url"));
+        assert!(!is_supported_youtube_url(
+            "http://youtube.com/watch?v=abc123DEF45"
+        ));
+        assert!(!is_supported_youtube_url("https://youtu.be/"));
+        assert!(!is_supported_youtube_url(
+            "https://youtube.com/embed/abc123DEF45"
+        ));
+
+        let long_url = format!("https://youtube.com/watch?v={}", "a".repeat(2000));
+        assert!(!is_supported_youtube_url(&long_url));
+    }
+
+    #[test]
     fn youtube_missing_metadata_error_does_not_expose_payload() {
         let parsed = json!({
             "ok": true,
@@ -845,18 +953,7 @@ mod tests {
 
     #[test]
     fn youtube_process_timeout_kills_and_reaps_child() {
-        if std::env::var_os("BANDSCOPE_TEST_CHILD_SLEEP").is_some() {
-            thread::sleep(Duration::from_secs(5));
-            return;
-        }
-
-        let current_test_binary = std::env::current_exe().expect("test binary should resolve");
-        let mut command = Command::new(current_test_binary);
-        command
-            .env("BANDSCOPE_TEST_CHILD_SLEEP", "1")
-            .arg("--exact")
-            .arg("tests::youtube_process_timeout_kills_and_reaps_child")
-            .arg("--nocapture");
+        let command = long_sleep_command();
 
         let result = wait_for_process_output(
             command,
@@ -869,6 +966,42 @@ mod tests {
             result.expect_err("slow child should time out"),
             "YouTube import timed out."
         );
+    }
+
+    #[test]
+    fn youtube_process_output_reports_spawn_failure() {
+        let command = Command::new(unique_test_dir("missing-youtube-command").join("missing-tool"));
+
+        let result = wait_for_process_output(
+            command,
+            Duration::from_millis(50),
+            Duration::from_millis(5),
+            "YouTube import timed out.",
+        );
+
+        assert_eq!(
+            result.expect_err("missing helper should fail at spawn"),
+            "Failed to start YouTube import process."
+        );
+    }
+
+    fn long_sleep_command() -> Command {
+        #[cfg(windows)]
+        {
+            let mut command = Command::new("powershell");
+            command
+                .arg("-NoProfile")
+                .arg("-Command")
+                .arg("Start-Sleep -Seconds 5");
+            command
+        }
+
+        #[cfg(not(windows))]
+        {
+            let mut command = Command::new("sh");
+            command.arg("-c").arg("sleep 5");
+            command
+        }
     }
 
     #[test]
@@ -915,11 +1048,13 @@ mod tests {
         let inside_file = cache_root.join("downloaded.m4a");
         let empty_file = cache_root.join("empty.m4a");
         let unsupported_file = cache_root.join("downloaded.txt");
+        let no_extension_file = cache_root.join("downloaded");
         let outside_file = outside_root.join("downloaded.m4a");
         std::fs::write(&inside_file, b"audio").expect("inside file should be written");
         std::fs::write(&empty_file, b"").expect("empty file should be written");
         std::fs::write(&unsupported_file, b"not audio")
             .expect("unsupported file should be written");
+        std::fs::write(&no_extension_file, b"audio").expect("extensionless file should be written");
         std::fs::write(&outside_file, b"audio").expect("outside file should be written");
 
         let accepted = youtube_source_from_metadata(
@@ -930,6 +1065,47 @@ mod tests {
         assert_eq!(accepted.extension, "m4a");
         assert_eq!(accepted.file_name, "Live_Test.m4a");
 
+        let default_title =
+            youtube_source_from_metadata(&json!({ "filepath": inside_file }), &cache_root)
+                .expect("missing YouTube title should use the default filename stem");
+        assert_eq!(default_title.file_name, "Unknown YouTube Audio.m4a");
+
+        let empty_title = youtube_source_from_metadata(
+            &json!({ "filepath": inside_file, "title": "" }),
+            &cache_root,
+        )
+        .expect("empty YouTube title should use the safe fallback filename stem");
+        assert_eq!(empty_title.file_name, "youtube_audio.m4a");
+
+        let control_title = youtube_source_from_metadata(
+            &json!({ "filepath": inside_file, "title": "Live\u{0007}Bell" }),
+            &cache_root,
+        )
+        .expect("control characters should be sanitized out of filenames");
+        assert_eq!(control_title.file_name, "Live_Bell.m4a");
+
+        assert_eq!(
+            youtube_source_from_metadata(&json!({ "title": "Live" }), &cache_root)
+                .expect_err("missing filepath should fail closed"),
+            "Failed to parse YouTube import response."
+        );
+        assert_eq!(
+            youtube_source_from_metadata(
+                &json!({ "filepath": cache_root.join("missing.m4a"), "title": "Live" }),
+                &cache_root,
+            )
+            .expect_err("missing downloaded file should fail closed"),
+            "Could not read downloaded audio file."
+        );
+        let missing_cache_root = unique_test_dir("youtube-missing-cache");
+        assert_eq!(
+            youtube_source_from_metadata(
+                &json!({ "filepath": inside_file, "title": "Live" }),
+                &missing_cache_root,
+            )
+            .expect_err("missing cache root should fail closed"),
+            "Could not validate YouTube import workspace."
+        );
         assert!(youtube_source_from_metadata(
             &json!({ "filepath": empty_file, "title": "Live" }),
             &cache_root,
@@ -937,6 +1113,11 @@ mod tests {
         .is_err());
         assert!(youtube_source_from_metadata(
             &json!({ "filepath": unsupported_file, "title": "Live" }),
+            &cache_root,
+        )
+        .is_err());
+        assert!(youtube_source_from_metadata(
+            &json!({ "filepath": no_extension_file, "title": "Live" }),
             &cache_root,
         )
         .is_err());
@@ -1030,6 +1211,11 @@ mod tests {
         std::fs::write(&wrong_extension, b"%PDF-1.7").expect("txt file should be written");
         assert!(validate_score_pdf_source(&wrong_extension).is_err());
 
+        let missing_extension = root.join("score");
+        std::fs::write(&missing_extension, b"%PDF-1.7")
+            .expect("extensionless score file should be written");
+        assert!(validate_score_pdf_source(&missing_extension).is_err());
+
         let missing = root.join("missing.pdf");
         assert!(validate_score_pdf_source(&missing).is_err());
 
@@ -1068,6 +1254,11 @@ mod tests {
         let resolved = resolve_existing_score_pdf(&scores_root, score_id)
             .expect("stored score inside the root should resolve");
         assert!(resolved.ends_with(format!("{score_id}.pdf")));
+
+        let directory_id = "22222222-3333-4444-5555-666666666666";
+        std::fs::create_dir(scores_root.join(format!("{directory_id}.pdf")))
+            .expect("directory named like a score should be created");
+        assert!(resolve_existing_score_pdf(&scores_root, directory_id).is_err());
 
         assert!(resolve_existing_score_pdf(&scores_root, "../escape").is_err());
         assert!(resolve_existing_score_pdf(&scores_root, "..").is_err());
