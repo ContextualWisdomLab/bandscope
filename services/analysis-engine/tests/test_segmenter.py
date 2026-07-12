@@ -7,6 +7,7 @@ import numpy as np
 from bandscope_analysis.sections.segmenter import (
     MAX_SSM_FRAMES,
     _checkerboard_novelty,
+    _segment_repetition_groups,
     assign_section_labels,
     compute_novelty_curve,
     detect_boundaries,
@@ -302,7 +303,9 @@ def test_segment_with_boundaries_uses_single_boundary_computation() -> None:
         sections, boundaries = segment_with_boundaries(audio, 22050, duration=20.0)
 
     compute_boundaries.assert_called_once()
-    assert [section["id"] for section in sections] == ["intro-1", "verse-1"]
+    # Constant audio -> the two segments are acoustically identical, so repetition
+    # grouping labels them as the same repeated section.
+    assert [section["id"] for section in sections] == ["chorus-1", "chorus-2"]
     assert boundaries == [(0.0, 10.0), (10.0, 20.0)]
 
 
@@ -324,3 +327,54 @@ def test_segment_with_boundaries_handles_empty_short_and_failed_inputs() -> None
 
     assert "bad combined boundary" in failed_sections[0]["confidence_notes"]
     assert failed_boundaries == [(0.0, 20.0)]
+
+
+def test_repetition_groups_detect_repeated_segments() -> None:
+    """Acoustically identical segments are grouped; distinct ones are not."""
+    sr = 22050
+    seg = sr * 5
+    t = np.arange(seg) / sr
+    a = 0.5 * np.sin(2 * np.pi * 261.63 * t).astype(np.float32)  # C4
+    b = 0.5 * np.sin(2 * np.pi * 392.00 * t).astype(np.float32)  # G4
+    audio = np.concatenate([a, b, a, b]).astype(np.float32)
+    groups = _segment_repetition_groups(audio, sr, [0.0, 5.0, 10.0, 15.0], 20.0)
+    assert groups[0] == groups[2]  # both A segments
+    assert groups[1] == groups[3]  # both B segments
+    assert groups[0] != groups[1]  # A and B are distinct
+
+
+def test_labels_follow_repetition_not_position() -> None:
+    """Repeated segments share a label; the old positional labeler would not.
+
+    Pattern A B A B A: A repeats 3x (chorus), B 2x (verse). Positional labeling
+    would have called index 0 'intro' and index 2 'chorus' — inconsistent.
+    """
+    labels = assign_section_labels(
+        [0.0, 5.0, 10.0, 15.0, 20.0], 25.0, repetition_groups=[0, 1, 0, 1, 0]
+    )
+    names = [label for label, _ in labels]
+    assert names[0] == names[2] == names[4] == "chorus"  # most-repeated group
+    assert names[1] == names[3] == "verse"
+    assert names[0] != names[1]
+
+
+def test_labels_from_repetition_edges_and_bridge() -> None:
+    """Unique segments become intro/outro by position, or bridge in the middle."""
+    # groups: seg0 unique(first) -> intro; seg1,3 repeat -> chorus; seg2 unique(mid) -> bridge
+    labels = assign_section_labels([0.0, 5.0, 10.0, 19.0], 20.0, repetition_groups=[0, 1, 2, 1])
+    names = [label for label, _ in labels]
+    assert names == ["intro", "chorus", "bridge", "chorus"]
+
+
+def test_repetition_groups_empty_boundaries_returns_empty() -> None:
+    """No boundaries yields no repetition groups (no chroma is computed)."""
+    audio = np.zeros(22050, dtype=np.float32)
+    assert _segment_repetition_groups(audio, 22050, [], 1.0) == []
+
+
+def test_labels_from_repetition_last_unique_segment_is_outro() -> None:
+    """A unique, late-positioned final segment is labeled outro via repetition path."""
+    # All segments unique: seg0 -> intro, seg1 -> bridge (mid), seg2 -> outro (>0.85).
+    labels = assign_section_labels([0.0, 5.0, 18.0], 20.0, repetition_groups=[0, 1, 2])
+    names = [label for label, _ in labels]
+    assert names == ["intro", "bridge", "outro"]
