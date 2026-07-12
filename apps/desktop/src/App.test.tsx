@@ -1117,6 +1117,8 @@ describe("App", () => {
     expect(document.activeElement).toBe(input);
     expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).not.toHaveAttribute("aria-describedby");
   });
 
   it("handles YouTube import failure with a message", async () => {
@@ -1131,7 +1133,11 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/This video is age restricted/i)).toBeTruthy();
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent(/This video is age restricted/i);
+      expect(alert).toHaveAttribute("id", "selection-error");
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(input).toHaveAttribute("aria-describedby", alert.id);
     });
   });
 
