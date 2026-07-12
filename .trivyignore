@@ -17,4 +17,4 @@ yt_dlp/extractor/vice.py
 # routes Linux through gtk ^0.18 and webkit2gtk 2.0.2 requires glib ^0.18.
 # Guarded by scripts/checks/verify_supply_chain.py and remove when upstream
 # drops or patches the chain. Revisit by 2026-10-31.
-GHSA-wrw7-89jp-8q8g
+GHSA-wrw7-89jp-8q8g exp:2026-10-31
