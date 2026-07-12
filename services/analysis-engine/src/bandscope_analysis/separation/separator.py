@@ -56,6 +56,10 @@ class StemSeparator:
       stored but not interpreted or executed.
     """
 
+    def __init__(self) -> None:
+        """Initialize the stem separator."""
+        pass
+
     def separate(
         self,
         roles: list[dict[str, Any]],

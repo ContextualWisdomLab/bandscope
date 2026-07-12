@@ -30,14 +30,6 @@
 **Learning:** When native disabled buttons are wrapped in a focusable `span` to provide accessible tooltips, tests that previously found and clicked the `button` (by temporarily removing the `disabled` attribute) may fail or become overly complex. It is cleaner and more accurate to query the wrapper element (e.g. via its `title`) and fire events on it, reflecting the actual accessible DOM structure.
 **Action:** When testing UI components that wrap disabled buttons in a focusable span for accessibility (e.g., using a tooltip/title), use `screen.getByTitle(...)` to query the wrapper element for interactions like `fireEvent.click` rather than `screen.getByRole('button')`.
 
-## 2024-05-24 - Avoid nesting native buttons with ARIA role button on wrappers
-**Learning:** Adding `role="button"` to a `span` or `div` wrapper that contains a native `<button>` element inside violates ARIA specifications. Interactive roles (like `button`) must not contain other interactive elements (even if the inner element is disabled or has `aria-hidden`), as this causes invalid/redundant accessibility trees and screen reader confusion.
-**Action:** Always verify wrappers used to implement tooltips for disabled buttons are standard elements (e.g., `<span tabIndex={0} title="...">`) but *do not* assign `role="button"` to the wrapper itself.
-
-## 2026-07-02 - Inline clear buttons preserve focus
-**Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
-**Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
-
-## 2026-07-12 - Accessible Form Validation Feedback
-**Learning:** Visual proximity is not enough when an inline error appears near a form input; screen reader users need the failing input to reference the error programmatically.
-**Action:** Add a stable `id` to the error container and set `aria-invalid` plus `aria-describedby` on the input while the error is active, then cover the association in DOM tests.
+## 2024-07-09 - Accessible Form Validation Feedback
+**Learning:** When displaying inline error messages (e.g. invalid URLs or empty selections) below an input, visually associating them is not sufficient for screen reader users. The input must programmatically link to the error message.
+**Action:** To ensure form accessibility, inline error messages must be programmatically associated with the input that caused them. Add an `id` to the error container (e.g., `id="selection-error"`) and apply `aria-invalid={!!errorCondition}` and `aria-describedby="<error-id>"` to the corresponding input element.

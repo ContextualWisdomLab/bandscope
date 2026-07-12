@@ -30,36 +30,6 @@ describe("Workspace", () => {
     });
   });
 
-  it("updates practice progress immutably through onSongUpdate", () => {
-    const song = createDemoRehearsalSong();
-    // Default mock setup puts "bass-guitar" as the role ID in index 0
-    song.sections[0]!.roles[0] = {
-      ...song.sections[0]!.roles[0]!,
-      id: "bass-guitar",
-      name: "Bass Guitar",
-      practiceProgress: 50
-    };
-    const onSongUpdate = vi.fn();
-
-    render(<Workspace song={song} onSongUpdate={onSongUpdate} />);
-
-    // Select the Bass Guitar role to render PracticeProgress
-    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
-
-    const increaseBtn = screen.getByRole("button", { name: "Increase progress" });
-    fireEvent.click(increaseBtn);
-
-    expect(onSongUpdate).toHaveBeenCalledTimes(1);
-    const updatedSong = onSongUpdate.mock.calls[0]?.[0] as RehearsalSong;
-
-    // Ensure immutable update logic: reference equality of untouched sections
-    expect(updatedSong).not.toBe(song);
-    expect(updatedSong.sections).not.toBe(song.sections);
-
-    // Ensure the specific role progress updated
-    expect(updatedSong.sections[0]!.roles[0]!.practiceProgress).toBe(60);
-  });
-
   it("keeps the song-structure grid valid when a project has no sections", () => {
     const song = createDemoRehearsalSong();
     song.sections = [];

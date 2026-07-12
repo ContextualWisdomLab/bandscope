@@ -120,14 +120,7 @@ def test_pipeline_without_detected_sections_falls_back() -> None:
     """Ensure an empty segmentation result uses the arrangement fallback."""
     stems = _make_realistic_stems(sr=22050, duration=30.0)
 
-    with (
-        patch("bandscope_analysis.api.segment_with_boundaries", return_value=([], [])),
-        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
-        patch(
-            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
-            return_value=[],
-        ),
-    ):
+    with patch("bandscope_analysis.api.segment_with_boundaries", return_value=([], [])):
         song = build_demo_rehearsal_song(
             {
                 "stems": stems,
