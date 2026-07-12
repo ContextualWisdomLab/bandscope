@@ -71,7 +71,6 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 name = "bandscope-desktop"
 version = "0.1.0"
 dependencies = [
- "bandscope-desktop-core",
  "rfd",
  "serde",
  "serde_json",
@@ -79,17 +78,6 @@ dependencies = [
  "tauri-build",
  "time",
  "tokio",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "bandscope-desktop-core"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "time",
  "url",
 ]
 
