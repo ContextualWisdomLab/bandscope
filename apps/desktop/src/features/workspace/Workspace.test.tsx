@@ -97,17 +97,8 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
-    expect(transcribeButton.getAttribute("aria-disabled")).not.toBe("true");
+    expect(transcribeButton.disabled).toBe(false);
     expect(transcribeButton.title).toBe("Transcribe part");
-
-    // click dummy to fulfill coverage on other inert buttons in workspace
-    const comingSoonButtons = screen.getAllByTitle("Coming soon");
-    fireEvent.click(comingSoonButtons[0]);
-
-    // Switch to another role to test disabled transcription button coverage
-    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
-    const disabledTranscribeButton = screen.getByTitle("Lead Vocal transcription is coming soon. Bass is ready first.");
-    fireEvent.click(disabledTranscribeButton);
   });
 
   it("renders bass transcription in the dark rehearsal cockpit system", () => {

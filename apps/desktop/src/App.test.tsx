@@ -1460,8 +1460,8 @@ describe("App", () => {
 
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
-    const saveButton = screen.getByTitle("Analyze a song to enable saving");
-    fireEvent.click(saveButton);
+    const saveSpan = screen.getByTitle("Analyze a song to enable saving");
+    fireEvent.click(saveSpan);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 
@@ -1482,17 +1482,10 @@ describe("App", () => {
   });
 
 
-  it("renders disabled Settings and Help buttons with accessible attributes directly", () => {
+  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
     render(<App />);
-    const settingsButton = screen.getByTitle("Settings coming soon");
-    expect(settingsButton).toHaveAttribute("tabIndex", "0");
-    expect(settingsButton).toHaveAttribute("aria-disabled", "true");
-    expect(settingsButton.tagName.toLowerCase()).toBe("button");
-
-    // trigger preventDefault to satisfy coverage for click handler
-    fireEvent.click(settingsButton);
-
-    const helpButton = screen.getByTitle("Help coming soon");
-    fireEvent.click(helpButton);
+    const settingsSpan = screen.getByTitle("Settings coming soon");
+    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
+    expect(settingsSpan).toHaveAttribute("role", "button");
   });
 });
