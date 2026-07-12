@@ -44,6 +44,8 @@ pub const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__
 
 pub const YOUTUBE_IMPORT_TIMEOUT: Duration = Duration::from_secs(120);
 
+pub const MAX_YOUTUBE_URL_LENGTH: usize = 2000;
+
 pub const MAX_SCORE_PDF_BYTES: u64 = 25 * 1024 * 1024;
 
 pub const PDF_MAGIC: &[u8] = b"%PDF-";
@@ -359,6 +361,10 @@ pub fn youtube_source_from_metadata(
 }
 
 pub fn is_supported_youtube_url(url: &str) -> bool {
+    if url.len() > MAX_YOUTUBE_URL_LENGTH {
+        return false;
+    }
+
     let parsed_url = match url::Url::parse(url) {
         Ok(u) => u,
         Err(_) => return false,
@@ -369,10 +375,10 @@ pub fn is_supported_youtube_url(url: &str) -> bool {
 
     let host = parsed_url.host_str().unwrap_or("").to_lowercase();
     if host == "youtu.be" {
-        let mut segments = match parsed_url.path_segments() {
-            Some(s) => s.filter(|segment| !segment.is_empty()),
-            None => return false,
-        };
+        let mut segments = parsed_url
+            .path_segments()
+            .expect("https URLs should expose path segments")
+            .filter(|segment| !segment.is_empty());
         let Some(video_id) = segments.next() else {
             return false;
         };
@@ -412,16 +418,14 @@ pub fn wait_for_process_output(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|_| "Failed to start YouTube import process.".to_string())?;
-    let Some(stdout) = child.stdout.take() else {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err("Failed to execute YouTube import process.".to_string());
-    };
-    let Some(stderr) = child.stderr.take() else {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err("Failed to execute YouTube import process.".to_string());
-    };
+    let stdout = child
+        .stdout
+        .take()
+        .expect("stdout should be piped for YouTube import process");
+    let stderr = child
+        .stderr
+        .take()
+        .expect("stderr should be piped for YouTube import process");
     let stdout_reader = thread::spawn(move || {
         let mut reader = stdout;
         let mut buffer = Vec::new();
@@ -740,6 +744,33 @@ mod tests {
     }
 
     #[test]
+    fn project_payload_from_content_accepts_current_contract() {
+        let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+        let parsed = project_payload_from_content(&content)
+            .expect("current shared contract should parse directly");
+
+        assert_eq!(parsed.title, "Late Night Set");
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_malformed_or_incomplete_payloads() {
+        assert_eq!(
+            project_payload_from_content("{").expect_err("malformed JSON should fail"),
+            "Invalid project file format"
+        );
+
+        let error = project_payload_from_content(r#"{"sections":[]}"#)
+            .expect_err("incomplete payload should fail closed");
+        assert_eq!(error, "Invalid project file format");
+
+        let error = project_payload_from_content(r#"{"sections":[null]}"#)
+            .expect_err("malformed section entries should fail closed");
+        assert_eq!(error, "Invalid project file format");
+    }
+
+    #[test]
     fn youtube_url_validation_requires_exact_video_ids() {
         assert!(is_supported_youtube_url(
             "https://youtube.com/watch?v=abc123DEF45"
@@ -764,6 +795,21 @@ mod tests {
         ));
         assert!(!is_supported_youtube_url("https://youtu.be/abc123"));
         assert!(!is_supported_youtube_url("https://youtu.be/abc123DEF4!"));
+    }
+
+    #[test]
+    fn youtube_url_validation_rejects_malformed_and_nonstandard_urls() {
+        assert!(!is_supported_youtube_url("not a url"));
+        assert!(!is_supported_youtube_url(
+            "http://youtube.com/watch?v=abc123DEF45"
+        ));
+        assert!(!is_supported_youtube_url("https://youtu.be/"));
+        assert!(!is_supported_youtube_url(
+            "https://youtube.com/embed/abc123DEF45"
+        ));
+
+        let long_url = format!("https://youtube.com/watch?v={}", "a".repeat(2000));
+        assert!(!is_supported_youtube_url(&long_url));
     }
 
     #[test]
@@ -867,6 +913,18 @@ mod tests {
         .expect("in-cache supported audio should be accepted");
         assert_eq!(accepted.extension, "m4a");
         assert_eq!(accepted.file_name, "Live_Test.m4a");
+
+        let default_title =
+            youtube_source_from_metadata(&json!({ "filepath": inside_file }), &cache_root)
+                .expect("missing YouTube title should use the default filename stem");
+        assert_eq!(default_title.file_name, "Unknown YouTube Audio.m4a");
+
+        let empty_title = youtube_source_from_metadata(
+            &json!({ "filepath": inside_file, "title": "" }),
+            &cache_root,
+        )
+        .expect("empty YouTube title should use the safe fallback filename stem");
+        assert_eq!(empty_title.file_name, "youtube_audio.m4a");
 
         assert!(youtube_source_from_metadata(
             &json!({ "filepath": empty_file, "title": "Live" }),
@@ -1006,6 +1064,11 @@ mod tests {
         let resolved = resolve_existing_score_pdf(&scores_root, score_id)
             .expect("stored score inside the root should resolve");
         assert!(resolved.ends_with(format!("{score_id}.pdf")));
+
+        let directory_id = "22222222-3333-4444-5555-666666666666";
+        std::fs::create_dir(scores_root.join(format!("{directory_id}.pdf")))
+            .expect("directory named like a score should be created");
+        assert!(resolve_existing_score_pdf(&scores_root, directory_id).is_err());
 
         assert!(resolve_existing_score_pdf(&scores_root, "../escape").is_err());
         assert!(resolve_existing_score_pdf(&scores_root, "..").is_err());
