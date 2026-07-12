@@ -38,13 +38,13 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.5",
-    "eslint": "^10.7.0",
+    "eslint": "^10.5.0",
     "jsdom": "^29.1.1",
     "storybook": "^10.4.6",
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.1",
-    "vite": "^8.1.4",
+    "vite": "^8.0.16",
     "vitest": "^4.1.9"
   }
 }

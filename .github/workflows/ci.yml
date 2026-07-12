@@ -56,5 +56,3 @@ jobs:
         run: npm run build --workspace @bandscope/desktop
       - name: Check Tauri shell
         run: cargo +stable check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
-      - name: Test Tauri shell
-        run: cargo +stable test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked

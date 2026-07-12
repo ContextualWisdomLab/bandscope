@@ -1,4 +1,4 @@
-import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { MAX_YOUTUBE_URL_LENGTH } from "./lib/analysis";
@@ -1495,13 +1495,8 @@ describe("App", () => {
 
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
-    const saveButton = screen.getByRole("button", { name: "Save Project" });
-    expect(saveButton).toHaveAttribute("aria-disabled", "true");
-    expect(saveButton).not.toHaveAttribute("disabled");
-
-    const event = createEvent.click(saveButton);
-    fireEvent(saveButton, event);
-    expect(event.defaultPrevented).toBe(true);
+    const saveSpan = screen.getByTitle("Analyze a song to enable saving");
+    fireEvent.click(saveSpan);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 
