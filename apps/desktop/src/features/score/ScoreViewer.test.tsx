@@ -149,7 +149,7 @@ describe("ScoreViewer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
-    expect(onStatusChange).toHaveBeenLastCalledWith("READY");
+    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith("READY"));
     expect(loadScorePdf).toHaveBeenCalledTimes(2);
   });
 
