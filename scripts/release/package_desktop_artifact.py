@@ -112,9 +112,7 @@ def main() -> int:
 
     installers = find_installer_packages(repo_root)
     if not installers:
-        raise FileNotFoundError(
-            "Could not find any built installers (DMG/EXE) in target/release/bundle/"
-        )
+        raise FileNotFoundError("Could not find any built installers (DMG/EXE) in target/release/bundle/")
 
     suffix_counts = Counter(path.suffix.lower() for path in installers)
     for installer_path in installers:
@@ -123,9 +121,7 @@ def main() -> int:
 
         if suffix_counts[installer_path.suffix.lower()] > 1:
             archive_base = Path(archive_name)
-            archive_name = (
-                f"{archive_base.stem}-{archive_safe_stem(installer_path)}{archive_base.suffix}"
-            )
+            archive_name = f"{archive_base.stem}-{archive_safe_stem(installer_path)}{archive_base.suffix}"
 
         archive_path = output_dir / archive_name
         shutil.copy2(installer_path, archive_path)
