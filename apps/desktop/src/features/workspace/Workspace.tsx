@@ -1,9 +1,8 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, memo } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
-import { PracticeProgress } from "./PracticeProgress";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -40,11 +39,6 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
 }
 
 type Translator = ReturnType<typeof createTranslator>;
-
-/** Documented. */
-function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
-  event.preventDefault();
-}
 
 /** Documented. */
 function formatStatusLabel(status: string): string {
@@ -150,33 +144,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
-
-  /** Handle the practice progress change internally by immutably updating the song state. */
-  const handlePracticeProgressChange = (newProgress: number) => {
-    if (!activeRole || !onSongUpdate) return;
-
-    // Performance: Use shallow copying to avoid expensive structuredClone
-    const nextSong = {
-      ...song,
-      sections: song.sections.map(section => {
-        const roleIndex = section.roles.findIndex(r => r.id === activeRole);
-        if (roleIndex === -1) return section;
-
-        const nextRoles = [...section.roles];
-        nextRoles[roleIndex] = {
-          ...nextRoles[roleIndex]!,
-          practiceProgress: newProgress
-        };
-
-        return {
-          ...section,
-          roles: nextRoles
-        };
-      })
-    };
-
-    onSongUpdate(nextSong);
-  };
   const collaborationAssignments = useMemo(
     () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
     [song.collaboration]
@@ -242,14 +209,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         <CardHeader className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))] p-5 pb-6 md:p-7">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">{t("workspaceRehearsalMapLabel")}</p>
-                {song.tempo && (
-                  <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[0.65rem] font-bold text-cyan-100">
-                    {t("workspaceTempoLabel")}: {song.tempo} BPM
-                  </span>
-                )}
-              </div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">{t("workspaceRehearsalMapLabel")}</p>
               <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">{song.title}</h2>
               <CardDescription className="text-base font-medium text-slate-300">
               {song.exportSummary?.headline || t("workspaceRehearsalFallback")}
@@ -262,7 +222,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               onClick={handleExportCueSheet}
                 className="min-h-10 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] hover:bg-cyan-300/20 hover:text-white"
             >
-                <Download className="mr-2 size-4 text-cyan-200" aria-hidden="true" />
+                <Download className="mr-2 size-4 text-cyan-200" />
               Export Cue Sheet (CSV)
             </Button>
             <Button
@@ -271,7 +231,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               onClick={handleExportChart}
                 className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 shadow-sm hover:bg-white/10 hover:text-white"
             >
-                <Download className="mr-2 size-4 text-slate-300" aria-hidden="true" />
+                <Download className="mr-2 size-4 text-slate-300" />
               Export Chart (JSON)
             </Button>
             <Button
@@ -280,7 +240,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               onClick={handleExportHandoff}
               className="min-h-10 border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 shadow-sm hover:bg-teal-300/20 hover:text-white"
             >
-              <Download className="mr-2 size-4 text-teal-200" aria-hidden="true" />
+              <Download className="mr-2 size-4 text-teal-200" />
               Export Handoff (JSON)
             </Button>
           </div>
@@ -351,39 +311,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    aria-disabled={true}
-                    aria-label="Play stem coming soon"
-                    title="Play stem coming soon"
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
-                  >
-                    Play stem
-                  </Button>
-                  <Button
-                    type="button"
-                    aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
-                  >
-                    Loop section
-                  </Button>
-                  <Button
-                    type="button"
-                    aria-disabled={true}
-                    aria-label="Solo / mute others coming soon"
-                    title="Solo / mute others coming soon"
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
-                  >
-                    Solo / mute others
-                  </Button>
+                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Play stem</Button>
+                  </span>
+                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Loop section</Button>
+                  </span>
+                  <span tabIndex={0} role="button" aria-disabled="true" title="Coming soon" className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <Button type="button" disabled variant="outline" className="min-h-11 border-white/10 bg-white/5 text-slate-400">Solo / mute others</Button>
+                  </span>
                   {canTranscribeBass ? (
                     <Button
                       type="button"
@@ -394,16 +330,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       Transcribe Bass
                     </Button>
                   ) : (
-                    <Button
-                      type="button"
-                      aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
-                      onClick={preventUnavailableAction}
-                      variant="outline"
-                      className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
-                    >
-                      Transcribe Bass
-                    </Button>
+                    <span tabIndex={0} role="button" aria-disabled="true" title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`} className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                      <Button
+                        type="button"
+                        disabled
+                        variant="outline"
+                        className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
+                      >
+                        Transcribe Bass
+                      </Button>
+                    </span>
                   )}
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -475,7 +411,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     </div>
                   </div>
                 )}
-                <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
                 <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
               </div>
             )}

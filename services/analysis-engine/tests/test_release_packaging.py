@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from conftest import load_module, make_symlink_or_skip
+from conftest import load_module
 
 
 def test_release_packaging_includes_architecture_in_artifact_identity(
@@ -181,7 +181,7 @@ def test_find_installer_packages_ignores_symlink_installers(
     installer_path.parent.mkdir(parents=True)
     symlink_target = tmp_path / "outside-installer.exe"
     symlink_target.write_bytes(b"external")
-    make_symlink_or_skip(installer_path, symlink_target)
+    installer_path.symlink_to(symlink_target)
 
     assert packaging.find_installer_packages(tmp_path) == []
 
