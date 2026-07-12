@@ -6,6 +6,8 @@ description = "Rust numeric kernels for the BandScope analysis engine (checkerbo
 license = "MIT"
 repository = "https://github.com/ContextualWisdomLab/bandscope"
 
+[workspace]
+
 [lib]
 name = "bandscope_numeric"
 crate-type = ["cdylib"]
