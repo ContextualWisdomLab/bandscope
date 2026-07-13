@@ -49,6 +49,7 @@ function DialogContent({
         <DialogPrimitive.Close
           data-slot="dialog-close"
           className="focus-visible:ring-ring/50 absolute top-4 right-4 rounded-xs opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-[3px] disabled:pointer-events-none"
+          title="Close"
         >
           <X className="size-4" />
           <span className="sr-only">Close</span>
