@@ -113,8 +113,9 @@ def _checkerboard_novelty_reference(
     """Pure-NumPy reference implementation of the checkerboard novelty kernel.
 
     Retained as the parity oracle for the Rust port and as the runtime fallback
-    when the compiled extension is unavailable. Do not "optimize" the math here:
-    it defines the canonical result.
+    when the compiled extension is unavailable.
+
+    Vectorizes diagonal patch extraction while keeping the SSM frame count bounded.
     """
     n = ssm.shape[0]
     half = kernel_size // 2
@@ -128,11 +129,16 @@ def _checkerboard_novelty_reference(
     kernel[:half, :half] = -1.0
     kernel[half:, half:] = -1.0
 
-    # Extract all valid diagonal patches and compute dot products.
-    valid_range = range(half, n - half)
-    for i in valid_range:
-        patch = ssm[i - half : i + half, i - half : i + half]
-        novelty[i] = np.sum(patch * kernel)
+    # Sum each checkerboard offset across all valid diagonal windows at once.
+    valid = novelty[half : n - half]
+    for di in range(-half, half):
+        for dj in range(-half, half):
+            value = kernel[di + half, dj + half]
+            diagonal = np.diagonal(ssm[half + di : n - half + di, half + dj : n - half + dj])
+            if value > 0:
+                valid += diagonal
+            else:
+                valid -= diagonal
 
     # Normalize by peak absolute magnitude, preserving sign.
     max_val = np.max(np.abs(novelty))
