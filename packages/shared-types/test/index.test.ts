@@ -138,6 +138,58 @@ describe("shared type helpers", () => {
     expect(validateProjectSummary(summary)).toBeNull();
   });
 
+  it("rejects array proxies with non-primitive changing lengths", () => {
+    let lengthCoercions = 0;
+    const changingLength = {
+      valueOf() {
+        lengthCoercions += 1;
+        return lengthCoercions === 1 ? 2 : 0;
+      }
+    };
+    const supportedAudioFormats = new Proxy(["wav"], {
+      get(target, property, receiver) {
+        if (property === "length") {
+          return changingLength;
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    }) as ProjectSummary["supportedAudioFormats"];
+    const summary: ProjectSummary = {
+      id: "project-1",
+      title: "Demo Song",
+      status: "running",
+      supportedAudioFormats
+    };
+
+    expect(validateProjectSummary(summary)).toBe(
+      "Invalid project summary contract: invalid field 'supportedAudioFormats'"
+    );
+    expect(lengthCoercions).toBe(1);
+  });
+
+  it("rejects array proxies with non-finite or out-of-range lengths", () => {
+    for (const length of [Number.POSITIVE_INFINITY, 0xffffffff + 1, 1.5]) {
+      const supportedAudioFormats = new Proxy(["wav"], {
+        get(target, property, receiver) {
+          if (property === "length") {
+            return length;
+          }
+          return Reflect.get(target, property, receiver);
+        }
+      }) as ProjectSummary["supportedAudioFormats"];
+      const summary: ProjectSummary = {
+        id: "project-1",
+        title: "Demo Song",
+        status: "running",
+        supportedAudioFormats
+      };
+
+      expect(validateProjectSummary(summary)).toBe(
+        "Invalid project summary contract: invalid field 'supportedAudioFormats'"
+      );
+    }
+  });
+
   it("property-checks supported local audio sources", () => {
     fc.assert(
       fc.property(
