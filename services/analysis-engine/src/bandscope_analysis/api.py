@@ -20,6 +20,8 @@ from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
 
+logger = logging.getLogger(__name__)
+
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
 FEATURE_CACHE_SCHEMA_VERSION = 1
@@ -317,12 +319,14 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         if not isinstance(cache_root, str) or not cache_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
         if ".." in cache_root.replace("\\", "/").split("/"):
+            logger.warning("Security: path traversal detected in cacheRoot")
             raise ValueError("Invalid analysis job request: path traversal detected in 'cacheRoot'")
         normalized["cacheRoot"] = cache_root
     if temp_root is not None:
         if not isinstance(temp_root, str) or not temp_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
         if ".." in temp_root.replace("\\", "/").split("/"):
+            logger.warning("Security: path traversal detected in tempRoot")
             raise ValueError("Invalid analysis job request: path traversal detected in 'tempRoot'")
         normalized["tempRoot"] = temp_root
 
