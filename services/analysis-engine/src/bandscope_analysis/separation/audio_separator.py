@@ -139,9 +139,7 @@ class AudioStemSeparator:
         """
         if self._model is None:
             try:
-                from demucs.pretrained import (  # type: ignore[import-not-found, unused-ignore]
-                    get_model,
-                )
+                from demucs.pretrained import get_model
             except ImportError as error:
                 raise ValueError(
                     "Stem separation is not available on this platform (demucs/torch not installed)"
@@ -156,7 +154,7 @@ class AudioStemSeparator:
     def _apply_model(self, model: Any, audio: AudioStemArray) -> dict[str, np.ndarray[Any, Any]]:
         """Apply Demucs to a mono signal, returning demucs-source-name -> mono array."""
         import torch
-        from demucs.apply import apply_model  # type: ignore[import-not-found, unused-ignore]
+        from demucs.apply import apply_model
 
         wav = torch.from_numpy(np.stack([audio, audio])).float()
         ref_mean = float(wav.mean())
