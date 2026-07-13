@@ -123,7 +123,7 @@ dev = [
 requires-dist = [
     { name = "demucs", marker = "platform_machine == 'arm64' or sys_platform != 'darwin'", specifier = ">=4.0.1" },
     { name = "librosa", specifier = ">=0.11.0" },
-    { name = "numba", specifier = "<0.66.0" },
+    { name = "numba", specifier = "<0.67.0" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "soundfile", specifier = ">=0.13.1" },
     { name = "urllib3", specifier = ">=2.7.0" },
