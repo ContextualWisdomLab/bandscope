@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PracticeProgress } from "./PracticeProgress";
 
@@ -15,7 +15,11 @@ describe("PracticeProgress", () => {
 
     expect(screen.getByText("0%")).toBeTruthy();
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
-    expect(decreaseBtn.disabled).toBe(true);
+    expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
+
+    const clickEvent = createEvent.click(decreaseBtn);
+    fireEvent(decreaseBtn, clickEvent);
+    expect(clickEvent.defaultPrevented).toBe(true);
   });
 
   it("renders provided progress", () => {
@@ -98,6 +102,10 @@ describe("PracticeProgress", () => {
     render(<PracticeProgress progress={100} onChange={handleChange} />);
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
-    expect(increaseBtn.disabled).toBe(true);
+    expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
+
+    const clickEvent = createEvent.click(increaseBtn);
+    fireEvent(increaseBtn, clickEvent);
+    expect(clickEvent.defaultPrevented).toBe(true);
   });
 });
