@@ -224,6 +224,7 @@ jobs:
 
   build-macos-native:
     name: build / macos / amd64
+    if: github.event_name != 'pull_request'
     runs-on: macos-15-intel
     strategy:
       fail-fast: false
@@ -340,13 +341,29 @@ jobs:
 
   gate-macos:
     name: gate / build / macos
+    if: always()
     runs-on: ubuntu-latest
     needs:
       - build-macos-native
       - build-macos-arm64
     steps:
-      - name: Confirm both macOS architectures built
-        run: true
+      - name: Confirm macOS build coverage
+        run: |
+          set -euo pipefail
+          echo "macOS arm64 result: ${{ needs.build-macos-arm64.result }}"
+          echo "macOS amd64 result: ${{ needs.build-macos-native.result }}"
+          if [ "${{ needs.build-macos-arm64.result }}" != "success" ]; then
+            echo "macOS arm64 build did not succeed."
+            exit 1
+          fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "macOS amd64 artifact build is release-only on pull_request events because GitHub-hosted macos-15-intel capacity can remain queued without job logs; tag and release builds still require the Intel artifact before publication."
+            exit 0
+          fi
+          if [ "${{ needs.build-macos-native.result }}" != "success" ]; then
+            echo "macOS amd64 release artifact build did not succeed."
+            exit 1
+          fi
 
   publish-immutable-release:
     name: release-artifact / publish
