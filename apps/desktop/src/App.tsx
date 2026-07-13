@@ -44,7 +44,6 @@ import {
   startAnalysisJob
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
-import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
@@ -58,19 +57,17 @@ const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:User
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
-type RehearsalView = "workspace" | "score";
-
 const NAV_ITEMS = [
-  { labelKey: "navWorkspace", icon: Home, view: "workspace" },
-  { labelKey: "navImport", icon: Upload, view: null },
-  { labelKey: "navExport", icon: Save, view: null },
-  { labelKey: "navSections", icon: ListMusic, view: null },
-  { labelKey: "navRoles", icon: Users, view: null },
-  { labelKey: "navStemLab", icon: AudioWaveform, view: null },
-  { labelKey: "navCues", icon: Sparkles, view: null },
-  { labelKey: "navTranspose", icon: SlidersHorizontal, view: null },
-  { labelKey: "navScore", icon: FileMusic, view: "score" }
-] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; view: RehearsalView | null }[];
+  { labelKey: "navWorkspace", icon: Home, active: true },
+  { labelKey: "navImport", icon: Upload, active: false },
+  { labelKey: "navExport", icon: Save, active: false },
+  { labelKey: "navSections", icon: ListMusic, active: false },
+  { labelKey: "navRoles", icon: Users, active: false },
+  { labelKey: "navStemLab", icon: AudioWaveform, active: false },
+  { labelKey: "navCues", icon: Sparkles, active: false },
+  { labelKey: "navTranspose", icon: SlidersHorizontal, active: false },
+  { labelKey: "navNotes", icon: FileMusic, active: false }
+] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; active: boolean }[];
 
 const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
 
@@ -211,19 +208,19 @@ function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnTy
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
 
-  // Performance: Avoid O(N) array scan with .reduce() to find minimum confidence.
-  // Instead use a for loop that can early exit (O(K)) as soon as the lowest bound ("low") is hit.
   let lowestConfidence: RehearsalSong["sections"][number]["confidence"]["level"] | null = null;
   if (song?.sections) {
     for (const section of song.sections) {
       if (!lowestConfidence || confidenceOrder[section.confidence.level] < confidenceOrder[lowestConfidence]) {
         lowestConfidence = section.confidence.level;
-        if (lowestConfidence === "low") {
-          break; // Short-circuit early since "low" is the lowest possible confidence bound
-        }
+      }
+      // ⚡ Bolt: Early exit if we find the lowest possible confidence bound
+      if (lowestConfidence === "low") {
+        break;
       }
     }
   }
+
   const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : t("metricConfidenceReady");
   const detail = sectionCountDetail(t, sectionCount);
 
@@ -260,10 +257,8 @@ export function App() {
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
-  const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
-  const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -416,7 +411,6 @@ export function App() {
   /** Documented. */
   const handleChooseLocalAudio = async () => {
     setSelectionError(null);
-    setSelectionErrorSource(null);
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setSelectedBootstrap(selection.bootstrap);
@@ -425,24 +419,20 @@ export function App() {
 
     setSelectedBootstrap(null);
     setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
-    setSelectionErrorSource("local");
     setJobStatus(null);
   };
 
   /** Documented. */
   const handleImportYoutube = async () => {
     setSelectionError(null);
-    setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
     if (!normalizedUrl) {
       setSelectionError(t("youtubeImportFailed"));
-      setSelectionErrorSource("youtube");
       return;
     }
 
     if (!isSupportedYoutubeUrl(normalizedUrl)) {
       setSelectionError(t("youtubeImportFailed"));
-      setSelectionErrorSource("youtube");
       return;
     }
 
@@ -454,11 +444,9 @@ export function App() {
         setYoutubeUrl("");
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
-        setSelectionErrorSource("youtube");
       }
     } catch {
       setSelectionError(t("youtubeImportFailed"));
-      setSelectionErrorSource("youtube");
     } finally {
       setIsImporting(false);
     }
@@ -517,24 +505,6 @@ export function App() {
     return <EmptyState />;
   };
 
-  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
-
-  /** Resolve label, enablement, and active state for one sidebar item. */
-  const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
-    const enabled = item.view === "workspace" || (item.view === "score" && jobResult !== null);
-    return {
-      label: t(item.labelKey),
-      enabled,
-      active: enabled && item.view === currentView,
-      title: enabled ? undefined : item.view === "score" ? t("scoreNavDisabledHint") : t("comingSoon")
-    };
-  };
-
-  /** Switch the main content to the clicked rehearsal view. */
-  const handleNavSelect = (view: RehearsalView) => {
-    setActiveView(view);
-  };
-
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bandscope-bg)] text-slate-100 selection:bg-cyan-300/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
@@ -561,24 +531,21 @@ export function App() {
           </div>
 
           <nav aria-label={t("primaryRehearsalViewsAriaLabel")} className="space-y-2">
-            {NAV_ITEMS.map((item) => {
-              const { label, enabled, active, title } = navButtonState(item);
-              const { icon: Icon, view } = item;
+            {NAV_ITEMS.map(({ labelKey, icon: Icon, active }) => {
+              const label = t(labelKey);
 
               return (
                 <button
-                  key={item.labelKey}
+                  key={labelKey}
                   type="button"
                   aria-current={active ? "page" : undefined}
-                  aria-disabled={enabled ? undefined : true}
-                  title={title}
-                  onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
+                  aria-disabled={active ? undefined : true}
+                  title={active ? undefined : t("comingSoon")}
+                  onClick={active ? undefined : blockInactiveNavActivation}
                   className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                     active
                       ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
-                      : enabled
-                        ? "text-slate-200 hover:bg-white/5"
-                        : "cursor-not-allowed text-slate-500 opacity-70"
+                      : "cursor-not-allowed text-slate-500 opacity-70"
                   }`}
                 >
                   <Icon className="size-5" aria-hidden="true" />
@@ -637,25 +604,20 @@ export function App() {
 
         <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
-            {NAV_ITEMS.map((item) => {
-              const { label, enabled, active, title } = navButtonState(item);
-              const { icon: Icon, view } = item;
+            {NAV_ITEMS.map(({ labelKey, icon: Icon, active }) => {
+              const label = t(labelKey);
 
               return (
                 <button
-                  key={item.labelKey}
+                  key={labelKey}
                   type="button"
                   aria-current={active ? "page" : undefined}
                   aria-label={`${label} ${t("compactViewSuffix")}`}
-                  aria-disabled={enabled ? undefined : true}
-                  title={title}
-                  onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
+                  aria-disabled={active ? undefined : true}
+                  title={active ? undefined : t("comingSoon")}
+                  onClick={active ? undefined : blockInactiveNavActivation}
                   className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                    active
-                      ? "bg-blue-600/70 text-white"
-                      : enabled
-                        ? "text-slate-200 hover:bg-white/5"
-                        : "cursor-not-allowed text-slate-500 opacity-70"
+                    active ? "bg-blue-600/70 text-white" : "cursor-not-allowed text-slate-500 opacity-70"
                   }`}
                 >
                   <Icon className="size-4" aria-hidden="true" />
@@ -705,8 +667,6 @@ export function App() {
                         disabled={analysisInFlight || isStarting || isImporting}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
-                        aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
-                        aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
                       {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
                         <button
@@ -756,17 +716,17 @@ export function App() {
                     {t("saveProject")}
                   </Button>
                 ) : (
-                  <Button
-                    aria-disabled="true"
-                    title={t("saveRequiresAnalysis")}
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
-                    aria-label={t("saveProject")}
-                  >
-                    <Save className="mr-2 size-4" aria-hidden="true" />
-                    {t("saveProject")}
-                  </Button>
+                  <span tabIndex={0} role="button" aria-disabled="true" title={t("saveRequiresAnalysis")} className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <Button
+                      disabled
+                      variant="outline"
+                      className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
+                      aria-label={t("saveProject")}
+                    >
+                      <Save className="mr-2 size-4" aria-hidden="true" />
+                      {t("saveProject")}
+                    </Button>
+                  </span>
                 )}
                 <Button
                   onClick={handleStartAnalysis}
@@ -825,7 +785,7 @@ export function App() {
                 )}
 
                 {selectionError && (
-                  <div id={selectionErrorSource === "youtube" ? "selection-error" : undefined} className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                  <div className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
                     {selectionError}
                   </div>
                 )}
@@ -842,15 +802,7 @@ export function App() {
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-            {currentView === "score" && jobResult ? (
-              <ScoreView
-                song={jobResult}
-                projectId={jobResultBootstrap?.projectId ?? null}
-                onSongUpdate={handleSongUpdate}
-              />
-            ) : (
-              renderWorkspaceState()
-            )}
+            {renderWorkspaceState()}
           </section>
         </main>
       </div>
