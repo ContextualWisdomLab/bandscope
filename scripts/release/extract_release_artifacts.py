@@ -45,7 +45,9 @@ def artifact_zip_paths(source: Path) -> list[Path]:
         raise ValueError(f"artifact source does not exist: {source}")
     ensure_non_symlink_path(source, path_kind="artifact path")
     candidates: list[Path] = []
-    for path in sorted(candidate for candidate in source.iterdir() if candidate.suffix == ".zip"):
+    for path in sorted(
+        candidate for candidate in source.iterdir() if candidate.suffix == ".zip"
+    ):
         ensure_non_symlink_path(path, path_kind="artifact path")
         candidates.append(path)
     if not candidates:
@@ -60,7 +62,7 @@ def validate_member(member: zipfile.ZipInfo) -> None:
     if (
         RELEASE_MEMBER.fullmatch(member.filename) is None
         or member_path.is_absolute()
-        or ".." in member_path.parts
+        or ".." in member.filename.replace("\\", "/").split("/")
         or member.is_dir()
         or stat.S_ISLNK(unix_mode)
     ):
@@ -69,7 +71,9 @@ def validate_member(member: zipfile.ZipInfo) -> None:
         raise ValueError(f"release artifact member too large: {member.filename}")
 
 
-def write_new_file_without_following_symlinks(target: Path, source_file: IO[bytes]) -> None:
+def write_new_file_without_following_symlinks(
+    target: Path, source_file: IO[bytes]
+) -> None:
     """Stream-write to a new file without following an existing symlink."""
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
     if hasattr(os, "O_NOFOLLOW"):
@@ -110,7 +114,9 @@ def extract_release_artifacts(source: Path, output_dir: Path) -> list[Path]:
                 if total_bytes > MAX_TOTAL_RELEASE_ARTIFACT_BYTES:
                     raise ValueError("release artifact bundle too large")
                 if member.filename in seen:
-                    raise ValueError(f"duplicate release artifact member: {member.filename}")
+                    raise ValueError(
+                        f"duplicate release artifact member: {member.filename}"
+                    )
                 seen.add(member.filename)
                 target = output_dir / member.filename
                 with archive.open(member) as source_file:
