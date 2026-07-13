@@ -103,6 +103,33 @@ def test_checkerboard_novelty_short_matrix_returns_zeros() -> None:
     assert np.array_equal(novelty, np.zeros(2, dtype=np.float64))
 
 
+def test_checkerboard_novelty_matches_loop_reference() -> None:
+    """Ensure diagonal vectorization preserves checkerboard novelty values."""
+    rng = np.random.default_rng(42)
+    ssm = rng.random((48, 48), dtype=np.float64)
+    ssm = (ssm + ssm.T) / 2.0
+    kernel_size = 8
+    half = kernel_size // 2
+    expected = np.zeros(ssm.shape[0], dtype=np.float64)
+
+    kernel = np.ones((kernel_size, kernel_size), dtype=np.float64)
+    kernel[:half, :half] = -1.0
+    kernel[half:, half:] = -1.0
+    for i in range(half, ssm.shape[0] - half):
+        patch = ssm[i - half : i + half, i - half : i + half]
+        expected[i] = np.sum(patch * kernel)
+
+    max_value = np.max(np.abs(expected))
+    expected = expected / max_value
+
+    np.testing.assert_allclose(
+        _checkerboard_novelty(ssm, kernel_size=kernel_size),
+        expected,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
 def test_detect_boundaries_short_novelty_returns_start_only() -> None:
     """Ensure too-short novelty curves fail closed to a single start boundary."""
     boundaries = detect_boundaries(
