@@ -20,6 +20,7 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
+from .._native import HAVE_RUST, _checkerboard_novelty_rust
 from .model import ALL_SECTION_LABELS, CueAnchorStrategy, SectionCandidate
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,25 @@ def _checkerboard_novelty(
 
     The checkerboard kernel highlights transitions where the local structure
     changes (i.e., moving from one repeated section to a new one).
+
+    Uses the Rust ``bandscope_numeric`` kernel when available (the default),
+    falling back to the NumPy reference implementation otherwise. Both paths are
+    numerically equivalent (see ``tests/test_numeric_parity.py``).
+    """
+    if HAVE_RUST and _checkerboard_novelty_rust is not None:  # pragma: no cover - native path
+        ssm_f64 = np.ascontiguousarray(ssm, dtype=np.float64)
+        return _checkerboard_novelty_rust(ssm_f64, kernel_size)
+    return _checkerboard_novelty_reference(ssm, kernel_size)
+
+
+def _checkerboard_novelty_reference(
+    ssm: NDArray[np.floating[Any]],
+    kernel_size: int = 64,
+) -> NDArray[np.floating[Any]]:
+    """Pure-NumPy reference implementation of the checkerboard novelty kernel.
+
+    Retained as the parity oracle for the Rust port and as the runtime fallback
+    when the compiled extension is unavailable.
 
     Vectorizes diagonal patch extraction while keeping the SSM frame count bounded.
     """

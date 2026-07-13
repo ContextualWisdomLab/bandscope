@@ -1,0 +1,20 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "bandscope-numeric"
+version = "0.1.0"
+description = "Rust numeric kernels for the BandScope analysis engine"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[tool.maturin]
+# Build a standalone extension module named `bandscope_numeric`.
+module-name = "bandscope_numeric"
+manifest-path = "Cargo.toml"
+strip = true
