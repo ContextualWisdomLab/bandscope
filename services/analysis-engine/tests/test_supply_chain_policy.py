@@ -138,9 +138,7 @@ def test_build_baseline_macos_intel_artifact_is_release_only_for_prs() -> None:
 def test_ci_rust_gate_logs_pr_macos_capacity_guard() -> None:
     """Ensure PR Rust checks do not wait on macOS capacity without logs."""
     repo_root = Path(__file__).resolve().parents[3]
-    workflow = (repo_root / ".github" / "workflows" / "ci.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (repo_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
     assert "gate / ci / rust-check" in workflow
     assert (
