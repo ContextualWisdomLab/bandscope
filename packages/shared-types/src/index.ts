@@ -388,7 +388,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Documented. */
 function isDenseArray(value: unknown): value is unknown[] {
-  return Array.isArray(value) && Array.from({ length: value.length }, (_, index) => index in value).every(Boolean);
+  if (!Array.isArray(value)) return false;
+  // Performance: avoid Array.from() allocation while keeping a one-time length boundary.
+  const arrayLength = Number(value.length);
+  if (!Number.isSafeInteger(arrayLength) || arrayLength < 0 || arrayLength > 0xffffffff) {
+    return false;
+  }
+  for (let i = 0; i < arrayLength; i++) {
+    if (!(i in value)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** Documented. */
