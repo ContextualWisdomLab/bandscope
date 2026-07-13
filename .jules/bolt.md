@@ -57,3 +57,7 @@
 ## 2024-07-12 - Vectorize Python nested loops in dynamic programming
 **Learning:** Inner loops over state dimensions in Viterbi decoding are extremely slow in pure Python.
 **Action:** Use NumPy broadcasting (e.g. `viterbi[:, t - 1, np.newaxis] + log_trans`) to vectorize the inner loop, converting O(N*M) Python loops into O(N) Python loops with fast C-level operations.
+
+## 2026-07-13 - Array.from mapping optimization
+**Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
+**Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.

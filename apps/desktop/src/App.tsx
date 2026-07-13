@@ -599,7 +599,7 @@ export function App() {
               </p>
               <div className="mt-3 h-14 overflow-hidden rounded-xl bg-[linear-gradient(90deg,rgba(34,211,238,.12),rgba(124,58,237,.12))]">
                 <div className="flex h-full items-end gap-0.5 px-2 pb-1" aria-hidden="true">
-                  {Array.from({ length: 34 }).map((_, index) => (
+                  {Array.from({ length: 34 }, (_, index) => (
                     <span
                       key={index}
                       className="w-1 rounded-t bg-gradient-to-t from-cyan-400 to-violet-400"
