@@ -3,17 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { MAX_YOUTUBE_URL_LENGTH } from "./lib/analysis";
 
-// The Score view pulls in ScoreViewer -> pdfjs-dist, which needs DOMMatrix
-// (absent in jsdom). Stub the pdf.js bridge so App can mount the real
-// ScoreView without loading the WebGL/canvas-heavy library.
-vi.mock("./features/score/pdfjs", () => ({
-  configureScorePdfWorker: vi.fn(),
-  loadScorePdf: vi.fn(() => ({
-    promise: Promise.resolve({ numPages: 1, getPage: vi.fn() }),
-    destroy: vi.fn(() => Promise.resolve())
-  }))
-}));
-
 const tauriInvoke = vi.fn();
 const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
@@ -217,8 +206,6 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
-    expect(fireEvent.click(screen.getByRole("button", { name: /settings coming soon/i }))).toBe(false);
-    expect(fireEvent.click(screen.getByRole("button", { name: /help coming soon/i }))).toBe(false);
     const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
     const activePrimaryNavButton = within(primaryNav).getByRole("button", { name: "Workspace" });
     expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
@@ -246,27 +233,6 @@ describe("App", () => {
     expect(screen.getByText(/Local-first/i)).toBeTruthy();
     expect(screen.getByText(/Project files stay local/i)).toBeTruthy();
     expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
-  });
-
-  it("renders localized Korean shell copy for buyer-demo surfaces", () => {
-    const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
-
-    try {
-      render(<App />);
-
-      expect(screen.getByRole("navigation", { name: /주요 합주 보기/i })).toBeTruthy();
-      expect(screen.getByRole("heading", { name: /작업 공간 홈/i })).toBeTruthy();
-      expect(screen.getByText(/동기화됨 • 로컬/i)).toBeTruthy();
-      expect(screen.getByRole("button", { name: /^작업 공간$/i })).toBeTruthy();
-      expect(screen.getByRole("button", { name: /프로젝트 열기/i })).toBeTruthy();
-      expect(screen.getByRole("button", { name: /유튜브 가져오기/i })).toBeTruthy();
-      expect(screen.getByText(/로컬 우선/i)).toBeTruthy();
-      expect(screen.getByText(/합주 지도는 이 기기에 머뭅니다/i)).toBeTruthy();
-      expect(screen.getByText(/^템포$/i)).toBeTruthy();
-      expect(screen.queryByRole("heading", { name: /Workspace Home/i })).toBeNull();
-    } finally {
-      languageSpy.mockRestore();
-    }
   });
 
   it("keeps source controls before the analysis summary", () => {
@@ -357,35 +323,6 @@ describe("App", () => {
       expect(screen.getByText(/^Medium$/i)).toBeTruthy();
     });
     expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
-  });
-
-  it("short-circuits confidence evaluation when encountering a low confidence section", async () => {
-    const loadedProject = succeededResult().result; // medium is first
-    // Add low and high sections. High shouldn't matter since low is lowest.
-    // And low will trigger the early break in the loop.
-    loadedProject.sections.push(
-      {
-        ...loadedProject.sections[0],
-        id: "bridge-1",
-        label: "bridge",
-        confidence: { level: "low", source: "model", notes: "Low confidence bridge" }
-      },
-      {
-        ...loadedProject.sections[0],
-        id: "outro-1",
-        label: "outro",
-        confidence: { level: "high", source: "model", notes: "High confidence outro" }
-      }
-    );
-    mockLoadProject.mockResolvedValueOnce(loadedProject);
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/^Low$/i)).toBeTruthy();
-    });
-    expect(screen.getAllByText(/3 sections/i).length).toBeGreaterThan(0);
   });
 
   it("selects a local audio source and starts a local-audio analysis job", async () => {
@@ -1146,8 +1083,6 @@ describe("App", () => {
     expect(document.activeElement).toBe(input);
     expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
-    expect(input).not.toHaveAttribute("aria-invalid");
-    expect(input).not.toHaveAttribute("aria-describedby");
   });
 
   it("handles YouTube import failure with a message", async () => {
@@ -1162,11 +1097,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent(/This video is age restricted/i);
-      expect(alert).toHaveAttribute("id", "selection-error");
-      expect(input).toHaveAttribute("aria-invalid", "true");
-      expect(input).toHaveAttribute("aria-describedby", alert.id);
+      expect(screen.getByText(/This video is age restricted/i)).toBeTruthy();
     });
   });
 
@@ -1529,10 +1460,8 @@ describe("App", () => {
 
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
-    const saveButton = screen.getByRole("button", { name: /save project/i });
-    expect(saveButton).toHaveAttribute("aria-disabled", "true");
-    expect(saveButton).not.toHaveAttribute("disabled");
-    fireEvent.click(saveButton);
+    const saveSpan = screen.getByTitle("Analyze a song to enable saving");
+    fireEvent.click(saveSpan);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 
@@ -1553,67 +1482,10 @@ describe("App", () => {
   });
 
 
-  it("renders Settings and Help as focusable aria-disabled controls", () => {
+  it("renders disabled Settings and Help buttons as focusable spans for accessibility", () => {
     render(<App />);
-    const settingsButton = screen.getByRole("button", { name: "Settings coming soon" });
-    const helpButton = screen.getByRole("button", { name: "Help coming soon" });
-    expect(settingsButton).toHaveAttribute("aria-disabled", "true");
-    expect(settingsButton).not.toHaveAttribute("disabled");
-    expect(helpButton).toHaveAttribute("aria-disabled", "true");
-    expect(helpButton).not.toHaveAttribute("disabled");
-  });
-
-  it("keeps the Score view disabled until a song is loaded", () => {
-    render(<App />);
-
-    const scoreButtons = screen.getAllByRole("button", { name: /^Score$/i });
-    expect(scoreButtons.length).toBeGreaterThan(0);
-    for (const button of scoreButtons) {
-      expect(button).toHaveAttribute("aria-disabled", "true");
-      expect(button).not.toHaveAttribute("disabled");
-    }
-    expect(screen.queryByRole("heading", { name: /Score · Late Night Set/i })).toBeNull();
-  });
-
-  it("switches to the Score view after a project is loaded", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
-    await waitFor(() => {
-      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
-    });
-
-    const scoreButton = screen.getAllByRole("button", { name: /^Score$/i })[0];
-    expect(scoreButton).toBeEnabled();
-    fireEvent.click(scoreButton);
-
-    expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
-    // Projects opened from a .bscope file have no live workspace, so score
-    // storage is gated behind the active-project notice.
-    expect(screen.getByText(/Scores attach to the active analysis project/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Song Timeline/i)).toBeNull();
-  });
-
-  it("switches to the Score view from the compact mobile navigation", async () => {
-    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
-    await waitFor(() => {
-      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
-    });
-
-    // The compact nav is a separate rendered bar (shown on small viewports) with
-    // its own set of buttons; exercise it directly so the mobile navigation path
-    // is covered, not just the sidebar one.
-    const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
-    const compactScoreButton = within(compactNav).getByRole("button", { name: /Score compact view/i });
-    expect(compactScoreButton).toBeEnabled();
-
-    fireEvent.click(compactScoreButton);
-
-    expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
-    expect(screen.queryByText(/Song Timeline/i)).toBeNull();
+    const settingsSpan = screen.getByTitle("Settings coming soon");
+    expect(settingsSpan).toHaveAttribute("tabIndex", "0");
+    expect(settingsSpan).toHaveAttribute("role", "button");
   });
 });

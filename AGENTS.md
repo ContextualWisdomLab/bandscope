@@ -16,23 +16,6 @@
 - If a task touches files, URLs, subprocesses, ffmpeg or native tools, WebView, local backend or IPC, updates, model downloads, project formats, logs, telemetry, or exports, the result must include `Security Notes`.
 - `Security Notes` should cover untrusted inputs, trust boundaries, allowlists or validation, safe failure, logging/privacy impact, and test points.
 
-<!-- BEGIN cwl-agent-guidance -->
-## Agent guidance (CWL governance)
-This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working in this repo.
-
-### Security & review gate
-- Every PR runs a central **Security Scan** required gate: `osv-scan` + `dependency-review` (diff-scoped) and `trivy-fs` (repo-wide, CRITICAL/HIGH, fixable). It runs on every PR base, **including stacked PRs**. Gating is by the Security Scan **job result**.
-- A failing `trivy-fs` is a **REAL finding, not a flake.** Read the job log (it prints each finding's rule id / severity / file) or the run's SARIF results, then **remediate**:
-  - This repo ships **no Dockerfile and no k8s manifests**, so findings are almost always dependency vulns. Bump the offending package in the relevant lockfile — `apps/desktop/src-tauri/Cargo.lock` (Rust/Tauri), `package-lock.json` (Node), or `uv.lock` / `services/analysis-engine` (Python).
-  - Only for a genuine false positive, add a narrow, documented entry to the root `.trivyignore`. Do **not** weaken or disable the gate.
-- A local `trivy` scan with a stale DB misses findings: run `trivy --download-db-only` first, and scan the **merge ref**, not just the PR head.
-- **Worked example (currently blocking this repo's PRs):** GHSA-wrw7-89jp-8q8g in `glib 0.18.5` — transitive via `tauri 2.11` / `gtk-rs 0.18` in `apps/desktop/src-tauri/Cargo.lock`. Fix by bumping the dependency tree, not by ignoring it.
-- The org `code_scanning` ruleset is intentionally **CodeQL-only** (multiple code-scanning tools can't converge on one PR ref). Do **not** add tools to the `code_scanning` rule; enforcement stays on the Security Scan job.
-
-### Code exploration
-- This repo has **no `.codegraph/` index**, so use normal search (grep/find/ripgrep) to locate and understand code. If a `.codegraph/` directory is later added at the repo root, prefer CodeGraph (`codegraph explore "<query>"`, or the code-review-graph MCP tools) **before** grep/find — it surfaces callers/callees/impact that text search misses.
-<!-- END cwl-agent-guidance -->
-
 ## Supply chain workflow
 - Before adding or changing dependencies, GitHub Actions, bundled binaries, or model artifacts, read `docs/security/dependency-policy.md`.
 - New direct dependencies must include admission rationale covering purpose, dependency class, alternatives, maintainer trust, license fit, known security issues, transitive footprint, and BandScope release risk.
