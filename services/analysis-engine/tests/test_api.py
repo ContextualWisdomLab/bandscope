@@ -1,12 +1,12 @@
 """Tests for the public analysis-engine API helpers."""
 
 import queue
-import time
 from unittest.mock import patch
 
 import numpy as np
 
 from bandscope_analysis.api import (
+    StemSeparationTimedOut,
     _build_local_audio_features,
     _feature_cache_paths,
     _load_cached_analysis,
@@ -1241,6 +1241,62 @@ def test_stem_separation_process_helper_handles_empty_worker_exit() -> None:
             raise AssertionError("Expected RuntimeError")
 
 
+def test_stem_separation_process_helper_times_out_live_worker() -> None:
+    """Ensure a live worker past the deadline is terminated and reported as timed out."""
+
+    class TimeoutQueue:
+        def get(self, timeout: float) -> tuple[str, object]:
+            assert timeout > 0
+            raise queue.Empty
+
+        def close(self) -> None:
+            return None
+
+        def join_thread(self) -> None:
+            return None
+
+    class TimeoutProcess:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            self.terminated = False
+
+        def start(self) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return not self.terminated
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def kill(self) -> None:
+            self.terminated = True
+
+        def join(self, timeout: float | None = None) -> None:
+            return None
+
+    class TimeoutContext:
+        def __init__(self) -> None:
+            self.process = TimeoutProcess()
+
+        def Process(self, *_args: object, **_kwargs: object) -> TimeoutProcess:
+            return self.process
+
+        def Queue(self, maxsize: int) -> TimeoutQueue:
+            assert maxsize == 1
+            return TimeoutQueue()
+
+    timeout_context = TimeoutContext()
+    with patch("bandscope_analysis.api._multiprocessing_context", return_value=timeout_context):
+        try:
+            _run_stem_separation_with_timeout("/tmp/audio.wav", timeout_seconds=0)
+        except StemSeparationTimedOut as error:
+            assert "Stem separation exceeded 0s." in str(error)
+        else:
+            raise AssertionError("Expected StemSeparationTimedOut")
+
+    assert timeout_context.process.terminated is True
+
+
 def test_stop_process_kills_stubborn_worker() -> None:
     """Ensure stubborn timed-out workers are killed after terminate."""
 
@@ -1302,33 +1358,17 @@ def test_run_analysis_job_updates_degrades_when_stem_step_is_unavailable() -> No
 def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out() -> None:
     """Ensure timed-out ML stem inference continues with fallback cues instead of hard failure."""
 
-    def _slow_separate(_source_path: str) -> dict[str, object]:
-        time.sleep(0.4)
-        return {
-            "stems": {
-                "vocals": np.zeros(1024),
-                "bass": np.zeros(1024),
-                "drums": np.zeros(1024),
-                "other": np.zeros(1024),
-            },
-            "sample_rate": 22050,
-            "duration_seconds": 1.0,
-            "chunk_count": 1,
-            "separation_notes": "Separated selected local audio into 4 canonical stems.",
-        }
-
     with (
-        patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
-        patch("bandscope_analysis.api.STEM_SEPARATION_TIMEOUT_SECONDS", 0.001),
+        patch(
+            "bandscope_analysis.api._build_local_audio_features",
+            side_effect=StemSeparationTimedOut("Stem separation exceeded 0.001s."),
+        ),
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
     ):
-        separator_class.return_value.separate.side_effect = _slow_separate
-
-        started_at = time.monotonic()
         updates = list(
             run_analysis_job_updates(
                 "job-timeout",
@@ -1347,10 +1387,8 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
                 "2026-03-12T00:00:00Z",
             )
         )
-        elapsed = time.monotonic() - started_at
 
     assert updates[-1]["state"] == "succeeded"
-    assert elapsed < 0.4
     assert any(
         update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
