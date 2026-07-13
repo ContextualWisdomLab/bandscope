@@ -6,13 +6,12 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"require('node:fs').mkdirSync('coverage/.tmp', { recursive: true })\" && vitest run",
-    "coverage": "node -e \"require('node:fs').mkdirSync('coverage/.tmp', { recursive: true })\" && vitest run --coverage"
+    "test": "vitest run --coverage"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^25.9.3",
     "@vitest/coverage-v8": "^4.1.5",
-    "eslint": "^10.7.0",
+    "eslint": "^10.5.0",
     "fast-check": "^4.8.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.1",

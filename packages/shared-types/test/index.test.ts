@@ -756,33 +756,6 @@ describe("shared type helpers", () => {
     })).toThrow("exportSummary.format");
   });
 
-  it("round-trips score attachment metadata and rejects malformed entries", () => {
-    const song = createDemoRehearsalSong() as unknown as Record<string, unknown>;
-    const attachment = { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" };
-
-    expect(parseRehearsalSong({ ...song, scoreAttachments: [attachment] }).scoreAttachments).toEqual([attachment]);
-    expect(parseRehearsalSong({ ...song }).scoreAttachments).toBeUndefined();
-
-    expect(() => parseRehearsalSong({ ...song, scoreAttachments: {} })).toThrow("scoreAttachments");
-    expect(() => parseRehearsalSong({ ...song, scoreAttachments: [null] })).toThrow("scoreAttachments[0]");
-    expect(() => parseRehearsalSong({
-      ...song,
-      scoreAttachments: [{ ...attachment, extra: true }]
-    })).toThrow("scoreAttachments[0].extra");
-    expect(() => parseRehearsalSong({
-      ...song,
-      scoreAttachments: [{ id: "", fileName: "opener.pdf" }]
-    })).toThrow("scoreAttachments[0].id");
-    expect(() => parseRehearsalSong({
-      ...song,
-      scoreAttachments: [{ id: 42, fileName: "opener.pdf" }]
-    })).toThrow("scoreAttachments[0].id");
-    expect(() => parseRehearsalSong({
-      ...song,
-      scoreAttachments: [{ id: attachment.id, fileName: "" }]
-    })).toThrow("scoreAttachments[0].fileName");
-  });
-
   it("reports the first invalid field path for nested contract failures", () => {
     const roleSparse = createDemoRehearsalSong() as unknown as {
       sections: Array<{ roles: unknown[] }>;
@@ -917,43 +890,6 @@ describe("shared type helpers", () => {
         }]
       }]
     })).toThrow("sections[0].roles[0].manualOverrides[0].extraField");
-  });
-
-  it("validates tempo correctly", () => {
-    const validSong = createDemoRehearsalSong();
-    expect(isRehearsalSong(validSong)).toBe(true);
-    validSong.tempo = 140;
-    expect(isRehearsalSong(validSong)).toBe(true);
-
-    const withoutTempo = createDemoRehearsalSong();
-    delete withoutTempo.tempo;
-    expect(isRehearsalSong(withoutTempo)).toBe(true);
-    expect(parseRehearsalSong(withoutTempo)).toEqual(withoutTempo);
-
-    const invalidTempoString = { ...createDemoRehearsalSong(), tempo: "120" };
-    expect(() => parseRehearsalSong(invalidTempoString)).toThrow("tempo");
-
-    const invalidTempoZero = { ...createDemoRehearsalSong(), tempo: 0 };
-    expect(() => parseRehearsalSong(invalidTempoZero)).toThrow("tempo");
-
-    const invalidTempoNegative = { ...createDemoRehearsalSong(), tempo: -10 };
-    expect(() => parseRehearsalSong(invalidTempoNegative)).toThrow("tempo");
-
-    const invalidTempoNaN = { ...createDemoRehearsalSong(), tempo: NaN };
-    expect(() => parseRehearsalSong(invalidTempoNaN)).toThrow("tempo");
-
-    const invalidTempoInfinity = { ...createDemoRehearsalSong(), tempo: Infinity };
-    expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
-  });
-
-  it("validates practiceProgress successfully when valid", () => {
-    const validPracticeProgressSong = createDemoRehearsalSong();
-    validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;
-    expect(isRehearsalSong(validPracticeProgressSong)).toBe(true);
-    validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 50;
-    expect(isRehearsalSong(validPracticeProgressSong)).toBe(true);
-    validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 100;
-    expect(isRehearsalSong(validPracticeProgressSong)).toBe(true);
   });
 
   it("covers detailed validation branches", () => {
@@ -1178,30 +1114,6 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
-        })
-      },
-      {
-        message: "sections[0].roles[0].practiceProgress",
-        payload: createInvalidSong((song) => {
-          song.sections[0]!.roles[0]!.practiceProgress = -1 as never;
-        })
-      },
-      {
-        message: "sections[0].roles[0].practiceProgress",
-        payload: createInvalidSong((song) => {
-          song.sections[0]!.roles[0]!.practiceProgress = 101 as never;
-        })
-      },
-      {
-        message: "sections[0].roles[0].practiceProgress",
-        payload: createInvalidSong((song) => {
-          song.sections[0]!.roles[0]!.practiceProgress = 50.5 as never;
-        })
-      },
-      {
-        message: "sections[0].roles[0].practiceProgress",
-        payload: createInvalidSong((song) => {
-          (song.sections[0]!.roles[0] as unknown as Record<string, unknown>).practiceProgress = "50";
         })
       },
       {

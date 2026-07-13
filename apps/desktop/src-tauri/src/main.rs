@@ -1,18 +1,273 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use bandscope_desktop_core::*;
 use rfd::FileDialog;
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use std::{
+    collections::HashMap,
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::{atomic::Ordering, mpsc},
+    sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+        mpsc, Arc, Mutex,
+    },
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 use tauri::{Emitter, Manager, Runtime};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+
+#[derive(Clone)]
+struct AppState(Arc<AppStateInner>);
+
+struct AppStateInner {
+    next_job: AtomicU64,
+    in_flight_jobs: AtomicUsize,
+    jobs: Mutex<HashMap<String, AnalysisJobStatus>>,
+    bootstrap_sources: Mutex<HashMap<String, ProjectBootstrapSummaryPayload>>,
+}
+
+const MAX_IN_FLIGHT_JOBS: usize = 2;
+const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
+const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
+const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
+const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__";
+const YOUTUBE_IMPORT_TIMEOUT: Duration = Duration::from_secs(120);
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self(Arc::new(AppStateInner {
+            next_job: AtomicU64::new(1),
+            in_flight_jobs: AtomicUsize::new(0),
+            jobs: Mutex::new(HashMap::new()),
+            bootstrap_sources: Mutex::new(HashMap::new()),
+        }))
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AnalysisJobRequest {
+    source_kind: String,
+    project_id: Option<String>,
+    source_label: String,
+    role_focus: Vec<String>,
+    local_source: Option<LocalAudioSourcePayload>,
+    cache_root: Option<String>,
+    temp_root: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AnalysisJobErrorCode {
+    InvalidRequest,
+    NotFound,
+    EngineUnavailable,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AnalysisJobError {
+    code: AnalysisJobErrorCode,
+    message: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AnalysisJobState {
+    Queued,
+    Running,
+    Succeeded,
+    Failed,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AnalysisJobStage {
+    Queued,
+    Decode,
+    Separate,
+    Analyze,
+    Persist,
+    Ready,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AnalysisCacheStatus {
+    Disabled,
+    Miss,
+    Hit,
+    Stored,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RehearsalSongPayload {
+    id: String,
+    title: String,
+    sections: Vec<RehearsalSectionPayload>,
+    export_summary: ExportSummaryPayload,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ConfidencePayload {
+    level: String,
+    source: String,
+    notes: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CuePayload {
+    kind: String,
+    value: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RangePayload {
+    lowest_note: String,
+    highest_note: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct HarmonyPayload {
+    chord: String,
+    function_label: String,
+    source: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ManualOverridePayload {
+    field: String,
+    value: HarmonyPayload,
+    source: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RehearsalRolePayload {
+    id: String,
+    name: String,
+    role_type: String,
+    harmony: HarmonyPayload,
+    cue: CuePayload,
+    range: RangePayload,
+    confidence: ConfidencePayload,
+    rehearsal_priority: String,
+    simplification: String,
+    setup_note: String,
+    manual_overrides: Vec<ManualOverridePayload>,
+    overlap_warnings: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SectionTimeRangePayload {
+    start: u32,
+    end: u32,
+}
+
+impl<'de> Deserialize<'de> for SectionTimeRangePayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        struct RawSectionTimeRangePayload {
+            start: u32,
+            end: u32,
+        }
+
+        let raw = RawSectionTimeRangePayload::deserialize(deserializer)?;
+        if raw.end <= raw.start {
+            return Err(serde::de::Error::custom(
+                "section timeRange end must be greater than start",
+            ));
+        }
+
+        Ok(Self {
+            start: raw.start,
+            end: raw.end,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PartGraphNodePayload {
+    role_id: String,
+    is_active: bool,
+    handoff_to: Vec<String>,
+    handoff_from: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RehearsalSectionPayload {
+    id: String,
+    label: String,
+    groove: String,
+    time_range: SectionTimeRangePayload,
+    confidence: ConfidencePayload,
+    roles: Vec<RehearsalRolePayload>,
+    part_graph: Vec<PartGraphNodePayload>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportSummaryPayload {
+    format: String,
+    headline: String,
+    focus_sections: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AnalysisJobStatus {
+    job_id: String,
+    state: AnalysisJobState,
+    requested_at: String,
+    updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    progress_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    progress_stage: Option<AnalysisJobStage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    progress_percent: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_status: Option<AnalysisCacheStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<RehearsalSongPayload>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<AnalysisJobError>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LocalAudioSourcePayload {
+    source_path: String,
+    file_name: String,
+    extension: String,
+    file_size_bytes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProjectBootstrapSummaryPayload {
+    project_id: String,
+    source_mode: String,
+    project_root: String,
+    cache_root: String,
+    temp_root: String,
+    source: LocalAudioSourcePayload,
+}
 
 fn iso_timestamp_now() -> String {
     OffsetDateTime::now_utc()
@@ -110,15 +365,19 @@ fn release_job_slot(state: &AppState) {
     state.0.in_flight_jobs.fetch_sub(1, Ordering::SeqCst);
 }
 
+fn next_project_id(state: &AppState) -> String {
+    format!(
+        "project-{}-{}",
+        OffsetDateTime::now_utc().unix_timestamp_nanos(),
+        state.0.next_job.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
 fn app_owned_root<R: Runtime>(
     app: &tauri::AppHandle<R>,
     kind: &str,
     project_id: &str,
 ) -> Result<PathBuf, String> {
-    if !is_valid_project_id(project_id) {
-        return Err("Invalid project ID: path traversal detected.".to_string());
-    }
-
     let base_root = match kind {
         "projects" => app
             .path()
@@ -168,6 +427,74 @@ fn normalize_local_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, 
         file_name: file_name.to_string(),
         extension,
         file_size_bytes: metadata.len(),
+    })
+}
+
+fn youtube_source_from_metadata(
+    metadata: &Value,
+    cache_root: &Path,
+) -> Result<LocalAudioSourcePayload, String> {
+    let filepath = metadata
+        .get("filepath")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "Failed to parse YouTube import response.".to_string())?;
+    let title = metadata
+        .get("title")
+        .and_then(|value| value.as_str())
+        .unwrap_or("Unknown YouTube Audio");
+    let path = Path::new(filepath);
+    let link_metadata = std::fs::symlink_metadata(path)
+        .map_err(|_| "Could not read downloaded audio file.".to_string())?;
+    if link_metadata.file_type().is_symlink() {
+        return Err("YouTube import returned an invalid audio path.".to_string());
+    }
+
+    let canonical_cache_root = cache_root
+        .canonicalize()
+        .map_err(|_| "Could not validate YouTube import workspace.".to_string())?;
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| "Could not read downloaded audio file.".to_string())?;
+    if !canonical.starts_with(&canonical_cache_root) {
+        return Err("YouTube import returned an invalid audio path.".to_string());
+    }
+
+    let file_metadata = std::fs::metadata(&canonical)
+        .map_err(|_| "Could not read downloaded audio file.".to_string())?;
+    if !file_metadata.is_file() || file_metadata.len() == 0 {
+        return Err("YouTube import returned an invalid audio file.".to_string());
+    }
+
+    let extension = canonical
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| "YouTube import returned an unsupported audio format.".to_string())?;
+    if !AUDIO_EXTENSIONS.contains(&extension.as_str()) {
+        return Err("YouTube import returned an unsupported audio format.".to_string());
+    }
+
+    let safe_title: String = title
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '.' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .take(100)
+        .collect();
+    let safe_title = if safe_title.is_empty() {
+        "youtube_audio".to_string()
+    } else {
+        safe_title
+    };
+
+    Ok(LocalAudioSourcePayload {
+        source_path: canonical.to_string_lossy().into_owned(),
+        file_name: format!("{safe_title}.{extension}"),
+        extension,
+        file_size_bytes: file_metadata.len(),
     })
 }
 
@@ -230,28 +557,19 @@ fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
             let Some(project_id) = project_id else {
                 return Err("Invalid analysis job request: invalid field 'projectId'".into());
             };
-            if !is_valid_project_id(project_id) {
-                return Err("Invalid analysis job request: invalid field 'projectId'".to_string());
+            if project_id.trim().is_empty() {
+                return Err("Invalid analysis job request: invalid field 'projectId'".into());
             }
             if local_source.is_some() {
                 return Err("Invalid analysis job request: invalid field 'localSource'".into());
             }
-            return Ok(AnalysisJobRequest {
-                source_kind: "local_audio".to_string(),
-                project_id: Some(project_id.to_string()),
-                source_label: source_label.to_string(),
-                role_focus: parsed_role_focus,
-                local_source,
-                cache_root: None,
-                temp_root: None,
-            });
         }
         _ => {}
     }
 
     Ok(AnalysisJobRequest {
         source_kind: source_kind.unwrap_or("demo").to_string(),
-        project_id: None,
+        project_id: project_id.map(|value| value.to_string()),
         source_label: source_label.to_string(),
         role_focus: parsed_role_focus,
         local_source,
@@ -738,6 +1056,150 @@ async fn import_youtube_url(
     Err("YouTube import failed with an unknown error.".to_string())
 }
 
+fn is_supported_youtube_url(url: &str) -> bool {
+    let parsed_url = match url::Url::parse(url) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+    if parsed_url.scheme() != "https" {
+        return false;
+    }
+
+    let host = parsed_url.host_str().unwrap_or("").to_lowercase();
+    if host == "youtu.be" {
+        let mut segments = match parsed_url.path_segments() {
+            Some(s) => s.filter(|segment| !segment.is_empty()),
+            None => return false,
+        };
+        let Some(video_id) = segments.next() else {
+            return false;
+        };
+        return is_youtube_video_id(video_id) && segments.next().is_none();
+    }
+
+    if host == "youtube.com" || host == "www.youtube.com" {
+        if parsed_url.path() != "/watch" {
+            return false;
+        }
+        let mut video_ids = parsed_url
+            .query_pairs()
+            .filter(|(key, _)| key == "v")
+            .map(|(_, value)| value);
+        return match (video_ids.next(), video_ids.next()) {
+            (Some(video_id), None) => is_youtube_video_id(video_id.as_ref()),
+            _ => false,
+        };
+    }
+
+    false
+}
+
+fn youtube_missing_metadata_error(_parsed: &Value) -> String {
+    "YouTube import reported ok but missing metadata.".to_string()
+}
+
+fn wait_for_process_output(
+    mut command: Command,
+    timeout: Duration,
+    poll_interval: Duration,
+    timeout_message: &str,
+) -> Result<std::process::Output, String> {
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|_| "Failed to start YouTube import process.".to_string())?;
+    let Some(stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("Failed to execute YouTube import process.".to_string());
+    };
+    let Some(stderr) = child.stderr.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("Failed to execute YouTube import process.".to_string());
+    };
+    let stdout_reader = thread::spawn(move || {
+        let mut reader = stdout;
+        let mut buffer = Vec::new();
+        reader.read_to_end(&mut buffer).map(|_| buffer)
+    });
+    let stderr_reader = thread::spawn(move || {
+        let mut reader = stderr;
+        let mut buffer = Vec::new();
+        reader.read_to_end(&mut buffer).map(|_| buffer)
+    });
+    let deadline = Instant::now() + timeout;
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let stdout = stdout_reader
+                    .join()
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?;
+                let stderr = stderr_reader
+                    .join()
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?
+                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?;
+                return Ok(std::process::Output {
+                    status,
+                    stdout,
+                    stderr,
+                });
+            }
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let _ = stdout_reader.join();
+                    let _ = stderr_reader.join();
+                    return Err(timeout_message.to_string());
+                }
+                thread::sleep(poll_interval);
+            }
+            Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = stdout_reader.join();
+                let _ = stderr_reader.join();
+                return Err("Failed to execute YouTube import process.".to_string());
+            }
+        }
+    }
+}
+
+fn is_youtube_video_id(value: &str) -> bool {
+    value.len() == 11
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+}
+
+fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
+    if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
+        return Ok(parsed);
+    }
+
+    let payload = serde_json::from_str::<Value>(content)
+        .map_err(|_| "Invalid project file format".to_string())?;
+    if let Some(sections) = payload.get("sections").and_then(Value::as_array) {
+        for (section_index, section) in sections.iter().enumerate() {
+            if section
+                .as_object()
+                .is_some_and(|section_object| !section_object.contains_key("timeRange"))
+            {
+                return Err(format!(
+                    "Invalid project file format: sections[{section_index}].timeRange is required; reanalyze the project to restore section timing."
+                ));
+            }
+        }
+    }
+
+    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+}
+
 #[tauri::command]
 fn save_project(payload: Value) -> Result<(), String> {
     let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
@@ -771,98 +1233,276 @@ fn load_project() -> Result<RehearsalSongPayload, String> {
     project_payload_from_content(&content)
 }
 
-fn scores_root_for_project<R: Runtime>(
-    app: &tauri::AppHandle<R>,
-    project_id: &str,
-) -> Result<PathBuf, String> {
-    // Callers must have validated `project_id` with `is_valid_project_id`
-    // before this join; the root stays inside the app-owned data directory.
-    let project_root = app_owned_root(app, "projects", project_id)?;
-    let root = project_root.join("scores");
-    std::fs::create_dir_all(&root)
-        .map_err(|_| "Could not prepare the local scores workspace.".to_string())?;
-    Ok(root)
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Security Notes: the file path comes exclusively from the OS file dialog
-/// (never from JS), is validated (magic bytes, size, extension, no symlink),
-/// and is copied into the app-owned scores directory. The stored copy is named
-/// by a locally minted UUID v4, so no untrusted external path is ever
-/// referenced again after this command returns.
-#[tauri::command]
-fn attach_score_pdf(
-    project_id: String,
-    song_id: String,
-    app: tauri::AppHandle<impl Runtime>,
-) -> Result<ScoreAttachmentPayload, String> {
-    if !is_valid_project_id(&project_id) {
-        return Err("Invalid project id.".to_string());
-    }
-    // `song_id` is part of the viewer contract (score-to-song association is
-    // persisted on the JS side in a later slice); it never touches a path.
-    if song_id.trim().is_empty() {
-        return Err("Invalid song id.".to_string());
+    fn unique_test_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("bandscope-{name}-{suffix}"))
     }
 
-    let path = FileDialog::new()
-        .add_filter("PDF Score", &["pdf"])
-        .pick_file()
-        .ok_or_else(|| "Choose a PDF file to attach as a score.".to_string())?;
-    let (source, file_name, file_size_bytes) = validate_score_pdf_source(&path)?;
-
-    let scores_root = scores_root_for_project(&app, &project_id)?;
-    let score_id = uuid::Uuid::new_v4().to_string();
-    let destination = scores_root.join(format!("{score_id}.pdf"));
-    std::fs::copy(&source, &destination)
-        .map_err(|_| "Could not copy the PDF into the project workspace.".to_string())?;
-
-    Ok(ScoreAttachmentPayload {
-        score_id,
-        file_name,
-        file_size_bytes,
-    })
-}
-
-/// Security Notes: no path crosses the IPC boundary. Both ids are validated
-/// against strict allowlist shapes, the path is rebuilt locally, and the
-/// canonicalize-plus-prefix guard in `resolve_existing_score_pdf` rejects any
-/// escape from the app-owned scores root.
-#[tauri::command]
-fn read_score_pdf(
-    project_id: String,
-    score_id: String,
-    app: tauri::AppHandle<impl Runtime>,
-) -> Result<Vec<u8>, String> {
-    if !is_valid_project_id(&project_id) {
-        return Err("Invalid project id.".to_string());
+    fn shared_contract_payload(time_range: Value) -> Value {
+        json!({
+            "id": "demo-song",
+            "title": "Late Night Set",
+            "sections": [
+                {
+                    "id": "verse-1",
+                    "label": "verse",
+                    "groove": "Straight eighths with a late snare feel",
+                    "timeRange": time_range,
+                    "confidence": {
+                        "level": "medium",
+                        "source": "model",
+                        "notes": "Double-check the pickup into the chorus."
+                    },
+                    "roles": [
+                        {
+                            "id": "bass-guitar",
+                            "name": "Bass Guitar",
+                            "roleType": "instrument",
+                            "harmony": {
+                                "chord": "C#m7",
+                                "functionLabel": "vi pedal anchor",
+                                "source": "model"
+                            },
+                            "cue": {
+                                "kind": "transition",
+                                "value": "Hold through the pickup before the downbeat."
+                            },
+                            "range": {
+                                "lowestNote": "C#2",
+                                "highestNote": "E3"
+                            },
+                            "confidence": {
+                                "level": "medium",
+                                "source": "model",
+                                "notes": "Watch the slide into the turnaround."
+                            },
+                            "rehearsalPriority": "high",
+                            "simplification": "Stay on roots if the chorus entrance gets muddy.",
+                            "setupNote": "Keep the attack short so the verse breathes.",
+                            "manualOverrides": [],
+                            "overlapWarnings": [
+                                "Density warning: competing with Keyboard Left Hand in low register."
+                            ]
+                        }
+                    ],
+                    "partGraph": [
+                        {
+                            "role_id": "bass-guitar",
+                            "is_active": true,
+                            "handoff_to": ["lead-vocal"],
+                            "handoff_from": []
+                        }
+                    ]
+                }
+            ],
+            "exportSummary": {
+                "format": "cue-sheet",
+                "headline": "Start with the verse handoff and low-register overlap.",
+                "focusSections": ["verse-1"]
+            }
+        })
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
-    let path = resolve_existing_score_pdf(&scores_root, &score_id)?;
-    std::fs::read(path).map_err(|_| "Could not read the score PDF.".to_string())
-}
 
-/// Security Notes: same id validation and traversal guard as `read_score_pdf`;
-/// deletion is scoped to a single validated file inside the app-owned scores
-/// root. Returns `false` when the score does not exist (idempotent removal).
-#[tauri::command]
-fn remove_score_pdf(
-    project_id: String,
-    score_id: String,
-    app: tauri::AppHandle<impl Runtime>,
-) -> Result<bool, String> {
-    if !is_valid_project_id(&project_id) {
-        return Err("Invalid project id.".to_string());
+    #[test]
+    fn rehearsal_song_payload_accepts_shared_section_contract() {
+        let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("shared rehearsal song contract should deserialize in Tauri");
+
+        assert_eq!(parsed.sections[0].id, "verse-1");
     }
-    if !is_valid_score_id(&score_id) {
-        return Err("Invalid score id.".to_string());
+
+    #[test]
+    fn rehearsal_song_payload_rejects_reversed_time_range() {
+        let payload = shared_contract_payload(json!({ "start": 30, "end": 10 }));
+
+        assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
-    let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
-        Ok(path) => path,
-        Err(_) => return Ok(false),
-    };
-    std::fs::remove_file(path).map_err(|_| "Could not remove the score PDF.".to_string())?;
-    Ok(true)
+
+    #[test]
+    fn project_payload_from_content_rejects_legacy_missing_time_range() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]
+            .as_object_mut()
+            .expect("section should be an object")
+            .remove("timeRange");
+        let content = serde_json::to_string(&payload).expect("legacy payload should serialize");
+
+        let error = project_payload_from_content(&content)
+            .expect_err("legacy sections without timing should fail closed");
+
+        assert!(error.contains("timeRange"));
+    }
+
+    #[test]
+    fn youtube_url_validation_requires_exact_video_ids() {
+        assert!(is_supported_youtube_url(
+            "https://youtube.com/watch?v=abc123DEF45"
+        ));
+        assert!(is_supported_youtube_url(
+            "https://www.youtube.com/watch?v=abc123DEF45"
+        ));
+        assert!(is_supported_youtube_url("https://youtu.be/abc123DEF45"));
+
+        assert!(!is_supported_youtube_url(
+            "https://evil.youtube.com/watch?v=abc123DEF45"
+        ));
+        assert!(!is_supported_youtube_url(
+            "https://youtube.com/watch?v=abc123"
+        ));
+        assert!(!is_supported_youtube_url(
+            "https://youtube.com/watch?v=abc123DEF4!"
+        ));
+        assert!(!is_supported_youtube_url("https://youtube.com/watch"));
+        assert!(!is_supported_youtube_url(
+            "https://youtube.com/watch?v=abc123DEF45&v=def456GHI78"
+        ));
+        assert!(!is_supported_youtube_url("https://youtu.be/abc123"));
+        assert!(!is_supported_youtube_url("https://youtu.be/abc123DEF4!"));
+    }
+
+    #[test]
+    fn youtube_missing_metadata_error_does_not_expose_payload() {
+        let parsed = json!({
+            "ok": true,
+            "filepath": "/Users/someone/private-song.m4a",
+            "metadata": null
+        });
+
+        let message = youtube_missing_metadata_error(&parsed);
+
+        assert_eq!(message, "YouTube import reported ok but missing metadata.");
+        assert!(!message.contains("private-song"));
+        assert!(!message.contains("filepath"));
+    }
+
+    #[test]
+    fn youtube_process_timeout_kills_and_reaps_child() {
+        if std::env::var_os("BANDSCOPE_TEST_CHILD_SLEEP").is_some() {
+            thread::sleep(Duration::from_secs(5));
+            return;
+        }
+
+        let current_test_binary = std::env::current_exe().expect("test binary should resolve");
+        let mut command = Command::new(current_test_binary);
+        command
+            .env("BANDSCOPE_TEST_CHILD_SLEEP", "1")
+            .arg("--exact")
+            .arg("tests::youtube_process_timeout_kills_and_reaps_child")
+            .arg("--nocapture");
+
+        let result = wait_for_process_output(
+            command,
+            Duration::from_millis(50),
+            Duration::from_millis(5),
+            "YouTube import timed out.",
+        );
+
+        assert_eq!(
+            result.expect_err("slow child should time out"),
+            "YouTube import timed out."
+        );
+    }
+
+    #[test]
+    fn youtube_process_output_drains_large_stdout_and_stderr_before_exit() {
+        if std::env::var_os("BANDSCOPE_TEST_CHILD_LARGE_OUTPUT").is_some() {
+            let chunk = vec![b'x'; 1024 * 1024];
+            std::io::stdout()
+                .write_all(&chunk)
+                .expect("child stdout should accept test bytes");
+            std::io::stderr()
+                .write_all(&chunk)
+                .expect("child stderr should accept test bytes");
+            return;
+        }
+
+        let current_test_binary = std::env::current_exe().expect("test binary should resolve");
+        let mut command = Command::new(current_test_binary);
+        command
+            .env("BANDSCOPE_TEST_CHILD_LARGE_OUTPUT", "1")
+            .arg("--exact")
+            .arg("tests::youtube_process_output_drains_large_stdout_and_stderr_before_exit")
+            .arg("--nocapture");
+
+        let output = wait_for_process_output(
+            command,
+            Duration::from_secs(2),
+            Duration::from_millis(5),
+            "YouTube import timed out.",
+        )
+        .expect("large child output should be drained before timeout");
+
+        assert!(output.status.success());
+        assert!(output.stdout.len() >= 1024 * 1024);
+        assert!(output.stderr.len() >= 1024 * 1024);
+    }
+
+    #[test]
+    fn youtube_metadata_must_reference_supported_audio_inside_cache_root() {
+        let cache_root = unique_test_dir("youtube-cache");
+        let outside_root = unique_test_dir("youtube-outside");
+        std::fs::create_dir_all(&cache_root).expect("cache root should be created");
+        std::fs::create_dir_all(&outside_root).expect("outside root should be created");
+
+        let inside_file = cache_root.join("downloaded.m4a");
+        let empty_file = cache_root.join("empty.m4a");
+        let unsupported_file = cache_root.join("downloaded.txt");
+        let outside_file = outside_root.join("downloaded.m4a");
+        std::fs::write(&inside_file, b"audio").expect("inside file should be written");
+        std::fs::write(&empty_file, b"").expect("empty file should be written");
+        std::fs::write(&unsupported_file, b"not audio")
+            .expect("unsupported file should be written");
+        std::fs::write(&outside_file, b"audio").expect("outside file should be written");
+
+        let accepted = youtube_source_from_metadata(
+            &json!({ "filepath": inside_file, "title": "Live/Test" }),
+            &cache_root,
+        )
+        .expect("in-cache supported audio should be accepted");
+        assert_eq!(accepted.extension, "m4a");
+        assert_eq!(accepted.file_name, "Live_Test.m4a");
+
+        assert!(youtube_source_from_metadata(
+            &json!({ "filepath": empty_file, "title": "Live" }),
+            &cache_root,
+        )
+        .is_err());
+        assert!(youtube_source_from_metadata(
+            &json!({ "filepath": unsupported_file, "title": "Live" }),
+            &cache_root,
+        )
+        .is_err());
+        assert!(youtube_source_from_metadata(
+            &json!({ "filepath": outside_file, "title": "Live" }),
+            &cache_root,
+        )
+        .is_err());
+
+        #[cfg(unix)]
+        {
+            let symlink_file = cache_root.join("linked.m4a");
+            std::os::unix::fs::symlink(&inside_file, &symlink_file)
+                .expect("symlink should be created");
+            assert!(youtube_source_from_metadata(
+                &json!({ "filepath": symlink_file, "title": "Live" }),
+                &cache_root,
+            )
+            .is_err());
+        }
+
+        let _ = std::fs::remove_dir_all(cache_root);
+        let _ = std::fs::remove_dir_all(outside_root);
+    }
 }
 
 fn main() {
@@ -874,10 +1514,7 @@ fn main() {
             start_analysis_job,
             get_analysis_job_status,
             save_project,
-            load_project,
-            attach_score_pdf,
-            read_score_pdf,
-            remove_score_pdf
+            load_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
