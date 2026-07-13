@@ -113,6 +113,83 @@ describe("shared type helpers", () => {
     expect(() => parseProjectSummary({ ...validSummary, extraField: true })).toThrow("extraField");
   });
 
+  it("snapshots array length while validating dense array boundaries", () => {
+    let lengthReads = 0;
+    let entriesStarted = false;
+    const supportedAudioFormats = new Proxy(["wav"], {
+      get(target, property, receiver) {
+        if (property === "entries") {
+          entriesStarted = true;
+        }
+        if (property === "length") {
+          lengthReads += 1;
+          return !entriesStarted && lengthReads > 1 ? 2 : Reflect.get(target, property, receiver);
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    }) as ProjectSummary["supportedAudioFormats"];
+    const summary: ProjectSummary = {
+      id: "project-1",
+      title: "Demo Song",
+      status: "running",
+      supportedAudioFormats
+    };
+
+    expect(validateProjectSummary(summary)).toBeNull();
+  });
+
+  it("rejects array proxies with non-primitive changing lengths", () => {
+    let lengthCoercions = 0;
+    const changingLength = {
+      valueOf() {
+        lengthCoercions += 1;
+        return lengthCoercions === 1 ? 2 : 0;
+      }
+    };
+    const supportedAudioFormats = new Proxy(["wav"], {
+      get(target, property, receiver) {
+        if (property === "length") {
+          return changingLength;
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    }) as ProjectSummary["supportedAudioFormats"];
+    const summary: ProjectSummary = {
+      id: "project-1",
+      title: "Demo Song",
+      status: "running",
+      supportedAudioFormats
+    };
+
+    expect(validateProjectSummary(summary)).toBe(
+      "Invalid project summary contract: invalid field 'supportedAudioFormats'"
+    );
+    expect(lengthCoercions).toBe(1);
+  });
+
+  it("rejects array proxies with non-finite or out-of-range lengths", () => {
+    for (const length of [Number.POSITIVE_INFINITY, 0xffffffff + 1, 1.5]) {
+      const supportedAudioFormats = new Proxy(["wav"], {
+        get(target, property, receiver) {
+          if (property === "length") {
+            return length;
+          }
+          return Reflect.get(target, property, receiver);
+        }
+      }) as ProjectSummary["supportedAudioFormats"];
+      const summary: ProjectSummary = {
+        id: "project-1",
+        title: "Demo Song",
+        status: "running",
+        supportedAudioFormats
+      };
+
+      expect(validateProjectSummary(summary)).toBe(
+        "Invalid project summary contract: invalid field 'supportedAudioFormats'"
+      );
+    }
+  });
+
   it("property-checks supported local audio sources", () => {
     fc.assert(
       fc.property(
