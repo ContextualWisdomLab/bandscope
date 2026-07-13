@@ -44,6 +44,12 @@ python_version = "3.12"
 strict = true
 files = ["src"]
 
+# The optional Rust extension ships no type stubs / py.typed marker, and may be
+# absent entirely (the engine falls back to the Python reference kernels).
+[[tool.mypy.overrides]]
+module = ["bandscope_numeric"]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 
