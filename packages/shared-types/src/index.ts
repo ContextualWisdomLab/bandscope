@@ -390,7 +390,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isDenseArray(value: unknown): value is unknown[] {
   if (!Array.isArray(value)) return false;
   // Performance: Avoid O(N) allocation of intermediate array from Array.from()
-  for (let i = 0; i < value.length; i++) {
+  const arrayLength = value.length;
+  for (let i = 0; i < arrayLength; i++) {
     if (!(i in value)) {
       return false;
     }

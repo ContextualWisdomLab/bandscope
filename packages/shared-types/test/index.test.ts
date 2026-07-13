@@ -113,6 +113,31 @@ describe("shared type helpers", () => {
     expect(() => parseProjectSummary({ ...validSummary, extraField: true })).toThrow("extraField");
   });
 
+  it("snapshots array length while validating dense array boundaries", () => {
+    let lengthReads = 0;
+    let entriesStarted = false;
+    const supportedAudioFormats = new Proxy(["wav"], {
+      get(target, property, receiver) {
+        if (property === "entries") {
+          entriesStarted = true;
+        }
+        if (property === "length") {
+          lengthReads += 1;
+          return !entriesStarted && lengthReads > 1 ? 2 : Reflect.get(target, property, receiver);
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    }) as ProjectSummary["supportedAudioFormats"];
+    const summary: ProjectSummary = {
+      id: "project-1",
+      title: "Demo Song",
+      status: "running",
+      supportedAudioFormats
+    };
+
+    expect(validateProjectSummary(summary)).toBeNull();
+  });
+
   it("property-checks supported local audio sources", () => {
     fc.assert(
       fc.property(
