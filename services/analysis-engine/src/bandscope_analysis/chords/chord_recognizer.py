@@ -6,6 +6,8 @@ from typing import TypedDict
 import librosa
 import numpy as np
 
+from .._native import HAVE_RUST, _viterbi_decode_rust
+
 logger = logging.getLogger(__name__)
 
 # Number of chord states: 12 major + 12 minor + 1 no-chord (N)
@@ -134,11 +136,29 @@ class ChordRecognizer:
     def _viterbi_decode(self, observation_probs: np.ndarray) -> np.ndarray:
         """Run Viterbi algorithm over frame observations to smooth chord sequence.
 
+        Uses the Rust ``bandscope_numeric`` kernel when available (the default),
+        falling back to the NumPy reference implementation otherwise. Both paths
+        return identical decoded state sequences (see
+        ``tests/test_numeric_parity.py``).
+
         Args:
             observation_probs: Shape (n_states, n_frames) observation likelihood.
 
         Returns:
             Array of best state indices per frame, shape (n_frames,).
+        """
+        if HAVE_RUST and _viterbi_decode_rust is not None:  # pragma: no cover - native path
+            trans = np.ascontiguousarray(self._transition_matrix, dtype=np.float64)
+            obs = np.ascontiguousarray(observation_probs, dtype=np.float64)
+            return _viterbi_decode_rust(trans, obs).astype(np.intp)
+        return self._viterbi_decode_reference(observation_probs)
+
+    def _viterbi_decode_reference(self, observation_probs: np.ndarray) -> np.ndarray:
+        """Pure-NumPy reference implementation of log-space Viterbi decoding.
+
+        Retained as the parity oracle for the Rust port and as the runtime
+        fallback when the compiled extension is unavailable. Do not "optimize"
+        the math here: it defines the canonical decoded sequence.
         """
         n_states, n_frames = observation_probs.shape
         if n_frames == 0:
