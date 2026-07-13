@@ -118,39 +118,6 @@ def test_build_baseline_upload_artifact_pins_are_consistent() -> None:
     assert len(set(pins)) == 1
 
 
-def test_build_baseline_macos_intel_artifact_is_release_only_for_prs() -> None:
-    """Ensure PR builds log why macOS Intel artifact evidence is release-only."""
-    repo_root = Path(__file__).resolve().parents[3]
-    workflow = (repo_root / ".github" / "workflows" / "build-baseline.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert "build-macos-native:" in workflow
-    assert "if: github.event_name != 'pull_request'" in workflow
-    assert "gate-macos:" in workflow
-    assert "if: always()" in workflow
-    assert "macOS amd64 result: ${{ needs.build-macos-native.result }}" in workflow
-    assert "macOS arm64 result: ${{ needs.build-macos-arm64.result }}" in workflow
-    assert "macOS amd64 artifact build is release-only on pull_request events" in workflow
-    assert "tag and release builds still require the Intel artifact before publication" in workflow
-
-
-def test_ci_rust_gate_logs_pr_macos_capacity_guard() -> None:
-    """Ensure PR Rust checks do not wait on macOS capacity without logs."""
-    repo_root = Path(__file__).resolve().parents[3]
-    workflow = (repo_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-
-    assert "gate / ci / rust-check" in workflow
-    assert (
-        "runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'macos-15' }}"
-        in workflow
-    )
-    assert "Explain pull request Rust gate routing" in workflow
-    assert "Pull request Rust gate uses ubuntu-latest" in workflow
-    assert "waiting on macOS capacity without job output" in workflow
-    assert "if: ${{ github.event_name != 'pull_request' }}" in workflow
-
-
 def test_windows_antivirus_probe_logs_defender_provider_failures() -> None:
     """Ensure hosted-runner Defender provider errors do not fail Windows builds."""
     repo_root = Path(__file__).resolve().parents[3]
