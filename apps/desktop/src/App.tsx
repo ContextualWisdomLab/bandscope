@@ -210,20 +210,15 @@ function sectionCountDetail(t: ReturnType<typeof createTranslator>, sectionCount
 function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnType<typeof createTranslator> }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
-
-  // Performance: Avoid O(N) array scan with .reduce() to find minimum confidence.
-  // Instead use a for loop that can early exit (O(K)) as soon as the lowest bound ("low") is hit.
-  let lowestConfidence: RehearsalSong["sections"][number]["confidence"]["level"] | null = null;
-  if (song?.sections) {
-    for (const section of song.sections) {
-      if (!lowestConfidence || confidenceOrder[section.confidence.level] < confidenceOrder[lowestConfidence]) {
-        lowestConfidence = section.confidence.level;
-        if (lowestConfidence === "low") {
-          break; // Short-circuit early since "low" is the lowest possible confidence bound
-        }
+  const lowestConfidence = song?.sections.reduce<RehearsalSong["sections"][number]["confidence"]["level"] | null>(
+    (current, section) => {
+      if (!current || confidenceOrder[section.confidence.level] < confidenceOrder[current]) {
+        return section.confidence.level;
       }
-    }
-  }
+      return current;
+    },
+    null
+  );
   const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : t("metricConfidenceReady");
   const detail = sectionCountDetail(t, sectionCount);
 
@@ -260,7 +255,6 @@ export function App() {
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
-  const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
@@ -416,7 +410,6 @@ export function App() {
   /** Documented. */
   const handleChooseLocalAudio = async () => {
     setSelectionError(null);
-    setSelectionErrorSource(null);
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setSelectedBootstrap(selection.bootstrap);
@@ -425,24 +418,20 @@ export function App() {
 
     setSelectedBootstrap(null);
     setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
-    setSelectionErrorSource("local");
     setJobStatus(null);
   };
 
   /** Documented. */
   const handleImportYoutube = async () => {
     setSelectionError(null);
-    setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
     if (!normalizedUrl) {
       setSelectionError(t("youtubeImportFailed"));
-      setSelectionErrorSource("youtube");
       return;
     }
 
     if (!isSupportedYoutubeUrl(normalizedUrl)) {
       setSelectionError(t("youtubeImportFailed"));
-      setSelectionErrorSource("youtube");
       return;
     }
 
@@ -454,11 +443,9 @@ export function App() {
         setYoutubeUrl("");
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
-        setSelectionErrorSource("youtube");
       }
     } catch {
       setSelectionError(t("youtubeImportFailed"));
-      setSelectionErrorSource("youtube");
     } finally {
       setIsImporting(false);
     }
@@ -705,8 +692,6 @@ export function App() {
                         disabled={analysisInFlight || isStarting || isImporting}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
-                        aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
-                        aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
                       {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
                         <button
@@ -756,17 +741,17 @@ export function App() {
                     {t("saveProject")}
                   </Button>
                 ) : (
-                  <Button
-                    aria-disabled="true"
-                    title={t("saveRequiresAnalysis")}
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
-                    aria-label={t("saveProject")}
-                  >
-                    <Save className="mr-2 size-4" aria-hidden="true" />
-                    {t("saveProject")}
-                  </Button>
+                  <span tabIndex={0} role="button" aria-disabled="true" title={t("saveRequiresAnalysis")} className="inline-block cursor-not-allowed rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+                    <Button
+                      disabled
+                      variant="outline"
+                      className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
+                      aria-label={t("saveProject")}
+                    >
+                      <Save className="mr-2 size-4" aria-hidden="true" />
+                      {t("saveProject")}
+                    </Button>
+                  </span>
                 )}
                 <Button
                   onClick={handleStartAnalysis}
@@ -825,7 +810,7 @@ export function App() {
                 )}
 
                 {selectionError && (
-                  <div id={selectionErrorSource === "youtube" ? "selection-error" : undefined} className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                  <div className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
                     {selectionError}
                   </div>
                 )}

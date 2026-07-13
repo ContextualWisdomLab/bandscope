@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "demucs>=4.0.1 ; sys_platform != 'darwin' or platform_machine == 'arm64'",
     "librosa>=0.11.0",
-    "numba<0.67.0",
+    "numba<0.66.0",
     "numpy>=1.26",
     "soundfile>=0.13.1",
             "urllib3>=2.7.0",

@@ -359,35 +359,6 @@ describe("App", () => {
     expect(screen.getAllByText(/2 sections/i).length).toBeGreaterThan(0);
   });
 
-  it("short-circuits confidence evaluation when encountering a low confidence section", async () => {
-    const loadedProject = succeededResult().result; // medium is first
-    // Add low and high sections. High shouldn't matter since low is lowest.
-    // And low will trigger the early break in the loop.
-    loadedProject.sections.push(
-      {
-        ...loadedProject.sections[0],
-        id: "bridge-1",
-        label: "bridge",
-        confidence: { level: "low", source: "model", notes: "Low confidence bridge" }
-      },
-      {
-        ...loadedProject.sections[0],
-        id: "outro-1",
-        label: "outro",
-        confidence: { level: "high", source: "model", notes: "High confidence outro" }
-      }
-    );
-    mockLoadProject.mockResolvedValueOnce(loadedProject);
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/^Low$/i)).toBeTruthy();
-    });
-    expect(screen.getAllByText(/3 sections/i).length).toBeGreaterThan(0);
-  });
-
   it("selects a local audio source and starts a local-audio analysis job", async () => {
     tauriInvoke
       .mockResolvedValueOnce(bootstrapResponse())
@@ -1146,8 +1117,6 @@ describe("App", () => {
     expect(document.activeElement).toBe(input);
     expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
-    expect(input).not.toHaveAttribute("aria-invalid");
-    expect(input).not.toHaveAttribute("aria-describedby");
   });
 
   it("handles YouTube import failure with a message", async () => {
@@ -1162,11 +1131,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent(/This video is age restricted/i);
-      expect(alert).toHaveAttribute("id", "selection-error");
-      expect(input).toHaveAttribute("aria-invalid", "true");
-      expect(input).toHaveAttribute("aria-describedby", alert.id);
+      expect(screen.getByText(/This video is age restricted/i)).toBeTruthy();
     });
   });
 
@@ -1529,10 +1494,8 @@ describe("App", () => {
 
   it("does nothing when Save Project is clicked but there is no jobResult", () => {
     render(<App />);
-    const saveButton = screen.getByRole("button", { name: /save project/i });
-    expect(saveButton).toHaveAttribute("aria-disabled", "true");
-    expect(saveButton).not.toHaveAttribute("disabled");
-    fireEvent.click(saveButton);
+    const saveSpan = screen.getByTitle("Analyze a song to enable saving");
+    fireEvent.click(saveSpan);
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 
