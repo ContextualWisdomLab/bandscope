@@ -37,3 +37,6 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+## 2026-07-03 - ScoreViewer 아이콘 버튼의 aria-disabled 및 title 툴팁 처리
+**Learning:** 악보 뷰어 등에서 페이지 이동이나 확대/축소와 같이 한계치에 도달했을 때 비활성화되어야 하는 아이콘 전용 버튼들은 시각적인 맥락 부족을 보완하기 위해 native `disabled` 대신 `aria-disabled="true"`를 사용하고, 호버 시 명확한 툴팁(`title`)을 제공해야 마우스 및 키보드(스크린 리더) 사용자 모두에게 접근성이 높습니다. 또한 click 이벤트 핸들러 내부에서 상태 검사를 통해 로직 실행을 차단해주어야 합니다.
+**Action:** 아이콘 버튼의 기능이 한계에 도달해 비활성화 처리할 때는 `aria-disabled` 속성을 사용하여 포커스 이동을 허용하고 접근성을 높이면서, 이벤트 핸들러 안에 조기 리턴 로직을 추가하여 동작을 막으세요.

@@ -152,23 +152,39 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
   }, [status, pdfDocument, pageNumber, zoom, fitWidth, containerWidth]);
 
   /** Move to the previous page, clamped at the first page. */
-  const goToPreviousPage = () => {
+  const goToPreviousPage = (e?: { preventDefault: () => void }) => {
+    if (pageNumber <= 1) {
+      e?.preventDefault();
+      return;
+    }
     setPageNumber((current) => Math.max(1, current - 1));
   };
 
   /** Move to the next page, clamped at the last page. */
-  const goToNextPage = () => {
+  const goToNextPage = (e?: { preventDefault: () => void }) => {
+    if (pageNumber >= pageCount) {
+      e?.preventDefault();
+      return;
+    }
     setPageNumber((current) => Math.min(pageCount, current + 1));
   };
 
   /** Switch to manual zoom and enlarge, clamped at the maximum scale. */
-  const zoomIn = () => {
+  const zoomIn = (e?: { preventDefault: () => void }) => {
+    if (!fitWidth && zoom >= MAX_ZOOM) {
+      e?.preventDefault();
+      return;
+    }
     setFitWidth(false);
     setZoom((current) => Math.min(MAX_ZOOM, current * ZOOM_STEP));
   };
 
   /** Switch to manual zoom and shrink, clamped at the minimum scale. */
-  const zoomOut = () => {
+  const zoomOut = (e?: { preventDefault: () => void }) => {
+    if (!fitWidth && zoom <= MIN_ZOOM) {
+      e?.preventDefault();
+      return;
+    }
     setFitWidth(false);
     setZoom((current) => Math.max(MIN_ZOOM, current / ZOOM_STEP));
   };
@@ -258,6 +274,8 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomOut")}
+              title={t("scoreViewerZoomOut")}
+              aria-disabled={!fitWidth && zoom <= MIN_ZOOM ? true : undefined}
               onClick={zoomOut}
             >
               <ZoomOut aria-hidden="true" />
@@ -267,6 +285,8 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomIn")}
+              title={t("scoreViewerZoomIn")}
+              aria-disabled={!fitWidth && zoom >= MAX_ZOOM ? true : undefined}
               onClick={zoomIn}
             >
               <ZoomIn aria-hidden="true" />
@@ -275,6 +295,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
               aria-label={t("scoreViewerFitWidth")}
+              title={t("scoreViewerFitWidth")}
               aria-pressed={fitWidth}
               onClick={fitToWidth}
             >
@@ -292,7 +313,8 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerPrevPage")}
-            disabled={pageNumber <= 1}
+            title={t("scoreViewerPrevPage")}
+            aria-disabled={pageNumber <= 1 ? true : undefined}
             onClick={goToPreviousPage}
           >
             <ChevronLeft className="size-6" aria-hidden="true" />
@@ -305,7 +327,8 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerNextPage")}
-            disabled={pageNumber >= pageCount}
+            title={t("scoreViewerNextPage")}
+            aria-disabled={pageNumber >= pageCount ? true : undefined}
             onClick={goToNextPage}
           >
             <ChevronRight className="size-6" aria-hidden="true" />
