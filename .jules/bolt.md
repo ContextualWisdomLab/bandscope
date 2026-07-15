@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2023-10-27 - [Filter and Map chaining overhead]
+**Learning:** [Chaining `.filter().map()` causes an intermediate array allocation for the result of the filter, which adds memory and garbage collection overhead, especially in frequent renders or large collections.]
+**Action:** [Use `.reduce()` to combine both operations in a single loop, pushing into an accumulator array.]

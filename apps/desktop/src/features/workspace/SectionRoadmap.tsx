@@ -122,13 +122,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">
-              {section.roles
-                .filter(role => !activeRole || role.id === activeRole)
-                .map(role => (
-                  <div
-                    key={role.id}
-                    className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
-                  >
+              {// Performance: Avoid intermediate array allocations by combining filter and map in a single loop via reduce
+              section.roles.reduce((acc, role) => {
+                if (!activeRole || role.id === activeRole) {
+                  acc.push(
+                    <div
+                      key={role.id}
+                      className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
+                    >
                     <div className="mb-3 flex items-start justify-between">
                       <div className="flex flex-col gap-1">
                         <span className="text-sm font-bold text-slate-100">
@@ -209,7 +210,10 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                       </div>
                     </div>
                   </div>
-              ))}
+                  );
+                }
+                return acc;
+              }, [] as React.ReactElement[])}
             </CardContent>
           </Card>
         ))}
