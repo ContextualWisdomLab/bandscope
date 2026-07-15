@@ -47,6 +47,7 @@ import { createTranslator, detectPreferredLocale, type TranslationKey } from "./
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { SettingsFeature } from "./features/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -58,7 +59,7 @@ const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:User
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
-type RehearsalView = "workspace" | "score";
+type RehearsalView = "workspace" | "score" | "settings";
 
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
@@ -517,7 +518,7 @@ export function App() {
     return <EmptyState />;
   };
 
-  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  const currentView: RehearsalView = activeView === "settings" ? "settings" : (jobResult && activeView === "score" ? "score" : "workspace");
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
@@ -613,11 +614,15 @@ export function App() {
             <div className="flex items-center justify-between text-slate-400">
               <button
                 type="button"
-                aria-disabled={true}
-                aria-label={t("settingsComingSoon")}
-                title={t("settingsComingSoon")}
-                onClick={preventUnavailableAction}
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                aria-current={currentView === "settings" ? "page" : undefined}
+                aria-label={t("navSettings")}
+                title={t("navSettings")}
+                onClick={() => handleNavSelect("settings")}
+                className={`inline-flex items-center justify-center rounded-xl p-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                  currentView === "settings"
+                    ? "bg-blue-600/70 text-white shadow-[0_4px_14px_rgba(37,99,235,0.32)]"
+                    : "text-slate-200 hover:bg-white/5"
+                }`}
               >
                 <Settings className="size-5" aria-hidden="true" />
               </button>
@@ -842,7 +847,9 @@ export function App() {
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-            {currentView === "score" && jobResult ? (
+            {currentView === "settings" ? (
+              <SettingsFeature title={t("navSettings")} />
+            ) : currentView === "score" && jobResult ? (
               <ScoreView
                 song={jobResult}
                 projectId={jobResultBootstrap?.projectId ?? null}

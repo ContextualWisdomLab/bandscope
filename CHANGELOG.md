@@ -66,3 +66,6 @@
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
 - `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
 - 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
+
+### Added
+- **설정(Settings) 화면 기능 활성화**: 좌측 내비게이션 바에 있던 '설정' 기능을 활성화하고, `SettingsFeature` 컴포넌트가 올바르게 렌더링되도록 연결했습니다. 설정 버튼 클릭 시 설정 화면으로 이동하며 관련 테스트 케이스를 100% 커버리지를 달성하도록 작성했습니다.
