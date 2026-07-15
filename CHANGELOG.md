@@ -68,4 +68,5 @@
 - 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
 
 ### Added
+
 - **설정(Settings) 화면 기능 활성화**: 좌측 내비게이션 바에 있던 '설정' 기능을 활성화하고, `SettingsFeature` 컴포넌트가 올바르게 렌더링되도록 연결했습니다. 설정 버튼 클릭 시 설정 화면으로 이동하며 관련 테스트 케이스를 100% 커버리지를 달성하도록 작성했습니다.
