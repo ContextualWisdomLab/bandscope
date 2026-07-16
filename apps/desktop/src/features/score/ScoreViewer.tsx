@@ -257,6 +257,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant="outline"
               size="icon-lg"
               className="size-12"
+              title={t("scoreViewerZoomOut")}
               aria-label={t("scoreViewerZoomOut")}
               onClick={zoomOut}
             >
@@ -266,6 +267,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant="outline"
               size="icon-lg"
               className="size-12"
+              title={t("scoreViewerZoomIn")}
               aria-label={t("scoreViewerZoomIn")}
               onClick={zoomIn}
             >
@@ -291,9 +293,11 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             variant="outline"
             size="icon-lg"
             className="size-14"
+            title={t("scoreViewerPrevPage")}
             aria-label={t("scoreViewerPrevPage")}
-            disabled={pageNumber <= 1}
-            onClick={goToPreviousPage}
+            aria-disabled={pageNumber <= 1}
+            tabIndex={0}
+            onClick={pageNumber <= 1 ? undefined : goToPreviousPage}
           >
             <ChevronLeft className="size-6" aria-hidden="true" />
           </Button>
@@ -304,9 +308,11 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             variant="outline"
             size="icon-lg"
             className="size-14"
+            title={t("scoreViewerNextPage")}
             aria-label={t("scoreViewerNextPage")}
-            disabled={pageNumber >= pageCount}
-            onClick={goToNextPage}
+            aria-disabled={pageNumber >= pageCount}
+            tabIndex={0}
+            onClick={pageNumber >= pageCount ? undefined : goToNextPage}
           >
             <ChevronRight className="size-6" aria-hidden="true" />
           </Button>

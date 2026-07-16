@@ -120,8 +120,8 @@ describe("ScoreViewer", () => {
       expect(page.render).toHaveBeenCalled();
     });
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Previous page" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Next page" })).toHaveAttribute("aria-disabled", "false");
   });
 
   it("shows the file name when provided", async () => {
@@ -174,14 +174,14 @@ describe("ScoreViewer", () => {
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     const previousButton = screen.getByRole("button", { name: "Previous page" });
     const nextButton = screen.getByRole("button", { name: "Next page" });
-    expect(previousButton).toBeDisabled();
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
-    expect(nextButton).toBeDisabled();
+    expect(nextButton).toHaveAttribute("aria-disabled", "true");
 
     await waitFor(() => {
       expect(doc.getPage).toHaveBeenCalledWith(3);
