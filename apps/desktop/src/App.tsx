@@ -331,7 +331,7 @@ export function App() {
     let disposed = false;
     let unsubscribe: () => void = Function.prototype as () => void;
     void subscribeToAnalysisJobUpdates(jobStatus.jobId, (nextStatus) => {
-      if (!disposed) {
+      if (!disposed && activeJobIdRef.current === nextStatus.jobId) {
         applyJobStatus(nextStatus);
       }
     }).then((cleanup) => {
@@ -352,15 +352,20 @@ export function App() {
       return;
     }
 
+    let disposed = false;
+
     const timer = window.setTimeout(async () => {
       try {
         const nextStatus = await getAnalysisJobStatus(jobStatus.jobId);
-        applyJobStatus(nextStatus);
+        if (!disposed && activeJobIdRef.current === nextStatus.jobId) {
+          applyJobStatus(nextStatus);
+        }
       } catch (error) {
+        if (disposed || activeJobIdRef.current !== jobStatus.jobId) {
+          return;
+        }
+
         if (error instanceof Error && error.message === "Invalid analysis job status response") {
-          if (activeJobIdRef.current !== jobStatus.jobId) {
-            return;
-          }
           const fallbackMessage = t("analysisCouldNotStart");
           setJobError(fallbackMessage);
           setJobStatus({
@@ -383,12 +388,16 @@ export function App() {
       }
     }, ANALYSIS_POLL_INTERVAL_MS);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
   }, [applyJobStatus, jobStatus, t]);
 
   /** Documented. */
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
+    activeJobIdRef.current = null;
     setJobError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
@@ -397,6 +406,7 @@ export function App() {
     setIsStarting(true);
     try {
       const nextStatus = await startAnalysisJob(selectedRequest);
+      activeJobIdRef.current = nextStatus.jobId;
       if (nextStatus.state === "succeeded" && nextStatus.result) {
         setJobStatus(nextStatus);
         setJobResult(nextStatus.result);
@@ -475,6 +485,7 @@ export function App() {
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
+      activeJobIdRef.current = null;
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
