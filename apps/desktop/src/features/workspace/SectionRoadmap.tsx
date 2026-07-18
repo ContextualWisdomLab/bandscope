@@ -122,94 +122,98 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">
-              {section.roles
-                .filter(role => !activeRole || role.id === activeRole)
-                .map(role => (
-                  <div
-                    key={role.id}
-                    className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
-                  >
-                    <div className="mb-3 flex items-start justify-between">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-sm font-bold text-slate-100">
-                          {role.name}
-                        </span>
-                        {role.confidence.level === "low" && (
-                          <Badge variant="outline" className="border-rose-300/30 bg-rose-400/10 px-1.5 py-0 text-[0.65rem] font-semibold text-rose-100">
-                            {t("confidenceLevelLow")}
-                          </Badge>
-                        )}
-                      </div>
-                      <div title={`${t("priorityLabel")}: ${role.rehearsalPriority}`} className="rounded-full border border-white/10 bg-white/10 p-1 shadow-sm">
-                        <span className="sr-only">{`${t("priorityLabel")}: ${role.rehearsalPriority}`}</span>
-                        {getPriorityIcon(role.rehearsalPriority)}
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionChordLabel")}</span>
-                        <button
-                          type="button"
-                          aria-label={editChordLabel(role, section.label)}
-                          className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                            onSongUpdate
-                              ? "cursor-pointer hover:bg-white/10"
-                              : "cursor-default"
-                          } ${
-                            role.harmony.source === "user"
-                              ? "bg-indigo-300/15 text-indigo-200"
-                              : "text-cyan-100"
-                          }`}
-                          onClick={() => handleChordEdit(section.id, role)}
-                          title={onSongUpdate ? t("chordEditTitle") : undefined}
-                          disabled={!onSongUpdate}
-                        >
-                          {role.harmony.chord}
-                        </button>
-                        {role.harmony.source === "user" && (
-                          <Badge variant="secondary" className="h-4 bg-indigo-300/20 px-1 text-[0.6rem] text-indigo-100 hover:bg-indigo-300/20">
-                            {t("harmonySourceUserBadge")}
-                          </Badge>
-                        )}
+              {/* Performance: Replace .filter().map() with .reduce() to prevent intermediate array allocation and garbage collection overhead during frequent React renders. */}
+              {section.roles.reduce<React.ReactNode[]>((acc, role) => {
+                if (!activeRole || role.id === activeRole) {
+                  acc.push(
+                    <div
+                      key={role.id}
+                      className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
+                    >
+                      <div className="mb-3 flex items-start justify-between">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-bold text-slate-100">
+                            {role.name}
+                          </span>
+                          {role.confidence.level === "low" && (
+                            <Badge variant="outline" className="border-rose-300/30 bg-rose-400/10 px-1.5 py-0 text-[0.65rem] font-semibold text-rose-100">
+                              {t("confidenceLevelLow")}
+                            </Badge>
+                          )}
+                        </div>
+                        <div title={`${t("priorityLabel")}: ${role.rehearsalPriority}`} className="rounded-full border border-white/10 bg-white/10 p-1 shadow-sm">
+                          <span className="sr-only">{`${t("priorityLabel")}: ${role.rehearsalPriority}`}</span>
+                          {getPriorityIcon(role.rehearsalPriority)}
+                        </div>
                       </div>
 
-                      <Separator className="bg-white/10" />
-
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium leading-snug text-slate-200">
-                          <span className="mb-0.5 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionCueLabel")}</span>
-                          {role.cue.value}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionChordLabel")}</span>
+                          <button
+                            type="button"
+                            aria-label={editChordLabel(role, section.label)}
+                            className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                              onSongUpdate
+                                ? "cursor-pointer hover:bg-white/10"
+                                : "cursor-default"
+                            } ${
+                              role.harmony.source === "user"
+                                ? "bg-indigo-300/15 text-indigo-200"
+                                : "text-cyan-100"
+                            }`}
+                            onClick={() => handleChordEdit(section.id, role)}
+                            title={onSongUpdate ? t("chordEditTitle") : undefined}
+                            disabled={!onSongUpdate}
+                          >
+                            {role.harmony.chord}
+                          </button>
+                          {role.harmony.source === "user" && (
+                            <Badge variant="secondary" className="h-4 bg-indigo-300/20 px-1 text-[0.6rem] text-indigo-100 hover:bg-indigo-300/20">
+                              {t("harmonySourceUserBadge")}
+                            </Badge>
+                          )}
                         </div>
 
-                        {role.setupNote && (
-                          <div className="flex items-start gap-2 rounded-md border border-amber-300/20 bg-amber-300/[0.08] p-2 text-xs font-medium text-amber-100">
-                            <Lightbulb className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                            <span className="leading-snug">{role.setupNote}</span>
-                          </div>
-                        )}
+                        <Separator className="bg-white/10" />
 
-                        {role.simplification && (
-                          <div className="flex items-start gap-2 rounded-md border border-indigo-300/20 bg-indigo-300/[0.08] p-2 text-xs font-medium text-indigo-100">
-                            <Wand2 className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                            <span className="leading-snug">{role.simplification}</span>
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium leading-snug text-slate-200">
+                            <span className="mb-0.5 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionCueLabel")}</span>
+                            {role.cue.value}
                           </div>
-                        )}
 
-                        {role.overlapWarnings.length > 0 && (
-                          <div className="mt-2 space-y-1.5">
-                            {role.overlapWarnings.map((warning, wIdx) => (
-                              <div key={wIdx} className="flex items-start gap-2 rounded-md border border-rose-300/20 bg-rose-300/[0.08] p-2 text-xs font-medium text-rose-100">
-                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                                <span className="leading-snug">{warning}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                          {role.setupNote && (
+                            <div className="flex items-start gap-2 rounded-md border border-amber-300/20 bg-amber-300/[0.08] p-2 text-xs font-medium text-amber-100">
+                              <Lightbulb className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                              <span className="leading-snug">{role.setupNote}</span>
+                            </div>
+                          )}
+
+                          {role.simplification && (
+                            <div className="flex items-start gap-2 rounded-md border border-indigo-300/20 bg-indigo-300/[0.08] p-2 text-xs font-medium text-indigo-100">
+                              <Wand2 className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                              <span className="leading-snug">{role.simplification}</span>
+                            </div>
+                          )}
+
+                          {role.overlapWarnings.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                              {role.overlapWarnings.map((warning, wIdx) => (
+                                <div key={wIdx} className="flex items-start gap-2 rounded-md border border-rose-300/20 bg-rose-300/[0.08] p-2 text-xs font-medium text-rose-100">
+                                  <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                                  <span className="leading-snug">{warning}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-              ))}
+                  );
+                }
+                return acc;
+              }, [])}
             </CardContent>
           </Card>
         ))}
