@@ -47,6 +47,8 @@ import { createTranslator, detectPreferredLocale, type TranslationKey } from "./
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { TransposeFeature } from "./features/transpose";
+import { StemLabFeature } from "./features/stemlab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -58,7 +60,7 @@ const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:User
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
-type RehearsalView = "workspace" | "score";
+type RehearsalView = "workspace" | "score" | "transpose" | "stemlab";
 
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
@@ -66,9 +68,9 @@ const NAV_ITEMS = [
   { labelKey: "navExport", icon: Save, view: null },
   { labelKey: "navSections", icon: ListMusic, view: null },
   { labelKey: "navRoles", icon: Users, view: null },
-  { labelKey: "navStemLab", icon: AudioWaveform, view: null },
+  { labelKey: "navStemLab", icon: AudioWaveform, view: "stemlab" },
   { labelKey: "navCues", icon: Sparkles, view: null },
-  { labelKey: "navTranspose", icon: SlidersHorizontal, view: null },
+  { labelKey: "navTranspose", icon: SlidersHorizontal, view: "transpose" },
   { labelKey: "navScore", icon: FileMusic, view: "score" }
 ] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; view: RehearsalView | null }[];
 
@@ -517,11 +519,11 @@ export function App() {
     return <EmptyState />;
   };
 
-  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  const currentView: RehearsalView = jobResult ? activeView : "workspace";
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
-    const enabled = item.view === "workspace" || (item.view === "score" && jobResult !== null);
+    const enabled = item.view === "workspace" || (item.view !== null && jobResult !== null);
     return {
       label: t(item.labelKey),
       enabled,
@@ -848,6 +850,10 @@ export function App() {
                 projectId={jobResultBootstrap?.projectId ?? null}
                 onSongUpdate={handleSongUpdate}
               />
+            ) : currentView === "transpose" && jobResult ? (
+              <TransposeFeature title={t("navTranspose")} song={jobResult} />
+            ) : currentView === "stemlab" && jobResult ? (
+              <StemLabFeature title={t("navStemLab")} song={jobResult} />
             ) : (
               renderWorkspaceState()
             )}
