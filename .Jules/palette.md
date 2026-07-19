@@ -37,3 +37,7 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+
+## 2024-07-20 - Adding explicit titles to aria-disabled buttons
+**Learning:** Using `aria-disabled="true"` instead of `disabled` maintains focusability and hover interactions on buttons, but native `<button>` and custom `Button` components still need explicit `title` attributes to explain why they are disabled for sighted mouse users.
+**Action:** When replacing `disabled` with `aria-disabled="true"` to improve accessibility, ensure that a `title` attribute is added providing the context for the disabled state, and that `onClick` handlers are properly short-circuited.
