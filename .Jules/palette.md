@@ -37,3 +37,7 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+
+## 2026-07-20 - Adding aria-disabled styles to UI primitive buttons
+**Learning:** While replacing the native `disabled` attribute with `aria-disabled="true"` correctly enables pointer events for tooltips and preserves keyboard tab order, custom primitive components (like `<Button />`) often rely on the native `disabled:` pseudoclass for their visual state (e.g., opacity and cursor). If the base component styles aren't updated, they may visually appear fully enabled when only `aria-disabled` is used.
+**Action:** When updating a custom `<Button>` component or native `<button>` element to use `aria-disabled="true"`, ensure its base Tailwind styles or variants also include corresponding `aria-disabled:` classes (like `aria-disabled:opacity-50 aria-disabled:cursor-not-allowed`) so that it visually reflects its disabled state.
