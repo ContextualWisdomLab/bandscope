@@ -129,16 +129,19 @@ def _checkerboard_novelty_reference(
     kernel[:half, :half] = -1.0
     kernel[half:, half:] = -1.0
 
-    # Sum each checkerboard offset across all valid diagonal windows at once.
-    valid = novelty[half : n - half]
-    for di in range(-half, half):
-        for dj in range(-half, half):
-            value = kernel[di + half, dj + half]
-            diagonal = np.diagonal(ssm[half + di : n - half + di, half + dj : n - half + dj])
-            if value > 0:
-                valid += diagonal
-            else:
-                valid -= diagonal
+    # Use sliding window view to vectorize the checkerboard sum along the diagonal.
+    eff_k = 2 * half
+    eff_kernel = kernel[:eff_k, :eff_k]
+
+    windows = np.lib.stride_tricks.sliding_window_view(ssm, (eff_k, eff_k))
+    diag_windows = np.diagonal(windows, axis1=0, axis2=1)
+
+    valid_len = n - eff_k
+    if diag_windows.shape[-1] > valid_len:
+        diag_windows = diag_windows[..., :valid_len]
+
+    valid = np.einsum("ij,ijk->k", eff_kernel, diag_windows)
+    novelty[half : n - half] = valid
 
     # Normalize by peak absolute magnitude, preserving sign.
     max_val = np.max(np.abs(novelty))
