@@ -315,6 +315,11 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
             "fileSizeBytes": file_size_bytes,
         },
     }
+    if project_id is not None:
+        if ".." in project_id.replace("\\", "/").split("/"):
+            logger.warning("Security: path traversal detected in projectId")
+            raise ValueError("Invalid analysis job request: path traversal detected in 'projectId'")
+
     if cache_root is not None:
         if not isinstance(cache_root, str) or not cache_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")

@@ -100,6 +100,21 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
         (
             {
                 "sourceKind": "local_audio",
+                "projectId": "../project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/tmp/test.wav",
+                    "fileName": "test.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024,
+                },
+            },
+            "projectId",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
                 "projectId": "project-1",
                 "sourceLabel": "Late Night Set",
                 "roleFocus": [],
