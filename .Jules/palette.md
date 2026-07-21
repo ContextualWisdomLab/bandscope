@@ -37,3 +37,7 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+
+## 2024-07-21 - Visual Regression on Custom Buttons when migrating to aria-disabled
+**Learning:** When updating native `<button>` elements that use the central `<Button>` component to use `aria-disabled="true"` instead of the native `disabled` attribute, it can cause visual regressions if the central `<Button>` component styling relies on the `disabled` prop to apply styles like opacity and cursor changes.
+**Action:** Always verify that replacing `disabled` with `aria-disabled="true"` preserves the visual disabled states. If modifying a shared component (like the `<Button>` component mapping `disabled` prop to styles), ensure it properly maps `aria-disabled` styles or avoid using it for these cases to prevent blocking UI regressions.
