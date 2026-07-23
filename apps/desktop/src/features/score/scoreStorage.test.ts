@@ -33,3 +33,19 @@ describe("scoreStorage bridge resolution", () => {
     );
   });
 });
+
+  it("reads score pdf successfully with valid array", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue([1, 2, 3]);
+
+    const result = await readScorePdf("project-1", "score-1");
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(result).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it("throws error when readScorePdf returns invalid array", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue([1, "2", 3]);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow("Invalid score bridge response");
+  });
