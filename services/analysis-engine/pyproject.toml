@@ -12,8 +12,9 @@ dependencies = [
     "librosa>=0.11.0",
     "numba<0.67.0",
     "numpy>=1.26",
+    "setuptools>=70.0.0",
     "soundfile>=0.13.1",
-            "urllib3>=2.7.0",
+    "urllib3>=2.7.0",
     "yt-dlp>=2026.6.9",
 ]
 
