@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2024-07-24 - Optimize checkerboard novelty with sliding_window_view
+**Learning:** Performing a sliding window or windowed operation explicitly over matrix diagonals in nested Python loops (like scanning an SSM) causes significant O(N) allocation and looping overhead.
+**Action:** Use `numpy.lib.stride_tricks.sliding_window_view` coupled with `np.diagonal` and `np.einsum` to fully vectorize sliding sub-matrix diagonal processing instead of Python `for` loops to gain order-of-magnitude speedups.
