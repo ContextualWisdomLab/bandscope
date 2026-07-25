@@ -28,3 +28,7 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
+## 2025-10-24 - Project ID path traversal guard validation approach
+**Vulnerability:** Any project identifier that can reach a filesystem path join must be treated as untrusted.
+**Learning:** Checking for substrings like `..` can erroneously block legitimate inputs like `my..id`.
+**Prevention:** When validating identifiers like `projectId`, reject exact matches for `.` and `..`, and block any path separators (`/` and `\`), rather than blocking any string containing `..`.

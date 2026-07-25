@@ -55,7 +55,7 @@ def test_validate_analysis_job_request_accepts_local_audio_payload() -> None:
     assert validate_analysis_job_request(
         {
             "sourceKind": "local_audio",
-            "projectId": "project-1",
+            "projectId": "my..project",
             "sourceLabel": "late-night-set.wav",
             "roleFocus": ["bass-guitar", "lead-vocal"],
             "localSource": {
@@ -69,7 +69,7 @@ def test_validate_analysis_job_request_accepts_local_audio_payload() -> None:
         }
     ) == {
         "sourceKind": "local_audio",
-        "projectId": "project-1",
+        "projectId": "my..project",
         "sourceLabel": "late-night-set.wav",
         "roleFocus": ["bass-guitar", "lead-vocal"],
         "localSource": {
@@ -307,6 +307,51 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
                 },
             },
             "path traversal",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "..",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/tmp/a.wav",
+                    "fileName": "a.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal detected in 'projectId'",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "foo/bar",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/tmp/a.wav",
+                    "fileName": "a.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal detected in 'projectId'",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "foo\\bar",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/tmp/a.wav",
+                    "fileName": "a.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal detected in 'projectId'",
         ),
     ]
 
