@@ -85,7 +85,7 @@ describe("ScoreView", () => {
 
     expect(screen.getByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
     expect(screen.getByText("No scores attached to this song yet.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add score" })).not.toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
     expect(mockInvoke).not.toHaveBeenCalled();
   });
@@ -95,9 +95,9 @@ describe("ScoreView", () => {
     render(<ScoreView song={song} projectId={null} onSongUpdate={vi.fn()} />);
 
     expect(screen.getByText("Scores attach to the active analysis project.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add score" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
     expect(mockInvoke).not.toHaveBeenCalled();
@@ -143,7 +143,7 @@ describe("ScoreView", () => {
       "Choose a PDF file to attach as a score."
     );
     expect(onSongUpdate).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add score" })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("falls back to the generic attach failure for malformed bridge responses", async () => {
