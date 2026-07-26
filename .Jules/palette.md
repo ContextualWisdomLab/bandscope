@@ -37,3 +37,6 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+## 2024-11-20 - Ensure screen reader text isn't duplicated in tooltips
+**Learning:** When creating a custom wrapper for disabled buttons to show tooltips, using `title` on the wrapper provides an accessible name. Adding an additional visually hidden `sr-only` child duplicates this text for screen readers.
+**Action:** If a wrapper has a `title` attribute, do not include an additional `sr-only` text child.

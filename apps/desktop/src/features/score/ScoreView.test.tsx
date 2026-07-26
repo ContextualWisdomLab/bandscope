@@ -96,8 +96,9 @@ describe("ScoreView", () => {
 
     expect(screen.getByText("Scores attach to the active analysis project.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
+    expect(screen.getAllByTitle("scoreNavDisabledHint")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
     expect(mockInvoke).not.toHaveBeenCalled();
