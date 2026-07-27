@@ -83,6 +83,39 @@ def test_validate_analysis_job_request_accepts_local_audio_payload() -> None:
     }
 
 
+def test_validate_analysis_job_request_accepts_interior_dots() -> None:
+    """Ensure valid local-audio requests with interior dots in projectId are normalized."""
+    assert validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project..1",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": ["bass-guitar", "lead-vocal"],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+            "cacheRoot": "/tmp/bandscope/cache/project..1",
+            "tempRoot": "/tmp/bandscope/temp/project..1",
+        }
+    ) == {
+        "sourceKind": "local_audio",
+        "projectId": "project..1",
+        "sourceLabel": "late-night-set.wav",
+        "roleFocus": ["bass-guitar", "lead-vocal"],
+        "localSource": {
+            "sourcePath": "/Users/test/Music/late-night-set.wav",
+            "fileName": "late-night-set.wav",
+            "extension": "wav",
+            "fileSizeBytes": 1024000,
+        },
+        "cacheRoot": "/tmp/bandscope/cache/project..1",
+        "tempRoot": "/tmp/bandscope/temp/project..1",
+    }
+
+
 def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
     """Ensure the request validator reports every expected safe-failure path."""
     cases = [
@@ -96,6 +129,51 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
         (
             {"sourceKind": "local_audio", "sourceLabel": "Late Night Set", "roleFocus": []},
             "projectId",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project/1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "project\\1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "..",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal",
         ),
         (
             {
