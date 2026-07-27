@@ -45,6 +45,7 @@ import {
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
+import { ExportView } from "./features/export/ExportView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
@@ -58,12 +59,12 @@ const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:User
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
-type RehearsalView = "workspace" | "score";
+type RehearsalView = "workspace" | "score" | "export";
 
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
   { labelKey: "navImport", icon: Upload, view: null },
-  { labelKey: "navExport", icon: Save, view: null },
+  { labelKey: "navExport", icon: Save, view: "export" },
   { labelKey: "navSections", icon: ListMusic, view: null },
   { labelKey: "navRoles", icon: Users, view: null },
   { labelKey: "navStemLab", icon: AudioWaveform, view: null },
@@ -517,16 +518,16 @@ export function App() {
     return <EmptyState />;
   };
 
-  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  const currentView: RehearsalView = jobResult ? activeView : "workspace";
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
-    const enabled = item.view === "workspace" || (item.view === "score" && jobResult !== null);
+    const enabled = item.view === "workspace" || ((item.view === "score" || item.view === "export") && jobResult !== null);
     return {
       label: t(item.labelKey),
       enabled,
       active: enabled && item.view === currentView,
-      title: enabled ? undefined : item.view === "score" ? t("scoreNavDisabledHint") : t("comingSoon")
+      title: enabled ? undefined : (item.view === "score" || item.view === "export") ? t("scoreNavDisabledHint") : t("comingSoon")
     };
   };
 
@@ -847,6 +848,11 @@ export function App() {
                 song={jobResult}
                 projectId={jobResultBootstrap?.projectId ?? null}
                 onSongUpdate={handleSongUpdate}
+              />
+            ) : currentView === "export" && jobResult ? (
+              <ExportView
+                song={jobResult}
+                t={t}
               />
             ) : (
               renderWorkspaceState()

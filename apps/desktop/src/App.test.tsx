@@ -222,23 +222,27 @@ describe("App", () => {
     const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
     const activePrimaryNavButton = within(primaryNav).getByRole("button", { name: "Workspace" });
     expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
-    for (const name of ["Import", "Export"]) {
+    for (const name of ["Import"]) {
       const navButton = within(primaryNav).getByRole("button", { name });
       expect(navButton).toHaveAttribute("aria-disabled", "true");
       expect(navButton).toHaveAttribute("title", "Coming soon");
       expect(navButton).not.toBeDisabled();
     }
+    expect(within(primaryNav).getByRole("button", { name: "Export" })).toHaveAttribute("title", "Analyze or open a song first");
+      expect(within(primaryNav).getByRole("button", { name: "Export" })).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(within(primaryNav).getByRole("button", { name: "Import" }));
     expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
     const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
     const activeCompactNavButton = within(compactNav).getByRole("button", { name: "Workspace compact view" });
     expect(activeCompactNavButton).toHaveAttribute("aria-current", "page");
-    for (const name of ["Import", "Export"]) {
+    for (const name of ["Import"]) {
       const navButton = within(compactNav).getByRole("button", { name: `${name} compact view` });
       expect(navButton).toHaveAttribute("aria-disabled", "true");
       expect(navButton).toHaveAttribute("title", "Coming soon");
       expect(navButton).not.toBeDisabled();
     }
+    expect(within(compactNav).getByRole("button", { name: "Export compact view" })).toHaveAttribute("title", "Analyze or open a song first");
+      expect(within(compactNav).getByRole("button", { name: "Export compact view" })).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(within(compactNav).getByRole("button", { name: "Import compact view" }));
     expect(activeCompactNavButton).toHaveAttribute("aria-current", "page");
     expect(screen.getByText(/^Tempo$/i)).toBeTruthy();

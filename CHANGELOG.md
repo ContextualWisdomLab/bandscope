@@ -1,6 +1,7 @@
 # Changelog
 
 ## [Unreleased]
+- Export 기능을 위한 내보내기 뷰 컴포넌트를 만들고 왼쪽 내비게이션에 연동했습니다.
 
 ### Added
 
