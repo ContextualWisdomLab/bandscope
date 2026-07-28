@@ -18,3 +18,17 @@ yt_dlp/extractor/vice.py
 # Guarded by scripts/checks/verify_supply_chain.py and remove when upstream
 # drops or patches the chain. Revisit by 2026-10-31.
 GHSA-wrw7-89jp-8q8g exp:2026-10-31
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/adultswim.py
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/aenetworks.py
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/blackboardcollaborate.py
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/cloudflarestream.py
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/espn.py
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/shahid.py
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/nbc.py
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/tbs.py
+services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/vice.py
+yt_dlp/extractor/adultswim.py
+yt_dlp/extractor/aenetworks.py
+yt_dlp/extractor/blackboardcollaborate.py
+yt_dlp/extractor/cloudflarestream.py
+yt_dlp/extractor/espn.py
