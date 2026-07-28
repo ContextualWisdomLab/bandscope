@@ -1,3 +1,6 @@
 ## 2024-05-19 - Replace HTML disabled with aria-disabled="true" for Accessible Tooltips
 **Learning:** Native HTML `disabled` attributes completely hide elements from screen readers and block all pointer/hover events, preventing tooltips from functioning for disabled elements.
 **Action:** Replace `disabled` with `aria-disabled="true"`, enforce block click handlers via `e.preventDefault()`, and add a title tooltip directly to the element to maintain full tooltip accessibility and keyboard focus support for visually impaired and mouse users.
+## 2024-07-28 - Validate `aria-disabled` styling on UI components
+**Learning:** When switching from native `disabled` to `aria-disabled` for better tooltip support and screen reader context, it's crucial to verify if the UI component definitions (e.g., using `cva` in Tailwind) actually support the `aria-disabled:` variants. In `button.tsx`, `aria-disabled:opacity-50` and `aria-disabled:cursor-not-allowed` were already present, ensuring visual regressions didn't occur. Wrapping elements in `<span>` is not a good practice as it creates invalid nested interactive elements.
+**Action:** Always inspect the underlying CSS utility variants (like `cva` configurations) to ensure `aria-disabled:hover` and `aria-disabled:opacity` are explicitly handled when updating accessible disabled states.

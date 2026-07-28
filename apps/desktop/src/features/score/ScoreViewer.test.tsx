@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import { ScoreViewer } from "./ScoreViewer";
@@ -120,8 +120,15 @@ describe("ScoreViewer", () => {
       expect(page.render).toHaveBeenCalled();
     });
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+
+    const previousButton = screen.getByRole("button", { name: "Previous page" });
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
+
+    const previousClickEvent = createEvent.click(previousButton);
+    fireEvent(previousButton, previousClickEvent);
+    expect(previousClickEvent.defaultPrevented).toBe(true);
+
+    expect(screen.getByRole("button", { name: "Next page" })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("shows the file name when provided", async () => {
@@ -174,14 +181,22 @@ describe("ScoreViewer", () => {
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     const previousButton = screen.getByRole("button", { name: "Previous page" });
     const nextButton = screen.getByRole("button", { name: "Next page" });
-    expect(previousButton).toBeDisabled();
+
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
+    const previousClickEvent = createEvent.click(previousButton);
+    fireEvent(previousButton, previousClickEvent);
+    expect(previousClickEvent.defaultPrevented).toBe(true);
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
-    expect(nextButton).toBeDisabled();
+
+    expect(nextButton).toHaveAttribute("aria-disabled", "true");
+    const nextClickEvent = createEvent.click(nextButton);
+    fireEvent(nextButton, nextClickEvent);
+    expect(nextClickEvent.defaultPrevented).toBe(true);
 
     await waitFor(() => {
       expect(doc.getPage).toHaveBeenCalledWith(3);
