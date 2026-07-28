@@ -92,7 +92,7 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
     return new Uint8Array(response);
   }
   if (Array.isArray(response)) {
-    // Performance: Avoid O(N) intermediate callback allocations from .every() on large byte arrays.
+    // Performance: Avoid O(N) callback execution overhead from .every() on large byte arrays.
     // Use a standard for-loop with early return for faster checks and O(1) memory.
     let isValid = true;
     for (let i = 0; i < response.length; i++) {
