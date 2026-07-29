@@ -278,6 +278,19 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
     if not isinstance(project_id, str) or not project_id.strip():
         raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+    # projectId becomes a single filesystem path component downstream, so it must
+    # neither nest nor traverse. Reject path separators and the current/parent
+    # directory markers, and reject any leading/trailing whitespace: a value like
+    # " .. " passes an exact ".."/"." comparison but a later trim would normalize
+    # it back into a traversal segment.
+    if (
+        project_id != project_id.strip()
+        or project_id.strip() in {".", ".."}
+        or "/" in project_id
+        or "\\" in project_id
+    ):
+        logger.warning("Security: path traversal detected in projectId")
+        raise ValueError("Invalid analysis job request: path traversal detected in 'projectId'")
     if local_source is None:
         raise ValueError("Invalid analysis job request: invalid field 'localSource'")
     if not isinstance(local_source, dict):

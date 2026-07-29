@@ -308,6 +308,32 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             },
             "path traversal",
         ),
+        *[
+            (
+                {
+                    "sourceKind": "local_audio",
+                    "projectId": bad_project_id,
+                    "sourceLabel": "Late Night Set",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/tmp/a.wav",
+                        "fileName": "a.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 1024000,
+                    },
+                },
+                "path traversal detected in 'projectId'",
+            )
+            for bad_project_id in (
+                ".",
+                "..",
+                "foo/bar",
+                "foo\\bar",
+                " .. ",
+                " . ",
+                " project-1 ",
+            )
+        ],
     ]
 
     for payload, message in cases:
@@ -317,6 +343,30 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             assert message in str(error)
         else:
             raise AssertionError(f"Expected ValueError for {payload!r}")
+
+
+def test_validate_analysis_job_request_accepts_dotted_project_id() -> None:
+    """A projectId with '..' inside a segment (e.g. 'my..project') is not traversal.
+
+    Only exact '.'/'..', path separators, and whitespace-padded values are
+    rejected; legitimate identifiers that merely contain dots are preserved.
+    """
+    for project_id in ("my..project", "project-1", "a.b.c"):
+        result = validate_analysis_job_request(
+            {
+                "sourceKind": "local_audio",
+                "projectId": project_id,
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/tmp/a.wav",
+                    "fileName": "a.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            }
+        )
+        assert result["projectId"] == project_id
 
 
 def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
