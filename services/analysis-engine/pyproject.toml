@@ -26,6 +26,12 @@ dev = [
   "ruff>=0.11.0",
 ]
 
+[tool.uv]
+# Security constraint: force the transitive `setuptools` (pulled in by torch)
+# to the patched line. setuptools < 83.0.0 is affected by CVE-2026-59890
+# (FileList Unicode-normalization exclusion bypass); 83.0.0 is the fix.
+constraint-dependencies = ["setuptools>=83.0.0"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/bandscope_analysis"]
 
