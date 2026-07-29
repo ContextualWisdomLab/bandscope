@@ -133,19 +133,24 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
               </h2>
               <p className="mt-1 max-w-2xl text-sm text-slate-400">{t("scoreViewSubtitle")}</p>
             </div>
-            <Button
-              onClick={projectId ? () => void handleAttach(projectId) : undefined}
-              disabled={!projectId || isAttaching}
-              variant="secondary"
-              className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
+            <span
+              tabIndex={!projectId ? 0 : -1}
+              title={!projectId ? t("scoreRequiresProject") : undefined}
             >
-              {isAttaching ? (
-                <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <FilePlus2 className="mr-2 size-4" aria-hidden="true" />
-              )}
-              {isAttaching ? t("scoreAttaching") : t("scoreAttach")}
-            </Button>
+              <Button
+                onClick={projectId ? () => void handleAttach(projectId) : (e) => e.preventDefault()}
+                disabled={!projectId || isAttaching}
+                variant="secondary"
+                className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
+              >
+                {isAttaching ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <FilePlus2 className="mr-2 size-4" aria-hidden="true" />
+                )}
+                {isAttaching ? t("scoreAttaching") : t("scoreAttach")}
+              </Button>
+            </span>
           </div>
 
           {!projectId && (
@@ -183,25 +188,31 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                   >
                     <button
                       type="button"
-                      onClick={projectId ? () => void openAttachment(projectId, attachment) : undefined}
-                      disabled={!projectId}
+                      onClick={projectId ? () => void openAttachment(projectId, attachment) : (e) => e.preventDefault()}
+                      aria-disabled={!projectId ? "true" : undefined}
                       aria-current={selected?.id === attachment.id ? "true" : undefined}
                       aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
-                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      title={!projectId ? t("scoreRequiresProject") : `${t("scoreOpen")}: ${attachment.fileName}`}
+                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                     >
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
                       <span className="truncate">{attachment.fileName}</span>
                     </button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
-                      disabled={!projectId}
-                      aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
-                      className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
+                    <span
+                      tabIndex={!projectId ? 0 : -1}
+                      title={!projectId ? t("scoreRequiresProject") : `${t("scoreRemove")}: ${attachment.fileName}`}
                     >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={projectId ? () => void handleRemove(projectId, attachment) : (e) => e.preventDefault()}
+                        disabled={!projectId}
+                        aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
+                        className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                      </Button>
+                    </span>
                   </li>
                 ))}
               </ul>
