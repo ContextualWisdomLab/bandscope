@@ -91,8 +91,18 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   if (response instanceof ArrayBuffer) {
     return new Uint8Array(response);
   }
-  if (Array.isArray(response) && response.every((byte) => typeof byte === "number")) {
-    return Uint8Array.from(response as number[]);
+  if (Array.isArray(response)) {
+    let isValid = true;
+    // Performance: Avoid O(N) intermediate callback allocations from .every() on large byte arrays
+    for (const byte of response) {
+      if (typeof byte !== "number") {
+        isValid = false;
+        break;
+      }
+    }
+    if (isValid) {
+      return Uint8Array.from(response as number[]);
+    }
   }
 
   throw new Error(INVALID_RESPONSE_MESSAGE);
