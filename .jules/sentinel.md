@@ -28,3 +28,7 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
+
+## 2026-07-29 - Trivy .trivyignore usage
+**Learning:** Certain vulnerabilities, such as GHSA-wrw7-89jp-8q8g (RUSTSEC-2024-0429) affecting glib or issues in third-party libraries not distributed in artifacts (e.g. yt-dlp `shahid.py` AWS secrets test files in virtual environments), can trigger Trivy CI failures. When these files are purely development or test artifacts and have no impact on the security of the application, they can be excluded.
+**Action:** Use `.trivyignore` to exclude specific files or vulnerabilities from Trivy security scans when they are verified to be safe/false positives in the context of the project.
