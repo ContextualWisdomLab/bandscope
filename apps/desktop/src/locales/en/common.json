@@ -69,6 +69,8 @@
   "scoreViewerRetry": "Retry",
   "scoreViewerPrevPage": "Previous page",
   "scoreViewerNextPage": "Next page",
+  "scoreViewerAtFirstPage": "Already at the first page",
+  "scoreViewerAtLastPage": "Already at the last page",
   "scoreViewerPageIndicator": "Page {current} of {total}",
   "scoreViewerZoomIn": "Zoom in",
   "scoreViewerZoomOut": "Zoom out",

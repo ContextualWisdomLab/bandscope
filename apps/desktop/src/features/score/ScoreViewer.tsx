@@ -287,29 +287,43 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
-          <Button
-            variant="outline"
-            size="icon-lg"
-            className="size-14"
-            aria-label={t("scoreViewerPrevPage")}
-            disabled={pageNumber <= 1}
-            onClick={goToPreviousPage}
+          <span
+            title={pageNumber <= 1 ? t("scoreViewerAtFirstPage") : undefined}
+            tabIndex={pageNumber <= 1 ? 0 : -1}
+            aria-disabled={pageNumber <= 1 ? "true" : undefined}
+            className="inline-flex"
           >
-            <ChevronLeft className="size-6" aria-hidden="true" />
-          </Button>
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-14"
+              aria-label={t("scoreViewerPrevPage")}
+              disabled={pageNumber <= 1}
+              onClick={goToPreviousPage}
+            >
+              <ChevronLeft className="size-6" aria-hidden="true" />
+            </Button>
+          </span>
           <span className="min-w-28 text-center text-sm font-semibold text-slate-200">
             {pageIndicator}
           </span>
-          <Button
-            variant="outline"
-            size="icon-lg"
-            className="size-14"
-            aria-label={t("scoreViewerNextPage")}
-            disabled={pageNumber >= pageCount}
-            onClick={goToNextPage}
+          <span
+            title={pageNumber >= pageCount ? t("scoreViewerAtLastPage") : undefined}
+            tabIndex={pageNumber >= pageCount ? 0 : -1}
+            aria-disabled={pageNumber >= pageCount ? "true" : undefined}
+            className="inline-flex"
           >
-            <ChevronRight className="size-6" aria-hidden="true" />
-          </Button>
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-14"
+              aria-label={t("scoreViewerNextPage")}
+              disabled={pageNumber >= pageCount}
+              onClick={goToNextPage}
+            >
+              <ChevronRight className="size-6" aria-hidden="true" />
+            </Button>
+          </span>
         </div>
       </CardContent>
     </Card>

@@ -1,3 +1,6 @@
 ## 2024-05-19 - Replace HTML disabled with aria-disabled="true" for Accessible Tooltips
 **Learning:** Native HTML `disabled` attributes completely hide elements from screen readers and block all pointer/hover events, preventing tooltips from functioning for disabled elements.
 **Action:** Replace `disabled` with `aria-disabled="true"`, enforce block click handlers via `e.preventDefault()`, and add a title tooltip directly to the element to maintain full tooltip accessibility and keyboard focus support for visually impaired and mouse users.
+## 2024-07-30 - Fix pagination buttons tooltips
+**Learning:** When using tooltips over disabled buttons via a `span` wrapper with `tabIndex`, it's important to provide a proper `role` and `aria-disabled` for screen readers. However, if the wrapper serves only to show a tooltip for an already disabled inner button (which also has `disabled` or `aria-disabled`), avoid adding an interactive `role="button"` to the `span` as it creates invalid nested interactive elements and redundant screen reader announcements.
+**Action:** Add `aria-disabled` to the wrapper span and ensure its `tabIndex` conditionally responds to the disabled state without adding `role="button"` to avoid interactive nesting issues.
