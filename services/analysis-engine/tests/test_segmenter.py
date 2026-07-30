@@ -103,6 +103,49 @@ def test_checkerboard_novelty_short_matrix_returns_zeros() -> None:
     assert np.array_equal(novelty, np.zeros(2, dtype=np.float64))
 
 
+def _two_segment_ssm(n: int = 200, boundary: int = 100) -> np.ndarray:
+    """Build a clean two-segment self-similarity matrix with one boundary.
+
+    Each half is internally coherent (affinity ``1.0``) and dissimilar to the
+    other half (affinity ``0.0``), so the only structural change is at
+    ``boundary``.
+    """
+    ssm = np.zeros((n, n), dtype=np.float64)
+    ssm[:boundary, :boundary] = 1.0
+    ssm[boundary:, boundary:] = 1.0
+    return ssm
+
+
+def test_checkerboard_novelty_peaks_positive_at_boundary() -> None:
+    """A structural boundary must yield a POSITIVE novelty peak (Foote kernel).
+
+    ``detect_boundaries`` locates boundaries as positive local maxima above a
+    positive threshold, so the checkerboard kernel must produce its maximum at a
+    real boundary. A sign-inverted kernel would instead make the boundary a
+    trough, which the boundary detector can never find.
+    """
+    ssm = _two_segment_ssm(n=200, boundary=100)
+
+    novelty = _checkerboard_novelty(ssm, kernel_size=64)
+
+    assert int(np.argmax(novelty)) == 100
+    assert float(novelty[100]) > 0.0
+    assert float(novelty.max()) == float(novelty[100])
+
+
+def test_detect_boundaries_finds_clean_structural_boundary() -> None:
+    """End-to-end: a clean two-segment SSM yields a detected mid-song boundary."""
+    ssm = _two_segment_ssm(n=200, boundary=100)
+
+    novelty = _checkerboard_novelty(ssm, kernel_size=64)
+    frame_times = np.arange(200, dtype=np.float64) * 0.5  # 0.5s per frame
+
+    boundaries = detect_boundaries(novelty, frame_times, duration=100.0)
+
+    assert boundaries[0] == 0.0
+    assert any(abs(b - 50.0) < 1e-9 for b in boundaries)
+
+
 def test_checkerboard_novelty_matches_loop_reference() -> None:
     """Ensure diagonal vectorization preserves checkerboard novelty values."""
     rng = np.random.default_rng(42)
@@ -112,9 +155,9 @@ def test_checkerboard_novelty_matches_loop_reference() -> None:
     half = kernel_size // 2
     expected = np.zeros(ssm.shape[0], dtype=np.float64)
 
-    kernel = np.ones((kernel_size, kernel_size), dtype=np.float64)
-    kernel[:half, :half] = -1.0
-    kernel[half:, half:] = -1.0
+    kernel = np.full((kernel_size, kernel_size), -1.0, dtype=np.float64)
+    kernel[:half, :half] = 1.0
+    kernel[half:, half:] = 1.0
     for i in range(half, ssm.shape[0] - half):
         patch = ssm[i - half : i + half, i - half : i + half]
         expected[i] = np.sum(patch * kernel)
