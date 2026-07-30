@@ -29,6 +29,14 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/bandscope_analysis"]
 
+[tool.uv]
+# Constrain a build-only transitive to clear GHSA/CVE findings that the plain
+# resolver leaves at a vulnerable pin. setuptools>=83 fixes CVE-2026-59890 and
+# still supports the engine's Python (>=3.12). This transitively requires
+# torch>=2.13 (via demucs 4.0.1), so the ML runtime moves with it — the pin
+# cannot be held back without making the resolution unsatisfiable.
+constraint-dependencies = ["setuptools>=83.0.0"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

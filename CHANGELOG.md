@@ -10,6 +10,7 @@
 ### Security
 
 - Patched two high-severity advisories in dev-only transitive dependencies that were failing the `security-audit` gate (`npm audit --workspaces --audit-level=high`): `postcss` 8.5.16 → 8.5.25 (GHSA-r28c-9q8g-f849, source-map path traversal) and `brace-expansion` → 5.0.8 (GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg, ReDoS/OOM). Lockfile-only change via `npm audit fix`; no direct-dependency or runtime code changes.
+- Remediated two Python-engine advisories flagged by the central `trivy-fs` filesystem scan (`services/analysis-engine/uv.lock`): `yt-dlp` 2026.6.9 → 2026.7.4 (CVE-2026-55404, HIGH) and `setuptools` 81.0.0 → 83.0.0 (CVE-2026-59890, MEDIUM). The `setuptools` bump is pinned via a `[tool.uv] constraint-dependencies` entry; because `demucs` 4.0.1 requires it, the resolution also advances `torch` 2.12.1 → 2.13.0 and `cuda-toolkit` 13.0.2 → 13.0.3.0 (the pin cannot be held back without an unsatisfiable resolution).
 
 ## [0.1.3] - 2026-04-29
 
