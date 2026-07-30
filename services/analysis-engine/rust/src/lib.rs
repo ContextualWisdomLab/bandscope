@@ -20,9 +20,11 @@ use pyo3::prelude::*;
 ///
 /// Direct port of `_checkerboard_novelty`. For each valid diagonal position `i`
 /// the `kernel_size x kernel_size` patch centered on the diagonal is multiplied
-/// element-wise by a checkerboard kernel (top-left and bottom-right quadrants
-/// are `-1`, off-diagonal quadrants are `+1`) and summed. The resulting curve
-/// is normalized by its peak absolute magnitude, preserving sign.
+/// element-wise by a Foote checkerboard kernel (top-left and bottom-right
+/// quadrants -- within a segment -- are `+1`, off-diagonal quadrants -- across
+/// the boundary -- are `-1`) and summed, so a structural boundary produces a
+/// positive novelty peak. The resulting curve is normalized by its peak
+/// absolute magnitude, preserving sign.
 #[pyfunction]
 #[pyo3(signature = (ssm, kernel_size = 64))]
 fn checkerboard_novelty<'py>(
@@ -50,8 +52,8 @@ fn checkerboard_novelty<'py>(
             for c in 0..kernel_size {
                 let col = i - half + c;
                 let left = c < half;
-                // kernel: -1 on the top-left and bottom-right quadrants, +1 otherwise.
-                let sign = if top == left { -1.0 } else { 1.0 };
+                // kernel: +1 on the within-segment (on-diagonal) quadrants, -1 otherwise.
+                let sign = if top == left { 1.0 } else { -1.0 };
                 acc += sign * view[[row, col]];
             }
         }
