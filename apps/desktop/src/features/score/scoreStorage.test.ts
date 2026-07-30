@@ -32,4 +32,22 @@ describe("scoreStorage bridge resolution", () => {
       BRIDGE_UNAVAILABLE_MESSAGE
     );
   });
+
+  it("resolves the readScorePdf bridge command properly with array", async () => {
+    vi.stubGlobal("window", {
+      __TAURI_INVOKE__: vi.fn().mockResolvedValue([104, 101, 108, 108, 111])
+    });
+
+    const result = await readScorePdf("project-1", "score-1");
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(Array.from(result)).toEqual([104, 101, 108, 108, 111]);
+  });
+
+  it("throws INVALID_RESPONSE_MESSAGE if response contains non-number", async () => {
+    vi.stubGlobal("window", {
+      __TAURI_INVOKE__: vi.fn().mockResolvedValue([104, 101, "invalid", 108, 111])
+    });
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow("Invalid score bridge response");
+  });
 });
