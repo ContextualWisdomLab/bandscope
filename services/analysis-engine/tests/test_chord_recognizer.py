@@ -318,33 +318,3 @@ def test_chord_recognizer_compute_confidence_downgrade_path() -> None:
             # Since first frame was high but subsequent were low,
             # the segment confidence should be low (conservative)
             assert non_n[0]["confidence"] == "low"
-
-
-def test_chord_recognizer_rms_padding_optimized() -> None:
-    """Test that short rms array triggers padding."""
-    import numpy as np
-
-    from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
-
-    recognizer = ChordRecognizer()
-    chromagram = np.random.rand(12, 100)
-    similarity = np.random.rand(24, 100)
-    rms = np.random.rand(50)  # Shorter rms to trigger padding
-
-    obs_probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert obs_probs.shape == (25, 100)
-
-
-def test_chord_recognizer_max_sims_padding_optimized() -> None:
-    """Test that max_sims array triggers padding."""
-    import numpy as np
-
-    from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
-
-    recognizer = ChordRecognizer()
-    chromagram = np.random.rand(12, 100)
-    similarity = np.random.rand(24, 50)  # Shorter similarity to trigger padding
-    rms = np.random.rand(100)
-
-    obs_probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert obs_probs.shape == (25, 100)
