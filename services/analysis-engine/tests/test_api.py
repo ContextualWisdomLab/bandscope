@@ -308,6 +308,51 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             },
             "path traversal",
         ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "../project-1",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "..",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal",
+        ),
+        (
+            {
+                "sourceKind": "local_audio",
+                "projectId": "proj\\escape",
+                "sourceLabel": "Late Night Set",
+                "roleFocus": [],
+                "localSource": {
+                    "sourcePath": "/Users/test/Music/late-night-set.wav",
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+            },
+            "path traversal",
+        ),
     ]
 
     for payload, message in cases:
@@ -317,6 +362,25 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             assert message in str(error)
         else:
             raise AssertionError(f"Expected ValueError for {payload!r}")
+
+
+def test_validate_analysis_job_request_allows_project_id_with_dotdot_substring() -> None:
+    """Identifiers that only contain '..' as a substring remain valid."""
+    result = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "my..id",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+        }
+    )
+    assert result["projectId"] == "my..id"
 
 
 def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:

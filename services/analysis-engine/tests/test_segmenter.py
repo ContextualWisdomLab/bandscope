@@ -7,6 +7,7 @@ import numpy as np
 from bandscope_analysis.sections.segmenter import (
     MAX_SSM_FRAMES,
     _checkerboard_novelty,
+    _checkerboard_novelty_reference,
     _segment_repetition_groups,
     assign_section_labels,
     compute_novelty_curve,
@@ -112,9 +113,10 @@ def test_checkerboard_novelty_matches_loop_reference() -> None:
     half = kernel_size // 2
     expected = np.zeros(ssm.shape[0], dtype=np.float64)
 
-    kernel = np.ones((kernel_size, kernel_size), dtype=np.float64)
-    kernel[:half, :half] = -1.0
-    kernel[half:, half:] = -1.0
+    # Foote kernel: +1 on-diagonal quadrants, -1 cross quadrants.
+    kernel = np.full((kernel_size, kernel_size), -1.0, dtype=np.float64)
+    kernel[:half, :half] = 1.0
+    kernel[half:, half:] = 1.0
     for i in range(half, ssm.shape[0] - half):
         patch = ssm[i - half : i + half, i - half : i + half]
         expected[i] = np.sum(patch * kernel)
@@ -128,6 +130,33 @@ def test_checkerboard_novelty_matches_loop_reference() -> None:
         rtol=1e-12,
         atol=1e-12,
     )
+
+
+def _two_segment_ssm(n: int = 200, boundary: int = 100) -> np.ndarray:
+    """Build a clean two-segment self-similarity matrix with one boundary.
+
+    Each half is internally coherent (affinity ``1.0``) and dissimilar to the
+    other half (affinity ``0.0``), so the only structural change is at
+    ``boundary``.
+    """
+    ssm = np.zeros((n, n), dtype=np.float64)
+    ssm[:boundary, :boundary] = 1.0
+    ssm[boundary:, boundary:] = 1.0
+    return ssm
+
+
+def test_checkerboard_novelty_peaks_positive_at_boundary() -> None:
+    """A structural boundary must yield a POSITIVE novelty peak (Foote kernel).
+
+    ``detect_boundaries`` only promotes positive local maxima, so a negative
+    trough at the true boundary would silently drop every section change.
+    """
+    ssm = _two_segment_ssm()
+    novelty = _checkerboard_novelty_reference(ssm, kernel_size=32)
+    peak_idx = int(np.argmax(novelty))
+    assert novelty[peak_idx] > 0.0
+    # Peak should land near the constructed boundary (frame 100).
+    assert abs(peak_idx - 100) <= 4
 
 
 def test_detect_boundaries_short_novelty_returns_start_only() -> None:

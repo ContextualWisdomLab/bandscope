@@ -278,6 +278,12 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
     if not isinstance(project_id, str) or not project_id.strip():
         raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+    # Defense-in-depth: reject path separators and exact "." / ".." segments so
+    # projectId cannot escape app-owned roots if joined into filesystem paths.
+    # Allow identifiers that merely contain ".." as a substring (e.g. "my..id").
+    if project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
+        logger.warning("Security: path traversal detected in projectId")
+        raise ValueError("Invalid analysis job request: path traversal detected in 'projectId'")
     if local_source is None:
         raise ValueError("Invalid analysis job request: invalid field 'localSource'")
     if not isinstance(local_source, dict):

@@ -124,10 +124,15 @@ def _checkerboard_novelty_reference(
     if n < kernel_size:
         return novelty
 
-    # Build checkerboard kernel
-    kernel = np.ones((kernel_size, kernel_size), dtype=np.float64)
-    kernel[:half, :half] = -1.0
-    kernel[half:, half:] = -1.0
+    # Build the Foote checkerboard kernel. On-diagonal quadrants (within a
+    # segment) are +1 and cross quadrants (across the boundary) are -1, so a
+    # structural boundary — two internally coherent segments meeting — produces
+    # a positive novelty peak. detect_boundaries locates boundaries as positive
+    # local maxima, so an inverted sign here would turn every boundary into a
+    # trough that can never be detected.
+    kernel = np.full((kernel_size, kernel_size), -1.0, dtype=np.float64)
+    kernel[:half, :half] = 1.0
+    kernel[half:, half:] = 1.0
 
     # Sum each checkerboard offset across all valid diagonal windows at once.
     valid = novelty[half : n - half]
