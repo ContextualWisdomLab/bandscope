@@ -80,7 +80,7 @@ def main() -> int:
     if (
         isinstance(request, dict)
         and request.get("sourceKind") == "local_audio"
-        and "localSource" in request
+        and isinstance(request.get("localSource"), dict)
     ):
         local_source = request["localSource"]
         audio_path = local_source.get("sourcePath")

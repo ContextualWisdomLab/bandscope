@@ -193,6 +193,37 @@ def test_cli_main_rejects_invalid_job_id(monkeypatch: pytest.MonkeyPatch) -> Non
     assert response["error"]["message"] == "Invalid analysis job request: invalid field 'jobId'"
 
 
+def test_cli_main_handles_non_dict_local_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure a non-dict localSource yields a typed failure, not an AttributeError."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-nondict-ls",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "sourceLabel": "Rehearsal",
+                    "roleFocus": ["keys-right"],
+                    "projectId": "proj-1",
+                    "localSource": "not-an-object",
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 0
+    response = json.loads(stdout.getvalue())
+    assert response["state"] == "failed"
+    assert response["error"]["code"] == "invalid_request"
+    assert (
+        response["error"]["message"]
+        == "Invalid analysis job request: invalid field 'localSource'"
+    )
+
+
 def test_cli_main_handles_malformed_json(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure malformed JSON yields a typed invalid-request failure envelope."""
     stdin = io.StringIO("{")
