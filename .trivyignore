@@ -18,3 +18,12 @@ yt_dlp/extractor/vice.py
 # Guarded by scripts/checks/verify_supply_chain.py and remove when upstream
 # drops or patches the chain. Revisit by 2026-10-31.
 GHSA-wrw7-89jp-8q8g exp:2026-10-31
+
+# CVE-2026-59890: setuptools 81.0.0 in services/analysis-engine/uv.lock.
+# 81.0.0 is the latest version uv resolves (`uv lock --upgrade-package
+# setuptools` does not advance it), so no fixed release is installable yet.
+# setuptools is a build/packaging-time transitive dependency and is never
+# imported on the runtime analysis path (the engine runs from its built
+# wheel), so it is outside the request-time attack surface. Remove once a
+# fixed setuptools publishes and uv can resolve it. Revisit by 2026-10-31.
+CVE-2026-59890 exp:2026-10-31
