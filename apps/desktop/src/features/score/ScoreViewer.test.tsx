@@ -120,8 +120,8 @@ describe("ScoreViewer", () => {
       expect(page.render).toHaveBeenCalled();
     });
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Previous page" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Next page" })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("shows the file name when provided", async () => {
@@ -174,14 +174,14 @@ describe("ScoreViewer", () => {
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     const previousButton = screen.getByRole("button", { name: "Previous page" });
     const nextButton = screen.getByRole("button", { name: "Next page" });
-    expect(previousButton).toBeDisabled();
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
-    expect(nextButton).toBeDisabled();
+    expect(nextButton).toHaveAttribute("aria-disabled", "true");
 
     await waitFor(() => {
       expect(doc.getPage).toHaveBeenCalledWith(3);
@@ -192,6 +192,17 @@ describe("ScoreViewer", () => {
     await waitFor(() => {
       expect(doc.getPage).toHaveBeenCalledWith(2);
     });
+
+    fireEvent.click(previousButton);
+    expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+
+    // Verify clamped logic
+    fireEvent.click(previousButton);
+    expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+    fireEvent.click(nextButton);
+    fireEvent.click(nextButton);
+    fireEvent.click(nextButton);
+    expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
   });
 
   it("zooms in and out with clamping and returns to fit-width", async () => {
@@ -225,6 +236,10 @@ describe("ScoreViewer", () => {
     await waitFor(() => {
       expect(page.getViewport).toHaveBeenCalledWith({ scale: 0.5 });
     });
+
+    // Test clamped zooming
+    fireEvent.click(zoomOutButton);
+    expect(page.getViewport).toHaveBeenCalledWith({ scale: 0.5 });
 
     fireEvent.click(fitWidthButton);
     expect(fitWidthButton).toHaveAttribute("aria-pressed", "true");
