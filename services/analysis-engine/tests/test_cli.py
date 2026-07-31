@@ -219,8 +219,7 @@ def test_cli_main_handles_non_dict_local_source(monkeypatch: pytest.MonkeyPatch)
     assert response["state"] == "failed"
     assert response["error"]["code"] == "invalid_request"
     assert (
-        response["error"]["message"]
-        == "Invalid analysis job request: invalid field 'localSource'"
+        response["error"]["message"] == "Invalid analysis job request: invalid field 'localSource'"
     )
 
 
