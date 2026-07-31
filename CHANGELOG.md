@@ -1,15 +1,6 @@
-## [Unreleased]
-
-### 성능 향상 (Performance)
-
-- GrooveMap 컴포넌트의 렌더링 성능 최적화를 위해 `.reduce()` 및 `Math.max()` 호출을 네이티브 `for` 루프로 교체했습니다.
 # Changelog
 
 ## [Unreleased]
-
-### 성능 향상 (Performance)
-
-- `GrooveMap` 컴포넌트의 렌더링 성능 최적화를 위해 `.reduce()` 및 `Math.max()` 호출을 네이티브 `for` 루프로 교체했습니다.
 
 ### Added
 

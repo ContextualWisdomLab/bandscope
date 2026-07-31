@@ -61,7 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-## 2026-07-15 - Array reduce micro-optimizations in React
-
-**Learning:** Replacing `array.reduce()` with a native `for` loop for finding maximum/minimum values in React components is generally considered a premature micro-optimization. Mapping or reducing over standard state arrays is rarely a bottleneck.
-**Action:** Avoid micro-optimizations with no measurable impact. Always measure performance bottlenecks before optimizing array methods in UI components.
