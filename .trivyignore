@@ -18,3 +18,4 @@ yt_dlp/extractor/vice.py
 # Guarded by scripts/checks/verify_supply_chain.py and remove when upstream
 # drops or patches the chain. Revisit by 2026-10-31.
 GHSA-wrw7-89jp-8q8g exp:2026-10-31
+yt_dlp/extractor/shahid.py
