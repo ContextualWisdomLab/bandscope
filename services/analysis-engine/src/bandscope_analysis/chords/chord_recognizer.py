@@ -168,25 +168,19 @@ class ChordRecognizer:
         log_trans = np.log(self._transition_matrix + 1e-12)
         log_obs = np.log(observation_probs + 1e-12)
 
-        # Uniform initial probability
-        log_pi = np.full(n_states, np.log(1.0 / n_states))
-
-        # Viterbi tables
-        viterbi = np.zeros((n_states, n_frames))
+        # Viterbi tables initialized with uniform initial probability
+        viterbi = np.full(n_states, np.log(1.0 / n_states)) + log_obs[:, 0]
         backpointer = np.zeros((n_states, n_frames), dtype=np.intp)
 
-        # Initialization
-        viterbi[:, 0] = log_pi + log_obs[:, 0]
-
-        # Forward pass (Vectorized over states for ~7x speedup)
+        # Forward pass (Vectorized over states)
         for t in range(1, n_frames):
-            trans_probs = viterbi[:, t - 1, np.newaxis] + log_trans
+            trans_probs = viterbi[:, np.newaxis] + log_trans
             backpointer[:, t] = np.argmax(trans_probs, axis=0)
-            viterbi[:, t] = np.max(trans_probs, axis=0) + log_obs[:, t]
+            viterbi = np.max(trans_probs, axis=0) + log_obs[:, t]
 
         # Backtrace
         states = np.zeros(n_frames, dtype=np.intp)
-        states[-1] = int(np.argmax(viterbi[:, -1]))
+        states[-1] = int(np.argmax(viterbi))
         for t in range(n_frames - 2, -1, -1):
             states[t] = backpointer[states[t + 1], t + 1]
 
@@ -298,25 +292,45 @@ class ChordRecognizer:
 
         # Chord observation likelihoods from template similarity
         # Normalize similarity per frame to get valid probability-like values
-        sim_max = similarity.max(axis=0, keepdims=True)
-        sim_shifted = similarity - sim_max
-        exp_sim = np.exp(sim_shifted * 2.0)
-        sim_sum = exp_sim.sum(axis=0, keepdims=True) + 1e-12
-        obs_probs[:24, :] = exp_sim / sim_sum
+        n_sim_frames = similarity.shape[1]
+
+        if n_sim_frames > 0:
+            sim_max = similarity.max(axis=0, keepdims=True)
+            sim_shifted = similarity - sim_max
+            exp_sim = np.exp(sim_shifted * 2.0)
+            sim_sum = exp_sim.sum(axis=0, keepdims=True) + 1e-12
+            if n_sim_frames >= n_frames:
+                obs_probs[:24, :] = (exp_sim / sim_sum)[:, :n_frames]
+            else:
+                obs_probs[:24, :n_sim_frames] = exp_sim / sim_sum
+
+        # Default uniform probability for any missing frames
+        if n_sim_frames < n_frames:
+            obs_probs[:24, n_sim_frames:] = 1.0 / 24.0
 
         # N (no-chord) observation probability based on noise indicators
         chroma_vars = np.var(chromagram, axis=0)
-        for i in range(n_frames):
-            rms_val = rms[i] if i < len(rms) else 0.0
-            chroma_var = chroma_vars[i]
-            max_sim = similarity[:, i].max() if similarity.shape[1] > i else 0.0
 
-            # High N probability when signal is low/flat
-            if max_sim < 0.3 or rms_val < 0.01 or chroma_var < 0.02:
-                obs_probs[:24, i] *= 0.1
-                obs_probs[_NO_CHORD_STATE, i] = 0.9
+        # Pad or truncate RMS to match n_frames
+        rms_vals = rms[:n_frames] if len(rms) >= n_frames else np.pad(rms, (0, n_frames - len(rms)))
+
+        # Max similarity per frame: handle array length mismatches explicitly
+        n_sim_frames = similarity.shape[1]
+        if n_sim_frames == 0:
+            max_sims = np.zeros(n_frames)
+        else:
+            sim_max_raw = similarity.max(axis=0)
+            if n_sim_frames >= n_frames:
+                max_sims = sim_max_raw[:n_frames]
             else:
-                obs_probs[_NO_CHORD_STATE, i] = 0.05
+                max_sims = np.pad(sim_max_raw, (0, n_frames - n_sim_frames))
+
+        # Vectorized condition for high N probability when signal is low/flat
+        mask = (max_sims < 0.3) | (rms_vals < 0.01) | (chroma_vars < 0.02)
+
+        obs_probs[:24, mask] *= 0.1
+        obs_probs[_NO_CHORD_STATE, mask] = 0.9
+        obs_probs[_NO_CHORD_STATE, ~mask] = 0.05
 
         # Normalize columns
         col_sums = obs_probs.sum(axis=0, keepdims=True) + 1e-12
