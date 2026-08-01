@@ -32,4 +32,16 @@ describe("scoreStorage bridge resolution", () => {
       BRIDGE_UNAVAILABLE_MESSAGE
     );
   });
+
+  it("returns invalid response if byte array contains non-numbers to trigger break path", async () => {
+    // Stub window to bypass getInvoke null check
+    const mockInvoke = vi.fn().mockResolvedValue([1, 2, "not-a-number", 4]);
+    vi.stubGlobal("window", {
+      __TAURI_INVOKE__: mockInvoke
+    });
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      "Invalid score bridge response"
+    );
+  });
 });
