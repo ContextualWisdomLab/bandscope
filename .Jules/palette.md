@@ -37,3 +37,4 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+## 2026-08-01 - Disabled icon-only buttons wrapping rule\n**Learning:** When using custom components (e.g., Base UI `<Button>`) that internally rely on the `disabled` prop to function, wrapping them in a focusable `span` is necessary to provide accessible tooltips on hover and focus. When adding tests, make sure to query these specific wrappers accurately (e.g. `screen.getAllByTitle(...)`).\n**Action:** Use a focusable `span` wrapper with `tabIndex={isDisabled ? 0 : -1}`, `title`, and `aria-disabled="true"` around `<Button>` components that must remain functionally disabled, and include `.sr-only` text.

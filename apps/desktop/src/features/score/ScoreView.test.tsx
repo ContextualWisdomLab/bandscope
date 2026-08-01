@@ -95,9 +95,16 @@ describe("ScoreView", () => {
     render(<ScoreView song={song} projectId={null} onSongUpdate={vi.fn()} />);
 
     expect(screen.getByText("Scores attach to the active analysis project.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
+
+    // Open score 버튼이 비활성화됨을 확인
+    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toHaveAttribute("aria-disabled", "true");
+
+    const wrappers = screen.getAllByTitle("scoreNavDisabledHint");
+    // Add score 래퍼가 비활성화됨을 확인
+    expect(wrappers[0]).toHaveAttribute("aria-disabled", "true");
+    // Remove score 래퍼가 비활성화됨을 확인 (Open score 버튼에도 title이 있으므로 index가 다름)
+    const removeWrapper = wrappers.find(el => el.tagName.toLowerCase() === 'span' && el.querySelector('button[aria-label="Remove: opener.pdf"]'));
+    expect(removeWrapper).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
     expect(mockInvoke).not.toHaveBeenCalled();
