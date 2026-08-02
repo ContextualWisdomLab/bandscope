@@ -96,7 +96,7 @@ describe("ScoreView", () => {
 
     expect(screen.getByText("Scores attach to the active analysis project.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
@@ -178,6 +178,16 @@ describe("ScoreView", () => {
       projectId: "project-1-2",
       scoreId: SCORE_ID
     });
+  });
+
+  it("renders disabled score open buttons with aria-disabled and a tooltip when there is no projectId", () => {
+    const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
+    render(<ScoreView song={song} projectId="" onSongUpdate={vi.fn()} />);
+
+    const button = screen.getByRole("button", { name: "Open score: opener.pdf" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("title", "scoreNavDisabledHint");
+    expect(button).not.toBeDisabled();
   });
 
   it("accepts Uint8Array read responses from the bridge", async () => {
