@@ -61,3 +61,4 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2026-08-02 - O(1) Memory Array Validation\n**Learning:** Using `Array.every()` on large byte arrays in `scoreStorage.ts` allocates unnecessary intermediate callbacks (O(N) overhead) causing garbage collection spikes.\n**Action:** Replaced `.every()` with a standard `for` loop that avoids callback overhead and exits early upon encountering a non-number.\n
