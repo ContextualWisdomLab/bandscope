@@ -372,7 +372,8 @@ function validateSnapshot(value: unknown): string | null {
  * canonicalization cannot observe different states.
  */
 export function validateNaruonRehearsalHandoff(value: unknown): string | null {
-  return validateSnapshot(value);
+  const snapshot = snapshotBoundaryValue(value);
+  return snapshot.ok ? validateSnapshot(snapshot.value) : snapshot.error;
 }
 
 /** Return whether a value satisfies the complete handoff contract. */
@@ -480,9 +481,8 @@ export function deserializeNaruonRehearsalHandoff(serialized: unknown): NaruonRe
   let value: unknown;
   try {
     value = JSON.parse(serialized);
-  } catch (error) {
-    const detail = String(error);
-    throw new TypeError(`Invalid naruon rehearsal handoff JSON: ${detail}`);
+  } catch {
+    throw new TypeError("Invalid naruon rehearsal handoff JSON: malformed JSON");
   }
   return parseNaruonRehearsalHandoff(value);
 }
