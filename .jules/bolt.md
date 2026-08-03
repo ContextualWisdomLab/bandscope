@@ -61,7 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-
-## 2024-05-18 - Viterbi Decoding Memory Optimization
-**Learning:** In standard dynamic programming problems like Viterbi decoding or sequence alignment that only require the backpointer matrix for traceback (and not the full score matrix), storing the entire `(n_states, n_frames)` score matrix incurs huge O(NM) memory allocation and access overhead.
-**Action:** When implementing DP algorithms in Python/NumPy where only the previous column is needed to compute the next, use a 1D `(n_states,)` array for the current scores and update it dynamically in place. This changes space complexity of the score matrix from O(NM) to O(N) and significantly reduces memory bandwidth requirements.
