@@ -6,6 +6,12 @@ on:
     paths:
       - scripts/ci/bootstrap_naruon_canonical_order.py
       - .github/workflows/bootstrap-naruon-canonical-order.yml
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+    paths:
+      - scripts/ci/bootstrap_naruon_canonical_order.py
+      - .github/workflows/bootstrap-naruon-canonical-order.yml
   workflow_dispatch:
 
 concurrency:
@@ -20,7 +26,10 @@ jobs:
     if: >-
       github.repository == 'ContextualWisdomLab/bandscope'
       && github.actor != 'github-actions[bot]'
-      && github.ref_name == 'feat/naruon-rehearsal-handoff-v1'
+      && (
+        github.ref_name == 'feat/naruon-rehearsal-handoff-v1'
+        || github.head_ref == 'feat/naruon-rehearsal-handoff-v1'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Harden runner
