@@ -7,6 +7,9 @@ export const NARUON_REHEARSAL_HANDOFF_VERSION = 1 as const;
 /** Maximum number of provenance receipts accepted in one handoff. */
 export const MAX_NARUON_EVIDENCE_RECEIPTS = 64;
 
+/** Maximum UTF-8 size accepted before untrusted JSON parsing. */
+export const MAX_NARUON_SERIALIZED_BYTES = 262_144;
+
 const MAX_IDENTIFIER_LENGTH = 256;
 const MAX_DISPLAY_TEXT_LENGTH = 2_048;
 const MAX_TIME_ZONE_LENGTH = 128;
@@ -84,6 +87,20 @@ export type CreateNaruonRehearsalHandoffInput = Omit<
   "artifactKind" | "artifactVersion"
 >;
 
+/** Result of stabilizing one caller-owned value at the trust boundary. */
+type BoundarySnapshot =
+  | { ok: true; value: unknown }
+  | { ok: false; error: string };
+
+/** Snapshot caller-owned data so validation and canonicalization see one value. */
+function snapshotBoundaryValue(value: unknown): BoundarySnapshot {
+  try {
+    return { ok: true, value: structuredClone(value) };
+  } catch {
+    return { ok: false, error: "root is not structured-cloneable" };
+  }
+}
+
 /** Return whether a value is a plain or null-prototype non-array object. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -95,11 +112,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   }
 }
 
-/** Return whether an array has every numeric index materialized. */
-function isDenseArray(value: unknown): value is unknown[] {
+/** Return whether an array is bounded and has every numeric index materialized. */
+function isDenseArray(value: unknown, maximumLength: number): value is unknown[] {
   if (!Array.isArray(value)) return false;
   const length = Number(value.length);
-  if (!Number.isSafeInteger(length) || length < 0) return false;
+  if (!Number.isSafeInteger(length) || length < 0 || length > maximumLength) return false;
   for (let index = 0; index < length; index += 1) {
     if (!(index in value)) return false;
   }
@@ -194,6 +211,35 @@ function isTimeZone(value: unknown): value is string {
   }
 }
 
+/** Return whether a timestamp's asserted local fields agree with its critical IANA zone. */
+function isOffsetConsistentWithTimeZone(timestamp: string, timeZone: string): boolean {
+  const match = RFC3339_PATTERN.exec(timestamp) as RegExpExecArray;
+  if (match[7] === "Z" || match[7] === "-00:00") return true;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US-u-ca-iso8601-nu-latn", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23"
+    })
+      .formatToParts(new Date(timestamp))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return (
+    String(parts.year).padStart(4, "0") === match[1] &&
+    parts.month === match[2] &&
+    parts.day === match[3] &&
+    parts.hour === match[4] &&
+    parts.minute === match[5] &&
+    parts.second === match[6]
+  );
+}
+
 /** Validate one source receipt. */
 function validateEvidenceReceipt(value: unknown, path: string): string | null {
   if (!isRecord(value)) return `${path} must be an object`;
@@ -204,14 +250,8 @@ function validateEvidenceReceipt(value: unknown, path: string): string | null {
   return null;
 }
 
-/**
- * Validate an unknown value at the BandScope → naruon trust boundary.
- *
- * The validator is intentionally fail-closed: unknown keys, numeric-only IDs,
- * malformed timestamps, invalid IANA time zones, sparse arrays, inconsistent
- * band identities, and non-finite confidence values are rejected.
- */
-export function validateNaruonRehearsalHandoff(value: unknown): string | null {
+/** Validate one stable boundary snapshot without rereading caller-owned values. */
+function validateSnapshot(value: unknown): string | null {
   if (!isRecord(value)) return "root must be an object";
   const rootExtra = unexpectedKey(
     value,
@@ -266,6 +306,12 @@ export function validateNaruonRehearsalHandoff(value: unknown): string | null {
     return "event.endsAt must be later than event.startsAt";
   }
   if (!isTimeZone(value.event.timeZone)) return "event.timeZone is invalid";
+  if (!isOffsetConsistentWithTimeZone(value.event.startsAt, value.event.timeZone)) {
+    return "event.startsAt offset is inconsistent with event.timeZone";
+  }
+  if (!isOffsetConsistentWithTimeZone(value.event.endsAt, value.event.timeZone)) {
+    return "event.endsAt offset is inconsistent with event.timeZone";
+  }
   if (value.event.venue !== undefined && !isDisplayText(value.event.venue)) {
     return "event.venue is invalid";
   }
@@ -303,9 +349,8 @@ export function validateNaruonRehearsalHandoff(value: unknown): string | null {
     return "provenance.confidence is invalid";
   }
   if (
-    !isDenseArray(value.provenance.evidence) ||
-    value.provenance.evidence.length < 1 ||
-    value.provenance.evidence.length > MAX_NARUON_EVIDENCE_RECEIPTS
+    !isDenseArray(value.provenance.evidence, MAX_NARUON_EVIDENCE_RECEIPTS) ||
+    value.provenance.evidence.length < 1
   ) {
     return "provenance.evidence is invalid";
   }
@@ -319,17 +364,24 @@ export function validateNaruonRehearsalHandoff(value: unknown): string | null {
   return null;
 }
 
+/**
+ * Validate an unknown value at the BandScope → naruon trust boundary.
+ *
+ * The validator is intentionally side-effect-free and fail-closed. Parsing
+ * snapshots caller-owned values before validation so validation and
+ * canonicalization cannot observe different states.
+ */
+export function validateNaruonRehearsalHandoff(value: unknown): string | null {
+  return validateSnapshot(value);
+}
+
 /** Return whether a value satisfies the complete handoff contract. */
 export function isNaruonRehearsalHandoff(value: unknown): value is NaruonRehearsalHandoff {
   return validateNaruonRehearsalHandoff(value) === null;
 }
 
-/** Parse and canonicalize an unknown handoff, throwing on contract violations. */
-export function parseNaruonRehearsalHandoff(value: unknown): NaruonRehearsalHandoff {
-  const error = validateNaruonRehearsalHandoff(value);
-  if (error || !isRecord(value)) {
-    throw new TypeError(`Invalid naruon rehearsal handoff: ${error ?? "root must be an object"}`);
-  }
+/** Canonicalize one already validated, stable snapshot. */
+function canonicalizeSnapshot(value: Record<string, unknown>): NaruonRehearsalHandoff {
   const source = value.source as NaruonHandoffSource;
   const normGroup = value.normGroup as NaruonBandNormGroup;
   const event = value.event as NaruonRehearsalEvent;
@@ -359,6 +411,19 @@ export function parseNaruonRehearsalHandoff(value: unknown): NaruonRehearsalHand
   };
 }
 
+/** Parse and canonicalize an unknown handoff, throwing on contract violations. */
+export function parseNaruonRehearsalHandoff(value: unknown): NaruonRehearsalHandoff {
+  const snapshot = snapshotBoundaryValue(value);
+  if (!snapshot.ok) {
+    throw new TypeError(`Invalid naruon rehearsal handoff: ${snapshot.error}`);
+  }
+  const error = validateSnapshot(snapshot.value);
+  if (error) {
+    throw new TypeError(`Invalid naruon rehearsal handoff: ${error}`);
+  }
+  return canonicalizeSnapshot(snapshot.value as Record<string, unknown>);
+}
+
 /** Build a canonical versioned handoff from application-owned fields. */
 export function createNaruonRehearsalHandoff(
   input: CreateNaruonRehearsalHandoffInput
@@ -375,13 +440,27 @@ export function serializeNaruonRehearsalHandoff(value: unknown): string {
   return `${JSON.stringify(parseNaruonRehearsalHandoff(value))}\n`;
 }
 
-/** Parse JSON text and validate the resulting handoff at the same trust boundary. */
-export function deserializeNaruonRehearsalHandoff(serialized: string): NaruonRehearsalHandoff {
+/** Return the UTF-8 size without allocating for inputs already above the limit. */
+function serializedByteLength(value: string): number {
+  if (value.length > MAX_NARUON_SERIALIZED_BYTES) return value.length;
+  return new TextEncoder().encode(value).byteLength;
+}
+
+/** Parse bounded JSON text and validate the resulting handoff at the same trust boundary. */
+export function deserializeNaruonRehearsalHandoff(serialized: unknown): NaruonRehearsalHandoff {
+  if (
+    typeof serialized !== "string" ||
+    serializedByteLength(serialized) > MAX_NARUON_SERIALIZED_BYTES
+  ) {
+    throw new TypeError(
+      "Invalid naruon rehearsal handoff JSON: serialized payload is invalid or oversized"
+    );
+  }
   let value: unknown;
   try {
     value = JSON.parse(serialized);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : "unknown JSON error";
+    const detail = String(error);
     throw new TypeError(`Invalid naruon rehearsal handoff JSON: ${detail}`);
   }
   return parseNaruonRehearsalHandoff(value);
