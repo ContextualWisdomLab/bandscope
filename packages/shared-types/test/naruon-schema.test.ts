@@ -34,6 +34,7 @@ type HandoffSchema = {
   $defs: {
     opaqueIdentifier: PatternContract;
     displayText: PatternContract;
+    timestamp: PatternContract;
   };
 };
 
@@ -90,5 +91,18 @@ describe("naruon public JSON Schema", () => {
     expect(opaqueIdentifier.test("١٢٣٤٥٦")).toBe(false);
     expect(opaqueIdentifier.test(" band-2026")).toBe(false);
     expect(opaqueIdentifier.test("band-2026 ")).toBe(false);
+  });
+
+  it("bounds timestamp components before authoritative calendar validation", () => {
+    const timestamp = schemaPattern(loadSchema().$defs.timestamp);
+
+    expect(timestamp.test("2026-08-10T19:00:00+09:00")).toBe(true);
+    expect(timestamp.test("2026-08-10T10:00:00Z")).toBe(true);
+    expect(timestamp.test("2026-08-10T10:00:00-00:00")).toBe(true);
+    expect(timestamp.test("2026-13-10T10:00:00Z")).toBe(false);
+    expect(timestamp.test("2026-08-10T24:00:00Z")).toBe(false);
+    expect(timestamp.test("2026-08-10T10:60:00Z")).toBe(false);
+    expect(timestamp.test("2026-08-10T10:00:60Z")).toBe(false);
+    expect(timestamp.test("2026-08-10T10:00:00+24:00")).toBe(false);
   });
 });
