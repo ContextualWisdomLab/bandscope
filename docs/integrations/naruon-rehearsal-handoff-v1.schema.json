@@ -78,7 +78,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
-          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+          "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]+$"
         },
         "venue": {
           "$ref": "#/$defs/displayText"
@@ -124,7 +124,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 256,
-                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]+$"
               },
               "value": {
                 "$ref": "#/$defs/displayText"
@@ -140,13 +140,13 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
-      "pattern": "^(?!\\p{Nd}+$)[^\\u0000-\\u001f\\u007f]+$"
+      "pattern": "^(?!\\p{Nd}+$)(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]+$"
     },
     "displayText": {
       "type": "string",
       "minLength": 1,
       "maxLength": 2048,
-      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]+$"
     },
     "timestamp": {
       "type": "string",
