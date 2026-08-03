@@ -311,19 +311,28 @@ class ChordRecognizer:
         # N (no-chord) observation probability based on noise indicators
         chroma_vars = np.var(chromagram, axis=0)
 
-        # Pad or truncate RMS to match n_frames
-        rms_vals = rms[:n_frames] if len(rms) >= n_frames else np.pad(rms, (0, n_frames - len(rms)))
+        # Pad or truncate RMS with a neutral value that does not imply silence.
+        rms_vals = (
+            rms[:n_frames]
+            if len(rms) >= n_frames
+            else np.pad(rms, (0, n_frames - len(rms)), constant_values=1.0)
+        )
 
-        # Max similarity per frame: handle array length mismatches explicitly
+        # Max similarity per frame: use neutral padding so missing metadata does
+        # not override the uniform chord fallback with a forced no-chord state.
         n_sim_frames = similarity.shape[1]
         if n_sim_frames == 0:
-            max_sims = np.zeros(n_frames)
+            max_sims = np.full(n_frames, 1.0)
         else:
             sim_max_raw = similarity.max(axis=0)
             if n_sim_frames >= n_frames:
                 max_sims = sim_max_raw[:n_frames]
             else:
-                max_sims = np.pad(sim_max_raw, (0, n_frames - n_sim_frames))
+                max_sims = np.pad(
+                    sim_max_raw,
+                    (0, n_frames - n_sim_frames),
+                    constant_values=1.0,
+                )
 
         # Vectorized condition for high N probability when signal is low/flat
         mask = (max_sims < 0.3) | (rms_vals < 0.01) | (chroma_vars < 0.02)

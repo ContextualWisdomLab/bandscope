@@ -5,42 +5,74 @@ import numpy as np
 from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 
 
+def _harmonic_chromagram(n_frames: int) -> np.ndarray:
+    """Return a non-flat chromagram whose variance does not imply no-chord."""
+    chromagram = np.zeros((12, n_frames))
+    chromagram[0, :] = 1.0
+    return chromagram
+
+
+def _distinct_similarity(n_frames: int) -> np.ndarray:
+    """Return frame-distinguishable chord-template similarities."""
+    similarity = np.zeros((24, n_frames))
+    for frame in range(n_frames):
+        similarity[frame % 24, frame] = 2.0
+    return similarity
+
+
+def _assert_probability_contract(probs: np.ndarray, n_frames: int) -> None:
+    """Assert shape, finiteness, and per-frame normalization."""
+    assert probs.shape == (25, n_frames)
+    assert np.isfinite(probs).all()
+    assert np.allclose(probs.sum(axis=0), 1.0)
+
+
 def test_chord_recognizer_build_observation_probs_edge_cases():
-    """Test edge cases for _build_observation_probs."""
+    """Preserve frame alignment and neutral padding across mismatched inputs."""
     recognizer = ChordRecognizer()
+    chromagram = _harmonic_chromagram(10)
 
-    # 1. Empty similarity (n_sim_frames == 0)
-    chromagram = np.zeros((12, 10))
-    similarity = np.zeros((24, 0))
-    rms = np.zeros(10)
+    empty_probs = recognizer._build_observation_probs(
+        chromagram,
+        np.zeros((24, 0)),
+        np.ones(10),
+    )
+    _assert_probability_contract(empty_probs, 10)
+    assert np.allclose(empty_probs[:24], empty_probs[0][None, :])
+    assert np.all(empty_probs[24] < 0.1)
 
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert probs.shape == (25, 10)
+    short_probs = recognizer._build_observation_probs(
+        chromagram,
+        _distinct_similarity(5),
+        np.ones(10),
+    )
+    _assert_probability_contract(short_probs, 10)
+    assert np.array_equal(np.argmax(short_probs[:24, :5], axis=0), np.arange(5))
+    assert np.allclose(short_probs[:24, 5:], short_probs[0, 5:][None, :])
+    assert np.all(short_probs[24, 5:] < 0.1)
 
-    # 2. Similarity shorter than chromagram (n_sim_frames < n_frames)
-    similarity = np.zeros((24, 5))
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert probs.shape == (25, 10)
+    long_probs = recognizer._build_observation_probs(
+        chromagram,
+        _distinct_similarity(15),
+        np.ones(10),
+    )
+    _assert_probability_contract(long_probs, 10)
+    assert np.array_equal(np.argmax(long_probs[:24], axis=0), np.arange(10))
 
-    # 3. Similarity longer than chromagram (n_sim_frames > n_frames)
-    chromagram = np.zeros((12, 10))
-    similarity = np.zeros((24, 15))
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert probs.shape == (25, 10)
-
-    # 4. rms shorter than n_frames
-    chromagram = np.zeros((12, 10))
-    similarity = np.zeros((24, 10))
-    rms = np.zeros(5)
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert probs.shape == (25, 10)
+    short_rms_probs = recognizer._build_observation_probs(
+        chromagram,
+        _distinct_similarity(10),
+        np.ones(5),
+    )
+    _assert_probability_contract(short_rms_probs, 10)
+    assert np.array_equal(np.argmax(short_rms_probs[:24], axis=0), np.arange(10))
+    assert np.all(short_rms_probs[24, 5:] < 0.1)
 
 
 def test_short_similarity_preserves_observed_frames_and_neutral_padding():
     """Distinguish observed frame likelihoods and verify neutral missing-frame padding."""
     recognizer = ChordRecognizer()
-    chromagram = np.zeros((12, 5))
-    chromagram[0, :] = 1.0
+    chromagram = _harmonic_chromagram(5)
     similarity = np.zeros((24, 2))
     similarity[0, 0] = 2.0
     similarity[1, 1] = 2.0
@@ -48,13 +80,12 @@ def test_short_similarity_preserves_observed_frames_and_neutral_padding():
 
     probs = recognizer._build_observation_probs(chromagram, similarity, rms)
 
-    assert probs.shape == (25, 5)
-    assert np.allclose(probs.sum(axis=0), 1.0)
+    _assert_probability_contract(probs, 5)
     assert probs[0, 0] > probs[1, 0]
     assert probs[1, 1] > probs[0, 1]
     assert not np.allclose(probs[:24, 0], probs[:24, 1])
     assert np.allclose(probs[:24, 2:], probs[0, 2:][None, :])
-    assert np.all(probs[24, 2:] > probs[0, 2:])
+    assert np.all(probs[24, 2:] < 0.1)
 
 
 def test_create_chord_segments_handles_short_similarity(monkeypatch):
