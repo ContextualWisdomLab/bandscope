@@ -6,34 +6,21 @@ from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 
 
 def test_chord_recognizer_build_observation_probs_edge_cases():
-    """Test edge cases for _build_observation_probs."""
+    """Validate normalized low-signal probabilities for every length mismatch."""
     recognizer = ChordRecognizer()
-
-    # 1. Empty similarity (n_sim_frames == 0)
     chromagram = np.zeros((12, 10))
-    similarity = np.zeros((24, 0))
-    rms = np.zeros(10)
 
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert probs.shape == (25, 10)
+    for similarity_frames, rms_frames in ((0, 10), (5, 10), (15, 10), (10, 5)):
+        similarity = np.zeros((24, similarity_frames))
+        rms = np.zeros(rms_frames)
 
-    # 2. Similarity shorter than chromagram (n_sim_frames < n_frames)
-    similarity = np.zeros((24, 5))
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert probs.shape == (25, 10)
+        probs = recognizer._build_observation_probs(chromagram, similarity, rms)
 
-    # 3. Similarity longer than chromagram (n_sim_frames > n_frames)
-    chromagram = np.zeros((12, 10))
-    similarity = np.zeros((24, 15))
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert probs.shape == (25, 10)
-
-    # 4. rms shorter than n_frames
-    chromagram = np.zeros((12, 10))
-    similarity = np.zeros((24, 10))
-    rms = np.zeros(5)
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-    assert probs.shape == (25, 10)
+        assert probs.shape == (25, 10)
+        assert np.all(np.isfinite(probs))
+        assert np.allclose(probs.sum(axis=0), 1.0)
+        assert np.allclose(probs[:24], 0.1 / 24.0)
+        assert np.allclose(probs[24], 0.9)
 
 
 def test_create_chord_segments_handles_short_similarity(monkeypatch):
