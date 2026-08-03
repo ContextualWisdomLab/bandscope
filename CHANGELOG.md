@@ -4,6 +4,7 @@
 
 ### Added
 
+- Import a bounded, validated BandScope metadata-handoff JSON file and reuse its focused rehearsal roles only after the recipient explicitly selects local audio for reanalysis (#739).
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
@@ -49,8 +50,7 @@
 - Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
 - Issue #40: Enforced 100% Python docstring and test coverage
 - Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Implemented secure local audio intake and project bootstrap
-- Issue #35: Engineered section, form, and cue anchor extraction pipeline
+- Issue #33: Engineered section, form, and cue anchor extraction pipeline
 - Issue #34: Implemented role extraction targets and part graph
 - Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
 - Issue #28: Delivered practical rehearsal workspace UI
