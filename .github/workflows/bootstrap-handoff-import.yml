@@ -53,6 +53,8 @@ jobs:
           git diff --check
           grep -F 'HandoffImportControl' apps/desktop/src/App.tsx >/dev/null
           grep -F 'pendingHandoff' apps/desktop/src/App.tsx >/dev/null
+          grep -F 'slice: ReturnType<typeof vi.fn>' apps/desktop/src/lib/handoff.test.ts >/dev/null
+          grep -F 'expect(file.slice).not.toHaveBeenCalled();' apps/desktop/src/lib/handoff.test.ts >/dev/null
           grep -F 'handoffErrorTooLarge' apps/desktop/src/locales/en/common.json >/dev/null
           grep -F 'handoffErrorTooLarge' apps/desktop/src/locales/ko/common.json >/dev/null
           test ! -e scripts/ci/bootstrap_handoff_import.py
