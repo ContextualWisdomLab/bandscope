@@ -1,0 +1,61 @@
+name: Bootstrap chord similarity alignment
+
+on:
+  push:
+    branches: [jules-15985039724708397070-07b0954f]
+    paths:
+      - scripts/ci/bootstrap_chord_similarity_alignment.py
+      - .github/workflows/bootstrap-chord-similarity-alignment.yml
+  workflow_dispatch:
+
+concurrency:
+  group: bootstrap-chord-similarity-alignment
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: >-
+      github.repository == 'ContextualWisdomLab/bandscope'
+      && github.actor != 'github-actions[bot]'
+      && github.ref_name == 'jules-15985039724708397070-07b0954f'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: jules-15985039724708397070-07b0954f
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply reviewed frame-alignment fix
+        run: python3 scripts/ci/bootstrap_chord_similarity_alignment.py
+
+      - name: Verify generated alignment
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -F 'missing_similarity = np.zeros' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py >/dev/null
+          grep -F 'test_create_chord_segments_handles_short_similarity' services/analysis-engine/tests/test_chord_recognizer_opt.py >/dev/null
+          test ! -e scripts/ci/bootstrap_chord_similarity_alignment.py
+          test ! -e .github/workflows/bootstrap-chord-similarity-alignment.yml
+
+      - name: Commit generated alignment
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No alignment changes to commit."
+            exit 0
+          fi
+          git commit -m "fix(chords): align confidence with padded frames"
+          git push origin HEAD:refs/heads/jules-15985039724708397070-07b0954f
