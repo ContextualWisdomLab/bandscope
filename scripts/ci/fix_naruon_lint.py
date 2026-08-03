@@ -21,7 +21,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 def main() -> int:
-    """Apply lint fixes and align the proxy test with snapshot-first rejection."""
+    """Apply lint fixes and align tests with snapshot-first rejection."""
     source = SOURCE.read_text(encoding="utf-8")
     replacements = (
         (
@@ -59,6 +59,17 @@ def main() -> int:
             " */\n"
             "const MAX_NARUON_SERIALIZED_BYTES",
             "serialized size JSDoc",
+        ),
+        (
+            "  try {\n"
+            "    const prototype = Object.getPrototypeOf(value);\n"
+            "    return prototype === Object.prototype || prototype === null;\n"
+            "  } catch {\n"
+            "    return false;\n"
+            "  }",
+            "  const prototype = Object.getPrototypeOf(value);\n"
+            "  return prototype === Object.prototype || prototype === null;",
+            "snapshot-safe record prototype check",
         ),
         (
             "    !/[\\u0000-\\u001f\\u007f]/u.test(value)",
