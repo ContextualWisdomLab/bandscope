@@ -65,7 +65,7 @@ const artifact = createNaruonRehearsalHandoff({
 const json = serializeNaruonRehearsalHandoff(artifact);
 ```
 
-Consumers receiving untrusted bytes must call `deserializeNaruonRehearsalHandoff` or `parseNaruonRehearsalHandoff` before use. Serialized handoffs are limited to 256 KiB of UTF-8 and are size-checked before JSON parsing.
+Consumers receiving untrusted bytes must call `deserializeNaruonRehearsalHandoff` or `parseNaruonRehearsalHandoff` before use. Serialized handoffs are limited to 256 KiB of UTF-8 and are size-checked before JSON parsing. Preserve original transport bytes separately only when a detached-signature verification workflow requires them; application logic should use the validated canonical value.
 
 ## Boundary guarantees
 
