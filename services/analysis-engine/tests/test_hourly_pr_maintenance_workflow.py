@@ -51,12 +51,21 @@ def test_hourly_pr_maintenance_calls_central_merge_scheduler() -> None:
     assert "project_flow: git-flow" in workflow
 
 
-def test_hourly_pr_maintenance_keeps_least_privilege_local_permissions() -> None:
-    """The caller itself stays read-only and contains no copied merge logic."""
+def test_hourly_pr_maintenance_grants_only_called_workflow_permissions() -> None:
+    """The caller grants the exact union needed by both central workflows."""
     workflow = _workflow_text()
 
-    assert "permissions:\n  contents: read" in workflow
-    assert "pull-requests: write" not in workflow
-    assert "contents: write" not in workflow
+    expected_permissions = """permissions:
+  actions: write
+  checks: read
+  contents: write
+  id-token: write
+  issues: write
+  pull-requests: write
+  statuses: read
+"""
+    assert expected_permissions in workflow
+    assert "administration: write" not in workflow
+    assert "security-events: write" not in workflow
     assert "runs-on:" not in workflow
     assert "gh pr merge" not in workflow
