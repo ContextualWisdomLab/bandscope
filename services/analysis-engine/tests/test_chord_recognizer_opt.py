@@ -81,3 +81,36 @@ def test_missing_similarity_fallback_vector_is_allocated_once(monkeypatch):
     recognizer._create_chord_segments(chromagram, similarity, rms, 22_050)
 
     assert fallback_allocations == 1
+
+
+def test_observation_probability_edge_cases_are_normalized():
+    """Keep finite normalized columns across observation length mismatches."""
+    recognizer = ChordRecognizer()
+    chromagram = np.zeros((12, 10))
+    cases = (
+        (np.zeros((24, 0)), np.zeros(10)),
+        (np.zeros((24, 5)), np.zeros(10)),
+        (np.zeros((24, 15)), np.zeros(10)),
+        (np.zeros((24, 10)), np.zeros(5)),
+    )
+
+    for similarity, rms in cases:
+        probs = recognizer._build_observation_probs(chromagram, similarity, rms)
+        assert probs.shape == (25, 10)
+        assert np.all(np.isfinite(probs))
+        assert np.allclose(probs.sum(axis=0), 1.0)
+
+
+def test_missing_observation_metadata_does_not_force_no_chord():
+    """Keep uniform chord fallback neutral when similarity and RMS are absent."""
+    recognizer = ChordRecognizer()
+    chromagram = np.zeros((12, 3))
+    chromagram[0, :] = 1.0
+    similarity = np.zeros((24, 0))
+    rms = np.array([], dtype=float)
+
+    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
+
+    assert np.allclose(probs.sum(axis=0), 1.0)
+    assert np.allclose(probs[24], 0.05 / 1.05)
+    assert np.allclose(probs[:24], 1.0 / (24.0 * 1.05))
