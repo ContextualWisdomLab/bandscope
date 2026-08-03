@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "apps/desktop/src/App.tsx"
+HANDOFF_TEST = ROOT / "apps/desktop/src/lib/handoff.test.ts"
 EN = ROOT / "apps/desktop/src/locales/en/common.json"
 KO = ROOT / "apps/desktop/src/locales/ko/common.json"
 SELF = ROOT / "scripts/ci/bootstrap_handoff_import.py"
@@ -251,6 +252,74 @@ function BandScopeMark""",
     return text
 
 
+def patch_handoff_test(text: str) -> str:
+    """Align test doubles with the allocation-bounded Blob slice contract."""
+    text = replace_once(
+        text,
+        """function handoffFile(
+  name: string,
+  bytes: Uint8Array,
+  reportedSize = bytes.byteLength
+): MetadataHandoffFile & { arrayBuffer: ReturnType<typeof vi.fn> } {
+  const arrayBuffer = vi.fn(async () =>
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+  );
+  return { name, size: reportedSize, arrayBuffer };
+}
+""",
+        """function handoffFile(
+  name: string,
+  bytes: Uint8Array,
+  reportedSize = bytes.byteLength
+): MetadataHandoffFile & { slice: ReturnType<typeof vi.fn> } {
+  const payload = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  ) as ArrayBuffer;
+  const blob = new Blob([payload]);
+  const slice = vi.fn((start?: number, end?: number) => blob.slice(start, end));
+  return { name, size: reportedSize, slice };
+}
+""",
+        "handoff file test double",
+    )
+    array_buffer_assertion = "expect(file.arrayBuffer).not.toHaveBeenCalled();"
+    if text.count(array_buffer_assertion) != 2:
+        raise RuntimeError(
+            "handoff pre-read assertions: expected two arrayBuffer assertions"
+        )
+    text = text.replace(
+        array_buffer_assertion,
+        "expect(file.slice).not.toHaveBeenCalled();",
+    )
+    text = replace_once(
+        text,
+        """    const file: MetadataHandoffFile = {
+      name: "friday-handoff.json",
+      size: 12,
+      arrayBuffer: vi.fn(async () => {
+        throw new Error("/Users/private/secret.json could not be read");
+      })
+    };
+""",
+        """    const file: MetadataHandoffFile = {
+      name: "friday-handoff.json",
+      size: 12,
+      slice: vi.fn(
+        () =>
+          ({
+            arrayBuffer: vi.fn(async () => {
+              throw new Error("/Users/private/secret.json could not be read");
+            })
+          }) as unknown as Blob
+      )
+    };
+""",
+        "handoff read failure test double",
+    )
+    return text
+
+
 def patch_locale(path: Path, additions: dict[str, str]) -> None:
     """Append synchronized localized handoff copy without reordering existing keys."""
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -270,6 +339,10 @@ def main() -> int:
     """Patch reviewed files and remove the one-shot bootstrap artifacts."""
     app_text = APP.read_text(encoding="utf-8")
     APP.write_text(patch_app(app_text), encoding="utf-8")
+    HANDOFF_TEST.write_text(
+        patch_handoff_test(HANDOFF_TEST.read_text(encoding="utf-8")),
+        encoding="utf-8",
+    )
     patch_locale(
         EN,
         {
