@@ -6,6 +6,12 @@ on:
     paths:
       - scripts/ci/bootstrap_chord_similarity_alignment.py
       - .github/workflows/bootstrap-chord-similarity-alignment.yml
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+    paths:
+      - scripts/ci/bootstrap_chord_similarity_alignment.py
+      - .github/workflows/bootstrap-chord-similarity-alignment.yml
   workflow_dispatch:
 
 concurrency:
@@ -20,7 +26,10 @@ jobs:
     if: >-
       github.repository == 'ContextualWisdomLab/bandscope'
       && github.actor != 'github-actions[bot]'
-      && github.ref_name == 'jules-15985039724708397070-07b0954f'
+      && (
+        github.ref_name == 'jules-15985039724708397070-07b0954f'
+        || github.head_ref == 'jules-15985039724708397070-07b0954f'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Harden runner
