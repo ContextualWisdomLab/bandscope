@@ -75,9 +75,7 @@ def test_missing_similarity_fallback_vector_is_allocated_once(monkeypatch):
     monkeypatch.setattr(
         recognizer,
         "_viterbi_decode",
-        lambda observation_probs: original_zeros(
-            observation_probs.shape[1], dtype=np.intp
-        ),
+        lambda observation_probs: original_zeros(observation_probs.shape[1], dtype=np.intp),
     )
 
     recognizer._create_chord_segments(chromagram, similarity, rms, 22_050)
