@@ -204,8 +204,9 @@ describe("HandoffImportControl", () => {
     expect(screen.getByLabelText(/handoff JSON file/i)).toBeDisabled();
   });
 
-  it("shows bounded progress while the selected file is being validated", async () => {
+  it("reports bounded progress while the selected file is being validated", async () => {
     let resolveImport: ((value: Awaited<ReturnType<typeof readMetadataHandoffFile>>) => void) | null = null;
+    const onReadingChange = vi.fn();
     mockedReadMetadataHandoffFile.mockImplementationOnce(
       () => new Promise((resolve) => {
         resolveImport = resolve;
@@ -217,6 +218,7 @@ describe("HandoffImportControl", () => {
         handoff={null}
         onHandoffChange={vi.fn()}
         onImportError={vi.fn()}
+        onReadingChange={onReadingChange}
       />
     );
 
@@ -224,10 +226,13 @@ describe("HandoffImportControl", () => {
       target: { files: [uploadFile()] }
     });
     expect(await screen.findByRole("button", { name: /validating handoff/i })).toBeDisabled();
+    expect(onReadingChange).toHaveBeenCalledWith(true);
 
     resolveImport?.({ ok: false, code: "invalid_artifact" });
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /import handoff/i })).not.toBeDisabled();
+      expect(onReadingChange).toHaveBeenLastCalledWith(false);
     });
+    expect(onReadingChange).toHaveBeenCalledTimes(2);
   });
 });
