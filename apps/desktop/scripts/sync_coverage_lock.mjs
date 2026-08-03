@@ -1,17 +1,4 @@
-"""Install the reviewed standalone desktop coverage-lock contract."""
-
-from __future__ import annotations
-
-import json
-from pathlib import Path
-
-DESKTOP_PACKAGE = Path("apps/desktop/package.json")
-SYNC_SCRIPT = Path("apps/desktop/scripts/sync_coverage_lock.mjs")
-PROXY_SOURCE = Path("apps/desktop/src/shared-types-proxy.ts")
-SELF = Path("scripts/ci/bootstrap_desktop_coverage_lock.py")
-WORKFLOW = Path(".github/workflows/bootstrap-desktop-coverage-lock.yml")
-
-SYNC_SCRIPT_CONTENT = r'''import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -164,29 +151,3 @@ if (mode === "--write") {
 } else {
   throw new Error(`unsupported mode: ${mode}`);
 }
-'''
-
-PROXY_CONTENT = 'export * from "../../../packages/shared-types/src/index";\n'
-
-
-def main() -> int:
-    """Patch the desktop package and install deterministic lock synchronization."""
-    package = json.loads(DESKTOP_PACKAGE.read_text(encoding="utf-8"))
-    package["exports"] = "./src/shared-types-proxy.ts"
-    test_script = package["scripts"]["test"]
-    prefix = "node scripts/sync_coverage_lock.mjs --check && "
-    if not test_script.startswith(prefix):
-        package["scripts"]["test"] = prefix + test_script
-    DESKTOP_PACKAGE.write_text(json.dumps(package, indent=2) + "\n", encoding="utf-8")
-
-    SYNC_SCRIPT.parent.mkdir(parents=True, exist_ok=True)
-    SYNC_SCRIPT.write_text(SYNC_SCRIPT_CONTENT, encoding="utf-8")
-    PROXY_SOURCE.write_text(PROXY_CONTENT, encoding="utf-8")
-
-    SELF.unlink()
-    WORKFLOW.unlink()
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
