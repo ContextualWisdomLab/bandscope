@@ -65,7 +65,7 @@ const artifact = createNaruonRehearsalHandoff({
 const json = serializeNaruonRehearsalHandoff(artifact);
 ```
 
-Consumers receiving untrusted bytes must call `deserializeNaruonRehearsalHandoff` or `parseNaruonRehearsalHandoff` before use.
+Consumers receiving untrusted bytes must call `deserializeNaruonRehearsalHandoff` or `parseNaruonRehearsalHandoff` before use. Serialized handoffs are limited to 256 KiB of UTF-8 and are size-checked before JSON parsing.
 
 ## Boundary guarantees
 
@@ -77,12 +77,16 @@ The contract fails closed on:
 - malformed or calendrically invalid RFC 3339 timestamps;
 - an end time that is not later than its start time;
 - time-zone identifiers rejected by the runtime's IANA/ICU database;
+- numeric UTC offsets whose asserted local clock fields disagree with the required IANA time zone at that instant, including daylight-saving transitions;
 - a norm-group identity that differs from the exported source band identity;
 - unsupported commitment status or RSVP direction;
 - non-finite or out-of-range confidence values;
-- empty, sparse, oversized, or malformed provenance receipt arrays.
+- empty, sparse, oversized, or malformed provenance receipt arrays;
+- JSON inputs larger than 256 KiB of UTF-8 or caller-owned values that cannot be safely snapshotted.
 
-Parsing returns newly allocated nested objects and evidence receipts so a caller cannot mutate the parsed artifact by retaining references to its input object.
+`Z` and `-00:00` are accepted with an explicit IANA zone as unknown-local-offset forms; a numeric `+/-HH:MM` offset is treated as an assertion and must agree with that zone. This follows the RFC 9557 distinction between an asserted numeric offset and time-zone information.
+
+Parsing snapshots caller-owned data once before validation and canonicalization. It then returns newly allocated nested objects and evidence receipts, so accessors, proxies, concurrent mutation, or retained input references cannot make validation observe different data from the canonical output.
 
 ## Trust and privacy model
 
@@ -103,4 +107,4 @@ A connector should:
 - `artifactVersion`: `1`
 - Additive fields require a new version because version 1 rejects unknown keys.
 - Breaking semantic changes require a new artifact kind or major version.
-- The JSON Schema companion is `naruon-rehearsal-handoff-v1.schema.json`; the TypeScript parser remains authoritative for cross-field and IANA time-zone checks.
+- The JSON Schema companion is `naruon-rehearsal-handoff-v1.schema.json`; the TypeScript parser remains authoritative for payload-size, snapshot, cross-field, RFC 9557 offset/time-zone consistency, and IANA time-zone checks.
