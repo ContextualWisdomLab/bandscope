@@ -7,6 +7,7 @@ import {
 } from "../src/naruon";
 
 type PatternContract = { pattern: string };
+type ObjectContract = { additionalProperties: boolean };
 
 type HandoffSchema = {
   $schema: string;
@@ -14,20 +15,19 @@ type HandoffSchema = {
   properties: {
     artifactKind: { const: string };
     artifactVersion: { const: number };
-    event: {
-      additionalProperties: boolean;
+    source: ObjectContract;
+    normGroup: ObjectContract;
+    event: ObjectContract & {
       properties: {
         timeZone: PatternContract;
       };
     };
-    provenance: {
-      additionalProperties: boolean;
+    commitment: ObjectContract;
+    provenance: ObjectContract & {
       properties: {
         evidence: {
-          additionalProperties: boolean;
           maxItems: number;
-          items: {
-            additionalProperties: boolean;
+          items: ObjectContract & {
             properties: {
               field: PatternContract;
             };
@@ -69,9 +69,11 @@ describe("naruon public JSON Schema", () => {
     );
     expect(evidence.maxItems).toBe(MAX_NARUON_EVIDENCE_RECEIPTS);
     expect(schema.additionalProperties).toBe(false);
+    expect(schema.properties.source.additionalProperties).toBe(false);
+    expect(schema.properties.normGroup.additionalProperties).toBe(false);
     expect(schema.properties.event.additionalProperties).toBe(false);
+    expect(schema.properties.commitment.additionalProperties).toBe(false);
     expect(schema.properties.provenance.additionalProperties).toBe(false);
-    expect(evidence.additionalProperties).toBe(false);
     expect(evidence.items.additionalProperties).toBe(false);
   });
 
