@@ -20,27 +20,43 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 def main() -> int:
-    """Normalize exported JSDoc and document the intentional control regex."""
+    """Attach export docs to variable declarations and document the control regex."""
     source = SOURCE.read_text(encoding="utf-8")
     replacements = (
         (
-            "/** Stable artifact kind emitted by BandScope for naruon ingestion. */",
-            "/**\n * Stable artifact kind emitted by BandScope for naruon ingestion.\n */",
+            "/** Stable artifact kind emitted by BandScope for naruon ingestion. */\n"
+            "export const NARUON_REHEARSAL_HANDOFF_KIND",
+            "export /**\n"
+            " * Stable artifact kind emitted by BandScope for naruon ingestion.\n"
+            " */\n"
+            "const NARUON_REHEARSAL_HANDOFF_KIND",
             "artifact kind JSDoc",
         ),
         (
-            "/** Current additive schema version for the naruon rehearsal handoff. */",
-            "/**\n * Current additive schema version for the naruon rehearsal handoff.\n */",
+            "/** Current additive schema version for the naruon rehearsal handoff. */\n"
+            "export const NARUON_REHEARSAL_HANDOFF_VERSION",
+            "export /**\n"
+            " * Current additive schema version for the naruon rehearsal handoff.\n"
+            " */\n"
+            "const NARUON_REHEARSAL_HANDOFF_VERSION",
             "artifact version JSDoc",
         ),
         (
-            "/** Maximum number of provenance receipts accepted in one handoff. */",
-            "/**\n * Maximum number of provenance receipts accepted in one handoff.\n */",
+            "/** Maximum number of provenance receipts accepted in one handoff. */\n"
+            "export const MAX_NARUON_EVIDENCE_RECEIPTS",
+            "export /**\n"
+            " * Maximum number of provenance receipts accepted in one handoff.\n"
+            " */\n"
+            "const MAX_NARUON_EVIDENCE_RECEIPTS",
             "receipt limit JSDoc",
         ),
         (
-            "/** Maximum UTF-8 size accepted before untrusted JSON parsing. */",
-            "/**\n * Maximum UTF-8 size accepted before untrusted JSON parsing.\n */",
+            "/** Maximum UTF-8 size accepted before untrusted JSON parsing. */\n"
+            "export const MAX_NARUON_SERIALIZED_BYTES",
+            "export /**\n"
+            " * Maximum UTF-8 size accepted before untrusted JSON parsing.\n"
+            " */\n"
+            "const MAX_NARUON_SERIALIZED_BYTES",
             "serialized size JSDoc",
         ),
         (
