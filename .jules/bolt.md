@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2025-02-15 - Rejected change with a valuable lesson: Premature Optimization
+**Learning:** Replaced a `.filter().map()` chain with a single `.reduce()` call inside a React component for a small array. Although this avoids an intermediate array allocation, it violates the "Don't sacrifice readability for micro-optimizations" rule as the performance impact is microscopic (fraction of a millisecond).
+**Action:** Do not optimize for minor array allocations on extremely small collections (like UI lists of handful of items). Make sure a change will actually have a *measurable* performance impact before implementing it.
