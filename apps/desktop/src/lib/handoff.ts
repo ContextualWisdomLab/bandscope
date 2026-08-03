@@ -7,10 +7,10 @@ import {
 } from "@bandscope/shared-types";
 import { createReanalysisRequestFromHandoff } from "./export";
 
-/** Documented. */
+/** Maximum number of bytes read from one untrusted metadata handoff file. */
 export const MAX_HANDOFF_FILE_BYTES = 1_048_576;
 
-/** Documented. */
+/** Stable, payload-free error classifications for handoff import UI copy. */
 export type HandoffImportErrorCode =
   | "unsupported_file"
   | "too_large"
@@ -19,14 +19,14 @@ export type HandoffImportErrorCode =
   | "invalid_artifact"
   | "read_failed";
 
-/** Documented. */
+/** Minimum browser File/Blob contract required for allocation-bounded reading. */
 export type MetadataHandoffFile = {
   name: string;
   size: number;
-  arrayBuffer(): Promise<ArrayBuffer>;
+  slice(start?: number, end?: number): Blob;
 };
 
-/** Documented. */
+/** Result of reading and validating one local metadata handoff file. */
 export type MetadataHandoffImportResult =
   | {
       ok: true;
@@ -39,7 +39,7 @@ export type MetadataHandoffImportResult =
       code: HandoffImportErrorCode;
     };
 
-/** Documented. */
+/** Return unique role IDs in their first-seen section order. */
 export function handoffRoleFocus(artifact: MetadataHandoffArtifact): string[] {
   const roleIds = new Set<string>();
   for (const section of artifact.sections) {
@@ -50,7 +50,7 @@ export function handoffRoleFocus(artifact: MetadataHandoffArtifact): string[] {
   return Array.from(roleIds);
 }
 
-/** Documented. */
+/** Read a bounded slice, decode strict UTF-8, and validate one untrusted handoff. */
 export async function readMetadataHandoffFile(
   file: MetadataHandoffFile
 ): Promise<MetadataHandoffImportResult> {
@@ -63,12 +63,15 @@ export async function readMetadataHandoffFile(
 
   let bytes: ArrayBuffer;
   try {
-    bytes = await file.arrayBuffer();
+    bytes = await file.slice(0, MAX_HANDOFF_FILE_BYTES + 1).arrayBuffer();
   } catch {
     return { ok: false, code: "read_failed" };
   }
   if (bytes.byteLength > MAX_HANDOFF_FILE_BYTES) {
     return { ok: false, code: "too_large" };
+  }
+  if (bytes.byteLength !== file.size) {
+    return { ok: false, code: "read_failed" };
   }
 
   let text: string;
@@ -100,7 +103,7 @@ export async function readMetadataHandoffFile(
   };
 }
 
-/** Documented. */
+/** Build the analysis request for the explicit local source and optional handoff. */
 export function createAnalysisRequestForSelection(
   defaultRequest: AnalysisJobRequest,
   selectedSource: ProjectBootstrapSummary | null,
