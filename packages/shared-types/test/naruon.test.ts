@@ -295,6 +295,6 @@ describe("naruon rehearsal handoff contract", () => {
       }
     });
 
-    expect(validateNaruonRehearsalHandoff(value)).toBe("provenance.evidence is invalid");
+    expect(validateNaruonRehearsalHandoff(value)).toBe("root is not structured-cloneable");
   });
 });

@@ -1,14 +1,22 @@
-/** Stable artifact kind emitted by BandScope for naruon ingestion. */
-export const NARUON_REHEARSAL_HANDOFF_KIND = "bandscope.naruon.rehearsal-event" as const;
+export /**
+ * Stable artifact kind emitted by BandScope for naruon ingestion.
+ */
+const NARUON_REHEARSAL_HANDOFF_KIND = "bandscope.naruon.rehearsal-event" as const;
 
-/** Current additive schema version for the naruon rehearsal handoff. */
-export const NARUON_REHEARSAL_HANDOFF_VERSION = 1 as const;
+export /**
+ * Current additive schema version for the naruon rehearsal handoff.
+ */
+const NARUON_REHEARSAL_HANDOFF_VERSION = 1 as const;
 
-/** Maximum number of provenance receipts accepted in one handoff. */
-export const MAX_NARUON_EVIDENCE_RECEIPTS = 64;
+export /**
+ * Maximum number of provenance receipts accepted in one handoff.
+ */
+const MAX_NARUON_EVIDENCE_RECEIPTS = 64;
 
-/** Maximum UTF-8 size accepted before untrusted JSON parsing. */
-export const MAX_NARUON_SERIALIZED_BYTES = 262_144;
+export /**
+ * Maximum UTF-8 size accepted before untrusted JSON parsing.
+ */
+const MAX_NARUON_SERIALIZED_BYTES = 262_144;
 
 const MAX_IDENTIFIER_LENGTH = 256;
 const MAX_DISPLAY_TEXT_LENGTH = 2_048;
@@ -101,15 +109,10 @@ function snapshotBoundaryValue(value: unknown): BoundarySnapshot {
   }
 }
 
-/** Return whether a value is a plain or null-prototype non-array object. */
+/** Return whether a stabilized value is a plain non-array object. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  try {
-    const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
-  } catch {
-    return false;
-  }
+  return Object.getPrototypeOf(value) === Object.prototype;
 }
 
 /** Return whether an array is bounded and has every numeric index materialized. */
@@ -144,6 +147,8 @@ function isDisplayText(value: unknown, maximumLength = MAX_DISPLAY_TEXT_LENGTH):
     value.length > 0 &&
     value.length <= maximumLength &&
     value === value.trim() &&
+    // The public boundary deliberately rejects C0 and DEL controls.
+    // eslint-disable-next-line no-control-regex
     !/[\u0000-\u001f\u007f]/u.test(value)
   );
 }
