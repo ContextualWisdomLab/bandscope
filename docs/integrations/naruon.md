@@ -107,4 +107,4 @@ A connector should:
 - `artifactVersion`: `1`
 - Additive fields require a new version because version 1 rejects unknown keys.
 - Breaking semantic changes require a new artifact kind or major version.
-- The JSON Schema companion is `naruon-rehearsal-handoff-v1.schema.json`; the TypeScript parser remains authoritative for payload-size, snapshot, cross-field, RFC 9557 offset/time-zone consistency, and IANA time-zone checks.
+- The JSON Schema companion is `naruon-rehearsal-handoff-v1.schema.json`; validators must compile schema patterns with Unicode semantics for `\p{Nd}`, and the TypeScript parser remains authoritative for payload-size, snapshot, cross-field, leading/trailing whitespace normalization, Unicode-aware numeric-only identifier rejection, RFC 9557 offset/time-zone consistency, and IANA time-zone checks.

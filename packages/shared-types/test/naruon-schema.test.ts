@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  MAX_NARUON_EVIDENCE_RECEIPTS,
   NARUON_REHEARSAL_HANDOFF_KIND,
   NARUON_REHEARSAL_HANDOFF_VERSION
 } from "../src/naruon";
@@ -61,7 +62,9 @@ describe("naruon public JSON Schema", () => {
     expect(schema.properties.artifactVersion.const).toBe(
       NARUON_REHEARSAL_HANDOFF_VERSION
     );
-    expect(schema.properties.provenance.properties.evidence.maxItems).toBe(64);
+    expect(schema.properties.provenance.properties.evidence.maxItems).toBe(
+      MAX_NARUON_EVIDENCE_RECEIPTS
+    );
     expect(schema.additionalProperties).toBe(false);
   });
 

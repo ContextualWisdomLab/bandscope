@@ -116,7 +116,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isDenseArray(value: unknown, maximumLength: number): value is unknown[] {
   if (!Array.isArray(value)) return false;
   const length = Number(value.length);
-  if (!Number.isSafeInteger(length) || length < 0 || length > maximumLength) return false;
+  if (!Number.isSafeInteger(length) || length > maximumLength) return false;
   for (let index = 0; index < length; index += 1) {
     if (!(index in value)) return false;
   }
@@ -158,7 +158,7 @@ function isOpaqueIdentifier(value: unknown): value is string {
 
 /** Return whether a value belongs to a readonly string enum. */
 function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
-  return typeof value === "string" && values.includes(value as T);
+  return values.includes(value as T);
 }
 
 /** Return the proleptic-Gregorian number of days in one month. */
