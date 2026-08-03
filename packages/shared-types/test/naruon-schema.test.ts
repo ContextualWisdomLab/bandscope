@@ -5,17 +5,35 @@ import {
   NARUON_REHEARSAL_HANDOFF_VERSION
 } from "../src/naruon";
 
+type PatternContract = { pattern: string };
+
 type HandoffSchema = {
   $schema: string;
   additionalProperties: boolean;
   properties: {
     artifactKind: { const: string };
     artifactVersion: { const: number };
-    provenance: {
+    event: {
       properties: {
-        evidence: { maxItems: number };
+        timeZone: PatternContract;
       };
     };
+    provenance: {
+      properties: {
+        evidence: {
+          maxItems: number;
+          items: {
+            properties: {
+              field: PatternContract;
+            };
+          };
+        };
+      };
+    };
+  };
+  $defs: {
+    opaqueIdentifier: PatternContract;
+    displayText: PatternContract;
   };
 };
 
@@ -26,6 +44,11 @@ function loadSchema(): HandoffSchema {
     import.meta.url
   );
   return JSON.parse(readFileSync(fileURLToPath(schemaUrl), "utf8")) as HandoffSchema;
+}
+
+/** Compile one schema pattern with the Unicode semantics used by modern validators. */
+function schemaPattern(pattern: PatternContract): RegExp {
+  return new RegExp(pattern.pattern, "u");
 }
 
 describe("naruon public JSON Schema", () => {
@@ -39,5 +62,33 @@ describe("naruon public JSON Schema", () => {
     );
     expect(schema.properties.provenance.properties.evidence.maxItems).toBe(64);
     expect(schema.additionalProperties).toBe(false);
+  });
+
+  it("matches the runtime no-padding contract for public text fields", () => {
+    const schema = loadSchema();
+    const displayText = schemaPattern(schema.$defs.displayText);
+    const timeZone = schemaPattern(schema.properties.event.properties.timeZone);
+    const evidenceField = schemaPattern(
+      schema.properties.provenance.properties.evidence.items.properties.field
+    );
+
+    expect(displayText.test("Friday rehearsal")).toBe(true);
+    expect(displayText.test(" Friday rehearsal")).toBe(false);
+    expect(displayText.test("Friday rehearsal ")).toBe(false);
+    expect(displayText.test("\u00a0Friday rehearsal")).toBe(false);
+    expect(timeZone.test("Asia/Seoul")).toBe(true);
+    expect(timeZone.test(" Asia/Seoul")).toBe(false);
+    expect(evidenceField.test("event.startsAt")).toBe(true);
+    expect(evidenceField.test("event.startsAt ")).toBe(false);
+  });
+
+  it("keeps identifiers opaque, trimmed, and nonnumeric across Unicode digits", () => {
+    const opaqueIdentifier = schemaPattern(loadSchema().$defs.opaqueIdentifier);
+
+    expect(opaqueIdentifier.test("band-2026")).toBe(true);
+    expect(opaqueIdentifier.test("123456")).toBe(false);
+    expect(opaqueIdentifier.test("١٢٣٤٥٦")).toBe(false);
+    expect(opaqueIdentifier.test(" band-2026")).toBe(false);
+    expect(opaqueIdentifier.test("band-2026 ")).toBe(false);
   });
 });
