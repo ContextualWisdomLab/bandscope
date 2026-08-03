@@ -85,6 +85,7 @@ def test_short_similarity_preserves_observed_frames_and_neutral_padding():
     assert probs[1, 1] > probs[0, 1]
     assert not np.allclose(probs[:24, 0], probs[:24, 1])
     assert np.allclose(probs[:24, 2:], probs[0, 2:][None, :])
+    # Missing model metadata is not equivalent to observed silence.
     assert np.all(probs[24, 2:] < 0.1)
 
 
