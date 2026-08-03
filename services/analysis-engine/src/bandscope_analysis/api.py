@@ -1264,9 +1264,7 @@ def run_analysis_job_updates(
         )
     if cache_path is not None:
         final_cache_status = (
-            "stored"
-            if _store_cached_analysis(cache_path, request, complete_result)
-            else "miss"
+            "stored" if _store_cached_analysis(cache_path, request, complete_result) else "miss"
         )
     updates.append(
         _build_job_status(
