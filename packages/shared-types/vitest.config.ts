@@ -10,7 +10,13 @@ export default defineConfig({
         lines: 90,
         functions: 90,
         branches: 90,
-        statements: 90
+        statements: 90,
+        "src/naruon.ts": {
+          lines: 100,
+          functions: 100,
+          branches: 100,
+          statements: 100
+        }
       }
     }
   }
