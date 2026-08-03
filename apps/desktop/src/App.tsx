@@ -28,6 +28,7 @@ import {
   SUPPORTED_AUDIO_FORMATS,
   type AnalysisJobRequest,
   type AnalysisJobStatus,
+  type MetadataHandoffArtifact,
   type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
@@ -43,10 +44,15 @@ import {
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
+import {
+  createAnalysisRequestForSelection,
+  type HandoffImportErrorCode
+} from "./lib/handoff";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { HandoffImportControl } from "./features/import/HandoffImportControl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -143,6 +149,27 @@ function safeErrorDetail(error: unknown, fallback: string): string {
   return redacted.length > MAX_ERROR_DETAIL_LENGTH
     ? `${redacted.slice(0, MAX_ERROR_DETAIL_LENGTH - 3)}...`
     : redacted;
+}
+
+/** Map bounded import failures to localized, payload-free copy. */
+function handoffErrorMessage(
+  t: ReturnType<typeof createTranslator>,
+  code: HandoffImportErrorCode
+): string {
+  switch (code) {
+    case "unsupported_file":
+      return t("handoffErrorUnsupportedFile");
+    case "too_large":
+      return t("handoffErrorTooLarge");
+    case "invalid_utf8":
+      return t("handoffErrorInvalidUtf8");
+    case "invalid_json":
+      return t("handoffErrorInvalidJson");
+    case "invalid_artifact":
+      return t("handoffErrorInvalidArtifact");
+    case "read_failed":
+      return t("handoffErrorReadFailed");
+  }
 }
 
 /** Documented. */
@@ -258,9 +285,10 @@ export function App() {
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [pendingHandoff, setPendingHandoff] = useState<MetadataHandoffArtifact | null>(null);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
-  const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
+  const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | "handoff" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
@@ -268,14 +296,11 @@ export function App() {
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
-  const selectedRequest: AnalysisJobRequest = selectedBootstrap
-    ? {
-        sourceKind: "local_audio",
-        projectId: selectedBootstrap.projectId,
-        sourceLabel: selectedBootstrap.source.fileName,
-        roleFocus: defaultRequest.roleFocus
-      }
-    : defaultRequest;
+  const selectedRequest: AnalysisJobRequest = createAnalysisRequestForSelection(
+    defaultRequest,
+    selectedBootstrap,
+    pendingHandoff
+  );
 
   useEffect(() => {
     activeJobIdRef.current = jobStatus?.jobId ?? null;
@@ -288,6 +313,7 @@ export function App() {
       setJobResult(nextStatus.result);
       setJobResultBootstrap(activeAnalysisBootstrap);
       setActiveAnalysisBootstrap(null);
+      setPendingHandoff(null);
       setJobError(null);
     }
     if (nextStatus.state === "failed") {
@@ -401,6 +427,7 @@ export function App() {
         setJobResult(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
         setActiveAnalysisBootstrap(null);
+        setPendingHandoff(null);
       } else {
         applyJobStatus(nextStatus);
       }
@@ -470,6 +497,27 @@ export function App() {
     setYoutubeUrl("");
   };
 
+  /** Store or clear one validated handoff without reading referenced assets. */
+  const handleHandoffChange = (handoff: MetadataHandoffArtifact | null) => {
+    setPendingHandoff(handoff);
+    if (handoff) {
+      setSelectedBootstrap(null);
+    }
+  };
+
+  /** Convert bounded import failure codes into localized, payload-free copy. */
+  const handleHandoffImportError = (code: HandoffImportErrorCode | null) => {
+    if (code === null) {
+      if (selectionErrorSource === "handoff") {
+        setSelectionError(null);
+        setSelectionErrorSource(null);
+      }
+      return;
+    }
+    setSelectionError(handoffErrorMessage(t, code));
+    setSelectionErrorSource("handoff");
+  };
+
   /** Documented. */
   const handleLoadProject = async () => {
     try {
@@ -478,6 +526,7 @@ export function App() {
       setJobResultBootstrap(null);
       setJobError(null);
       setSelectedBootstrap(null);
+      setPendingHandoff(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
@@ -680,16 +729,24 @@ export function App() {
               </div>
 
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
-                <Button
-                  onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting}
-                  variant="secondary"
-                  className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
-                  aria-label={t("chooseLocalAudio")}
-                >
-                  <Upload className="mr-2 size-4" aria-hidden="true" />
-                  {t("chooseLocalAudio")}
-                </Button>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
+                  <Button
+                    onClick={handleChooseLocalAudio}
+                    disabled={analysisInFlight || isStarting || isImporting}
+                    variant="secondary"
+                    className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 sm:w-auto"
+                    aria-label={t("chooseLocalAudio")}
+                  >
+                    <Upload className="mr-2 size-4" aria-hidden="true" />
+                    {t("chooseLocalAudio")}
+                  </Button>
+                  <HandoffImportControl
+                    disabled={analysisInFlight || isStarting || isImporting}
+                    handoff={pendingHandoff}
+                    onHandoffChange={handleHandoffChange}
+                    onImportError={handleHandoffImportError}
+                  />
+                </div>
 
                 <div className="grid min-w-0 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="flex min-w-0 items-center gap-2">
