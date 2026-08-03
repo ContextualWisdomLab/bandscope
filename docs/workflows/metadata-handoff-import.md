@@ -13,6 +13,19 @@ BandScope metadata handoffs let one musician share rehearsal scope without embed
 
 Importing metadata never starts analysis automatically and never dereferences file paths or URLs carried by the artifact.
 
+## Focus enforcement and cache behavior
+
+The analysis engine builds and caches the complete reusable song analysis, then projects the response onto `roleFocus` before returning it to the desktop. This keeps stem and analysis caches reusable across bandmates while ensuring that a focused handoff does not silently return unrelated role rows.
+
+For a non-empty role focus:
+
+- each section retains only requested role payloads;
+- part-graph nodes outside the focus are removed;
+- `handoff_to` and `handoff_from` links are limited to retained roles;
+- export focus sections are recalculated from sections that contain a retained role.
+
+An explicitly empty `roleFocus` continues to mean “all analyzed roles.” The full cached analysis is never overwritten by a recipient-specific projection.
+
 ## Validation boundary
 
 The desktop reads at most 1 MiB plus one sentinel byte from the selected file. It then requires:
@@ -37,6 +50,7 @@ The UI boundary is implemented by:
 - `readMetadataHandoffFile` for bounded file intake and validation;
 - `handoffRoleFocus` for ordered role deduplication;
 - `createAnalysisRequestForSelection` for preserving the normal request path until both a local source and valid handoff are present;
-- `HandoffImportControl` for accessible import, replace, progress, summary, and clear controls.
+- `HandoffImportControl` for accessible import, replace, progress, summary, and clear controls;
+- `_focus_rehearsal_song` for non-mutating backend result projection over complete cached analysis.
 
-Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, explicit local-source selection and re-selection, and successful pending-state cleanup.
+Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, explicit local-source selection and re-selection, cache-safe role projection, graph-link filtering, and successful pending-state cleanup.
