@@ -75,3 +75,5 @@ jobs:
           git diff --cached --check
           git commit -m "fix(handoff): gate sources during validation"
           git push origin HEAD:refs/heads/feat/handoff-import-roundtrip
+
+# A follow-up push activates this newly introduced one-shot workflow.
