@@ -66,6 +66,24 @@ describe("HandoffImportControl", () => {
     mockedReadMetadataHandoffFile.mockReset();
   });
 
+  it("opens the hidden file picker from the visible import action", () => {
+    render(
+      <HandoffImportControl
+        disabled={false}
+        handoff={null}
+        onHandoffChange={vi.fn()}
+        onImportError={vi.fn()}
+      />
+    );
+
+    const input = screen.getByLabelText(/handoff JSON file/i) as HTMLInputElement;
+    const clickSpy = vi.spyOn(input, "click").mockImplementation(() => undefined);
+
+    fireEvent.click(screen.getByRole("button", { name: /import handoff/i }));
+
+    expect(clickSpy).toHaveBeenCalledOnce();
+  });
+
   it("opens an accessible JSON file picker and publishes a valid import", async () => {
     const onHandoffChange = vi.fn();
     const onImportError = vi.fn();
