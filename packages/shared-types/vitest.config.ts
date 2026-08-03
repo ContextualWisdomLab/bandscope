@@ -5,7 +5,7 @@ export default defineConfig({
     globals: true,
     coverage: {
       provider: "v8",
-      include: ["src/index.ts"],
+      include: ["src/index.ts", "src/naruon.ts"],
       thresholds: {
         lines: 90,
         functions: 90,
