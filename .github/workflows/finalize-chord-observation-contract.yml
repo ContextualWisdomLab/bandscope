@@ -1,0 +1,71 @@
+name: Finalize chord observation contract
+
+on:
+  push:
+    branches: [jules-15985039724708397070-07b0954f]
+    paths:
+      - scripts/ci/finalize_chord_observation_contract.py
+      - .github/workflows/finalize-chord-observation-contract.yml
+  workflow_dispatch:
+
+concurrency:
+  group: finalize-chord-observation-contract
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+
+jobs:
+  apply:
+    if: github.repository == 'ContextualWisdomLab/bandscope' && github.actor != 'github-actions[bot]'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: jules-15985039724708397070-07b0954f
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.8.6"
+          enable-cache: false
+
+      - name: Apply reviewed fixes
+        run: python3 scripts/ci/finalize_chord_observation_contract.py
+
+      - name: Sync Python dependencies
+        run: uv sync --project services/analysis-engine --group dev --frozen
+
+      - name: Validate targeted behavior and formatting
+        run: |
+          set -euo pipefail
+          uv run --project services/analysis-engine pytest services/analysis-engine/tests/test_chord_recognizer_opt.py
+          uv run --project services/analysis-engine ruff check \
+            services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py \
+            services/analysis-engine/tests/test_chord_recognizer_opt.py
+          uv run --project services/analysis-engine ruff format --check \
+            services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py \
+            services/analysis-engine/tests/test_chord_recognizer_opt.py
+          git diff --check
+          test ! -e scripts/ci/finalize_chord_observation_contract.py
+          test ! -e .github/workflows/finalize-chord-observation-contract.yml
+
+      - name: Commit reviewed fixes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(chords): keep missing observation frames neutral"
+          git push origin HEAD:refs/heads/jules-15985039724708397070-07b0954f
