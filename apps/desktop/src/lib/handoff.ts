@@ -7,11 +7,11 @@ import {
 } from "@bandscope/shared-types";
 import { createReanalysisRequestFromHandoff } from "./export";
 
-export /**
+/**
  * Maximum number of bytes read from one untrusted metadata handoff file.
  * The bound is enforced before UTF-8 decoding or JSON parsing.
  */
-const MAX_HANDOFF_FILE_BYTES = 1_048_576;
+export const MAX_HANDOFF_FILE_BYTES = 1_048_576;
 
 /** Stable, payload-free error classifications for handoff import UI copy. */
 export type HandoffImportErrorCode =
