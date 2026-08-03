@@ -84,21 +84,62 @@ def test_missing_similarity_fallback_vector_is_allocated_once(monkeypatch):
 
 
 def test_observation_probability_edge_cases_are_normalized():
-    """Keep finite normalized columns across observation length mismatches."""
+    """Preserve frame alignment and neutral padding across length mismatches."""
     recognizer = ChordRecognizer()
     chromagram = np.zeros((12, 10))
-    cases = (
-        (np.zeros((24, 0)), np.zeros(10)),
-        (np.zeros((24, 5)), np.zeros(10)),
-        (np.zeros((24, 15)), np.zeros(10)),
-        (np.zeros((24, 10)), np.zeros(5)),
-    )
+    chromagram[0, :] = 1.0
+    expected_uniform_chord = 1.0 / (24.0 * 1.05)
+    expected_no_chord = 0.05 / 1.05
 
-    for similarity, rms in cases:
-        probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-        assert probs.shape == (25, 10)
-        assert np.all(np.isfinite(probs))
-        assert np.allclose(probs.sum(axis=0), 1.0)
+    empty_probs = recognizer._build_observation_probs(
+        chromagram,
+        np.zeros((24, 0)),
+        np.ones(10),
+    )
+    assert empty_probs.shape == (25, 10)
+    assert np.all(np.isfinite(empty_probs))
+    assert np.allclose(empty_probs.sum(axis=0), 1.0)
+    assert np.allclose(empty_probs[:24], expected_uniform_chord)
+    assert np.allclose(empty_probs[24], expected_no_chord)
+
+    short_similarity = np.zeros((24, 5))
+    short_similarity[np.arange(5), np.arange(5)] = 1.0
+    short_probs = recognizer._build_observation_probs(
+        chromagram,
+        short_similarity,
+        np.ones(10),
+    )
+    assert short_probs.shape == (25, 10)
+    assert np.all(np.isfinite(short_probs))
+    assert np.allclose(short_probs.sum(axis=0), 1.0)
+    assert np.array_equal(np.argmax(short_probs[:24, :5], axis=0), np.arange(5))
+    assert np.allclose(short_probs[:24, 5:], expected_uniform_chord)
+    assert np.allclose(short_probs[24, 5:], expected_no_chord)
+
+    long_similarity = np.zeros((24, 15))
+    long_similarity[np.arange(15), np.arange(15)] = 1.0
+    long_probs = recognizer._build_observation_probs(
+        chromagram,
+        long_similarity,
+        np.ones(10),
+    )
+    assert long_probs.shape == (25, 10)
+    assert np.all(np.isfinite(long_probs))
+    assert np.allclose(long_probs.sum(axis=0), 1.0)
+    assert np.array_equal(np.argmax(long_probs[:24], axis=0), np.arange(10))
+
+    aligned_similarity = np.zeros((24, 10))
+    aligned_similarity[np.arange(10), np.arange(10)] = 1.0
+    short_rms_probs = recognizer._build_observation_probs(
+        chromagram,
+        aligned_similarity,
+        np.ones(5),
+    )
+    assert short_rms_probs.shape == (25, 10)
+    assert np.all(np.isfinite(short_rms_probs))
+    assert np.allclose(short_rms_probs.sum(axis=0), 1.0)
+    assert np.array_equal(np.argmax(short_rms_probs[:24], axis=0), np.arange(10))
+    assert np.allclose(short_rms_probs[24, 5:], expected_no_chord)
 
 
 def test_missing_observation_metadata_does_not_force_no_chord():
