@@ -254,6 +254,8 @@ describe("naruon rehearsal handoff contract", () => {
 
     const utc = clone(validHandoff());
     utc.event.timeZone = "UTC";
+    utc.event.startsAt = "2026-08-10T10:00:00Z";
+    utc.event.endsAt = "2026-08-10T12:30:00Z";
     expect(validateNaruonRehearsalHandoff(utc)).toBeNull();
   });
 
