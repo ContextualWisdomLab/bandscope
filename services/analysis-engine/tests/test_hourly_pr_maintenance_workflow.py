@@ -17,7 +17,7 @@ def _workflow_text() -> str:
 
 
 def test_hourly_pr_maintenance_calls_central_review_fix_scheduler() -> None:
-    """The hourly loop delegates review fixes to the pinned central workflow."""
+    """The hourly loop delegates review fixes to one immutable central revision."""
     workflow = _workflow_text()
 
     assert 'cron: "17 * * * *"' in workflow
@@ -29,6 +29,8 @@ def test_hourly_pr_maintenance_calls_central_review_fix_scheduler() -> None:
     assert 'base_branch: "develop"' in workflow
     assert 'retry_hours: "1"' in workflow
     assert 'max_dispatches: "3"' in workflow
+    assert f'canonical_ref: "{CENTRAL_WORKFLOW_REVISION}"' in workflow
+    assert "canonical_ref: main" not in workflow
     assert workflow.count("secrets: inherit") == 2
 
 
