@@ -189,6 +189,22 @@ describe("App handoff round trip", () => {
     });
   });
 
+  it("requires explicit source re-selection when a new handoff replaces prior context", async () => {
+    render(<App />);
+
+    await selectLocalSource();
+    expect(screen.getByRole("button", { name: /^start analysis$/i })).not.toBeDisabled();
+
+    await importValidHandoff();
+
+    expect(screen.queryByText("late-night-set.wav")).toBeNull();
+    expect(screen.getByRole("button", { name: /^start analysis$/i })).toBeDisabled();
+    expect(mockedStartAnalysisJob).not.toHaveBeenCalled();
+
+    await selectLocalSource();
+    expect(screen.getByRole("button", { name: /^start analysis$/i })).not.toBeDisabled();
+  });
+
   it("uses the normal role focus after the imported handoff is cleared", async () => {
     render(<App />);
 
