@@ -84,9 +84,15 @@ export type CreateNaruonRehearsalHandoffInput = Omit<
   "artifactKind" | "artifactVersion"
 >;
 
-/** Return whether a value is a non-array object. */
+/** Return whether a value is a plain or null-prototype non-array object. */
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    return false;
+  }
 }
 
 /** Return whether an array has every numeric index materialized. */
@@ -127,7 +133,10 @@ function isDisplayText(value: unknown, maximumLength = MAX_DISPLAY_TEXT_LENGTH):
 
 /** Return whether an identifier is opaque rather than numeric or user-facing. */
 function isOpaqueIdentifier(value: unknown): value is string {
-  return isDisplayText(value, MAX_IDENTIFIER_LENGTH) && !/^\d+$/u.test(value);
+  return (
+    isDisplayText(value, MAX_IDENTIFIER_LENGTH) &&
+    !/^\p{Decimal_Number}+$/u.test(value)
+  );
 }
 
 /** Return whether a value belongs to a readonly string enum. */
