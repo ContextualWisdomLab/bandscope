@@ -6,6 +6,12 @@ on:
     paths:
       - scripts/ci/bootstrap_handoff_import.py
       - .github/workflows/bootstrap-handoff-import.yml
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+    paths:
+      - scripts/ci/bootstrap_handoff_import.py
+      - .github/workflows/bootstrap-handoff-import.yml
   workflow_dispatch:
 
 concurrency:
@@ -20,7 +26,10 @@ jobs:
     if: >-
       github.repository == 'ContextualWisdomLab/bandscope'
       && github.actor != 'github-actions[bot]'
-      && github.ref_name == 'feat/handoff-import-roundtrip'
+      && (
+        github.ref_name == 'feat/handoff-import-roundtrip'
+        || github.head_ref == 'feat/handoff-import-roundtrip'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Harden runner
