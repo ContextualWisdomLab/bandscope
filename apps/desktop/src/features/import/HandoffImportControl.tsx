@@ -14,6 +14,7 @@ interface HandoffImportControlProps {
   handoff: MetadataHandoffArtifact | null;
   onHandoffChange: (handoff: MetadataHandoffArtifact | null) => void;
   onImportError: (code: HandoffImportErrorCode | null) => void;
+  onReadingChange?: (isReading: boolean) => void;
 }
 
 /** Documented. */
@@ -21,7 +22,8 @@ export function HandoffImportControl({
   disabled,
   handoff,
   onHandoffChange,
-  onImportError
+  onImportError,
+  onReadingChange
 }: HandoffImportControlProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -44,6 +46,7 @@ export function HandoffImportControl({
     }
 
     setIsReading(true);
+    onReadingChange?.(true);
     try {
       const result = await readMetadataHandoffFile(file);
       if (!result.ok) {
@@ -54,6 +57,7 @@ export function HandoffImportControl({
       onImportError(null);
     } finally {
       setIsReading(false);
+      onReadingChange?.(false);
     }
   };
 
