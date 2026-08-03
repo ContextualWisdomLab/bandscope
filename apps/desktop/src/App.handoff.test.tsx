@@ -242,6 +242,39 @@ describe("App handoff round trip", () => {
     expect(screen.getByRole("alert")).not.toHaveTextContent(/private-rehearsal-secret/i);
   });
 
+  it("blocks competing source actions while a handoff is being validated", async () => {
+    let resolveImport: ((value: Awaited<ReturnType<typeof readMetadataHandoffFile>>) => void) | null =
+      null;
+    mockedReadMetadataHandoffFile.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveImport = resolve;
+        })
+    );
+    render(<App />);
+
+    const youtubeInput = screen.getByLabelText(/youtube url/i);
+    fireEvent.change(youtubeInput, { target: { value: "https://youtu.be/rehearsal" } });
+    expect(screen.getByRole("button", { name: /import youtube/i })).not.toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/handoff JSON file/i), {
+      target: { files: [uploadFile()] }
+    });
+
+    expect(await screen.findByRole("button", { name: /validating handoff/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /choose local audio/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /import youtube/i })).toBeDisabled();
+    expect(youtubeInput).toBeDisabled();
+    expect(mockedSelectLocalAudioSource).not.toHaveBeenCalled();
+
+    resolveImport?.({ ok: false, code: "invalid_artifact" });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /choose local audio/i })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: /import youtube/i })).not.toBeDisabled();
+      expect(youtubeInput).not.toBeDisabled();
+    });
+  });
+
   it("clears a prior handoff error after a replacement validates", async () => {
     mockedReadMetadataHandoffFile
       .mockResolvedValueOnce({ ok: false, code: "invalid_json" })

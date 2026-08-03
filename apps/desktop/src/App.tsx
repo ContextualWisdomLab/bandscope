@@ -291,6 +291,7 @@ export function App() {
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | "handoff" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isReadingHandoff, setIsReadingHandoff] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
@@ -732,7 +733,9 @@ export function App() {
                 <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
                   <Button
                     onClick={handleChooseLocalAudio}
-                    disabled={analysisInFlight || isStarting || isImporting}
+                    disabled={
+                      analysisInFlight || isStarting || isImporting || isReadingHandoff
+                    }
                     variant="secondary"
                     className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 sm:w-auto"
                     aria-label={t("chooseLocalAudio")}
@@ -745,6 +748,7 @@ export function App() {
                     handoff={pendingHandoff}
                     onHandoffChange={handleHandoffChange}
                     onImportError={handleHandoffImportError}
+                    onReadingChange={setIsReadingHandoff}
                   />
                 </div>
 
@@ -759,13 +763,19 @@ export function App() {
                         value={youtubeUrl}
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
-                        disabled={analysisInFlight || isStarting || isImporting}
+                        disabled={
+                          analysisInFlight || isStarting || isImporting || isReadingHandoff
+                        }
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
                         aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
                         aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
-                      {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
+                      {youtubeUrl &&
+                      !analysisInFlight &&
+                      !isStarting &&
+                      !isImporting &&
+                      !isReadingHandoff ? (
                         <button
                           type="button"
                           onClick={handleClearYoutubeUrl}
@@ -780,7 +790,13 @@ export function App() {
                   </div>
                   <Button
                     onClick={handleImportYoutube}
-                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    disabled={
+                      !youtubeUrl ||
+                      analysisInFlight ||
+                      isStarting ||
+                      isImporting ||
+                      isReadingHandoff
+                    }
                     variant="outline"
                     className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
                     aria-label={t("importYoutube")}
@@ -827,7 +843,13 @@ export function App() {
                 )}
                 <Button
                   onClick={handleStartAnalysis}
-                  disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                  disabled={
+                    analysisInFlight ||
+                    isStarting ||
+                    !selectedBootstrap ||
+                    isImporting ||
+                    isReadingHandoff
+                  }
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
                   aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}
