@@ -15,15 +15,19 @@ type HandoffSchema = {
     artifactKind: { const: string };
     artifactVersion: { const: number };
     event: {
+      additionalProperties: boolean;
       properties: {
         timeZone: PatternContract;
       };
     };
     provenance: {
+      additionalProperties: boolean;
       properties: {
         evidence: {
+          additionalProperties: boolean;
           maxItems: number;
           items: {
+            additionalProperties: boolean;
             properties: {
               field: PatternContract;
             };
@@ -56,16 +60,19 @@ function schemaPattern(pattern: PatternContract): RegExp {
 describe("naruon public JSON Schema", () => {
   it("is valid JSON with the same versioned identity as the runtime parser", () => {
     const schema = loadSchema();
+    const evidence = schema.properties.provenance.properties.evidence;
 
     expect(schema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(schema.properties.artifactKind.const).toBe(NARUON_REHEARSAL_HANDOFF_KIND);
     expect(schema.properties.artifactVersion.const).toBe(
       NARUON_REHEARSAL_HANDOFF_VERSION
     );
-    expect(schema.properties.provenance.properties.evidence.maxItems).toBe(
-      MAX_NARUON_EVIDENCE_RECEIPTS
-    );
+    expect(evidence.maxItems).toBe(MAX_NARUON_EVIDENCE_RECEIPTS);
     expect(schema.additionalProperties).toBe(false);
+    expect(schema.properties.event.additionalProperties).toBe(false);
+    expect(schema.properties.provenance.additionalProperties).toBe(false);
+    expect(evidence.additionalProperties).toBe(false);
+    expect(evidence.items.additionalProperties).toBe(false);
   });
 
   it("matches the runtime no-padding contract for public text fields", () => {
@@ -84,6 +91,12 @@ describe("naruon public JSON Schema", () => {
     expect(timeZone.test(" Asia/Seoul")).toBe(false);
     expect(evidenceField.test("event.startsAt")).toBe(true);
     expect(evidenceField.test("event.startsAt ")).toBe(false);
+
+    for (const controlCharacter of ["\u0000", "\t", "\r", "\n"]) {
+      expect(displayText.test(`Friday${controlCharacter}rehearsal`)).toBe(false);
+      expect(timeZone.test(`Asia${controlCharacter}Seoul`)).toBe(false);
+      expect(evidenceField.test(`event${controlCharacter}startsAt`)).toBe(false);
+    }
   });
 
   it("keeps identifiers opaque, trimmed, and nonnumeric across Unicode digits", () => {
