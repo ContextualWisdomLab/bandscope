@@ -127,15 +127,21 @@ function isDisplayText(value: unknown, maximumLength = MAX_DISPLAY_TEXT_LENGTH):
 
 /** Return whether an identifier is opaque rather than numeric or user-facing. */
 function isOpaqueIdentifier(value: unknown): value is string {
-  return (
-    isDisplayText(value, MAX_IDENTIFIER_LENGTH) &&
-    !/^\d+$/u.test(value)
-  );
+  return isDisplayText(value, MAX_IDENTIFIER_LENGTH) && !/^\d+$/u.test(value);
 }
 
 /** Return whether a value belongs to a readonly string enum. */
 function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
   return typeof value === "string" && values.includes(value as T);
+}
+
+/** Return the proleptic-Gregorian number of days in one month. */
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    return leapYear ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
 }
 
 /** Return whether an RFC 3339 timestamp is both syntactically and calendrically valid. */
@@ -156,7 +162,7 @@ function isRfc3339(value: unknown): value is string {
     month < 1 ||
     month > 12 ||
     day < 1 ||
-    day > new Date(Date.UTC(year, month, 0)).getUTCDate() ||
+    day > daysInMonth(year, month) ||
     hour > 23 ||
     minute > 59 ||
     second > 59 ||
@@ -326,12 +332,15 @@ export function parseNaruonRehearsalHandoff(value: unknown): NaruonRehearsalHand
     createdAt: value.createdAt as string,
     source: { ...source },
     normGroup: { ...normGroup },
-    event: event.venue === undefined ? {
-      title: event.title,
-      startsAt: event.startsAt,
-      endsAt: event.endsAt,
-      timeZone: event.timeZone
-    } : { ...event },
+    event:
+      event.venue === undefined
+        ? {
+            title: event.title,
+            startsAt: event.startsAt,
+            endsAt: event.endsAt,
+            timeZone: event.timeZone
+          }
+        : { ...event },
     commitment: { ...commitment },
     provenance: {
       sourceRecordId: provenance.sourceRecordId,
@@ -346,9 +355,9 @@ export function createNaruonRehearsalHandoff(
   input: CreateNaruonRehearsalHandoffInput
 ): NaruonRehearsalHandoff {
   return parseNaruonRehearsalHandoff({
+    ...input,
     artifactKind: NARUON_REHEARSAL_HANDOFF_KIND,
-    artifactVersion: NARUON_REHEARSAL_HANDOFF_VERSION,
-    ...input
+    artifactVersion: NARUON_REHEARSAL_HANDOFF_VERSION
   });
 }
 
