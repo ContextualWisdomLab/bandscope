@@ -184,3 +184,43 @@ def test_cached_full_analysis_is_focused_per_request_without_cache_rewrite(
         ["bass-guitar", "keys-right"],
         ["lead-vocal"],
     ]
+
+
+def test_fresh_focused_analysis_stores_complete_result_in_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cache miss stores the complete analysis before projecting role focus."""
+    complete = _song()
+    monkeypatch.setattr(api, "_build_local_audio_features", lambda _request: None)
+    monkeypatch.setattr(api, "build_demo_rehearsal_song", lambda _features=None: complete)
+    request: api.AnalysisJobRequest = {
+        "sourceKind": "local_audio",
+        "sourceLabel": "fresh.wav",
+        "roleFocus": ["keys-right"],
+        "projectId": "fresh-project",
+        "localSource": {
+            "sourcePath": "/tmp/fresh.wav",
+            "fileName": "fresh.wav",
+            "extension": "wav",
+            "fileSizeBytes": 2048,
+        },
+        "cacheRoot": str(tmp_path),
+    }
+
+    cache_path = api._analysis_cache_path(request)
+    assert cache_path is not None
+    assert not cache_path.exists()
+
+    result = api.run_analysis_job_updates(
+        "job-fresh",
+        request,
+        "2026-08-03T06:00:00Z",
+    )[-1]["result"]
+
+    assert _role_ids(result) == [["keys-right"], []]
+    cached_payload: dict[str, Any] = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert _role_ids(cached_payload["result"]) == [
+        ["bass-guitar", "keys-right"],
+        ["lead-vocal"],
+    ]
