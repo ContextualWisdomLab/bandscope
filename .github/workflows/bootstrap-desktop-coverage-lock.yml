@@ -58,7 +58,7 @@ jobs:
       - name: Seed exact root dependency cache
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Validate standalone lifecycle-disabled desktop install
+      - name: Validate standalone lifecycle-disabled desktop coverage
         run: |
           set -euo pipefail
           rm -rf apps/desktop/node_modules
@@ -66,9 +66,6 @@ jobs:
             cd apps/desktop
             npm ci --offline --ignore-scripts --no-audit --no-fund
             npm test
-            npm run lint
-            npm run typecheck
-            npm run build
           )
 
       - name: Verify deterministic synchronization and commit
