@@ -391,8 +391,17 @@ function canonicalizeSnapshot(value: Record<string, unknown>): NaruonRehearsalHa
     artifactKind: NARUON_REHEARSAL_HANDOFF_KIND,
     artifactVersion: NARUON_REHEARSAL_HANDOFF_VERSION,
     createdAt: value.createdAt as string,
-    source: { ...source },
-    normGroup: { ...normGroup },
+    source: {
+      application: source.application,
+      workspaceId: source.workspaceId,
+      bandId: source.bandId,
+      rehearsalId: source.rehearsalId
+    },
+    normGroup: {
+      kind: normGroup.kind,
+      id: normGroup.id,
+      label: normGroup.label
+    },
     event:
       event.venue === undefined
         ? {
@@ -401,12 +410,24 @@ function canonicalizeSnapshot(value: Record<string, unknown>): NaruonRehearsalHa
             endsAt: event.endsAt,
             timeZone: event.timeZone
           }
-        : { ...event },
-    commitment: { ...commitment },
+        : {
+            title: event.title,
+            startsAt: event.startsAt,
+            endsAt: event.endsAt,
+            timeZone: event.timeZone,
+            venue: event.venue
+          },
+    commitment: {
+      status: commitment.status,
+      rsvpDirection: commitment.rsvpDirection
+    },
     provenance: {
       sourceRecordId: provenance.sourceRecordId,
       confidence: provenance.confidence,
-      evidence: provenance.evidence.map((receipt) => ({ ...receipt }))
+      evidence: provenance.evidence.map((receipt) => ({
+        field: receipt.field,
+        value: receipt.value
+      }))
     }
   };
 }

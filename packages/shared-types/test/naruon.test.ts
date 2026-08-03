@@ -111,6 +111,33 @@ describe("naruon rehearsal handoff contract", () => {
     expect("venue" in parsed.event).toBe(false);
   });
 
+  it("produces identical serialization regardless of input key insertion order", () => {
+    const inputA = validInput();
+    const serializedA = serializeNaruonRehearsalHandoff(createNaruonRehearsalHandoff(inputA));
+
+    const inputB: CreateNaruonRehearsalHandoffInput = {
+      createdAt: inputA.createdAt,
+      source: Object.fromEntries(Object.entries(inputA.source).reverse()) as any,
+      normGroup: Object.fromEntries(Object.entries(inputA.normGroup).reverse()) as any,
+      event: Object.fromEntries(Object.entries(inputA.event).reverse()) as any,
+      commitment: Object.fromEntries(Object.entries(inputA.commitment).reverse()) as any,
+      provenance: {
+        ...Object.fromEntries(
+          Object.entries({
+            sourceRecordId: inputA.provenance.sourceRecordId,
+            confidence: inputA.provenance.confidence
+          }).reverse()
+        ),
+        evidence: inputA.provenance.evidence.map((receipt) =>
+          Object.fromEntries(Object.entries(receipt).reverse())
+        )
+      } as any
+    };
+    const serializedB = serializeNaruonRehearsalHandoff(createNaruonRehearsalHandoff(inputB));
+
+    expect(serializedA).toBe(serializedB);
+  });
+
   it("serializes deterministically and validates again when deserializing", () => {
     const serialized = serializeNaruonRehearsalHandoff(validHandoff());
 
