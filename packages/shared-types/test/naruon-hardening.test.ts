@@ -97,8 +97,28 @@ describe("naruon handoff boundary hardening", () => {
     expect(reads).toBe(1);
   });
 
-  it("rejects proxy-backed parser inputs that cannot be snapshotted", () => {
+  it("snapshots public validation inputs before reading nested accessors", () => {
+    const value = artifact(validInput()) as {
+      source: CreateNaruonRehearsalHandoffInput["source"];
+    };
+    let reads = 0;
+    Object.defineProperty(value.source, "bandId", {
+      enumerable: true,
+      get() {
+        reads += 1;
+        return reads === 1 ? "band-hardening" : "band-mutated";
+      }
+    });
+
+    expect(validateNaruonRehearsalHandoff(value)).toBeNull();
+    expect(reads).toBe(1);
+  });
+
+  it("rejects proxy-backed boundary inputs that cannot be snapshotted", () => {
     const value = new Proxy(artifact(validInput()) as object, {});
+    expect(validateNaruonRehearsalHandoff(value)).toBe(
+      "root is not structured-cloneable"
+    );
     expect(() => parseNaruonRehearsalHandoff(value)).toThrow(
       "root is not structured-cloneable"
     );
@@ -126,6 +146,19 @@ describe("naruon handoff boundary hardening", () => {
       "serialized payload is invalid or oversized"
     );
   });
+
+  it("does not echo untrusted JSON fragments in parser errors", () => {
+    const secret = "private-rehearsal-secret";
+    let message = "";
+    try {
+      deserializeNaruonRehearsalHandoff(`{"${secret}":`);
+    } catch (error) {
+      message = String(error);
+    }
+
+    expect(message).toContain("malformed JSON");
+    expect(message).not.toContain(secret);
+  });
 });
 
 describe("naruon handoff branch completeness", () => {
@@ -139,7 +172,9 @@ describe("naruon handoff branch completeness", () => {
         throw new Error("prototype unavailable");
       }
     });
-    expect(validateNaruonRehearsalHandoff(hostile)).toBe("root must be an object");
+    expect(validateNaruonRehearsalHandoff(hostile)).toBe(
+      "root is not structured-cloneable"
+    );
   });
 
   it("covers non-string timestamps, display-invalid zones, and 30-day months", () => {
