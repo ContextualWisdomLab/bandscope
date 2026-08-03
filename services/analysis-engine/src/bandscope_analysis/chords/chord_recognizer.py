@@ -358,12 +358,14 @@ class ChordRecognizer:
         current_confidence = "low"
         start_frame = 0
 
+        n_sim_frames = similarity.shape[1]
         for i in range(n_frames):
             state = int(decoded_states[i])
             chord_label = self.chord_labels[state]
 
             # Compute per-frame confidence from the similarity distribution
-            frame_confidence = self._compute_confidence(similarity[:, i], state)
+            sim_frame = similarity[:, i] if i < n_sim_frames else np.zeros(similarity.shape[0])
+            frame_confidence = self._compute_confidence(sim_frame, state)
 
             if current_chord is None:
                 current_chord = chord_label
