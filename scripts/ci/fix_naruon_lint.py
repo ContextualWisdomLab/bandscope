@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Apply reviewed naruon lint fixes, then remove one-shot artifacts."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE = ROOT / "packages/shared-types/src/naruon.ts"
+SELF = ROOT / "scripts/ci/fix_naruon_lint.py"
+WORKFLOW = ROOT / ".github/workflows/fix-naruon-lint.yml"
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    """Replace exactly one reviewed fragment and fail on branch drift."""
+    count = text.count(old)
+    if count != 1:
+        raise RuntimeError(f"{label}: expected 1 match, found {count}")
+    return text.replace(old, new)
+
+
+def main() -> int:
+    """Normalize exported JSDoc and document the intentional control regex."""
+    source = SOURCE.read_text(encoding="utf-8")
+    replacements = (
+        (
+            "/** Stable artifact kind emitted by BandScope for naruon ingestion. */",
+            "/**\n * Stable artifact kind emitted by BandScope for naruon ingestion.\n */",
+            "artifact kind JSDoc",
+        ),
+        (
+            "/** Current additive schema version for the naruon rehearsal handoff. */",
+            "/**\n * Current additive schema version for the naruon rehearsal handoff.\n */",
+            "artifact version JSDoc",
+        ),
+        (
+            "/** Maximum number of provenance receipts accepted in one handoff. */",
+            "/**\n * Maximum number of provenance receipts accepted in one handoff.\n */",
+            "receipt limit JSDoc",
+        ),
+        (
+            "/** Maximum UTF-8 size accepted before untrusted JSON parsing. */",
+            "/**\n * Maximum UTF-8 size accepted before untrusted JSON parsing.\n */",
+            "serialized size JSDoc",
+        ),
+        (
+            "    !/[\\u0000-\\u001f\\u007f]/u.test(value)",
+            "    // The public boundary deliberately rejects C0 and DEL controls.\n"
+            "    // eslint-disable-next-line no-control-regex\n"
+            "    !/[\\u0000-\\u001f\\u007f]/u.test(value)",
+            "control character validation",
+        ),
+    )
+    for old, new, label in replacements:
+        source = replace_once(source, old, new, label)
+    SOURCE.write_text(source, encoding="utf-8")
+    SELF.unlink()
+    WORKFLOW.unlink()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
