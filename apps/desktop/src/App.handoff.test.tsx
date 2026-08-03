@@ -1,12 +1,20 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { MetadataHandoffArtifact, ProjectBootstrapSummary } from "@bandscope/shared-types";
+import type {
+  MetadataHandoffArtifact,
+  ProjectBootstrapSummary,
+  RehearsalSong
+} from "@bandscope/shared-types";
 import { App } from "./App";
 import {
   selectLocalAudioSource,
-  startAnalysisJob
+  startAnalysisJob,
+  subscribeToAnalysisJobUpdates
 } from "./lib/analysis";
-import { readMetadataHandoffFile } from "./lib/handoff";
+import {
+  readMetadataHandoffFile,
+  type HandoffImportErrorCode
+} from "./lib/handoff";
 
 vi.mock("./features/score/ScoreView", () => ({
   ScoreView: () => <div>Score view</div>
@@ -43,6 +51,7 @@ vi.mock("./lib/handoff", async (importActual) => {
 
 const mockedSelectLocalAudioSource = vi.mocked(selectLocalAudioSource);
 const mockedStartAnalysisJob = vi.mocked(startAnalysisJob);
+const mockedSubscribeToAnalysisJobUpdates = vi.mocked(subscribeToAnalysisJobUpdates);
 const mockedReadMetadataHandoffFile = vi.mocked(readMetadataHandoffFile);
 
 function handoff(): MetadataHandoffArtifact {
@@ -104,14 +113,48 @@ function selectedSource(): ProjectBootstrapSummary {
   };
 }
 
-function uploadFile(): File {
-  return new File(["{}"], "friday-handoff.json", { type: "application/json" });
+function succeededSong(): RehearsalSong {
+  return {
+    id: "song-result",
+    title: "Late Night Set",
+    sections: [],
+    exportSummary: {
+      format: "cue-sheet",
+      headline: "Focused rehearsal is ready.",
+      focusSections: []
+    }
+  } as RehearsalSong;
+}
+
+function uploadFile(name = "friday-handoff.json"): File {
+  return new File(["{}"], name, { type: "application/json" });
+}
+
+async function importValidHandoff(): Promise<void> {
+  mockedReadMetadataHandoffFile.mockResolvedValueOnce({
+    ok: true,
+    fileName: "friday-handoff.json",
+    artifact: handoff(),
+    roleFocus: ["bass-guitar", "lead-vocal"]
+  });
+  fireEvent.change(screen.getByLabelText(/handoff JSON file/i), {
+    target: { files: [uploadFile()] }
+  });
+  await screen.findByText("Friday rehearsal");
+}
+
+async function selectLocalSource(): Promise<void> {
+  fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+  await waitFor(() => {
+    expect(screen.getByText("late-night-set.wav")).toBeTruthy();
+  });
 }
 
 describe("App handoff round trip", () => {
   beforeEach(() => {
     mockedSelectLocalAudioSource.mockReset();
     mockedStartAnalysisJob.mockReset();
+    mockedSubscribeToAnalysisJobUpdates.mockReset();
     mockedReadMetadataHandoffFile.mockReset();
     mockedSelectLocalAudioSource.mockResolvedValue({
       ok: true,
@@ -124,27 +167,16 @@ describe("App handoff round trip", () => {
       updatedAt: "2026-08-03T03:20:00.000Z",
       progressLabel: "Queued for analysis"
     });
+    mockedSubscribeToAnalysisJobUpdates.mockResolvedValue(() => undefined);
   });
 
   it("starts focused reanalysis only after the recipient selects local audio", async () => {
-    mockedReadMetadataHandoffFile.mockResolvedValueOnce({
-      ok: true,
-      fileName: "friday-handoff.json",
-      artifact: handoff(),
-      roleFocus: ["bass-guitar", "lead-vocal"]
-    });
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText(/handoff JSON file/i), {
-      target: { files: [uploadFile()] }
-    });
-    await screen.findByText("Friday rehearsal");
+    await importValidHandoff();
     expect(mockedStartAnalysisJob).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
-    await waitFor(() => {
-      expect(screen.getByText("late-night-set.wav")).toBeTruthy();
-    });
+    await selectLocalSource();
     fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
 
     await waitFor(() => {
@@ -158,23 +190,11 @@ describe("App handoff round trip", () => {
   });
 
   it("uses the normal role focus after the imported handoff is cleared", async () => {
-    mockedReadMetadataHandoffFile.mockResolvedValueOnce({
-      ok: true,
-      fileName: "friday-handoff.json",
-      artifact: handoff(),
-      roleFocus: ["bass-guitar", "lead-vocal"]
-    });
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText(/handoff JSON file/i), {
-      target: { files: [uploadFile()] }
-    });
-    await screen.findByText("Friday rehearsal");
+    await importValidHandoff();
     fireEvent.click(screen.getByRole("button", { name: /clear imported handoff/i }));
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
-    await waitFor(() => {
-      expect(screen.getByText("late-night-set.wav")).toBeTruthy();
-    });
+    await selectLocalSource();
     fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
 
     await waitFor(() => {
@@ -187,20 +207,93 @@ describe("App handoff round trip", () => {
     });
   });
 
-  it("shows bounded handoff validation errors without exposing file payloads", async () => {
-    mockedReadMetadataHandoffFile.mockResolvedValueOnce({
-      ok: false,
-      code: "too_large"
-    });
+  it.each<[HandoffImportErrorCode, RegExp]>([
+    ["unsupported_file", /choose a BandScope handoff JSON file/i],
+    ["too_large", /handoff file is too large/i],
+    ["invalid_utf8", /handoff file is not valid UTF-8 text/i],
+    ["invalid_json", /handoff file is not valid JSON/i],
+    ["invalid_artifact", /file is not a supported BandScope handoff/i],
+    ["read_failed", /handoff file could not be read/i]
+  ])("shows payload-free localized copy for %s", async (code, expectedCopy) => {
+    mockedReadMetadataHandoffFile.mockResolvedValueOnce({ ok: false, code });
     render(<App />);
 
     fireEvent.change(screen.getByLabelText(/handoff JSON file/i), {
-      target: { files: [uploadFile()] }
+      target: { files: [uploadFile("private-rehearsal-secret.json")] }
     });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /handoff file is too large/i
-    );
-    expect(screen.getByRole("alert")).not.toHaveTextContent(/friday-handoff.json/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(expectedCopy);
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/private-rehearsal-secret/i);
+  });
+
+  it("clears a prior handoff error after a replacement validates", async () => {
+    mockedReadMetadataHandoffFile
+      .mockResolvedValueOnce({ ok: false, code: "invalid_json" })
+      .mockResolvedValueOnce({
+        ok: true,
+        fileName: "friday-handoff.json",
+        artifact: handoff(),
+        roleFocus: ["bass-guitar", "lead-vocal"]
+      });
+    render(<App />);
+
+    const input = screen.getByLabelText(/handoff JSON file/i);
+    fireEvent.change(input, { target: { files: [uploadFile("broken.json")] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/not valid JSON/i);
+
+    fireEvent.change(input, { target: { files: [uploadFile()] } });
+    await screen.findByText("Friday rehearsal");
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  });
+
+  it("clears the pending handoff after an immediately completed analysis", async () => {
+    mockedStartAnalysisJob.mockResolvedValueOnce({
+      jobId: "job-immediate",
+      state: "succeeded",
+      requestedAt: "2026-08-03T03:20:00.000Z",
+      updatedAt: "2026-08-03T03:20:01.000Z",
+      progressLabel: "Analysis complete",
+      progressPercent: 100,
+      result: succeededSong()
+    });
+    render(<App />);
+
+    await importValidHandoff();
+    await selectLocalSource();
+    fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
+
+    expect(await screen.findByText("Workspace result")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByText("Friday rehearsal")).toBeNull();
+      expect(screen.getByRole("button", { name: /import handoff/i })).toBeTruthy();
+    });
+  });
+
+  it("clears the pending handoff when a subscribed job completes", async () => {
+    mockedSubscribeToAnalysisJobUpdates.mockImplementationOnce(async (_jobId, onStatus) => {
+      onStatus({
+        jobId: "job-1",
+        state: "succeeded",
+        requestedAt: "2026-08-03T03:20:00.000Z",
+        updatedAt: "2026-08-03T03:20:02.000Z",
+        progressLabel: "Analysis complete",
+        progressPercent: 100,
+        result: succeededSong()
+      });
+      return () => undefined;
+    });
+    render(<App />);
+
+    await importValidHandoff();
+    await selectLocalSource();
+    fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
+
+    expect(await screen.findByText("Workspace result")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByText("Friday rehearsal")).toBeNull();
+      expect(screen.getByRole("button", { name: /import handoff/i })).toBeTruthy();
+    });
   });
 });
