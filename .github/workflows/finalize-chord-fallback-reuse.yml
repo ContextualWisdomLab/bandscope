@@ -6,6 +6,12 @@ on:
     paths:
       - scripts/ci/finalize_chord_fallback_reuse.py
       - .github/workflows/finalize-chord-fallback-reuse.yml
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+    paths:
+      - scripts/ci/finalize_chord_fallback_reuse.py
+      - .github/workflows/finalize-chord-fallback-reuse.yml
   workflow_dispatch:
 
 concurrency:
@@ -25,7 +31,10 @@ jobs:
     if: >-
       github.repository == 'ContextualWisdomLab/bandscope'
       && github.actor != 'github-actions[bot]'
-      && github.ref_name == 'jules-15985039724708397070-07b0954f'
+      && (
+        github.ref_name == 'jules-15985039724708397070-07b0954f'
+        || github.head_ref == 'jules-15985039724708397070-07b0954f'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
