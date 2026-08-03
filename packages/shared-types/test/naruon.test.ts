@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- boundary tests deliberately construct malformed unknown payloads. */
 import {
   MAX_NARUON_EVIDENCE_RECEIPTS,
   NARUON_REHEARSAL_HANDOFF_KIND,
