@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply reviewed naruon lint fixes, then remove one-shot artifacts."""
+"""Apply reviewed naruon lint and boundary-test fixes, then remove one-shot artifacts."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "packages/shared-types/src/naruon.ts"
+TEST = ROOT / "packages/shared-types/test/naruon.test.ts"
 SELF = ROOT / "scripts/ci/fix_naruon_lint.py"
 WORKFLOW = ROOT / ".github/workflows/fix-naruon-lint.yml"
 
@@ -20,7 +21,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 def main() -> int:
-    """Attach export docs to variable declarations and document the control regex."""
+    """Apply lint fixes and align the proxy test with snapshot-first rejection."""
     source = SOURCE.read_text(encoding="utf-8")
     replacements = (
         (
@@ -69,7 +70,19 @@ def main() -> int:
     )
     for old, new, label in replacements:
         source = replace_once(source, old, new, label)
+
+    test = TEST.read_text(encoding="utf-8")
+    test = replace_once(
+        test,
+        "    expect(validateNaruonRehearsalHandoff(value)).toBe(\"provenance.evidence is invalid\");\n"
+        "  });\n})",
+        "    expect(validateNaruonRehearsalHandoff(value)).toBe(\"root is not structured-cloneable\");\n"
+        "  });\n})",
+        "snapshot-first proxy rejection expectation",
+    )
+
     SOURCE.write_text(source, encoding="utf-8")
+    TEST.write_text(test, encoding="utf-8")
     SELF.unlink()
     WORKFLOW.unlink()
     return 0
