@@ -4,22 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [build-dependencies]
-tauri-build = { version = "2", default-features = false, features = [] }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
-bandscope-desktop-core = { path = "../core" }
 rfd = "0.17.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2.11.1", default-features = false, features = ["wry"] }
+tauri = { version = "2.3.1", features = [] }
 time = { version = "0.3", features = ["formatting", "macros"] }
 tokio = { version = "1.50.0", features = ["time"] }
 url = "2.5.8"
-uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = []
-
-[package.metadata.opencode.coverage]
-# Baseline measured by the central Rust coverage evidence gate on PR #527.
-minimum_lines = 42

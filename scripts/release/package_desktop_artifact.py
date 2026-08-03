@@ -5,9 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import platform
-import re
 import shutil
-from collections import Counter
 from pathlib import Path
 
 
@@ -77,12 +75,6 @@ def artifact_identity(filename: str) -> dict[str, str]:
     }
 
 
-def archive_safe_stem(path: Path) -> str:
-    """Return a stable, filename-safe stem for same-extension installer names."""
-    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", path.stem).strip("-._")
-    return stem or "installer"
-
-
 def find_installer_packages(repo_root: Path) -> list[Path]:
     """Find built Tauri installers (DMG, EXE, MSI)."""
     target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE")
@@ -94,14 +86,13 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     installers = []
 
     if bundle_dir.exists():
-        for subdirectory, pattern in [("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
-            installers.extend(
-                installer
-                for installer in sorted((bundle_dir / subdirectory).glob(pattern))
-                if installer.is_file() and not installer.is_symlink()
-            )
+        # macOS DMG
+        installers.extend(bundle_dir.rglob("*.dmg"))
+        # Windows EXE/MSI
+        installers.extend(bundle_dir.rglob("*.exe"))
+        installers.extend(bundle_dir.rglob("*.msi"))
 
-    return sorted(installers)
+    return installers
 
 
 def main() -> int:
@@ -112,20 +103,18 @@ def main() -> int:
 
     installers = find_installer_packages(repo_root)
     if not installers:
-        raise FileNotFoundError(
-            "Could not find any built installers (DMG/EXE) in target/release/bundle/"
-        )
+        raise FileNotFoundError("Could not find any built installers (DMG/EXE) in target/release/bundle/")
 
-    suffix_counts = Counter(path.suffix.lower() for path in installers)
+    # For safety, ensure we only pick one installer per run, or handle multiple
+    # Typically we might have both EXE and MSI for Windows.
     for installer_path in installers:
         identity = artifact_identity(installer_path.name)
         archive_name = identity["archive_name"]
 
-        if suffix_counts[installer_path.suffix.lower()] > 1:
-            archive_base = Path(archive_name)
-            archive_name = (
-                f"{archive_base.stem}-{archive_safe_stem(installer_path)}{archive_base.suffix}"
-            )
+        # If there are multiple (e.g. EXE and MSI), add original extension to avoid overwrite
+        if len(installers) > 1:
+            ext = installer_path.suffix
+            archive_name = archive_name.replace(ext, f"{ext}")
 
         archive_path = output_dir / archive_name
         shutil.copy2(installer_path, archive_path)
@@ -133,11 +122,7 @@ def main() -> int:
         checksum_path = output_dir / f"{archive_name}.sha256"
         checksum_path.write_text(f"{sha256_file(archive_path)}  {archive_name}\n", encoding="utf-8")
 
-        manifest_path = output_dir / (
-            f"{archive_name}.manifest.txt"
-            if suffix_counts[installer_path.suffix.lower()] > 1
-            else identity["manifest_name"]
-        )
+        manifest_path = output_dir / identity["manifest_name"]
         manifest_path.write_text(
             "\n".join(
                 [

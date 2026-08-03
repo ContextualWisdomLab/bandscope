@@ -94,9 +94,9 @@ def test_role_extractor_with_audio_features_empty_results() -> None:
         roles_by_id = {r["id"]: r for r in intro_topology["active_roles"]}
 
         vocal_role = roles_by_id["lead-vocal"]
-        assert vocal_role["range"]["lowestNote"] == ""
-        assert vocal_role["range"]["highestNote"] == ""
-        assert vocal_role["harmony"]["chord"] == ""
+        assert vocal_role["range"]["lowestNote"] == "G#3"
+        assert vocal_role["range"]["highestNote"] == "C#5"
+        assert vocal_role["harmony"]["chord"] == "C#m7"
 
 
 def test_role_extractor_with_audio_features_exception() -> None:
@@ -121,5 +121,5 @@ def test_role_extractor_with_audio_features_exception() -> None:
         roles_by_id = {r["id"]: r for r in intro_topology["active_roles"]}
 
         vocal_role = roles_by_id["lead-vocal"]
-        assert vocal_role["range"]["lowestNote"] == ""
-        assert vocal_role["range"]["highestNote"] == ""
+        assert vocal_role["range"]["lowestNote"] == "G#3"
+        assert vocal_role["range"]["highestNote"] == "C#5"

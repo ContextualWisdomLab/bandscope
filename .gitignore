@@ -8,8 +8,6 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 apps/desktop/src-tauri/target/
-services/analysis-engine/rust/target/
-/target/
 *.pyc
 *.pyo
 *.egg-info/

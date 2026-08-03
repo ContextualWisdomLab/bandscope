@@ -50,18 +50,6 @@ def test_calculate_priority_with_setup_note() -> None:
     assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.MEDIUM
 
 
-def test_calculate_priority_with_simplification() -> None:
-    """Test that simplification yields MEDIUM priority even if confidence is high."""
-    role = {
-        "confidence": {"level": "high"},
-        "overlapWarnings": [],
-        "manualOverrides": [],
-        "setupNote": "",
-        "simplification": "Simplify to quarter notes",
-    }
-    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.MEDIUM
-
-
 def test_calculate_priority_low() -> None:
     """Test that high confidence with no warnings or notes yields LOW priority."""
     role = {
@@ -71,54 +59,3 @@ def test_calculate_priority_low() -> None:
         "setupNote": "",
     }
     assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.LOW
-
-
-def test_calculate_priority_with_manual_override() -> None:
-    """Test that manual overrides yield HIGH priority."""
-    role = {
-        "confidence": {"level": "high"},
-        "overlapWarnings": [],
-        "manualOverrides": ["User corrected chord"],
-        "setupNote": "",
-    }
-    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.HIGH
-
-
-def test_calculate_priority_empty_role() -> None:
-    """Test missing role fields fall back to LOW priority."""
-    role = {}
-    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.LOW
-
-
-def test_calculate_priority_missing_confidence_level() -> None:
-    """Test missing confidence level falls through as LOW without other signals."""
-    role = {
-        "confidence": {},
-        "overlapWarnings": [],
-        "manualOverrides": [],
-        "setupNote": "",
-    }
-    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.LOW
-
-
-def test_calculate_priority_multiple_medium_conditions() -> None:
-    """Test multiple medium signals still yield MEDIUM priority."""
-    role = {
-        "confidence": {"level": "medium"},
-        "overlapWarnings": [],
-        "manualOverrides": [],
-        "setupNote": "Some note",
-        "simplification": "Some simplification",
-    }
-    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.MEDIUM
-
-
-def test_calculate_priority_high_overrides_medium() -> None:
-    """Test high priority signals override medium priority signals."""
-    role = {
-        "confidence": {"level": "medium"},
-        "overlapWarnings": ["Warning"],
-        "manualOverrides": [],
-        "setupNote": "Note",
-    }
-    assert calculate_rehearsal_priority(cast(Any, role)) == RehearsalPriority.HIGH

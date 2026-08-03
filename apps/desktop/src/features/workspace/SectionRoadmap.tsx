@@ -1,5 +1,5 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useId, useMemo } from "react";
+import { useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -15,64 +15,35 @@ interface SectionRoadmapProps {
 
 /** Documented. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
-  const sectionRoadmapTitleId = useId();
-  const locale = useMemo(() => detectPreferredLocale(), []);
-  const t = useMemo(() => createTranslator(locale), [locale]);
-
-  /** Documented. */
-  const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
-    return t("chordEditAriaLabel")
-      .replace("{roleName}", role.name)
-      .replace("{sectionLabel}", sectionLabel)
-      .replace("{chord}", role.harmony.chord);
-  };
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   /** Documented. */
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;
-    const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
-    if (newChord === null) return;
-
-    const trimmedChord = newChord.trim();
-    if (trimmedChord === "" || trimmedChord === role.harmony.chord) return;
-
-    let changed = false;
-    const updatedSong = {
-      ...song,
-      sections: song.sections.map((section) => {
-        if (section.id !== sectionId) return section;
-
-        return {
-          ...section,
-          roles: section.roles.map((targetRole) => {
-            if (targetRole.id !== role.id) return targetRole;
-            changed = true;
-
-            const harmony = {
-              ...targetRole.harmony,
-              chord: trimmedChord,
-              source: "user" as const
-            };
-
-            return {
-              ...targetRole,
-              harmony,
-              manualOverrides: [
-                ...targetRole.manualOverrides.filter((override) => override.field !== "harmony"),
-                {
-                  field: "harmony" as const,
-                  value: { ...harmony, source: "user" as const },
-                  source: "user" as const
-                }
-              ]
-            };
-          })
-        };
-      })
-    };
-
-    if (changed) onSongUpdate(updatedSong);
+    const newChord = window.prompt("Enter new chord:", role.harmony.chord);
+    if (newChord !== null && newChord.trim() !== "" && newChord !== role.harmony.chord) {
+      const updatedSong = structuredClone(song);
+      const section = updatedSong.sections.find(s => s.id === sectionId);
+      if (section) {
+        const targetRole = section.roles.find(r => r.id === role.id);
+        if (targetRole) {
+          targetRole.harmony = {
+            ...targetRole.harmony,
+            chord: newChord.trim(),
+            source: "user"
+          };
+          targetRole.manualOverrides = targetRole.manualOverrides.filter(o => o.field !== "harmony");
+          targetRole.manualOverrides.push({
+            field: "harmony",
+            value: { ...targetRole.harmony, source: "user" as const },
+            source: "user"
+          });
+          onSongUpdate(updatedSong);
+        }
+      }
+    }
   };
+
   /** Documented. */
   const getPriorityColor = (priority: string) => {
     if (priority === "high") return "border-rose-400 bg-rose-400/[0.08] shadow-[0_0_30px_rgba(251,113,133,0.10)]";
@@ -90,19 +61,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   return (
     <div className="mt-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 id={sectionRoadmapTitleId} className="flex items-center text-xl font-black tracking-tight text-white">
+        <h2 className="flex items-center text-xl font-black tracking-tight text-white">
           <Music2 className="mr-2 size-5 text-cyan-300" aria-hidden="true" />
           {t("sectionRoadmapTitle")}
         </h2>
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t("sectionRoadmapScrollHint")}</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Scroll for more sections →</span>
       </div>
 
-      <div
-        className="hide-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto rounded-xl pb-6 pt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-        role="region"
-        tabIndex={0}
-        aria-labelledby={sectionRoadmapTitleId}
-      >
+      <div className="hide-scrollbar flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6 pt-2">
         {song.sections.map((section) => (
           <Card
             key={section.id}
@@ -116,7 +82,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <ConfidenceBadge level={section.confidence.level} />
               </div>
               <div className="flex items-center text-sm font-medium text-slate-300">
-                <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
+                <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">Groove</span>
                 {section.groove}
               </div>
             </CardHeader>
@@ -140,19 +106,18 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           </Badge>
                         )}
                       </div>
-                      <div title={`${t("priorityLabel")}: ${role.rehearsalPriority}`} className="rounded-full border border-white/10 bg-white/10 p-1 shadow-sm">
-                        <span className="sr-only">{`${t("priorityLabel")}: ${role.rehearsalPriority}`}</span>
+                      <div title={`Priority: ${role.rehearsalPriority}`} className="rounded-full border border-white/10 bg-white/10 p-1 shadow-sm">
                         {getPriorityIcon(role.rehearsalPriority)}
                       </div>
                     </div>
 
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionChordLabel")}</span>
+                        <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">Chord</span>
                         <button
                           type="button"
-                          aria-label={editChordLabel(role, section.label)}
-                          className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                          aria-label={`Edit chord for ${role.name} in ${section.label}, current ${role.harmony.chord}`}
+                          className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors ${
                             onSongUpdate
                               ? "cursor-pointer hover:bg-white/10"
                               : "cursor-default"
@@ -162,14 +127,20 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                               : "text-cyan-100"
                           }`}
                           onClick={() => handleChordEdit(section.id, role)}
-                          title={onSongUpdate ? t("chordEditTitle") : undefined}
+                          onKeyDown={(e) => {
+                            if (onSongUpdate && (e.key === "Enter" || e.key === " ")) {
+                              e.preventDefault();
+                              handleChordEdit(section.id, role);
+                            }
+                          }}
+                          title={onSongUpdate ? "Click to edit chord" : undefined}
                           disabled={!onSongUpdate}
                         >
                           {role.harmony.chord}
                         </button>
                         {role.harmony.source === "user" && (
                           <Badge variant="secondary" className="h-4 bg-indigo-300/20 px-1 text-[0.6rem] text-indigo-100 hover:bg-indigo-300/20">
-                            {t("harmonySourceUserBadge")}
+                            User
                           </Badge>
                         )}
                       </div>
@@ -178,20 +149,20 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
                       <div className="space-y-2">
                         <div className="text-sm font-medium leading-snug text-slate-200">
-                          <span className="mb-0.5 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionCueLabel")}</span>
+                          <span className="mb-0.5 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">Cue</span>
                           {role.cue.value}
                         </div>
 
                         {role.setupNote && (
                           <div className="flex items-start gap-2 rounded-md border border-amber-300/20 bg-amber-300/[0.08] p-2 text-xs font-medium text-amber-100">
-                            <Lightbulb className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                            <Lightbulb className="mt-0.5 size-3.5 shrink-0" />
                             <span className="leading-snug">{role.setupNote}</span>
                           </div>
                         )}
 
                         {role.simplification && (
                           <div className="flex items-start gap-2 rounded-md border border-indigo-300/20 bg-indigo-300/[0.08] p-2 text-xs font-medium text-indigo-100">
-                            <Wand2 className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                            <Wand2 className="mt-0.5 size-3.5 shrink-0" />
                             <span className="leading-snug">{role.simplification}</span>
                           </div>
                         )}
@@ -200,7 +171,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           <div className="mt-2 space-y-1.5">
                             {role.overlapWarnings.map((warning, wIdx) => (
                               <div key={wIdx} className="flex items-start gap-2 rounded-md border border-rose-300/20 bg-rose-300/[0.08] p-2 text-xs font-medium text-rose-100">
-                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
                                 <span className="leading-snug">{warning}</span>
                               </div>
                             ))}

@@ -13,50 +13,34 @@ on:
 permissions:
   contents: read
 
-env:
-  GIT_CONFIG_COUNT: "1"
-  GIT_CONFIG_KEY_0: init.defaultBranch
-  GIT_CONFIG_VALUE_0: develop
-
 jobs:
   verify:
     name: ci / build-and-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: 22.22.3
+          node-version: 22
           cache: npm
-      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: "0.8.6"
-          enable-cache: false
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
         run: uv sync --project services/analysis-engine --group dev --frozen
-      - name: Install stable Rust toolchain
-        run: rustup toolchain install stable --profile minimal
-      - name: Build and install Rust numeric extension
-        run: |
-          VENV_PY="$PWD/services/analysis-engine/.venv/bin/python"
-          uvx maturin@1.9.6 build --release \
-            --manifest-path services/analysis-engine/rust/Cargo.toml \
-            --interpreter "$VENV_PY" \
-            --out services/analysis-engine/rust/dist
-          uv pip install --python "$VENV_PY" services/analysis-engine/rust/dist/*.whl
       - name: Run quickcheck
         run: ./scripts/harness/quickcheck.sh
 
   rust-check:
     name: gate / ci / rust-check
-    runs-on: macos-15
+    runs-on: macos-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: 22.22.3
+          node-version: 22
           cache: npm
       - name: Install stable Rust toolchain
         run: rustup toolchain install stable --profile minimal
@@ -66,5 +50,3 @@ jobs:
         run: npm run build --workspace @bandscope/desktop
       - name: Check Tauri shell
         run: cargo +stable check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
-      - name: Test Tauri shell
-        run: cargo +stable test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked

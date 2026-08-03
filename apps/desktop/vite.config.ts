@@ -2,15 +2,12 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import { fileURLToPath } from "node:url";
-
-const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      "@": path.resolve(configDirectory, "./src"),
+      "@": path.resolve(__dirname, "./src"),
     },
   },
   test: {
@@ -19,19 +16,12 @@ export default defineConfig({
     setupFiles: ["./src/setupTests.ts"],
     coverage: {
       provider: "v8",
-      include: [
-        "src/App.tsx",
-        "src/lib/export.ts",
-        "src/i18n/index.ts",
-        "src/features/score/ScoreViewer.tsx",
-        "src/features/score/ScoreView.tsx",
-        "src/features/score/scoreStorage.ts"
-      ],
+      include: ["src/App.tsx", "src/lib/export.ts"],
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 90,
-        statements: 90
+        lines: 100,
+        functions: 100,
+        branches: 100,
+        statements: 100
       }
     }
   }

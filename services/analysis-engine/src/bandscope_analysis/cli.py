@@ -7,9 +7,10 @@ import logging
 import sys
 from datetime import UTC, datetime
 
-from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
+from bandscope_analysis.api import get_analysis_status, run_analysis_job
 from bandscope_analysis.temporal import TemporalAnalyzer
 
+# Temporary logging setup for temporal analyzer
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
@@ -32,22 +33,20 @@ def main() -> int:
     """Read a job payload from stdin and print a structured job response to stdout."""
     # Read all input from stdin first
     input_data = sys.stdin.read().strip()
-    progress_jsonl = "--progress-jsonl" in sys.argv[1:]
-    cli_args = [arg for arg in sys.argv[1:] if arg != "--progress-jsonl"]
 
     # Check if there are command line arguments (fallback for manual testing)
-    if cli_args:
-        if cli_args[0] == "--status":
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--status":
             json.dump(get_analysis_status(), sys.stdout)
             return 0
-        elif cli_args[0] == "--job" and len(cli_args) > 1:
-            input_data = cli_args[1]
+        elif sys.argv[1] == "--job" and len(sys.argv) > 2:
+            input_data = sys.argv[2]
             if not input_data.startswith("{"):
                 try:
                     with open(input_data, "r", encoding="utf-8") as f:
                         input_data = f.read()
-                except Exception:
-                    json.dump(failed_cli_response("Failed to read job file"), sys.stdout)
+                except Exception as e:
+                    json.dump(failed_cli_response(f"Failed to read job file: {e}"), sys.stdout)
                     return 1
 
     if not input_data:
@@ -82,29 +81,17 @@ def main() -> int:
         and request.get("sourceKind") == "local_audio"
         and "localSource" in request
     ):
-        local_source = request["localSource"]
-        audio_path = local_source.get("sourcePath")
-        file_name = local_source.get("fileName", "selected audio")
+        audio_path = request["localSource"].get("sourcePath")
         if audio_path:
-            logging.info("Extracting temporal features from %s...", file_name)
+            logging.info(f"Extracting temporal features from {audio_path}...")
             try:
                 temporal_analyzer = TemporalAnalyzer()
                 features = temporal_analyzer.analyze(audio_path)
                 logging.info(f"Extracted BPM: {features['bpm']}")
-            except Exception:
-                logging.warning(
-                    "Temporal analysis failed for %s; continuing with safe fallback.",
-                    file_name,
-                )
+            except Exception as e:
+                logging.warning(f"Temporal analysis failed, continuing with mock: {e}")
 
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    if progress_jsonl:
-        for update in run_analysis_job_updates(job_id, request, requested_at):
-            json.dump(update, sys.stdout)
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-        return 0
-
     response = run_analysis_job(job_id, request, requested_at)
     json.dump(response, sys.stdout)
     return 0

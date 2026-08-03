@@ -2,7 +2,6 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-/** Render a flexible card container for grouped rehearsal content. */
 function Card({
   className,
   size = "default",
@@ -21,7 +20,6 @@ function Card({
   )
 }
 
-/** Render the heading area for a card. */
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -35,7 +33,6 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-/** Render the primary title text for a card. */
 function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -49,7 +46,6 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-/** Render supporting description text for a card. */
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -60,7 +56,6 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-/** Render trailing actions in the card header. */
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -74,7 +69,6 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-/** Render the main content area for a card. */
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -85,7 +79,6 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-/** Render the footer area for card metadata or controls. */
 function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div

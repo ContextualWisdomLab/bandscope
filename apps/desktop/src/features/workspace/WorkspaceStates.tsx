@@ -11,7 +11,7 @@ export function EmptyState() {
         <div className="mb-6 rounded-full border border-cyan-300/30 bg-cyan-300/10 p-6 text-cyan-200 shadow-[0_0_38px_rgba(34,211,238,0.18)]">
           <Music className="size-10" aria-hidden="true" />
         </div>
-        <h3 className="mb-2 text-xl font-black text-white">{t("workspaceReadyToAnalyzeTitle")}</h3>
+        <h3 className="mb-2 text-xl font-black text-white">Ready to Analyze</h3>
         <p className="max-w-sm text-slate-400">{t("workspaceEmptyState")}</p>
       </CardContent>
     </Card>
@@ -31,7 +31,7 @@ export function LoadingState() {
     >
       <CardContent className="flex flex-col items-center justify-center py-24 text-center">
         <Loader2 className="mb-6 size-12 animate-spin text-cyan-300" aria-hidden="true" />
-        <h3 className="mb-2 text-xl font-black text-white">{t("workspaceAnalyzingAudioTitle")}</h3>
+        <h3 className="mb-2 text-xl font-black text-white">Analyzing Audio</h3>
         <p className="max-w-sm animate-pulse text-slate-400">{t("workspaceLoadingState")}</p>
       </CardContent>
     </Card>

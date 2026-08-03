@@ -1,19 +1,15 @@
 "use client"
 
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress"
-import { Children } from "react"
 
 import { cn } from "@/lib/utils"
 
-/** Render an accessible progress root with a default track and indicator. */
 function Progress({
   className,
   children,
   value,
   ...props
 }: ProgressPrimitive.Root.Props) {
-  const hasCustomChildren = Children.toArray(children).length > 0
-
   return (
     <ProgressPrimitive.Root
       value={value}
@@ -22,16 +18,13 @@ function Progress({
       {...props}
     >
       {children}
-      {!hasCustomChildren && (
-        <ProgressTrack>
-          <ProgressIndicator />
-        </ProgressTrack>
-      )}
+      <ProgressTrack>
+        <ProgressIndicator />
+      </ProgressTrack>
     </ProgressPrimitive.Root>
   )
 }
 
-/** Render the visual track for progress state. */
 function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
   return (
     <ProgressPrimitive.Track
@@ -45,7 +38,6 @@ function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
   )
 }
 
-/** Render the filled portion of the progress track. */
 function ProgressIndicator({
   className,
   ...props
@@ -59,7 +51,6 @@ function ProgressIndicator({
   )
 }
 
-/** Render a label associated with the progress control. */
 function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
   return (
     <ProgressPrimitive.Label
@@ -70,7 +61,6 @@ function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
   )
 }
 
-/** Render the current progress value using tabular numerals. */
 function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
   return (
     <ProgressPrimitive.Value

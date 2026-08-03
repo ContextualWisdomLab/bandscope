@@ -1,11 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
-/* stylelint-disable-next-line scss/at-rule-no-unknown -- Tailwind v4 directive is compiled by the Vite plugin. */
 @custom-variant dark (&:is(.dark *));
 
-/* stylelint-disable-next-line scss/at-rule-no-unknown -- Tailwind v4 theme tokens are compiled by the Vite plugin. */
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
@@ -50,14 +49,6 @@
 }
 
 :root {
-    --bandscope-bg: #020713;
-    --bandscope-surface: rgb(8 18 35 / 78%);
-    --bandscope-surface-strong: rgb(2 6 23 / 88%);
-    --bandscope-border: rgb(255 255 255 / 10%);
-    --bandscope-cyan: #67e8f9;
-    --bandscope-teal: #5eead4;
-    --bandscope-violet: #a78bfa;
-    --bandscope-amber: #fcd34d;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -128,15 +119,12 @@
 
 @layer base {
   * {
-    /* stylelint-disable-next-line scss/at-rule-no-unknown -- Tailwind v4 utility expansion is compiled by the Vite plugin. */
     @apply border-border outline-ring/50;
     }
   body {
-    /* stylelint-disable-next-line scss/at-rule-no-unknown -- Tailwind v4 utility expansion is compiled by the Vite plugin. */
     @apply bg-background text-foreground;
     }
   html {
-    /* stylelint-disable-next-line scss/at-rule-no-unknown -- Tailwind v4 utility expansion is compiled by the Vite plugin. */
     @apply font-sans;
     }
 }

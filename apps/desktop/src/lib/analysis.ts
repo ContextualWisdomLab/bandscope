@@ -4,7 +4,7 @@ import {
   createDemoAnalysisJobRequest,
   createDemoRehearsalSong,
   createProjectBootstrapSummary,
-  parseAnalysisJobStatus,
+  isAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
@@ -14,7 +14,6 @@ import {
   type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
-import { listen } from "@tauri-apps/api/event";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -28,12 +27,6 @@ declare global {
 }
 
 const browserJobStore = new Map<string, AnalysisJobStatus>();
-const BROWSER_PROGRESS_STEPS = [
-  { progressLabel: "Decoding audio", progressStage: "decode", progressPercent: 20 },
-  { progressLabel: "Separating stems... (45%)", progressStage: "separate", progressPercent: 45 },
-  { progressLabel: "Building rehearsal cues", progressStage: "analyze", progressPercent: 70 },
-  { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
-] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
@@ -42,10 +35,6 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   "Could not prepare the local cache workspace.",
   "Could not prepare the local temp workspace."
 ]);
-const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
-const MAX_YOUTUBE_URL_LENGTH = 2000;
-
-export { MAX_YOUTUBE_URL_LENGTH };
 
 /** Documented. */
 export type LocalAudioSelectionResult =
@@ -65,7 +54,7 @@ function getInvoke(): TauriInvoke | null {
   }
 
   // Detect the legacy test/dev shim.
-  if (typeof window.__TAURI_INVOKE__ === "function") {
+  if (window.__TAURI_INVOKE__) {
     return window.__TAURI_INVOKE__;
   }
 
@@ -75,9 +64,6 @@ function getInvoke(): TauriInvoke | null {
 /** Documented. */
 export function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
   if (typeof rawUrl !== "string") {
-    return false;
-  }
-  if (rawUrl.length > MAX_YOUTUBE_URL_LENGTH) {
     return false;
   }
 
@@ -95,12 +81,12 @@ export function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
   const host = parsedUrl.hostname.toLowerCase();
   if (host === "youtu.be") {
     const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
-    return pathSegments.length === 1 && YOUTUBE_VIDEO_ID_PATTERN.test(pathSegments[0]!);
+    return pathSegments.length === 1;
   }
 
-  if (host === "youtube.com" || host === "www.youtube.com") {
+  if (host === "youtube.com" || host.endsWith(".youtube.com")) {
     const videoIds = parsedUrl.searchParams.getAll("v");
-    return parsedUrl.pathname === "/watch" && videoIds.length === 1 && YOUTUBE_VIDEO_ID_PATTERN.test(videoIds[0]!);
+    return parsedUrl.pathname === "/watch" && videoIds.length === 1 && videoIds[0]!.trim().length > 0;
   }
 
   return false;
@@ -108,7 +94,7 @@ export function isSupportedYoutubeUrl(rawUrl: unknown): rawUrl is string {
 
 /** Documented. */
 function browserJobId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
 /** Documented. */
@@ -119,10 +105,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     const queued = createAnalysisJobStatus({
       jobId,
       state: "queued",
-      progressLabel: "Queued for analysis",
-      progressStage: "queued",
-      progressPercent: 0,
-      cacheStatus: "disabled"
+      progressLabel: "Queued for analysis"
     });
     browserJobStore.set(jobId, queued);
     return queued;
@@ -145,30 +128,10 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
         }
       });
     }
-    if (existing.state === "queued" || existing.state === "running") {
-      const currentPercent = existing.progressPercent ?? 0;
-      const nextStep = BROWSER_PROGRESS_STEPS.find((step) => step.progressPercent > currentPercent);
-      if (nextStep) {
-        const running = createAnalysisJobStatus({
-          jobId,
-          state: "running",
-          requestedAt: existing.requestedAt,
-          progressLabel: nextStep.progressLabel,
-          progressStage: nextStep.progressStage,
-          progressPercent: nextStep.progressPercent,
-          cacheStatus: "disabled"
-        });
-        browserJobStore.set(jobId, running);
-        return running;
-      }
-    }
     const succeeded = createAnalysisJobStatus({
       jobId,
       state: "succeeded",
       progressLabel: "Analysis ready",
-      progressStage: "ready",
-      progressPercent: 100,
-      cacheStatus: "disabled",
       requestedAt: existing.requestedAt,
       result: createDemoRehearsalSong()
     });
@@ -263,53 +226,19 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
   const response = await invokeAnalysis("start_analysis_job", {
     request: parsedRequest
   });
-  try {
-    return parseAnalysisJobStatus(response);
-  } catch {
+  if (!isAnalysisJobStatus(response)) {
     throw new Error("Invalid analysis job status response");
   }
+  return response;
 }
 
 /** Documented. */
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
-  try {
-    return parseAnalysisJobStatus(response);
-  } catch {
+  if (!isAnalysisJobStatus(response)) {
     throw new Error("Invalid analysis job status response");
   }
-}
-
-/** Documented. */
-export async function subscribeToAnalysisJobUpdates(
-  jobId: string,
-  onUpdate: (status: AnalysisJobStatus) => void
-): Promise<() => void> {
-  if (typeof window === "undefined") {
-    return () => undefined;
-  }
-  const tauriInternals = window.__TAURI_INTERNALS__;
-  if (!tauriInternals || typeof tauriInternals.invoke !== "function") {
-    return () => undefined;
-  }
-
-  try {
-    const unlisten = await listen<unknown>("analysis-job-updated", (event) => {
-      try {
-        const status = parseAnalysisJobStatus(event.payload);
-        if (status.jobId === jobId) {
-          onUpdate(status);
-        }
-      } catch {
-        // Ignore malformed status payloads and keep polling fallback active.
-      }
-    });
-    return () => {
-      void unlisten();
-    };
-  } catch {
-    return () => undefined;
-  }
+  return response;
 }
 
 /** Documented. */

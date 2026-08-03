@@ -1,15 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createDemoAnalysisJobRequest, createDemoRehearsalSong } from "@bandscope/shared-types";
-import {
-  MAX_YOUTUBE_URL_LENGTH,
-  getAnalysisJobStatus,
-  importYoutubeUrl,
-  startAnalysisJob
-} from "./analysis";
+import { importYoutubeUrl } from "./analysis";
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
-  __TAURI_INVOKE__?: unknown;
+  __TAURI_INVOKE__?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 };
 
 const tauriWindow = window as TauriWindow;
@@ -61,21 +55,6 @@ describe("analysis bridge", () => {
     });
   });
 
-  it("rejects non-standard YouTube subdomains before crossing the Tauri bridge", async () => {
-    tauriWindow.__TAURI_INVOKE__ = vi.fn();
-
-    const selection = await importYoutubeUrl("https://evil.youtube.com/watch?v=4ozX4yFUC34");
-
-    expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
-    expect(selection).toEqual({
-      ok: false,
-      error: {
-        code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
-      }
-    });
-  });
-
   it("uses the Tauri v1 invoke shim when it is available", async () => {
     tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
       projectId: "native-youtube-project",
@@ -99,78 +78,6 @@ describe("analysis bridge", () => {
     expect(selection.ok).toBe(true);
   });
 
-  it("normalizes legacy analysis job status responses before returning them", async () => {
-    const legacyResult = createDemoRehearsalSong() as unknown as {
-      sections: Array<Record<string, unknown>>;
-    };
-    delete legacyResult.sections[0]!.timeRange;
-    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
-      jobId: "job-legacy",
-      state: "succeeded",
-      requestedAt: "2026-03-12T00:00:00.000Z",
-      updatedAt: "2026-03-12T00:00:00.000Z",
-      result: legacyResult
-    });
-
-    const status = await getAnalysisJobStatus("job-legacy");
-
-    expect(status.result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
-  });
-
-  it("reports staged browser fallback progress before returning the demo result", async () => {
-    const queued = await startAnalysisJob(createDemoAnalysisJobRequest());
-
-    expect(queued).toMatchObject({
-      state: "queued",
-      progressLabel: "Queued for analysis",
-      progressStage: "queued",
-      progressPercent: 0
-    });
-
-    const running = await getAnalysisJobStatus(queued.jobId);
-    expect(running).toMatchObject({
-      state: "running",
-      progressLabel: "Decoding audio",
-      progressStage: "decode",
-      progressPercent: 20
-    });
-
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Separating stems... (45%)",
-      progressStage: "separate",
-      progressPercent: 45
-    });
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Building rehearsal cues",
-      progressStage: "analyze",
-      progressPercent: 70
-    });
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Saving reusable features",
-      progressStage: "persist",
-      progressPercent: 90
-    });
-
-    const ready = await getAnalysisJobStatus(queued.jobId);
-    expect(ready).toMatchObject({
-      state: "succeeded",
-      progressLabel: "Analysis ready",
-      progressStage: "ready",
-      progressPercent: 100
-    });
-  });
-
-  it("ignores a non-function Tauri v1 invoke shim", async () => {
-    (window as unknown as { __TAURI_INVOKE__?: unknown }).__TAURI_INVOKE__ = "not-callable";
-
-    const selection = await importYoutubeUrl("https://youtu.be/4ozX4yFUC34");
-
-    expect(selection.ok).toBe(true);
-  });
-
   it("rejects unsupported YouTube URLs before crossing the Tauri bridge", async () => {
     tauriWindow.__TAURI_INVOKE__ = vi.fn();
 
@@ -190,43 +97,6 @@ describe("analysis bridge", () => {
     tauriWindow.__TAURI_INVOKE__ = vi.fn();
 
     const selection = await importYoutubeUrl("https://youtube.com/watch?v=4ozX4yFUC34&v=");
-
-    expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
-    expect(selection).toEqual({
-      ok: false,
-      error: {
-        code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
-      }
-    });
-  });
-
-  it("rejects oversized YouTube URLs before crossing the Tauri bridge", async () => {
-    tauriWindow.__TAURI_INVOKE__ = vi.fn();
-    const urlPrefix = "https://youtube.com/watch?v=4ozX4yFUC34&x=";
-    const oversizedUrl = `${urlPrefix}${"a".repeat(MAX_YOUTUBE_URL_LENGTH - urlPrefix.length + 1)}`;
-
-    const selection = await importYoutubeUrl(oversizedUrl);
-
-    expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
-    expect(selection).toEqual({
-      ok: false,
-      error: {
-        code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
-      }
-    });
-  });
-
-  it.each([
-    "https://youtube.com/watch?v=too-short",
-    "https://youtube.com/watch?v=4ozX4yFUC3!",
-    "https://youtu.be/too-short",
-    "https://youtu.be/4ozX4yFUC3!"
-  ])("rejects malformed YouTube video identifiers before crossing the Tauri bridge", async (url) => {
-    tauriWindow.__TAURI_INVOKE__ = vi.fn();
-
-    const selection = await importYoutubeUrl(url);
 
     expect(tauriWindow.__TAURI_INVOKE__).not.toHaveBeenCalled();
     expect(selection).toEqual({

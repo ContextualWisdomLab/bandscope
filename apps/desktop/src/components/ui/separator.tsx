@@ -4,7 +4,6 @@ import { Separator as SeparatorPrimitive } from "@base-ui/react/separator"
 
 import { cn } from "@/lib/utils"
 
-/** Render a horizontal or vertical separator between UI regions. */
 function Separator({
   className,
   orientation = "horizontal",

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from ..sections.utils import validate_section
 from .model import (
     RangeAnalysisResult,
     RangeInfo,
@@ -14,8 +13,6 @@ from .model import (
 )
 
 logger = logging.getLogger(__name__)
-
-_MAX_NOTE_LENGTH = 12
 
 # Chromatic note order for comparison (octave-independent).
 _NOTE_ORDER = [
@@ -56,26 +53,21 @@ def _parse_note(note: str) -> tuple[str, int]:
     """
     if not note:
         return ("C", 4)
-    if len(note) > _MAX_NOTE_LENGTH:
-        return ("C", 4)
-    if note[0].upper() not in {"A", "B", "C", "D", "E", "F", "G"}:
-        return ("C", 4)
-
-    name = note[0].upper()
-    octave_str = note[1:]
-    octave_str_lower = octave_str.lower()
-    for accidental_text, accidental in (("sharp", "#"), ("flat", "b"), ("#", "#"), ("b", "b")):
-        if octave_str_lower.startswith(accidental_text):
-            name += accidental
-            octave_str = octave_str[len(accidental_text) :]
-            break
-
-    if octave_str == "":
-        return (name, 4)
-    if octave_str == "-" or not octave_str.removeprefix("-").isdigit():
-        return (name, 4)
-
-    return (name, int(octave_str))
+    # Find the boundary between note name and octave number by scanning
+    # from the end of the string. Octave digits appear at the tail.
+    for i in range(len(note) - 1, -1, -1):
+        if note[i].isdigit() or (note[i] == "-" and i == len(note) - 1):
+            # Still in the octave portion; continue scanning left.
+            pass
+        else:
+            # Found the last non-digit character; split here.
+            name = note[: i + 1]
+            octave_str = note[i + 1 :]
+            if octave_str and (octave_str.isdigit() or (octave_str[0] == "-")):
+                return (name, int(octave_str))
+            return (name, 4)
+    # Entire string was digits (edge case); return as-is with default octave.
+    return (note, 4)
 
 
 def _note_to_midi(note: str) -> int:
@@ -130,11 +122,7 @@ def _ranges_overlap(low_a: str, high_a: str, low_b: str, high_b: str) -> bool:
     midi_high_a = _note_to_midi(high_a)
     midi_low_b = _note_to_midi(low_b)
     midi_high_b = _note_to_midi(high_b)
-    if midi_low_a > midi_high_a or midi_low_b > midi_high_b:
-        return False
-    overlap_low = max(midi_low_a, midi_low_b)
-    overlap_high = min(midi_high_a, midi_high_b)
-    return overlap_low <= overlap_high
+    return midi_low_a <= midi_high_b and midi_low_b <= midi_high_a
 
 
 def _overlap_severity(
@@ -155,18 +143,14 @@ def _overlap_severity(
     midi_high_a = _note_to_midi(high_a)
     midi_low_b = _note_to_midi(low_b)
     midi_high_b = _note_to_midi(high_b)
-    if midi_low_a > midi_high_a or midi_low_b > midi_high_b:
-        return "low"
 
     overlap_low = max(midi_low_a, midi_low_b)
     overlap_high = min(midi_high_a, midi_high_b)
     overlap_size = overlap_high - overlap_low
-    if overlap_size <= 0:
-        return "low"
 
     range_a_size = midi_high_a - midi_low_a
     range_b_size = midi_high_b - midi_low_b
-    min_range = max(1, min(range_a_size, range_b_size))
+    min_range = min(range_a_size, range_b_size) if min(range_a_size, range_b_size) > 0 else 1
 
     ratio = overlap_size / min_range
     if ratio > 0.5:
@@ -176,17 +160,12 @@ def _overlap_severity(
     return "low"
 
 
-def _safe_note_string(value: object) -> str:
-    """Return a bounded note string or a safe default for untrusted range data."""
-    if not isinstance(value, str):
-        return "C4"
-    if len(value) > _MAX_NOTE_LENGTH:
-        return "C4"
-    return value
-
-
 class RangeAnalyzer:
     """Analyzes pitch ranges and detects overlaps between roles."""
+
+    def __init__(self) -> None:
+        """Initialize the range analyzer."""
+        pass
 
     def analyze(
         self,
@@ -205,7 +184,15 @@ class RangeAnalyzer:
         summaries: list[SectionRangeSummary] = []
 
         for i, section in enumerate(sections):
-            section_id = validate_section(section, i, logger)
+            if not isinstance(section, dict):
+                logger.warning(
+                    "Invalid section format at index %d; expected dict, got %s",
+                    i,
+                    type(section).__name__,
+                )
+                section_id = f"section-{i}"
+            else:
+                section_id = section.get("id", f"section-{i}")
 
             section_roles = (roles_by_section or {}).get(section_id, [])
             ranges: list[RangeInfo] = []
@@ -214,61 +201,42 @@ class RangeAnalyzer:
             for role in section_roles:
                 role_range = role.get("range")
                 if isinstance(role_range, dict):
-                    lowest_note = _safe_note_string(role_range.get("lowestNote", ""))
-                    highest_note = _safe_note_string(role_range.get("highestNote", ""))
                     ranges.append(
                         {
                             "role_id": str(role.get("id", "")),
                             "role_name": str(role.get("name", "")),
-                            "lowestNote": lowest_note,
-                            "highestNote": highest_note,
+                            "lowestNote": str(role_range.get("lowestNote", "")),
+                            "highestNote": str(role_range.get("highestNote", "")),
                         }
                     )
 
-            ranges_with_midi = []
-            for r in ranges:
-                midi_low = _note_to_midi(r["lowestNote"])
-                midi_high = _note_to_midi(r["highestNote"])
-                if midi_low > midi_high:
-                    continue
-                ranges_with_midi.append(
-                    (
-                        r,
-                        midi_low,
-                        midi_high,
-                    )
-                )
-
-            # Sort ranges by lowest note MIDI value for efficient overlap detection
-            ranges_with_midi.sort(key=lambda x: x[1])
-
             # Detect overlaps between all pairs of ranges
-            for a_idx, (r_a, _midi_low_a, midi_high_a) in enumerate(ranges_with_midi):
-                for b_idx in range(a_idx + 1, len(ranges_with_midi)):
-                    r_b, midi_low_b, midi_high_b = ranges_with_midi[b_idx]
-
-                    # Since ranges are sorted by lowest note, if the next range starts
-                    # after the current one ends, no further ranges will overlap
-                    if midi_low_b > midi_high_a:
-                        break
-
-                    severity = _overlap_severity(
+            for a_idx in range(len(ranges)):
+                for b_idx in range(a_idx + 1, len(ranges)):
+                    r_a = ranges[a_idx]
+                    r_b = ranges[b_idx]
+                    if _ranges_overlap(
                         r_a["lowestNote"],
                         r_a["highestNote"],
                         r_b["lowestNote"],
                         r_b["highestNote"],
-                    )
-
-                    overlaps.append(
-                        {
-                            "role_a": r_a["role_id"],
-                            "role_b": r_b["role_id"],
-                            "overlap_region": (
-                                f"{r_a['role_name']} and {r_b['role_name']} overlap"
-                            ),
-                            "severity": severity,
-                        }
-                    )
+                    ):
+                        severity = _overlap_severity(
+                            r_a["lowestNote"],
+                            r_a["highestNote"],
+                            r_b["lowestNote"],
+                            r_b["highestNote"],
+                        )
+                        overlaps.append(
+                            {
+                                "role_a": r_a["role_id"],
+                                "role_b": r_b["role_id"],
+                                "overlap_region": (
+                                    f"{r_a['role_name']} and {r_b['role_name']} overlap"
+                                ),
+                                "severity": severity,
+                            }
+                        )
 
             summaries.append(
                 {

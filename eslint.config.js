@@ -23,7 +23,7 @@ export default tseslint.config(
   },
   {
     files: ["packages/shared-types/src/**/*.ts", "apps/desktop/src/**/*.{ts,tsx}"],
-    ignores: ["**/*.test.ts", "**/*.test.tsx", "**/*.stories.tsx", "apps/desktop/src/vite-env.d.ts", "apps/desktop/src/main.tsx"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx", "apps/desktop/src/vite-env.d.ts", "apps/desktop/src/main.tsx", "apps/desktop/src/components/ui/**"],
     plugins: {
       jsdoc: jsdoc,
     },
