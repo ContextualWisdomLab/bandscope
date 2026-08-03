@@ -36,6 +36,27 @@ def test_chord_recognizer_build_observation_probs_edge_cases():
     assert probs.shape == (25, 10)
 
 
+def test_short_similarity_preserves_observed_frames_and_neutral_padding():
+    """Distinguish observed frame likelihoods and verify neutral missing-frame padding."""
+    recognizer = ChordRecognizer()
+    chromagram = np.zeros((12, 5))
+    chromagram[0, :] = 1.0
+    similarity = np.zeros((24, 2))
+    similarity[0, 0] = 2.0
+    similarity[1, 1] = 2.0
+    rms = np.ones(5)
+
+    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
+
+    assert probs.shape == (25, 5)
+    assert np.allclose(probs.sum(axis=0), 1.0)
+    assert probs[0, 0] > probs[1, 0]
+    assert probs[1, 1] > probs[0, 1]
+    assert not np.allclose(probs[:24, 0], probs[:24, 1])
+    assert np.allclose(probs[:24, 2:], probs[0, 2:][None, :])
+    assert np.all(probs[24, 2:] > probs[0, 2:])
+
+
 def test_create_chord_segments_handles_short_similarity(monkeypatch):
     """Keep confidence generation aligned when observation frames are padded."""
     recognizer = ChordRecognizer()
