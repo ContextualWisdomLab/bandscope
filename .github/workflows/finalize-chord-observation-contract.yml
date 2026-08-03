@@ -69,3 +69,5 @@ jobs:
           git diff --cached --check
           git commit -m "fix(chords): keep missing observation frames neutral"
           git push origin HEAD:refs/heads/jules-15985039724708397070-07b0954f
+
+# This second branch push activates the newly introduced one-shot workflow.
