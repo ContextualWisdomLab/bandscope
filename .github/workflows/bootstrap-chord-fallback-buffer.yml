@@ -1,0 +1,81 @@
+name: Bootstrap chord fallback buffer reuse
+
+on:
+  push:
+    branches: [jules-15985039724708397070-07b0954f]
+    paths:
+      - scripts/ci/bootstrap_chord_fallback_buffer.py
+      - .github/workflows/bootstrap-chord-fallback-buffer.yml
+  workflow_dispatch:
+
+concurrency:
+  group: bootstrap-chord-fallback-buffer
+  cancel-in-progress: true
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: >-
+      github.repository == 'ContextualWisdomLab/bandscope'
+      && github.actor != 'github-actions[bot]'
+      && github.ref_name == 'jules-15985039724708397070-07b0954f'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: jules-15985039724708397070-07b0954f
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install pinned Python environment
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.8.6"
+          enable-cache: false
+
+      - name: Sync analysis dependencies
+        run: uv sync --project services/analysis-engine --group dev --frozen
+
+      - name: Apply reviewed buffer reuse
+        run: python3 scripts/ci/bootstrap_chord_fallback_buffer.py
+
+      - name: Verify allocation and behavior contracts
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -F 'missing_similarity = np.zeros(similarity.shape[0], dtype=similarity.dtype)' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py >/dev/null
+          grep -F 'else missing_similarity' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py >/dev/null
+          uv run --project services/analysis-engine pytest -q services/analysis-engine/tests/test_chord_recognizer_opt.py
+          uv run --project services/analysis-engine ruff check \
+            services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py \
+            services/analysis-engine/tests/test_chord_recognizer_opt.py
+          test ! -e scripts/ci/bootstrap_chord_fallback_buffer.py
+          test ! -e .github/workflows/bootstrap-chord-fallback-buffer.yml
+
+      - name: Commit verified buffer reuse
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No fallback-buffer changes to commit."
+            exit 0
+          fi
+          git commit -m "perf(chords): reuse padded-frame fallback buffer"
+          git push origin HEAD:refs/heads/jules-15985039724708397070-07b0954f
