@@ -1,6 +1,6 @@
 # Metadata handoff import
 
-BandScope metadata handoffs let one musician share rehearsal scope without embedding or transmitting audio. The receiving BandScope installation imports a small JSON artifact, shows its workspace and song context, and reuses the focused role identifiers only after the recipient explicitly chooses a local audio file.
+BandScope metadata handoffs let one musician share rehearsal scope without embedding or transmitting audio. The receiving BandScope installation imports a small JSON artifact, shows its workspace and song context, and reuses the focused role identifiers only after the recipient explicitly chooses a local audio file. Any source references in the artifact remain inert metadata and are never treated as authority to read recipient files.
 
 ## Recipient workflow
 
