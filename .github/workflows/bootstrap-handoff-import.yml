@@ -1,0 +1,63 @@
+name: Bootstrap handoff import integration
+
+on:
+  push:
+    branches: [feat/handoff-import-roundtrip]
+    paths:
+      - scripts/ci/bootstrap_handoff_import.py
+      - .github/workflows/bootstrap-handoff-import.yml
+  workflow_dispatch:
+
+concurrency:
+  group: bootstrap-handoff-import-integration
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: >-
+      github.repository == 'ContextualWisdomLab/bandscope'
+      && github.actor != 'github-actions[bot]'
+      && github.ref_name == 'feat/handoff-import-roundtrip'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/handoff-import-roundtrip
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply reviewed handoff integration
+        run: python3 scripts/ci/bootstrap_handoff_import.py
+
+      - name: Verify generated integration
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -F 'HandoffImportControl' apps/desktop/src/App.tsx >/dev/null
+          grep -F 'pendingHandoff' apps/desktop/src/App.tsx >/dev/null
+          grep -F 'handoffErrorTooLarge' apps/desktop/src/locales/en/common.json >/dev/null
+          grep -F 'handoffErrorTooLarge' apps/desktop/src/locales/ko/common.json >/dev/null
+          test ! -e scripts/ci/bootstrap_handoff_import.py
+          test ! -e .github/workflows/bootstrap-handoff-import.yml
+
+      - name: Commit generated integration
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No integration changes to commit."
+            exit 0
+          fi
+          git commit -m "feat(desktop): wire handoff import round trip"
+          git push origin HEAD:refs/heads/feat/handoff-import-roundtrip
