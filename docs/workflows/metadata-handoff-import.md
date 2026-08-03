@@ -5,7 +5,7 @@ BandScope metadata handoffs let one musician share rehearsal scope without embed
 ## Recipient workflow
 
 1. Select **Import Handoff** in the source controls.
-2. Choose a `.json` handoff exported by BandScope. Importing or replacing a handoff clears any previously selected audio so unrelated source context cannot be reused accidentally.
+2. Choose a `.json` handoff exported by BandScope. Importing or replacing a handoff clears any previously selected audio so unrelated source context cannot be reused accidentally. Competing local-audio and YouTube source actions remain disabled while the selected handoff is being read and validated.
 3. Confirm the displayed workspace, song, and focused-role count.
 4. Select the recipient's own local audio copy.
 5. Start analysis. BandScope creates a local-audio analysis request with the imported role focus.
@@ -50,7 +50,7 @@ The UI boundary is implemented by:
 - `readMetadataHandoffFile` for bounded file intake and validation;
 - `handoffRoleFocus` for ordered role deduplication;
 - `createAnalysisRequestForSelection` for preserving the normal request path until both a local source and valid handoff are present;
-- `HandoffImportControl` for accessible import, replace, progress, summary, and clear controls;
+- `HandoffImportControl` for accessible import, replace, progress, summary, clear, and validation-activity controls;
 - `_focus_rehearsal_song` for non-mutating backend result projection over complete cached analysis.
 
-Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, explicit local-source selection and re-selection, cache-safe role projection, graph-link filtering, and successful pending-state cleanup.
+Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, source-action exclusion during validation, explicit local-source selection and re-selection, cache-safe role projection, graph-link filtering, and successful pending-state cleanup.
