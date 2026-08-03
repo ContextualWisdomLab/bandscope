@@ -78,11 +78,14 @@ function handoffFile(
   name: string,
   bytes: Uint8Array,
   reportedSize = bytes.byteLength
-): MetadataHandoffFile & { arrayBuffer: ReturnType<typeof vi.fn> } {
-  const arrayBuffer = vi.fn(async () =>
-    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-  );
-  return { name, size: reportedSize, arrayBuffer };
+): MetadataHandoffFile & { slice: ReturnType<typeof vi.fn> } {
+  const payload = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  ) as ArrayBuffer;
+  const blob = new Blob([payload]);
+  const slice = vi.fn((start?: number, end?: number) => blob.slice(start, end));
+  return { name, size: reportedSize, slice };
 }
 
 function jsonFile(payload: unknown, name = "friday-handoff.json"): ReturnType<typeof handoffFile> {
@@ -107,11 +110,11 @@ function selectedSource(): ProjectBootstrapSummary {
 
 describe("metadata handoff import", () => {
   it("accepts bounded UTF-8 JSON and validates the artifact contract", async () => {
-    const result = await readMetadataHandoffFile(jsonFile(validHandoff()));
+    const result = await readMetadataHandoffFile(jsonFile(validHandoff(), "FRIDAY-HANDOFF.JSON"));
 
     expect(result).toEqual({
       ok: true,
-      fileName: "friday-handoff.json",
+      fileName: "FRIDAY-HANDOFF.JSON",
       artifact: validHandoff(),
       roleFocus: ["bass-guitar", "lead-vocal"]
     });
@@ -124,24 +127,30 @@ describe("metadata handoff import", () => {
       ok: false,
       code: "unsupported_file"
     });
-    expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(file.slice).not.toHaveBeenCalled();
   });
 
-  it("rejects an oversized file before allocating or decoding its payload", async () => {
+  it.each([
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    MAX_HANDOFF_FILE_BYTES + 1
+  ])("rejects unsafe reported size %s before reading bytes", async (reportedSize) => {
     const file = handoffFile(
       "friday-handoff.json",
       new Uint8Array([0x7b, 0x7d]),
-      MAX_HANDOFF_FILE_BYTES + 1
+      reportedSize
     );
 
     await expect(readMetadataHandoffFile(file)).resolves.toEqual({
       ok: false,
       code: "too_large"
     });
-    expect(file.arrayBuffer).not.toHaveBeenCalled();
+    expect(file.slice).not.toHaveBeenCalled();
   });
 
-  it("rechecks the actual byte length after reading", async () => {
+  it("rechecks the actual byte length after bounded reading", async () => {
     const file = handoffFile(
       "friday-handoff.json",
       new Uint8Array(MAX_HANDOFF_FILE_BYTES + 1),
@@ -151,6 +160,20 @@ describe("metadata handoff import", () => {
     await expect(readMetadataHandoffFile(file)).resolves.toEqual({
       ok: false,
       code: "too_large"
+    });
+    expect(file.slice).toHaveBeenCalledWith(0, MAX_HANDOFF_FILE_BYTES + 1);
+  });
+
+  it("rejects a truncated or unstable browser file read", async () => {
+    const file = handoffFile(
+      "friday-handoff.json",
+      new Uint8Array([0x7b, 0x7d]),
+      1
+    );
+
+    await expect(readMetadataHandoffFile(file)).resolves.toEqual({
+      ok: false,
+      code: "read_failed"
     });
   });
 
@@ -184,9 +207,14 @@ describe("metadata handoff import", () => {
     const file: MetadataHandoffFile = {
       name: "friday-handoff.json",
       size: 12,
-      arrayBuffer: vi.fn(async () => {
-        throw new Error("/Users/private/secret.json could not be read");
-      })
+      slice: vi.fn(
+        () =>
+          ({
+            arrayBuffer: vi.fn(async () => {
+              throw new Error("/Users/private/secret.json could not be read");
+            })
+          }) as unknown as Blob
+      )
     };
 
     await expect(readMetadataHandoffFile(file)).resolves.toEqual({
