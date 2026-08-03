@@ -61,14 +61,18 @@ def main() -> int:
             "serialized size JSDoc",
         ),
         (
+            "/** Return whether a value is a plain or null-prototype non-array object. */",
+            "/** Return whether a stabilized value is a plain non-array object. */",
+            "record helper JSDoc",
+        ),
+        (
             "  try {\n"
             "    const prototype = Object.getPrototypeOf(value);\n"
             "    return prototype === Object.prototype || prototype === null;\n"
             "  } catch {\n"
             "    return false;\n"
             "  }",
-            "  const prototype = Object.getPrototypeOf(value);\n"
-            "  return prototype === Object.prototype || prototype === null;",
+            "  return Object.getPrototypeOf(value) === Object.prototype;",
             "snapshot-safe record prototype check",
         ),
         (
