@@ -6,7 +6,17 @@ on:
     paths:
       - scripts/ci/fix_naruon_lint.py
       - .github/workflows/fix-naruon-lint.yml
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+    paths:
+      - scripts/ci/fix_naruon_lint.py
+      - .github/workflows/fix-naruon-lint.yml
   workflow_dispatch:
+
+concurrency:
+  group: fix-naruon-lint
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -18,7 +28,13 @@ env:
 
 jobs:
   apply:
-    if: github.repository == 'ContextualWisdomLab/bandscope' && github.actor != 'github-actions[bot]'
+    if: >-
+      github.repository == 'ContextualWisdomLab/bandscope'
+      && github.actor != 'github-actions[bot]'
+      && (
+        github.ref_name == 'feat/naruon-rehearsal-handoff-v1'
+        || github.head_ref == 'feat/naruon-rehearsal-handoff-v1'
+      )
     permissions:
       contents: write
     runs-on: ubuntu-latest
