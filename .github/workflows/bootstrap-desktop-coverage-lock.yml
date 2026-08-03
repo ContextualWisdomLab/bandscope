@@ -6,6 +6,12 @@ on:
     paths:
       - scripts/ci/bootstrap_desktop_coverage_lock.py
       - .github/workflows/bootstrap-desktop-coverage-lock.yml
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [develop]
+    paths:
+      - scripts/ci/bootstrap_desktop_coverage_lock.py
+      - .github/workflows/bootstrap-desktop-coverage-lock.yml
   workflow_dispatch:
 
 concurrency:
@@ -22,7 +28,10 @@ env:
 
 jobs:
   apply:
-    if: github.repository == 'ContextualWisdomLab/bandscope' && github.actor != 'github-actions[bot]'
+    if: >-
+      github.repository == 'ContextualWisdomLab/bandscope' &&
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name != 'pull_request' || github.head_ref == 'bolt/optimize-score-pdf-read-14940922715415907974')
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -75,5 +84,3 @@ jobs:
           git diff --cached --check
           git commit -m "fix(ci): make desktop coverage install self-contained"
           git push origin HEAD:refs/heads/bolt/optimize-score-pdf-read-14940922715415907974
-
-# A follow-up push activates this newly introduced one-shot workflow.
