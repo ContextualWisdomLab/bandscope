@@ -5,11 +5,11 @@ BandScope metadata handoffs let one musician share rehearsal scope without embed
 ## Recipient workflow
 
 1. Select **Import Handoff** in the source controls.
-2. Choose a `.json` handoff exported by BandScope.
+2. Choose a `.json` handoff exported by BandScope. Importing or replacing a handoff clears any previously selected audio so unrelated source context cannot be reused accidentally.
 3. Confirm the displayed workspace, song, and focused-role count.
 4. Select the recipient's own local audio copy.
 5. Start analysis. BandScope creates a local-audio analysis request with the imported role focus.
-6. Clear or replace the pending handoff at any time before the analysis starts.
+6. Clear or replace the pending handoff at any time before the analysis starts. Clearing the handoff does not discard an audio source selected after that handoff.
 
 Importing metadata never starts analysis automatically and never dereferences file paths or URLs carried by the artifact.
 
@@ -39,4 +39,4 @@ The UI boundary is implemented by:
 - `createAnalysisRequestForSelection` for preserving the normal request path until both a local source and valid handoff are present;
 - `HandoffImportControl` for accessible import, replace, progress, summary, and clear controls.
 
-Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, explicit local-source selection, and successful pending-state cleanup.
+Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, explicit local-source selection and re-selection, and successful pending-state cleanup.
