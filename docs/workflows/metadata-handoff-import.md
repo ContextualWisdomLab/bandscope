@@ -1,0 +1,42 @@
+# Metadata handoff import
+
+BandScope metadata handoffs let one musician share rehearsal scope without embedding or transmitting audio. The receiving BandScope installation imports a small JSON artifact, shows its workspace and song context, and reuses the focused role identifiers only after the recipient explicitly chooses a local audio file.
+
+## Recipient workflow
+
+1. Select **Import Handoff** in the source controls.
+2. Choose a `.json` handoff exported by BandScope.
+3. Confirm the displayed workspace, song, and focused-role count.
+4. Select the recipient's own local audio copy.
+5. Start analysis. BandScope creates a local-audio analysis request with the imported role focus.
+6. Clear or replace the pending handoff at any time before the analysis starts.
+
+Importing metadata never starts analysis automatically and never dereferences file paths or URLs carried by the artifact.
+
+## Validation boundary
+
+The desktop reads at most 1 MiB plus one sentinel byte from the selected file. It then requires:
+
+- a `.json` file name;
+- a safe integer file size within the limit;
+- strict UTF-8 decoding;
+- valid JSON;
+- the supported `bandscope.metadata-handoff` artifact kind and version;
+- the complete shared-types handoff contract.
+
+Failures are mapped to bounded localized error codes. Local paths, parser payload fragments, and file contents are not echoed into the interface.
+
+## Privacy and authority
+
+A handoff carries metadata references and focused role identifiers, not audio bytes. It grants no filesystem, network, calendar, database, or model authority. The recipient still chooses the local audio source, and the existing local-first analysis boundary remains authoritative.
+
+## Developer API
+
+The UI boundary is implemented by:
+
+- `readMetadataHandoffFile` for bounded file intake and validation;
+- `handoffRoleFocus` for ordered role deduplication;
+- `createAnalysisRequestForSelection` for preserving the normal request path until both a local source and valid handoff are present;
+- `HandoffImportControl` for accessible import, replace, progress, summary, and clear controls.
+
+Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, explicit local-source selection, and successful pending-state cleanup.
