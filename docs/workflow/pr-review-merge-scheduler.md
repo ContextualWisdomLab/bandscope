@@ -30,6 +30,10 @@ The caller performs two ordered phases:
    three outdated branches, enable normal auto-merge, and merge only after required checks and
    independent approval are satisfied.
 
+Both reusable workflow references use the same full central commit SHA. The review-fix caller also
+passes that exact SHA as `canonical_ref`, so its checked-out Python scheduler implementation cannot
+drift to mutable `.github@main` after the caller has been reviewed.
+
 The local workflow contains no review parser, code-fix agent, review dismissal, thread resolution,
 branch-update implementation, or merge command. Reusable workflows cannot elevate the caller's
 `GITHUB_TOKEN`, so the caller declares only the permission union required by the two reviewed central
@@ -69,14 +73,15 @@ active only after this caller is reviewed and merged into `develop`.
 
 - Attack surface: organization required workflows with write access to PR comments, PR branch updates, and normal merges.
 - Trust boundary touched: GitHub repository governance, PR review state, status checks, inherited workflow secrets, and CodeRabbit review requests.
-- Realistic threats: spammed review comments, merging a PR with unresolved conversations, merging without required checks, widening caller permissions, or hiding conflicts behind automation.
-- Mitigations: full-length central reusable-workflow SHA pins, an exact hourly caller contract test,
-  least-privilege permission union, idempotent per-head review comment marker, explicit unresolved-thread
-  check, retry-bounded GitHub API reads, required-check verification through GitHub, conflict skip,
-  guarded merge with `--match-head-commit`, and no admin bypass path.
+- Realistic threats: spammed review comments, merging a PR with unresolved conversations, merging without required checks, widening caller permissions, mutable implementation drift, or hiding conflicts behind automation.
+- Mitigations: full-length central reusable-workflow SHA pins, an identical immutable `canonical_ref`
+  for the review-fix implementation, an exact hourly caller contract test, least-privilege permission
+  union, idempotent per-head review comment marker, explicit unresolved-thread check, retry-bounded
+  GitHub API reads, required-check verification through GitHub, conflict skip, guarded merge with
+  `--match-head-commit`, and no admin bypass path.
 - Remaining risk: CodeRabbit and GitHub check state can be delayed or stale; the scheduler therefore only advances eligible PRs and leaves code-fix work to agents or maintainers.
-- Test points: hourly cron and manual dispatch, central workflow SHA pins, delegated permission union,
-  organization ruleset inheritance, current-head OpenCode approval, unresolved review thread count,
-  required-check rollup, approved behind PR, approved conflict-free PR, approved dirty PR, external
-  failed-check classification, provider/runtime failure summary, and Strix evidence lookup scope
-  diagnostics.
+- Test points: hourly cron and manual dispatch, central workflow SHA pins, immutable review-fix
+  implementation source, delegated permission union, organization ruleset inheritance, current-head
+  OpenCode approval, unresolved review thread count, required-check rollup, approved behind PR,
+  approved conflict-free PR, approved dirty PR, external failed-check classification,
+  provider/runtime failure summary, and Strix evidence lookup scope diagnostics.
