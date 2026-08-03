@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { FileMusic, FilePlus2, Loader2, Trash2 } from "lucide-react";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
@@ -39,6 +39,7 @@ function bridgeErrorDetail(error: unknown, fallback: string): string {
  */
 export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const scoreRequiresProjectId = useId();
   const attachments = useMemo(() => song.scoreAttachments ?? [], [song.scoreAttachments]);
   const [selected, setSelected] = useState<ScoreAttachment | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
@@ -149,7 +150,10 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
           </div>
 
           {!projectId && (
-            <p className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100">
+            <p
+              id={scoreRequiresProjectId}
+              className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100"
+            >
               {t("scoreRequiresProject")}
             </p>
           )}
@@ -185,6 +189,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                       type="button"
                       onClick={projectId ? () => void openAttachment(projectId, attachment) : undefined}
                       aria-disabled={!projectId ? true : undefined}
+                      aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
                       title={!projectId ? t("scoreNavDisabledHint") : undefined}
                       aria-current={selected?.id === attachment.id ? "true" : undefined}
                       aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
