@@ -1,5 +1,6 @@
 name: Bootstrap handoff import integration
 
+# One-shot workflow: verifies generated integration, commits it, and removes itself.
 on:
   push:
     branches: [feat/handoff-import-roundtrip]
