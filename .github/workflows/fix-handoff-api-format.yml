@@ -5,6 +5,11 @@ on:
     branches: [feat/handoff-import-roundtrip]
     paths:
       - .github/workflows/fix-handoff-api-format.yml
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [develop]
+    paths:
+      - .github/workflows/fix-handoff-api-format.yml
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +26,10 @@ env:
 
 jobs:
   apply:
-    if: github.repository == 'ContextualWisdomLab/bandscope' && github.actor != 'github-actions[bot]'
+    if: >-
+      github.repository == 'ContextualWisdomLab/bandscope' &&
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name != 'pull_request' || github.head_ref == 'feat/handoff-import-roundtrip')
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -60,5 +68,3 @@ jobs:
           git diff --cached --check
           git commit -m "style(analysis): format handoff API changes"
           git push origin HEAD:refs/heads/feat/handoff-import-roundtrip
-
-# A follow-up push activates this newly introduced one-shot workflow.
