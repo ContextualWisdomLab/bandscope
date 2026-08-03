@@ -263,7 +263,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 className="min-h-10 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] hover:bg-cyan-300/20 hover:text-white"
             >
                 <Download className="mr-2 size-4 text-cyan-200" aria-hidden="true" />
-              Export Cue Sheet (CSV)
+              {t("exportCueSheetCsv" as Extract<import("../../i18n").TranslationKey, string>)}
             </Button>
             <Button
               variant="outline"
@@ -272,7 +272,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 shadow-sm hover:bg-white/10 hover:text-white"
             >
                 <Download className="mr-2 size-4 text-slate-300" aria-hidden="true" />
-              Export Chart (JSON)
+              {t("exportChartJson" as Extract<import("../../i18n").TranslationKey, string>)}
             </Button>
             <Button
               variant="outline"
@@ -281,7 +281,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               className="min-h-10 border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 shadow-sm hover:bg-teal-300/20 hover:text-white"
             >
               <Download className="mr-2 size-4 text-teal-200" aria-hidden="true" />
-              Export Handoff (JSON)
+              {t("exportHandoffJson" as Extract<import("../../i18n").TranslationKey, string>)}
             </Button>
           </div>
           </div>
@@ -348,61 +348,61 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
             {activeRole && (
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">{t("stemPlayerLabel" as Extract<import("../../i18n").TranslationKey, string>)}</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Play stem coming soon"
-                    title="Play stem coming soon"
+                    aria-label={t("playStemSoon" as Extract<import("../../i18n").TranslationKey, string>)}
+                    title={t("playStemSoon" as Extract<import("../../i18n").TranslationKey, string>)}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
                   >
-                    Play stem
+                    {t("playStem" as Extract<import("../../i18n").TranslationKey, string>)}
                   </Button>
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
+                    aria-label={t("loopSectionSoon" as Extract<import("../../i18n").TranslationKey, string>)}
+                    title={t("loopSectionSoon" as Extract<import("../../i18n").TranslationKey, string>)}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
                   >
-                    Loop section
+                    {t("loopSection" as Extract<import("../../i18n").TranslationKey, string>)}
                   </Button>
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Solo / mute others coming soon"
-                    title="Solo / mute others coming soon"
+                    aria-label={t("soloMuteOthersSoon" as Extract<import("../../i18n").TranslationKey, string>)}
+                    title={t("soloMuteOthersSoon" as Extract<import("../../i18n").TranslationKey, string>)}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
                   >
-                    Solo / mute others
+                    {t("soloMuteOthers" as Extract<import("../../i18n").TranslationKey, string>)}
                   </Button>
                   {canTranscribeBass ? (
                     <Button
                       type="button"
-                      title="Transcribe part"
+                      title={t("transcribePart" as Extract<import("../../i18n").TranslationKey, string>)}
                       variant="outline"
                       className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
                     >
-                      Transcribe Bass
+                      {t("transcribeBass" as Extract<import("../../i18n").TranslationKey, string>)}
                     </Button>
                   ) : (
                     <Button
                       type="button"
                       aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
+                      title={t("transcriptionComingSoon" as Extract<import("../../i18n").TranslationKey, string>, { roleName: activeRoleDetails?.name ?? "This role" })}
                       onClick={preventUnavailableAction}
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
                     >
-                      Transcribe Bass
+                      {t("transcribeBass" as Extract<import("../../i18n").TranslationKey, string>)}
                     </Button>
                   )}
                 </div>

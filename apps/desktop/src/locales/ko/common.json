@@ -148,5 +148,18 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "exportCueSheetCsv": "큐 시트 내보내기 (CSV)",
+  "exportChartJson": "차트 내보내기 (JSON)",
+  "exportHandoffJson": "핸드오프 내보내기 (JSON)",
+  "stemPlayerLabel": "스템 플레이어",
+  "playStem": "스템 재생",
+  "playStemSoon": "스템 재생은 곧 제공됩니다",
+  "loopSection": "구간 반복",
+  "loopSectionSoon": "구간 반복은 곧 제공됩니다",
+  "soloMuteOthers": "솔로 / 나머지 음소거",
+  "soloMuteOthersSoon": "솔로 / 나머지 음소거는 곧 제공됩니다",
+  "transcribeBass": "베이스 채보",
+  "transcribePart": "파트 채보",
+  "transcriptionComingSoon": "{roleName} 채보는 곧 제공됩니다. 베이스가 먼저 준비되었습니다."
 }

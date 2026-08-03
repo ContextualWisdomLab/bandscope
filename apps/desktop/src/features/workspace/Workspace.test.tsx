@@ -96,7 +96,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
+    const transcribeButton = screen.getByRole("button", { name: /Transcribe Bass/ }) as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(false);
     expect(transcribeButton.title).toBe("Transcribe part");
   });

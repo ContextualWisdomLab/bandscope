@@ -13,8 +13,14 @@ const dictionaries = {
 
 /** Documented. */
 export function createTranslator(locale: Locale = "en") {
-  return function t(key: TranslationKey): string {
-    return dictionaries[locale][key] ?? dictionaries.en[key];
+  return function t(key: TranslationKey, variables?: Record<string, string>): string {
+    let text = dictionaries[locale][key] ?? dictionaries.en[key];
+    if (variables) {
+      for (const [k, v] of Object.entries(variables)) {
+        text = text.replace(new RegExp(`{${k}}`, "g"), v);
+      }
+    }
+    return text;
   };
 }
 
