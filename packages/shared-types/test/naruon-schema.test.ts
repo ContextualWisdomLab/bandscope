@@ -5,13 +5,27 @@ import {
   NARUON_REHEARSAL_HANDOFF_VERSION
 } from "../src/naruon";
 
+type HandoffSchema = {
+  $schema: string;
+  additionalProperties: boolean;
+  properties: {
+    artifactKind: { const: string };
+    artifactVersion: { const: number };
+    provenance: {
+      properties: {
+        evidence: { maxItems: number };
+      };
+    };
+  };
+};
+
 /** Load the checked-in public JSON Schema from the repository documentation tree. */
-function loadSchema(): Record<string, any> {
+function loadSchema(): HandoffSchema {
   const schemaUrl = new URL(
     "../../../docs/integrations/naruon-rehearsal-handoff-v1.schema.json",
     import.meta.url
   );
-  return JSON.parse(readFileSync(fileURLToPath(schemaUrl), "utf8"));
+  return JSON.parse(readFileSync(fileURLToPath(schemaUrl), "utf8")) as HandoffSchema;
 }
 
 describe("naruon public JSON Schema", () => {
