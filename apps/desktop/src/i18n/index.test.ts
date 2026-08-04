@@ -76,3 +76,21 @@ describe("i18n", () => {
     });
   });
 });
+
+describe("translator placeholder interpolation", () => {
+  it("replaces every occurrence of a named placeholder", () => {
+    const t = createTranslator("en");
+
+    expect(
+      t("transcriptionComingSoon", { roleName: "Bass {roleName}" })
+    ).toBe("Bass {roleName} transcription is coming soon. Bass is ready first.");
+  });
+
+  it("preserves replacement characters literally", () => {
+    const t = createTranslator("en");
+
+    expect(t("transcriptionComingSoon", { roleName: "$& [lead].*" })).toBe(
+      "$& [lead].* transcription is coming soon. Bass is ready first."
+    );
+  });
+});

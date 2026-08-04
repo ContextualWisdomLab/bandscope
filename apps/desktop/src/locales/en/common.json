@@ -161,5 +161,6 @@
   "soloMuteOthersSoon": "Solo / mute others coming soon",
   "transcribeBass": "Transcribe Bass",
   "transcribePart": "Transcribe part",
-  "transcriptionComingSoon": "{roleName} transcription is coming soon. Bass is ready first."
+  "transcriptionComingSoon": "{roleName} transcription is coming soon. Bass is ready first.",
+  "thisRole": "This role"
 }

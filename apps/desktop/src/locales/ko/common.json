@@ -161,5 +161,6 @@
   "soloMuteOthersSoon": "솔로 / 나머지 음소거는 곧 제공됩니다",
   "transcribeBass": "베이스 채보",
   "transcribePart": "파트 채보",
-  "transcriptionComingSoon": "{roleName} 채보는 곧 제공됩니다. 베이스가 먼저 준비되었습니다."
+  "transcriptionComingSoon": "{roleName} 채보는 곧 제공됩니다. 베이스가 먼저 준비되었습니다.",
+  "thisRole": "이 역할"
 }

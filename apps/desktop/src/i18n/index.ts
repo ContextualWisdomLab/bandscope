@@ -11,13 +11,16 @@ const dictionaries = {
   ko: koCommon
 } as const;
 
-/** Documented. */
+/** Create a locale-bound translator with literal placeholder interpolation. */
 export function createTranslator(locale: Locale = "en") {
-  return function t(key: TranslationKey, variables?: Record<string, string>): string {
+  return function translate(
+    key: TranslationKey,
+    variables?: Readonly<Record<string, string>>
+  ): string {
     let text = dictionaries[locale][key] ?? dictionaries.en[key];
     if (variables) {
-      for (const [k, v] of Object.entries(variables)) {
-        text = text.replace(new RegExp(`{${k}}`, "g"), v);
+      for (const [variableName, variableValue] of Object.entries(variables)) {
+        text = text.split(`{${variableName}}`).join(variableValue);
       }
     }
     return text;
