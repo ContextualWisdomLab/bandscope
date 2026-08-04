@@ -61,7 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-
-## 2025-02-15 - Vectorize checkerboard kernel using sliding_window_view and einsum
-**Learning:** Using nested loops over a window alongside Python array slicing (`np.diagonal`) in tight inner loops adds significant O(K^2) overhead to matrix convolution steps, scaling linearly with audio length.
-**Action:** Replace nested loops performing sliding window element-wise multiplication with NumPy's vectorized `sliding_window_view`, extracting elements across dimensions using `np.diagonal`, and performing batched element-wise products via `np.einsum`.
