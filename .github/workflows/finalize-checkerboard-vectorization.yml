@@ -15,6 +15,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: "init.defaultBranch"
+  GIT_CONFIG_VALUE_0: "develop"
+
 jobs:
   finalize:
     if: >-
@@ -60,14 +65,11 @@ jobs:
             --out services/analysis-engine/rust/dist
           uv pip install --python "$python_path" services/analysis-engine/rust/dist/*.whl
 
-      - name: Apply reviewed vectorization and remove unrelated drift
+      - name: Apply reviewed vectorization
         run: |
           set -euo pipefail
           python3 -m py_compile scripts/ci/finalize_checkerboard_vectorization.py
           python3 scripts/ci/finalize_checkerboard_vectorization.py
-          git show acdbea6344fe1231c39535b575f4de35e4c607c9:.jules/bolt.md > .jules/bolt.md
-          git show acdbea6344fe1231c39535b575f4de35e4c607c9:package-lock.json > package-lock.json
-          rm .github/workflows/finalize-checkerboard-vectorization.yml
 
       - name: Verify independent oracle and Rust parity
         run: |
@@ -86,10 +88,7 @@ jobs:
             services/analysis-engine/src/bandscope_analysis/sections/segmenter.py >/dev/null
           grep -F 'Vectorization preserves even, odd, unit, and boundary-size kernels.' \
             services/analysis-engine/tests/test_segmenter.py >/dev/null
-          cmp package-lock.json <(git show acdbea6344fe1231c39535b575f4de35e4c607c9:package-lock.json)
-          cmp .jules/bolt.md <(git show acdbea6344fe1231c39535b575f4de35e4c607c9:.jules/bolt.md)
           test ! -e scripts/ci/finalize_checkerboard_vectorization.py
-          test ! -e .github/workflows/finalize-checkerboard-vectorization.yml
 
       - name: Commit verified final state
         run: |
