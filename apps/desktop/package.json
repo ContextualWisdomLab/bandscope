@@ -10,7 +10,7 @@
     "build-storybook": "storybook build",
     "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"require('node:fs').mkdirSync('coverage/.tmp', { recursive: true })\" && vitest run --coverage"
+    "test": "node scripts/sync_coverage_lock.mjs --check && node -e \"require('node:fs').mkdirSync('coverage/.tmp', { recursive: true })\" && vitest run --coverage"
   },
   "dependencies": {
     "@bandscope/shared-types": "0.1.0",
@@ -45,6 +45,9 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.63.0",
     "vite": "^8.1.4",
-    "vitest": "^4.1.10"
-  }
+    "vitest": "^4.1.10",
+    "@eslint/js": "^10.0.1",
+    "eslint-plugin-jsdoc": "^63.0.13"
+  },
+  "exports": "./src/shared-types-proxy.ts"
 }
