@@ -16,6 +16,15 @@ describe("scoreStorage bridge resolution", () => {
     delete tauriWindow.__TAURI_INVOKE__;
   });
 
+  it("fails closed when readScorePdf receives an invalid array (early exit for non-number)", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue([1, 2, "not-a-number", 4]);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      "Invalid score bridge response"
+    );
+  });
+
   it("fails closed on every command when there is no window (non-browser runtime)", async () => {
     // Simulate a runtime without a DOM window (e.g. SSR / bundler prerender):
     // getInvoke() must take the `typeof window === "undefined"` branch and
