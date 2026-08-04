@@ -150,6 +150,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
+  const transcriptionUnavailableLabel = t("transcriptionComingSoon", {
+    roleName: activeRoleDetails?.name ?? t("thisRole")
+  });
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -397,12 +400,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     <Button
                       type="button"
                       aria-disabled={true}
-                      title={t("transcriptionComingSoon", { roleName: activeRoleDetails?.name ?? t("thisRole") })}
+                      aria-label={transcriptionUnavailableLabel}
+                      title={transcriptionUnavailableLabel}
                       onClick={preventUnavailableAction}
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
                     >
-                      {t("transcribeBass")}
+                      {t("transcribePart")}
                     </Button>
                   )}
                 </div>

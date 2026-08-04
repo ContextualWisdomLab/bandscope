@@ -78,7 +78,7 @@ describe("i18n", () => {
 });
 
 describe("translator placeholder interpolation", () => {
-  it("replaces every occurrence of a named placeholder", () => {
+  it("does not recursively interpolate placeholder text inside replacement values", () => {
     const t = createTranslator("en");
 
     expect(

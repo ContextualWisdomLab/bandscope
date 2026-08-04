@@ -86,6 +86,7 @@ describe("Workspace", () => {
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {
+    setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
@@ -99,6 +100,25 @@ describe("Workspace", () => {
     const transcribeButton = screen.getByRole("button", { name: /Transcribe Bass/ }) as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(false);
     expect(transcribeButton.title).toBe("Transcribe part");
+  });
+
+  it("names unavailable transcription for the selected non-bass role", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      id: "guitar-role",
+      name: "Guitar"
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Guitar" }));
+
+    const label = "Guitar transcription is coming soon. Bass is ready first.";
+    const transcribeButton = screen.getByRole("button", { name: label });
+    expect(transcribeButton).toHaveTextContent("Transcribe part");
+    expect(transcribeButton).toHaveAttribute("aria-disabled", "true");
+    expect(transcribeButton).toHaveAttribute("title", label);
   });
 
   it("renders bass transcription in the dark rehearsal cockpit system", () => {
