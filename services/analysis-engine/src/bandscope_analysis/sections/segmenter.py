@@ -18,7 +18,6 @@ from typing import Any, Literal
 
 import librosa
 import numpy as np
-from numpy.lib.stride_tricks import sliding_window_view
 from numpy.typing import NDArray
 
 from .._native import HAVE_RUST, _checkerboard_novelty_rust
@@ -135,20 +134,14 @@ def _checkerboard_novelty_reference(
     kernel[:half, :half] = 1.0
     kernel[half:, half:] = 1.0
 
-    # ``sliding_window_view`` and ``diagonal`` are zero-copy views. Restrict
-    # the final window axis to the exact public output slice (even kernels have
-    # one additional bottom-right window), then contract directly into novelty
-    # so no K²×N temporary tensor or second O(N) result vector is materialized.
+    # Sum each checkerboard offset across all valid diagonal windows at once.
+    from numpy.lib.stride_tricks import sliding_window_view
+
     windows = sliding_window_view(ssm, (kernel_size, kernel_size))
-    valid_length = n - 2 * half
-    diagonal_windows = np.diagonal(windows, axis1=0, axis2=1)[..., :valid_length]
-    np.einsum(
-        "ij,ijk->k",
-        kernel,
-        diagonal_windows,
-        out=novelty[half : n - half],
-        optimize=False,
-    )
+    diag_windows = np.diagonal(windows, axis1=0, axis2=1)
+    valid = np.einsum("ij,ijk->k", kernel, diag_windows)
+
+    novelty[half : n - half] = valid[: n - 2 * half]
 
     # Normalize by peak absolute magnitude, preserving sign.
     max_val = np.max(np.abs(novelty))
