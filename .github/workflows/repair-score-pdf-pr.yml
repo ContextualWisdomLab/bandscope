@@ -38,7 +38,8 @@ jobs:
 
       - name: Repair unrelated coverage and lock drift
         env:
-          EXPECTED_PARENT_SHA: f5d7be12529b7e109ceef866c05566310d97a002
+          EXPECTED_PARENT_SHA: b58dc6ad72e5d33b8b50bbc4519500be0f2bb51c
+          EXPECTED_FEATURE_SHA: f5d7be12529b7e109ceef866c05566310d97a002
           BASE_SHA: acdbea6344fe1231c39535b575f4de35e4c607c9
           CANONICAL_LOCK_SHA: 87b3455bc84c8aa2a69550991de289e3c4ec92d6
           CANONICAL_LOCK_BRANCH: feat/i18n-workspace-buttons-12938137214845538471
@@ -47,6 +48,7 @@ jobs:
           set -euo pipefail
 
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT_SHA"
+          test "$(git rev-parse HEAD^^)" = "$EXPECTED_FEATURE_SHA"
           test "$(git diff --name-only "$EXPECTED_PARENT_SHA"...HEAD)" = "$REPAIR_WORKFLOW"
 
           git fetch --no-tags origin \
@@ -114,7 +116,7 @@ jobs:
           PY
 
           git diff --check
-          actual_files="$(git diff --name-only "$BASE_SHA"...HEAD | grep -vFx "$REPAIR_WORKFLOW" | sort)"
+          actual_files="$(git diff --name-only "$BASE_SHA" -- | sort)"
           expected_files="$(printf '%s\n' \
             apps/desktop/src/features/score/scoreStorage.test.ts \
             apps/desktop/src/features/score/scoreStorage.ts \
