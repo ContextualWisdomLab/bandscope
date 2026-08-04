@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "services/analysis-engine/src/bandscope_analysis/sections/segmenter.py"
 TEST = ROOT / "services/analysis-engine/tests/test_segmenter.py"
 SELF = ROOT / "scripts/ci/finalize_checkerboard_vectorization.py"
-WORKFLOW = ROOT / ".github/workflows/finalize-checkerboard-vectorization.yml"
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -140,7 +139,6 @@ def main() -> int:
     SOURCE.write_text(source, encoding="utf-8")
     TEST.write_text(test, encoding="utf-8")
     SELF.unlink()
-    WORKFLOW.unlink()
     return 0
 
 
