@@ -37,6 +37,3 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
-## 2026-08-04 - Accessible disabled buttons in test suites
-**Learning:** When testing accessible disabled buttons that use `aria-disabled="true"`, Jest-DOM's `.toBeDisabled()` will fail because it strictly checks for the native HTML `disabled` attribute.
-**Action:** Instead, query the button (e.g., `screen.getByRole("button", { name: ... })`) and use `.toHaveAttribute("aria-disabled", "true")` to assert its state.
