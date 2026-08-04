@@ -136,7 +136,6 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
             <Button
               onClick={projectId ? () => void handleAttach(projectId) : undefined}
               disabled={!projectId || isAttaching}
-              title={isAttaching ? t("scoreAttaching") : t("scoreAttach")}
               variant="secondary"
               className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
             >
@@ -184,18 +183,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                   >
                     <button
                       type="button"
-                      onClick={(e) => {
-                        if (!projectId) {
-                          e.preventDefault();
-                          return;
-                        }
-                        void openAttachment(projectId, attachment);
-                      }}
-                      aria-disabled={!projectId ? "true" : undefined}
+                      onClick={projectId ? () => void openAttachment(projectId, attachment) : undefined}
+                      disabled={!projectId}
                       aria-current={selected?.id === attachment.id ? "true" : undefined}
                       aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
-                      title={`${t("scoreOpen")}: ${attachment.fileName}`}
-                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
                       <span className="truncate">{attachment.fileName}</span>
@@ -206,7 +198,6 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                       onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
                       disabled={!projectId}
                       aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
-                      title={`${t("scoreRemove")}: ${attachment.fileName}`}
                       className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
