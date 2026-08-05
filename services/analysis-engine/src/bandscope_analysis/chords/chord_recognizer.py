@@ -425,6 +425,13 @@ class ChordRecognizer:
         Returns:
             List of TrackedChord dicts with start_time, end_time, chord, and confidence.
         """
+        # Maximum allowed audio length: 300 seconds (5 minutes)
+        max_duration_seconds = 300
+        max_samples = max_duration_seconds * sr
+        if len(y) > max_samples:
+            raise ValueError(
+                f"Audio length exceeds maximum allowed duration of {max_duration_seconds} seconds."
+            )
         if len(y) == 0:
             return []
 
