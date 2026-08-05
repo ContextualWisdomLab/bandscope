@@ -16,6 +16,30 @@ describe("scoreStorage bridge resolution", () => {
     delete tauriWindow.__TAURI_INVOKE__;
   });
 
+  it("throws INVALID_RESPONSE_MESSAGE when readScorePdf returns an array with non-number elements (early exit)", async () => {
+    const mockInvoke = vi.fn().mockResolvedValue([1, 2, "not-a-number", 4]);
+    const tauriWindow = {
+      __TAURI_INVOKE__: mockInvoke
+    } as unknown as TauriWindow;
+    vi.stubGlobal("window", tauriWindow);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow("Invalid score bridge response");
+    expect(mockInvoke).toHaveBeenCalledWith("read_score_pdf", { projectId: "project-1", scoreId: "score-1" });
+  });
+
+  it("returns Uint8Array when readScorePdf returns a valid number array", async () => {
+    const mockInvoke = vi.fn().mockResolvedValue([1, 2, 3, 4]);
+    const tauriWindow = {
+      __TAURI_INVOKE__: mockInvoke
+    } as unknown as TauriWindow;
+    vi.stubGlobal("window", tauriWindow);
+
+    const result = await readScorePdf("project-1", "score-1");
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(result).toEqual(new Uint8Array([1, 2, 3, 4]));
+    expect(mockInvoke).toHaveBeenCalledWith("read_score_pdf", { projectId: "project-1", scoreId: "score-1" });
+  });
+
   it("fails closed on every command when there is no window (non-browser runtime)", async () => {
     // Simulate a runtime without a DOM window (e.g. SSR / bundler prerender):
     // getInvoke() must take the `typeof window === "undefined"` branch and
