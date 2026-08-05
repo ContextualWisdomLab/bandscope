@@ -14,9 +14,27 @@ export function ChordsFeature(props: { title: string; song?: RehearsalSong | nul
   }
 
   // Collect unique chords across all sections and roles
-  const chordsBySectionLabel = new Map<string, { chord: string; functionLabel: string; source: string; roleName: string; transpositionPlan?: string }[]>();
+  const chordsBySectionLabel = new Map<string, {
+    chord: string;
+    functionLabel: string;
+    source: string;
+    roleName: string;
+    transpositionPlan?: string;
+    setupNote: string;
+    simplification: string;
+    overlapWarnings: string[];
+  }[]>();
   for (const section of song.sections) {
-    const entries: { chord: string; functionLabel: string; source: string; roleName: string; transpositionPlan?: string }[] = [];
+    const entries: {
+      chord: string;
+      functionLabel: string;
+      source: string;
+      roleName: string;
+      transpositionPlan?: string;
+      setupNote: string;
+      simplification: string;
+      overlapWarnings: string[];
+    }[] = [];
     for (const role of section.roles) {
       entries.push({
         chord: role.harmony.chord,
@@ -24,6 +42,9 @@ export function ChordsFeature(props: { title: string; song?: RehearsalSong | nul
         source: role.harmony.source,
         roleName: role.name,
         transpositionPlan: role.transpositionPlan,
+        setupNote: role.setupNote,
+        simplification: role.simplification,
+        overlapWarnings: role.overlapWarnings,
       });
     }
     chordsBySectionLabel.set(section.label, entries);
@@ -73,6 +94,26 @@ export function ChordsFeature(props: { title: string; song?: RehearsalSong | nul
                 {role.transpositionPlan && (
                   <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#d46b08", backgroundColor: "#fff7e6", padding: "4px", borderRadius: "2px" }}>
                     <strong>Transpose:</strong> {role.transpositionPlan}
+                  </div>
+                )}
+                {role.setupNote && (
+                  <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#08979c", backgroundColor: "#e6fffb", padding: "4px", borderRadius: "2px" }}>
+                    <strong>Setup:</strong> {role.setupNote}
+                  </div>
+                )}
+                {role.simplification && (
+                  <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#531dab", backgroundColor: "#f9f0ff", padding: "4px", borderRadius: "2px" }}>
+                    <strong>Simplification:</strong> {role.simplification}
+                  </div>
+                )}
+                {role.overlapWarnings && role.overlapWarnings.length > 0 && (
+                  <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#cf1322", backgroundColor: "#fff1f0", padding: "4px", borderRadius: "2px" }}>
+                    <strong>Overlap Warning:</strong>
+                    <ul style={{ margin: "2px 0 0 16px", padding: 0 }}>
+                      {role.overlapWarnings.map((warning, idx) => (
+                        <li key={idx}>{warning}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
