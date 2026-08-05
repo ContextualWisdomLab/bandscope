@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2024-05-20 - [Performance Optimization] Vectorizing diagonal patch extraction in Checkerboard Novelty Kernel
+**Learning:** When performing windowed operations strictly along the diagonal of large matrices in Python/NumPy, using Python array slicing loops incurs linear time constant overhead due to inner loop array allocation and summation.
+**Action:** Use sub-matrix diagonal vectorization (`numpy.lib.stride_tricks.sliding_window_view` coupled with `np.diagonal` and `np.einsum`) instead of nested Python loops to shift heavy computations to fast C-level operations.
