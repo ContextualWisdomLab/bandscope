@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-08-06 - [Array density check optimization in scoreStorage]
+**Learning:** Using Array.every() to validate byte arrays creates O(N) callback invocation overhead and unnecessary intermediate allocations.
+**Action:** Replaced response.every(...) with a standard for loop and early break to achieve O(1) memory and significantly faster execution for large arrays.
