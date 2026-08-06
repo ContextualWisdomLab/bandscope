@@ -1,71 +1,78 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ScoreAttachment } from "@bandscope/shared-types";
-
-type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
-
-type TauriBridgeWindow = Window & {
-  __TAURI_INTERNALS__?: { invoke?: unknown };
-  __TAURI_INVOKE__?: TauriInvoke;
-};
-
-/**
- * Attachment metadata plus the validated on-disk size reported by the
- * desktop bridge when a score PDF is copied into the project workspace.
- */
-export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
 
-/**
- * Resolve the desktop invoke bridge following the same detection rules as
- * the analysis bridge: prefer Tauri v2 internals, fall back to the legacy
- * test/dev shim, and return null in plain browsers.
- */
+type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+type TauriWindow = Window & {
+  __TAURI_INTERNALS__?: unknown;
+  __TAURI_INVOKE__?: TauriInvoke;
+};
+
 function getInvoke(): TauriInvoke | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const bridgeWindow = window as TauriBridgeWindow;
-  if (bridgeWindow.__TAURI_INTERNALS__ && typeof bridgeWindow.__TAURI_INTERNALS__.invoke === "function") {
+  const tauriWindow = window as TauriWindow;
+  if (typeof tauriWindow.__TAURI_INVOKE__ === "function") {
+    return tauriWindow.__TAURI_INVOKE__;
+  }
+  if (tauriWindow.__TAURI_INTERNALS__) {
     return invoke;
   }
-
-  if (typeof bridgeWindow.__TAURI_INVOKE__ === "function") {
-    return bridgeWindow.__TAURI_INVOKE__;
-  }
-
   return null;
 }
 
-/**
- * Invoke a score storage command on the desktop bridge, failing closed with
- * a stable error when no bridge is available (browser preview builds).
- */
-async function invokeScoreCommand(command: string, args: Record<string, unknown>): Promise<unknown> {
+async function invokeScoreCommand(
+  command: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
   const invokeCommand = getInvoke();
   if (!invokeCommand) {
     throw new Error(BRIDGE_UNAVAILABLE_MESSAGE);
   }
-
   return invokeCommand(command, args);
 }
 
+function isValidIdentifier(value: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+function requireValidIdentifier(value: string, fieldName: string): void {
+  if (!isValidIdentifier(value)) {
+    throw new Error(`Invalid ${fieldName}`);
+  }
+}
+
 /**
- * Open the native PDF picker and copy the validated score into the
- * app-owned project workspace. Security Notes: the file path never crosses
- * the IPC boundary from JS; the Rust command owns the dialog, validation
- * (magic bytes, size cap, no symlinks), and the copy destination.
+ * Attach one PDF score to a song through the desktop bridge.
+ *
+ * Security Notes: project and song identifiers are validated before crossing
+ * the IPC boundary, and the Rust command owns path canonicalization, MIME
+ * validation, copying, and storage quotas.
  */
-export async function attachScorePdf(projectId: string, songId: string): Promise<ScoreAttachResult> {
+export async function attachScorePdf(
+  projectId: string,
+  songId: string
+): Promise<{ id: string; fileName: string; fileSizeBytes: number } | null> {
+  requireValidIdentifier(projectId, "project identifier");
+  requireValidIdentifier(songId, "song identifier");
+
   const response = await invokeScoreCommand("attach_score_pdf", { projectId, songId });
+  if (response === null) {
+    return null;
+  }
   if (
     typeof response !== "object" ||
     response === null ||
-    typeof (response as Record<string, unknown>).scoreId !== "string" ||
-    typeof (response as Record<string, unknown>).fileName !== "string" ||
-    typeof (response as Record<string, unknown>).fileSizeBytes !== "number"
+    Array.isArray(response) ||
+    !("scoreId" in response) ||
+    !("fileName" in response) ||
+    !("fileSizeBytes" in response) ||
+    typeof response.scoreId !== "string" ||
+    typeof response.fileName !== "string" ||
+    typeof response.fileSizeBytes !== "number"
   ) {
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
@@ -92,17 +99,18 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
     return new Uint8Array(response);
   }
   if (Array.isArray(response)) {
-    // Performance: Avoid O(N) callback invocation overhead from .every() on large byte arrays.
-    let isValid = true;
-    for (let i = 0; i < response.length; i++) {
-      if (typeof response[i] !== "number") {
-        isValid = false;
-        break;
+    for (let index = 0; index < response.length; index += 1) {
+      const byte = response[index];
+      if (
+        typeof byte !== "number" ||
+        !Number.isInteger(byte) ||
+        byte < 0 ||
+        byte > 255
+      ) {
+        throw new Error(INVALID_RESPONSE_MESSAGE);
       }
     }
-    if (isValid) {
-      return Uint8Array.from(response as number[]);
-    }
+    return Uint8Array.from(response as number[]);
   }
 
   throw new Error(INVALID_RESPONSE_MESSAGE);
