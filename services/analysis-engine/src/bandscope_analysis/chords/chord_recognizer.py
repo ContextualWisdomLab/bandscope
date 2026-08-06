@@ -425,6 +425,14 @@ class ChordRecognizer:
         Returns:
             List of TrackedChord dicts with start_time, end_time, chord, and confidence.
         """
+        # Validate sampling rate to prevent resource exhaustion first
+        min_sr = 1
+        max_sr = 384000  # Reasonable upper bound for audio processing
+        if sr < min_sr or sr > max_sr:
+            raise ValueError(
+                f"Sampling rate must be between {min_sr} and {max_sr} Hz, got {sr} Hz."
+            )
+
         # Maximum allowed audio length: 300 seconds (5 minutes)
         max_duration_seconds = 300
         max_samples = max_duration_seconds * sr
