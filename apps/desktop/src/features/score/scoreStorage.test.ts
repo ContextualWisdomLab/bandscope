@@ -27,6 +27,23 @@ describe("scoreStorage bridge resolution", () => {
     expect(mockInvoke).toHaveBeenCalledWith("read_score_pdf", { projectId: "project-1", scoreId: "score-1" });
   });
 
+  it.each([
+    ["negative", -1],
+    ["above the byte range", 256],
+    ["fractional", 1.5],
+    ["NaN", Number.NaN],
+    ["infinite", Number.POSITIVE_INFINITY]
+  ])("rejects %s numeric values before Uint8Array coercion", async (_label, invalidByte) => {
+    const mockInvoke = vi.fn().mockResolvedValue([0, invalidByte, 255]);
+    const tauriWindow = {
+      __TAURI_INVOKE__: mockInvoke
+    } as unknown as TauriWindow;
+    vi.stubGlobal("window", tauriWindow);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow("Invalid score bridge response");
+    expect(mockInvoke).toHaveBeenCalledWith("read_score_pdf", { projectId: "project-1", scoreId: "score-1" });
+  });
+
   it("returns Uint8Array when readScorePdf returns a valid number array", async () => {
     const mockInvoke = vi.fn().mockResolvedValue([1, 2, 3, 4]);
     const tauriWindow = {
