@@ -1,6 +1,29 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
 
-/** Documented. */
+/**
+ * Normalize an optional rehearsal instruction and reject producer sentinel text.
+ *
+ * Analysis producers historically used the string `none` when no guidance was
+ * available. Treating that sentinel as buyer-facing copy creates misleading
+ * setup cards, so the presentation layer maps it and whitespace-only input to
+ * an absent value while preserving meaningful source text after trimming.
+ */
+function normalizeRoleDetail(value: string | undefined): string | null {
+  const normalizedValue = value?.trim() ?? "";
+  if (normalizedValue === "" || normalizedValue.toLowerCase() === "none") {
+    return null;
+  }
+  return normalizedValue;
+}
+
+/** Return only meaningful overlap warnings without mutating analysis output. */
+function normalizeOverlapWarnings(values: readonly string[]): string[] {
+  return values
+    .map((value) => normalizeRoleDetail(value))
+    .filter((value): value is string => value !== null);
+}
+
+/** Render chord, transposition, setup, simplification, and overlap guidance. */
 export function ChordsFeature(props: { title: string; song?: RehearsalSong | null }) {
   const { title, song } = props;
 
@@ -11,22 +34,6 @@ export function ChordsFeature(props: { title: string; song?: RehearsalSong | nul
         <p style={{ color: "#999" }}>No song loaded. Start an analysis to see chord data.</p>
       </section>
     );
-  }
-
-  // Collect unique chords across all sections and roles
-  const chordsBySectionLabel = new Map<string, { chord: string; functionLabel: string; source: string; roleName: string; transpositionPlan?: string }[]>();
-  for (const section of song.sections) {
-    const entries: { chord: string; functionLabel: string; source: string; roleName: string; transpositionPlan?: string }[] = [];
-    for (const role of section.roles) {
-      entries.push({
-        chord: role.harmony.chord,
-        functionLabel: role.harmony.functionLabel,
-        source: role.harmony.source,
-        roleName: role.name,
-        transpositionPlan: role.transpositionPlan,
-      });
-    }
-    chordsBySectionLabel.set(section.label, entries);
   }
 
   return (
@@ -48,35 +55,63 @@ export function ChordsFeature(props: { title: string; song?: RehearsalSong | nul
             <h3 style={{ margin: "0 0 8px 0", textTransform: "capitalize" }}>
               {section.label}
             </h3>
-            {section.roles.map((role) => (
-              <div
-                key={role.id}
-                style={{
-                  marginTop: "8px",
-                  padding: "8px",
-                  backgroundColor: role.harmony.source === "user" ? "#e6f7ff" : "#f9f9f9",
-                  borderRadius: "4px",
-                }}
-              >
-                <div style={{ fontWeight: "bold", fontSize: "1.1em" }}>
-                  {role.harmony.chord}
-                  {role.harmony.source === "user" && (
-                    <span style={{ fontSize: "0.7em", color: "#1890ff", marginLeft: "4px" }}>(User)</span>
-                  )}
-                </div>
-                <div style={{ fontSize: "0.85em", color: "#666" }}>
-                  {role.harmony.functionLabel}
-                </div>
-                <div style={{ fontSize: "0.8em", color: "#999" }}>
-                  {role.name}
-                </div>
-                {role.transpositionPlan && (
-                  <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#d46b08", backgroundColor: "#fff7e6", padding: "4px", borderRadius: "2px" }}>
-                    <strong>Transpose:</strong> {role.transpositionPlan}
+            {section.roles.map((role) => {
+              const transpositionPlan = normalizeRoleDetail(role.transpositionPlan);
+              const setupNote = normalizeRoleDetail(role.setupNote);
+              const simplification = normalizeRoleDetail(role.simplification);
+              const overlapWarnings = normalizeOverlapWarnings(role.overlapWarnings);
+
+              return (
+                <article
+                  key={role.id}
+                  aria-label={role.name}
+                  style={{
+                    marginTop: "8px",
+                    padding: "8px",
+                    backgroundColor: role.harmony.source === "user" ? "#e6f7ff" : "#f9f9f9",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <div style={{ fontWeight: "bold", fontSize: "1.1em" }}>
+                    {role.harmony.chord}
+                    {role.harmony.source === "user" && (
+                      <span style={{ fontSize: "0.7em", color: "#1890ff", marginLeft: "4px" }}>(User)</span>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
+                  <div style={{ fontSize: "0.85em", color: "#666" }}>
+                    {role.harmony.functionLabel}
+                  </div>
+                  <div style={{ fontSize: "0.8em", color: "#999" }}>
+                    {role.name}
+                  </div>
+                  {transpositionPlan && (
+                    <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#d46b08", backgroundColor: "#fff7e6", padding: "4px", borderRadius: "2px" }}>
+                      <strong>Transpose:</strong> {transpositionPlan}
+                    </div>
+                  )}
+                  {setupNote && (
+                    <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#08979c", backgroundColor: "#e6fffb", padding: "4px", borderRadius: "2px" }}>
+                      <strong>Setup:</strong> {setupNote}
+                    </div>
+                  )}
+                  {simplification && (
+                    <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#531dab", backgroundColor: "#f9f0ff", padding: "4px", borderRadius: "2px" }}>
+                      <strong>Simplification:</strong> {simplification}
+                    </div>
+                  )}
+                  {overlapWarnings.length > 0 && (
+                    <div style={{ marginTop: "6px", fontSize: "0.8em", color: "#cf1322", backgroundColor: "#fff1f0", padding: "4px", borderRadius: "2px" }}>
+                      <strong>Overlap warnings:</strong>
+                      <ul aria-label={`${role.name} overlap warnings`} style={{ margin: "2px 0 0 16px", padding: 0 }}>
+                        {overlapWarnings.map((warning, warningIndex) => (
+                          <li key={`${role.id}-${warningIndex}-${warning}`}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         ))}
       </div>
