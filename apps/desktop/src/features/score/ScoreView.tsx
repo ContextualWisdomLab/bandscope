@@ -195,8 +195,15 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
-                      disabled={!projectId}
+                      onClick={(e) => {
+                        if (!projectId) {
+                          e.preventDefault();
+                          return;
+                        }
+                        void handleRemove(projectId, attachment);
+                      }}
+                      aria-disabled={!projectId ? "true" : undefined}
+                      title={`${t("scoreRemove")}: ${attachment.fileName}`}
                       aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
                       className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
                     >

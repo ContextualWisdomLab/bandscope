@@ -257,6 +257,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant="outline"
               size="icon-lg"
               className="size-12"
+              title={t("scoreViewerZoomOut")}
               aria-label={t("scoreViewerZoomOut")}
               onClick={zoomOut}
             >
@@ -266,6 +267,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant="outline"
               size="icon-lg"
               className="size-12"
+              title={t("scoreViewerZoomIn")}
               aria-label={t("scoreViewerZoomIn")}
               onClick={zoomIn}
             >
@@ -274,6 +276,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             <Button
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
+              title={t("scoreViewerFitWidth")}
               aria-label={t("scoreViewerFitWidth")}
               aria-pressed={fitWidth}
               onClick={fitToWidth}
@@ -291,9 +294,16 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             variant="outline"
             size="icon-lg"
             className="size-14"
+            title={t("scoreViewerPrevPage")}
             aria-label={t("scoreViewerPrevPage")}
-            disabled={pageNumber <= 1}
-            onClick={goToPreviousPage}
+            aria-disabled={pageNumber <= 1 ? "true" : undefined}
+            onClick={(e) => {
+              if (pageNumber <= 1) {
+                e.preventDefault();
+                return;
+              }
+              goToPreviousPage();
+            }}
           >
             <ChevronLeft className="size-6" aria-hidden="true" />
           </Button>
@@ -304,9 +314,16 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             variant="outline"
             size="icon-lg"
             className="size-14"
+            title={t("scoreViewerNextPage")}
             aria-label={t("scoreViewerNextPage")}
-            disabled={pageNumber >= pageCount}
-            onClick={goToNextPage}
+            aria-disabled={pageNumber >= pageCount ? "true" : undefined}
+            onClick={(e) => {
+              if (pageNumber >= pageCount) {
+                e.preventDefault();
+                return;
+              }
+              goToNextPage();
+            }}
           >
             <ChevronRight className="size-6" aria-hidden="true" />
           </Button>
