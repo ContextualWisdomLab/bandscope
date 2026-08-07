@@ -32,4 +32,20 @@ describe("scoreStorage bridge resolution", () => {
       BRIDGE_UNAVAILABLE_MESSAGE
     );
   });
+
+  it("throws an error when readScorePdf returns an invalid array", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INTERNALS__ = {
+      invoke: vi.fn(async (command: string, args?: Record<string, unknown>) => {
+        if (command === "read_score_pdf") {
+          expect(args).toEqual({ projectId: "project-1", scoreId: "score-1" });
+          return [100, 200, "not-a-number", 300];
+        }
+        return null;
+      }),
+    };
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      "Invalid score bridge response"
+    );
+  });
 });
