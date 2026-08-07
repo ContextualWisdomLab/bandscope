@@ -20,6 +20,7 @@ env:
   GIT_CONFIG_KEY_0: init.defaultBranch
   GIT_CONFIG_VALUE_0: develop
   EXPECTED_SOURCE_HEAD: 6b753e6b0bacbe250885c20a53728966b81e0009
+  EXPECTED_TRIGGER_PARENT: b773653f76fae5cfbda4a24548bffd4fedfe06ef
   EXPECTED_NPM_VERSION: "10.9.8"
   ARTIFACT_ID: "8989562185"
   ARTIFACT_RUN_ID: "31161313485"
@@ -53,8 +54,8 @@ jobs:
         shell: bash --noprofile --norc -e -o pipefail {0}
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE_HEAD"
-          mapfile -t trigger_delta < <(git diff --name-only "$EXPECTED_SOURCE_HEAD" HEAD)
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_TRIGGER_PARENT"
+          mapfile -t trigger_delta < <(git diff --name-only "$EXPECTED_TRIGGER_PARENT" HEAD)
           test "${#trigger_delta[@]}" -eq 1
           test "${trigger_delta[0]}" = ".github/workflows/import-pr783-generated-lock.yml"
 
@@ -109,7 +110,9 @@ jobs:
         shell: bash --noprofile --norc -e -o pipefail {0}
         run: |
           rm .github/workflows/import-pr783-generated-lock.yml
-          test "$(git diff --name-only "$EXPECTED_SOURCE_HEAD" -- | sort)" = "package-lock.json"
+          actual_delta="$(git diff --name-only "$EXPECTED_SOURCE_HEAD" -- | sort)"
+          expected_delta="$(printf '%s\n' .github/workflows/import-pr783-generated-lock.yml package-lock.json | sort)"
+          test "$actual_delta" = "$expected_delta"
           test "$(sha256sum package-lock.json | cut -d' ' -f1)" = "$EXPECTED_LOCK_SHA256"
           remote_head="$(git ls-remote origin "refs/heads/${SOURCE_BRANCH}" | cut -f1)"
           test "$remote_head" = "$EXPECTED_HEAD"
