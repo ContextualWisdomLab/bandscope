@@ -1,0 +1,130 @@
+name: Finalize PR 783 Python formatting
+
+on:
+  push:
+    branches:
+      - fix/high-security-dependency-baseline
+    paths:
+      - .github/workflows/finalize-pr783-python-format.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finalize-pr783-python-format
+  cancel-in-progress: false
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+  EXPECTED_SOURCE_HEAD: c5ee630fd73decab457450d629d11aecb756637a
+
+jobs:
+  format-verify-publish:
+    if: >-
+      github.repository == 'ContextualWisdomLab/bandscope' &&
+      github.ref == 'refs/heads/fix/high-security-dependency-baseline'
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout exact trigger without persisted credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify bounded trigger lineage
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE_HEAD"
+          mapfile -t trigger_delta < <(git diff --name-only "$EXPECTED_SOURCE_HEAD" HEAD)
+          test "${#trigger_delta[@]}" -eq 1
+          test "${trigger_delta[0]}" = ".github/workflows/finalize-pr783-python-format.yml"
+
+      - name: Set up Node and npm
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22.22.3"
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.8.6"
+          enable-cache: false
+
+      - name: Install Rust stable
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Install exact dependencies
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          test "$(npm --version)" = "10.9.8"
+          npm ci
+          uv sync --project services/analysis-engine --group dev --frozen
+
+      - name: Apply Ruff's exact formatter result
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          cd services/analysis-engine
+          uv run ruff format \
+            tests/test_high_security_dependency_baseline.py \
+            tests/test_npm_toolchain_contract.py
+          uv run ruff format --check \
+            tests/test_high_security_dependency_baseline.py \
+            tests/test_npm_toolchain_contract.py
+          uv run ruff check \
+            tests/test_high_security_dependency_baseline.py \
+            tests/test_npm_toolchain_contract.py
+          cd ../..
+          actual_delta="$(git diff --name-only -- | sort)"
+          expected_delta="$(printf '%s\n' services/analysis-engine/tests/test_high_security_dependency_baseline.py services/analysis-engine/tests/test_npm_toolchain_contract.py | sort)"
+          test "$actual_delta" = "$expected_delta"
+          git diff --check
+
+      - name: Run the complete release harness
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        run: ./scripts/harness/quickcheck.sh
+
+      - name: Remove one-shot formatter and publish verified source
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+          SOURCE_BRANCH: fix/high-security-dependency-baseline
+          PUSH_TOKEN: ${{ github.token }}
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          rm .github/workflows/finalize-pr783-python-format.yml
+          actual_delta="$(git diff --name-only "$EXPECTED_SOURCE_HEAD" -- | sort)"
+          expected_delta="$(printf '%s\n' \
+            .github/workflows/finalize-pr783-python-format.yml \
+            services/analysis-engine/tests/test_high_security_dependency_baseline.py \
+            services/analysis-engine/tests/test_npm_toolchain_contract.py | sort)"
+          test "$actual_delta" = "$expected_delta"
+          remote_head="$(git ls-remote origin "refs/heads/${SOURCE_BRANCH}" | cut -f1)"
+          test "$remote_head" = "$EXPECTED_HEAD"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "style(ci): apply canonical Ruff formatting"
+          auth_header="$(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$auth_header"
+          git -c http.extraheader="AUTHORIZATION: basic ${auth_header}" \
+            push --force-with-lease="refs/heads/${SOURCE_BRANCH}:${EXPECTED_HEAD}" \
+            origin "HEAD:refs/heads/${SOURCE_BRANCH}"
