@@ -13,8 +13,16 @@ const dictionaries = {
 
 /** Documented. */
 export function createTranslator(locale: Locale = "en") {
-  return function t(key: TranslationKey): string {
-    return dictionaries[locale][key] ?? dictionaries.en[key];
+  return function t(key: TranslationKey, variables?: Record<string, string | number>): string {
+    let result = dictionaries[locale][key] ?? dictionaries.en[key];
+
+    if (variables) {
+      for (const [varName, varValue] of Object.entries(variables)) {
+        result = result.replace(new RegExp(`\\{${varName}\\}`, "g"), String(varValue));
+      }
+    }
+
+    return result;
   };
 }
 

@@ -7,6 +7,15 @@
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
+## [Unreleased]
+
+### Added
+
+- i18n 시스템에 변수 보간 기능 구현
+  - `createTranslator`가 두 번째 인자로 변수 객체를 전달받아 `{변수명}`을 치환하도록 개선했습니다.
+  - 관련 테스트 케이스를 100% 커버리지로 추가했습니다.
+
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed
