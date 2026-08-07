@@ -441,6 +441,11 @@ class ChordRecognizer:
         if len(y) == 0:
             return []
 
+        # Limit the audio length to prevent excessive processing
+        max_audio_samples = 6000000  # About 6 million samples
+        if len(y) > max_audio_samples:
+            y = y[:max_audio_samples]
+
         y_harmonic = self._separate_harmonic(y)
         chromagram = self._extract_chromagram(y_harmonic, sr)
 
