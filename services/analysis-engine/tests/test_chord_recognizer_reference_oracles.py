@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
+import numpy as np
 
 from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 
