@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-import pathlib
+from pathlib import Path
 
 
-_REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[3]
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _EXPECTED_NPM_VERSION = "10.9.8"
 _EXPECTED_NODE_VERSION = "22.22.3"
 
