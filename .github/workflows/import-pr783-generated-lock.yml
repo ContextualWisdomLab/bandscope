@@ -20,7 +20,7 @@ env:
   GIT_CONFIG_KEY_0: init.defaultBranch
   GIT_CONFIG_VALUE_0: develop
   EXPECTED_SOURCE_HEAD: 6b753e6b0bacbe250885c20a53728966b81e0009
-  EXPECTED_TRIGGER_PARENT: b773653f76fae5cfbda4a24548bffd4fedfe06ef
+  EXPECTED_TRIGGER_PARENT: 01cb39e9c9f7513fc3410f86b2f1e1332a969da4
   EXPECTED_NPM_VERSION: "10.9.8"
   ARTIFACT_ID: "8989562185"
   ARTIFACT_RUN_ID: "31161313485"
@@ -47,7 +47,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Verify bounded trigger lineage
