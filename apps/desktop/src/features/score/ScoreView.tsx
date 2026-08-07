@@ -184,11 +184,10 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                     <button
                       type="button"
                       onClick={projectId ? () => void openAttachment(projectId, attachment) : undefined}
-                      aria-disabled={!projectId ? "true" : undefined}
-                      title={!projectId ? t("scoreRequiresProject") : undefined}
+                      disabled={!projectId}
                       aria-current={selected?.id === attachment.id ? "true" : undefined}
                       aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
-                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
                       <span className="truncate">{attachment.fileName}</span>
