@@ -4,9 +4,10 @@
 
 BandScope generates and verifies its root npm workspace lock with exactly npm `10.9.8`. The root manifest records that decision through:
 
-- `packageManager: npm@10.9.8` as package-manager selection metadata;
-- `engines.npm: 10.9.8` as the published source-tree compatibility declaration; and
+- `packageManager: npm@10.9.8` as package-manager selection metadata; and
 - `devEngines.packageManager` with `onFail: error` as npm's source-tree command gate.
+
+The npm version is intentionally not repeated under `engines`. npm serializes `engines` into the root lock package, so adding an npm-only source-tool constraint there creates lock metadata churn unrelated to dependency resolution. `devEngines`, the explicit CI assertion, and the replay gate enforce the generator while the published `engines.node` range remains the runtime compatibility contract.
 
 The primary GitHub Actions workflow uses Node `22.22.3`, verifies the bundled npm version before any installation, runs `npm ci`, then runs a package-lock-only regeneration with scripts, audit, and funding output disabled. Any `package-lock.json` diff fails the exact head.
 
@@ -44,7 +45,7 @@ flowchart LR
 
 ## Verification
 
-`services/analysis-engine/tests/test_npm_toolchain_contract.py` verifies the manifest metadata, exact CI Node/npm identity, replay command and flags, clean lock diff, and lockfile version 3. Repository CI then executes the replay using the hosted toolchain.
+`services/analysis-engine/tests/test_npm_toolchain_contract.py` verifies the manifest metadata, separation of runtime and generator constraints, exact CI Node/npm identity, replay command and flags, clean lock diff, and lockfile version 3. Repository CI then executes the replay using the hosted toolchain.
 
 A dependency update is mergeable only after:
 
