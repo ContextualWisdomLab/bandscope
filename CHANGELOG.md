@@ -11,6 +11,10 @@
 
 - Pinned npm `10.9.8` as the lockfile generator and made primary CI reject a different npm version or any package-lock-only replay diff.
 
+### Fixed
+
+- Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and disabled PDF expression evaluation while preserving same-origin worker execution and npm-generated lock provenance.
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed
