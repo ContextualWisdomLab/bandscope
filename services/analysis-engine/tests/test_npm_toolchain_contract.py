@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from json import loads
-from pathlib import Path
+import json
+import pathlib
 
 
-_REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+_REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _EXPECTED_NPM_VERSION = "10.9.8"
 _EXPECTED_NODE_VERSION = "22.22.3"
 
 
 def _root_manifest() -> dict[str, object]:
     """Return the checked-in root package manifest as a JSON object."""
-    manifest = loads((_REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (_REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8")
+    )
     assert isinstance(manifest, dict)
     return manifest
 
@@ -59,7 +61,7 @@ def test_primary_ci_proves_exact_npm_before_install_and_lock_reproduction() -> N
 
 def test_root_lock_uses_the_supported_location_keyed_format() -> None:
     """Require the npm-v9-and-newer lock format used by the pinned generator."""
-    lock_document = loads(
+    lock_document = json.loads(
         (_REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8")
     )
 
