@@ -51,7 +51,10 @@ def test_primary_ci_proves_exact_npm_before_install_and_lock_reproduction() -> N
     assert "--no-audit" in workflow
     assert "--no-fund" in workflow
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
-    assert "npm-lock-reproduction-${{ github.event.pull_request.head.sha || github.sha }}" in workflow
+    assert (
+        "npm-lock-reproduction-${{ github.event.pull_request.head.sha || github.sha }}"
+        in workflow
+    )
     assert "if-no-files-found: error" in workflow
     assert "git diff --exit-code -- package-lock.json" in workflow
 
