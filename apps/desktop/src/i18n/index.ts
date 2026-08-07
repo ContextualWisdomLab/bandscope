@@ -18,7 +18,8 @@ export function createTranslator(locale: Locale = "en") {
 
     if (variables) {
       for (const [varName, varValue] of Object.entries(variables)) {
-        result = result.replace(new RegExp(`\\{${varName}\\}`, "g"), String(varValue));
+        const escapedVarName = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        result = result.replace(new RegExp(`\\{${escapedVarName}\\}`, "g"), String(varValue));
       }
     }
 
