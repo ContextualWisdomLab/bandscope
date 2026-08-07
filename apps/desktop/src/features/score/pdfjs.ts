@@ -22,8 +22,13 @@ export function configureScorePdfWorker(): void {
  * this helper never fetches arbitrary URLs. The bytes are copied before they
  * are handed to pdf.js because pdf.js transfers the underlying buffer to its
  * worker, which would otherwise detach the caller's copy and break retries.
+ * PDF expression evaluation remains disabled as defense in depth even when
+ * the installed pdf.js release includes the corresponding security patch.
  */
 export function loadScorePdf(data: Uint8Array): PDFDocumentLoadingTask {
   configureScorePdfWorker();
-  return getDocument({ data: new Uint8Array(data) });
+  return getDocument({
+    data: new Uint8Array(data),
+    isEvalSupported: false
+  });
 }
