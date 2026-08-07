@@ -20,9 +20,7 @@ _UNDICI_INTEGRITY = (
 
 def _read_json(relative_path: str) -> dict[str, object]:
     """Return one repository JSON document as a mapping."""
-    document = json.loads(
-        (_REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
-    )
+    document = json.loads((_REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8"))
     assert isinstance(document, dict)
     return document
 
@@ -65,9 +63,7 @@ def test_lock_records_match_exact_registry_artifacts_and_preserve_peer_metadata(
     undici = packages["node_modules/undici"]
     assert isinstance(undici, dict)
     assert undici["version"] == _UNDICI_VERSION
-    assert undici["resolved"] == (
-        "https://registry.npmjs.org/undici/-/undici-7.29.0.tgz"
-    )
+    assert undici["resolved"] == "https://registry.npmjs.org/undici/-/undici-7.29.0.tgz"
     assert undici["integrity"] == _UNDICI_INTEGRITY
 
     esbuild_locations = {
