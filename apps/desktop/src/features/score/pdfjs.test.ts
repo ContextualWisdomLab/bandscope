@@ -26,15 +26,15 @@ describe("score PDF.js boundary", () => {
     expect(GlobalWorkerOptions.workerSrc).toBe("/assets/pdf.worker.min.mjs");
   });
 
-  it("copies validated bytes and disables PDF expression evaluation", () => {
+  it("copies validated bytes through the supported data-only API", () => {
     const source = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 
     loadScorePdf(source);
 
     expect(getDocument).toHaveBeenCalledTimes(1);
     const parameters = vi.mocked(getDocument).mock.calls[0]?.[0];
-    expect(parameters).toMatchObject({ isEvalSupported: false });
-    expect(parameters).toHaveProperty("data");
+    expect(parameters).toBeTypeOf("object");
+    expect(Object.keys(parameters as object)).toEqual(["data"]);
     const copiedBytes = (parameters as { data: Uint8Array }).data;
     expect(copiedBytes).toEqual(source);
     expect(copiedBytes).not.toBe(source);
