@@ -33,7 +33,8 @@ def test_manifests_pin_the_security_floors_without_semver_drift() -> None:
     root_manifest = _read_json("package.json")
     desktop_manifest = _read_json("apps/desktop/package.json")
 
-    assert root_manifest["overrides"]["undici"] == _UNDICI_VERSION  # type: ignore[index]
+    assert root_manifest["devDependencies"]["undici"] == _UNDICI_VERSION  # type: ignore[index]
+    assert root_manifest["overrides"]["undici"] == "$undici"  # type: ignore[index]
     assert desktop_manifest["dependencies"]["pdfjs-dist"] == _PDFJS_VERSION  # type: ignore[index]
 
 
@@ -43,21 +44,24 @@ def test_lock_records_match_exact_registry_artifacts_and_preserve_peer_metadata(
     packages = lock_document["packages"]
     assert isinstance(packages, dict)
 
+    root_package = packages[""]
+    assert isinstance(root_package, dict)
+    assert root_package["devDependencies"]["undici"] == _UNDICI_VERSION  # type: ignore[index]
+
     desktop = packages["apps/desktop"]
     assert isinstance(desktop, dict)
     assert desktop["dependencies"]["pdfjs-dist"] == _PDFJS_VERSION  # type: ignore[index]
 
-    pdfjs = packages["node_modules/pdfjs-dist"]
-    assert pdfjs == {
-        "version": _PDFJS_VERSION,
-        "resolved": (
-            "https://registry.npmjs.org/pdfjs-dist/-/"
-            f"pdfjs-dist-{_PDFJS_VERSION}.tgz"
-        ),
-        "integrity": _PDFJS_INTEGRITY,
-        "license": "Apache-2.0",
-        "engines": {"node": ">=22.13.0 || >=24"},
-    }
+    pdfjs = packages["apps/desktop/node_modules/pdfjs-dist"]
+    assert isinstance(pdfjs, dict)
+    assert pdfjs["version"] == _PDFJS_VERSION
+    assert pdfjs["resolved"] == (
+        "https://registry.npmjs.org/pdfjs-dist/-/"
+        f"pdfjs-dist-{_PDFJS_VERSION}.tgz"
+    )
+    assert pdfjs["integrity"] == _PDFJS_INTEGRITY
+    assert pdfjs["license"] == "Apache-2.0"
+    assert pdfjs["engines"] == {"node": ">=22.13.0 || >=24"}
 
     undici = packages["node_modules/undici"]
     assert isinstance(undici, dict)
