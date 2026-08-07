@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _PDFJS_VERSION = "6.2.108"
 _UNDICI_VERSION = "7.29.0"
