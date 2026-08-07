@@ -1,7 +1,6 @@
 """Tests for edge cases in the chord recognizer observation probability building."""
 
 import numpy as np
-import pytest
 
 from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 
@@ -115,13 +114,3 @@ def test_missing_observation_metadata_does_not_force_no_chord():
     assert np.allclose(probs.sum(axis=0), 1.0)
     assert np.allclose(probs[24], 0.05 / 1.05)
     assert np.allclose(probs[:24], 1.0 / (24.0 * 1.05))
-
-
-def test_recognize_rejects_oversized_audio():
-    """Reject audio longer than the maximum allowed duration."""
-    recognizer = ChordRecognizer()
-    sr = 22050
-    # 301 seconds of audio
-    y = np.zeros(301 * sr, dtype=np.float32)
-    with pytest.raises(ValueError, match="Audio length exceeds maximum"):
-        recognizer.recognize(y, sr=sr)

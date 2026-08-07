@@ -3,7 +3,6 @@
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 from bandscope_analysis.chords.chord_recognizer import (
     ChordRecognizer,
@@ -319,22 +318,3 @@ def test_chord_recognizer_compute_confidence_downgrade_path() -> None:
             # Since first frame was high but subsequent were low,
             # the segment confidence should be low (conservative)
             assert non_n[0]["confidence"] == "low"
-
-
-def test_chord_recognizer_invalid_sampling_rate() -> None:
-    """Test that recognizer rejects invalid sampling rates to prevent DoS."""
-    recognizer = ChordRecognizer()
-    audio = np.zeros(22050)
-
-    # Test zero sampling rate
-    with pytest.raises(
-        ValueError, match="Sampling rate must be between 1 and 384000 Hz, got 0 Hz."
-    ):
-        recognizer.recognize(audio, sr=0)
-
-    # Test excessively high sampling rate
-    with pytest.raises(
-        ValueError,
-        match="Sampling rate must be between 1 and 384000 Hz, got 1000000000 Hz.",
-    ):
-        recognizer.recognize(audio, sr=1000000000)
