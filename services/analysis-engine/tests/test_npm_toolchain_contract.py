@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+from json import loads
 from pathlib import Path
 
 
@@ -13,9 +13,7 @@ _EXPECTED_NODE_VERSION = "22.22.3"
 
 def _root_manifest() -> dict[str, object]:
     """Return the checked-in root package manifest as a JSON object."""
-    manifest = json.loads(
-        (_REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8")
-    )
+    manifest = loads((_REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8"))
     assert isinstance(manifest, dict)
     return manifest
 
@@ -51,14 +49,17 @@ def test_primary_ci_proves_exact_npm_before_install_and_lock_reproduction() -> N
     assert "--no-audit" in workflow
     assert "--no-fund" in workflow
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
-    assert "npm-lock-reproduction-${{ github.event.pull_request.head.sha || github.sha }}" in workflow
+    assert (
+        "npm-lock-reproduction-${{ github.event.pull_request.head.sha || github.sha }}"
+        in workflow
+    )
     assert "if-no-files-found: error" in workflow
     assert "git diff --exit-code -- package-lock.json" in workflow
 
 
 def test_root_lock_uses_the_supported_location_keyed_format() -> None:
     """Require the npm-v9-and-newer lock format used by the pinned generator."""
-    lock_document = json.loads(
+    lock_document = loads(
         (_REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8")
     )
 
