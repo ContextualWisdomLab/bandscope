@@ -44,10 +44,15 @@ def test_primary_ci_proves_exact_npm_before_install_and_lock_reproduction() -> N
     assert f'node-version: "{_EXPECTED_NODE_VERSION}"' in workflow
     assert f'EXPECTED_NPM_VERSION: "{_EXPECTED_NPM_VERSION}"' in workflow
     assert 'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"' in workflow
+    assert "lock-reproduction:" in workflow
+    assert "needs: lock-reproduction" in workflow
     assert "npm install --package-lock-only" in workflow
     assert "--ignore-scripts" in workflow
     assert "--no-audit" in workflow
     assert "--no-fund" in workflow
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
+    assert "npm-lock-reproduction-${{ github.event.pull_request.head.sha || github.sha }}" in workflow
+    assert "if-no-files-found: error" in workflow
     assert "git diff --exit-code -- package-lock.json" in workflow
 
 
