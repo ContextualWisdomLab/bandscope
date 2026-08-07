@@ -246,7 +246,13 @@ class ChordRecognizer:
             return None
 
         # Optional: apply temporal smoothing to chromagram to reduce noise
-        chromagram = librosa.decompose.nn_filter(chromagram, aggregate=np.median, metric="cosine")
+        try:
+            chromagram = librosa.decompose.nn_filter(
+                chromagram, aggregate=np.median, metric="cosine"
+            )
+        except Exception:
+            # If nn_filter fails (e.g., due to too few frames), return unsmoothed chromagram
+            pass  # nosec B110
         return np.asarray(chromagram)
 
     def _calculate_rms(self, y: np.ndarray, chromagram_len: int) -> np.ndarray:

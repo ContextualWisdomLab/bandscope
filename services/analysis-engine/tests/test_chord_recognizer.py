@@ -318,3 +318,13 @@ def test_chord_recognizer_compute_confidence_downgrade_path() -> None:
             # Since first frame was high but subsequent were low,
             # the segment confidence should be low (conservative)
             assert non_n[0]["confidence"] == "low"
+
+
+def test_chord_recognizer_nn_filter_exception() -> None:
+    """Test exception handling during nn_filter."""
+    recognizer = ChordRecognizer()
+    y = np.random.randn(11)  # Very short audio signal
+
+    # Should not crash but instead return result successfully
+    result = recognizer.recognize(y, sr=22050)
+    assert isinstance(result, list)
