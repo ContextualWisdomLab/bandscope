@@ -265,7 +265,14 @@ class ChordRecognizer:
             else:
                 rms = rms[:chromagram_len]
         except Exception:
-            rms = np.ones(chromagram_len)
+            max_fallback_size = 10000
+            safe_len = min(chromagram_len, max_fallback_size)
+            if chromagram_len > max_fallback_size:
+                logger.warning(
+                    f"RMS fallback array truncated from {chromagram_len} to {safe_len} "
+                    f"elements to prevent DoS"
+                )
+            rms = np.ones(safe_len)
         return np.asarray(rms)
 
     def _match_templates(self, chromagram: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
