@@ -9,7 +9,11 @@
 
 ### Changed
 
-- 영어 및 한국어로 Workspace의 내보내기, 스템 플레이어, 루프, 솔로, 뮤트, 채보 컨트롤을 다국어(i18n) 처리했습니다. 정규식 취약점을 방지하기 위한 안전한 리터럴 문자열 치환과 접근성을 고려한 역할 이름 Fallback을 포함합니다.
+- Localize Workspace export, stem-player, loop, solo, mute, and transcription controls in English and Korean, including safe literal placeholder interpolation and an accessible localized role fallback.
+
+### Fixed
+
+- Update Undici to 7.29.0 in the root npm lock to remediate the current high-severity advisory set without introducing nested workspace-lock drift.
 
 ## [0.1.3] - 2026-04-29
 
