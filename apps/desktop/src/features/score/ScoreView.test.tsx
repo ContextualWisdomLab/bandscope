@@ -98,6 +98,7 @@ describe("ScoreView", () => {
     expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toHaveAttribute("title", "Remove: opener.pdf");
 
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
     expect(mockInvoke).not.toHaveBeenCalled();
