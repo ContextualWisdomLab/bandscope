@@ -140,7 +140,7 @@ Not a table.
         "docs/documentation-coverage-matrix.md row 1 must map plain PRD and TRD IDs",
         "docs/documentation-coverage-matrix.md row 2 must map plain PRD and TRD IDs",
         "docs/documentation-coverage-matrix.md missing requirement trace: TRD-KS-001 "
-        "(declared in docs/TRD.md)",
+        + "(declared in docs/TRD.md)",
         "docs/documentation-coverage-matrix.md references undeclared requirement: PRD-KS-999",
     ]
 
@@ -210,9 +210,9 @@ def test_documentation_contract_rejects_swapped_requirement_families(
         "docs/documentation-coverage-matrix.md places PRD-KS-001 in the wrong traceability column",
         "docs/documentation-coverage-matrix.md row 1 must map plain PRD and TRD IDs",
         "docs/documentation-coverage-matrix.md missing requirement trace: PRD-KS-001 "
-        "(declared in docs/PRD.md)",
+        + "(declared in docs/PRD.md)",
         "docs/documentation-coverage-matrix.md missing requirement trace: TRD-KS-001 "
-        "(declared in docs/TRD.md)",
+        + "(declared in docs/TRD.md)",
     ]
 
 
