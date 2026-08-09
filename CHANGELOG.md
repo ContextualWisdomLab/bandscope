@@ -21,7 +21,8 @@
 - Kept YouTube TLS verification enabled while honoring OS-managed CA roots used by managed
   desktop environments.
 - Reconciled stale CodeRabbit-gate wording with the canonical stable-check and review-equivalent
-  policy; a rate-limited or status-only success is not treated as a completed review.
+  policy; qualifying evidence is now defined against the exact current head, and a rate-limited,
+  status-only, author, or predecessor review is not treated as completed review evidence.
 
 ## [0.1.3] - 2026-04-29
 

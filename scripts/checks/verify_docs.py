@@ -80,11 +80,16 @@ REQUIRED_REFERENCES = {
         "docs/architecture/diagrams.md",
         "docs/documentation-coverage-matrix.md",
     ],
-    Path("docs/repository/bootstrap-plan.md"): [
-        "docs/security/github-required-checks.md"
-    ],
+    Path("docs/repository/bootstrap-plan.md"): ["docs/security/github-required-checks.md"],
     Path("docs/repository/gitflow.md"): ["docs/security/github-required-checks.md"],
     Path("docs/repository/governance.md"): ["docs/security/github-required-checks.md"],
+    Path("docs/security/github-required-checks.md"): [
+        "## Review-equivalent evidence",
+        "exact current PR head SHA",
+        "independent non-author",
+        "Status contexts, check runs, reactions, issue comments",
+        "defer that merge",
+    ],
     Path("docs/workflow/github-bootstrap-execution-policy.md"): [
         "docs/security/github-required-checks.md"
     ],
@@ -93,9 +98,7 @@ REQUIRED_REFERENCES = {
 
 def documentation_violations(root: Path = Path(".")) -> list[str]:
     """Return missing canonical files and broken authority-reference violations."""
-    violations = [
-        f"missing file: {path}" for path in REQUIRED_PATHS if not (root / path).exists()
-    ]
+    violations = [f"missing file: {path}" for path in REQUIRED_PATHS if not (root / path).exists()]
     for path, required_texts in REQUIRED_REFERENCES.items():
         absolute_path = root / path
         if not absolute_path.exists():

@@ -74,5 +74,28 @@ BandScope still requests CodeRabbit on PRs and treats it as the default AI revie
 However, the hosted `CodeRabbit` status context has shown repeated stale `PENDING` and stale `CHANGES_REQUESTED` states after all actionable review was cleared.
 Because of that operational behavior, protected branches require the stable repository-owned checks above rather than the external `CodeRabbit` status context itself.
 
+## Review-equivalent evidence
+
+Review evidence is evaluated separately from required checks and conversation resolution. Before a
+protected-branch merge, the exact current PR head SHA must have at least one of these durable review
+artifacts:
+
+- a completed CodeRabbit review whose artifact identifies the exact current PR head SHA or its
+  exact base-to-head range, is not rate-limited or failed, and has no valid actionable finding or
+  unresolved review thread; or
+- an `APPROVED` GitHub review from an eligible independent non-author reviewer, recorded against
+  the exact current PR head SHA, with no valid unresolved review thread.
+
+Any new commit makes predecessor-head review evidence stale. The current head must be reviewed
+again unless repository policy provides an explicit, durable equivalent bound to that same head.
+Status contexts, check runs, reactions, issue comments that only request, acknowledge, queue,
+rate-limit, or fail a review, author/self reviews, and summaries without an exact-head binding are
+not review-equivalent evidence. A completed review does not replace any stable required check, and
+green checks do not replace a completed review.
+
+If neither qualifying route is currently available, defer that merge, keep the PR open, and
+continue other safe repository work. Do not weaken protection, invent a reviewer, self-approve, or
+reinterpret a provider status as review evidence.
+
 Missing repository state should trigger GitHub bootstrap per `docs/workflow/github-bootstrap-execution-policy.md`.
 Only missing admin permissions or platform capability should be reported as `BLOCKED`.

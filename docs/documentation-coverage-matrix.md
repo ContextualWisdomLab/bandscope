@@ -34,7 +34,7 @@ acceptance layer.
 | Operations/release | runbook and release policy | Preflight, evidence, triage, rollback, and blocking conditions covered. | Platform matrix and live pass are incomplete. |
 | Supply chain | supplemental inventory and dependency policy | Retired model removed; exact runtime artifact, ffmpeg status, and hash recorded. | Weight redistribution rights and pre-load enforcement unresolved. |
 | Automation | active CWL autonomous loop and `docs/workflow/pr-review-merge-scheduler.md` | BandScope continuity and no-status-only termination are covered without creating a competing writer. | Dedicated BandScope loop remains paused due writer topology/active-task capacity. |
-| Review governance | `docs/security/github-required-checks.md`, governance, gitflow, contributing, bootstrap policy | Stable required checks and review-equivalent policy are canonical; CodeRabbit is requested and actionable findings are addressed, but stale/rate-limited status-only success is not a completed review. | A provider rate limit can still defer review, blocking only merge. |
+| Review governance | `docs/security/github-required-checks.md`, governance, gitflow, contributing, bootstrap policy | Stable checks and review are cumulative; qualifying evidence is an exact-head completed CodeRabbit artifact or exact-head independent non-author `APPROVED` review. Status-only, rate-limited, author, or predecessor evidence is excluded. | A provider rate limit can still defer review, blocking only merge. |
 
 ## Requirement-to-evidence traceability
 
