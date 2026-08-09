@@ -877,6 +877,22 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     with patch("bandscope_analysis.api.np.load", return_value=BadArchive()):
         assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
+    class BadArchiveMissingKey:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def __contains__(self, _key: str) -> bool:
+            return False
+
+        def __getitem__(self, _key: str) -> object:
+            raise KeyError(_key)
+
+    with patch("bandscope_analysis.api.np.load", return_value=BadArchiveMissingKey()):
+        assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
 
 def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
     """Ensure feature cache writes require app-owned request metadata and arrays."""
