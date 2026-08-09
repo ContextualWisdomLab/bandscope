@@ -64,3 +64,6 @@
 ## 2024-03-20 - [Testing non-textual try/catch block error rejections in Desktop PDF Reader]
 **Learning:** Addressed test coverage gap where reading a Score PDF fails with a non-textual error code in ScoreView.tsx.
 **Action:** Added mock rejection test rejecting with an error payload missing text to fallback correctly using bridgeErrorDetail.
+## 2026-08-09 - [Update pdfjs-dist due to security vulnerability]
+**Learning:** Found and resolved trivy security vulnerability CVE-2026-16633 in package-lock.json.
+**Action:** Updated pdfjs-dist dependency in package.json to v6.2.108 to resolve "Arbitrary JavaScript execution upon opening a malicious PDF".
