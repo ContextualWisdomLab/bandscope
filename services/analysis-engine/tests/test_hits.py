@@ -142,7 +142,6 @@ def test_detect_shared_hits_safe_failure_inputs() -> None:
     assert detect_shared_hits({"vocals": np.array(["boom"])}, SR) == []  # type: ignore[dict-item]
 
 
-
 def test_detect_stop_time_handles_exceptions() -> None:
     """detect_stop_time returns [] when internal logic raises an exception."""
     with patch(
@@ -150,6 +149,7 @@ def test_detect_stop_time_handles_exceptions() -> None:
         side_effect=Exception("Test error"),
     ):
         assert detect_stop_time({"vocals": np.zeros(SR, dtype=np.float64)}, SR) == []
+
 
 def test_detect_shared_hits_handles_exceptions() -> None:
     """detect_shared_hits returns [] when internal logic raises an exception."""
