@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2025-05-19 - O(1) Lookups for List Deduplication
+**Learning:** Checking membership against a list in a loop (`if value not in lst: lst.append(value)`) creates an O(N^2) complexity path, which degrades performance for large inputs.
+**Action:** When tracking seen elements for a sequential list, maintain a supplementary `set` alongside the list (e.g., `seen.add(value)`) to ensure O(1) membership checks and O(N) overall complexity.

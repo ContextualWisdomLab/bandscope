@@ -122,9 +122,11 @@ def _role_display_name(role: Mapping[str, object]) -> str | None:
 def _active_role_names(section: Mapping[str, object]) -> list[str]:
     """Return de-duplicated display names for the section's active roles."""
     names: list[str] = []
+    seen: set[str] = set()
     for role in _active_roles(section):
         name = _role_display_name(role)
-        if name is not None and name not in names:
+        if name is not None and name not in seen:
+            seen.add(name)
             names.append(name)
     return names
 
@@ -132,12 +134,14 @@ def _active_role_names(section: Mapping[str, object]) -> list[str]:
 def _section_cue(section: Mapping[str, object]) -> str:
     """Join the active roles' cue values into a single cue string."""
     cues: list[str] = []
+    seen: set[str] = set()
     for role in _active_roles(section):
         cue = role.get("cue")
         if not isinstance(cue, Mapping):
             continue
         value = cue.get("value")
-        if isinstance(value, str) and value and value not in cues:
+        if isinstance(value, str) and value and value not in seen:
+            seen.add(value)
             cues.append(value)
     return "; ".join(cues)
 
