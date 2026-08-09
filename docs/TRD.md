@@ -28,7 +28,7 @@ and data-flow views are in `docs/architecture/diagrams.md`.
 | TRD-KS-008 | Reject candidate drift when YouTube/master duration differs by > 1.0 s or aligned identity correlation is < 0.90. | Pre-inference live assertions against the pinned finished master. |
 | TRD-KS-009 | Run deterministic contract/security tests by default and require `BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1` for live network/model execution. | Pytest marker and environment guard. |
 | TRD-KS-010 | Clean every downloaded/scored artifact on success and failure. | Nested `TemporaryDirectory` plus postcondition. |
-| TRD-KS-011 | Bind model identity to inventory and full SHA-256 before release. | Inventory records htdemucs signature `955717e8`, 84,141,911 bytes, and SHA-256 `8726e21a…a8b4`; full-hash pre-load enforcement is an open release blocker. |
+| TRD-KS-011 | Bind model identity to inventory and full SHA-256 before release. | `AudioStemSeparator._verified_model_artifact_path` requires the exact local filename, 84,141,911 bytes, and SHA-256 `8726e21a…a8b4` before local-only Demucs loading. |
 
 ## Data and class contracts
 
@@ -75,17 +75,16 @@ global random-seed side effect in the test harness.
 
 ## Model delivery and supply chain
 
-`AudioStemSeparator` currently asks Demucs 4.0.1 for `htdemucs`. Demucs maps that name to signature
-`955717e8` and retrieves `955717e8-8726e21a.th` into a user runtime cache on first use. Demucs checks
-the eight-hex filename hash prefix before deserializing. BandScope independently records the full
-SHA-256 and exact byte size, but current production code does not yet enforce the full digest before
-load. Therefore the model is not bundled and offline inference is guaranteed only after a trusted
-cache is provisioned. ADR-0001 makes full-hash pre-load verification and an explicit redistribution
-license decision release blockers.
+`AudioStemSeparator` maps `htdemucs` to signature `955717e8` and requires the exact local
+`955717e8-8726e21a.th` artifact. It rejects a missing/symlinked file, wrong byte count, or full
+SHA-256 mismatch before passing a local repository to Demucs, so this runtime has no model-download
+path. The model remains unbundled; ADR-0001 still requires an explicit rights and permitted-delivery
+decision before release readiness.
 
-`ffmpeg` is an operator-provided executable resolved from `PATH`; yt-dlp is a locked Python package.
-Release evidence must record their resolved versions and may not describe either as bundled unless
-packaging and licensing change.
+`ffmpeg` is operator-provided. Ordinary local imports may use yt-dlp's normal discovery, but release
+evidence and the live benchmark require `BANDSCOPE_FFMPEG_PATH` to name an absolute executable and
+`BANDSCOPE_FFMPEG_SHA256` to bind its full digest; the production downloader revalidates those bytes
+before provider access. yt-dlp is locked at the exact version in `uv.lock`.
 
 ## Failure taxonomy
 
@@ -95,7 +94,7 @@ packaging and licensing change.
 - Reference byte/hash/member/redirect error: fixture integrity or SSRF boundary failure.
 - YouTube/master duration drift above 1.0 s or identity correlation below 0.90: wrong or drifted
   candidate/transcode.
-- Model import/retrieval/load error: platform or supply-chain failure.
+- Model import/provisioning/identity/load error: platform or supply-chain failure.
 - Non-finite/shape/threshold error: separator correctness failure.
 
 Explicit live invocation converts all of these to a failing test. A failure blocks only the evidence
@@ -103,7 +102,7 @@ lane; it does not authorize a bypass or stop unrelated repository work.
 
 ## Verification and evidence
 
-Default verification runs the 16 deterministic known-stem contract tests and explicitly excludes
+Default verification runs the 25 deterministic known-stem contract tests and explicitly excludes
 the live marker. A live run uses the exact
 command in the operator guide. Evidence must include exact commit and dependency lock, model full
 hash, fixture archive full hash, public video ID, OS/architecture, result code, correlation, baseline

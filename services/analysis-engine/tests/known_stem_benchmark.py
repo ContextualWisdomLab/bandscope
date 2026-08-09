@@ -204,7 +204,7 @@ def _strongest_window_start(signal: np.ndarray, window_samples: int) -> int:
 
 
 def _normalized_correlation(left: np.ndarray, right: np.ndarray) -> float:
-    """Return absolute zero-mean Pearson correlation for two equal windows."""
+    """Return signed zero-mean Pearson correlation for two equal windows."""
     left_centered = left - float(np.mean(left))
     right_centered = right - float(np.mean(right))
     denominator = math.sqrt(
@@ -212,7 +212,7 @@ def _normalized_correlation(left: np.ndarray, right: np.ndarray) -> float:
     )
     if denominator <= _ENERGY_EPSILON:
         raise ValueError("aligned benchmark window has insufficient audio energy")
-    return float(abs(np.dot(left_centered, right_centered)) / denominator)
+    return float(np.dot(left_centered, right_centered) / denominator)
 
 
 def align_active_reference_window(
@@ -284,7 +284,7 @@ def align_active_reference_window(
     )
     if valid_refined.size == 0:
         raise ValueError("reference fixture cannot produce a full scoring window")
-    best_refined_index = int(valid_refined[np.argmax(np.abs(refined_correlation[valid_refined]))])
+    best_refined_index = int(valid_refined[np.argmax(refined_correlation[valid_refined])])
     mixture_start = search_start + int(refined_lags[best_refined_index])
     mixture_window = mixture_signal[mixture_start : mixture_start + window_samples]
     correlation = _normalized_correlation(mixture_window, reference_window)

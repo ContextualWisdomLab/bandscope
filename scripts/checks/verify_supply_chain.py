@@ -57,6 +57,7 @@ REQUIRED_MODEL_ARTIFACT_FIELDS = {
     "releaseUsage",
     "verification",
 }
+MODEL_ARTIFACT_STRING_FIELDS = REQUIRED_MODEL_ARTIFACT_FIELDS - {"sizeBytes"}
 
 
 def supplemental_inventory_violations(
@@ -69,6 +70,8 @@ def supplemental_inventory_violations(
         inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         return [f"supplemental inventory is unreadable: {error.__class__.__name__}"]
+    if not isinstance(inventory, dict):
+        return ["supplemental inventory root must be an object"]
     try:
         separator_source = separator_path.read_text(encoding="utf-8")
     except OSError as error:
@@ -87,7 +90,8 @@ def supplemental_inventory_violations(
         if not isinstance(artifact, dict):
             violations.append("supplemental inventory model artifact must be an object")
             continue
-        name = str(artifact.get("name", ""))
+        name_value = artifact.get("name")
+        name = name_value if isinstance(name_value, str) else ""
         if name.startswith("bandsplit-"):
             violations.append(f"supplemental inventory contains retired model: {name}")
         if artifact.get("runtimeModelName") == runtime_model:
@@ -106,6 +110,13 @@ def supplemental_inventory_violations(
                 f"supplemental inventory runtime model {runtime_model} missing fields: "
                 + ", ".join(missing_fields)
             )
+        for field in sorted(MODEL_ARTIFACT_STRING_FIELDS & artifact.keys()):
+            value = artifact[field]
+            if not isinstance(value, str) or not value.strip():
+                violations.append(
+                    f"supplemental inventory runtime model {runtime_model} "
+                    f"field {field} must be a non-empty string"
+                )
         checksum = artifact.get("checksum")
         if not isinstance(checksum, str) or not FULL_SHA256_PATTERN.fullmatch(checksum):
             violations.append(
@@ -117,9 +128,14 @@ def supplemental_inventory_violations(
                 f"supplemental inventory runtime model {runtime_model} requires HTTPS source"
             )
         size_bytes = artifact.get("sizeBytes")
-        if not isinstance(size_bytes, int) or size_bytes <= 0:
+        if (
+            not isinstance(size_bytes, int)
+            or isinstance(size_bytes, bool)
+            or size_bytes <= 0
+        ):
             violations.append(
-                f"supplemental inventory runtime model {runtime_model} requires positive sizeBytes"
+                f"supplemental inventory runtime model {runtime_model} "
+                "requires positive integer sizeBytes"
             )
     return violations
 

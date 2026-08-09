@@ -18,8 +18,14 @@
 
 ### Fixed
 
-- Kept YouTube TLS verification enabled while honoring OS-managed CA roots used by managed
-  desktop environments.
+- Kept YouTube TLS verification enabled while retaining yt-dlp's maintained CA-bundle fallback for
+  minimal containers without a configured system trust store.
+- Raised `pdfjs-dist`, `nanoid`, and `undici` to patched versions for the current high-severity
+  advisories and added a mutation-sensitive lockfile floor contract.
+- Made htdemucs inference fail closed before deserialization unless the exact local artifact passes
+  filename, non-symlink, byte-size, and full-SHA-256 checks; the runtime no longer downloads weights.
+- Bound release/live benchmark ffmpeg execution to an operator-provided absolute path and full
+  SHA-256 while preserving fail-closed provider and model evidence.
 - Reconciled stale CodeRabbit-gate wording with the canonical stable-check and review-equivalent
   policy; qualifying evidence is now defined against the exact current head, and a rate-limited,
   status-only, author, or predecessor review is not treated as completed review evidence.

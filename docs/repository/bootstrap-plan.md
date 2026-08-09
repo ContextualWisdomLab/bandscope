@@ -32,6 +32,7 @@ After workflows exist, require these stable checks on `main` and `develop`:
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
+- `trivy-fs-scan`
 - `CodeQL`
 - `sbom`
 - `release-preflight`

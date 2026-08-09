@@ -5,7 +5,7 @@ decision through a new ADR that names the superseded record.
 
 | ADR | Status | Decision |
 |---|---|---|
-| `0001-source-separation-runtime-and-model-delivery.md` | Accepted with release blockers | Use real four-source htdemucs locally and inventory the exact runtime artifact; require full-hash pre-load verification and a model-rights decision before release readiness. |
+| `0001-source-separation-runtime-and-model-delivery.md` | Accepted with release blockers | Use real four-source htdemucs locally, require exact full-hash pre-load verification, and retain the model-rights/permitted-delivery decision as a release blocker. |
 | `0002-known-stem-youtube-quality-gate.md` | Proposed on active branch | Validate the production YouTube-to-separator path with a creator-published known vocal stem, single alignment, SI-SDR improvement, and assignment margin. |
 | `0003-ephemeral-benchmark-evidence-model.md` | Proposed on active branch | Keep media and signal arrays ephemeral; retain only bounded evidence when authorized, so a relational ERD is not currently authoritative. |
 

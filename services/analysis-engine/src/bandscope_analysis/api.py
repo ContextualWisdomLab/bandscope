@@ -899,6 +899,15 @@ def _stem_separation_failure(
             "Stem separation failed because the source file was missing.",
         )
     if isinstance(error, ValueError):
+        if "htdemucs model artifact" in error_message.lower():
+            return (
+                "runtime_error",
+                "Stem separation model is unavailable.",
+                (
+                    "Stem separation unavailable because the verified model artifact "
+                    "is missing or invalid."
+                ),
+            )
         if "not available on this platform" in error_message or "demucs/torch" in error_message:
             return (
                 "runtime_error",

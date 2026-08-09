@@ -59,8 +59,8 @@ Three layers, decoupled through shared contracts:
 - `apps/desktop/src-tauri/src/main.rs` — the Rust orchestration boundary. Tauri commands (`start_analysis_job`, `get_analysis_job_status`, `select_local_audio_source`, `import_youtube_url`) validate untrusted input (project IDs, file paths, URLs) and spawn the Python engine as a subprocess. There is no loopback HTTP listener and no network path for local analysis.
 - `services/analysis-engine` — Python package `bandscope_analysis` (librosa/numpy). Entry point `cli.py` reads a JSON job request on stdin and prints a structured job-status JSON envelope on stdout (`--progress-jsonl` streams progress lines). `api.py` orchestrates the pipeline across the `separation`, `sections`, `roles`, `chords`, `ranges`, `temporal`, `transcription`, and `youtube` modules.
 - Production source separation uses `htdemucs` on supported platforms. The exact runtime model
-  artifact is inventoried but not bundled; current first use may retrieve it, and full-hash pre-load
-  enforcement remains a documented release blocker. The active known-stem test crosses the
+  artifact is inventoried but not bundled; operators must provision it locally, and production
+  verifies its byte size and full SHA-256 before local-only Demucs loading. The active known-stem test crosses the
   production YouTube and separator boundaries; see `docs/TRD.md` and the operator guide.
 
 Data flow: React UI → Tauri IPC command → Rust validation + Python subprocess over stdin/stdout → job status and progress events emitted back to the UI.

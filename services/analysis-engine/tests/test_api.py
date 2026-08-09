@@ -1008,6 +1008,15 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             "Stem separation unavailable because Demucs or torch is not installed.",
         ),
         (
+            ValueError("The verified htdemucs model artifact is unavailable"),
+            "runtime_error",
+            "Stem separation model is unavailable.",
+            (
+                "Stem separation unavailable because the verified model artifact "
+                "is missing or invalid."
+            ),
+        ),
+        (
             RuntimeError("oom /secret/audio.wav"),
             "runtime_error",
             "Runtime error occurred during stem separation.",

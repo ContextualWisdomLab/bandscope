@@ -13,6 +13,29 @@ import pytest
 from conftest import load_module, make_symlink_or_skip
 
 
+def test_node_security_floors_are_locked_to_patched_versions() -> None:
+    """Keep direct and transitive Node dependencies above current advisory floors."""
+    repo_root = Path(__file__).resolve().parents[3]
+    desktop_package = json.loads(
+        (repo_root / "apps" / "desktop" / "package.json").read_text(encoding="utf-8")
+    )
+    package_lock = json.loads((repo_root / "package-lock.json").read_text(encoding="utf-8"))
+    packages = package_lock["packages"]
+
+    assert desktop_package["dependencies"]["pdfjs-dist"] == "6.2.108"
+    assert packages["node_modules/pdfjs-dist"]["version"] == "6.2.108"
+    assert tuple(map(int, packages["node_modules/nanoid"]["version"].split("."))) >= (
+        3,
+        3,
+        17,
+    )
+    assert tuple(map(int, packages["node_modules/undici"]["version"].split("."))) >= (
+        7,
+        28,
+        1,
+    )
+
+
 def test_supplemental_inventory_rejects_obsolete_or_missing_runtime_model(
     tmp_path: Path,
 ) -> None:
@@ -68,6 +91,71 @@ def test_supplemental_inventory_accepts_pinned_htdemucs_runtime_model() -> None:
     )
 
     assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("inventory", "expected"),
+    [
+        ([], "supplemental inventory root must be an object"),
+        ({"modelArtifacts": []}, "supplemental inventory missing runtime model: htdemucs"),
+        (
+            {
+                "modelArtifacts": [
+                    {
+                        "name": "Hybrid Transformer Demucs four-source weights",
+                        "runtimeModelName": "htdemucs",
+                        "version": "4.0.1",
+                        "sourceUrl": "https://models.example/htdemucs.th",
+                        "license": "operator-reviewed",
+                        "checksum": f"sha256:{'0' * 64}",
+                        "sizeBytes": True,
+                        "storagePath": "local cache",
+                        "distribution": "runtime-cache",
+                        "releaseUsage": "local separation",
+                        "verification": "full digest before load",
+                    }
+                ]
+            },
+            "requires positive integer sizeBytes",
+        ),
+        (
+            {
+                "modelArtifacts": [
+                    {
+                        "name": 7,
+                        "runtimeModelName": "htdemucs",
+                        "version": "4.0.1",
+                        "sourceUrl": "https://models.example/htdemucs.th",
+                        "license": "operator-reviewed",
+                        "checksum": f"sha256:{'0' * 64}",
+                        "sizeBytes": 7,
+                        "storagePath": "local cache",
+                        "distribution": "runtime-cache",
+                        "releaseUsage": "local separation",
+                        "verification": "full digest before load",
+                    }
+                ]
+            },
+            "field name must be a non-empty string",
+        ),
+    ],
+)
+def test_supplemental_inventory_rejects_malformed_schema(
+    tmp_path: Path, inventory: object, expected: str
+) -> None:
+    """Return stable diagnostics for untrusted inventory shapes and field types."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        f"verify_supply_chain_malformed_{abs(hash(expected))}",
+    )
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    separator_path = tmp_path / "audio_separator.py"
+    separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(inventory_path, separator_path)
+
+    assert any(expected in violation for violation in violations)
 
 
 def central_required_workflow_policy_text() -> str:

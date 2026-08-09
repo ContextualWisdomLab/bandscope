@@ -24,3 +24,17 @@ def test_documentation_contract_accepts_checked_in_authorities() -> None:
     repo_root = Path(__file__).resolve().parents[3]
 
     assert documentation.documentation_violations(repo_root) == []
+
+
+def test_documentation_contract_checks_every_nested_plan_security_section(
+    tmp_path: Path,
+) -> None:
+    """Reject newly added plan documents that omit their security boundary."""
+    documentation = load_module("scripts/checks/verify_docs.py", "verify_docs_contract_nested_plan")
+    plan = tmp_path / "docs" / "plans" / "future" / "unsafe-plan.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Plan\n\nNo trust-boundary analysis yet.\n", encoding="utf-8")
+
+    violations = documentation.documentation_violations(tmp_path)
+
+    assert "docs/plans/future/unsafe-plan.md missing section: Security Notes" in violations

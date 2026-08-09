@@ -97,7 +97,7 @@ Do not treat these as TODOs, later hardening, or optional recommendations.
 ### Phase 6. Bootstrap PR
 
 - create `bootstrap/setup` or equivalent from `develop`
-- add workflows, security docs, CODEOWNERS, dependency review, SBOM, builds, and required evidence docs
+- add workflows, security docs, CODEOWNERS, dependency review, `trivy-fs-scan`, SBOM, builds, and required evidence docs
 - add or confirm lockfiles, dependency review, audit, SBOM, and supplemental inventory for bundled binaries and model artifacts
 - merge through PR review, not direct push
 

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from types import ModuleType
 
 import numpy as np
 import pytest
 import soundfile as sf
 
+from bandscope_analysis.separation import audio_separator as audio_separator_module
 from bandscope_analysis.separation.audio_separator import (
     AudioSeparationConfig,
     AudioStemSeparator,
@@ -232,7 +234,7 @@ def _patch_demucs(monkeypatch: pytest.MonkeyPatch, per_source: dict | None = Non
     return for that stem; unspecified sources return silence.
     """
 
-    def fake_get_model(name: str) -> _FakeModel:
+    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
         return _FakeModel()
 
     def fake_apply_model(
@@ -249,7 +251,147 @@ def _patch_demucs(monkeypatch: pytest.MonkeyPatch, per_source: dict | None = Non
         return out
 
     _install_fake_demucs(monkeypatch, fake_get_model)
+    monkeypatch.setattr(
+        AudioStemSeparator,
+        "_verified_model_artifact_path",
+        lambda self: Path("/verified/955717e8-8726e21a.th"),
+    )
     monkeypatch.setattr(AudioStemSeparator, "_apply_model", fake_apply_model)
+
+
+def test_audio_stem_separator_rejects_missing_model_before_demucs_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fail closed before Demucs can fetch or deserialize a missing model."""
+    calls = {"n": 0}
+
+    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
+        calls["n"] += 1
+        return _FakeModel()
+
+    _install_fake_demucs(monkeypatch, fake_get_model)
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(model_artifact_path=tmp_path / "missing-model.th")
+    )
+
+    with pytest.raises(ValueError, match="verified htdemucs model artifact is unavailable"):
+        separator._load_model()
+
+    assert calls["n"] == 0
+
+
+def test_audio_stem_separator_verifies_full_model_identity_before_local_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bind Demucs loading to the exact inventoried bytes in a local repository."""
+    model_bytes = b"verified local model"
+    model_path = tmp_path / "955717e8-8726e21a.th"
+    model_path.write_bytes(model_bytes)
+    calls: list[tuple[str, Path]] = []
+
+    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
+        calls.append((name, repo))
+        return _FakeModel()
+
+    _install_fake_demucs(monkeypatch, fake_get_model)
+    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_BYTES", len(model_bytes))
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_HTDEMUCS_MODEL_SHA256",
+        __import__("hashlib").sha256(model_bytes).hexdigest(),
+    )
+    separator = AudioStemSeparator(AudioSeparationConfig(model_artifact_path=model_path))
+
+    assert separator._load_model() is separator._load_model()
+    assert calls == [("955717e8", tmp_path)]
+
+
+def test_audio_stem_separator_rejects_wrong_model_digest_before_local_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject same-sized model bytes that fail the full SHA-256 identity check."""
+    model_path = tmp_path / "955717e8-8726e21a.th"
+    model_path.write_bytes(b"untrusted")
+    called = False
+
+    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
+        nonlocal called
+        called = True
+        return _FakeModel()
+
+    _install_fake_demucs(monkeypatch, fake_get_model)
+    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_BYTES", len(b"untrusted"))
+    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_SHA256", "0" * 64)
+    separator = AudioStemSeparator(AudioSeparationConfig(model_artifact_path=model_path))
+
+    with pytest.raises(ValueError, match="failed full SHA-256 verification"):
+        separator._load_model()
+
+    assert called is False
+
+
+def test_audio_stem_separator_resolves_verified_model_from_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Allow explicit environment provisioning without opening a remote model path."""
+    model_bytes = b"environment model"
+    model_path = tmp_path / "955717e8-8726e21a.th"
+    model_path.write_bytes(model_bytes)
+    monkeypatch.setenv("BANDSCOPE_HTDEMUCS_MODEL_PATH", str(model_path))
+    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_BYTES", len(model_bytes))
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_HTDEMUCS_MODEL_SHA256",
+        __import__("hashlib").sha256(model_bytes).hexdigest(),
+    )
+
+    separator = AudioStemSeparator()
+
+    assert separator._verified_model_artifact_path() == model_path
+
+
+def test_audio_stem_separator_resolves_verified_model_from_torch_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Use the conventional local torch cache when no explicit path is configured."""
+    model_bytes = b"torch home model"
+    model_path = tmp_path / "hub" / "checkpoints" / "955717e8-8726e21a.th"
+    model_path.parent.mkdir(parents=True)
+    model_path.write_bytes(model_bytes)
+    monkeypatch.delenv("BANDSCOPE_HTDEMUCS_MODEL_PATH", raising=False)
+    monkeypatch.setenv("TORCH_HOME", str(tmp_path))
+    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_BYTES", len(model_bytes))
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_HTDEMUCS_MODEL_SHA256",
+        __import__("hashlib").sha256(model_bytes).hexdigest(),
+    )
+
+    assert AudioStemSeparator()._verified_model_artifact_path() == model_path
+
+
+@pytest.mark.parametrize("failure", ["symlink", "wrong-name", "directory", "wrong-size"])
+def test_audio_stem_separator_rejects_untrusted_model_path_shapes(
+    failure: str, tmp_path: Path
+) -> None:
+    """Reject path indirection, wrong names, non-files, and byte-count drift."""
+    target = tmp_path / "955717e8-8726e21a.th"
+    if failure == "symlink":
+        real_model = tmp_path / "real-model.th"
+        real_model.write_bytes(b"model")
+        target.symlink_to(real_model)
+    elif failure == "wrong-name":
+        target = tmp_path / "renamed-model.th"
+        target.write_bytes(b"model")
+    elif failure == "directory":
+        target.mkdir()
+    else:
+        target.write_bytes(b"wrong size")
+
+    separator = AudioStemSeparator(AudioSeparationConfig(model_artifact_path=target))
+
+    with pytest.raises(ValueError, match="model artifact"):
+        separator._verified_model_artifact_path()
 
 
 def test_audio_stem_separator_splits_local_audio_into_canonical_stems(
@@ -319,7 +461,7 @@ def test_audio_stem_separator_caches_model(tmp_path, monkeypatch: pytest.MonkeyP
     """Ensure the model is loaded once and reused across calls."""
     calls = {"n": 0}
 
-    def fake_get_model(name: str) -> _FakeModel:
+    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
         calls["n"] += 1
         return _FakeModel()
 
@@ -329,6 +471,11 @@ def test_audio_stem_separator_caches_model(tmp_path, monkeypatch: pytest.MonkeyP
         return {name: np.zeros(audio.size, dtype=np.float32) for name in _DEMUCS_SOURCES}
 
     _install_fake_demucs(monkeypatch, fake_get_model)
+    monkeypatch.setattr(
+        AudioStemSeparator,
+        "_verified_model_artifact_path",
+        lambda self: Path("/verified/955717e8-8726e21a.th"),
+    )
     monkeypatch.setattr(AudioStemSeparator, "_apply_model", fake_apply_model)
 
     audio_path = tmp_path / "mix.wav"

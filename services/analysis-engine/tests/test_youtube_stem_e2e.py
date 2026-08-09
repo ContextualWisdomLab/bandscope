@@ -22,6 +22,7 @@ from known_stem_benchmark import (
     MIN_VOCAL_SI_SDR_IMPROVEMENT_DB,
     KnownStemFixture,
     _AllowlistedRedirectHandler,
+    _normalized_correlation,
     align_active_reference_window,
     align_known_stem_through_master,
     download_verified_creator_master,
@@ -34,7 +35,7 @@ from bandscope_analysis.separation.audio_separator import (
     AudioSeparationConfig,
     AudioStemSeparator,
 )
-from bandscope_analysis.youtube import download_youtube_audio
+from bandscope_analysis.youtube import _verified_ffmpeg_location, download_youtube_audio
 
 
 class _FakeResponse(io.BytesIO):
@@ -144,6 +145,45 @@ def test_align_active_reference_window_recovers_delay_and_loud_section() -> None
     assert aligned.reference_start <= 2_400
     assert aligned.mixture.shape == aligned.reference.shape == (800,)
     assert aligned.correlation > 0.99
+
+
+def test_identity_correlation_preserves_phase_sign() -> None:
+    """Do not authenticate a phase-inverted candidate as the same recording."""
+    signal = np.array([-2.0, -0.5, 0.5, 2.0], dtype=np.float64)
+
+    assert _normalized_correlation(signal, -signal) == pytest.approx(-1.0)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"sample_rate": 0}, "sample_rate must be positive"),
+        ({"window_seconds": 0.0}, "alignment durations are invalid"),
+        ({"max_lag_seconds": -0.1}, "alignment durations are invalid"),
+        ({"envelope_hop_seconds": 0.0}, "alignment resolution is invalid"),
+        ({"refinement_seconds": -0.1}, "alignment resolution is invalid"),
+        ({"window_seconds": 2.0}, "reference is shorter"),
+    ],
+)
+def test_align_active_reference_window_rejects_invalid_contract(
+    kwargs: dict[str, float | int], message: str
+) -> None:
+    """Exercise every caller-controlled alignment validation family."""
+    parameters: dict[str, float | int] = {
+        "sample_rate": 10,
+        "window_seconds": 0.5,
+        "max_lag_seconds": 0.2,
+        "envelope_hop_seconds": 0.1,
+        "refinement_seconds": 0.1,
+    }
+    parameters.update(kwargs)
+
+    with pytest.raises(ValueError, match=message):
+        align_active_reference_window(
+            np.arange(10, dtype=np.float64),
+            np.arange(10, dtype=np.float64),
+            **parameters,
+        )
 
 
 def test_download_verified_reference_stem_extracts_only_the_pinned_member(
@@ -321,11 +361,28 @@ def test_required_root_suite_explicitly_excludes_live_youtube_marker() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     runner = (repo_root / "scripts/checks/run_root_tests.mjs").read_text(encoding="utf-8")
 
-    assert '"-m",\n  "not youtube_stem_e2e"' in runner
+    normalized = " ".join(runner.split())
+    assert '"-m", "not youtube_stem_e2e"' in normalized
+
+
+def test_live_benchmark_requires_verified_ffmpeg_before_fixture_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fail closed before network access when executable identity is not configured."""
+    monkeypatch.delenv("BANDSCOPE_FFMPEG_PATH", raising=False)
+    monkeypatch.delenv("BANDSCOPE_FFMPEG_SHA256", raising=False)
+
+    with pytest.raises(AssertionError, match="verified ffmpeg identity"):
+        _assert_real_youtube_known_stem_separation(tmp_path)
 
 
 def _assert_real_youtube_known_stem_separation(root: Path) -> None:
     """Run the live benchmark inside an ephemeral, caller-owned media directory."""
+    ffmpeg_location = _verified_ffmpeg_location()
+    assert ffmpeg_location is not None, (
+        "Live benchmark requires verified ffmpeg identity via "
+        "BANDSCOPE_FFMPEG_PATH and BANDSCOPE_FFMPEG_SHA256"
+    )
     fixture = BRAD_SUCKS_FIXTURE
     reference_path = download_verified_reference_stem(fixture, root)
     master_path = download_verified_creator_master(fixture, root)

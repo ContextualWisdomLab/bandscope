@@ -1,4 +1,4 @@
-"""Local audio source separation using a bundled Demucs model.
+"""Local audio source separation using a verified Demucs model.
 
 Replaces the previous FFT band-masking heuristic — which scored around -39 dB
 SI-SDR on a realistic mix (i.e. not real separation) — with Demucs (htdemucs), a
@@ -9,10 +9,9 @@ consume.
 Security Notes:
 - Treats the selected audio file as untrusted input: the path is normalized and
   verified to be a file, and a maximum byte size is enforced before decode.
-- Inference runs locally on CPU after model provisioning. The first Demucs
-  model load may fetch the inventoried weight into its user cache; BandScope
-  does not bundle that artifact, and offline operation requires a trusted
-  pre-provisioned cache.
+- Inference runs locally on CPU only after an operator provisions the exact
+  inventoried model artifact. Missing or changed bytes fail closed before
+  Demucs can deserialize them; this runtime never downloads model weights.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -20,10 +19,9 @@ Security Notes:
 
 from __future__ import annotations
 
-import contextlib
+import hashlib
 import logging
 import os
-import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +44,11 @@ logger = logging.getLogger(__name__)
 # Demucs htdemucs emits these four sources; this is the canonical stem set.
 _STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
 _EMPTY_RANGE_EPS = 1e-9
+_HTDEMUCS_MODEL_SIGNATURE = "955717e8"
+_HTDEMUCS_MODEL_FILENAME = "955717e8-8726e21a.th"
+_HTDEMUCS_MODEL_SHA256 = "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4"
+_HTDEMUCS_MODEL_BYTES = 84_141_911
+_MODEL_PATH_ENV = "BANDSCOPE_HTDEMUCS_MODEL_PATH"
 
 
 def _contains_parent_path_segment(path: Path) -> bool:
@@ -66,6 +69,7 @@ class AudioSeparationConfig:
     max_file_bytes: int = MAX_AUDIO_FILE_BYTES
     max_duration_seconds: float = float(MAX_ANALYSIS_DURATION_SECONDS)
     model_name: str = "htdemucs"
+    model_artifact_path: Path | None = None
     device: str = "cpu"
     # Disable Demucs' random time-shift augmentation so repeated analysis of
     # the same bytes is deterministic and benchmark evidence is reproducible.
@@ -137,9 +141,9 @@ class AudioStemSeparator:
         wheels (see pyproject platform markers); elsewhere separation fails with a
         clear error the pipeline already surfaces safely.
 
-        The first load fetches model weights, whose download progress torch may
-        print to stdout — that would corrupt the CLI's JSON stdout protocol, so
-        stdout is redirected to stderr while the model is obtained.
+        The runtime passes a local repository to Demucs, disabling its remote
+        model path. Full byte size and SHA-256 are checked before Demucs or
+        torch can deserialize the artifact.
         """
         if self._model is None:
             try:
@@ -151,11 +155,52 @@ class AudioStemSeparator:
                     "Stem separation is not available on this platform (demucs/torch not installed)"
                 ) from error
 
-            with contextlib.redirect_stdout(sys.stderr):
-                model = get_model(self.config.model_name)
+            artifact_path = self._verified_model_artifact_path()
+            model = get_model(_HTDEMUCS_MODEL_SIGNATURE, repo=artifact_path.parent)
             model.eval()
             self._model = model
         return self._model
+
+    def _verified_model_artifact_path(self) -> Path:
+        """Return the exact local htdemucs artifact after full identity checks."""
+        configured = self.config.model_artifact_path
+        if configured is None:
+            configured_text = os.environ.get(_MODEL_PATH_ENV)
+            if configured_text:
+                configured = Path(configured_text)
+            else:
+                torch_home = Path(
+                    os.environ.get(
+                        "TORCH_HOME",
+                        Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "torch",
+                    )
+                )
+                configured = torch_home / "hub" / "checkpoints" / _HTDEMUCS_MODEL_FILENAME
+
+        if configured.is_symlink():
+            raise ValueError("The htdemucs model artifact path must not be a symlink")
+        try:
+            artifact_path = configured.expanduser().resolve(strict=True)
+        except (FileNotFoundError, OSError) as error:
+            raise ValueError(
+                "The verified htdemucs model artifact is unavailable; provision the "
+                f"inventoried file and set {_MODEL_PATH_ENV}"
+            ) from error
+        if not artifact_path.is_file() or artifact_path.name != _HTDEMUCS_MODEL_FILENAME:
+            raise ValueError(
+                "The verified htdemucs model artifact is unavailable; the exact "
+                f"{_HTDEMUCS_MODEL_FILENAME} file is required"
+            )
+        if artifact_path.stat().st_size != _HTDEMUCS_MODEL_BYTES:
+            raise ValueError("The htdemucs model artifact failed byte-size verification")
+
+        digest = hashlib.sha256()
+        with artifact_path.open("rb") as model_file:
+            for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if digest.hexdigest() != _HTDEMUCS_MODEL_SHA256:
+            raise ValueError("The htdemucs model artifact failed full SHA-256 verification")
+        return artifact_path
 
     def _apply_model(self, model: Any, audio: AudioStemArray) -> dict[str, np.ndarray[Any, Any]]:
         """Apply Demucs to a mono signal, returning demucs-source-name -> mono array."""

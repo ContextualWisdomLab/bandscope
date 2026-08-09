@@ -5,18 +5,20 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 Security Notes:
 - Accepts only bounded, standard HTTPS YouTube watch URLs and disables playlists,
   geographic bypass, credentials, and interactive authentication.
-- Keeps certificate verification enabled and uses the operating system trust
-  store so managed desktop CA policy is honored.
+- Keeps certificate verification enabled and retains yt-dlp's maintained CA
+  bundle fallback so minimal containers do not depend on an absent system store.
 - Rejects metadata over 15 minutes and completed files over 50 MiB, returns
   sanitized public errors, and never logs the requested URL or downloaded audio.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import sys
 import urllib.parse
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yt_dlp  # type: ignore
@@ -28,6 +30,9 @@ YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
     "Failed to download audio from YouTube. Please use a local audio file instead."
 )
 YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Please use a local audio file instead."
+FFMPEG_PATH_ENV = "BANDSCOPE_FFMPEG_PATH"
+FFMPEG_SHA256_ENV = "BANDSCOPE_FFMPEG_SHA256"
+FULL_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def validate_url(url: str) -> bool:
@@ -114,6 +119,36 @@ def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
     }
 
 
+def _verified_ffmpeg_location() -> str | None:
+    """Return an exact operator-provisioned ffmpeg path when identity is configured."""
+    configured_path = os.environ.get(FFMPEG_PATH_ENV)
+    configured_digest = os.environ.get(FFMPEG_SHA256_ENV)
+    if configured_path is None and configured_digest is None:
+        return None
+    if configured_path is None or configured_digest is None:
+        raise ValueError("ffmpeg release identity requires both path and SHA-256")
+    if not FULL_SHA256_PATTERN.fullmatch(configured_digest):
+        raise ValueError("ffmpeg release identity requires a full lowercase SHA-256")
+
+    raw_path = Path(configured_path)
+    if not raw_path.is_absolute():
+        raise ValueError("ffmpeg release identity requires an absolute executable path")
+    try:
+        executable_path = raw_path.resolve(strict=True)
+    except (FileNotFoundError, OSError) as error:
+        raise ValueError("ffmpeg release executable is unavailable") from error
+    if not executable_path.is_file() or not os.access(executable_path, os.X_OK):
+        raise ValueError("ffmpeg release executable is unavailable")
+
+    digest = hashlib.sha256()
+    with executable_path.open("rb") as executable_file:
+        for chunk in iter(lambda: executable_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != configured_digest:
+        raise ValueError("ffmpeg release executable failed SHA-256 verification")
+    return str(executable_path)
+
+
 def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
     """
     Download audio from a YouTube URL to the specified directory.
@@ -143,12 +178,12 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
         "noplaylist": True,
         "postprocessors": [{"key": "FFmpegExtractAudio"}],
         "geo_bypass": False,
-        # Keep TLS verification enabled while honoring OS-managed CA roots
-        # (including enterprise desktop trust stores) instead of certifi only.
-        "compat_opts": {"no-certifi"},
     }
 
     try:
+        ffmpeg_location = _verified_ffmpeg_location()
+        if ffmpeg_location is not None:
+            ydl_opts["ffmpeg_location"] = ffmpeg_location
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if info is None:

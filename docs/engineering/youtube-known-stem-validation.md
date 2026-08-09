@@ -70,16 +70,16 @@ creator-master probe is not a live pass.
 
 ## Running the benchmark
 
-Install the analysis-engine development dependencies and ensure `ffmpeg` is on `PATH`. The first
-Demucs run may obtain model weights through Demucs unless they are already present in its cache.
-Prefer a pre-provisioned, integrity-verified model cache for repeatable runs.
+Install the analysis-engine development dependencies. Provision an absolute `ffmpeg` executable and
+the exact htdemucs artifact locally; the live lane requires their path/digest identities and never
+downloads model weights.
 
 The exact current model artifact is Demucs 4.0.1 htdemucs signature `955717e8`, file
 `955717e8-8726e21a.th`, 84,141,911 bytes, full SHA-256
-`8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4`. It is runtime-fetched and
-not bundled. Demucs currently enforces only the filename's eight-hex hash prefix before load;
-ADR-0001 therefore treats BandScope-owned full-hash pre-load enforcement and a model-rights decision
-as release blockers.
+`8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4`. It is not bundled.
+BandScope requires the exact filename, byte count, and full digest before passing a local repository
+to Demucs; missing or changed bytes fail before deserialization. ADR-0001 retains the model-rights
+and permitted-delivery decision as a release blocker.
 
 Before enabling the test, the operator must confirm that the intended use is permitted by the
 content rightsholder and the applicable YouTube terms. The creator's permission for the reference
@@ -87,6 +87,9 @@ source does not by itself grant permission for automated access to YouTube.
 
 ```bash
 UV_CACHE_DIR=/tmp/bandscope-uv-cache \
+BANDSCOPE_FFMPEG_PATH=/absolute/path/to/ffmpeg \
+BANDSCOPE_FFMPEG_SHA256=<64-lowercase-hex-digest> \
+BANDSCOPE_HTDEMUCS_MODEL_PATH=/absolute/path/to/955717e8-8726e21a.th \
 BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1 \
 uv run --project services/analysis-engine \
   pytest services/analysis-engine/tests/test_youtube_stem_e2e.py \
@@ -111,9 +114,9 @@ then failed in the production YouTube downloader with HTTP 502 before separation
 correlation or SI-SDR score and is recorded as failure evidence, not a live pass. See
 `docs/documentation-coverage-matrix.md`.
 
-The corrected branch now has 16 offline known-stem contract cases, including exact extracted-member
-hash, creator-master authentication, composed-offset recovery, and explicit required-CI exclusion of
-the live marker. A creator-master-only calibration produced the provisional scores above without
+The corrected branch now has 25 offline known-stem contract cases, including exact extracted-member
+hash, creator-master authentication, composed-offset recovery, signed identity correlation,
+model/ffmpeg pre-load identity failures, and explicit required-CI exclusion of the live marker. A creator-master-only calibration produced the provisional scores above without
 calling YouTube; it is calibration evidence, not exact-candidate success.
 
 The byte-identical implementation tree published on GitHub as exact commit
@@ -145,7 +148,7 @@ the only permitted storage root for downloaded media and extracted references.
   separator regression.
 - Login cookies, geo/DRM bypasses, or automated CI execution could expand legal, privacy, and account
   risk.
-- Decoder/model vulnerabilities and first-run model downloads remain upstream supply-chain risks.
+- Decoder/model vulnerabilities and operator-provisioned model provenance remain upstream supply-chain risks.
 
 ### Mitigations
 
@@ -160,8 +163,8 @@ the only permitted storage root for downloaded media and extracted references.
   master is independently pinned by exact host, byte count, and full SHA-256.
 - The production YouTube downloader keeps its standard-URL allowlist, duration/size bounds,
   `noplaylist`, and no-geo-bypass policy. This test adds no cookies, credentials, login, paywall,
-  DRM, or bot-evasion behavior. TLS validation stays enabled while yt-dlp uses the operating
-  system's managed CA trust store rather than a separate certifi-only bundle.
+  DRM, or bot-evasion behavior. TLS validation stays enabled and yt-dlp retains its maintained CA
+  bundle fallback, so a minimal container does not silently depend on an absent system trust store.
 - Alignment is global and bounded. Duration and creator-master identity correlation distinguish
   fixture drift from model quality failure; the two lags are composed once and model outputs are not
   optimized after separation. Demucs random shift augmentation is disabled with `shifts=0`.
@@ -184,8 +187,8 @@ advice, and the test does not establish platform authorization. Upstream media d
 weights remain separate trust decisions. The fixture has only one full-length known canonical stem,
 so the test cannot claim quantitative four-stem accuracy.
 
-The model-weight redistribution license is not established, current Demucs verification uses only a
-hash prefix, and no successful exact-candidate live score or supported-platform matrix has yet been
+The model-weight redistribution license is not established. BandScope now verifies the exact byte
+count and full SHA-256 before local-only loading, and no successful exact-candidate live score or supported-platform matrix has yet been
 retained. These remain explicit release blockers rather than undocumented assumptions.
 
 ## References

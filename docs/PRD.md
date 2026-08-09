@@ -10,9 +10,9 @@ role-specific harmony and range, groove and entry cues, separated stem previews,
 rehearsal priority. It serves band leaders and players who need actionable preparation without a
 DAW or notation-grade transcription workflow.
 
-The current conversation adds one essential proof obligation: BandScope must demonstrate that its
-production YouTube intake and production separator improve a real, known source rather than merely
-returning plausible-looking arrays or synthetic demo output.
+Issue #770 and ADR-0002 establish one essential proof obligation: BandScope must demonstrate that
+its production YouTube intake and production separator improve a real, known source rather than
+merely returning plausible-looking arrays or synthetic demo output.
 
 This is a bounded source-separation slice of GitHub issue #770, not completion of its broader
 harmony, beat/tempo, structure, range, cue, confidence, public-corpus, private-corpus, manifest,

@@ -122,16 +122,19 @@ these values without instantiating a production class.
 flowchart TB
     subgraph Desktop["User desktop"]
       App["BandScope app"]
+      Benchmark["KnownStemBenchmark<br/>explicit opt-in validation"]
       Cache["User-scoped model cache"]
       Temp["Ephemeral media root"]
-      App --> Cache
-      App --> Temp
+      Benchmark --> App
+      Benchmark --> Cache
+      Benchmark --> Temp
     end
-    YouTube["YouTube media boundary"] --> App
-    Source["Pinned creator archive"] --> App
-    Master["Pinned creator master"] --> App
-    Model["Official model host"] --> Cache
-    App --> Evidence["Bounded numeric evidence"]
+    YouTube["YouTube media boundary"] --> Benchmark
+    Source["Pinned creator archive"] --> Benchmark
+    Master["Pinned creator master"] --> Benchmark
+    Provisioner["Operator-controlled model provisioning"] --> Cache
+    Model["Official model host"] --> Provisioner
+    Benchmark --> Evidence["Bounded numeric evidence"]
 ```
 
 The model cache is persistent; media temp is not. The public hosts, cache contents, media, decoders,
@@ -144,7 +147,7 @@ erDiagram
     KNOWN_STEM_FIXTURE ||--|| REFERENCE_ARCHIVE : pins
     KNOWN_STEM_FIXTURE ||--|| CREATOR_MASTER : pins
     KNOWN_STEM_FIXTURE ||--|| YOUTUBE_MIX : identifies
-    REFERENCE_ARCHIVE ||--|| REFERENCE_STEM : contains
+    REFERENCE_ARCHIVE ||--|{ REFERENCE_STEM : contains
     YOUTUBE_MIX ||--|| CREATOR_MASTER : identity-checks
     CREATOR_MASTER ||--|| ALIGNED_WINDOW : anchors
     YOUTUBE_MIX ||--|| ALIGNED_WINDOW : yields

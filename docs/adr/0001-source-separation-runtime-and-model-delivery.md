@@ -10,8 +10,9 @@ separation. BandScope now uses Demucs 4.0.1 `htdemucs` to return vocals, bass, d
 local rehearsal analysis. The production boundary must remain local-first after model provisioning,
 bounded on CPU, platform-honest, and traceable to an exact model artifact.
 
-The current Demucs loader downloads weights on first use and verifies only the eight-hex hash prefix
-embedded in `955717e8-8726e21a.th`. The exact artifact is 84,141,911 bytes with SHA-256
+The upstream Demucs remote loader downloads weights on first use and verifies only the eight-hex
+hash prefix embedded in `955717e8-8726e21a.th`. BandScope does not use that remote loader: its
+production boundary requires a pre-provisioned local artifact and verifies 84,141,911 bytes plus SHA-256
 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4`. The Demucs code is MIT
 licensed, but no separate commercial redistribution grant for the official weights was identified;
 the upstream licensing discussion characterizes the weights as scientific-use material.
@@ -27,25 +28,25 @@ the upstream licensing discussion characterizes the weights as scientific-use ma
 5. A release claiming source-separation readiness must verify the full SHA-256 before any torch
    deserialization and must have a recorded legal decision for its chosen download or distribution
    path.
-6. Until those blockers are implemented, first-load network access is explicit, offline inference is
-   guaranteed only with a trusted pre-provisioned cache, and source separation is unavailable on
-   macOS Intel under the current dependency markers.
+6. Runtime model download is prohibited. Missing, symlinked, wrong-sized, or full-hash-mismatched
+   local bytes fail before deserialization. Source separation remains unavailable on macOS Intel
+   under the current dependency markers.
 
 ## Alternatives considered
 
 - Keep the FFT profile: rejected because it produces structurally plausible but invalid stems.
 - Bundle official htdemucs weights immediately: rejected because repository/release size and model
   redistribution rights are unresolved.
-- Rely on Demucs' eight-hex prefix only: retained temporarily as current behavior, rejected as the
-  release target because it is weaker than the repository's full-integrity policy.
+- Rely on Demucs' eight-hex prefix only: rejected because it is weaker than the repository's
+  full-integrity policy.
 - Replace with ONNX or another commercially licensed model: viable future work, but it requires
   parity, quality, platform, performance, and licensing evidence.
 
 ## Consequences
 
 BandScope obtains real separation quality but inherits torch/Demucs resource cost, platform gaps,
-runtime model retrieval, and an upstream model-rights decision. Release evidence cannot describe the
-model as bundled or fully offline today. The supplemental inventory check now fails if the runtime
+operator provisioning, and an upstream model-rights decision. Release evidence cannot describe the
+model as bundled. The supplemental inventory check now fails if the runtime
 model is missing, incompletely pinned, or replaced by the retired profile.
 
 ## Security and governance implications

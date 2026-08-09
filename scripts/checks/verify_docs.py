@@ -1,5 +1,6 @@
 """Verify that required repository documentation files and references exist."""
 
+import re
 from pathlib import Path
 
 REQUIRED_PATHS = [
@@ -107,6 +108,20 @@ def documentation_violations(root: Path = Path(".")) -> list[str]:
         for required_text in required_texts:
             if required_text not in content:
                 violations.append(f"{path} missing reference: {required_text}")
+    plans_root = root / "docs" / "plans"
+    if plans_root.exists():
+        security_heading = re.compile(
+            r"^(?:#{1,6}\s+Security Notes\s*$|"
+            r"\*\*Security Notes(?::)?\*\*)(?:\s|$)",
+            re.MULTILINE,
+        )
+        for absolute_path in sorted(plans_root.rglob("*.md")):
+            content = absolute_path.read_text(encoding="utf-8")
+            if security_heading.search(content) is None:
+                relative_path = absolute_path.relative_to(root)
+                violations.append(
+                    f"{relative_path} missing section: Security Notes"
+                )
     return violations
 
 

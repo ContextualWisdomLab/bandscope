@@ -48,10 +48,10 @@ The primary trust boundary is between the user's filesystem (audio files) and th
 
 ### Mitigations
 We restrict audio ingestion through `librosa`/`soundfile` using strict format constraints. Model
-inference runs locally and under low privilege where possible. First use is not currently fully
-offline: Demucs may retrieve the exact inventoried model into a user cache. Offline execution is
-guaranteed only after trusted provisioning. The release target requires full-SHA verification before
-deserialization; see ADR-0001.
+inference runs locally and under low privilege where possible. The implemented loader never
+retrieves model bytes: it requires trusted local provisioning and verifies the exact filename, byte
+count, and full SHA-256 before deserialization. Model rights and permitted delivery remain release
+decisions; see ADR-0001.
 
 ### Test Points
 - Loading truncated or corrupted WAV/MP3 files.

@@ -28,8 +28,10 @@ When runtime behavior is touched, verify:
 
 For a release candidate that claims YouTube source separation:
 
-1. record exact commit, live base tip, lockfiles, OS, architecture, Python, Demucs, torch, yt-dlp,
-   and `ffmpeg -version`;
+1. record exact commit, live base tip, lockfiles, OS, architecture, Python, Demucs, torch, and yt-dlp;
+   set `BANDSCOPE_FFMPEG_PATH` to an absolute executable and
+   `BANDSCOPE_FFMPEG_SHA256` to its verified full digest, then record that resolved path, digest,
+   trusted package/source provenance, and the executable's `-version` output;
 2. confirm content/platform authorization and do not provide cookies, credentials, login, paywall,
    DRM, geo, or anti-bot bypasses;
 3. verify the htdemucs model's exact source, 84,141,911-byte size, and full SHA-256 from the
