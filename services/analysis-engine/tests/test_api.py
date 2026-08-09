@@ -5,8 +5,10 @@ import time
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from bandscope_analysis.api import (
+    StemSeparationTimedOut,
     _build_local_audio_features,
     _feature_cache_paths,
     _load_cached_analysis,
@@ -1419,3 +1421,51 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
         update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
     )
+
+
+def test_stem_separation_process_helper_raises_timeout() -> None:
+    """Ensure _run_stem_separation_with_timeout raises StemSeparationTimedOut on timeout."""
+
+    class BlockingQueue:
+        def get(self, timeout: float) -> tuple[str, object]:
+            time.sleep(timeout)
+            raise queue.Empty
+
+        def close(self) -> None:
+            return None
+
+        def join_thread(self) -> None:
+            return None
+
+    class BlockingProcess:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            self._alive = True
+            return None
+
+        def start(self) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return self._alive
+
+        def join(self, timeout: float | None = None) -> None:
+            return None
+
+        def terminate(self) -> None:
+            self._alive = False
+            return None
+
+        def kill(self) -> None:
+            self._alive = False
+            return None
+
+    class BlockingContext:
+        Process = BlockingProcess
+
+        def Queue(self, maxsize: int) -> BlockingQueue:
+            assert maxsize == 1
+            return BlockingQueue()
+
+    with patch("bandscope_analysis.api._multiprocessing_context", return_value=BlockingContext()):
+        with pytest.raises(StemSeparationTimedOut, match=r"Stem separation exceeded 0.05s."):
+            _run_stem_separation_with_timeout("/tmp/audio.wav", timeout_seconds=0.05)

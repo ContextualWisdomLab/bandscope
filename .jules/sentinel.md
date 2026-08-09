@@ -28,3 +28,8 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
+## 2026-08-09 - Testing Python MultiProcessing Timeouts
+
+**Learning:** When testing multiprocessing components like `_run_stem_separation_with_timeout` that use `mp.Process` and `queue.get(timeout=...)`, testing the timeout path requires mocking the multiprocessing context rather than trying to slow down the process execution using time.sleep which is flaky and slow. We can mock `_multiprocessing_context` to return a `BlockingContext` class with a `BlockingProcess` that always reports as alive but doesn't actually do anything, and a `BlockingQueue` that blocks and raises `queue.Empty` when `get()` is called.
+
+**Action:** Replaced the actual `mp.Process` initialization with a mock process that behaves like a timed-out, unresponsive worker by blocking `time.sleep(timeout)` inside the queue's `get` function.
