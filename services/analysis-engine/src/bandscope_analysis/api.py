@@ -227,8 +227,7 @@ def get_analysis_status() -> HealthReport:
     return build_health_report()
 
 
-def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
-    """Validate and normalize an engine job request payload."""
+def _validate_base_payload(payload: object) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Invalid analysis job request: invalid field 'root'")
 
@@ -248,9 +247,6 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     source_kind = payload.get("sourceKind")
     source_label = payload.get("sourceLabel")
     role_focus = payload.get("roleFocus")
-    project_id = payload.get("projectId")
-    cache_root = payload.get("cacheRoot")
-    temp_root = payload.get("tempRoot")
 
     if source_kind not in {"demo", "local_audio"}:
         raise ValueError("Invalid analysis job request: invalid field 'sourceKind'")
@@ -262,28 +258,10 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         if not isinstance(role, str):
             raise ValueError(f"Invalid analysis job request: invalid field 'roleFocus[{index}]'")
 
-    local_source = payload.get("localSource")
-    if source_kind == "demo":
-        if local_source is not None or project_id is not None:
-            raise ValueError("Invalid analysis job request: invalid field 'projectId'")
-        if cache_root is not None:
-            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
-        if temp_root is not None:
-            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
-        return {
-            "sourceKind": source_kind,
-            "sourceLabel": source_label,
-            "roleFocus": role_focus,
-        }
+    return cast(dict[str, Any], payload)
 
-    if not isinstance(project_id, str) or not project_id.strip():
-        raise ValueError("Invalid analysis job request: invalid field 'projectId'")
-    # Defense-in-depth: reject path separators and exact "." / ".." segments so
-    # projectId cannot escape app-owned roots if joined into filesystem paths.
-    # Allow identifiers that merely contain ".." as a substring (e.g. "my..id").
-    if project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
-        logger.warning("Security: path traversal detected in projectId")
-        raise ValueError("Invalid analysis job request: path traversal detected in 'projectId'")
+
+def _validate_local_source(local_source: object) -> LocalAudioSource:
     if local_source is None:
         raise ValueError("Invalid analysis job request: invalid field 'localSource'")
     if not isinstance(local_source, dict):
@@ -309,32 +287,75 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
 
+    return {
+        "sourcePath": source_path,
+        "fileName": file_name,
+        "extension": extension,
+        "fileSizeBytes": file_size_bytes,
+    }
+
+
+def _validate_project_id(project_id: object) -> str:
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+    # Defense-in-depth: reject path separators and exact "." / ".." segments so
+    # projectId cannot escape app-owned roots if joined into filesystem paths.
+    # Allow identifiers that merely contain ".." as a substring (e.g. "my..id").
+    if project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
+        logger.warning("Security: path traversal detected in projectId")
+        raise ValueError("Invalid analysis job request: path traversal detected in 'projectId'")
+    return project_id
+
+
+def _validate_path_root(root: object, field_name: str) -> str:
+    if not isinstance(root, str) or not root.strip():
+        raise ValueError(f"Invalid analysis job request: invalid field '{field_name}'")
+    if ".." in root.replace("\\", "/").split("/"):
+        logger.warning(f"Security: path traversal detected in {field_name}")
+        raise ValueError(f"Invalid analysis job request: path traversal detected in '{field_name}'")
+    return root
+
+
+def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
+    """Validate and normalize an engine job request payload."""
+    valid_payload = _validate_base_payload(payload)
+
+    source_kind = cast(Literal["demo", "local_audio"], valid_payload.get("sourceKind"))
+    source_label = cast(str, valid_payload.get("sourceLabel"))
+    role_focus = cast(list[str], valid_payload.get("roleFocus"))
+
+    local_source_raw = valid_payload.get("localSource")
+    project_id_raw = valid_payload.get("projectId")
+    cache_root_raw = valid_payload.get("cacheRoot")
+    temp_root_raw = valid_payload.get("tempRoot")
+
+    if source_kind == "demo":
+        if local_source_raw is not None or project_id_raw is not None:
+            raise ValueError("Invalid analysis job request: invalid field 'projectId'")
+        if cache_root_raw is not None:
+            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+        if temp_root_raw is not None:
+            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+        return {
+            "sourceKind": source_kind,
+            "sourceLabel": source_label,
+            "roleFocus": role_focus,
+        }
+
+    project_id = _validate_project_id(project_id_raw)
+    local_source = _validate_local_source(local_source_raw)
+
     normalized: AnalysisJobRequest = {
         "sourceKind": source_kind,
         "sourceLabel": source_label,
         "roleFocus": role_focus,
         "projectId": project_id,
-        "localSource": {
-            "sourcePath": source_path,
-            "fileName": file_name,
-            "extension": extension,
-            "fileSizeBytes": file_size_bytes,
-        },
+        "localSource": local_source,
     }
-    if cache_root is not None:
-        if not isinstance(cache_root, str) or not cache_root.strip():
-            raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
-        if ".." in cache_root.replace("\\", "/").split("/"):
-            logger.warning("Security: path traversal detected in cacheRoot")
-            raise ValueError("Invalid analysis job request: path traversal detected in 'cacheRoot'")
-        normalized["cacheRoot"] = cache_root
-    if temp_root is not None:
-        if not isinstance(temp_root, str) or not temp_root.strip():
-            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
-        if ".." in temp_root.replace("\\", "/").split("/"):
-            logger.warning("Security: path traversal detected in tempRoot")
-            raise ValueError("Invalid analysis job request: path traversal detected in 'tempRoot'")
-        normalized["tempRoot"] = temp_root
+    if cache_root_raw is not None:
+        normalized["cacheRoot"] = _validate_path_root(cache_root_raw, "cacheRoot")
+    if temp_root_raw is not None:
+        normalized["tempRoot"] = _validate_path_root(temp_root_raw, "tempRoot")
 
     return normalized
 
