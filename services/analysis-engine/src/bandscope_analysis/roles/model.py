@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal, TypedDict
 
 
-class RoleType(str, Enum):
+class RoleType(StrEnum):
     """Canonical role types."""
 
     INSTRUMENT = "instrument"
@@ -14,7 +14,7 @@ class RoleType(str, Enum):
     HAND = "hand"
 
 
-class RehearsalPriority(str, Enum):
+class RehearsalPriority(StrEnum):
     """Rehearsal priority for a given role in a section."""
 
     LOW = "low"
@@ -45,7 +45,7 @@ class RangeSummary(TypedDict):
     highestNote: str
 
 
-class CueAnchorKind(str, Enum):
+class CueAnchorKind(StrEnum):
     """Kinds of cue anchor."""
 
     LYRIC = "lyric"
