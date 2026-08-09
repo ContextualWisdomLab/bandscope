@@ -78,14 +78,14 @@ def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
     part_graph = section.get("partGraph")
     if not isinstance(part_graph, list):
         return None
-    active: list[str] = []
+    active: dict[str, None] = {}
     for node in part_graph:
         if not isinstance(node, Mapping) or node.get("is_active") is not True:
             continue
         role_id = node.get("role_id")
-        if isinstance(role_id, str) and role_id and role_id not in active:
-            active.append(role_id)
-    return active
+        if isinstance(role_id, str) and role_id:
+            active[role_id] = None
+    return list(active)
 
 
 def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
@@ -121,24 +121,24 @@ def _role_display_name(role: Mapping[str, object]) -> str | None:
 
 def _active_role_names(section: Mapping[str, object]) -> list[str]:
     """Return de-duplicated display names for the section's active roles."""
-    names: list[str] = []
+    names: dict[str, None] = {}
     for role in _active_roles(section):
         name = _role_display_name(role)
-        if name is not None and name not in names:
-            names.append(name)
-    return names
+        if name is not None:
+            names[name] = None
+    return list(names)
 
 
 def _section_cue(section: Mapping[str, object]) -> str:
     """Join the active roles' cue values into a single cue string."""
-    cues: list[str] = []
+    cues: dict[str, None] = {}
     for role in _active_roles(section):
         cue = role.get("cue")
         if not isinstance(cue, Mapping):
             continue
         value = cue.get("value")
-        if isinstance(value, str) and value and value not in cues:
-            cues.append(value)
+        if isinstance(value, str) and value:
+            cues[value] = None
     return "; ".join(cues)
 
 
@@ -188,7 +188,7 @@ def _section_lines(sections: list[Mapping[str, object]]) -> list[str]:
 def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object]]) -> list[str]:
     """Build the footer: per-role rehearsal priorities and the export focus."""
     lines: list[str] = []
-    priorities: list[str] = []
+    priorities: dict[str, None] = {}
     for section in sections:
         for role in _section_roles(section):
             name = _role_display_name(role)
@@ -196,8 +196,7 @@ def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object
             if name is None or not isinstance(priority, str) or not priority:
                 continue
             entry = f"  - {name}: {priority}"
-            if entry not in priorities:
-                priorities.append(entry)
+            priorities[entry] = None
     if priorities:
         lines.append("Priorities:")
         lines.extend(priorities)
