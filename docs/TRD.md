@@ -121,6 +121,12 @@ correlation was only 0.016856, proving it was not a valid identity gate. These v
 the provisional +0.5/+3.0 sentinels and the separate master identity design; they are not an
 authorized YouTube pass.
 
+After the correction, the byte-identical implementation tree published on GitHub as exact commit
+`6e937a34f9036d92e909db3ce8848a5c39dc8e3b` passed the full quickcheck. Its live retry
+authenticated all three reference artifacts and the pre-provisioned model full hash, then failed
+closed at production YouTube intake with HTTP 502 after 65.49 seconds. No identity or separation
+score was emitted.
+
 ## Traceability
 
 `docs/documentation-coverage-matrix.md` maps product requirements and ADRs to modules, tests, and

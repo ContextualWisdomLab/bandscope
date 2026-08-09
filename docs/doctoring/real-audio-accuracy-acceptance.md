@@ -108,6 +108,9 @@ The live attempt failed at YouTube HTTP 502 before model execution, so no passin
 Creator-master calibration produced deterministic +1.752 dB SI-SDR improvement and +7.631 dB
 assignment margin, while dry-vocal/mix correlation was only 0.016856. Those results support the
 provisional sentinel and separate identity check, not a YouTube pass or release-blocking threshold.
+The corrected byte-identical implementation tree published on GitHub as exact commit
+`6e937a34f9036d92e909db3ce8848a5c39dc8e3b` later passed full quickcheck, but its clean live
+retry again failed at YouTube HTTP 502 before separation; live success therefore remains absent.
 
 ## References
 

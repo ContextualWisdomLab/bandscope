@@ -116,6 +116,13 @@ hash, creator-master authentication, composed-offset recovery, and explicit requ
 the live marker. A creator-master-only calibration produced the provisional scores above without
 calling YouTube; it is calibration evidence, not exact-candidate success.
 
+The byte-identical implementation tree published on GitHub as exact commit
+`6e937a34f9036d92e909db3ce8848a5c39dc8e3b` passed the full quickcheck. A clean live retry
+authenticated the archive, extracted vocal, creator master, and pre-provisioned htdemucs full
+SHA-256. Production YouTube intake again failed closed with `download_failed` after HTTP 502 in
+65.49 seconds, before separation. It produced no identity correlation or SI-SDR score and remains
+exact implementation-head failure evidence, not a live pass.
+
 ## Security Notes
 
 ### Attack surface

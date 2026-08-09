@@ -53,6 +53,7 @@ acceptance layer.
 | Date | Commit under test | Offline contract | Live result | Classification |
 |---|---|---|---|---|
 | 2026-08-09 | `5a3648a11d9097b8da48bb4a3ccbd97986aec25b` | 13 passed | Reference archive verified; YouTube download failed with HTTP 502 before separation; no score | Exact failure evidence, not a pass |
+| 2026-08-09 | `6e937a34f9036d92e909db3ce8848a5c39dc8e3b` (published byte-identical implementation tree) | Full quickcheck: 680 Python passed, 24 skipped, live marker deselected; 100% source coverage | Archive, extracted vocal, creator master, and pre-provisioned model hash verified; production YouTube download failed with HTTP 502 after 65.49 s; no score | Exact implementation-head failure evidence, not a pass |
 
 Separate creator-master calibration on that environment measured `shifts=0` vocal SI-SDR
 improvement +1.752 dB and assignment margin +7.631 dB. Dry-vocal/mix correlation was 0.016856, so
