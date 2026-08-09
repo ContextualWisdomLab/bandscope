@@ -57,7 +57,7 @@ The harness must keep security guidance visible and fail-fast. Future work that 
 
 **Step 2: Run docs check and confirm required docs exist**
 
-Run: `python3 scripts/checks/verify_docs.py`
+Run: `npm run check:docs`
 Expected: PASS
 
 **Security Notes**

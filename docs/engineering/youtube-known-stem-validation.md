@@ -72,7 +72,8 @@ creator-master probe is not a live pass.
 
 Install the analysis-engine development dependencies. Resolve sibling ffmpeg and ffprobe programs
 from one trusted package/build to absolute regular executables and obtain both full SHA-256 values;
-`PATH` names alone are not release/live evidence. Provision the exact model file in the user-scoped
+`PATH` names alone are not sufficient for release/live preflight. The absolute paths are verified
+only at execution time and are never retained. Provision the exact model file in the user-scoped
 torch.hub checkpoints cache or pass its exact absolute path through
 `BANDSCOPE_HTDEMUCS_MODEL_PATH` before running. The separator never downloads a missing model.
 
@@ -81,7 +82,9 @@ The exact current model artifact is Demucs 4.0.1 htdemucs signature `955717e8`, 
 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4`. It is pre-provisioned and
 not bundled. BandScope rejects a missing, symlinked, non-regular, incorrectly sized, or full-SHA
 mismatched provisioned file before deserializing the same verified bytes. ADR-0001 keeps the
-separate model-rights/legal delivery decision as a release blocker.
+separate model-rights/legal delivery decision and the repository security owner's exact-hash,
+dependency-lock-scoped approved-pickle risk acceptance as release blockers. An approved non-pickle
+replacement closes the latter without an exception.
 
 Before enabling the test, the operator must confirm that the intended use is permitted by the
 content rightsholder and the applicable YouTube terms. The creator's permission for the reference
@@ -100,6 +103,12 @@ uv run --project services/analysis-engine \
   -m youtube_stem_e2e -vv
 ```
 
+This block is the sanitized command template `youtube-known-stem-v1`. Local paths and their literal
+environment assignments are execution inputs, not evidence fields. A future schema-v1 artifact
+retains the template ID/hash plus canonical tool basenames, hashes, versions, trusted-package
+identity, and the verified sibling-layout flag. It never retains absolute executable/model paths or
+the literal command invocation.
+
 If YouTube access, either fixed reference asset, the verified `ffmpeg`/`ffprobe` executable set, or
 model weights are unavailable, the opted-in test fails. It must not silently turn an unavailable or
 changed fixture into a passing result.
@@ -107,7 +116,13 @@ changed fixture into a passing result.
 The four media-runtime fields must identify exact platform-native sibling program names. Their
 paths, execute permissions, and hashes are verified before the benchmark accesses either reference
 asset. The model path must use the exact inventoried filename; the production loader then performs
-its independent same-byte size and full-hash verification before deserialization.
+its independent same-byte size and full-hash verification before deserialization. Only the sanitized
+identities described above may enter retained evidence.
+
+Automated evidence upload/retention is currently disabled. Enabling it requires ADR-0003 governance
+to accept the store, access roles, TTL enforcement, deletion verification, and incident owner. Any
+artifact must then validate against `docs/TRD.md#benchmark-evidence-schema-v1`; early failures retain
+common provenance/stage/cleanup but omit identity or score blocks that were never measured.
 
 ## Platform and evidence status
 
@@ -116,6 +131,10 @@ its independent same-byte size and full-hash verification before deserialization
   recorded exact-platform passing evidence.
 - macOS Intel: current dependency markers exclude Demucs; separation must fail safely and offer the
   product fallback.
+
+A pass is scoped to the exact OS/architecture and unchanged release candidate. Source separation may
+be advertised only on each platform/architecture with its own passing record; evidence does not
+transfer to another release artifact.
 
 On 2026-08-09, exact commit `5a3648a11d9097b8da48bb4a3ccbd97986aec25b` passed a 13-test
 pre-correction partial suite. It lacked
@@ -132,12 +151,13 @@ collected offline case—its count may grow with regression coverage—plus expl
 exclusion of the live marker. A creator-master-only calibration produced the provisional scores
 above without calling YouTube; it is calibration evidence, not exact-candidate success.
 
-The byte-identical implementation tree published on GitHub as exact commit
+Historical evidence snapshot: the byte-identical implementation tree published on GitHub as commit
 `6e937a34f9036d92e909db3ce8848a5c39dc8e3b` passed the full quickcheck. A clean live retry
 authenticated the archive, extracted vocal, creator master, and pre-provisioned htdemucs full
 SHA-256. Production YouTube intake again failed closed with `download_failed` after HTTP 502 in
-65.49 seconds, before separation. It produced no identity correlation or SI-SDR score and remains
-exact implementation-head failure evidence, not a live pass.
+65.49 seconds, before separation. It produced no identity correlation or SI-SDR score. This is
+historical exact-commit failure evidence—not a live pass or current-head validation. PR #828 owns
+current-head offline checks and hosted review evidence, which must be regenerated after each commit.
 
 ## Security Notes
 
@@ -180,7 +200,8 @@ the only permitted storage root for downloaded media and extracted references.
   managed CA trust store when populated and otherwise retains its certifi-backed default.
 - Release/live execution supplies sibling ffmpeg and ffprobe absolute regular executables plus both
   full SHA-256 values. A partial identity set, unexpected program name/directory, path drift, or
-  digest mismatch fails before yt-dlp runs.
+  digest mismatch fails before yt-dlp runs. Paths are transient verification inputs; future evidence
+  retains only sanitized identities and never the local paths.
 - Alignment is global and bounded. Duration and creator-master identity correlation distinguish
   fixture drift from model quality failure; the two lags are composed once and model outputs are not
   optimized after separation. Demucs random shift augmentation is disabled with `shifts=0`.
@@ -203,10 +224,11 @@ advice, and the test does not establish platform authorization. Upstream media d
 weights remain separate trust decisions. The fixture has only one full-length known canonical stem,
 so the test cannot claim quantitative four-stem accuracy.
 
-The model-weight redistribution/provisioning decision is not established, and no successful
-exact-candidate live score or supported-platform matrix has yet been retained. Full-SHA pre-load
-verification is implemented, but these remaining items are explicit release blockers rather than
-undocumented assumptions.
+The model-weight redistribution/provisioning decision and exact-checkpoint approved-pickle risk
+acceptance are not established, and no successful exact-candidate live score or matrix covering
+every advertised platform has yet been retained. Evidence retention itself remains disabled pending
+the accepted store/access/TTL/deletion policy. Full-SHA pre-load verification is implemented, but
+these remaining items are explicit release blockers rather than undocumented assumptions.
 
 ## References
 

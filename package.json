@@ -13,8 +13,8 @@
   "scripts": {
     "ci": "./scripts/harness/quickcheck.sh",
     "lint:workspaces": "npm run lint --workspaces --if-present",
-    "check:docs": "python3 scripts/checks/verify_docs.py",
-    "check:security-notes": "python3 scripts/checks/verify_security_notes.py",
+    "check:docs": "python3 scripts/checks/run_analysis_command.py python ../../scripts/checks/verify_docs.py",
+    "check:security-notes": "python3 scripts/checks/run_analysis_command.py python ../../scripts/checks/verify_security_notes.py",
     "check:security-gates": "python3 scripts/checks/security_gates.py",
     "check:supply-chain": "python3 scripts/checks/verify_supply_chain.py",
     "check:github-bootstrap": "python3 scripts/checks/verify_github_bootstrap_policy.py",

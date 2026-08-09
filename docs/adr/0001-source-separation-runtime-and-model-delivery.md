@@ -33,6 +33,12 @@ the upstream licensing discussion characterizes the weights as scientific-use ma
    `BANDSCOPE_HTDEMUCS_MODEL_PATH`; missing, wrongly named, non-regular, symlinked, incorrectly
    sized, or full-SHA-mismatched weights fail before deserialization. Source separation remains
    unavailable on macOS Intel under the current dependency markers.
+7. Restricted loading is a mitigation, not automatic approval of the checkpoint's pickle semantics.
+   Before a release advertises source separation, the repository security owner must accept that
+   residual risk in an immutable governance record scoped to the exact model SHA-256, dependency
+   lock, allowlist, provisioning path, and release line. The record must name an owner, review date,
+   expiry or re-review trigger, rollback, and the exact-artifact smoke/mutation evidence. Conversion
+   to an approved non-pickle format closes this gate without a pickle-risk exception.
 
 ## Alternatives considered
 
@@ -69,11 +75,19 @@ Cache paths must
 be user-scoped, non-symlinked, bounded, and cleaned or quarantined on mismatch. No user-supplied
 checkpoint is accepted. Model downloads and errors must not expose tokens, usernames, or full paths.
 
+The approved-pickle gate is distinct from the model-rights/legal delivery decision. Passing a hash,
+restricted-loader, or smoke test does not close either governance question. The security owner may
+close the pickle gate only with the scoped record in Decision 7 or an approved non-pickle artifact;
+repository governance closes the separate rights/delivery gate.
+
 ## Acceptance, recovery, and rollback
 
 - Inventory/model-name consistency check passes.
 - A corrupt or substituted model fails before deserialization.
-- Supported platform tests prove canonical finite stems and known-stem quality.
+- Every platform/architecture advertised for source separation proves canonical finite stems and a
+  passing known-stem run on the exact release candidate; other artifacts prove the safe fallback.
+- The repository security owner records the exact-hash/dependency-lock approved-pickle decision and
+  its expiry/re-review triggers, or approves a non-pickle replacement.
 - Unsupported platforms return a stable fallback error.
 - Rollback disables source separation or restores the previous exact approved model artifact; it
   never restores the FFT profile as a production separator.

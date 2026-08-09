@@ -1,7 +1,7 @@
 # BandScope Product Requirements Document
 
 Status: Active authority
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 ## Product outcome
 
@@ -42,8 +42,9 @@ CPU/GPU, and report requirements.
 | PRD-KS-006 | Keep normal CI deterministic while preserving a real integration proof. | Metric, alignment, integrity, redirect, path, cleanup, and failure tests run offline; live access is explicit opt-in and fail-closed. | `active_branch` |
 | PRD-KS-007 | Respect content and platform restrictions. | No cookies, account login, paywall, DRM, geo, or anti-bot bypass; operator records authorization before live use. | `active_branch` |
 | PRD-KS-008 | Keep downloaded media ephemeral and private. | Test-owned directory is removed on success and failure; raw audio, full paths, URLs, tokens, and cookies are not logged or retained. | `active_branch` |
-| PRD-KS-009 | Make release quality evidence reviewable. | Exact commit, model identity, fixture hashes, platform, command, outcome, and numeric scores are retained as a bounded CI/operator artifact. | `planned` |
+| PRD-KS-009 | Make release quality evidence reviewable without retaining sensitive execution context. | A schema-v1 artifact binds the exact candidate, dependency lock, fixture/model/tool identities, sanitized command template, stage/outcome, applicable numeric blocks, and cleanup result; it contains no raw media, URL, credential, provider body, or local path. | `planned` |
 | PRD-KS-010 | Fail safely when the live ecosystem is unavailable. | Download/model/integrity/drift failures are distinct, do not become passes, and do not block unrelated development work. | `active_branch` |
+| PRD-KS-011 | Give users an honest, recoverable failure experience. | Import, model availability, decode, and separation failures have distinct safe states and tested local-file or fallback guidance without exposing provider bodies or sensitive paths. | `planned` |
 
 ## Scope and non-goals
 
@@ -54,26 +55,34 @@ or notation accuracy. The benchmark is a quality sentinel, not a general downloa
 model-training dataset, or legal opinion.
 
 BandScope must not retain user media in hosted telemetry or introduce a relational benchmark
-database merely to satisfy documentation conventions. Results remain ephemeral until a separate
-audited evidence-retention requirement is accepted.
+database merely to satisfy documentation conventions. Automated run artifacts remain disabled and
+ephemeral until a separate audited evidence-retention control is accepted. Intentionally reviewed,
+non-sensitive historical observations may remain in version-controlled documentation, but they are
+not substitutes for schema-v1 exact-candidate evidence.
 
 ## Failure experience
 
-The user-facing product must explain whether import, model availability, decode, or separation
-failed and offer local-file fallback without exposing raw provider errors or sensitive paths. The
-benchmark itself must retain stable diagnostic codes and numeric scores; it must never silently skip
-after explicit opt-in.
+PRD-KS-011 owns the planned user-facing distinction between import, model availability, decode, and
+separation failures. The current bounded benchmark contract is narrower: after explicit opt-in it
+must fail closed and must never silently skip. The planned schema-v1 artifact classifies that result
+with TRD's stable stage/outcome vocabulary; numeric identity or score fields exist only when the run
+reached the corresponding stage.
 
 ## Release acceptance
 
 The known-stem lane becomes blocking for a release only after all of the following exist:
 
 1. documented authorization for the chosen live access mode;
-2. full-hash pre-load verification of the exact model artifact and a recorded model-rights/legal
-   decision for the chosen provisioning or distribution path;
-3. at least one recorded passing supported-platform run on the exact release candidate;
+2. full-hash pre-load verification of the exact model artifact, a recorded model-rights/legal
+   decision for the chosen provisioning or distribution path, and closure of the exact-checkpoint
+   approved-pickle risk gate defined by ADR-0001;
+3. a recorded passing run on the exact release candidate for every OS/architecture on which that
+   release advertises source separation; every other release artifact must advertise and exercise
+   the safe fallback instead of inheriting another platform's evidence;
 4. thresholds calibrated on an authorized YouTube candidate and a drift/flake triage owner;
-5. ordinary CI, security, coverage, packaging, SBOM, review, and provenance gates pass.
+5. an accepted evidence-retention control naming the store, access roles, incident owner, TTL
+   enforcement, and deletion verification, followed by a valid schema-v1 artifact;
+6. ordinary CI, security, coverage, packaging, SBOM, review, and provenance gates pass.
 
 Until then, the deterministic offline contract is required and live evidence is advisory but must
 fail closed when deliberately invoked.
@@ -81,7 +90,10 @@ fail closed when deliberately invoked.
 ## Ownership and rollout
 
 The analysis-engine owner owns metrics, fixture integrity, alignment, separator integration, and
-failure taxonomy. Release engineering owns model/tool inventory and retained evidence. Repository
-governance owns rights/platform authorization and the decision to make live execution scheduled or
-blocking. Rollout proceeds from local opt-in, to controlled release-candidate evidence, to a
-blocking lane only through a superseding ADR.
+failure taxonomy. The product/desktop owner owns PRD-KS-011 failure copy and recovery behavior.
+Release engineering owns model/tool inventory and, only after authorization, retained evidence.
+The repository security owner owns approved-pickle risk review; closure requires an accepted,
+time-bounded record scoped to the exact model hash and dependency lock, or migration to an approved
+non-pickle artifact. Repository governance owns rights/platform authorization and the decision to
+make live execution scheduled or blocking. Rollout proceeds from local opt-in, to controlled
+release-candidate evidence, to a blocking lane only through a superseding ADR.

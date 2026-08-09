@@ -53,7 +53,13 @@ GitHub is the source of truth for repository governance, PR review, CI/CD, Code 
   Test-only reference handling never becomes a general runtime downloader. No completed live
   production-path pass has yet produced an identity or SI-SDR score.
 - Media and stem arrays are ephemeral. Only bounded numeric/provenance evidence may be retained after
-  authorization, so no physical benchmark database or ERD exists.
+  content/platform authorization and acceptance of ADR-0003's retention controls. The planned
+  schema-v1 aggregate binds a benchmark run to its candidate, fixture,
+  model, and sanitized toolchain identities, with optional identity/score blocks. Retention is
+  disabled until store/access/TTL/deletion controls are accepted, so no physical benchmark database
+  or ERD exists.
+- Source-separation quality claims are OS/architecture-specific. An exact-candidate pass does not
+  transfer to another release artifact, and unproven platforms must surface the safe fallback.
 
 See `docs/TRD.md`, `docs/adr/README.md`, and `docs/architecture/diagrams.md`.
 

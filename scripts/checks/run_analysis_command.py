@@ -25,7 +25,11 @@ def _fallback_python() -> str:
 
 
 def _analysis_command(argv: list[str]) -> list[str]:
-    """Return a uv command, or a local Python module fallback when uv is absent."""
+    """Return a local/uv Python script command or Python-module tool command."""
+    if argv[0] == "python":
+        local_python = _fallback_python()
+        if local_python != sys.executable or not shutil.which("uv"):
+            return [local_python, *argv[1:]]
     if shutil.which("uv"):
         return ["uv", "run", *argv]
     return [_fallback_python(), "-m", *argv]

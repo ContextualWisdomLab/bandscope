@@ -102,9 +102,13 @@ Last updated: 2026-08-10
   passes those same verified bytes through PyTorch's `weights_only=True` restricted loader with an
   exact reviewed global allowlist, strict model construction, and a serialized one-time cache. A
   future artifact hash or allowlist change is executable-code review; model-rights/legal delivery
-  also remains a release blocker.
+  also remains a release blocker. The repository security owner must separately accept the residual
+  approved-pickle risk for the exact model hash/dependency lock, with expiry/re-review and rollback,
+  or approve a non-pickle replacement.
 - Current dependency markers exclude Demucs on macOS Intel; unsupported platforms must surface the
   existing safe fallback rather than pretending to separate stems.
+- Quality claims are platform-scoped: every advertised OS/architecture needs an unchanged-candidate
+  pass, while every unproven artifact must exercise and advertise the fallback.
 
 ## Known-stem validation boundary
 
@@ -122,6 +126,12 @@ Last updated: 2026-08-10
   calibration requirements in ADR-0002 are met.
 - The capability has no relational persistence. ADR-0003 and the logical artifact model in
   `docs/architecture/diagrams.md` are authoritative instead of a physical ERD.
+- The planned `BenchmarkRun`/`BenchmarkEvidence` aggregate always binds candidate, fixture, model,
+  and sanitized toolchain provenance; identity and score blocks are stage-dependent. Persistence is
+  disabled until store/access/TTL/deletion controls are accepted.
+- Distinct user-facing import/model/decode/separation recovery states are planned under
+  PRD-KS-011/TRD-KS-013; the current benchmark failure taxonomy does not claim that product UX is
+  complete.
 
 ## Rehearsal outputs
 

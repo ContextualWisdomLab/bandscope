@@ -3,10 +3,11 @@
 import re
 from pathlib import Path
 
+from markdown_sections import scan_markdown, section_end, section_text
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SECURITY_NOTES_HEADING = "## Security Notes"
-SECURITY_NOTES_PATTERN = re.compile(r"^## Security Notes\s*$")
-PEER_HEADING_PATTERN = re.compile(r"^ {0,3}#{1,2}\s+.+\s*$")
-FENCE_PATTERN = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
+SECURITY_NOTES_PATTERN = re.compile(r"^## Security Notes[ \t]*$")
 PLAN_DIR = Path("docs/plans")
 REQUIRED_SUBSECTIONS = [
     "attack surface",
@@ -18,39 +19,37 @@ REQUIRED_SUBSECTIONS = [
 ]
 
 
-def security_notes_section(content: str) -> str:
-    """Return the canonical security section, stopping at the next peer heading."""
-    lines = content.splitlines()
-    start = next(
-        (
-            index
-            for index, line in enumerate(lines)
-            if SECURITY_NOTES_PATTERN.fullmatch(line)
-        ),
-        None,
-    )
-    if start is None:
-        return ""
+def _security_notes_contract(content: str) -> tuple[str, set[str], bool]:
+    """Return canonical section text, H3 names, and duplicate-section state."""
+    document = scan_markdown(content)
+    if document.has_unsafe_html:
+        return "", set(), False
+    headings = [
+        candidate
+        for candidate in document.headings
+        if candidate.level == 2
+        and candidate.text == "Security Notes"
+        and SECURITY_NOTES_PATTERN.fullmatch(document.lines[candidate.start])
+    ]
+    if len(headings) != 1:
+        return "", set(), len(headings) > 1
+    heading = headings[0]
+    end = section_end(document, heading)
+    subsections = {
+        candidate.text.strip().lower()
+        for candidate in document.headings
+        if candidate.level == 3
+        and heading.end <= candidate.start < end
+        and document.lines[candidate.start].rstrip(" \t") == f"### {candidate.text}"
+    }
+    section = f"{SECURITY_NOTES_HEADING}\n{section_text(document, heading)}".lower()
+    return section, subsections, False
 
-    section_lines = [lines[start]]
-    open_fence: tuple[str, int] | None = None
-    for line in lines[start + 1 :]:
-        fence_match = FENCE_PATTERN.match(line)
-        if fence_match is not None:
-            marker = fence_match.group("marker")
-            marker_shape = (marker[0], len(marker))
-            if open_fence is None:
-                open_fence = marker_shape
-            elif (
-                marker_shape[0] == open_fence[0]
-                and marker_shape[1] >= open_fence[1]
-                and not line[fence_match.end() :].strip()
-            ):
-                open_fence = None
-        elif open_fence is None and PEER_HEADING_PATTERN.fullmatch(line):
-            break
-        section_lines.append(line)
-    return "\n".join(section_lines).lower()
+
+def security_notes_section(content: str) -> str:
+    """Return the visible canonical security section up to the next peer heading."""
+    section, _, _ = _security_notes_contract(content)
+    return section
 
 
 def security_notes_violations(repo_root: Path = Path(".")) -> list[str]:
@@ -59,15 +58,20 @@ def security_notes_violations(repo_root: Path = Path(".")) -> list[str]:
     plan_dir = repo_root / PLAN_DIR
     for path in sorted(plan_dir.rglob("*.md")):
         content = path.read_text(encoding="utf-8")
-        section = security_notes_section(content)
+        section, subsections, duplicate_section = _security_notes_contract(content)
         display_path = path.relative_to(repo_root).as_posix()
+        if duplicate_section:
+            violations.append(
+                f"{display_path} has multiple canonical sections: {SECURITY_NOTES_HEADING}"
+            )
+            continue
         if not section:
             violations.append(
                 f"{display_path} missing section: {SECURITY_NOTES_HEADING}"
             )
             continue
         for subsection in REQUIRED_SUBSECTIONS:
-            if subsection not in section:
+            if subsection not in subsections:
                 violations.append(
                     f"{display_path} missing Security Notes subsection: {subsection}"
                 )
@@ -76,7 +80,7 @@ def security_notes_violations(repo_root: Path = Path(".")) -> list[str]:
 
 def main() -> int:
     """Return a failing exit code when Security Notes or required subsections are missing."""
-    violations = security_notes_violations()
+    violations = security_notes_violations(REPO_ROOT)
     if violations:
         print("Missing Security Notes section in:")
         for violation in violations:

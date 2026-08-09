@@ -9,6 +9,60 @@ import pytest
 from conftest import load_module
 
 
+def test_analysis_command_runs_script_with_local_analysis_python(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use the analysis virtualenv directly for repository Python scripts."""
+    runner = load_module(
+        "scripts/checks/run_analysis_command.py",
+        "run_analysis_command_local_python_script",
+    )
+    monkeypatch.setattr(runner, "_fallback_python", lambda: "/analysis/python")
+    monkeypatch.setattr(runner.sys, "executable", "/system/python")
+    monkeypatch.setattr(runner.shutil, "which", lambda _name: "/usr/bin/uv")
+
+    assert runner._analysis_command(["python", "../../scripts/check.py"]) == [
+        "/analysis/python",
+        "../../scripts/check.py",
+    ]
+
+
+def test_analysis_command_uses_uv_for_python_script_without_local_venv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Let uv resolve the project environment when no separate interpreter exists."""
+    runner = load_module(
+        "scripts/checks/run_analysis_command.py",
+        "run_analysis_command_uv_python_script",
+    )
+    monkeypatch.setattr(runner, "_fallback_python", lambda: runner.sys.executable)
+    monkeypatch.setattr(runner.shutil, "which", lambda _name: "/usr/bin/uv")
+
+    assert runner._analysis_command(["python", "../../scripts/check.py"]) == [
+        "uv",
+        "run",
+        "python",
+        "../../scripts/check.py",
+    ]
+
+
+def test_analysis_command_runs_python_script_without_uv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Avoid treating the literal ``python`` launcher as a module name."""
+    runner = load_module(
+        "scripts/checks/run_analysis_command.py",
+        "run_analysis_command_fallback_python_script",
+    )
+    monkeypatch.setattr(runner, "_fallback_python", lambda: runner.sys.executable)
+    monkeypatch.setattr(runner.shutil, "which", lambda _name: None)
+
+    assert runner._analysis_command(["python", "../../scripts/check.py"]) == [
+        runner.sys.executable,
+        "../../scripts/check.py",
+    ]
+
+
 def test_analysis_command_isolates_ambient_numba_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

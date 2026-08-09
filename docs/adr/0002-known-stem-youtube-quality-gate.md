@@ -41,7 +41,8 @@ until rights/platform authorization and an authorized YouTube calibration are re
 ## Consequences
 
 The live lane can fail for provider availability independently of model correctness. That failure is
-retained honestly and blocks only that evidence lane. A creator-master probe is calibration
+classified honestly and blocks only that evidence lane; automated retention remains disabled until
+ADR-0003's store/access/TTL/deletion controls are accepted. A creator-master probe is calibration
 evidence, not proof that the YouTube candidate passes. A single vocal fixture does not establish
 four-source or genre-wide validity. Additional fixtures require separate provenance and calibrated
 threshold review, not threshold weakening.
@@ -60,7 +61,10 @@ operator must verify the intended access against current terms and rights.
 
 - Every collected deterministic contract test passes in ordinary CI; the root runner explicitly
   excludes the live marker. Test count is recorded as evidence, not fixed policy.
-- A controlled live run on the exact candidate records all required scores and cleanup evidence.
+- A controlled live run on the exact candidate emits evidence schema v1 from `docs/TRD.md`; failures
+  omit stage-dependent identity/score blocks rather than inventing values.
+- Each platform/architecture advertised for source separation has its own exact-candidate pass;
+  evidence from one platform does not transfer to another.
 - Fixture drift causes a distinct pre-model failure.
 - Provider/model unavailability remains a failure after explicit opt-in.
 - Rollback removes the live gate without removing deterministic metric/security tests or weakening

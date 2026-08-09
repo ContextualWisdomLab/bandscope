@@ -67,6 +67,11 @@ Machine-readable JSON and accessible HTML render the same exact values. Neither 
 private audio, copyrighted excerpts, absolute paths, credentials, cookies, or provider response
 bodies.
 
+The known-stem slice's narrower schema-v1 `BenchmarkRun`/`BenchmarkEvidence` contract is defined in
+`docs/TRD.md`. It is not the complete issue-#770 manifest: it uses sanitized tool/command identities,
+stable stage/outcome codes, and optional identity/score blocks so early failures remain valid without
+fabricated metrics.
+
 ## Rights, security, and privacy
 
 Audio, annotations, metadata, manifests, decoders, model artifacts, and benchmark storage are
@@ -86,6 +91,10 @@ deterministic JSON/HTML. A provider or corpus outage blocks only its tier, never
 does not stop unrelated engineering. Rollback restores the previous exact manifest/model/backend and
 removes unsupported accuracy claims; it does not delete failing evidence, weaken metrics, or replace
 real audio with mocks.
+
+Automated known-stem evidence retention remains disabled until ADR-0003's store, access, TTL,
+deletion-verification, and incident-owner controls are accepted. A passing run is scoped to its exact
+release candidate and OS/architecture; it cannot authorize a claim on a different artifact.
 
 ## Current source-separation slice
 
@@ -108,9 +117,10 @@ The live attempt failed at YouTube HTTP 502 before model execution, so no passin
 Creator-master calibration produced deterministic +1.752 dB SI-SDR improvement and +7.631 dB
 assignment margin, while dry-vocal/mix correlation was only 0.016856. Those results support the
 provisional sentinel and separate identity check, not a YouTube pass or release-blocking threshold.
-The corrected byte-identical implementation tree published on GitHub as exact commit
-`6e937a34f9036d92e909db3ce8848a5c39dc8e3b` later passed full quickcheck, but its clean live
-retry again failed at YouTube HTTP 502 before separation; live success therefore remains absent.
+The historical byte-identical implementation tree published on GitHub as exact commit
+`6e937a34f9036d92e909db3ce8848a5c39dc8e3b` later passed full quickcheck, but its clean live retry
+again failed at YouTube HTTP 502 before separation. That record applies only to the named commit,
+not the current head; live success therefore remains absent.
 
 ## References
 

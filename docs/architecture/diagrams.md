@@ -79,18 +79,25 @@ classDiagram
     class KnownStemFixture {
       +youtube_url: str
       +video_id: str
+      +reference_archive_url: str
+      +reference_archive_host: str
       +reference_archive_sha256: str
       +reference_archive_bytes: int
       +reference_member: str
       +reference_member_sha256: str
+      +reference_member_bytes: int
+      +creator_master_url: str
+      +creator_master_host: str
       +creator_master_sha256: str
       +creator_master_bytes: int
+      +creator_master_duration_seconds: float
       +target_stem: str
     }
     class AlignedStemWindow {
       +mixture: ndarray
       +reference: ndarray
       +lag_samples: int
+      +reference_start: int
       +correlation: float
     }
     class AudioStemSeparator {
@@ -107,11 +114,13 @@ classDiagram
       +reference: ndarray
       +youtube_to_master_lag_samples: int
       +master_to_reference_lag_samples: int
+      +reference_start: int
       +identity_correlation: float
     }
     class BenchmarkScore {
       +baseline_si_sdr: float
       +vocal_si_sdr: float
+      +best_non_vocal_si_sdr: float
       +improvement_db: float
       +assignment_margin_db: float
     }
@@ -122,8 +131,74 @@ classDiagram
     AudioStemSeparator --> BenchmarkScore: supplies named stems
 ```
 
-`BenchmarkScore` is a logical contract planned for retained evidence; current test assertions compute
-these values without instantiating a production class.
+`BenchmarkScore` is a logical value object planned for schema-v1 evidence; current test assertions
+compute these values without instantiating a production class.
+
+## UML evidence aggregate view (planned)
+
+```mermaid
+classDiagram
+    class BenchmarkRun {
+      +schema_version: int
+      +benchmark_id: str
+      +run_id: str
+      +stage: str
+      +outcome_code: str
+    }
+    class ReleaseCandidateIdentity {
+      +head_commit: str
+      +base_commit: str
+      +dependency_lock_sha256: str
+    }
+    class KnownStemFixture {
+      +public_video_id: str
+      +expected_asset_hashes: map
+    }
+    class ModelArtifactSpec {
+      +inventory_identity: str
+      +expected_sha256: str
+      +verification_status: str
+    }
+    class ToolchainIdentity {
+      +os_arch: str
+      +expected_tool_identity: map
+      +observed_versions: map
+      +verification_status: map
+    }
+    class BenchmarkEvidence {
+      +started_at: datetime
+      +finished_at: datetime
+      +wall_time_seconds: float
+      +cleanup: CleanupResult
+    }
+    class BenchmarkIdentity {
+      +duration_drift_seconds: float
+      +youtube_to_master_lag: int
+      +master_to_vocal_lag: int
+      +correlation: float
+    }
+    class BenchmarkScore {
+      +baseline_si_sdr: float
+      +vocal_si_sdr: float
+      +best_non_vocal_si_sdr: float
+      +improvement_db: float
+      +assignment_margin_db: float
+    }
+    BenchmarkRun --> ReleaseCandidateIdentity: binds
+    BenchmarkRun --> KnownStemFixture: configures
+    BenchmarkRun --> ModelArtifactSpec: verifies
+    BenchmarkRun --> ToolchainIdentity: executes with
+    BenchmarkRun *-- BenchmarkEvidence: emits
+    BenchmarkEvidence "1" *-- "0..1" BenchmarkIdentity: reached identity
+    BenchmarkEvidence "1" *-- "0..1" BenchmarkScore: reached scoring
+```
+
+`BenchmarkRun` binds the version-controlled `KnownStemFixture`, exact release candidate,
+`ModelArtifactSpec`, and sanitized toolchain identity. Common provenance exists for every outcome;
+the identity and score value objects exist only when their stages were reached. Expected identities
+remain present when preflight fails, while observed values and successful verification statuses are
+never fabricated. The aggregate is a schema contract, not a current production class or an
+authorization to persist artifacts.
 
 ## Deployment and trust boundaries
 
@@ -144,13 +219,14 @@ flowchart TB
     Public["YouTube + pinned creator assets"] --> Benchmark
     Model["Official model host"] --> Provisioner["Trusted model provisioner"]
     Provisioner -->|"cache or exact path"| ModelFile
-    Benchmark --> Evidence["Bounded numeric evidence"]
+    Benchmark -.->|"planned after retention approval"| Evidence["Schema-v1 bounded evidence"]
 ```
 
-The benchmark, not the product app, owns public fixture access and bounded evidence. Model
-provisioning is a separate trusted operation; runtime loading never downloads a missing checkpoint.
-The provisioned model file is persistent; media temp is not. Public hosts, model locations, media,
-decoders, and model bytes are untrusted until their respective policy and integrity checks pass.
+The benchmark, not the product app, owns public fixture access and any future bounded evidence.
+Evidence persistence is currently disabled pending ADR-0003 controls. Model provisioning is a
+separate trusted operation; runtime loading never downloads a missing checkpoint. The provisioned
+model file is persistent; media temp is not. Public hosts, model locations, media, decoders, and
+model bytes are untrusted until their respective policy and integrity checks pass.
 
 ## Logical artifact relationship model (not a physical ERD)
 
@@ -167,15 +243,23 @@ erDiagram
     YOUTUBE_MIX ||--|| ALIGNED_WINDOW : yields
     REFERENCE_STEM ||--|| ALIGNED_WINDOW : aligns
     ALIGNED_WINDOW ||--|{ SEPARATED_STEM : produces
-    ALIGNED_WINDOW o|--o| BENCHMARK_EVIDENCE : may-score
-    SEPARATED_STEM }o--o| BENCHMARK_EVIDENCE : may-contribute
+    KNOWN_STEM_FIXTURE ||--o{ BENCHMARK_RUN : configures
+    RELEASE_CANDIDATE ||--o{ BENCHMARK_RUN : binds
+    MODEL_ARTIFACT ||--o{ BENCHMARK_RUN : loads
+    TOOLCHAIN_IDENTITY ||--o{ BENCHMARK_RUN : executes
+    BENCHMARK_RUN ||--|| BENCHMARK_EVIDENCE : emits
+    BENCHMARK_EVIDENCE ||--o| IDENTITY_EVIDENCE : may-contain
+    BENCHMARK_EVIDENCE ||--o| SCORE_EVIDENCE : may-contain
+    ALIGNED_WINDOW o|--o| IDENTITY_EVIDENCE : may-measure
+    SEPARATED_STEM }o--o| SCORE_EVIDENCE : may-measure
 ```
 
 Only `KNOWN_STEM_FIXTURE` metadata is version-controlled. An archive may contain many members, but
 the fixture selects and authenticates exactly one `REFERENCE_ARCHIVE_MEMBER` before decoding it as
 the reference stem. `YOUTUBE_MIX`, `CREATOR_MASTER`, `REFERENCE_ARCHIVE_MEMBER`, `REFERENCE_STEM`,
 `ALIGNED_WINDOW`, and `SEPARATED_STEM` bytes are ephemeral.
-`BENCHMARK_EVIDENCE` is planned as a bounded artifact, not a database row. Its aligned-window and
-separated-stem relationships are optional because pre-alignment failures (such as the recorded HTTP
-502) still produce valid failure evidence. ADR-0003 requires a new physical ERD only if persistence
-is introduced.
+`BENCHMARK_RUN` always binds the fixture, exact release candidate, model, and sanitized toolchain
+identity, so a pre-alignment failure is not orphaned. `BENCHMARK_EVIDENCE` is planned as a bounded
+artifact, not a database row; its identity and score blocks are optional because pre-alignment
+failures (such as the recorded HTTP 502) have no such measurements. ADR-0003 requires a new physical
+ERD only if relational persistence is introduced.
