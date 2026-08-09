@@ -548,6 +548,29 @@ def _assert_real_youtube_known_stem_separation(root: Path) -> None:
     )
 
 
+def _require_authorization_ref() -> str:
+    """Fail closed unless this live run names its governed authorization evidence."""
+    authorization_ref = os.environ.get("BANDSCOPE_YOUTUBE_AUTHORIZATION_REF", "").strip()
+    if not authorization_ref:
+        pytest.fail(
+            "authorization_missing: BANDSCOPE_YOUTUBE_AUTHORIZATION_REF is required",
+            pytrace=False,
+        )
+    return authorization_ref
+
+
+def test_authorization_preflight_requires_a_non_empty_reference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject an opted-in run that cannot identify its authorization evidence."""
+    monkeypatch.delenv("BANDSCOPE_YOUTUBE_AUTHORIZATION_REF", raising=False)
+    with pytest.raises(pytest.fail.Exception, match="authorization_missing"):
+        _require_authorization_ref()
+
+    monkeypatch.setenv("BANDSCOPE_YOUTUBE_AUTHORIZATION_REF", "  governed-record-123  ")
+    assert _require_authorization_ref() == "governed-record-123"
+
+
 @pytest.mark.youtube_stem_e2e
 @pytest.mark.skipif(
     os.environ.get("BANDSCOPE_RUN_YOUTUBE_STEM_E2E") != "1",
@@ -560,6 +583,7 @@ def _assert_real_youtube_known_stem_separation(root: Path) -> None:
 )
 def test_real_youtube_audio_separates_the_known_vocal_stem(tmp_path: Path) -> None:
     """Download a real YouTube mix and verify Demucs against its known vocal stem."""
+    _require_authorization_ref()
     with tempfile.TemporaryDirectory(prefix="known-stem-media-", dir=tmp_path) as media_dir:
         _assert_real_youtube_known_stem_separation(Path(media_dir))
 
