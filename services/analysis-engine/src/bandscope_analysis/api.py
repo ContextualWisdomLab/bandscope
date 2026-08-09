@@ -717,10 +717,9 @@ def _normalize_stem_role_types(
     return normalized
 
 
-def _load_cached_local_audio_features(
-    metadata_path: Path, arrays_path: Path
-) -> dict[str, Any] | None:
-    """Load cached stem/features payload, treating malformed files as cache misses."""
+def _read_feature_cache_metadata(
+    metadata_path: Path,
+) -> tuple[dict[str, Any], list[str], dict[str, str], dict[str, Any]] | None:
     try:
         with metadata_path.open("r", encoding="utf-8") as metadata_file:
             metadata_payload = json.load(metadata_file)
@@ -743,7 +742,12 @@ def _load_cached_local_audio_features(
     stem_role_types = _normalize_stem_role_types(metadata_payload.get("stemRoleTypes"), stem_keys)
     if stem_role_types is None:
         return None
+    return metadata_payload, stem_keys, stem_role_types, separation
 
+
+def _read_feature_cache_arrays(
+    arrays_path: Path, stem_keys: list[str]
+) -> dict[str, np.ndarray] | None:
     try:
         with np.load(arrays_path, allow_pickle=False) as stems_archive:
             stems: dict[str, np.ndarray] = {}
@@ -755,7 +759,22 @@ def _load_cached_local_audio_features(
                 if not isinstance(stem_array, np.ndarray):
                     return None
                 stems[stem_key] = stem_array
+            return stems
     except (OSError, ValueError):
+        return None
+
+
+def _load_cached_local_audio_features(
+    metadata_path: Path, arrays_path: Path
+) -> dict[str, Any] | None:
+    """Load cached stem/features payload, treating malformed files as cache misses."""
+    metadata_result = _read_feature_cache_metadata(metadata_path)
+    if metadata_result is None:
+        return None
+    metadata_payload, stem_keys, stem_role_types, separation = metadata_result
+
+    stems = _read_feature_cache_arrays(arrays_path, stem_keys)
+    if stems is None:
         return None
 
     return {
