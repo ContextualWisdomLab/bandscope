@@ -90,9 +90,18 @@ Before enabling the test, the operator must confirm that the intended use is per
 content rightsholder and the applicable YouTube terms. The creator's permission for the reference
 source does not by itself grant permission for automated access to YouTube.
 
+The live preflight requires a non-empty, opaque `authorization_ref` supplied through
+`BANDSCOPE_YOUTUBE_AUTHORIZATION_REF`. It identifies the governed authorization record; it must
+not contain credentials or private authorization text. The harness validates this value before it
+creates the media workspace or accesses either reference asset, YouTube, or the model. A missing or
+blank value terminates at `preflight` with `authorization_missing`, before any network or model
+operation. Because evidence emission remains planned, the current harness does not retain or upload
+the value.
+
 ```bash
 UV_CACHE_DIR=/tmp/bandscope-uv-cache \
 BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1 \
+BANDSCOPE_YOUTUBE_AUTHORIZATION_REF=<opaque-governed-record-id> \
 BANDSCOPE_FFMPEG_PATH=/absolute/trusted/path/to/ffmpeg \
 BANDSCOPE_FFMPEG_SHA256=<64-lowercase-hex-digest> \
 BANDSCOPE_FFPROBE_PATH=/absolute/trusted/path/to/ffprobe \
@@ -105,9 +114,9 @@ uv run --project services/analysis-engine \
 
 This block is the sanitized command template `youtube-known-stem-v1`. Local paths and their literal
 environment assignments are execution inputs, not evidence fields. A future schema-v1 artifact
-retains the template ID/hash plus canonical tool basenames, hashes, versions, trusted-package
-identity, and the verified sibling-layout flag. It never retains absolute executable/model paths or
-the literal command invocation.
+retains the validated non-secret `authorization_ref`, the template ID/hash, canonical tool
+basenames, hashes, versions, trusted-package identity, and the verified sibling-layout flag. It never
+retains absolute executable/model paths or the literal command invocation.
 
 If YouTube access, either fixed reference asset, the verified `ffmpeg`/`ffprobe` executable set, or
 model weights are unavailable, the opted-in test fails. It must not silently turn an unavailable or
