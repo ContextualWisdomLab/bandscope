@@ -31,9 +31,12 @@ def failed_cli_response(message: str) -> dict[str, object]:
 
 
 def main() -> int:
-    """Read a job payload from stdin and print a structured job response to stdout."""
-    # Read all input from stdin first
-    input_data = sys.stdin.read().strip()
+    """Read a bounded job payload and print a structured job response to stdout."""
+    input_data = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
+    if len(input_data) > MAX_JSON_FILE_SIZE:
+        json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
+        return 1
+    input_data = input_data.strip()
     progress_jsonl = "--progress-jsonl" in sys.argv[1:]
     cli_args = [arg for arg in sys.argv[1:] if arg != "--progress-jsonl"]
 
