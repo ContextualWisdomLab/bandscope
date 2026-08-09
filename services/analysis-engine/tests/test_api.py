@@ -1419,3 +1419,48 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
         update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
     )
+
+
+def test_local_feature_cache_store_handles_write_errors(tmp_path) -> None:
+    """Ensure feature cache writes gracefully handle OSError."""
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": ["bass-guitar"],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+        }
+    )
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    features = {
+        "stems": {
+            "bass": np.zeros(256),
+            "drums": np.zeros(256),
+            "vocals": np.zeros(256),
+            "other": np.zeros(256),
+        },
+        "sr": 22050,
+        "stem_role_types": {
+            "vocals": "vocal",
+            "bass": "instrument",
+            "drums": "instrument",
+            "other": "instrument",
+        },
+        "separation": {
+            "duration_seconds": 1.0,
+            "chunk_count": 1,
+            "notes": "Separated",
+        },
+    }
+    with patch("pathlib.Path.mkdir", side_effect=OSError("Disk full")):
+        assert (
+            _store_cached_local_audio_features(metadata_path, arrays_path, request, features)
+            is False
+        )
