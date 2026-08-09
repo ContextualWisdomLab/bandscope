@@ -5,8 +5,8 @@ from pathlib import Path
 
 SECURITY_NOTES_HEADING = "## Security Notes"
 SECURITY_NOTES_PATTERN = re.compile(r"^## Security Notes\s*$")
-PEER_HEADING_PATTERN = re.compile(r"^#{1,2}\s+.+\s*$")
-FENCE_PATTERN = re.compile(r"^\s*(?P<marker>`{3,}|~{3,})")
+PEER_HEADING_PATTERN = re.compile(r"^ {0,3}#{1,2}\s+.+\s*$")
+FENCE_PATTERN = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
 PLAN_DIR = Path("docs/plans")
 REQUIRED_SUBSECTIONS = [
     "attack surface",

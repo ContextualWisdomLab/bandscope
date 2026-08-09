@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from conftest import load_module
 
 
@@ -79,7 +80,7 @@ Attack surface: untrusted input.
 Trust boundary: validate before use.
 Mitigations: fail closed.
 Test points: exercise rejection paths.
-```text
+   ```text
 ```python
 ## This fenced heading is data
 ```
@@ -97,6 +98,45 @@ This text is outside the security section.
 
     assert security_notes.security_notes_violations(tmp_path) == []
     assert "outside the security section" not in security_notes.security_notes_section(plan_content)
+
+
+@pytest.mark.parametrize("indent", ["    ", "\t"])
+def test_security_notes_contract_rejects_invalid_fence_indentation(
+    tmp_path: Path,
+    indent: str,
+) -> None:
+    """Do not let an indented code block hide the next peer heading."""
+    security_notes = load_module(
+        "scripts/checks/verify_security_notes.py",
+        f"verify_security_notes_invalid_fence_{indent.encode().hex()}",
+    )
+    plan_path = tmp_path / "docs" / "plans" / "nested" / "unsafe-plan.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_content = f"""# Unsafe plan
+
+## Security Notes
+
+Attack surface: untrusted input.
+Trust boundary: validate before use.
+Mitigations: fail closed.
+Test points: exercise rejection paths.
+{indent}```text
+   ## Next section
+
+Realistic threats: this is outside the canonical section.
+Remaining risk: this is outside the canonical section.
+"""
+    plan_path.write_text(plan_content, encoding="utf-8")
+
+    violations = security_notes.security_notes_violations(tmp_path)
+
+    assert violations == [
+        "docs/plans/nested/unsafe-plan.md missing Security Notes subsection: realistic threats",
+        "docs/plans/nested/unsafe-plan.md missing Security Notes subsection: remaining risk",
+    ]
+    assert "outside the canonical section" not in security_notes.security_notes_section(
+        plan_content
+    )
 
 
 def test_security_notes_contract_accepts_checked_in_plans() -> None:
