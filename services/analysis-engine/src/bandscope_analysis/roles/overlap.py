@@ -109,22 +109,32 @@ def detect_register_overlap(
         profiles = {name: band_energy_profile(stems[name], sr) for name in pitched}
 
         overlaps: list[dict[str, Any]] = []
-        for i, stem_a in enumerate(pitched):
-            for stem_b in pitched[i + 1 :]:
-                for band in BANDS:
-                    share_a = profiles[stem_a][band]
-                    share_b = profiles[stem_b][band]
-                    if share_a >= threshold and share_b >= threshold:
-                        overlaps.append(
-                            {
-                                "stem_a": stem_a,
-                                "stem_b": stem_b,
-                                "band": band,
-                                "severity": round(min(share_a, share_b), 2),
-                            }
-                        )
+        for band in BANDS:
+            active_stems = [
+                (stem, profiles[stem][band])
+                for stem in pitched
+                if profiles[stem][band] >= threshold
+            ]
+            for i, (stem_a, share_a) in enumerate(active_stems):
+                for stem_b, share_b in active_stems[i + 1 :]:
+                    overlaps.append(
+                        {
+                            "stem_a": stem_a,
+                            "stem_b": stem_b,
+                            "band": band,
+                            "severity": round(min(share_a, share_b), 2),
+                        }
+                    )
 
-        overlaps.sort(key=lambda item: -float(item["severity"]))
+        # Break ties consistently by sorting on stem_a, stem_b, and band as well.
+        overlaps.sort(
+            key=lambda item: (
+                -float(item["severity"]),
+                item["stem_a"],
+                item["stem_b"],
+                item["band"],
+            )
+        )
         return overlaps
     except Exception:  # pragma: no cover - defensive fail-safe path
         logger.warning("Register-overlap detection failed; returning no overlaps.", exc_info=True)
