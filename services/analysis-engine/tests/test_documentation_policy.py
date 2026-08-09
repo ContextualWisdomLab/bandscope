@@ -60,6 +60,45 @@ def test_security_notes_contract_discovers_nested_plan_without_canonical_section
     ]
 
 
+def test_security_notes_contract_accepts_trailing_space_and_fenced_headings(
+    tmp_path: Path,
+) -> None:
+    """Keep fenced headings inside a canonical section with trailing whitespace."""
+    security_notes = load_module(
+        "scripts/checks/verify_security_notes.py",
+        "verify_security_notes_fenced_headings",
+    )
+    plan_path = tmp_path / "docs" / "plans" / "nested" / "safe-plan.md"
+    plan_path.parent.mkdir(parents=True)
+    security_heading = "## Security Notes" + "   "
+    plan_content = f"""# Safe plan
+
+{security_heading}
+
+Attack surface: untrusted input.
+Trust boundary: validate before use.
+Mitigations: fail closed.
+Test points: exercise rejection paths.
+```text
+```python
+## This fenced heading is data
+```
+~~~text
+# This fenced heading is also data
+~~~
+Realistic threats: artifact substitution.
+Remaining risk: approved artifact provenance.
+
+## Next section
+
+This text is outside the security section.
+"""
+    plan_path.write_text(plan_content, encoding="utf-8")
+
+    assert security_notes.security_notes_violations(tmp_path) == []
+    assert "outside the security section" not in security_notes.security_notes_section(plan_content)
+
+
 def test_security_notes_contract_accepts_checked_in_plans() -> None:
     """Accept every checked-in plan only when its complete canonical section is present."""
     security_notes = load_module(

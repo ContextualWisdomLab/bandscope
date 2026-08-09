@@ -21,8 +21,12 @@
 
 - Kept YouTube TLS verification enabled, using populated OS-managed CA roots when available and
   retaining yt-dlp's maintained CA-bundle fallback when the system trust store is empty or fails.
-- Raised `pdfjs-dist`, `nanoid`, and `undici` to patched versions for the current high-severity
-  advisories and added a mutation-sensitive lockfile floor contract.
+- Raised `pdfjs-dist` 6.1.200 → 6.2.108 (`GHSA-hq66-cqwq-w95j`), `nanoid` 3.3.16 →
+  3.3.18 (`GHSA-2v37-7h3g-55p8`), and `undici` 7.28.0 → 7.29.0
+  (`GHSA-8xcm-r25x-g524`, `GHSA-4cwx-7wf7-3272`, `GHSA-m8rv-5g2x-5cg5`,
+  `GHSA-jr45-8vmc-qm54`, `GHSA-v3r7-h72x-cjcm`); `package-lock.json`, the
+  mutation-sensitive floor test, and an exact-head zero-vulnerability npm audit preserve the
+  fixed-version evidence.
 - Made htdemucs loading offline and fail-closed: the runtime accepts only the inventoried filename,
   byte size, and full SHA-256, rejects filesystem identity races, and deserializes the verified
   bytes with PyTorch's restricted `weights_only` loader, an exact reviewed global allowlist, strict
@@ -34,6 +38,24 @@
 - Reconciled stale CodeRabbit-gate wording with the canonical stable-check and review-equivalent
   policy; qualifying evidence is now defined against the exact current head, and a rate-limited,
   status-only, author, or predecessor review is not treated as completed review evidence.
+
+### Security Notes
+
+- Attack surface and trust boundary: YouTube URLs, response metadata, downloaded media, creator
+  fixtures, ffmpeg/ffprobe executables, and htdemucs checkpoint bytes remain untrusted until their
+  owning host, shape, size, filesystem identity, and full-hash allowlists pass.
+- Mitigations and failure behavior: TLS verification stays enabled; the complete ffmpeg/ffprobe
+  path-and-hash pair is verified before network fixture access; model loading is offline,
+  same-byte, restricted to `weights_only=True` plus the exact reviewed globals, and fails closed
+  without an unrestricted fallback.
+- Logging and privacy: raw media, model bytes, separated stems, credentials, and full local paths
+  are not retained in release evidence or emitted in bounded operator errors.
+- Test points: exact-head quickcheck, hosted SAST/Bandit/secret/security scans, mutation tests for
+  loader and allowlist bypasses, executable-identity rejection tests, supply-chain verification,
+  and the exact provisioned-model smoke test cover the changed security boundaries.
+- Dependency and supply chain: no direct dependency was added; lockfiles retain patched
+  `pdfjs-dist 6.2.108`, `nanoid 3.3.18`, and `undici 7.29.0`, while the supplemental inventory binds
+  yt-dlp, ffmpeg/ffprobe, and htdemucs to their declared delivery and integrity contracts.
 
 ## [0.1.3] - 2026-04-29
 

@@ -37,7 +37,7 @@ from typing import Any, cast
 
 import librosa
 import numpy as np
-from numpy.core.multiarray import scalar as _numpy_scalar
+from numpy._core.multiarray import scalar as _numpy_scalar
 
 from bandscope_analysis.temporal.analyzer import (
     KNOWN_LIBROSA_NUMBA_WARNING_FILTERS,

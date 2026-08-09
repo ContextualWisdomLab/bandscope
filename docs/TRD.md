@@ -85,6 +85,9 @@ Demucs/NumPy/Fraction allowlist, strict model construction, and serialized one-t
 by mutation tests; there is no `weights_only=False` fallback. It never calls the remote Demucs loader
 or downloads a missing checkpoint. The model is not bundled; ADR-0001 keeps both the approved-pickle
 risk acceptance and model-rights/legal delivery decision as release blockers for a commercial claim.
+The pinned checkpoint's legacy `numpy.core.multiarray.scalar` pickle name remains the sole alias;
+the callable is resolved through the locked NumPy 2.x `_core` compatibility path, and NumPy lock
+changes require the exact-artifact load smoke because that runtime path is private.
 
 `ffmpeg` and `ffprobe` are operator-provided siblings and yt-dlp is locked to `2026.7.4`. Ordinary
 product use may resolve the media tools from `PATH`, but release/live evidence must pass both

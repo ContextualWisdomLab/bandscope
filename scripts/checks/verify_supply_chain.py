@@ -13,6 +13,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - local Python <3.11 fallback.
     import tomli as tomllib
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_FILES = [
     Path("package-lock.json"),
     Path("services/analysis-engine/uv.lock"),
@@ -50,7 +51,7 @@ RUNTIME_MODEL_ARTIFACT_PATTERN = re.compile(
     r'signature="(?P<signature>[0-9a-f]+)",\s*'
     r'filename="(?P<filename>[^"]+)",\s*'
     r'sha256="(?P<sha256>[0-9a-f]{64})",\s*'
-    r'size_bytes=(?P<size_bytes>[0-9_]+),\s*\)',
+    r"size_bytes=(?P<size_bytes>[0-9_]+),\s*\)",
     re.DOTALL,
 )
 REQUIRED_MODEL_ARTIFACT_FIELDS = {
@@ -113,9 +114,7 @@ def supplemental_inventory_violations(
     if not artifacts:
         return ["supplemental inventory modelArtifacts must not be empty"]
     if analysis_lock_path is None:
-        analysis_lock_path = (
-            inventory_path.resolve().parent.parent / ANALYSIS_LOCK_PATH
-        )
+        analysis_lock_path = REPO_ROOT / ANALYSIS_LOCK_PATH
 
     package_tools = inventory.get("packageManagedTools")
     if not isinstance(package_tools, list):
@@ -132,7 +131,9 @@ def supplemental_inventory_violations(
             )
         else:
             try:
-                lock_data = tomllib.loads(analysis_lock_path.read_text(encoding="utf-8"))
+                lock_data = tomllib.loads(
+                    analysis_lock_path.read_text(encoding="utf-8")
+                )
                 locked_packages = lock_data.get("package", [])
                 locked_versions = [
                     package.get("version")
@@ -145,7 +146,9 @@ def supplemental_inventory_violations(
                 )
             else:
                 if len(locked_versions) != 1 or not isinstance(locked_versions[0], str):
-                    violations.append("analysis lock requires exactly one yt-dlp package")
+                    violations.append(
+                        "analysis lock requires exactly one yt-dlp package"
+                    )
                 elif yt_dlp_records[0].get("version") != locked_versions[0]:
                     violations.append(
                         "supplemental inventory yt-dlp version does not match uv.lock"
@@ -196,9 +199,7 @@ def supplemental_inventory_violations(
                 )
         checksum = artifact.get("checksum")
         if not isinstance(checksum, str) or not FULL_SHA256_PATTERN.fullmatch(checksum):
-            violations.append(
-                f"supplemental inventory {label} requires full SHA-256"
-            )
+            violations.append(f"supplemental inventory {label} requires full SHA-256")
         source_url = artifact.get("sourceUrl")
         if not isinstance(source_url, str) or not source_url.startswith("https://"):
             violations.append(f"supplemental inventory {label} requires HTTPS source")
@@ -245,7 +246,10 @@ def supplemental_inventory_violations(
                 "does not match separator manifest"
             )
         version = artifact.get("version")
-        if not isinstance(version, str) or str(separator_artifact["signature"]) not in version:
+        if (
+            not isinstance(version, str)
+            or str(separator_artifact["signature"]) not in version
+        ):
             violations.append(
                 f"supplemental inventory runtime model {runtime_model} version "
                 "does not identify separator signature"

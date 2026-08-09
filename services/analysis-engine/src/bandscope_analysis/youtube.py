@@ -136,6 +136,11 @@ def _system_ca_available() -> bool:
         return False
 
 
+def _has_execute_permission(path: Path) -> bool:
+    """Return whether the current process may execute ``path``."""
+    return os.access(path, os.X_OK)
+
+
 def _verify_executable_artifact(
     executable_path: Optional[str], executable_sha256: Optional[str]
 ) -> Optional[str]:
@@ -155,7 +160,7 @@ def _verify_executable_artifact(
 
     try:
         resolved = candidate.resolve(strict=True)
-        if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        if not resolved.is_file() or not _has_execute_permission(resolved):
             return None
 
         digest = hashlib.sha256()

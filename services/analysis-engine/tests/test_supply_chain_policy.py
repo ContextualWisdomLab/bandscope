@@ -93,6 +93,37 @@ def test_supplemental_inventory_accepts_pinned_htdemucs_runtime_model() -> None:
     assert violations == []
 
 
+def test_supplemental_inventory_uses_repository_lock_for_custom_inventory(
+    tmp_path: Path,
+) -> None:
+    """Resolve the default analysis lock independently of an inventory fixture path."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_custom_inventory_default_lock",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(
+        (repo_root / "supply-chain" / "supplemental-component-inventory.json").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        repo_root
+        / "services"
+        / "analysis-engine"
+        / "src"
+        / "bandscope_analysis"
+        / "separation"
+        / "audio_separator.py",
+    )
+
+    assert violations == []
+
+
 @pytest.mark.parametrize(
     ("old", "new", "message"),
     [
@@ -293,6 +324,34 @@ def test_security_pattern_gate_accepts_only_verified_model_deserialization() -> 
     assert security_gates.security_pattern_violations(repo_root) == []
 
 
+def test_security_pattern_gate_prunes_excluded_directories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not descend into dependency and build trees during repository scans."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_pruned_directories",
+    )
+    excluded_file = tmp_path / ".venv" / "nested" / "ignored.py"
+    excluded_file.parent.mkdir(parents=True)
+    excluded_file.write_text("torch." + "load(untrusted)\n", encoding="utf-8")
+    source_file = tmp_path / "src" / "safe.py"
+    source_file.parent.mkdir()
+    source_file.write_text("value = 1\n", encoding="utf-8")
+    visited: list[Path] = []
+    original_is_file = Path.is_file
+
+    def tracked_is_file(path: Path) -> bool:
+        visited.append(path)
+        return original_is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", tracked_is_file)
+
+    assert security_gates.security_pattern_violations(tmp_path) == []
+    assert not any(".venv" in path.parts for path in visited)
+
+
 @pytest.mark.parametrize(
     "second_load",
     [
@@ -370,6 +429,35 @@ def test_security_pattern_gate_rejects_expanded_checkpoint_allowlist(tmp_path: P
         1,
     )
     target_path.write_text(expanded_source, encoding="utf-8")
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
+    ]
+
+
+def test_security_pattern_gate_binds_numpy_scalar_compatibility_import(
+    tmp_path: Path,
+) -> None:
+    """Keep the legacy pickle name mapped to NumPy's reviewed scalar callable."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_numpy_scalar_import",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    mutated_source = source_path.read_text(encoding="utf-8").replace(
+        "from numpy._core.multiarray import scalar as _numpy_scalar",
+        "_numpy_scalar = str",
+        1,
+    )
+    target_path.write_text(mutated_source, encoding="utf-8")
 
     violations = security_gates.security_pattern_violations(tmp_path)
 

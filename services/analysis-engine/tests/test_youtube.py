@@ -339,7 +339,10 @@ def test_download_youtube_audio_rejects_invalid_ffmpeg_artifact(
     else:
         ffmpeg = tmp_path / "ffmpeg"
         ffmpeg.write_bytes(b"not executable")
-        monkeypatch.setattr(os, "access", lambda *_args: False)
+        monkeypatch.setattr(
+            "bandscope_analysis.youtube._has_execute_permission",
+            lambda *_args: False,
+        )
 
     runtime["ffmpeg_path"] = str(ffmpeg)
     runtime["ffmpeg_sha256"] = "0" * 64

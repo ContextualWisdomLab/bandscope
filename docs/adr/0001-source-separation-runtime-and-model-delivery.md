@@ -60,8 +60,12 @@ metadata: `weights_only=True` and the exact reviewed Demucs/NumPy/Fraction allow
 not turn it into a non-executable format. Therefore an artifact hash, allowlist, torch, NumPy, or
 Demucs compatibility change is reviewed like executable code, never receives a `weights_only=False`
 fallback, and must pass the real-artifact load smoke test. The one rule-specific Semgrep/Bandit
-suppression is permitted only at this full-hash, same-byte, restricted-loader call; repository gates
-reject an unrestricted loader, an expanded allowlist, or another `torch.load` site. Cache paths must
+suppression is permitted only at this full-hash, same-byte, restricted-loader call. The approved
+artifact serializes NumPy's legacy `numpy.core.multiarray.scalar` name; the locked runtime resolves
+the identical callable from NumPy 2.x's private `_core` compatibility path while retaining only the
+legacy serialized alias, so every NumPy lock change must repeat the exact-artifact smoke test.
+Repository gates reject an unrestricted loader, an expanded allowlist, or another `torch.load` site.
+Cache paths must
 be user-scoped, non-symlinked, bounded, and cleaned or quarantined on mismatch. No user-supplied
 checkpoint is accepted. Model downloads and errors must not expose tokens, usernames, or full paths.
 

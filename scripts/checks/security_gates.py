@@ -1,5 +1,6 @@
 """Scan repository workspace source files for disallowed security patterns."""
 
+import os
 import re
 from pathlib import Path
 
@@ -67,6 +68,7 @@ VERIFIED_TORCH_LOAD_CALL = re.compile(
     re.MULTILINE,
 )
 VERIFIED_MODEL_LOADER_PREREQUISITES = (
+    "from numpy._core.multiarray import scalar as _numpy_scalar",
     "payload = _read_verified_model_artifact(",
     "hashlib.sha256(payload).hexdigest()",
     "artifact.size_bytes",
@@ -99,14 +101,24 @@ def _content_for_pattern_scan(relative_path: Path, content: str) -> str:
     return VERIFIED_TORCH_LOAD_CALL.sub("verified_checkpoint_load()", content, count=1)
 
 
+def _workspace_files(repo_root: Path) -> list[Path]:
+    """Return repository files without descending into excluded dependency trees."""
+    files: list[Path] = []
+    for directory, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = sorted(name for name in dirnames if name not in EXCLUDED_PARTS)
+        directory_path = Path(directory)
+        files.extend(directory_path / name for name in sorted(filenames))
+    return files
+
+
 def security_pattern_violations(repo_root: Path = Path(".")) -> list[str]:
     """Return forbidden-pattern violations below ``repo_root``."""
     violations: list[str] = []
 
-    for path in repo_root.rglob("*"):
-        if not path.is_file() or not should_scan(path):
-            continue
+    for path in _workspace_files(repo_root):
         relative_path = path.relative_to(repo_root)
+        if not path.is_file() or not should_scan(relative_path):
+            continue
         if relative_path == SELF_PATH:
             continue
         content = path.read_text(encoding="utf-8", errors="ignore")
