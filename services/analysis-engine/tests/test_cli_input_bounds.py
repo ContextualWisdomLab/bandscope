@@ -14,6 +14,7 @@ class _BoundedReadRequired(io.StringIO):
     """Fail when production attempts an unbounded stream read."""
 
     def read(self, size: int = -1) -> str:
+        """Read only when the caller supplies an explicit nonnegative bound."""
         if size < 0:
             raise AssertionError("CLI stdin read must be explicitly bounded")
         return super().read(size)
@@ -23,6 +24,7 @@ class _OversizedInput:
     """Provide an oversized payload without retaining it in the fixture."""
 
     def read(self, size: int = -1) -> str:
+        """Return exactly the requested amount so production observes overflow."""
         if size < 0:
             raise AssertionError("CLI stdin read must be explicitly bounded")
         return "x" * size
