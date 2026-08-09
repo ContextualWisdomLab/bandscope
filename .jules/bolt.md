@@ -61,3 +61,8 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2024-08-09 - Improving exception handling coverage with unittest.mock
+
+**Learning:** Exception handling paths in python files can be difficult to test since they require edge case states. We can use unittest.mock.patch and side_effect to mock internal functions and trigger exceptions manually for 100% branch test coverage.
+**Action:** Use unittest.mock.patch with a generic side_effect exception when testing try/except safety fallbacks in public functions.
