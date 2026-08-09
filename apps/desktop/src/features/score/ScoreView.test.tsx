@@ -413,4 +413,52 @@ describe("ScoreView", () => {
     });
     expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
   });
+
+  it("surfaces a read error if opening the newly attached score fails", async () => {
+    mockInvoke
+      .mockResolvedValueOnce(attachResponse())
+      .mockRejectedValueOnce(new Error("File corrupted."));
+    const onSongUpdate = vi.fn();
+    const song = makeSong();
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add score" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not open the score PDF. File corrupted."
+    );
+    expect(onSongUpdate).toHaveBeenCalledWith({
+      ...song,
+      scoreAttachments: [{ id: SCORE_ID, fileName: "opener.pdf" }]
+    });
+    expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
+  });
+
+  it("catches errors thrown synchronously by the onSongUpdate callback during attachment", async () => {
+    mockInvoke.mockResolvedValueOnce(attachResponse());
+    const onSongUpdate = vi.fn().mockImplementation(() => {
+      throw new Error("Parent callback failed");
+    });
+    const song = makeSong();
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add score" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Parent callback failed");
+    expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
+  });
+
+  it("extracts the first line of a multiline error message when attachment fails", async () => {
+    mockInvoke.mockRejectedValueOnce(new Error("First line of error\nSecond line of error"));
+    const onSongUpdate = vi.fn();
+    const song = makeSong();
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add score" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("First line of error");
+  });
 });
