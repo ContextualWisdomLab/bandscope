@@ -27,3 +27,7 @@ GHSA-wrw7-89jp-8q8g exp:2026-10-31
 # wheel), so it is outside the request-time attack surface. Remove once a
 # fixed setuptools publishes and uv can resolve it. Revisit by 2026-10-31.
 CVE-2026-59890 exp:2026-10-31
+
+# Accept upstream risk in pdfjs-dist 6.1.200 pending an update that retains Node >= 18 compatibility,
+# as the 6.2.108 version strictly requires Node >= 22.13.0, breaking our CI pipelines.
+CVE-2026-16633
