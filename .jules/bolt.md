@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-07-20 - Eliminate intermediate list allocations in Python sum(zip(A, A[1:]))
+**Learning:** Using `sum(1 for a, b in zip(list, list[1:]))` creates an intermediate list slice (`list[1:]`) and zip object, allocating O(N) memory and causing garbage collection overhead.
+**Action:** Calculate the metric (e.g. state changes) inside the primary loop by caching the previous state in a local variable (e.g., `last_chord`) to achieve O(1) memory and avoid intermediate list slice allocations.
