@@ -10,9 +10,10 @@ role-specific harmony and range, groove and entry cues, separated stem previews,
 rehearsal priority. It serves band leaders and players who need actionable preparation without a
 DAW or notation-grade transcription workflow.
 
-Issue #770 and ADR-0002 establish one essential proof obligation: BandScope must demonstrate that
-its production YouTube intake and production separator improve a real, known source rather than
-merely returning plausible-looking arrays or synthetic demo output.
+The product has one essential proof obligation: BandScope must demonstrate that its production
+YouTube intake and production separator improve a real, known source rather than merely returning
+plausible-looking arrays or synthetic demo output. GitHub issue #770 and ADR-0002 govern this
+requirement.
 
 This is a bounded source-separation slice of GitHub issue #770, not completion of its broader
 harmony, beat/tempo, structure, range, cue, confidence, public-corpus, private-corpus, manifest,
@@ -68,7 +69,8 @@ after explicit opt-in.
 The known-stem lane becomes blocking for a release only after all of the following exist:
 
 1. documented authorization for the chosen live access mode;
-2. full-hash pre-load verification of the exact model artifact;
+2. full-hash pre-load verification of the exact model artifact and a recorded model-rights/legal
+   decision for the chosen provisioning or distribution path;
 3. at least one recorded passing supported-platform run on the exact release candidate;
 4. thresholds calibrated on an authorized YouTube candidate and a drift/flake triage owner;
 5. ordinary CI, security, coverage, packaging, SBOM, review, and provenance gates pass.

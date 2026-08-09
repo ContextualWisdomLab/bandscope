@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
-from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pytest
 import soundfile as sf
+from conftest import make_symlink_or_skip
 
 from bandscope_analysis.separation import audio_separator as audio_separator_module
 from bandscope_analysis.separation.audio_separator import (
@@ -217,14 +218,309 @@ class _FakeNoGrad:
         return None
 
 
-def _install_fake_demucs(monkeypatch: pytest.MonkeyPatch, get_model: object) -> None:
-    """Install a lightweight fake demucs package for import-boundary tests."""
+def _install_fake_verified_model_deserializer(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    torch_hub_root: object | None = None,
+    torch_load: object | None = None,
+) -> dict[str, object]:
+    """Install fake torch/Demucs deserializers and return captured calls."""
+    calls: dict[str, object] = {"torch_load_count": 0, "demucs_load_count": 0}
+    fake_torch = ModuleType("torch")
+    if torch_hub_root is not None:
+        fake_torch.hub = SimpleNamespace(get_dir=lambda: torch_hub_root)  # type: ignore[attr-defined]
+
+    def default_torch_load(
+        stream: object,
+        *,
+        map_location: str,
+        weights_only: bool,
+    ) -> dict[str, object]:
+        calls["torch_load_count"] = int(calls["torch_load_count"]) + 1
+        calls["payload"] = stream.read()  # type: ignore[attr-defined]
+        calls["map_location"] = map_location
+        calls["weights_only"] = weights_only
+        return {"verified": True}
+
+    fake_torch.load = torch_load or default_torch_load  # type: ignore[attr-defined]
     demucs_module = ModuleType("demucs")
-    pretrained_module = ModuleType("demucs.pretrained")
-    pretrained_module.get_model = get_model  # type: ignore[attr-defined]
-    demucs_module.pretrained = pretrained_module  # type: ignore[attr-defined]
+    states_module = ModuleType("demucs.states")
+
+    def fake_load_model(package: object) -> _FakeModel:
+        calls["demucs_load_count"] = int(calls["demucs_load_count"]) + 1
+        calls["package"] = package
+        return _FakeModel()
+
+    states_module.load_model = fake_load_model  # type: ignore[attr-defined]
+    demucs_module.states = states_module  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
     monkeypatch.setitem(sys.modules, "demucs", demucs_module)
-    monkeypatch.setitem(sys.modules, "demucs.pretrained", pretrained_module)
+    monkeypatch.setitem(sys.modules, "demucs.states", states_module)
+    return calls
+
+
+def _patch_model_spec(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    filename: str,
+    payload: bytes,
+) -> None:
+    """Replace the htdemucs manifest with a small exact test artifact."""
+    spec = audio_separator_module._ModelArtifactSpec(
+        signature="test-signature",
+        filename=filename,
+        sha256=hashlib.sha256(payload).hexdigest(),
+        size_bytes=len(payload),
+    )
+    monkeypatch.setitem(audio_separator_module._MODEL_ARTIFACTS, "htdemucs", spec)
+
+
+def test_audio_stem_separator_verifies_exact_model_bytes_before_deserialization(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deserialize only the exact inventoried bytes and cache the loaded model."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    cache_dir = tmp_path / "torch-hub" / "checkpoints"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / filename).write_bytes(payload)
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    calls = _install_fake_verified_model_deserializer(
+        monkeypatch,
+        torch_hub_root=tmp_path / "torch-hub",
+    )
+    separator = AudioStemSeparator()
+
+    first_model = separator._load_model()
+    second_model = separator._load_model()
+
+    assert first_model is second_model
+    assert calls == {
+        "torch_load_count": 1,
+        "demucs_load_count": 1,
+        "payload": payload,
+        "map_location": "cpu",
+        "weights_only": False,
+        "package": {"verified": True},
+    }
+
+
+@pytest.mark.parametrize(
+    ("payload", "error_pattern"),
+    [
+        (None, "not provisioned"),
+        (b"short", "byte size"),
+        (b"tampered-model-package", "SHA-256"),
+    ],
+)
+def test_audio_stem_separator_rejects_missing_or_changed_model_before_deserialization(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: bytes | None,
+    error_pattern: str,
+) -> None:
+    """Fail closed for missing, truncated, or substituted checkpoint bytes."""
+    trusted_payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    if payload is not None and error_pattern == "SHA-256":
+        payload = payload.ljust(len(trusted_payload), b"!")[: len(trusted_payload)]
+    _patch_model_spec(monkeypatch, filename=filename, payload=trusted_payload)
+    cache_dir = tmp_path / "checkpoints"
+    cache_dir.mkdir()
+    if payload is not None:
+        (cache_dir / filename).write_bytes(payload)
+
+    def forbidden_torch_load(*args: object, **kwargs: object) -> object:
+        raise AssertionError("unverified bytes reached torch.load")
+
+    _install_fake_verified_model_deserializer(
+        monkeypatch,
+        torch_load=forbidden_torch_load,
+    )
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=cache_dir))
+
+    with pytest.raises(ValueError, match=error_pattern):
+        separator._load_model()
+
+
+def test_audio_stem_separator_rejects_symlinked_model_artifact(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject a cache symlink before reading or deserializing its target."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    cache_dir = tmp_path / "checkpoints"
+    cache_dir.mkdir()
+    target = tmp_path / "outside.th"
+    target.write_bytes(payload)
+    make_symlink_or_skip(cache_dir / filename, target)
+    _install_fake_verified_model_deserializer(monkeypatch)
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=cache_dir))
+
+    with pytest.raises(ValueError, match="symlink"):
+        separator._load_model()
+
+
+def test_audio_stem_separator_rejects_nonregular_model_artifact(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject a directory masquerading as the inventoried checkpoint file."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    cache_dir = tmp_path / "checkpoints"
+    cache_dir.mkdir()
+    (cache_dir / filename).mkdir()
+    _install_fake_verified_model_deserializer(monkeypatch)
+
+    def forbidden_open(*args: object, **kwargs: object) -> int:
+        raise AssertionError("nonregular cache entry reached os.open")
+
+    monkeypatch.setattr(audio_separator_module.os, "open", forbidden_open)
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=cache_dir))
+
+    with pytest.raises(ValueError, match="regular file"):
+        separator._load_model()
+
+
+def test_audio_stem_separator_rejects_opened_file_identity_race(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Re-check the opened descriptor instead of trusting path metadata alone."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    (tmp_path / filename).write_bytes(payload)
+    _install_fake_verified_model_deserializer(monkeypatch)
+    monkeypatch.setattr(
+        audio_separator_module.os,
+        "fstat",
+        lambda _descriptor: SimpleNamespace(st_mode=0, st_size=len(payload)),
+    )
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=tmp_path))
+
+    with pytest.raises(ValueError, match="regular file"):
+        separator._load_model()
+
+
+def test_audio_stem_separator_redacts_model_cache_open_errors(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Redact cache paths when an exact checkpoint cannot be opened safely."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    (tmp_path / filename).write_bytes(payload)
+    _install_fake_verified_model_deserializer(monkeypatch)
+
+    def fail_open(*args: object, **kwargs: object) -> int:
+        raise PermissionError(f"permission denied under {tmp_path}")
+
+    monkeypatch.setattr(audio_separator_module.os, "open", fail_open)
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=tmp_path))
+
+    with pytest.raises(ValueError, match="could not be opened securely") as error:
+        separator._load_model()
+    assert str(tmp_path) not in str(error.value)
+
+
+def test_audio_stem_separator_redacts_default_cache_location_errors(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Redact torch cache details when its default location cannot be resolved."""
+    calls = _install_fake_verified_model_deserializer(monkeypatch)
+    fake_torch = sys.modules["torch"]
+
+    def fail_get_dir() -> object:
+        raise RuntimeError(f"unsafe cache detail under {tmp_path}")
+
+    fake_torch.hub = SimpleNamespace(get_dir=fail_get_dir)  # type: ignore[attr-defined]
+    separator = AudioStemSeparator()
+
+    with pytest.raises(ValueError, match="cache location is unavailable") as error:
+        separator._load_model()
+    assert str(tmp_path) not in str(error.value)
+    assert calls["torch_load_count"] == 0
+    assert calls["demucs_load_count"] == 0
+
+
+def test_audio_stem_separator_uses_explicit_model_path_from_environment(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bind operator-provided model paths to the same exact-byte loader."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    artifact_path = tmp_path / filename
+    artifact_path.write_bytes(payload)
+    monkeypatch.setenv("BANDSCOPE_HTDEMUCS_MODEL_PATH", str(artifact_path))
+    calls = _install_fake_verified_model_deserializer(monkeypatch)
+
+    separator = AudioStemSeparator()
+
+    assert separator._load_model() is not None
+    assert calls["payload"] == payload
+
+
+def test_audio_stem_separator_rejects_wrong_explicit_model_filename(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep explicit paths bound to the inventoried checkpoint filename."""
+    payload = b"verified-model-package"
+    _patch_model_spec(monkeypatch, filename="expected-model.th", payload=payload)
+    artifact_path = tmp_path / "substituted-model.th"
+    artifact_path.write_bytes(payload)
+    monkeypatch.setenv("BANDSCOPE_HTDEMUCS_MODEL_PATH", str(artifact_path))
+    calls = _install_fake_verified_model_deserializer(monkeypatch)
+
+    separator = AudioStemSeparator()
+
+    with pytest.raises(ValueError, match="inventoried filename"):
+        separator._load_model()
+    assert calls["torch_load_count"] == 0
+
+
+def test_audio_stem_separator_rejects_uninventoried_model(tmp_path) -> None:
+    """Refuse arbitrary model names that have no exact artifact manifest."""
+    separator = AudioStemSeparator(
+        AudioSeparationConfig(
+            model_name="untrusted-model",
+            model_cache_directory=tmp_path,
+        )
+    )
+
+    with pytest.raises(ValueError, match="not inventoried"):
+        separator._load_model()
+
+
+def test_audio_stem_separator_redacts_verified_model_load_errors(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Surface a stable error when exact verified bytes still fail to deserialize."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    (tmp_path / filename).write_bytes(payload)
+
+    def fail_torch_load(*args: object, **kwargs: object) -> object:
+        raise RuntimeError(f"unsafe detail under {tmp_path}")
+
+    _install_fake_verified_model_deserializer(monkeypatch, torch_load=fail_torch_load)
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=tmp_path))
+
+    with pytest.raises(ValueError, match="failed to load after integrity verification") as error:
+        separator._load_model()
+    assert str(tmp_path) not in str(error.value)
 
 
 def _patch_demucs(monkeypatch: pytest.MonkeyPatch, per_source: dict | None = None) -> None:
@@ -233,9 +529,6 @@ def _patch_demucs(monkeypatch: pytest.MonkeyPatch, per_source: dict | None = Non
     ``per_source`` optionally maps a demucs source name to a mono numpy array to
     return for that stem; unspecified sources return silence.
     """
-
-    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
-        return _FakeModel()
 
     def fake_apply_model(
         self: AudioStemSeparator, model: _FakeModel, audio: np.ndarray
@@ -250,148 +543,8 @@ def _patch_demucs(monkeypatch: pytest.MonkeyPatch, per_source: dict | None = Non
                     out[name][:copy_length] = row[:copy_length]
         return out
 
-    _install_fake_demucs(monkeypatch, fake_get_model)
-    monkeypatch.setattr(
-        AudioStemSeparator,
-        "_verified_model_artifact_path",
-        lambda self: Path("/verified/955717e8-8726e21a.th"),
-    )
+    monkeypatch.setattr(AudioStemSeparator, "_load_model", lambda self: _FakeModel())
     monkeypatch.setattr(AudioStemSeparator, "_apply_model", fake_apply_model)
-
-
-def test_audio_stem_separator_rejects_missing_model_before_demucs_load(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Fail closed before Demucs can fetch or deserialize a missing model."""
-    calls = {"n": 0}
-
-    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
-        calls["n"] += 1
-        return _FakeModel()
-
-    _install_fake_demucs(monkeypatch, fake_get_model)
-    separator = AudioStemSeparator(
-        AudioSeparationConfig(model_artifact_path=tmp_path / "missing-model.th")
-    )
-
-    with pytest.raises(ValueError, match="verified htdemucs model artifact is unavailable"):
-        separator._load_model()
-
-    assert calls["n"] == 0
-
-
-def test_audio_stem_separator_verifies_full_model_identity_before_local_load(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Bind Demucs loading to the exact inventoried bytes in a local repository."""
-    model_bytes = b"verified local model"
-    model_path = tmp_path / "955717e8-8726e21a.th"
-    model_path.write_bytes(model_bytes)
-    calls: list[tuple[str, Path]] = []
-
-    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
-        calls.append((name, repo))
-        return _FakeModel()
-
-    _install_fake_demucs(monkeypatch, fake_get_model)
-    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_BYTES", len(model_bytes))
-    monkeypatch.setattr(
-        audio_separator_module,
-        "_HTDEMUCS_MODEL_SHA256",
-        __import__("hashlib").sha256(model_bytes).hexdigest(),
-    )
-    separator = AudioStemSeparator(AudioSeparationConfig(model_artifact_path=model_path))
-
-    assert separator._load_model() is separator._load_model()
-    assert calls == [("955717e8", tmp_path)]
-
-
-def test_audio_stem_separator_rejects_wrong_model_digest_before_local_load(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Reject same-sized model bytes that fail the full SHA-256 identity check."""
-    model_path = tmp_path / "955717e8-8726e21a.th"
-    model_path.write_bytes(b"untrusted")
-    called = False
-
-    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
-        nonlocal called
-        called = True
-        return _FakeModel()
-
-    _install_fake_demucs(monkeypatch, fake_get_model)
-    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_BYTES", len(b"untrusted"))
-    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_SHA256", "0" * 64)
-    separator = AudioStemSeparator(AudioSeparationConfig(model_artifact_path=model_path))
-
-    with pytest.raises(ValueError, match="failed full SHA-256 verification"):
-        separator._load_model()
-
-    assert called is False
-
-
-def test_audio_stem_separator_resolves_verified_model_from_environment(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Allow explicit environment provisioning without opening a remote model path."""
-    model_bytes = b"environment model"
-    model_path = tmp_path / "955717e8-8726e21a.th"
-    model_path.write_bytes(model_bytes)
-    monkeypatch.setenv("BANDSCOPE_HTDEMUCS_MODEL_PATH", str(model_path))
-    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_BYTES", len(model_bytes))
-    monkeypatch.setattr(
-        audio_separator_module,
-        "_HTDEMUCS_MODEL_SHA256",
-        __import__("hashlib").sha256(model_bytes).hexdigest(),
-    )
-
-    separator = AudioStemSeparator()
-
-    assert separator._verified_model_artifact_path() == model_path
-
-
-def test_audio_stem_separator_resolves_verified_model_from_torch_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Use the conventional local torch cache when no explicit path is configured."""
-    model_bytes = b"torch home model"
-    model_path = tmp_path / "hub" / "checkpoints" / "955717e8-8726e21a.th"
-    model_path.parent.mkdir(parents=True)
-    model_path.write_bytes(model_bytes)
-    monkeypatch.delenv("BANDSCOPE_HTDEMUCS_MODEL_PATH", raising=False)
-    monkeypatch.setenv("TORCH_HOME", str(tmp_path))
-    monkeypatch.setattr(audio_separator_module, "_HTDEMUCS_MODEL_BYTES", len(model_bytes))
-    monkeypatch.setattr(
-        audio_separator_module,
-        "_HTDEMUCS_MODEL_SHA256",
-        __import__("hashlib").sha256(model_bytes).hexdigest(),
-    )
-
-    assert AudioStemSeparator()._verified_model_artifact_path() == model_path
-
-
-@pytest.mark.parametrize("failure", ["symlink", "wrong-name", "directory", "wrong-size"])
-def test_audio_stem_separator_rejects_untrusted_model_path_shapes(
-    failure: str, tmp_path: Path
-) -> None:
-    """Reject path indirection, wrong names, non-files, and byte-count drift."""
-    target = tmp_path / "955717e8-8726e21a.th"
-    if failure == "symlink":
-        real_model = tmp_path / "real-model.th"
-        real_model.write_bytes(b"model")
-        target.symlink_to(real_model)
-    elif failure == "wrong-name":
-        target = tmp_path / "renamed-model.th"
-        target.write_bytes(b"model")
-    elif failure == "directory":
-        target.mkdir()
-    else:
-        target.write_bytes(b"wrong size")
-
-    separator = AudioStemSeparator(AudioSeparationConfig(model_artifact_path=target))
-
-    with pytest.raises(ValueError, match="model artifact"):
-        separator._verified_model_artifact_path()
 
 
 def test_audio_stem_separator_splits_local_audio_into_canonical_stems(
@@ -459,33 +612,32 @@ def test_audio_stem_separator_maps_demucs_sources_to_named_stems(
 
 def test_audio_stem_separator_caches_model(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure the model is loaded once and reused across calls."""
-    calls = {"n": 0}
-
-    def fake_get_model(name: str, *, repo: Path) -> _FakeModel:
-        calls["n"] += 1
-        return _FakeModel()
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    (tmp_path / filename).write_bytes(payload)
+    calls = _install_fake_verified_model_deserializer(monkeypatch)
 
     def fake_apply_model(
         self: AudioStemSeparator, model: _FakeModel, audio: np.ndarray
     ) -> dict[str, np.ndarray]:
         return {name: np.zeros(audio.size, dtype=np.float32) for name in _DEMUCS_SOURCES}
 
-    _install_fake_demucs(monkeypatch, fake_get_model)
-    monkeypatch.setattr(
-        AudioStemSeparator,
-        "_verified_model_artifact_path",
-        lambda self: Path("/verified/955717e8-8726e21a.th"),
-    )
     monkeypatch.setattr(AudioStemSeparator, "_apply_model", fake_apply_model)
 
     audio_path = tmp_path / "mix.wav"
     sf.write(audio_path, np.zeros(4_000, dtype=np.float32), 8_000)
     separator = AudioStemSeparator(
-        AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=1_000_000)
+        AudioSeparationConfig(
+            target_sample_rate=8_000,
+            max_file_bytes=1_000_000,
+            model_cache_directory=tmp_path,
+        )
     )
     separator.separate(audio_path)
     separator.separate(audio_path)
-    assert calls["n"] == 1
+    assert calls["torch_load_count"] == 1
+    assert calls["demucs_load_count"] == 1
 
 
 def test_audio_stem_separator_apply_model_uses_demucs_boundary(

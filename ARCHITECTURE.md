@@ -93,13 +93,14 @@ Last updated: 2026-08-09
   model.
 - Demucs random temporal shifts are disabled (`shifts=0`) so the same bytes and model produce
   reproducible local analysis and benchmark evidence.
-- Model inference is local after operator provisioning. The runtime requires the exact official
-  weight artifact in a local cache and never downloads it; missing, symlinked, wrong-sized, or
-  full-SHA-mismatched bytes fail before Demucs/torch deserialization.
+- Model inference is local and fail-closed. A trusted provisioning step must place the exact
+  official weight artifact in a user-scoped cache before runtime; a missing artifact is never
+  fetched by the separator. The repository and release artifacts do not bundle the weights.
 - The exact signature, source URL, full SHA-256, byte size, distribution status, and model-rights
   uncertainty are tracked in `supply-chain/supplemental-component-inventory.json` and ADR-0001.
-- Full-SHA verification before torch deserialization is implemented. A recorded model-rights and
-  permitted-delivery decision remains a release blocker; the official weights are not bundled.
+- The separator verifies a non-symlinked regular file's exact byte size and full SHA-256, then
+  deserializes those same verified bytes. A model-rights/legal delivery decision remains a release
+  blocker.
 - Current dependency markers exclude Demucs on macOS Intel; unsupported platforms must surface the
   existing safe fallback rather than pretending to separate stems.
 

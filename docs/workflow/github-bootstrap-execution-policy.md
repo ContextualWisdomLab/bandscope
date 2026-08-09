@@ -38,12 +38,14 @@ The expected sequence is:
 Bootstrap or setup work is not complete unless GitHub-facing supply-chain controls are both committed and, where permissions allow, enforced:
 
 - `.github/dependabot.yml`
-- `.github/workflows/dependency-review.yml`
+- the organization-level required dependency-review workflow; BandScope intentionally carries no
+  repo-local duplicate
 - `.github/workflows/security-audit.yml`
 - `.github/workflows/codeql.yml`
+- `.github/workflows/trivy.yml`
 - `.github/workflows/sbom.yml`
 - `.github/workflows/release.yml`
-- branch protection or rulesets for `main` and `develop` that require `ci / build-and-test`, `dependency-review`, `security-audit`, `CodeQL`, `sbom`, `release-preflight`, `gate / build / windows`, and `gate / build / macos`
+- branch protection or rulesets for `main` and `develop` that require `ci / build-and-test`, `dependency-review`, `security-audit`, `CodeQL`, `trivy-fs-scan`, `sbom`, `release-preflight`, `gate / build / windows`, and `gate / build / macos`
 - PR workflow that still requests CodeRabbit review and records its result when the provider responds cleanly
 - release retention for the generated SBOM and supplemental inventory
 
@@ -97,7 +99,8 @@ Do not treat these as TODOs, later hardening, or optional recommendations.
 ### Phase 6. Bootstrap PR
 
 - create `bootstrap/setup` or equivalent from `develop`
-- add workflows, security docs, CODEOWNERS, dependency review, `trivy-fs-scan`, SBOM, builds, and required evidence docs
+- add repo-owned workflows, security docs, CODEOWNERS, the organization dependency-review binding,
+  SBOM, builds, and required evidence docs
 - add or confirm lockfiles, dependency review, audit, SBOM, and supplemental inventory for bundled binaries and model artifacts
 - merge through PR review, not direct push
 

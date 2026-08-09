@@ -18,7 +18,7 @@ from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
-from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.separation import AudioStemSeparator, ModelArtifactError
 
 logger = logging.getLogger(__name__)
 
@@ -898,16 +898,13 @@ def _stem_separation_failure(
             "Audio source file not found.",
             "Stem separation failed because the source file was missing.",
         )
+    if isinstance(error, ModelArtifactError):
+        return (
+            "runtime_error",
+            "Stem separation model is unavailable.",
+            "Stem separation unavailable because the approved model could not be verified.",
+        )
     if isinstance(error, ValueError):
-        if "htdemucs model artifact" in error_message.lower():
-            return (
-                "runtime_error",
-                "Stem separation model is unavailable.",
-                (
-                    "Stem separation unavailable because the verified model artifact "
-                    "is missing or invalid."
-                ),
-            )
         if "not available on this platform" in error_message or "demucs/torch" in error_message:
             return (
                 "runtime_error",

@@ -42,8 +42,17 @@ SUPPLEMENTAL_INVENTORY_PATH = Path("supply-chain/supplemental-component-inventor
 SEPARATOR_IMPLEMENTATION_PATH = Path(
     "services/analysis-engine/src/bandscope_analysis/separation/audio_separator.py"
 )
+ANALYSIS_LOCK_PATH = Path("services/analysis-engine/uv.lock")
 FULL_SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 RUNTIME_MODEL_PATTERN = re.compile(r'model_name:\s*str\s*=\s*"([^"]+)"')
+RUNTIME_MODEL_ARTIFACT_PATTERN = re.compile(
+    r'"(?P<runtime_model>[^"]+)"\s*:\s*_ModelArtifactSpec\(\s*'
+    r'signature="(?P<signature>[0-9a-f]+)",\s*'
+    r'filename="(?P<filename>[^"]+)",\s*'
+    r'sha256="(?P<sha256>[0-9a-f]{64})",\s*'
+    r'size_bytes=(?P<size_bytes>[0-9_]+),\s*\)',
+    re.DOTALL,
+)
 REQUIRED_MODEL_ARTIFACT_FIELDS = {
     "name",
     "runtimeModelName",
@@ -57,12 +66,29 @@ REQUIRED_MODEL_ARTIFACT_FIELDS = {
     "releaseUsage",
     "verification",
 }
-MODEL_ARTIFACT_STRING_FIELDS = REQUIRED_MODEL_ARTIFACT_FIELDS - {"sizeBytes"}
+REQUIRED_MODEL_STRING_FIELDS = REQUIRED_MODEL_ARTIFACT_FIELDS - {"sizeBytes"}
+
+
+def _separator_model_artifact(
+    separator_source: str, runtime_model: str
+) -> dict[str, str | int] | None:
+    """Return the exact code-owned artifact manifest for ``runtime_model``."""
+    for match in RUNTIME_MODEL_ARTIFACT_PATTERN.finditer(separator_source):
+        if match.group("runtime_model") != runtime_model:
+            continue
+        return {
+            "signature": match.group("signature"),
+            "filename": match.group("filename"),
+            "sha256": match.group("sha256"),
+            "sizeBytes": int(match.group("size_bytes").replace("_", "")),
+        }
+    return None
 
 
 def supplemental_inventory_violations(
     inventory_path: Path = SUPPLEMENTAL_INVENTORY_PATH,
     separator_path: Path = SEPARATOR_IMPLEMENTATION_PATH,
+    analysis_lock_path: Path | None = None,
 ) -> list[str]:
     """Return stale, incomplete, or runtime-mismatched model inventory violations."""
     violations: list[str] = []
@@ -71,7 +97,7 @@ def supplemental_inventory_violations(
     except (OSError, json.JSONDecodeError) as error:
         return [f"supplemental inventory is unreadable: {error.__class__.__name__}"]
     if not isinstance(inventory, dict):
-        return ["supplemental inventory root must be an object"]
+        return ["supplemental inventory must be an object"]
     try:
         separator_source = separator_path.read_text(encoding="utf-8")
     except OSError as error:
@@ -84,49 +110,98 @@ def supplemental_inventory_violations(
     artifacts = inventory.get("modelArtifacts")
     if not isinstance(artifacts, list):
         return ["supplemental inventory modelArtifacts must be a list"]
+    if not artifacts:
+        return ["supplemental inventory modelArtifacts must not be empty"]
+    if analysis_lock_path is None:
+        analysis_lock_path = (
+            inventory_path.resolve().parent.parent / ANALYSIS_LOCK_PATH
+        )
+
+    package_tools = inventory.get("packageManagedTools")
+    if not isinstance(package_tools, list):
+        violations.append("supplemental inventory packageManagedTools must be a list")
+    else:
+        yt_dlp_records = [
+            tool
+            for tool in package_tools
+            if isinstance(tool, dict) and tool.get("name") == "yt-dlp"
+        ]
+        if len(yt_dlp_records) != 1:
+            violations.append(
+                "supplemental inventory requires exactly one yt-dlp package record"
+            )
+        else:
+            try:
+                lock_data = tomllib.loads(analysis_lock_path.read_text(encoding="utf-8"))
+                locked_packages = lock_data.get("package", [])
+                locked_versions = [
+                    package.get("version")
+                    for package in locked_packages
+                    if isinstance(package, dict) and package.get("name") == "yt-dlp"
+                ]
+            except (OSError, tomllib.TOMLDecodeError) as error:
+                violations.append(
+                    f"analysis lock is unreadable: {error.__class__.__name__}"
+                )
+            else:
+                if len(locked_versions) != 1 or not isinstance(locked_versions[0], str):
+                    violations.append("analysis lock requires exactly one yt-dlp package")
+                elif yt_dlp_records[0].get("version") != locked_versions[0]:
+                    violations.append(
+                        "supplemental inventory yt-dlp version does not match uv.lock"
+                    )
+
+    operator_tools = inventory.get("operatorProvidedTools")
+    if not isinstance(operator_tools, list):
+        violations.append("supplemental inventory operatorProvidedTools must be a list")
+    else:
+        operator_names = {
+            tool.get("name") for tool in operator_tools if isinstance(tool, dict)
+        }
+        for required_tool in ("ffmpeg", "ffprobe"):
+            if required_tool not in operator_names:
+                violations.append(
+                    f"supplemental inventory missing operator tool: {required_tool}"
+                )
 
     matching_runtime_artifacts: list[dict[str, object]] = []
     for artifact in artifacts:
         if not isinstance(artifact, dict):
             violations.append("supplemental inventory model artifact must be an object")
             continue
-        name_value = artifact.get("name")
-        name = name_value if isinstance(name_value, str) else ""
-        if name.startswith("bandsplit-"):
+        artifact_runtime = artifact.get("runtimeModelName")
+        label = (
+            f"runtime model {artifact_runtime}"
+            if isinstance(artifact_runtime, str) and artifact_runtime.strip()
+            else "model artifact"
+        )
+        name = artifact.get("name")
+        if isinstance(name, str) and name.startswith("bandsplit-"):
             violations.append(f"supplemental inventory contains retired model: {name}")
-        if artifact.get("runtimeModelName") == runtime_model:
+        if artifact_runtime == runtime_model:
             matching_runtime_artifacts.append(artifact)
 
-    if not matching_runtime_artifacts:
-        violations.append(
-            f"supplemental inventory missing runtime model: {runtime_model}"
-        )
-        return violations
-
-    for artifact in matching_runtime_artifacts:
         missing_fields = sorted(REQUIRED_MODEL_ARTIFACT_FIELDS - artifact.keys())
         if missing_fields:
             violations.append(
-                f"supplemental inventory runtime model {runtime_model} missing fields: "
+                f"supplemental inventory {label} missing fields: "
                 + ", ".join(missing_fields)
             )
-        for field in sorted(MODEL_ARTIFACT_STRING_FIELDS & artifact.keys()):
+        for field in sorted(REQUIRED_MODEL_STRING_FIELDS & artifact.keys()):
             value = artifact[field]
             if not isinstance(value, str) or not value.strip():
                 violations.append(
-                    f"supplemental inventory runtime model {runtime_model} "
-                    f"field {field} must be a non-empty string"
+                    f"supplemental inventory {label} requires non-empty "
+                    f"string field: {field}"
                 )
         checksum = artifact.get("checksum")
         if not isinstance(checksum, str) or not FULL_SHA256_PATTERN.fullmatch(checksum):
             violations.append(
-                f"supplemental inventory runtime model {runtime_model} requires full SHA-256"
+                f"supplemental inventory {label} requires full SHA-256"
             )
         source_url = artifact.get("sourceUrl")
         if not isinstance(source_url, str) or not source_url.startswith("https://"):
-            violations.append(
-                f"supplemental inventory runtime model {runtime_model} requires HTTPS source"
-            )
+            violations.append(f"supplemental inventory {label} requires HTTPS source")
         size_bytes = artifact.get("sizeBytes")
         if (
             not isinstance(size_bytes, int)
@@ -134,8 +209,46 @@ def supplemental_inventory_violations(
             or size_bytes <= 0
         ):
             violations.append(
-                f"supplemental inventory runtime model {runtime_model} "
-                "requires positive integer sizeBytes"
+                f"supplemental inventory {label} requires positive sizeBytes"
+            )
+
+    if not matching_runtime_artifacts:
+        violations.append(
+            f"supplemental inventory missing runtime model: {runtime_model}"
+        )
+        return violations
+
+    separator_artifact = _separator_model_artifact(separator_source, runtime_model)
+    if separator_artifact is None:
+        violations.append(
+            f"separator implementation missing exact artifact manifest: {runtime_model}"
+        )
+        return violations
+
+    for artifact in matching_runtime_artifacts:
+        if artifact.get("checksum") != f"sha256:{separator_artifact['sha256']}":
+            violations.append(
+                f"supplemental inventory runtime model {runtime_model} checksum "
+                "does not match separator manifest"
+            )
+        if artifact.get("sizeBytes") != separator_artifact["sizeBytes"]:
+            violations.append(
+                f"supplemental inventory runtime model {runtime_model} sizeBytes "
+                "does not match separator manifest"
+            )
+        source_url = artifact.get("sourceUrl")
+        if not isinstance(source_url, str) or not source_url.endswith(
+            f"/{separator_artifact['filename']}"
+        ):
+            violations.append(
+                f"supplemental inventory runtime model {runtime_model} filename "
+                "does not match separator manifest"
+            )
+        version = artifact.get("version")
+        if not isinstance(version, str) or str(separator_artifact["signature"]) not in version:
+            violations.append(
+                f"supplemental inventory runtime model {runtime_model} version "
+                "does not identify separator signature"
             )
     return violations
 

@@ -28,21 +28,27 @@ When runtime behavior is touched, verify:
 
 For a release candidate that claims YouTube source separation:
 
-1. record exact commit, live base tip, lockfiles, OS, architecture, Python, Demucs, torch, and yt-dlp;
-   set `BANDSCOPE_FFMPEG_PATH` to an absolute executable and
-   `BANDSCOPE_FFMPEG_SHA256` to its verified full digest, then record that resolved path, digest,
-   trusted package/source provenance, and the executable's `-version` output;
-2. confirm content/platform authorization and do not provide cookies, credentials, login, paywall,
+1. record exact commit, live base tip, lockfiles, OS, architecture, Python, Demucs, torch, and the
+   exact locked yt-dlp version;
+2. resolve sibling ffmpeg and ffprobe programs from one trusted package/build to absolute regular
+   executables with exact platform-native names (`ffmpeg`/`ffprobe`, or their `.exe` forms), record
+   both full SHA-256 values, trusted package identity, and version outputs, then pass
+   `BANDSCOPE_FFMPEG_PATH`, `BANDSCOPE_FFMPEG_SHA256`, `BANDSCOPE_FFPROBE_PATH`, and
+   `BANDSCOPE_FFPROBE_SHA256`; the benchmark verifies all four before any fixture access, and a
+   partial set, layout drift, name drift, or mismatch fails preflight;
+3. confirm content/platform authorization and do not provide cookies, credentials, login, paywall,
    DRM, geo, or anti-bot bypasses;
-3. verify the htdemucs model's exact source, 84,141,911-byte size, and full SHA-256 from the
-   supplemental inventory before load; fail closed on cache symlink, mismatch, or missing artifact;
-4. authenticate the archive, extracted vocal member, and finished master by exact host, byte count,
+4. verify the htdemucs model's exact source, 84,141,911-byte size, and full SHA-256 from the
+   supplemental inventory, then set `BANDSCOPE_HTDEMUCS_MODEL_PATH` to the exact absolute
+   `955717e8-8726e21a.th` path; fail closed on a wrong filename, symlink, mismatch, or missing
+   artifact;
+5. authenticate the archive, extracted vocal member, and finished master by exact host, byte count,
    and full SHA-256; record the master duration and require deterministic Demucs `shifts=0`;
-5. run the offline known-stem contract, then the explicit live command from
+6. run the offline known-stem contract, then the explicit live command from
    `docs/engineering/youtube-known-stem-validation.md` on the unchanged candidate;
-6. retain bounded numeric/provenance evidence only: duration drift, identity correlation, composed
+7. retain bounded numeric/provenance evidence only: duration drift, identity correlation, composed
    lags, baseline/vocal SI-SDR, improvement, assignment margin, outcome code, and cleanup result;
-7. verify the temporary media root is empty and no raw audio, archive content, full path, URL,
+8. verify the temporary media root is empty and no raw audio, archive content, full path, URL,
    cookie, credential, or provider response was retained.
 
 The live lane needs a 20-minute operator timeout until calibration establishes a tighter limit. A

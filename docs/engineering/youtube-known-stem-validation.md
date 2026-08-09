@@ -70,16 +70,18 @@ creator-master probe is not a live pass.
 
 ## Running the benchmark
 
-Install the analysis-engine development dependencies. Provision an absolute `ffmpeg` executable and
-the exact htdemucs artifact locally; the live lane requires their path/digest identities and never
-downloads model weights.
+Install the analysis-engine development dependencies. Resolve sibling ffmpeg and ffprobe programs
+from one trusted package/build to absolute regular executables and obtain both full SHA-256 values;
+`PATH` names alone are not release/live evidence. Provision the exact model file in the user-scoped
+torch.hub checkpoints cache or pass its exact absolute path through
+`BANDSCOPE_HTDEMUCS_MODEL_PATH` before running. The separator never downloads a missing model.
 
 The exact current model artifact is Demucs 4.0.1 htdemucs signature `955717e8`, file
 `955717e8-8726e21a.th`, 84,141,911 bytes, full SHA-256
-`8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4`. It is not bundled.
-BandScope requires the exact filename, byte count, and full digest before passing a local repository
-to Demucs; missing or changed bytes fail before deserialization. ADR-0001 retains the model-rights
-and permitted-delivery decision as a release blocker.
+`8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4`. It is pre-provisioned and
+not bundled. BandScope rejects a missing, symlinked, non-regular, incorrectly sized, or full-SHA
+mismatched provisioned file before deserializing the same verified bytes. ADR-0001 keeps the
+separate model-rights/legal delivery decision as a release blocker.
 
 Before enabling the test, the operator must confirm that the intended use is permitted by the
 content rightsholder and the applicable YouTube terms. The creator's permission for the reference
@@ -87,18 +89,25 @@ source does not by itself grant permission for automated access to YouTube.
 
 ```bash
 UV_CACHE_DIR=/tmp/bandscope-uv-cache \
-BANDSCOPE_FFMPEG_PATH=/absolute/path/to/ffmpeg \
-BANDSCOPE_FFMPEG_SHA256=<64-lowercase-hex-digest> \
-BANDSCOPE_HTDEMUCS_MODEL_PATH=/absolute/path/to/955717e8-8726e21a.th \
 BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1 \
+BANDSCOPE_FFMPEG_PATH=/absolute/trusted/path/to/ffmpeg \
+BANDSCOPE_FFMPEG_SHA256=<64-lowercase-hex-digest> \
+BANDSCOPE_FFPROBE_PATH=/absolute/trusted/path/to/ffprobe \
+BANDSCOPE_FFPROBE_SHA256=<64-lowercase-hex-digest> \
+BANDSCOPE_HTDEMUCS_MODEL_PATH=/absolute/trusted/path/to/955717e8-8726e21a.th \
 uv run --project services/analysis-engine \
   pytest services/analysis-engine/tests/test_youtube_stem_e2e.py \
   -m youtube_stem_e2e -vv
 ```
 
-If YouTube access, either fixed reference asset, `ffmpeg`, or model weights are unavailable, the
-opted-in test fails. It must not silently turn an unavailable or changed fixture into a passing
-result.
+If YouTube access, either fixed reference asset, the verified `ffmpeg`/`ffprobe` executable set, or
+model weights are unavailable, the opted-in test fails. It must not silently turn an unavailable or
+changed fixture into a passing result.
+
+The four media-runtime fields must identify exact platform-native sibling program names. Their
+paths, execute permissions, and hashes are verified before the benchmark accesses either reference
+asset. The model path must use the exact inventoried filename; the production loader then performs
+its independent same-byte size and full-hash verification before deserialization.
 
 ## Platform and evidence status
 
@@ -108,16 +117,20 @@ result.
 - macOS Intel: current dependency markers exclude Demucs; separation must fail safely and offer the
   product fallback.
 
-On 2026-08-09, exact commit `5a3648a11d9097b8da48bb4a3ccbd97986aec25b` passed all 13 then-current default
-offline cases. An explicit live attempt authenticated and extracted the pinned reference archive,
+On 2026-08-09, exact commit `5a3648a11d9097b8da48bb4a3ccbd97986aec25b` passed a 13-test
+pre-correction partial suite. It lacked
+`test_download_verified_creator_master_authenticates_exact_file`,
+`test_align_known_stem_through_master_composes_two_global_offsets`, and
+`test_required_root_suite_explicitly_excludes_live_youtube_marker`. An explicit live attempt
+authenticated and extracted the pinned reference archive,
 then failed in the production YouTube downloader with HTTP 502 before separation. It produced no
 correlation or SI-SDR score and is recorded as failure evidence, not a live pass. See
 `docs/documentation-coverage-matrix.md`.
 
-The corrected branch now has 25 offline known-stem contract cases, including exact extracted-member
-hash, creator-master authentication, composed-offset recovery, signed identity correlation,
-model/ffmpeg pre-load identity failures, and explicit required-CI exclusion of the live marker. A creator-master-only calibration produced the provisional scores above without
-calling YouTube; it is calibration evidence, not exact-candidate success.
+The first corrected branch revision raised that suite to 16. The current requirement is to run every
+collected offline case—its count may grow with regression coverage—plus explicit required-CI
+exclusion of the live marker. A creator-master-only calibration produced the provisional scores
+above without calling YouTube; it is calibration evidence, not exact-candidate success.
 
 The byte-identical implementation tree published on GitHub as exact commit
 `6e937a34f9036d92e909db3ce8848a5c39dc8e3b` passed the full quickcheck. A clean live retry
@@ -131,8 +144,8 @@ exact implementation-head failure evidence, not a live pass.
 ### Attack surface
 
 The opt-in test crosses three public HTTPS download boundaries, decodes untrusted audio/ZIP data,
-writes temporary files, invokes the existing `ffmpeg` yt-dlp postprocessor, and loads the existing
-Demucs model.
+writes temporary files, invokes yt-dlp with the verified sibling `ffmpeg` and `ffprobe` executables,
+and loads the existing Demucs model.
 
 ### Trust boundary
 
@@ -148,7 +161,7 @@ the only permitted storage root for downloaded media and extracted references.
   separator regression.
 - Login cookies, geo/DRM bypasses, or automated CI execution could expand legal, privacy, and account
   risk.
-- Decoder/model vulnerabilities and operator-provisioned model provenance remain upstream supply-chain risks.
+- Decoder/model vulnerabilities and operator provisioning remain upstream supply-chain risks.
 
 ### Mitigations
 
@@ -163,8 +176,11 @@ the only permitted storage root for downloaded media and extracted references.
   master is independently pinned by exact host, byte count, and full SHA-256.
 - The production YouTube downloader keeps its standard-URL allowlist, duration/size bounds,
   `noplaylist`, and no-geo-bypass policy. This test adds no cookies, credentials, login, paywall,
-  DRM, or bot-evasion behavior. TLS validation stays enabled and yt-dlp retains its maintained CA
-  bundle fallback, so a minimal container does not silently depend on an absent system trust store.
+  DRM, or bot-evasion behavior. TLS validation stays enabled. yt-dlp uses the operating system's
+  managed CA trust store when populated and otherwise retains its certifi-backed default.
+- Release/live execution supplies sibling ffmpeg and ffprobe absolute regular executables plus both
+  full SHA-256 values. A partial identity set, unexpected program name/directory, path drift, or
+  digest mismatch fails before yt-dlp runs.
 - Alignment is global and bounded. Duration and creator-master identity correlation distinguish
   fixture drift from model quality failure; the two lags are composed once and model outputs are not
   optimized after separation. Demucs random shift augmentation is disabled with `shifts=0`.
@@ -187,9 +203,10 @@ advice, and the test does not establish platform authorization. Upstream media d
 weights remain separate trust decisions. The fixture has only one full-length known canonical stem,
 so the test cannot claim quantitative four-stem accuracy.
 
-The model-weight redistribution license is not established. BandScope now verifies the exact byte
-count and full SHA-256 before local-only loading, and no successful exact-candidate live score or supported-platform matrix has yet been
-retained. These remain explicit release blockers rather than undocumented assumptions.
+The model-weight redistribution/provisioning decision is not established, and no successful
+exact-candidate live score or supported-platform matrix has yet been retained. Full-SHA pre-load
+verification is implemented, but these remaining items are explicit release blockers rather than
+undocumented assumptions.
 
 ## References
 

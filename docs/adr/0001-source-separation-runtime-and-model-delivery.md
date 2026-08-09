@@ -1,6 +1,6 @@
 # ADR-0001: Source Separation Runtime and Model Delivery
 
-Status: Accepted with release blockers
+Status: Proposed on active branch (implementation complete; release blockers remain)
 Date: 2026-08-09
 
 ## Context and drivers
@@ -10,9 +10,8 @@ separation. BandScope now uses Demucs 4.0.1 `htdemucs` to return vocals, bass, d
 local rehearsal analysis. The production boundary must remain local-first after model provisioning,
 bounded on CPU, platform-honest, and traceable to an exact model artifact.
 
-The upstream Demucs remote loader downloads weights on first use and verifies only the eight-hex
-hash prefix embedded in `955717e8-8726e21a.th`. BandScope does not use that remote loader: its
-production boundary requires a pre-provisioned local artifact and verifies 84,141,911 bytes plus SHA-256
+The former Demucs loader could download weights on first use and verified only the eight-hex hash
+prefix embedded in `955717e8-8726e21a.th`. The exact artifact is 84,141,911 bytes with SHA-256
 `8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4`. The Demucs code is MIT
 licensed, but no separate commercial redistribution grant for the official weights was identified;
 the upstream licensing discussion characterizes the weights as scientific-use material.
@@ -23,14 +22,16 @@ the upstream licensing discussion characterizes the weights as scientific-use ma
 2. The old `bandsplit-v1-profile` asset and inventory record are retired and must not reappear.
 3. The exact official source URL, signature, full SHA-256, byte size, license uncertainty, cache
    location, and release usage remain in `supply-chain/supplemental-component-inventory.json`.
-4. Runtime retrieval is not equivalent to bundling. Documentation and SBOM evidence must preserve
-   that distinction.
+4. Trusted external provisioning is not equivalent to bundling. Documentation and SBOM evidence
+   must preserve that distinction.
 5. A release claiming source-separation readiness must verify the full SHA-256 before any torch
    deserialization and must have a recorded legal decision for its chosen download or distribution
    path.
-6. Runtime model download is prohibited. Missing, symlinked, wrong-sized, or full-hash-mismatched
-   local bytes fail before deserialization. Source separation remains unavailable on macOS Intel
-   under the current dependency markers.
+6. Runtime model retrieval is forbidden. A trusted external provisioning step must populate the
+   expected user-scoped cache or supply the exact absolute inventoried file through
+   `BANDSCOPE_HTDEMUCS_MODEL_PATH`; missing, wrongly named, non-regular, symlinked, incorrectly
+   sized, or full-SHA-mismatched weights fail before deserialization. Source separation remains
+   unavailable on macOS Intel under the current dependency markers.
 
 ## Alternatives considered
 
@@ -38,16 +39,17 @@ the upstream licensing discussion characterizes the weights as scientific-use ma
 - Bundle official htdemucs weights immediately: rejected because repository/release size and model
   redistribution rights are unresolved.
 - Rely on Demucs' eight-hex prefix only: rejected because it is weaker than the repository's
-  full-integrity policy.
+  full-integrity policy and still permits deserialization before BandScope verifies exact identity.
 - Replace with ONNX or another commercially licensed model: viable future work, but it requires
   parity, quality, platform, performance, and licensing evidence.
 
 ## Consequences
 
 BandScope obtains real separation quality but inherits torch/Demucs resource cost, platform gaps,
-operator provisioning, and an upstream model-rights decision. Release evidence cannot describe the
-model as bundled. The supplemental inventory check now fails if the runtime
-model is missing, incompletely pinned, or replaced by the retired profile.
+an explicit provisioning requirement, and an upstream model-rights decision. The runtime is fully
+offline and fails closed when the cache is absent; that does not authorize redistribution or make
+the model bundled. The supplemental inventory check fails if the runtime model is missing,
+incompletely pinned, or replaced by the retired profile.
 
 ## Security and governance implications
 

@@ -2,6 +2,8 @@
 
 import hashlib
 import importlib
+import os
+import ssl
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,7 +13,7 @@ import yt_dlp  # type: ignore
 
 from bandscope_analysis.youtube import (
     MAX_YOUTUBE_URL_LENGTH,
-    _verified_ffmpeg_location,
+    _verify_executable_artifact,
     download_youtube_audio,
     validate_url,
 )
@@ -89,8 +91,13 @@ def test_download_youtube_audio_success(
     mock_ydl_class: MagicMock,
     mock_exists: MagicMock,
     mock_getsize: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test successful download."""
+    ssl_context = MagicMock()
+    ssl_context.get_ca_certs.return_value = [b"managed-ca"]
+    monkeypatch.setattr(ssl, "create_default_context", lambda: ssl_context)
+
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
 
@@ -122,8 +129,7 @@ def test_download_youtube_audio_success(
     assert called_opts["noprogress"] is True
     assert called_opts["noplaylist"] is True
     assert called_opts["geo_bypass"] is False
-    assert "compat_opts" not in called_opts
-    assert "nocheckcertificate" not in called_opts
+    assert called_opts["compat_opts"] == {"no-certifi"}
     assert called_opts["postprocessors"] == [{"key": "FFmpegExtractAudio"}]
     assert "%(id)s.%(ext)s" in called_opts["outtmpl"]
 
@@ -139,23 +145,104 @@ def test_download_youtube_audio_success(
     )
 
 
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_uses_system_ca_only_when_populated(
+    mock_ydl_class: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use OS-managed roots only after confirming the trust store is populated."""
+    ssl_context = MagicMock()
+    ssl_context.get_ca_certs.return_value = [b"managed-ca"]
+    monkeypatch.setattr(ssl, "create_default_context", lambda: ssl_context)
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 16 * 60}
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["error"]["code"] == "duration_exceeded"
+    options = mock_ydl_class.call_args.args[0]
+    assert options["compat_opts"] == {"no-certifi"}
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_keeps_ytdlp_ca_fallback_for_empty_system_store(
+    mock_ydl_class: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retain yt-dlp's certifi fallback when no system roots are available."""
+    ssl_context = MagicMock()
+    ssl_context.get_ca_certs.return_value = []
+    monkeypatch.setattr(ssl, "create_default_context", lambda: ssl_context)
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 16 * 60}
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["error"]["code"] == "duration_exceeded"
+    options = mock_ydl_class.call_args.args[0]
+    assert "compat_opts" not in options
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_keeps_ytdlp_ca_fallback_when_store_probe_fails(
+    mock_ydl_class: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Treat trust-store probe errors as unavailable roots rather than disabling TLS."""
+
+    def fail_to_create_context() -> ssl.SSLContext:
+        raise RuntimeError("host trust store unavailable")
+
+    monkeypatch.setattr(ssl, "create_default_context", fail_to_create_context)
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 16 * 60}
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["error"]["code"] == "duration_exceeded"
+    options = mock_ydl_class.call_args.args[0]
+    assert "compat_opts" not in options
+
+
+def _executable_file(path: Path, contents: bytes) -> str:
+    """Create a regular executable test artifact and return its SHA-256 digest."""
+    path.write_bytes(contents)
+    path.chmod(0o700)
+    return hashlib.sha256(contents).hexdigest()
+
+
+def test_media_runtime_executable_identity_requires_typed_pair() -> None:
+    """Reject a missing path/digest before attempting filesystem access."""
+    assert _verify_executable_artifact(None, None) is None
+
+
+def _verified_media_runtime(tmp_path: Path, suffix: str = "") -> dict[str, str]:
+    """Create sibling ffmpeg/ffprobe artifacts and return their exact identities."""
+    ffmpeg = tmp_path / f"ffmpeg{suffix}"
+    ffprobe = tmp_path / f"ffprobe{suffix}"
+    return {
+        "ffmpeg_path": str(ffmpeg),
+        "ffmpeg_sha256": _executable_file(ffmpeg, b"trusted ffmpeg artifact"),
+        "ffprobe_path": str(ffprobe),
+        "ffprobe_sha256": _executable_file(ffprobe, b"trusted ffprobe artifact"),
+    }
+
+
 @patch("bandscope_analysis.youtube.os.path.getsize")
 @patch("bandscope_analysis.youtube.os.path.exists")
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
-def test_download_uses_verified_absolute_ffmpeg_when_release_identity_is_configured(
+def test_download_youtube_audio_passes_verified_ffmpeg_path_to_ytdlp(
     mock_ydl_class: MagicMock,
     mock_exists: MagicMock,
     mock_getsize: MagicMock,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Bind yt-dlp post-processing to exact operator-provisioned executable bytes."""
-    ffmpeg_path = tmp_path / "ffmpeg"
-    ffmpeg_bytes = b"pinned ffmpeg executable"
-    ffmpeg_path.write_bytes(ffmpeg_bytes)
-    ffmpeg_path.chmod(0o700)
-    monkeypatch.setenv("BANDSCOPE_FFMPEG_PATH", str(ffmpeg_path))
-    monkeypatch.setenv("BANDSCOPE_FFMPEG_SHA256", hashlib.sha256(ffmpeg_bytes).hexdigest())
+    """Verify the complete media executable set before handing it to yt-dlp."""
+    suffix = ".exe" if os.name == "nt" else ""
+    runtime = _verified_media_runtime(tmp_path, suffix)
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
     mock_ydl.extract_info.return_value = {
@@ -165,81 +252,215 @@ def test_download_uses_verified_absolute_ffmpeg_when_release_identity_is_configu
     }
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
     mock_exists.return_value = True
-    mock_getsize.return_value = 10
+    mock_getsize.return_value = 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        "/tmp",
+        **runtime,
+    )
 
     assert result["ok"] is True
-    called_opts = mock_ydl_class.call_args[0][0]
-    assert called_opts["ffmpeg_location"] == str(ffmpeg_path.resolve())
+    options = mock_ydl_class.call_args.args[0]
+    assert options["ffmpeg_location"] == str((tmp_path / f"ffmpeg{suffix}").resolve())
 
 
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        {"ffmpeg_path": "/opt/bandscope/ffmpeg"},
+        {"ffmpeg_sha256": "0" * 64},
+        {
+            "ffmpeg_path": "/opt/bandscope/ffmpeg",
+            "ffmpeg_sha256": "0" * 64,
+            "ffprobe_path": "/opt/bandscope/ffprobe",
+        },
+    ],
+)
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
-def test_download_rejects_changed_ffmpeg_before_provider_access(
-    mock_ydl_class: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_download_youtube_audio_rejects_partial_media_runtime_identity(
+    mock_ydl_class: MagicMock,
+    runtime: dict[str, str],
 ) -> None:
-    """Fail closed when configured release evidence names changed executable bytes."""
-    ffmpeg_path = tmp_path / "ffmpeg"
-    ffmpeg_path.write_bytes(b"changed executable")
-    ffmpeg_path.chmod(0o700)
-    monkeypatch.setenv("BANDSCOPE_FFMPEG_PATH", str(ffmpeg_path))
-    monkeypatch.setenv("BANDSCOPE_FFMPEG_SHA256", "0" * 64)
-
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    """Reject a configured runtime unless all four identity fields are present."""
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        "/tmp",
+        **runtime,
+    )
 
     assert result == {
         "ok": False,
         "error": {
-            "code": "download_error",
-            "message": "YouTube import failed. Please use a local audio file instead.",
+            "code": "runtime_dependency_invalid",
+            "message": "The configured media runtime failed identity verification.",
         },
     }
     mock_ydl_class.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    ("path", "digest", "message"),
-    [
-        (None, "0" * 64, "requires both path and SHA-256"),
-        ("ffmpeg", None, "requires both path and SHA-256"),
-        ("ffmpeg", "not-a-digest", "full lowercase SHA-256"),
-        ("ffmpeg", "0" * 64, "absolute executable path"),
-    ],
-)
-def test_verified_ffmpeg_rejects_incomplete_or_relative_identity(
-    path: str | None,
-    digest: str | None,
-    message: str,
+@pytest.mark.parametrize("invalid_hash", ["0" * 63, "A" * 64, "not-a-sha256"])
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_malformed_ffmpeg_hash(
+    mock_ydl_class: MagicMock,
+    invalid_hash: str,
+    tmp_path: Path,
+) -> None:
+    """Require the canonical full lowercase SHA-256 representation."""
+    runtime = _verified_media_runtime(tmp_path)
+    runtime["ffmpeg_sha256"] = invalid_hash
+
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        "/tmp",
+        **runtime,
+    )
+
+    assert result["error"]["code"] == "runtime_dependency_invalid"
+    mock_ydl_class.assert_not_called()
+
+
+@pytest.mark.parametrize("artifact_kind", ["relative", "missing", "directory", "non_executable"])
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_invalid_ffmpeg_artifact(
+    mock_ydl_class: MagicMock,
+    artifact_kind: str,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Reject incomplete, malformed, or relative release executable identities."""
-    if path is None:
-        monkeypatch.delenv("BANDSCOPE_FFMPEG_PATH", raising=False)
+    """Reject ffmpeg paths that cannot identify a fixed regular executable file."""
+    runtime = _verified_media_runtime(tmp_path)
+    if artifact_kind == "relative":
+        ffmpeg = Path("ffmpeg")
+    elif artifact_kind == "missing":
+        ffmpeg = tmp_path / "missing-ffmpeg"
+    elif artifact_kind == "directory":
+        ffmpeg = tmp_path
     else:
-        monkeypatch.setenv("BANDSCOPE_FFMPEG_PATH", path)
-    if digest is None:
-        monkeypatch.delenv("BANDSCOPE_FFMPEG_SHA256", raising=False)
-    else:
-        monkeypatch.setenv("BANDSCOPE_FFMPEG_SHA256", digest)
+        ffmpeg = tmp_path / "ffmpeg"
+        ffmpeg.write_bytes(b"not executable")
+        monkeypatch.setattr(os, "access", lambda *_args: False)
 
-    with pytest.raises(ValueError, match=message):
-        _verified_ffmpeg_location()
+    runtime["ffmpeg_path"] = str(ffmpeg)
+    runtime["ffmpeg_sha256"] = "0" * 64
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        "/tmp",
+        **runtime,
+    )
+
+    assert result["error"]["code"] == "runtime_dependency_invalid"
+    mock_ydl_class.assert_not_called()
 
 
-@pytest.mark.parametrize("failure", ["missing", "not-executable"])
-def test_verified_ffmpeg_rejects_unavailable_absolute_executable(
-    failure: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_symlinked_ffmpeg(
+    mock_ydl_class: MagicMock,
+    tmp_path: Path,
 ) -> None:
-    """Reject absent or non-executable absolute ffmpeg candidates."""
-    ffmpeg_path = tmp_path / "ffmpeg"
-    if failure == "not-executable":
-        ffmpeg_path.write_bytes(b"ffmpeg")
-        ffmpeg_path.chmod(0o600)
-    monkeypatch.setenv("BANDSCOPE_FFMPEG_PATH", str(ffmpeg_path))
-    monkeypatch.setenv("BANDSCOPE_FFMPEG_SHA256", "0" * 64)
+    """Reject a replaceable symlink at the configured executable boundary."""
+    target = tmp_path / "real-ffmpeg"
+    expected_hash = _executable_file(target, b"trusted ffmpeg artifact")
+    ffprobe = tmp_path / "ffprobe"
+    ffprobe_hash = _executable_file(ffprobe, b"trusted ffprobe artifact")
+    ffmpeg = tmp_path / "ffmpeg"
+    try:
+        ffmpeg.symlink_to(target)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this platform")
 
-    with pytest.raises(ValueError, match="executable is unavailable"):
-        _verified_ffmpeg_location()
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        "/tmp",
+        ffmpeg_path=str(ffmpeg),
+        ffmpeg_sha256=expected_hash,
+        ffprobe_path=str(ffprobe),
+        ffprobe_sha256=ffprobe_hash,
+    )
+
+    assert result["error"]["code"] == "runtime_dependency_invalid"
+    mock_ydl_class.assert_not_called()
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_ffmpeg_hash_mismatch(
+    mock_ydl_class: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Fail closed before yt-dlp when the executable bytes do not match the manifest."""
+    runtime = _verified_media_runtime(tmp_path)
+    runtime["ffmpeg_sha256"] = "0" * 64
+
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        "/tmp",
+        **runtime,
+    )
+
+    assert result["error"]["code"] == "runtime_dependency_invalid"
+    mock_ydl_class.assert_not_called()
+
+
+@pytest.mark.parametrize("failure", ["probe_hash", "probe_name", "probe_directory", "ffmpeg_name"])
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_unverified_executable_set(
+    mock_ydl_class: MagicMock,
+    failure: str,
+    tmp_path: Path,
+) -> None:
+    """Authenticate every executable yt-dlp may derive from ffmpeg_location."""
+    runtime = _verified_media_runtime(tmp_path)
+    if failure == "probe_hash":
+        runtime["ffprobe_sha256"] = "0" * 64
+    elif failure == "probe_name":
+        wrong_probe = tmp_path / "media-probe"
+        runtime["ffprobe_path"] = str(wrong_probe)
+        runtime["ffprobe_sha256"] = _executable_file(wrong_probe, b"trusted probe")
+    elif failure == "probe_directory":
+        probe_directory = tmp_path / "probe-bin"
+        probe_directory.mkdir()
+        wrong_probe = probe_directory / "ffprobe"
+        runtime["ffprobe_path"] = str(wrong_probe)
+        runtime["ffprobe_sha256"] = _executable_file(wrong_probe, b"trusted probe")
+    else:
+        wrong_ffmpeg = tmp_path / "media-converter"
+        runtime["ffmpeg_path"] = str(wrong_ffmpeg)
+        runtime["ffmpeg_sha256"] = _executable_file(wrong_ffmpeg, b"trusted converter")
+
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        "/tmp",
+        **runtime,
+    )
+
+    assert result["error"]["code"] == "runtime_dependency_invalid"
+    mock_ydl_class.assert_not_called()
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_case_mismatched_program_names(
+    mock_ydl_class: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Require the exact sibling names yt-dlp derives on the active platform."""
+    suffix = ".EXE" if os.name == "nt" else ""
+    ffmpeg = tmp_path / f"FFMPEG{suffix}"
+    ffprobe = tmp_path / f"FFPROBE{suffix}"
+    runtime = {
+        "ffmpeg_path": str(ffmpeg),
+        "ffmpeg_sha256": _executable_file(ffmpeg, b"trusted ffmpeg artifact"),
+        "ffprobe_path": str(ffprobe),
+        "ffprobe_sha256": _executable_file(ffprobe, b"trusted ffprobe artifact"),
+    }
+
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        "/tmp",
+        **runtime,
+    )
+
+    assert result["error"]["code"] == "runtime_dependency_invalid"
+    mock_ydl_class.assert_not_called()
 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")
@@ -419,6 +640,14 @@ def test_main_block(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixtu
         "https://youtube.com/watch?v=abc123DEF45",
         "--out-dir",
         "/tmp",
+        "--ffmpeg-path",
+        "/opt/bandscope/ffmpeg",
+        "--ffmpeg-sha256",
+        "a" * 64,
+        "--ffprobe-path",
+        "/opt/bandscope/ffprobe",
+        "--ffprobe-sha256",
+        "b" * 64,
     ]
     monkeypatch.setattr(sys, "argv", test_args)
 
@@ -431,6 +660,14 @@ def test_main_block(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixtu
 
         with patch.object(sys, "exit") as mock_exit:
             bandscope_analysis.youtube.main()
+            mock_download.assert_called_with(
+                "https://youtube.com/watch?v=abc123DEF45",
+                "/tmp",
+                ffmpeg_path="/opt/bandscope/ffmpeg",
+                ffmpeg_sha256="a" * 64,
+                ffprobe_path="/opt/bandscope/ffprobe",
+                ffprobe_sha256="b" * 64,
+            )
             mock_exit.assert_called_with(0)
 
             # test failure exit 1
@@ -467,7 +704,6 @@ def test_module_execution(
     # Mock os to ensure runpy uses our mocked filesystem methods
     mock_os = MagicMock()
     # Keep some essential attributes
-    mock_os.environ = {}
     mock_os.path = MagicMock()
     mock_os.path.exists.return_value = True
     mock_os.path.getsize.return_value = 10 * 1024 * 1024

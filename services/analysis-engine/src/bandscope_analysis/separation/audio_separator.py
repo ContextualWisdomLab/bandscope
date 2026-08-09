@@ -1,4 +1,4 @@
-"""Local audio source separation using a verified Demucs model.
+"""Local audio source separation using an exact verified Demucs model.
 
 Replaces the previous FFT band-masking heuristic — which scored around -39 dB
 SI-SDR on a realistic mix (i.e. not real separation) — with Demucs (htdemucs), a
@@ -9,9 +9,12 @@ consume.
 Security Notes:
 - Treats the selected audio file as untrusted input: the path is normalized and
   verified to be a file, and a maximum byte size is enforced before decode.
-- Inference runs locally on CPU only after an operator provisions the exact
-  inventoried model artifact. Missing or changed bytes fail closed before
-  Demucs can deserialize them; this runtime never downloads model weights.
+- Inference runs locally on CPU only after the exact inventoried model has been
+  provisioned in the trusted user cache. Loading never falls back to a network
+  retrieval path.
+- The cache entry must be a non-symlinked regular file with the exact byte size
+  and full SHA-256; the verified in-memory bytes are the only bytes passed to
+  torch checkpoint deserialization.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -20,8 +23,10 @@ Security Notes:
 from __future__ import annotations
 
 import hashlib
+import io
 import logging
 import os
+import stat
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,10 +49,30 @@ logger = logging.getLogger(__name__)
 # Demucs htdemucs emits these four sources; this is the canonical stem set.
 _STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
 _EMPTY_RANGE_EPS = 1e-9
-_HTDEMUCS_MODEL_SIGNATURE = "955717e8"
-_HTDEMUCS_MODEL_FILENAME = "955717e8-8726e21a.th"
-_HTDEMUCS_MODEL_SHA256 = "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4"
-_HTDEMUCS_MODEL_BYTES = 84_141_911
+
+
+class ModelArtifactError(ValueError):
+    """Report a missing, untrusted, or unloadable approved model artifact."""
+
+
+@dataclass(frozen=True)
+class _ModelArtifactSpec:
+    """Exact identity of one approved runtime model checkpoint."""
+
+    signature: str
+    filename: str
+    sha256: str
+    size_bytes: int
+
+
+_MODEL_ARTIFACTS: dict[str, _ModelArtifactSpec] = {
+    "htdemucs": _ModelArtifactSpec(
+        signature="955717e8",
+        filename="955717e8-8726e21a.th",
+        sha256="8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
+        size_bytes=84_141_911,
+    )
+}
 _MODEL_PATH_ENV = "BANDSCOPE_HTDEMUCS_MODEL_PATH"
 
 
@@ -69,7 +94,7 @@ class AudioSeparationConfig:
     max_file_bytes: int = MAX_AUDIO_FILE_BYTES
     max_duration_seconds: float = float(MAX_ANALYSIS_DURATION_SECONDS)
     model_name: str = "htdemucs"
-    model_artifact_path: Path | None = None
+    model_cache_directory: Path | None = None
     device: str = "cpu"
     # Disable Demucs' random time-shift augmentation so repeated analysis of
     # the same bytes is deterministic and benchmark evidence is reproducible.
@@ -135,72 +160,66 @@ class AudioStemSeparator:
         return {name: _as_float_array(sources[name]) for name in _STEM_ORDER}
 
     def _load_model(self) -> Any:
-        """Lazily load and cache the Demucs model.
+        """Lazily load and cache the exact inventoried Demucs model.
 
         Demucs (and torch) are installed only on platforms with current torch
         wheels (see pyproject platform markers); elsewhere separation fails with a
         clear error the pipeline already surfaces safely.
 
-        The runtime passes a local repository to Demucs, disabling its remote
-        model path. Full byte size and SHA-256 are checked before Demucs or
-        torch can deserialize the artifact.
+        Loading is deliberately offline and fail-closed. The checkpoint must
+        already exist in the configured cache, and its exact size and full
+        SHA-256 are verified before the same in-memory bytes are deserialized.
         """
-        if self._model is None:
-            try:
-                from demucs.pretrained import (  # type: ignore[import-not-found, unused-ignore]
-                    get_model,
-                )
-            except ImportError as error:
-                raise ValueError(
-                    "Stem separation is not available on this platform (demucs/torch not installed)"
-                ) from error
+        if self._model is not None:
+            return self._model
 
-            artifact_path = self._verified_model_artifact_path()
-            model = get_model(_HTDEMUCS_MODEL_SIGNATURE, repo=artifact_path.parent)
-            model.eval()
-            self._model = model
-        return self._model
+        artifact = _MODEL_ARTIFACTS.get(self.config.model_name)
+        if artifact is None:
+            raise ModelArtifactError("Stem separation model is not inventoried")
 
-    def _verified_model_artifact_path(self) -> Path:
-        """Return the exact local htdemucs artifact after full identity checks."""
-        configured = self.config.model_artifact_path
-        if configured is None:
-            configured_text = os.environ.get(_MODEL_PATH_ENV)
-            if configured_text:
-                configured = Path(configured_text)
-            else:
-                torch_home = Path(
-                    os.environ.get(
-                        "TORCH_HOME",
-                        Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "torch",
-                    )
-                )
-                configured = torch_home / "hub" / "checkpoints" / _HTDEMUCS_MODEL_FILENAME
-
-        if configured.is_symlink():
-            raise ValueError("The htdemucs model artifact path must not be a symlink")
         try:
-            artifact_path = configured.expanduser().resolve(strict=True)
-        except (FileNotFoundError, OSError) as error:
-            raise ValueError(
-                "The verified htdemucs model artifact is unavailable; provision the "
-                f"inventoried file and set {_MODEL_PATH_ENV}"
-            ) from error
-        if not artifact_path.is_file() or artifact_path.name != _HTDEMUCS_MODEL_FILENAME:
-            raise ValueError(
-                "The verified htdemucs model artifact is unavailable; the exact "
-                f"{_HTDEMUCS_MODEL_FILENAME} file is required"
+            import torch
+            from demucs.states import (  # type: ignore[import-not-found, unused-ignore]
+                load_model,
             )
-        if artifact_path.stat().st_size != _HTDEMUCS_MODEL_BYTES:
-            raise ValueError("The htdemucs model artifact failed byte-size verification")
+        except ImportError as error:
+            raise ValueError(
+                "Stem separation is not available on this platform (demucs/torch not installed)"
+            ) from error
 
-        digest = hashlib.sha256()
-        with artifact_path.open("rb") as model_file:
-            for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
-                digest.update(chunk)
-        if digest.hexdigest() != _HTDEMUCS_MODEL_SHA256:
-            raise ValueError("The htdemucs model artifact failed full SHA-256 verification")
-        return artifact_path
+        configured_path = os.environ.get(_MODEL_PATH_ENV)
+        if self.config.model_cache_directory is not None:
+            artifact_path = Path(self.config.model_cache_directory) / artifact.filename
+        elif configured_path:
+            artifact_path = Path(configured_path)
+            if (artifact_path.is_absolute(), artifact_path.name) != (True, artifact.filename):
+                raise ModelArtifactError(
+                    "Stem separation model path must use the absolute inventoried filename"
+                )
+        else:
+            try:
+                artifact_path = Path(torch.hub.get_dir()) / "checkpoints" / artifact.filename
+            except Exception:
+                raise ModelArtifactError(
+                    "Stem separation model cache location is unavailable"
+                ) from None
+
+        payload = _read_verified_model_artifact(artifact_path, artifact)
+        try:
+            # This exact in-memory payload passed full SHA-256 and size verification above.
+            package = torch.load(  # nosec B614
+                io.BytesIO(payload),
+                map_location="cpu",
+                weights_only=False,
+            )
+            model = load_model(package)  # type: ignore[no-untyped-call]
+            model.eval()
+        except Exception:
+            raise ModelArtifactError(
+                "Stem separation model failed to load after integrity verification"
+            ) from None
+        self._model = model
+        return self._model
 
     def _apply_model(self, model: Any, audio: AudioStemArray) -> dict[str, np.ndarray[Any, Any]]:
         """Apply Demucs to a mono signal, returning demucs-source-name -> mono array."""
@@ -289,3 +308,37 @@ def _as_float_array(values: object) -> AudioStemArray:
     array = np.ravel(np.asarray(values, dtype=np.float32))
     finite = np.nan_to_num(array, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
     return cast(AudioStemArray, finite)
+
+
+def _read_verified_model_artifact(path: Path, artifact: _ModelArtifactSpec) -> bytes:
+    """Read one exact regular cache file and verify its full artifact identity."""
+    descriptor: int | None = None
+    try:
+        cache_metadata = path.lstat()
+        if stat.S_ISLNK(cache_metadata.st_mode):
+            raise ModelArtifactError("Stem separation model cache entry is a symlink")
+        if not stat.S_ISREG(cache_metadata.st_mode):
+            raise ModelArtifactError("Stem separation model cache entry is not a regular file")
+
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        opened_metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(opened_metadata.st_mode):
+            raise ModelArtifactError("Stem separation model cache entry is not a regular file")
+        if opened_metadata.st_size != artifact.size_bytes:
+            raise ModelArtifactError("Stem separation model does not match inventoried byte size")
+        with os.fdopen(descriptor, "rb", closefd=False) as fileobj:
+            payload = fileobj.read(artifact.size_bytes + 1)
+    except FileNotFoundError:
+        raise ModelArtifactError("Stem separation model is not provisioned") from None
+    except ModelArtifactError:
+        raise
+    except OSError:
+        raise ModelArtifactError("Stem separation model could not be opened securely") from None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+    if hashlib.sha256(payload).hexdigest() != artifact.sha256:
+        raise ModelArtifactError("Stem separation model does not match inventoried SHA-256")
+    return payload

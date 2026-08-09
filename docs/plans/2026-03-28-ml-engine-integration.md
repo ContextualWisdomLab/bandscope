@@ -18,9 +18,9 @@ This document outlines the MECE execution strategy to incrementally substitute m
 - **Output**: 4 discrete stems (vocals, bass, drums, other).
 - **Validity**: The active known-stem branch adds production-path vocal SI-SDR improvement and stem
   assignment checks; see `docs/PRD.md`, `docs/TRD.md`, and ADR-0002.
-- **Open release blockers**: full-SHA model verification before deserialization, model-rights
-  decision, successful exact-candidate live evidence, threshold calibration, and supported-platform
-  proof.
+- **Open release blockers**: model-rights/legal delivery decision, successful exact-candidate live
+  evidence, threshold calibration, and supported-platform proof. Full-SHA verification before
+  deserialization is implemented and regression-tested.
 
 ### Track 3: Harmonic & Pitch Pipelines (#107) (COMPLETED)
 
@@ -48,15 +48,16 @@ The primary trust boundary is between the user's filesystem (audio files) and th
 
 ### Mitigations
 We restrict audio ingestion through `librosa`/`soundfile` using strict format constraints. Model
-inference runs locally and under low privilege where possible. The implemented loader never
-retrieves model bytes: it requires trusted local provisioning and verifies the exact filename, byte
-count, and full SHA-256 before deserialization. Model rights and permitted delivery remain release
-decisions; see ADR-0001.
+inference runs locally and under low privilege where possible. A trusted provisioning step must
+place the exact inventoried model in the user cache; runtime never downloads a missing model. The
+separator rejects symlinks, size drift, and full-SHA mismatch before deserializing the same verified
+bytes; see ADR-0001.
 
 ### Test Points
 - Loading truncated or corrupted WAV/MP3 files.
 - Providing extremely large audio files to test OOM behavior.
-- Validating that no external network calls occur after trusted model-cache provisioning.
+- Validating that no external network calls occur during model loading, including when the cache is
+  absent or invalid.
 
 ### Realistic Threats
 - OOM (Out Of Memory) crashing the user's host OS during `demucs` execution.

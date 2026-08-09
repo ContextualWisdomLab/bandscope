@@ -5,6 +5,7 @@
     {
       "name": "yt-dlp",
       "version": "2026.7.4",
+      "minimumVersion": "2026.7.4",
       "sourceUrl": "https://pypi.org/project/yt-dlp/",
       "license": "Unlicense",
       "storagePath": "services/analysis-engine/uv.lock",
@@ -18,9 +19,18 @@
       "version": "operator-managed supported release",
       "sourceUrl": "https://ffmpeg.org/download.html",
       "license": "LGPL-2.1-or-later or GPL-2.0-or-later, depending on build configuration",
-      "storagePath": "operator-provided absolute path; BANDSCOPE_FFMPEG_PATH and BANDSCOPE_FFMPEG_SHA256 bind release evidence; not bundled",
+      "storagePath": "operator-configured absolute executable path; not bundled by BandScope",
       "distribution": "operator-provided",
-      "releaseUsage": "Required by yt-dlp audio extraction and media decoding; release preflight records the resolved version."
+      "releaseUsage": "Required by yt-dlp audio extraction and media decoding; release/live preflight verifies the exact absolute path and full executable SHA-256 and records ffmpeg -version plus trusted package provenance."
+    },
+    {
+      "name": "ffprobe",
+      "version": "same trusted package/build as ffmpeg",
+      "sourceUrl": "https://ffmpeg.org/download.html",
+      "license": "LGPL-2.1-or-later or GPL-2.0-or-later, depending on build configuration",
+      "storagePath": "operator-configured absolute executable path beside ffmpeg; not bundled by BandScope",
+      "distribution": "operator-provided",
+      "releaseUsage": "yt-dlp may invoke ffprobe when extracting audio; release/live preflight verifies its sibling path, full SHA-256, version output, and shared trusted package provenance before ffmpeg_location is passed."
     }
   ],
   "modelArtifacts": [
@@ -29,18 +39,18 @@
       "runtimeModelName": "htdemucs",
       "version": "demucs-4.0.1-signature-955717e8",
       "sourceUrl": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
-      "license": "No separate model-weight redistribution grant identified; runtime retrieval only, not bundled",
+      "license": "No separate model-weight redistribution grant identified; trusted external provisioning only, not bundled",
       "checksum": "sha256:8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
       "sizeBytes": 84141911,
-      "storagePath": "user runtime cache managed by torch.hub/demucs; not committed or bundled",
-      "distribution": "runtime-cache",
+      "storagePath": "trusted provisioning places exact 955717e8-8726e21a.th in the user-scoped torch.hub checkpoints cache or supplies its absolute BANDSCOPE_HTDEMUCS_MODEL_PATH; not committed or bundled",
+      "distribution": "pre-provisioned-runtime-cache",
       "releaseUsage": "Loaded locally on supported platforms to separate vocals, bass, drums, and other stems.",
-      "verification": "BandScope requires the exact local filename and verifies 84,141,911 bytes plus the full SHA-256 before passing a local-only repository to Demucs; missing, symlinked, or mismatched bytes fail before deserialization."
+      "verification": "BandScope rejects missing, symlinked, non-regular, incorrectly sized, or full-SHA-mismatched cache entries and deserializes the same 84,141,911 verified bytes only after SHA-256 8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4 passes. Runtime network fallback is forbidden."
     }
   ],
   "notes": [
     "The retired bandsplit-v1 FFT profile is not a production separator artifact and must not reappear.",
     "Track source URL, version, full checksum, byte size, license, distribution, storage path, and release usage for every model artifact.",
-    "Runtime retrieval does not authorize redistribution; release packaging must fail if it attempts to bundle an artifact without an explicit license decision."
+    "External provisioning does not authorize redistribution; release packaging must fail if it attempts to bundle an artifact without an explicit license decision."
   ]
 }

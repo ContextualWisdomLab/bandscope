@@ -28,7 +28,7 @@ and data-flow views are in `docs/architecture/diagrams.md`.
 | TRD-KS-008 | Reject candidate drift when YouTube/master duration differs by > 1.0 s or aligned identity correlation is < 0.90. | Pre-inference live assertions against the pinned finished master. |
 | TRD-KS-009 | Run deterministic contract/security tests by default and require `BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1` for live network/model execution. | Pytest marker and environment guard. |
 | TRD-KS-010 | Clean every downloaded/scored artifact on success and failure. | Nested `TemporaryDirectory` plus postcondition. |
-| TRD-KS-011 | Bind model identity to inventory and full SHA-256 before release. | `AudioStemSeparator._verified_model_artifact_path` requires the exact local filename, 84,141,911 bytes, and SHA-256 `8726e21a…a8b4` before local-only Demucs loading. |
+| TRD-KS-011 | Bind model identity to inventory and full SHA-256 before any torch deserialization. | Inventory records htdemucs signature `955717e8`, 84,141,911 bytes, and SHA-256 `8726e21a…a8b4`; runtime verifies and deserializes the same in-memory bytes with no download fallback. |
 
 ## Data and class contracts
 
@@ -75,22 +75,28 @@ global random-seed side effect in the test harness.
 
 ## Model delivery and supply chain
 
-`AudioStemSeparator` maps `htdemucs` to signature `955717e8` and requires the exact local
-`955717e8-8726e21a.th` artifact. It rejects a missing/symlinked file, wrong byte count, or full
-SHA-256 mismatch before passing a local repository to Demucs, so this runtime has no model-download
-path. The model remains unbundled; ADR-0001 still requires an explicit rights and permitted-delivery
-decision before release readiness.
+`AudioStemSeparator` accepts only Demucs 4.0.1 `htdemucs`, mapped to signature `955717e8` and exact
+artifact `955717e8-8726e21a.th`. A trusted provisioning step must place it in the configured
+user-scoped cache or provide that exact absolute file through
+`BANDSCOPE_HTDEMUCS_MODEL_PATH`. Runtime rejects a missing, symlinked, non-regular, incorrectly
+sized, wrongly named, or full-SHA-mismatched artifact before torch deserialization, reads it once,
+and deserializes those same verified bytes. It never calls the remote Demucs loader or downloads a
+missing checkpoint. The model is not bundled; ADR-0001 keeps the model-rights/legal delivery
+decision as a release blocker.
 
-`ffmpeg` is operator-provided. Ordinary local imports may use yt-dlp's normal discovery, but release
-evidence and the live benchmark require `BANDSCOPE_FFMPEG_PATH` to name an absolute executable and
-`BANDSCOPE_FFMPEG_SHA256` to bind its full digest; the production downloader revalidates those bytes
-before provider access. yt-dlp is locked at the exact version in `uv.lock`.
+`ffmpeg` and `ffprobe` are operator-provided siblings and yt-dlp is locked to `2026.7.4`. Ordinary
+product use may resolve the media tools from `PATH`, but release/live evidence must pass both
+absolute executable paths and both full SHA-256 values as one four-part identity. Preflight records
+both paths, hashes, exact platform-native sibling names, version outputs, and shared trusted package
+identity before any reference or YouTube access; none may be described as bundled unless packaging
+and licensing change.
 
 ## Failure taxonomy
 
 - `unsupported_url`, `restricted_content`, `duration_exceeded`, `size_exceeded`: production intake
   policy failures.
 - `download_failed`, `download_error`, `file_not_found`: live media/provider/tool failures.
+- `runtime_dependency_invalid`: configured ffmpeg/ffprobe identity set, layout, or hash failure.
 - Reference byte/hash/member/redirect error: fixture integrity or SSRF boundary failure.
 - YouTube/master duration drift above 1.0 s or identity correlation below 0.90: wrong or drifted
   candidate/transcode.
@@ -102,15 +108,17 @@ lane; it does not authorize a bypass or stop unrelated repository work.
 
 ## Verification and evidence
 
-Default verification runs the 25 deterministic known-stem contract tests and explicitly excludes
-the live marker. A live run uses the exact
+Default verification runs every collected deterministic known-stem contract test and explicitly
+excludes the live marker. A live run uses the exact
 command in the operator guide. Evidence must include exact commit and dependency lock, model full
 hash, fixture archive full hash, public video ID, OS/architecture, result code, correlation, baseline
 SI-SDR, vocal SI-SDR, improvement, assignment margin, duration, and cleanup result. Raw audio,
 archive contents, local paths, provider response bodies, cookies, and credentials are forbidden.
 
-On 2026-08-09, commit `5a3648a11d9097b8da48bb4a3ccbd97986aec25b` passed all 13 offline
-contract tests. Its explicit live attempt successfully validated the pinned reference archive but
+On 2026-08-09, commit `5a3648a11d9097b8da48bb4a3ccbd97986aec25b` passed a 13-test
+pre-correction partial suite. It did not yet contain the creator-master authentication,
+two-global-offset composition, or explicit root-suite live-marker exclusion cases that raised the
+corrected suite to 16. Its explicit live attempt successfully validated the pinned reference archive but
 failed at the production YouTube download boundary with HTTP 502 and produced no model score. This
 is failure evidence, not a passing live benchmark.
 

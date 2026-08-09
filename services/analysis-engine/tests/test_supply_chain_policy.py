@@ -94,68 +94,227 @@ def test_supplemental_inventory_accepts_pinned_htdemucs_runtime_model() -> None:
 
 
 @pytest.mark.parametrize(
-    ("inventory", "expected"),
+    ("old", "new", "message"),
     [
-        ([], "supplemental inventory root must be an object"),
-        ({"modelArtifacts": []}, "supplemental inventory missing runtime model: htdemucs"),
         (
-            {
-                "modelArtifacts": [
-                    {
-                        "name": "Hybrid Transformer Demucs four-source weights",
-                        "runtimeModelName": "htdemucs",
-                        "version": "4.0.1",
-                        "sourceUrl": "https://models.example/htdemucs.th",
-                        "license": "operator-reviewed",
-                        "checksum": f"sha256:{'0' * 64}",
-                        "sizeBytes": True,
-                        "storagePath": "local cache",
-                        "distribution": "runtime-cache",
-                        "releaseUsage": "local separation",
-                        "verification": "full digest before load",
-                    }
-                ]
-            },
-            "requires positive integer sizeBytes",
+            "955717e8-8726e21a.th",
+            "955717e8-00000000.th",
+            "filename does not match separator manifest",
         ),
         (
-            {
-                "modelArtifacts": [
-                    {
-                        "name": 7,
-                        "runtimeModelName": "htdemucs",
-                        "version": "4.0.1",
-                        "sourceUrl": "https://models.example/htdemucs.th",
-                        "license": "operator-reviewed",
-                        "checksum": f"sha256:{'0' * 64}",
-                        "sizeBytes": 7,
-                        "storagePath": "local cache",
-                        "distribution": "runtime-cache",
-                        "releaseUsage": "local separation",
-                        "verification": "full digest before load",
-                    }
-                ]
-            },
-            "field name must be a non-empty string",
+            "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
+            "a" * 64,
+            "checksum does not match separator manifest",
         ),
+        ("size_bytes=84_141_911", "size_bytes=84_141_912", "sizeBytes does not match"),
     ],
 )
-def test_supplemental_inventory_rejects_malformed_schema(
-    tmp_path: Path, inventory: object, expected: str
+def test_supplemental_inventory_rejects_separator_manifest_drift(
+    tmp_path: Path,
+    old: str,
+    new: str,
+    message: str,
 ) -> None:
-    """Return stable diagnostics for untrusted inventory shapes and field types."""
+    """Cross-check code-owned model identity against the supplemental inventory."""
     supply_chain = load_module(
         "scripts/checks/verify_supply_chain.py",
-        f"verify_supply_chain_malformed_{abs(hash(expected))}",
+        f"verify_supply_chain_model_drift_{message.split()[0]}",
     )
+    repo_root = Path(__file__).resolve().parents[3]
+    inventory_path = repo_root / "supply-chain" / "supplemental-component-inventory.json"
+    source_path = (
+        repo_root
+        / "services"
+        / "analysis-engine"
+        / "src"
+        / "bandscope_analysis"
+        / "separation"
+        / "audio_separator.py"
+    )
+    drifted_source = source_path.read_text(encoding="utf-8").replace(old, new, 1)
+    drifted_path = tmp_path / "audio_separator.py"
+    drifted_path.write_text(drifted_source, encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        drifted_path,
+    )
+
+    assert any(message in violation for violation in violations)
+
+
+def test_supplemental_inventory_rejects_tool_and_nonruntime_model_drift(
+    tmp_path: Path,
+) -> None:
+    """Bind yt-dlp to uv.lock, require both media tools, and validate every model."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_tool_inventory_drift",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    inventory = json.loads(
+        (repo_root / "supply-chain" / "supplemental-component-inventory.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    inventory["packageManagedTools"][0]["version"] = "2026.7.3"
+    inventory["operatorProvidedTools"] = [
+        tool for tool in inventory["operatorProvidedTools"] if tool["name"] != "ffprobe"
+    ]
+    auxiliary_model = dict(inventory["modelArtifacts"][0])
+    auxiliary_model.update(
+        {
+            "name": "Auxiliary test model",
+            "runtimeModelName": "auxiliary-model",
+            "version": "test-signature",
+            "sizeBytes": True,
+        }
+    )
+    inventory["modelArtifacts"].append(auxiliary_model)
     inventory_path = tmp_path / "inventory.json"
     inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        repo_root
+        / "services"
+        / "analysis-engine"
+        / "src"
+        / "bandscope_analysis"
+        / "separation"
+        / "audio_separator.py",
+        repo_root / "services" / "analysis-engine" / "uv.lock",
+    )
+
+    assert "supplemental inventory yt-dlp version does not match uv.lock" in violations
+    assert "supplemental inventory missing operator tool: ffprobe" in violations
+    assert (
+        "supplemental inventory runtime model auxiliary-model requires positive sizeBytes"
+        in violations
+    )
+
+
+def test_supplemental_inventory_rejects_non_object_root(tmp_path: Path) -> None:
+    """Diagnose an array-valued inventory instead of raising an attribute error."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_root_type",
+    )
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text("[]", encoding="utf-8")
     separator_path = tmp_path / "audio_separator.py"
     separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
 
-    violations = supply_chain.supplemental_inventory_violations(inventory_path, separator_path)
+    assert supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        separator_path,
+    ) == ["supplemental inventory must be an object"]
 
-    assert any(expected in violation for violation in violations)
+
+def test_supplemental_inventory_rejects_empty_model_artifacts(tmp_path: Path) -> None:
+    """Reject an object that carries no artifact for the configured runtime model."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_empty",
+    )
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text('{"modelArtifacts": []}', encoding="utf-8")
+    separator_path = tmp_path / "audio_separator.py"
+    separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
+
+    assert supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        separator_path,
+    ) == ["supplemental inventory modelArtifacts must not be empty"]
+
+
+def test_supplemental_inventory_rejects_boolean_size_and_invalid_fields(
+    tmp_path: Path,
+) -> None:
+    """Require real integer sizes and non-empty typed artifact metadata."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_field_types",
+    )
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(
+        json.dumps(
+            {
+                "modelArtifacts": [
+                    {
+                        "name": "Hybrid Transformer Demucs",
+                        "runtimeModelName": "htdemucs",
+                        "version": "",
+                        "sourceUrl": "https://models.example/htdemucs.th",
+                        "license": [],
+                        "checksum": "sha256:" + ("a" * 64),
+                        "sizeBytes": True,
+                        "storagePath": "cache/checkpoints",
+                        "distribution": "runtime-cache",
+                        "releaseUsage": "local separation",
+                        "verification": "",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    separator_path = tmp_path / "audio_separator.py"
+    separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        separator_path,
+    )
+
+    assert "supplemental inventory runtime model htdemucs requires positive sizeBytes" in violations
+    assert (
+        "supplemental inventory runtime model htdemucs requires non-empty string field: version"
+        in violations
+    )
+    assert (
+        "supplemental inventory runtime model htdemucs requires non-empty string field: license"
+        in violations
+    )
+    assert (
+        "supplemental inventory runtime model htdemucs requires non-empty string field: "
+        "verification" in violations
+    )
+
+
+def test_security_pattern_gate_accepts_only_verified_model_deserialization() -> None:
+    """Accept the exact verified checkpoint call while retaining the general pickle ban."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_verified_model_repo",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    assert security_gates.security_pattern_violations(repo_root) == []
+
+
+def test_security_pattern_gate_rejects_second_model_deserialization(tmp_path: Path) -> None:
+    """Do not let the narrow verified-checkpoint rule hide another torch load site."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_second_model_load",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    second_load = "\ntorch." + "load(untrusted_checkpoint)\n"
+    target_path.write_text(
+        source_path.read_text(encoding="utf-8") + second_load,
+        encoding="utf-8",
+    )
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary."
+    ]
 
 
 def central_required_workflow_policy_text() -> str:

@@ -12,20 +12,22 @@
 - Added canonical PRD, TRD, ADR, architecture/UML/logical-artifact diagrams, traceability, and
   machine-checked documentation coverage for the known-stem quality boundary.
 - Replaced the retired FFT-era bandsplit model inventory with the exact htdemucs runtime artifact,
-  full SHA-256, byte size, delivery status, ffmpeg prerequisite, and release blockers.
+  full SHA-256, byte size, delivery status, verified ffmpeg/ffprobe prerequisites, and release
+  blockers.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
 ### Fixed
 
-- Kept YouTube TLS verification enabled while retaining yt-dlp's maintained CA-bundle fallback for
-  minimal containers without a configured system trust store.
+- Kept YouTube TLS verification enabled, using populated OS-managed CA roots when available and
+  retaining yt-dlp's maintained CA-bundle fallback when the system trust store is empty or fails.
 - Raised `pdfjs-dist`, `nanoid`, and `undici` to patched versions for the current high-severity
   advisories and added a mutation-sensitive lockfile floor contract.
-- Made htdemucs inference fail closed before deserialization unless the exact local artifact passes
-  filename, non-symlink, byte-size, and full-SHA-256 checks; the runtime no longer downloads weights.
-- Bound release/live benchmark ffmpeg execution to an operator-provided absolute path and full
-  SHA-256 while preserving fail-closed provider and model evidence.
+- Made htdemucs loading offline and fail-closed: the runtime accepts only the inventoried filename,
+  byte size, and full SHA-256, rejects filesystem identity races, and deserializes the verified
+  bytes rather than downloading a missing checkpoint.
+- Verified exact platform-native sibling ffmpeg/ffprobe executable names and identities before any
+  live fixture access or yt-dlp invocation.
 - Reconciled stale CodeRabbit-gate wording with the canonical stable-check and review-equivalent
   policy; qualifying evidence is now defined against the exact current head, and a rate-limited,
   status-only, author, or predecessor review is not treated as completed review evidence.

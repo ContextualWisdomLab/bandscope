@@ -29,7 +29,7 @@ def test_documentation_contract_accepts_checked_in_authorities() -> None:
 def test_documentation_contract_checks_every_nested_plan_security_section(
     tmp_path: Path,
 ) -> None:
-    """Reject newly added plan documents that omit their security boundary."""
+    """Reject newly added plan documents that omit their canonical security boundary."""
     documentation = load_module("scripts/checks/verify_docs.py", "verify_docs_contract_nested_plan")
     plan = tmp_path / "docs" / "plans" / "future" / "unsafe-plan.md"
     plan.parent.mkdir(parents=True)
@@ -37,4 +37,35 @@ def test_documentation_contract_checks_every_nested_plan_security_section(
 
     violations = documentation.documentation_violations(tmp_path)
 
-    assert "docs/plans/future/unsafe-plan.md missing section: Security Notes" in violations
+    assert "docs/plans/future/unsafe-plan.md missing section: ## Security Notes" in violations
+
+
+def test_security_notes_contract_discovers_nested_plan_without_canonical_section(
+    tmp_path: Path,
+) -> None:
+    """Reject nested plan documents that omit the canonical Security Notes section."""
+    security_notes = load_module(
+        "scripts/checks/verify_security_notes.py",
+        "verify_security_notes_nested_plan",
+    )
+    plan_path = tmp_path / "docs" / "plans" / "nested" / "new-plan.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        "# New plan\n\nSecurity Notes are considered elsewhere.\n",
+        encoding="utf-8",
+    )
+
+    assert security_notes.security_notes_violations(tmp_path) == [
+        "docs/plans/nested/new-plan.md missing section: ## Security Notes"
+    ]
+
+
+def test_security_notes_contract_accepts_checked_in_plans() -> None:
+    """Accept every checked-in plan only when its complete canonical section is present."""
+    security_notes = load_module(
+        "scripts/checks/verify_security_notes.py",
+        "verify_security_notes_repo",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    assert security_notes.security_notes_violations(repo_root) == []

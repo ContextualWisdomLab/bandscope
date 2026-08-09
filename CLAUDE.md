@@ -60,8 +60,9 @@ Three layers, decoupled through shared contracts:
 - `services/analysis-engine` — Python package `bandscope_analysis` (librosa/numpy). Entry point `cli.py` reads a JSON job request on stdin and prints a structured job-status JSON envelope on stdout (`--progress-jsonl` streams progress lines). `api.py` orchestrates the pipeline across the `separation`, `sections`, `roles`, `chords`, `ranges`, `temporal`, `transcription`, and `youtube` modules.
 - Production source separation uses `htdemucs` on supported platforms. The exact runtime model
   artifact is inventoried but not bundled; operators must provision it locally, and production
-  verifies its byte size and full SHA-256 before local-only Demucs loading. The active known-stem test crosses the
-  production YouTube and separator boundaries; see `docs/TRD.md` and the operator guide.
+  verifies its byte size and full SHA-256 before deserializing those same in-memory bytes. The
+  active known-stem test crosses the production YouTube and separator boundaries; see `docs/TRD.md`
+  and the operator guide.
 
 Data flow: React UI → Tauri IPC command → Rust validation + Python subprocess over stdin/stdout → job status and progress events emitted back to the UI.
 

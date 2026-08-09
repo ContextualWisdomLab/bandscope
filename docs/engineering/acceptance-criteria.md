@@ -44,7 +44,7 @@ For protected branches, intended checks are documented in `docs/security/github-
 
 ## Source-separation quality gates
 
-- Every separator or downloader change must keep the 25 deterministic known-stem metric, alignment,
+- Every separator or downloader change must keep all collected deterministic known-stem metric, alignment,
   archive-integrity, redirect/path, cleanup, and failure-contract cases passing.
 - A live evidence claim must cross `download_youtube_audio()` and `AudioStemSeparator.separate()` on
   the same exact candidate, authenticate the separately pinned creator master, compose the two
@@ -57,10 +57,9 @@ For protected branches, intended checks are documented in `docs/security/github-
   provider or model failure does not justify weakening it.
 - Skipped, disabled, HTTP/provider-failed, model-unavailable, integrity-failed, drifted, non-finite,
   predecessor-head, or stale-base execution is not passing evidence.
-- Before the lane can block a release, ADR-0001/0002 blockers—authorization, a recorded
-  model-rights/legal delivery decision, exact-candidate pass, calibration, and supported-platform
-  evidence—must be closed. Full-hash pre-load verification is already implemented and must remain
-  green.
+- Before the lane can block a release, ADR-0001/0002 blockers—content/platform authorization,
+  full-hash pre-load verification, an explicit model-rights/legal delivery decision,
+  exact-candidate pass, calibration, and supported-platform evidence—must be closed.
 
 ## Evidence policy
 

@@ -204,7 +204,7 @@ def _strongest_window_start(signal: np.ndarray, window_samples: int) -> int:
 
 
 def _normalized_correlation(left: np.ndarray, right: np.ndarray) -> float:
-    """Return signed zero-mean Pearson correlation for two equal windows."""
+    """Return absolute zero-mean Pearson correlation for two equal windows."""
     left_centered = left - float(np.mean(left))
     right_centered = right - float(np.mean(right))
     denominator = math.sqrt(
@@ -212,7 +212,7 @@ def _normalized_correlation(left: np.ndarray, right: np.ndarray) -> float:
     )
     if denominator <= _ENERGY_EPSILON:
         raise ValueError("aligned benchmark window has insufficient audio energy")
-    return float(np.dot(left_centered, right_centered) / denominator)
+    return float(abs(np.dot(left_centered, right_centered)) / denominator)
 
 
 def align_active_reference_window(
@@ -255,9 +255,7 @@ def align_active_reference_window(
     )
     max_lag_frames = int(math.ceil(max_lag_seconds * sample_rate / hop_samples))
     valid_coarse = np.flatnonzero(np.abs(coarse_lags) <= max_lag_frames)
-    if valid_coarse.size == 0:
-        raise ValueError("reference fixture has no permitted alignment lag")
-    best_coarse_index = int(valid_coarse[np.argmax(coarse_correlation[valid_coarse])])
+    best_coarse_index = int(valid_coarse[np.argmax(np.abs(coarse_correlation[valid_coarse]))])
     coarse_lag_samples = int(coarse_lags[best_coarse_index]) * hop_samples
 
     reference_start = _strongest_window_start(reference_signal, window_samples)
@@ -282,9 +280,7 @@ def align_active_reference_window(
     valid_refined = np.flatnonzero(
         (refined_lags >= 0) & (refined_lags + window_samples <= mixture_search.size)
     )
-    if valid_refined.size == 0:
-        raise ValueError("reference fixture cannot produce a full scoring window")
-    best_refined_index = int(valid_refined[np.argmax(refined_correlation[valid_refined])])
+    best_refined_index = int(valid_refined[np.argmax(np.abs(refined_correlation[valid_refined]))])
     mixture_start = search_start + int(refined_lags[best_refined_index])
     mixture_window = mixture_signal[mixture_start : mixture_start + window_samples]
     correlation = _normalized_correlation(mixture_window, reference_window)

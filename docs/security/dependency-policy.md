@@ -15,7 +15,8 @@ Because of that, dependency review, security audit, SBOM generation, and supply-
 - generate machine-readable SBOMs in CI
 - upload SBOMs as GitHub Actions artifacts
 - attach release-time SBOMs to GitHub Releases when a release exists
-- track bundled binaries and model artifacts outside package-manager graphs
+- track lock-managed auxiliary tools, operator-provided executables, bundled binaries, and model
+  artifacts when ecosystem SBOMs alone do not prove runtime identity
 - keep dependency review, audit, inventory, and SBOM checks as required protected-branch merge gates
 - require Windows and macOS build gates for protected-branch changes and release validation
 
@@ -25,7 +26,8 @@ Because of that, dependency review, security audit, SBOM generation, and supply-
 - Python analysis engine dependencies
 - Rust and Tauri crate dependencies
 - GitHub Actions third-party actions
-- bundled binaries such as `ffmpeg` and `yt-dlp`
+- lock-managed auxiliary tools such as yt-dlp
+- operator-provided, non-bundled executables such as ffmpeg and ffprobe
 - model files, weights, and sidecar assets
 
 ## Lockfile and pinning rules

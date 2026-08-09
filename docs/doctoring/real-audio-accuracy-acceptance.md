@@ -99,8 +99,8 @@ The active branch:
 - provisionally requires duration drift ≤ 1.0 s, master identity correlation ≥ 0.90, vocal SI-SDR
   improvement ≥ +0.5 dB, and vocal assignment margin ≥ 3.0 dB;
 - passes `shifts=0` to Demucs for deterministic inference;
-- runs 16 metric/alignment/integrity/security/cleanup cases offline and explicitly excludes the live
-  marker from required CI;
+- runs every collected metric/alignment/integrity/security/cleanup case offline and explicitly
+  excludes the live marker from required CI;
 - keeps live access explicit opt-in and fail-closed.
 
 On 2026-08-09, the offline contract passed at `5a3648a11d9097b8da48bb4a3ccbd97986aec25b`.

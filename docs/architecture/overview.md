@@ -43,12 +43,13 @@ GitHub is the source of truth for repository governance, PR review, CI/CD, Code 
 
 - The Python engine uses the real four-source `htdemucs` model on supported platforms; the old FFT
   profile is retired.
-- Inference is local after a trusted cache is provisioned. The runtime never retrieves weights and
-  verifies the exact inventoried byte size and full SHA-256 before local deserialization.
-- The known-stem validation branch defines and exercises the real YouTube intake → creator-master identity →
-  composed master/vocal alignment → deterministic separator → SI-SDR scoring path. Test-only
-  reference handling never becomes a general runtime downloader. No passing live run currently
-  validates that complete path; the recorded YouTube attempts failed before model scoring.
+- Inference is local after a trusted cache or exact `BANDSCOPE_HTDEMUCS_MODEL_PATH` is provisioned.
+  Runtime rejects missing, wrongly named, symlinked, incorrectly sized, or full-SHA-mismatched
+  weights before deserializing the exact verified bytes; it never retrieves a missing model.
+- The known-stem validation branch defines and exercises the real YouTube intake → creator-master
+  identity → composed master/vocal alignment → deterministic separator → SI-SDR scoring path.
+  Test-only reference handling never becomes a general runtime downloader. No completed live
+  production-path pass has yet produced an identity or SI-SDR score.
 - Media and stem arrays are ephemeral. Only bounded numeric/provenance evidence may be retained after
   authorization, so no physical benchmark database or ERD exists.
 

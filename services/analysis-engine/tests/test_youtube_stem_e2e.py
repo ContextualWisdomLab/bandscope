@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import sys
 import tempfile
 import zipfile
 from dataclasses import replace
@@ -22,7 +23,6 @@ from known_stem_benchmark import (
     MIN_VOCAL_SI_SDR_IMPROVEMENT_DB,
     KnownStemFixture,
     _AllowlistedRedirectHandler,
-    _normalized_correlation,
     align_active_reference_window,
     align_known_stem_through_master,
     download_verified_creator_master,
@@ -35,7 +35,7 @@ from bandscope_analysis.separation.audio_separator import (
     AudioSeparationConfig,
     AudioStemSeparator,
 )
-from bandscope_analysis.youtube import _verified_ffmpeg_location, download_youtube_audio
+from bandscope_analysis.youtube import _verify_media_runtime, download_youtube_audio
 
 
 class _FakeResponse(io.BytesIO):
@@ -147,42 +147,79 @@ def test_align_active_reference_window_recovers_delay_and_loud_section() -> None
     assert aligned.correlation > 0.99
 
 
-def test_identity_correlation_preserves_phase_sign() -> None:
-    """Do not authenticate a phase-inverted candidate as the same recording."""
-    signal = np.array([-2.0, -0.5, 0.5, 2.0], dtype=np.float64)
+def test_align_active_reference_window_is_polarity_invariant() -> None:
+    """Treat an inverted but otherwise identical waveform as the same audio."""
+    rng = np.random.default_rng(20260810)
+    reference = rng.standard_normal(2_000)
+    mixture = np.concatenate((np.zeros(73), -reference, np.zeros(27)))
 
-    assert _normalized_correlation(signal, -signal) == pytest.approx(-1.0)
+    aligned = align_active_reference_window(
+        mixture,
+        reference,
+        sample_rate=1_000,
+        window_seconds=0.8,
+        max_lag_seconds=0.2,
+    )
+
+    assert aligned.lag_samples == 73
+    assert aligned.correlation > 0.999
 
 
 @pytest.mark.parametrize(
-    ("kwargs", "message"),
+    ("overrides", "message"),
     [
-        ({"sample_rate": 0}, "sample_rate must be positive"),
-        ({"window_seconds": 0.0}, "alignment durations are invalid"),
-        ({"max_lag_seconds": -0.1}, "alignment durations are invalid"),
-        ({"envelope_hop_seconds": 0.0}, "alignment resolution is invalid"),
-        ({"refinement_seconds": -0.1}, "alignment resolution is invalid"),
-        ({"window_seconds": 2.0}, "reference is shorter"),
+        ({"sample_rate": 0}, "sample_rate"),
+        ({"window_seconds": 0.0}, "durations"),
+        ({"max_lag_seconds": -0.1}, "durations"),
+        ({"envelope_hop_seconds": 0.0}, "resolution"),
+        ({"refinement_seconds": -0.1}, "resolution"),
     ],
 )
-def test_align_active_reference_window_rejects_invalid_contract(
-    kwargs: dict[str, float | int], message: str
+def test_align_active_reference_window_rejects_invalid_configuration(
+    overrides: dict[str, float | int],
+    message: str,
 ) -> None:
-    """Exercise every caller-controlled alignment validation family."""
-    parameters: dict[str, float | int] = {
-        "sample_rate": 10,
+    """Reject invalid rate and duration settings before attempting alignment."""
+    arguments: dict[str, float | int] = {
+        "sample_rate": 1_000,
         "window_seconds": 0.5,
         "max_lag_seconds": 0.2,
-        "envelope_hop_seconds": 0.1,
-        "refinement_seconds": 0.1,
     }
-    parameters.update(kwargs)
+    arguments.update(overrides)
 
     with pytest.raises(ValueError, match=message):
         align_active_reference_window(
-            np.arange(10, dtype=np.float64),
-            np.arange(10, dtype=np.float64),
-            **parameters,
+            np.ones(1_000),
+            np.ones(1_000),
+            **arguments,
+        )
+
+
+def test_align_active_reference_window_rejects_short_reference() -> None:
+    """Require enough reference samples for the complete scored window."""
+    with pytest.raises(ValueError, match="reference is shorter"):
+        align_active_reference_window(
+            np.ones(1_000),
+            np.ones(100),
+            sample_rate=1_000,
+            window_seconds=0.5,
+            max_lag_seconds=0.2,
+        )
+
+
+def test_align_active_reference_window_rejects_nonoverlapping_mixture() -> None:
+    """Reject a mixture that cannot supply one complete aligned scoring window."""
+    reference = np.zeros(1_000)
+    reference[500:] = np.linspace(-1.0, 1.0, 500)
+
+    with pytest.raises(ValueError, match="does not overlap"):
+        align_active_reference_window(
+            np.ones(100),
+            reference,
+            sample_rate=1_000,
+            window_seconds=0.5,
+            max_lag_seconds=0.0,
+            refinement_seconds=0.0,
         )
 
 
@@ -361,35 +398,83 @@ def test_required_root_suite_explicitly_excludes_live_youtube_marker() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     runner = (repo_root / "scripts/checks/run_root_tests.mjs").read_text(encoding="utf-8")
 
-    normalized = " ".join(runner.split())
-    assert '"-m", "not youtube_stem_e2e"' in normalized
+    normalized_runner = " ".join(runner.split())
+    assert '"-m", "not youtube_stem_e2e"' in normalized_runner
 
 
-def test_live_benchmark_requires_verified_ffmpeg_before_fixture_access(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("identity_state", ["missing", "invalid"])
+def test_live_benchmark_verifies_media_runtime_before_fixture_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    identity_state: str,
 ) -> None:
-    """Fail closed before network access when executable identity is not configured."""
-    monkeypatch.delenv("BANDSCOPE_FFMPEG_PATH", raising=False)
-    monkeypatch.delenv("BANDSCOPE_FFMPEG_SHA256", raising=False)
+    """Fail closed before reference network access for incomplete or untrusted tools."""
+    variable_names = (
+        "BANDSCOPE_FFMPEG_PATH",
+        "BANDSCOPE_FFMPEG_SHA256",
+        "BANDSCOPE_FFPROBE_PATH",
+        "BANDSCOPE_FFPROBE_SHA256",
+    )
+    if identity_state == "missing":
+        for variable_name in variable_names:
+            monkeypatch.delenv(variable_name, raising=False)
+    else:
+        monkeypatch.setenv("BANDSCOPE_FFMPEG_PATH", str(tmp_path / "missing-ffmpeg"))
+        monkeypatch.setenv("BANDSCOPE_FFMPEG_SHA256", "0" * 64)
+        monkeypatch.setenv("BANDSCOPE_FFPROBE_PATH", str(tmp_path / "missing-ffprobe"))
+        monkeypatch.setenv("BANDSCOPE_FFPROBE_SHA256", "0" * 64)
 
-    with pytest.raises(AssertionError, match="verified ffmpeg identity"):
+    fixture_accesses: list[str] = []
+
+    def reject_fixture_access(*_args: object, **_kwargs: object) -> Path:
+        fixture_accesses.append("reference")
+        raise AssertionError("fixture access occurred before runtime preflight")
+
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "download_verified_reference_stem",
+        reject_fixture_access,
+    )
+
+    with pytest.raises(AssertionError, match="ffmpeg and ffprobe"):
         _assert_real_youtube_known_stem_separation(tmp_path)
+
+    assert fixture_accesses == []
 
 
 def _assert_real_youtube_known_stem_separation(root: Path) -> None:
     """Run the live benchmark inside an ephemeral, caller-owned media directory."""
-    ffmpeg_location = _verified_ffmpeg_location()
-    assert ffmpeg_location is not None, (
-        "Live benchmark requires verified ffmpeg identity via "
-        "BANDSCOPE_FFMPEG_PATH and BANDSCOPE_FFMPEG_SHA256"
-    )
     fixture = BRAD_SUCKS_FIXTURE
+    ffmpeg_path = os.environ.get("BANDSCOPE_FFMPEG_PATH")
+    ffmpeg_sha256 = os.environ.get("BANDSCOPE_FFMPEG_SHA256")
+    ffprobe_path = os.environ.get("BANDSCOPE_FFPROBE_PATH")
+    ffprobe_sha256 = os.environ.get("BANDSCOPE_FFPROBE_SHA256")
+    assert ffmpeg_path and ffmpeg_sha256 and ffprobe_path and ffprobe_sha256, (
+        "Live evidence requires exact ffmpeg and ffprobe path/SHA-256 identities"
+    )
+    runtime_is_valid, verified_ffmpeg_path = _verify_media_runtime(
+        ffmpeg_path,
+        ffmpeg_sha256,
+        ffprobe_path,
+        ffprobe_sha256,
+    )
+    assert runtime_is_valid and verified_ffmpeg_path is not None, (
+        "Live evidence requires verified ffmpeg and ffprobe executable identities"
+    )
+
     reference_path = download_verified_reference_stem(fixture, root)
     master_path = download_verified_creator_master(fixture, root)
     youtube_dir = root / "youtube"
     youtube_dir.mkdir()
 
-    download = download_youtube_audio(fixture.youtube_url, str(youtube_dir))
+    download = download_youtube_audio(
+        fixture.youtube_url,
+        str(youtube_dir),
+        ffmpeg_path=ffmpeg_path,
+        ffmpeg_sha256=ffmpeg_sha256,
+        ffprobe_path=ffprobe_path,
+        ffprobe_sha256=ffprobe_sha256,
+    )
     assert download["ok"], f"YouTube fixture failed: {download.get('error', {}).get('code')}"
     metadata = download["metadata"]
     assert metadata["id"] == fixture.video_id
@@ -467,8 +552,10 @@ def _assert_real_youtube_known_stem_separation(root: Path) -> None:
 @pytest.mark.skipif(
     os.environ.get("BANDSCOPE_RUN_YOUTUBE_STEM_E2E") != "1",
     reason=(
-        "live YouTube, the pinned public stem archive, ffmpeg, and Demucs weights are required; "
-        "set BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1"
+        "live YouTube, the pinned public stem archive, the verified ffmpeg/ffprobe set, and "
+        "Demucs weights are required; "
+        "set BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1, BANDSCOPE_FFMPEG_PATH, and "
+        "the ffmpeg/ffprobe SHA-256 identity variables"
     ),
 )
 def test_real_youtube_audio_separates_the_known_vocal_stem(tmp_path: Path) -> None:

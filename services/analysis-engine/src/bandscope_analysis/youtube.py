@@ -5,17 +5,22 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 Security Notes:
 - Accepts only bounded, standard HTTPS YouTube watch URLs and disables playlists,
   geographic bypass, credentials, and interactive authentication.
-- Keeps certificate verification enabled and retains yt-dlp's maintained CA
-  bundle fallback so minimal containers do not depend on an absent system store.
+- Keeps certificate verification enabled. It uses the operating-system trust
+  store when roots are present and otherwise retains yt-dlp's CA fallback.
+- Optionally accepts sibling absolute ffmpeg/ffprobe paths only with both full
+  SHA-256 identities, verifies both regular executables before handoff, and
+  returns redacted failures.
 - Rejects metadata over 15 minutes and completed files over 50 MiB, returns
   sanitized public errors, and never logs the requested URL or downloaded audio.
 """
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
 import re
+import ssl
 import sys
 import urllib.parse
 from pathlib import Path
@@ -30,9 +35,8 @@ YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
     "Failed to download audio from YouTube. Please use a local audio file instead."
 )
 YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Please use a local audio file instead."
-FFMPEG_PATH_ENV = "BANDSCOPE_FFMPEG_PATH"
-FFMPEG_SHA256_ENV = "BANDSCOPE_FFMPEG_SHA256"
-FULL_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+RUNTIME_DEPENDENCY_INVALID_MESSAGE = "The configured media runtime failed identity verification."
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def validate_url(url: str) -> bool:
@@ -119,43 +123,117 @@ def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
     }
 
 
-def _verified_ffmpeg_location() -> str | None:
-    """Return an exact operator-provisioned ffmpeg path when identity is configured."""
-    configured_path = os.environ.get(FFMPEG_PATH_ENV)
-    configured_digest = os.environ.get(FFMPEG_SHA256_ENV)
-    if configured_path is None and configured_digest is None:
-        return None
-    if configured_path is None or configured_digest is None:
-        raise ValueError("ffmpeg release identity requires both path and SHA-256")
-    if not FULL_SHA256_PATTERN.fullmatch(configured_digest):
-        raise ValueError("ffmpeg release identity requires a full lowercase SHA-256")
+def _system_ca_available() -> bool:
+    """Return whether the operating-system TLS context contains trusted CA roots.
 
-    raw_path = Path(configured_path)
-    if not raw_path.is_absolute():
-        raise ValueError("ffmpeg release identity requires an absolute executable path")
+    Any probe failure is treated as an empty system store so yt-dlp keeps its
+    default CA behavior. Certificate verification is never disabled.
+    """
     try:
-        executable_path = raw_path.resolve(strict=True)
-    except (FileNotFoundError, OSError) as error:
-        raise ValueError("ffmpeg release executable is unavailable") from error
-    if not executable_path.is_file() or not os.access(executable_path, os.X_OK):
-        raise ValueError("ffmpeg release executable is unavailable")
-
-    digest = hashlib.sha256()
-    with executable_path.open("rb") as executable_file:
-        for chunk in iter(lambda: executable_file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    if digest.hexdigest() != configured_digest:
-        raise ValueError("ffmpeg release executable failed SHA-256 verification")
-    return str(executable_path)
+        context = ssl.create_default_context()
+        return bool(context.get_ca_certs(binary_form=True))
+    except Exception:
+        return False
 
 
-def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
+def _verify_executable_artifact(
+    executable_path: Optional[str], executable_sha256: Optional[str]
+) -> Optional[str]:
+    """Authenticate one executable and return its resolved absolute path.
+
+    The executable must be an absolute, non-symlinked regular file with execute
+    permission, and the digest must be a canonical full lowercase SHA-256.
+    """
+    if not isinstance(executable_path, str) or not isinstance(executable_sha256, str):
+        return None
+    if not SHA256_PATTERN.fullmatch(executable_sha256):
+        return None
+
+    candidate = Path(executable_path)
+    if not candidate.is_absolute() or candidate.is_symlink():
+        return None
+
+    try:
+        resolved = candidate.resolve(strict=True)
+        if not resolved.is_file() or not os.access(resolved, os.X_OK):
+            return None
+
+        digest = hashlib.sha256()
+        with resolved.open("rb") as artifact:
+            for chunk in iter(lambda: artifact.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except (OSError, RuntimeError):
+        return None
+
+    if not hmac.compare_digest(digest.hexdigest(), executable_sha256):
+        return None
+    return str(resolved)
+
+
+def _verify_media_runtime(
+    ffmpeg_path: Optional[str],
+    ffmpeg_sha256: Optional[str],
+    ffprobe_path: Optional[str],
+    ffprobe_sha256: Optional[str],
+) -> tuple[bool, Optional[str]]:
+    """Authenticate the complete executable set yt-dlp may invoke.
+
+    An omitted four-part identity retains ordinary yt-dlp PATH behavior. Once
+    any field is configured, all four are mandatory. ffmpeg and ffprobe must be
+    exact sibling program names because yt-dlp derives its probe path from the
+    configured ffmpeg location.
+    """
+    identity = (ffmpeg_path, ffmpeg_sha256, ffprobe_path, ffprobe_sha256)
+    if all(value is None for value in identity):
+        return True, None
+    if any(not isinstance(value, str) for value in identity):
+        return False, None
+
+    verified_ffmpeg = _verify_executable_artifact(ffmpeg_path, ffmpeg_sha256)
+    verified_ffprobe = _verify_executable_artifact(ffprobe_path, ffprobe_sha256)
+    if verified_ffmpeg is None or verified_ffprobe is None:
+        return False, None
+
+    ffmpeg = Path(verified_ffmpeg)
+    ffprobe = Path(verified_ffprobe)
+    executable_suffix = {"nt": ".exe"}.get(os.name, "")
+    if ffmpeg.name != f"ffmpeg{executable_suffix}":
+        return False, None
+    if ffprobe.name != f"ffprobe{executable_suffix}" or ffprobe.parent != ffmpeg.parent:
+        return False, None
+    return True, verified_ffmpeg
+
+
+def _runtime_dependency_invalid() -> Dict[str, Any]:
+    """Return the stable redacted response for an untrusted media runtime."""
+    return {
+        "ok": False,
+        "error": {
+            "code": "runtime_dependency_invalid",
+            "message": RUNTIME_DEPENDENCY_INVALID_MESSAGE,
+        },
+    }
+
+
+def download_youtube_audio(
+    url: str,
+    out_dir: str,
+    *,
+    ffmpeg_path: Optional[str] = None,
+    ffmpeg_sha256: Optional[str] = None,
+    ffprobe_path: Optional[str] = None,
+    ffprobe_sha256: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Download audio from a YouTube URL to the specified directory.
 
     Args:
         url: The YouTube URL to download.
         out_dir: The directory to save the audio file.
+        ffmpeg_path: Optional absolute path to a provisioned ffmpeg executable.
+        ffmpeg_sha256: Full lowercase SHA-256 identity for ``ffmpeg_path``.
+        ffprobe_path: Optional sibling path to the provisioned ffprobe executable.
+        ffprobe_sha256: Full lowercase SHA-256 identity for ``ffprobe_path``.
 
     Returns:
         A dictionary containing the result of the download.
@@ -169,6 +247,15 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             },
         }
 
+    runtime_is_valid, verified_ffmpeg_path = _verify_media_runtime(
+        ffmpeg_path,
+        ffmpeg_sha256,
+        ffprobe_path,
+        ffprobe_sha256,
+    )
+    if not runtime_is_valid:
+        return _runtime_dependency_invalid()
+
     ydl_opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
@@ -179,11 +266,14 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
         "postprocessors": [{"key": "FFmpegExtractAudio"}],
         "geo_bypass": False,
     }
+    if _system_ca_available():
+        # Use managed desktop trust roots only after confirming that the store
+        # is populated. Otherwise yt-dlp retains its built-in CA fallback.
+        ydl_opts["compat_opts"] = {"no-certifi"}
+    if verified_ffmpeg_path is not None:
+        ydl_opts["ffmpeg_location"] = verified_ffmpeg_path
 
     try:
-        ffmpeg_location = _verified_ffmpeg_location()
-        if ffmpeg_location is not None:
-            ydl_opts["ffmpeg_location"] = ffmpeg_location
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if info is None:
@@ -249,9 +339,20 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
     parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--ffmpeg-path")
+    parser.add_argument("--ffmpeg-sha256")
+    parser.add_argument("--ffprobe-path")
+    parser.add_argument("--ffprobe-sha256")
     args = parser.parse_args()
 
-    result = download_youtube_audio(args.url, args.out_dir)
+    result = download_youtube_audio(
+        args.url,
+        args.out_dir,
+        ffmpeg_path=args.ffmpeg_path,
+        ffmpeg_sha256=args.ffmpeg_sha256,
+        ffprobe_path=args.ffprobe_path,
+        ffprobe_sha256=args.ffprobe_sha256,
+    )
     print(json.dumps(result))
     sys.exit(0 if result["ok"] else 1)
 

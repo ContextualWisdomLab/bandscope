@@ -24,6 +24,7 @@ from bandscope_analysis.api import (
     run_analysis_job_updates,
     validate_analysis_job_request,
 )
+from bandscope_analysis.separation import ModelArtifactError
 
 
 def test_get_analysis_status_returns_health_payload() -> None:
@@ -1008,13 +1009,10 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             "Stem separation unavailable because Demucs or torch is not installed.",
         ),
         (
-            ValueError("The verified htdemucs model artifact is unavailable"),
+            ModelArtifactError("Stem separation model is not provisioned"),
             "runtime_error",
             "Stem separation model is unavailable.",
-            (
-                "Stem separation unavailable because the verified model artifact "
-                "is missing or invalid."
-            ),
+            "Stem separation unavailable because the approved model could not be verified.",
         ),
         (
             RuntimeError("oom /secret/audio.wav"),

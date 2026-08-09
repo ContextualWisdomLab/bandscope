@@ -48,17 +48,18 @@ threshold review, not threshold weakening.
 
 ## Security, privacy, and legal implications
 
-The test crosses public network, archive, decoder, ffmpeg, model, filesystem, and subprocess trust
-boundaries. It uses strict HTTPS/host/size/hash/member allowlists, test-owned temporary storage,
-bounded media, sanitized diagnostics, and cleanup. It adds no cookies, credentials, account login,
-paywall, DRM, geo, or anti-bot bypass. Creator permission for source files does not itself authorize
-automated YouTube access; the operator must verify the intended access against current terms and
-rights.
+The test crosses public network, archive, decoder, the verified sibling `ffmpeg`/`ffprobe`
+executable set, model, filesystem, and subprocess trust boundaries. It uses strict
+HTTPS/host/size/hash/member allowlists, test-owned temporary storage, bounded media, sanitized
+diagnostics, and cleanup. The complete media executable identity is verified before reference
+network access. It adds no cookies, credentials, account login, paywall, DRM, geo, or anti-bot
+bypass. Creator permission for source files does not itself authorize automated YouTube access; the
+operator must verify the intended access against current terms and rights.
 
 ## Acceptance, recovery, and rollback
 
-- Sixteen deterministic contract tests pass in ordinary CI; the root runner explicitly excludes the
-  live marker.
+- Every collected deterministic contract test passes in ordinary CI; the root runner explicitly
+  excludes the live marker. Test count is recorded as evidence, not fixed policy.
 - A controlled live run on the exact candidate records all required scores and cleanup evidence.
 - Fixture drift causes a distinct pre-model failure.
 - Provider/model unavailability remains a failure after explicit opt-in.

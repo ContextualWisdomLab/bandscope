@@ -8,34 +8,36 @@
 
 **Tech Stack:** npm workspaces, Vite, React, Vitest, Tauri scaffold files, Python 3.12+, uv, pytest, ruff, mypy, Dependabot, CycloneDX JSON SBOM, GitHub Actions SHA pinning.
 
-**Security Notes:** The harness must keep security guidance visible and fail-fast. Future work that touches files, URLs, subprocesses, IPC, WebView, updates, models, or cache/export behavior must include a `Security Notes` section and avoid generic exec/read/write capabilities.
+## Security Notes
 
-## Attack surface
+The harness must keep security guidance visible and fail-fast. Future work that touches files, URLs, subprocesses, IPC, WebView, updates, models, or cache/export behavior must include a `Security Notes` section and avoid generic exec/read/write capabilities.
+
+### Attack surface
 
 - repo docs and plans that define future file, URL, subprocess, IPC, WebView, model, and update behavior
 
-## Trust boundary
+### Trust boundary
 
 - future product work crosses user-input, process, IPC, storage, and network boundaries even in a local-first app
 
-## Mitigations
+### Mitigations
 
 - keep security policy in repo docs, not only in chat
 - fail plans that omit `Security Notes`
 - fail obvious dangerous implementation patterns early
 
-## Test points
+### Test points
 
 - docs presence checks
 - `Security Notes` structure checks
 - security pattern checks in quickcheck
 
-## Realistic threats
+### Realistic threats
 
 - future contributors can copy unsafe bootstrap defaults into production features
 - local checks can silently miss risky workflow or release-script drift if scope is too narrow
 
-## Remaining risk
+### Remaining risk
 
 - desktop runtime constraints remain provisional until real IPC and backend flows exist
 

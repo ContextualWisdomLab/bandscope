@@ -29,6 +29,23 @@ RULES = [
 TARGET_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".sh", ".yml", ".yaml"}
 EXCLUDED_PARTS = {"node_modules", ".venv", "dist", "coverage", "target", ".worktrees"}
 SELF_PATH = Path("scripts/checks/security_gates.py")
+VERIFIED_MODEL_LOADER_PATH = Path(
+    "services/analysis-engine/src/bandscope_analysis/separation/audio_separator.py"
+)
+VERIFIED_TORCH_LOAD_CALL = re.compile(
+    r"torch\.load\(\s*(?:#[^\n]*\n\s*)?"
+    r"io\.BytesIO\(payload\),\s*"
+    r"map_location=[\"']cpu[\"'],\s*"
+    r"weights_only=False,?\s*"
+    r"\)",
+    re.MULTILINE,
+)
+VERIFIED_MODEL_LOADER_PREREQUISITES = (
+    "payload = _read_verified_model_artifact(",
+    "hashlib.sha256(payload).hexdigest()",
+    "artifact.size_bytes",
+    "stat.S_ISREG",
+)
 
 
 def should_scan(path: Path) -> bool:
@@ -38,19 +55,38 @@ def should_scan(path: Path) -> bool:
     )
 
 
-def main() -> int:
-    """Return a failing exit code when a forbidden security pattern is found."""
+def _content_for_pattern_scan(relative_path: Path, content: str) -> str:
+    """Remove only the one fully constrained checkpoint-deserialization call."""
+    if relative_path != VERIFIED_MODEL_LOADER_PATH:
+        return content
+    if not all(token in content for token in VERIFIED_MODEL_LOADER_PREREQUISITES):
+        return content
+    if len(VERIFIED_TORCH_LOAD_CALL.findall(content)) != 1:
+        return content
+    return VERIFIED_TORCH_LOAD_CALL.sub("verified_checkpoint_load()", content, count=1)
+
+
+def security_pattern_violations(repo_root: Path = Path(".")) -> list[str]:
+    """Return forbidden-pattern violations below ``repo_root``."""
     violations: list[str] = []
 
-    for path in Path(".").rglob("*"):
+    for path in repo_root.rglob("*"):
         if not path.is_file() or not should_scan(path):
             continue
-        if path == SELF_PATH:
+        relative_path = path.relative_to(repo_root)
+        if relative_path == SELF_PATH:
             continue
         content = path.read_text(encoding="utf-8", errors="ignore")
+        content = _content_for_pattern_scan(relative_path, content)
         for pattern, message in RULES:
             if pattern.search(content):
-                violations.append(f"{path}: {message}")
+                violations.append(f"{relative_path}: {message}")
+    return violations
+
+
+def main() -> int:
+    """Return a failing exit code when a forbidden security pattern is found."""
+    violations = security_pattern_violations()
 
     if violations:
         print("Security gate violations:")

@@ -1,8 +1,9 @@
-"""Verify that design-plan documents include a complete Security Notes section."""
+"""Verify that every design plan has one complete canonical security section."""
 
+import re
 from pathlib import Path
 
-SECURITY_NOTES_TEXT = "Security Notes"
+SECURITY_NOTES_HEADING = "## Security Notes"
 PLAN_DIR = Path("docs/plans")
 REQUIRED_SUBSECTIONS = [
     "attack surface",
@@ -15,42 +16,49 @@ REQUIRED_SUBSECTIONS = [
 
 
 def security_notes_section(content: str) -> str:
-    """Extract the lowercased Security Notes section from a plan document."""
-    lowered = content.lower()
-    marker = SECURITY_NOTES_TEXT.lower()
-    start = lowered.find(marker)
-    if start == -1:
+    """Return the canonical security section, stopping at the next peer heading."""
+    lines = content.splitlines()
+    try:
+        start = lines.index(SECURITY_NOTES_HEADING)
+    except ValueError:
         return ""
 
-    end_candidates = []
-    for delimiter in ["\n---", "\n## approaches considered", "\n## decision"]:
-        end = lowered.find(delimiter, start + len(marker))
-        if end != -1:
-            end_candidates.append(end)
+    section_lines = [lines[start]]
+    for line in lines[start + 1 :]:
+        if re.fullmatch(r"#{1,2}\s+.+", line):
+            break
+        section_lines.append(line)
+    return "\n".join(section_lines).lower()
 
-    if not end_candidates:
-        return lowered[start:]
 
-    return lowered[start : min(end_candidates)]
+def security_notes_violations(repo_root: Path = Path(".")) -> list[str]:
+    """Return missing-section and incomplete-section violations below ``repo_root``."""
+    violations: list[str] = []
+    plan_dir = repo_root / PLAN_DIR
+    for path in sorted(plan_dir.rglob("*.md")):
+        content = path.read_text(encoding="utf-8")
+        section = security_notes_section(content)
+        display_path = path.relative_to(repo_root).as_posix()
+        if not section:
+            violations.append(
+                f"{display_path} missing section: {SECURITY_NOTES_HEADING}"
+            )
+            continue
+        for subsection in REQUIRED_SUBSECTIONS:
+            if subsection not in section:
+                violations.append(
+                    f"{display_path} missing Security Notes subsection: {subsection}"
+                )
+    return violations
 
 
 def main() -> int:
     """Return a failing exit code when Security Notes or required subsections are missing."""
-    missing: list[str] = []
-    for path in sorted(PLAN_DIR.glob("*.md")):
-        content = path.read_text(encoding="utf-8")
-        if SECURITY_NOTES_TEXT not in content:
-            missing.append(str(path))
-            continue
-        lowered = security_notes_section(content)
-        for subsection in REQUIRED_SUBSECTIONS:
-            if subsection not in lowered:
-                missing.append(f"{path} missing subsection: {subsection}")
-
-    if missing:
+    violations = security_notes_violations()
+    if violations:
         print("Missing Security Notes section in:")
-        for path in missing:
-            print(f"- {path}")
+        for violation in violations:
+            print(f"- {violation}")
         return 1
 
     print("Security Notes check passed")
