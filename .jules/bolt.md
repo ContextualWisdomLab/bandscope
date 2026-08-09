@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2024-03-20 - [Testing non-textual try/catch block error rejections in Desktop PDF Reader]
+**Learning:** Addressed test coverage gap where reading a Score PDF fails with a non-textual error code in ScoreView.tsx.
+**Action:** Added mock rejection test rejecting with an error payload missing text to fallback correctly using bridgeErrorDetail.
