@@ -261,6 +261,53 @@ describe("ScoreView", () => {
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
+
+  it("falls back to the generic remove copy when the bridge rejects with a non-textual value", async () => {
+    mockInvoke.mockRejectedValueOnce({ code: 500 });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not remove the score PDF.");
+  });
+
+  it("does not clear the open score if removal fails", async () => {
+    mockInvoke
+      .mockResolvedValueOnce([1, 2])
+      .mockRejectedValueOnce(new Error("Could not remove the score PDF."));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={vi.fn()} />);
+
+    // Open the score first
+    fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:opener.pdf");
+    });
+
+    // Attempt to remove the currently open score and fail
+    fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not remove the score PDF.");
+    // The viewer must not be reset because the removal failed
+    expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:opener.pdf");
+  });
+
+  it("falls back to the generic open copy when the bridge rejects with a non-textual value", async () => {
+    mockInvoke.mockRejectedValueOnce({ code: 500 });
+    const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
+
+    render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not open the score PDF.");
+  });
+
   it("reports removal failures without dropping the metadata", async () => {
     mockInvoke.mockRejectedValueOnce(new Error("Could not remove the score PDF."));
     vi.spyOn(window, "confirm").mockReturnValue(true);
