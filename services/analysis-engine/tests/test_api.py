@@ -1419,3 +1419,13 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
         update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
     )
+
+
+def test_run_analysis_job_updates_invalid_request() -> None:
+    """Ensure invalid job requests return an early failure status update."""
+    updates = list(
+        run_analysis_job_updates("job-1", {"sourceKind": "invalid"}, "2024-01-01T00:00:00Z")
+    )
+    assert len(updates) == 1
+    assert updates[0]["state"] == "failed"
+    assert updates[0]["error"]["code"] == "invalid_request"
