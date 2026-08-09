@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 
 from bandscope_analysis.temporal.hits import detect_shared_hits, detect_stop_time
@@ -93,6 +96,16 @@ def test_detect_stop_time_safe_failure_inputs() -> None:
     assert detect_stop_time({"vocals": np.array(["boom"])}, SR) == []  # type: ignore[dict-item]
 
 
+def test_detect_stop_time_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An internal exception is caught and returns an empty list."""
+
+    def mock_detect(*args: Any, **kwargs: Any) -> list[dict[str, float]]:
+        raise RuntimeError("simulated error")
+
+    monkeypatch.setattr("bandscope_analysis.temporal.hits._detect_stop_time", mock_detect)
+    assert detect_stop_time({"vocals": _tone(1.0)}, SR) == []
+
+
 def test_detect_shared_hits_finds_aligned_impulses() -> None:
     """Clicks aligned in three stems at 1.0 s and 2.0 s are shared hits."""
     duration = 3.0
@@ -138,3 +151,13 @@ def test_detect_shared_hits_safe_failure_inputs() -> None:
     assert detect_shared_hits({"vocals": _tone(1.0)}, 0) == []
     # Non-numeric array must not raise.
     assert detect_shared_hits({"vocals": np.array(["boom"])}, SR) == []  # type: ignore[dict-item]
+
+
+def test_detect_shared_hits_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An internal exception is caught and returns an empty list."""
+
+    def mock_detect(*args: Any, **kwargs: Any) -> list[dict[str, float | int]]:
+        raise RuntimeError("simulated error")
+
+    monkeypatch.setattr("bandscope_analysis.temporal.hits._detect_shared_hits", mock_detect)
+    assert detect_shared_hits({"vocals": _tone(1.0)}, SR) == []
