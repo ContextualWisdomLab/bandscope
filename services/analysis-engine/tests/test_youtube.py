@@ -363,6 +363,11 @@ def test_module_execution(
         mock_exit.assert_called_with(0)
 
 
+def test_validate_url_value_error_native() -> None:
+    """Test URL validation native ValueError path."""
+    assert validate_url("https://[::1") is False
+
+
 @patch("bandscope_analysis.youtube.urllib.parse.urlparse")
 def test_validate_url_exception(mock_urlparse: MagicMock) -> None:
     """Test URL validation exception handling."""
