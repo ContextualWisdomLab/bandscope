@@ -649,9 +649,14 @@ def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
         "[]",
         '{"schemaVersion": 999, "result": {}}',
         '{"schemaVersion": 1, "result": []}',
+        "malformed json",
     ):
         cache_path.write_text(content, encoding="utf-8")
         assert _load_cached_analysis(cache_path) is None
+
+    # Test missing file (OSError)
+    missing_path = tmp_path / "missing-cache.json"
+    assert _load_cached_analysis(missing_path) is None
 
 
 def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp_path) -> None:
