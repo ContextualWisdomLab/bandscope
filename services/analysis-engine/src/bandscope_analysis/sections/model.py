@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
+
+
+class RawArrangementItem(TypedDict):
+    """Raw arrangement item for section extraction."""
+
+    label: str
+    groove: NotRequired[str]
+    lyric_cue: NotRequired[str]
 
 
 class SectionLabel(str, Enum):

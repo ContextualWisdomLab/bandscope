@@ -1,11 +1,12 @@
 """Pipeline logic for extracting section candidates from song arrangements."""
 
 import re
-from typing import Any, Dict, List, Literal
+from typing import Dict, List, Literal
 
 from .anchors import count_based_anchor, lyric_phrase_anchor
 from .model import (
     ALL_SECTION_LABELS,
+    RawArrangementItem,
     SectionCandidate,
     SectionExtractionResult,
 )
@@ -28,7 +29,7 @@ def _normalize_label(raw_label: str) -> str:
     return normalized
 
 
-def extract_sections(arrangement: List[Dict[str, Any]]) -> SectionExtractionResult:
+def extract_sections(arrangement: List[RawArrangementItem]) -> SectionExtractionResult:
     """
     Extract structured section candidates from raw arrangement data.
 

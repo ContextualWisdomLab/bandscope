@@ -17,6 +17,7 @@ import numpy as np
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
+from bandscope_analysis.sections.model import RawArrangementItem
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
 
@@ -461,7 +462,9 @@ def _build_from_pipeline(
 
 def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
     """Build a RehearsalSong from the arrangement-based extraction path."""
-    arrangement = [{"label": "verse", "groove": "Straight eighths with a late snare feel"}]
+    arrangement: list[RawArrangementItem] = [
+        {"label": "verse", "groove": "Straight eighths with a late snare feel"}
+    ]
     extraction_result = extract_sections(arrangement)
     verse_section = extraction_result["sections"][0]
 
