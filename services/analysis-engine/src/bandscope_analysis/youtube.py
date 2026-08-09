@@ -10,7 +10,7 @@ import os
 import re
 import sys
 import urllib.parse
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import yt_dlp  # type: ignore
 
@@ -72,7 +72,7 @@ def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
     return actual_filepath
 
 
-def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
+def _handle_download_error(e: yt_dlp.utils.DownloadError) -> dict[str, Any]:
     """Map yt-dlp DownloadError to the public YouTube import error response."""
     msg = str(e).lower()
     if (
@@ -101,7 +101,7 @@ def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
     }
 
 
-def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
+def download_youtube_audio(url: str, out_dir: str) -> dict[str, Any]:
     """
     Download audio from a YouTube URL to the specified directory.
 
@@ -121,7 +121,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             },
         }
 
-    ydl_opts: Dict[str, Any] = {
+    ydl_opts: dict[str, Any] = {
         "format": "bestaudio/best",
         "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
         "quiet": True,
