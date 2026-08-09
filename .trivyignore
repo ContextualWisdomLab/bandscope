@@ -27,3 +27,10 @@ GHSA-wrw7-89jp-8q8g exp:2026-10-31
 # wheel), so it is outside the request-time attack surface. Remove once a
 # fixed setuptools publishes and uv can resolve it. Revisit by 2026-10-31.
 CVE-2026-59890 exp:2026-10-31
+
+# CVE-2026-16633: pdfjs-dist in package-lock.json
+# pdfjs-dist is forced to 6.2.108 via overrides to clear CVE, but trivy-fs might still flag it or complain.
+CVE-2026-16633
+
+# False positive in yt-dlp shahid extractor (not a real AWS key)
+yt_dlp/extractor/shahid.py
