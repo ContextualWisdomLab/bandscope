@@ -225,3 +225,28 @@ def test_estimate_downbeats_too_few_beats_returns_first() -> None:
     """Fewer beats than a bar falls back to the first beat as the downbeat."""
     onset = np.ones(50)
     assert _estimate_downbeats(onset, np.array([0, 10]), np.array([0.0, 0.5])) == [0.0]
+
+def test_temporal_analyzer_exception_during_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Ensure temporal analyzer catches exceptions during analysis phase."""
+    import librosa
+
+    from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
+
+    def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
+        return np.zeros(1024, dtype=float), 44100
+
+    def fake_beat_track(*args: object, **kwargs: object) -> tuple[np.ndarray, np.ndarray]:
+        raise RuntimeError("beat tracking crashed")
+
+    monkeypatch.setattr(librosa, "load", fake_load)
+    monkeypatch.setattr(librosa, "get_duration", lambda *, y, sr: 1.0)
+    monkeypatch.setattr(librosa.beat, "beat_track", fake_beat_track)
+
+    test_wav = tmp_path / "test.wav"
+    test_wav.write_bytes(b"dummy")
+
+    with pytest.raises(ValueError, match="Temporal analysis failed: beat tracking crashed"):
+        TemporalAnalyzer().analyze(test_wav)
