@@ -5,6 +5,9 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from fractions import Fraction
+from threading import Event, Lock
 from types import ModuleType, SimpleNamespace
 
 import numpy as np
@@ -225,10 +228,30 @@ def _install_fake_verified_model_deserializer(
     torch_load: object | None = None,
 ) -> dict[str, object]:
     """Install fake torch/Demucs deserializers and return captured calls."""
-    calls: dict[str, object] = {"torch_load_count": 0, "demucs_load_count": 0}
+    calls: dict[str, object] = {
+        "torch_load_count": 0,
+        "demucs_load_count": 0,
+        "safe_globals_active": False,
+    }
     fake_torch = ModuleType("torch")
     if torch_hub_root is not None:
         fake_torch.hub = SimpleNamespace(get_dir=lambda: torch_hub_root)  # type: ignore[attr-defined]
+
+    class FakeSafeGlobals:
+        """Capture and model the scoped PyTorch safe-global allowlist."""
+
+        def __init__(self, globals_to_allow: list[object]) -> None:
+            calls["safe_globals"] = tuple(globals_to_allow)
+
+        def __enter__(self) -> None:
+            calls["safe_globals_active"] = True
+
+        def __exit__(self, *args: object) -> None:
+            calls["safe_globals_active"] = False
+
+    fake_torch.serialization = SimpleNamespace(  # type: ignore[attr-defined]
+        safe_globals=FakeSafeGlobals
+    )
 
     def default_torch_load(
         stream: object,
@@ -240,21 +263,32 @@ def _install_fake_verified_model_deserializer(
         calls["payload"] = stream.read()  # type: ignore[attr-defined]
         calls["map_location"] = map_location
         calls["weights_only"] = weights_only
+        calls["safe_globals_active_at_load"] = calls["safe_globals_active"]
         return {"verified": True}
 
     fake_torch.load = torch_load or default_torch_load  # type: ignore[attr-defined]
     demucs_module = ModuleType("demucs")
+    htdemucs_module = ModuleType("demucs.htdemucs")
     states_module = ModuleType("demucs.states")
 
-    def fake_load_model(package: object) -> _FakeModel:
+    class HTDemucs:
+        """Stand in for the one model class the checkpoint may reconstruct."""
+
+    HTDemucs.__module__ = "demucs.htdemucs"
+    htdemucs_module.HTDemucs = HTDemucs  # type: ignore[attr-defined]
+
+    def fake_load_model(package: object, *, strict: bool) -> _FakeModel:
         calls["demucs_load_count"] = int(calls["demucs_load_count"]) + 1
         calls["package"] = package
+        calls["strict"] = strict
         return _FakeModel()
 
     states_module.load_model = fake_load_model  # type: ignore[attr-defined]
+    demucs_module.htdemucs = htdemucs_module  # type: ignore[attr-defined]
     demucs_module.states = states_module  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "torch", fake_torch)
     monkeypatch.setitem(sys.modules, "demucs", demucs_module)
+    monkeypatch.setitem(sys.modules, "demucs.htdemucs", htdemucs_module)
     monkeypatch.setitem(sys.modules, "demucs.states", states_module)
     return calls
 
@@ -296,14 +330,99 @@ def test_audio_stem_separator_verifies_exact_model_bytes_before_deserialization(
     second_model = separator._load_model()
 
     assert first_model is second_model
-    assert calls == {
-        "torch_load_count": 1,
-        "demucs_load_count": 1,
-        "payload": payload,
-        "map_location": "cpu",
-        "weights_only": False,
-        "package": {"verified": True},
+    assert calls["torch_load_count"] == 1
+    assert calls["demucs_load_count"] == 1
+    assert calls["payload"] == payload
+    assert calls["map_location"] == "cpu"
+    assert calls["weights_only"] is True
+    assert calls["safe_globals_active_at_load"] is True
+    assert calls["safe_globals_active"] is False
+    assert calls["package"] == {"verified": True}
+    assert calls["strict"] is True
+
+    safe_globals = calls["safe_globals"]
+    assert isinstance(safe_globals, tuple)
+    explicit_names = {
+        value[1]
+        for value in safe_globals
+        if isinstance(value, tuple) and len(value) == 2 and isinstance(value[1], str)
     }
+    assert explicit_names == {"numpy.core.multiarray.scalar", "numpy.dtype"}
+    assert Fraction in safe_globals
+    assert type(np.dtype(np.float64)) in safe_globals
+    assert any(
+        getattr(value, "__module__", "") == "demucs.htdemucs"
+        and getattr(value, "__name__", "") == "HTDemucs"
+        for value in safe_globals
+    )
+
+
+def test_audio_stem_separator_serializes_checkpoint_deserialization(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deserialize once when two callers race the same lazy model instance."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    (tmp_path / filename).write_bytes(payload)
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    first_started = Event()
+    second_started = Event()
+    release_first = Event()
+    counter_lock = Lock()
+    load_count = 0
+    read_count = 0
+    read_lock = Lock()
+    verified_read = audio_separator_module._read_verified_model_artifact
+
+    def counted_verified_read(*args: object, **kwargs: object) -> bytes:
+        nonlocal read_count
+        with read_lock:
+            read_count += 1
+        return verified_read(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_read_verified_model_artifact",
+        counted_verified_read,
+    )
+
+    def blocking_torch_load(
+        stream: object,
+        *,
+        map_location: str,
+        weights_only: bool,
+    ) -> dict[str, object]:
+        nonlocal load_count
+        del stream, map_location, weights_only
+        with counter_lock:
+            load_count += 1
+            call_number = load_count
+        if call_number == 1:
+            first_started.set()
+            assert release_first.wait(timeout=5)
+        else:
+            second_started.set()
+        return {"verified": True}
+
+    _install_fake_verified_model_deserializer(
+        monkeypatch,
+        torch_load=blocking_torch_load,
+    )
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=tmp_path))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(separator._load_model)
+        assert first_started.wait(timeout=5)
+        second = executor.submit(separator._load_model)
+        assert not second_started.wait(timeout=0.2)
+        release_first.set()
+        first_model = first.result(timeout=5)
+        second_model = second.result(timeout=5)
+
+    assert first_model is second_model
+    assert load_count == 1
+    assert read_count == 1
 
 
 @pytest.mark.parametrize(
@@ -332,7 +451,7 @@ def test_audio_stem_separator_rejects_missing_or_changed_model_before_deserializ
         (cache_dir / filename).write_bytes(payload)
 
     def forbidden_torch_load(*args: object, **kwargs: object) -> object:
-        raise AssertionError("unverified bytes reached torch.load")
+        raise AssertionError("unverified bytes reached the checkpoint loader")
 
     _install_fake_verified_model_deserializer(
         monkeypatch,
@@ -515,12 +634,13 @@ def test_audio_stem_separator_redacts_verified_model_load_errors(
     def fail_torch_load(*args: object, **kwargs: object) -> object:
         raise RuntimeError(f"unsafe detail under {tmp_path}")
 
-    _install_fake_verified_model_deserializer(monkeypatch, torch_load=fail_torch_load)
+    calls = _install_fake_verified_model_deserializer(monkeypatch, torch_load=fail_torch_load)
     separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=tmp_path))
 
     with pytest.raises(ValueError, match="failed to load after integrity verification") as error:
         separator._load_model()
     assert str(tmp_path) not in str(error.value)
+    assert calls["safe_globals_active"] is False
 
 
 def _patch_demucs(monkeypatch: pytest.MonkeyPatch, per_source: dict | None = None) -> None:

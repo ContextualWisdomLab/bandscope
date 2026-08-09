@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ANALYSIS_ENGINE_DIR = REPO_ROOT / "services" / "analysis-engine"
@@ -48,9 +50,19 @@ def main(argv: list[str]) -> int:
 
     argv = _normalize_args(argv)
     command = _analysis_command(argv)
-    print(f"Running analysis command in {ANALYSIS_ENGINE_DIR}: {subprocess.list2cmdline(command)}")
+    print(
+        f"Running analysis command in {ANALYSIS_ENGINE_DIR}: {subprocess.list2cmdline(command)}"
+    )
     try:
-        completed = subprocess.run(command, cwd=ANALYSIS_ENGINE_DIR, check=False)
+        with TemporaryDirectory(prefix="bandscope-numba-") as isolated_numba_cache:
+            command_environment = os.environ.copy()
+            command_environment.setdefault("NUMBA_CACHE_DIR", isolated_numba_cache)
+            completed = subprocess.run(
+                command,
+                cwd=ANALYSIS_ENGINE_DIR,
+                check=False,
+                env=command_environment,
+            )
     except FileNotFoundError as exc:
         print(f"Unable to start analysis command: {exc}", file=sys.stderr)
         return 127

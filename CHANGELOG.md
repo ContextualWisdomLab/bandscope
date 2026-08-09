@@ -25,9 +25,12 @@
   advisories and added a mutation-sensitive lockfile floor contract.
 - Made htdemucs loading offline and fail-closed: the runtime accepts only the inventoried filename,
   byte size, and full SHA-256, rejects filesystem identity races, and deserializes the verified
-  bytes rather than downloading a missing checkpoint.
+  bytes with PyTorch's restricted `weights_only` loader, an exact reviewed global allowlist, strict
+  model construction, and serialized one-time caching rather than downloading a missing checkpoint.
 - Verified exact platform-native sibling ffmpeg/ffprobe executable names and identities before any
   live fixture access or yt-dlp invocation.
+- Isolated Numba's native-code cache for repository analysis commands so a stale or concurrently
+  compiled virtualenv cache cannot crash deterministic verification.
 - Reconciled stale CodeRabbit-gate wording with the canonical stable-check and review-equivalent
   policy; qualifying evidence is now defined against the exact current head, and a rate-limited,
   status-only, author, or predecessor review is not treated as completed review evidence.

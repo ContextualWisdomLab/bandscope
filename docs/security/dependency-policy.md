@@ -116,7 +116,9 @@ Retired third-party deprecation and advisory signal:
   retaining the vulnerable torch build. No repo-local dependency-review allowlist or analysis-engine
   OSV exception for that advisory is active. Do not restore either stale exception. Separately,
   ADR-0001 requires full-SHA verification of the exact htdemucs artifact before any torch checkpoint
-  deserialization can qualify as release-ready.
+  deserialization, then `weights_only=True`, the exact reviewed global allowlist, strict model
+  construction, and serialized loading. Any model hash, allowlist, torch, NumPy, or Demucs lock
+  change requires the exact-artifact smoke test before it can qualify as release-ready.
 - Yanked `fastrand 2.4.0` was transiently inherited through target-specific `wry`/`dom_query` HTML parsing dependencies and must stay updated to `2.4.1` or newer in `apps/desktop/src-tauri/Cargo.lock`; `scripts/checks/verify_supply_chain.py` guards against reintroducing the yanked version.
 
 ## Required checks intent

@@ -25,8 +25,9 @@ the upstream licensing discussion characterizes the weights as scientific-use ma
 4. Trusted external provisioning is not equivalent to bundling. Documentation and SBOM evidence
    must preserve that distinction.
 5. A release claiming source-separation readiness must verify the full SHA-256 before any torch
-   deserialization and must have a recorded legal decision for its chosen download or distribution
-   path.
+   deserialization, use PyTorch's `weights_only=True` restricted loader with the reviewed minimal
+   global allowlist, and have a recorded legal decision for its chosen download or distribution
+   path. Model construction is strict, and concurrent lazy loads are serialized.
 6. Runtime model retrieval is forbidden. A trusted external provisioning step must populate the
    expected user-scoped cache or supply the exact absolute inventoried file through
    `BANDSCOPE_HTDEMUCS_MODEL_PATH`; missing, wrongly named, non-regular, symlinked, incorrectly
@@ -54,9 +55,15 @@ incompletely pinned, or replaced by the retired profile.
 ## Security and governance implications
 
 Model bytes are untrusted until verified. Full-hash verification must precede pickle/torch checkpoint
-deserialization; a post-load hash is insufficient. Cache paths must be user-scoped, non-symlinked,
-bounded, and cleaned or quarantined on mismatch. No user-supplied checkpoint is accepted. Model
-downloads and errors must not expose tokens, usernames, or full paths.
+deserialization; a post-load hash is insufficient. The approved checkpoint still contains pickle
+metadata: `weights_only=True` and the exact reviewed Demucs/NumPy/Fraction allowlist reduce but do
+not turn it into a non-executable format. Therefore an artifact hash, allowlist, torch, NumPy, or
+Demucs compatibility change is reviewed like executable code, never receives a `weights_only=False`
+fallback, and must pass the real-artifact load smoke test. The one rule-specific Semgrep/Bandit
+suppression is permitted only at this full-hash, same-byte, restricted-loader call; repository gates
+reject an unrestricted loader, an expanded allowlist, or another `torch.load` site. Cache paths must
+be user-scoped, non-symlinked, bounded, and cleaned or quarantined on mismatch. No user-supplied
+checkpoint is accepted. Model downloads and errors must not expose tokens, usernames, or full paths.
 
 ## Acceptance, recovery, and rollback
 
@@ -69,9 +76,9 @@ downloads and errors must not expose tokens, usernames, or full paths.
 
 ## Supersession triggers
 
-Supersede this ADR when BandScope adopts a differently licensed model, bundles weights, implements an
-ONNX/Rust inference path, changes the four-source contract, or makes GPU execution part of the
-release baseline.
+Supersede this ADR when BandScope adopts a differently licensed model, bundles weights, converts the
+approved checkpoint to a non-pickle format such as safetensors, implements an ONNX/Rust inference
+path, changes the four-source contract, or makes GPU execution part of the release baseline.
 
 ## References
 

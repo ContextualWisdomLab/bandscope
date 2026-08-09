@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 ## Documentation authority
 
@@ -99,8 +99,10 @@ Last updated: 2026-08-09
 - The exact signature, source URL, full SHA-256, byte size, distribution status, and model-rights
   uncertainty are tracked in `supply-chain/supplemental-component-inventory.json` and ADR-0001.
 - The separator verifies a non-symlinked regular file's exact byte size and full SHA-256, then
-  deserializes those same verified bytes. A model-rights/legal delivery decision remains a release
-  blocker.
+  passes those same verified bytes through PyTorch's `weights_only=True` restricted loader with an
+  exact reviewed global allowlist, strict model construction, and a serialized one-time cache. A
+  future artifact hash or allowlist change is executable-code review; model-rights/legal delivery
+  also remains a release blocker.
 - Current dependency markers exclude Demucs on macOS Intel; unsupported platforms must surface the
   existing safe fallback rather than pretending to separate stems.
 

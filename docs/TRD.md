@@ -1,7 +1,7 @@
 # BandScope Technical Requirements Document
 
 Status: Active authority
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 ## System contract
 
@@ -28,7 +28,7 @@ and data-flow views are in `docs/architecture/diagrams.md`.
 | TRD-KS-008 | Reject candidate drift when YouTube/master duration differs by > 1.0 s or aligned identity correlation is < 0.90. | Pre-inference live assertions against the pinned finished master. |
 | TRD-KS-009 | Run deterministic contract/security tests by default and require `BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1` for live network/model execution. | Pytest marker and environment guard. |
 | TRD-KS-010 | Clean every downloaded/scored artifact on success and failure. | Nested `TemporaryDirectory` plus postcondition. |
-| TRD-KS-011 | Bind model identity to inventory and full SHA-256 before any torch deserialization. | Inventory records htdemucs signature `955717e8`, 84,141,911 bytes, and SHA-256 `8726e21a…a8b4`; runtime verifies and deserializes the same in-memory bytes with no download fallback. |
+| TRD-KS-011 | Bind model identity to inventory and full SHA-256 before any restricted torch deserialization. | Inventory records htdemucs signature `955717e8`, 84,141,911 bytes, and SHA-256 `8726e21a…a8b4`; runtime verifies the same in-memory bytes, uses `weights_only=True` with the reviewed minimal global allowlist and strict model construction, serializes concurrent loads, and has no download or unrestricted-loader fallback. |
 
 ## Data and class contracts
 
@@ -80,9 +80,11 @@ artifact `955717e8-8726e21a.th`. A trusted provisioning step must place it in th
 user-scoped cache or provide that exact absolute file through
 `BANDSCOPE_HTDEMUCS_MODEL_PATH`. Runtime rejects a missing, symlinked, non-regular, incorrectly
 sized, wrongly named, or full-SHA-mismatched artifact before torch deserialization, reads it once,
-and deserializes those same verified bytes. It never calls the remote Demucs loader or downloads a
-missing checkpoint. The model is not bundled; ADR-0001 keeps the model-rights/legal delivery
-decision as a release blocker.
+and passes those same verified bytes to PyTorch's `weights_only=True` restricted loader. The exact
+Demucs/NumPy/Fraction allowlist, strict model construction, and serialized one-time cache are guarded
+by mutation tests; there is no `weights_only=False` fallback. It never calls the remote Demucs loader
+or downloads a missing checkpoint. The model is not bundled; ADR-0001 keeps both the approved-pickle
+risk acceptance and model-rights/legal delivery decision as release blockers for a commercial claim.
 
 `ffmpeg` and `ffprobe` are operator-provided siblings and yt-dlp is locked to `2026.7.4`. Ordinary
 product use may resolve the media tools from `PATH`, but release/live evidence must pass both

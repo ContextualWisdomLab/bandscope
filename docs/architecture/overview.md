@@ -45,7 +45,9 @@ GitHub is the source of truth for repository governance, PR review, CI/CD, Code 
   profile is retired.
 - Inference is local after a trusted cache or exact `BANDSCOPE_HTDEMUCS_MODEL_PATH` is provisioned.
   Runtime rejects missing, wrongly named, symlinked, incorrectly sized, or full-SHA-mismatched
-  weights before deserializing the exact verified bytes; it never retrieves a missing model.
+  weights before passing the exact verified bytes to the serialized `weights_only=True` loader with
+  its reviewed minimal global allowlist and strict model construction; it never retrieves a missing
+  model and never falls back to an unrestricted checkpoint loader.
 - The known-stem validation branch defines and exercises the real YouTube intake → creator-master
   identity → composed master/vocal alignment → deterministic separator → SI-SDR scoring path.
   Test-only reference handling never becomes a general runtime downloader. No completed live

@@ -293,7 +293,18 @@ def test_security_pattern_gate_accepts_only_verified_model_deserialization() -> 
     assert security_gates.security_pattern_violations(repo_root) == []
 
 
-def test_security_pattern_gate_rejects_second_model_deserialization(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "second_load",
+    [
+        "\ntorch." + "load(untrusted_checkpoint)\n",
+        "\ntorch." + "load (untrusted_checkpoint)\n",
+        "\nfrom torch import " + "load as untrusted_load\nuntrusted_load(checkpoint)\n",
+    ],
+)
+def test_security_pattern_gate_rejects_second_model_deserialization(
+    second_load: str,
+    tmp_path: Path,
+) -> None:
     """Do not let the narrow verified-checkpoint rule hide another torch load site."""
     security_gates = load_module(
         "scripts/checks/security_gates.py",
@@ -303,7 +314,6 @@ def test_security_pattern_gate_rejects_second_model_deserialization(tmp_path: Pa
     source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
     target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
     target_path.parent.mkdir(parents=True)
-    second_load = "\ntorch." + "load(untrusted_checkpoint)\n"
     target_path.write_text(
         source_path.read_text(encoding="utf-8") + second_load,
         encoding="utf-8",
@@ -314,6 +324,171 @@ def test_security_pattern_gate_rejects_second_model_deserialization(tmp_path: Pa
     assert violations == [
         f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
         "Do not load untrusted pickle-style artifacts without a documented trust boundary."
+    ]
+
+
+def test_security_pattern_gate_rejects_unrestricted_verified_model_load(tmp_path: Path) -> None:
+    """Keep the inventoried model exception bound to PyTorch's restricted loader."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_unrestricted_model_load",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    unrestricted_source = source_path.read_text(encoding="utf-8").replace(
+        "weights_only=True",
+        "weights_only=False",
+        1,
+    )
+    target_path.write_text(unrestricted_source, encoding="utf-8")
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
+    ]
+
+
+def test_security_pattern_gate_rejects_expanded_checkpoint_allowlist(tmp_path: Path) -> None:
+    """Require review when a new reconstructable checkpoint global is introduced."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_expanded_checkpoint_allowlist",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    expanded_source = source_path.read_text(encoding="utf-8").replace(
+        "        model_class,\n",
+        "        model_class,\n        str,\n",
+        1,
+    )
+    target_path.write_text(expanded_source, encoding="utf-8")
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("api_name", "spacing"),
+    [
+        ("safe_" + "globals", ""),
+        ("safe_" + "globals", " "),
+        ("add_safe_" + "globals", ""),
+        ("add_safe_" + "globals", "\t"),
+    ],
+)
+def test_security_pattern_gate_rejects_additional_checkpoint_global_mutation(
+    api_name: str,
+    spacing: str,
+    tmp_path: Path,
+) -> None:
+    """Reject a second scoped or persistent PyTorch reconstruction allowlist."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        f"security_gates_additional_{api_name}",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    extra_allowlist = "\ntorch." + "serialization." + api_name + spacing + "([str])\n"
+    target_path.write_text(
+        source_path.read_text(encoding="utf-8") + extra_allowlist,
+        encoding="utf-8",
+    )
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals."
+    ]
+
+
+@pytest.mark.parametrize(
+    "alias_import",
+    [
+        "\nfrom torch." + "serialization import safe_globals as extra_safe_globals\n",
+        "\nfrom torch import " + "serialization as extra_serialization\n",
+    ],
+)
+def test_security_pattern_gate_rejects_checkpoint_api_alias_imports(
+    alias_import: str,
+    tmp_path: Path,
+) -> None:
+    """Reject standard import aliases that could bypass attribute-call matching."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_checkpoint_alias_import",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    target_path.write_text(
+        source_path.read_text(encoding="utf-8") + alias_import,
+        encoding="utf-8",
+    )
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals."
+    ]
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (
+            "# nosemgrep: trailofbits.python.pickles-in-pytorch.pickles-in-pytorch\n"
+            "                    package = torch." + "load(  # nosec B614",
+            "# nosemgrep\n"
+            "                    package = torch." + "load(  # nosec B614\n"
+            "# nosemgrep: trailofbits.python.pickles-in-pytorch.pickles-in-pytorch",
+        ),
+        ("package = torch." + "load(  # nosec B614", "package = torch." + "load("),
+    ],
+)
+def test_security_pattern_gate_binds_suppressions_to_exact_model_load(
+    old: str,
+    new: str,
+    tmp_path: Path,
+) -> None:
+    """Keep both scanner exceptions exact, local, and single-purpose."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_moved_model_suppression",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    source = source_path.read_text(encoding="utf-8")
+    assert old in source
+    target_path.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
     ]
 
 

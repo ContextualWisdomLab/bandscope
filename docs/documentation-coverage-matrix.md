@@ -1,6 +1,6 @@
 # Documentation Coverage and Traceability Matrix
 
-Last evaluated: 2026-08-09
+Last evaluated: 2026-08-10
 Evaluation scope: real known-stem YouTube source-separation validation and the affected BandScope
 runtime/release boundaries.
 
@@ -14,6 +14,10 @@ The documentation graph is now structurally sufficient and explicitly code-curre
 is not yet release-ready for source separation. A passing live run, model-rights/legal delivery
 decision, threshold calibration, supported-platform evidence, and bounded evidence artifact remain
 open. Full-hash pre-load verification is now implemented and regression-tested.
+The same-byte loader now uses `weights_only=True`, one exact reviewed global allowlist, strict Demucs
+construction, and a serialized one-time read/load cache. Repository mutation tests reject an
+unrestricted fallback, an allowlist expansion or second allowlist API, moved/broad scanner
+suppression, and any second `torch.load` site.
 
 Issue #770 remains open. This branch must not be described as completing the full real-audio MIR
 acceptance layer.
@@ -28,11 +32,11 @@ acceptance layer.
 | ADR | `docs/adr/README.md`, ADR-0001..0003 | Captures model, live quality gate, and persistence/ERD decisions with alternatives and supersession. | ADR-0001..0003 remain Proposed until branch merge. |
 | UML | `docs/architecture/diagrams.md` | Component, sequence, state, class, and deployment views included. | No additional UML is needed for the bounded slice. |
 | ERD/data | `docs/architecture/diagrams.md`, ADR-0003 | Logical artifact relationships and persistence status are explicit. | Physical ERD is intentionally not applicable until persistence exists. |
-| Security/privacy | `docs/engineering/youtube-known-stem-validation.md`, `docs/security/app-security.md`, ADRs | Threats, trust boundaries, non-collection, integrity, cleanup, and legal limits covered; exact model bytes are verified before load. | Rights/platform authorization remains open. |
+| Security/privacy | `docs/engineering/youtube-known-stem-validation.md`, `docs/security/app-security.md`, ADRs | Threats, trust boundaries, non-collection, integrity, cleanup, and legal limits covered; exact model bytes use the reviewed restricted loader and serialized one-time cache. | Approved-pickle semantic/provenance risk acceptance plus rights/platform authorization remain open. |
 | Test strategy | `docs/TRD.md`, operator guide, acceptance criteria | Offline/live split and metric/failure contracts covered. | No successful live score has been recorded. |
 | MIR doctoring | `docs/doctoring/real-audio-accuracy-acceptance.md` | Issue #770 metrics, claim boundaries, tiers, and roadmap are separated from the bounded vocal slice. | Accuracy manifest, reports, other MIR families, and corpus tiers remain open. |
 | Operations/release | runbook and release policy | Preflight, evidence, triage, rollback, and blocking conditions covered. | Platform matrix and live pass are incomplete. |
-| Supply chain | supplemental inventory and dependency policy | Retired model removed; code/inventory artifact parity, fail-closed pre-load verification, uv.lock-bound yt-dlp, and verified ffmpeg/ffprobe evidence contract recorded. | Model provisioning/distribution rights remain unresolved. |
+| Supply chain | supplemental inventory and dependency policy | Retired model removed; code/inventory artifact parity, fail-closed same-byte restricted loading, exact allowlist mutation guards, uv.lock-bound yt-dlp, and verified ffmpeg/ffprobe evidence contract recorded. | Model provisioning/distribution rights and any future non-pickle conversion remain unresolved. |
 | Automation | active CWL autonomous loop and `docs/workflow/pr-review-merge-scheduler.md` | BandScope continuity and no-status-only termination are covered without creating a competing writer. | Dedicated BandScope loop remains paused due writer topology/active-task capacity. |
 | Review governance | `docs/security/github-required-checks.md`, governance, gitflow, contributing, bootstrap policy | Stable checks and review are cumulative; qualifying evidence is an exact-head completed CodeRabbit artifact or exact-head independent non-author `APPROVED` review. Status-only, rate-limited, author, or predecessor evidence is excluded. | A provider rate limit can still defer review, blocking only merge. |
 
@@ -47,7 +51,7 @@ acceptance layer.
 | PRD-KS-006, KS-010 | ADR-0002 | pytest marker and failure taxonomy | Every collected default offline test; explicit live failure | Advisory until promotion ADR |
 | PRD-KS-008 | ADR-0003 | temporary directory and sanitized errors | cleanup postcondition and archive failure tests | Evidence excludes raw media/paths |
 | PRD-KS-009 | ADR-0003; NIST AI RMF TEVV | planned bounded evidence schema | No retained score yet | Required before blocking release gate |
-| TRD-KS-011 | ADR-0001 | separator manifest plus supplemental inventory | exact filename/hash/size parity tests | Model-rights/legal delivery blocker |
+| TRD-KS-011 | ADR-0001 | separator manifest, restricted-loader allowlist, serialized load lock, and supplemental inventory | exact filename/hash/size parity; same-byte `weights_only=True`; strict construction; concurrency/read-once and mutation tests; real-artifact load smoke | Approved-pickle risk acceptance and model-rights/legal delivery blocker; any hash/allowlist/dependency change requires new smoke evidence |
 
 ## Live evidence snapshot
 
@@ -78,7 +82,10 @@ filename/hash/size manifest, then rejects inventory drift. It also binds the yt-
 `uv.lock`, requires both ffmpeg and ffprobe operator records, rejects the retired bandsplit profile,
 and validates every model artifact's schema, types, full SHA-256, positive non-boolean size, and
 HTTPS source. `scripts/checks/verify_security_notes.py` recursively requires the exact canonical
-`## Security Notes` section in every plan.
+`## Security Notes` section in every plan. `scripts/checks/security_gates.py` permits only the one
+exact full-hash same-byte `torch.load` call, requires its rule-specific Semgrep and Bandit
+suppressions in place, and binds it to `weights_only=True`, the exact global allowlist, and no other
+allowlist mutation API.
 
 ## Re-evaluation triggers
 

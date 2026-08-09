@@ -13,8 +13,18 @@ RULES = [
         "Use argument arrays, not string commands, for subprocess calls.",
     ),
     (
-        re.compile(r"pickle\.load\(|torch\.load\("),
+        re.compile(
+            r"\b(?:pickle|torch)\.load\b|"
+            r"from\s+(?:torch|pickle)\s+import\s+load\b"
+        ),
         "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+    ),
+    (
+        re.compile(
+            r"\btorch\.serialization\b|"
+            r"from\s+torch\s+import\s+serialization\b"
+        ),
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
     ),
     (
         re.compile(r"curl\s+[^\n|]*\|\s*(sh|bash)"),
@@ -32,11 +42,27 @@ SELF_PATH = Path("scripts/checks/security_gates.py")
 VERIFIED_MODEL_LOADER_PATH = Path(
     "services/analysis-engine/src/bandscope_analysis/separation/audio_separator.py"
 )
+VERIFIED_MODEL_SAFE_GLOBALS_DEFINITION = (
+    "def _trusted_checkpoint_globals(model_class: type[Any]) -> list[Any]:\n"
+    '    """Return the minimal globals required by the exact htdemucs checkpoint."""\n'
+    "    return [\n"
+    "        model_class,\n"
+    '        (_numpy_scalar, "numpy.core.multiarray.scalar"),\n'
+    '        (np.dtype, "numpy.dtype"),\n'
+    "        type(np.dtype(np.float64)),\n"
+    "        Fraction,\n"
+    "    ]\n"
+)
 VERIFIED_TORCH_LOAD_CALL = re.compile(
-    r"torch\.load\(\s*(?:#[^\n]*\n\s*)?"
+    r"with\s+torch\.serialization\.safe_globals\(\s*"
+    r"_trusted_checkpoint_globals\(HTDemucs\)\s*\):\s*"
+    r"# Exact full-SHA/size-verified bytes use a minimal restricted allowlist;\s*\n\s*"
+    r"# ADR-0001 treats any future artifact hash as executable-code review\.\s*\n\s*"
+    r"# nosemgrep: trailofbits\.python\.pickles-in-pytorch\.pickles-in-pytorch\s*\n\s*"
+    r"package\s*=\s*torch\.load\(\s*# nosec B614\s*\n\s*"
     r"io\.BytesIO\(payload\),\s*"
     r"map_location=[\"']cpu[\"'],\s*"
-    r"weights_only=False,?\s*"
+    r"weights_only=True,?\s*"
     r"\)",
     re.MULTILINE,
 )
@@ -45,6 +71,9 @@ VERIFIED_MODEL_LOADER_PREREQUISITES = (
     "hashlib.sha256(payload).hexdigest()",
     "artifact.size_bytes",
     "stat.S_ISREG",
+    '(_numpy_scalar, "numpy.core.multiarray.scalar")',
+    '(np.dtype, "numpy.dtype")',
+    "# nosemgrep: trailofbits.python.pickles-in-pytorch.pickles-in-pytorch",
 )
 
 
@@ -60,6 +89,10 @@ def _content_for_pattern_scan(relative_path: Path, content: str) -> str:
     if relative_path != VERIFIED_MODEL_LOADER_PATH:
         return content
     if not all(token in content for token in VERIFIED_MODEL_LOADER_PREREQUISITES):
+        return content
+    if content.count("# nosemgrep") != 1 or content.count("# nosec") != 1:
+        return content
+    if content.count(VERIFIED_MODEL_SAFE_GLOBALS_DEFINITION) != 1:
         return content
     if len(VERIFIED_TORCH_LOAD_CALL.findall(content)) != 1:
         return content

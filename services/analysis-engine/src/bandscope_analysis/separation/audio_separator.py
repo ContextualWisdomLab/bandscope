@@ -14,7 +14,8 @@ Security Notes:
   retrieval path.
 - The cache entry must be a non-symlinked regular file with the exact byte size
   and full SHA-256; the verified in-memory bytes are the only bytes passed to
-  torch checkpoint deserialization.
+  PyTorch's restricted ``weights_only`` checkpoint loader. Reconstruction is
+  serialized and limited to the minimal globals required by this exact artifact.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -29,11 +30,14 @@ import os
 import stat
 import warnings
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
+from threading import Lock
 from typing import Any, cast
 
 import librosa
 import numpy as np
+from numpy.core.multiarray import scalar as _numpy_scalar
 
 from bandscope_analysis.temporal.analyzer import (
     KNOWN_LIBROSA_NUMBA_WARNING_FILTERS,
@@ -74,6 +78,18 @@ _MODEL_ARTIFACTS: dict[str, _ModelArtifactSpec] = {
     )
 }
 _MODEL_PATH_ENV = "BANDSCOPE_HTDEMUCS_MODEL_PATH"
+_MODEL_LOAD_LOCK = Lock()
+
+
+def _trusted_checkpoint_globals(model_class: type[Any]) -> list[Any]:
+    """Return the minimal globals required by the exact htdemucs checkpoint."""
+    return [
+        model_class,
+        (_numpy_scalar, "numpy.core.multiarray.scalar"),
+        (np.dtype, "numpy.dtype"),
+        type(np.dtype(np.float64)),
+        Fraction,
+    ]
 
 
 def _contains_parent_path_segment(path: Path) -> bool:
@@ -179,6 +195,9 @@ class AudioStemSeparator:
 
         try:
             import torch
+            from demucs.htdemucs import (  # type: ignore[import-not-found, unused-ignore]
+                HTDemucs,
+            )
             from demucs.states import (  # type: ignore[import-not-found, unused-ignore]
                 load_model,
             )
@@ -204,22 +223,28 @@ class AudioStemSeparator:
                     "Stem separation model cache location is unavailable"
                 ) from None
 
-        payload = _read_verified_model_artifact(artifact_path, artifact)
-        try:
-            # This exact in-memory payload passed full SHA-256 and size verification above.
-            package = torch.load(  # nosec B614
-                io.BytesIO(payload),
-                map_location="cpu",
-                weights_only=False,
-            )
-            model = load_model(package)  # type: ignore[no-untyped-call]
-            model.eval()
-        except Exception:
-            raise ModelArtifactError(
-                "Stem separation model failed to load after integrity verification"
-            ) from None
-        self._model = model
-        return self._model
+        with _MODEL_LOAD_LOCK:
+            if self._model is not None:
+                return self._model
+            payload = _read_verified_model_artifact(artifact_path, artifact)
+            try:
+                with torch.serialization.safe_globals(_trusted_checkpoint_globals(HTDemucs)):
+                    # Exact full-SHA/size-verified bytes use a minimal restricted allowlist;
+                    # ADR-0001 treats any future artifact hash as executable-code review.
+                    # nosemgrep: trailofbits.python.pickles-in-pytorch.pickles-in-pytorch
+                    package = torch.load(  # nosec B614
+                        io.BytesIO(payload),
+                        map_location="cpu",
+                        weights_only=True,
+                    )
+                model = load_model(package, strict=True)  # type: ignore[no-untyped-call]
+                model.eval()
+            except Exception:
+                raise ModelArtifactError(
+                    "Stem separation model failed to load after integrity verification"
+                ) from None
+            self._model = model
+            return self._model
 
     def _apply_model(self, model: Any, audio: AudioStemArray) -> dict[str, np.ndarray[Any, Any]]:
         """Apply Demucs to a mono signal, returning demucs-source-name -> mono array."""
