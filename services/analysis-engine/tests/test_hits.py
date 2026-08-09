@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -138,3 +140,11 @@ def test_detect_shared_hits_safe_failure_inputs() -> None:
     assert detect_shared_hits({"vocals": _tone(1.0)}, 0) == []
     # Non-numeric array must not raise.
     assert detect_shared_hits({"vocals": np.array(["boom"])}, SR) == []  # type: ignore[dict-item]
+
+
+def test_detect_shared_hits_catches_unexpected_exceptions() -> None:
+    """Unexpected exceptions during shared-hit detection are caught and yield []."""
+    with patch(
+        "bandscope_analysis.temporal.hits._detect_shared_hits", side_effect=RuntimeError("Boom")
+    ):
+        assert detect_shared_hits({"vocals": _tone(1.0)}, SR) == []
