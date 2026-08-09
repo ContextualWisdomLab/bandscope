@@ -458,7 +458,7 @@ def test_cli_main_progress_jsonl_streams_status_updates(
     def fake_stem_separation(*args: Any, **kwargs: Any) -> dict[str, Any]:
         silence = np.zeros(1024, dtype=np.float32)
         return {
-            "stems": {stem: silence for stem in ("vocals", "bass", "drums", "other")},
+            "stems": dict.fromkeys(("vocals", "bass", "drums", "other"), silence),
             "sample_rate": 22050,
             "duration_seconds": 1.0,
             "chunk_count": 1,
