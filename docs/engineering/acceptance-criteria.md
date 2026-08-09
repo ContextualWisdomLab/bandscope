@@ -27,8 +27,8 @@ Run the narrowest passing set that covers touched areas, and do not claim succes
 
 When CI/workflow files, supply-chain controls, or release/security docs are changed, also run:
 
-- `python3 scripts/checks/verify_supply_chain.py`
-- `python3 scripts/checks/security_gates.py`
+- `node scripts/checks/run_python.mjs scripts/checks/verify_supply_chain.py`
+- `node scripts/checks/run_python.mjs scripts/checks/security_gates.py`
 
 When runtime-wide confidence is needed, run:
 

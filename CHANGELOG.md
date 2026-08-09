@@ -38,6 +38,9 @@
 - Reconciled stale CodeRabbit-gate wording with the canonical stable-check and review-equivalent
   policy; qualifying evidence is now defined against the exact current head, and a rate-limited,
   status-only, author, or predecessor review is not treated as completed review evidence.
+- Routed root npm/quickcheck Python entry points through a shared Node launcher that selects
+  `py -3`, `python3`, or `python` in a deterministic platform-specific order without masking
+  interpreter failures.
 
 ### Security Notes
 
@@ -48,6 +51,9 @@
   path-and-hash pair is verified before network fixture access; model loading is offline,
   same-byte, restricted to `weights_only=True` plus the exact reviewed globals, and fails closed
   without an unrestricted fallback.
+- Developer tooling: the cross-platform check launcher is repository-only, invokes only the fixed
+  `py`, `python3`, or `python` candidates with argument arrays and no shell, and propagates the first
+  available interpreter's failure instead of retrying past it.
 - Logging and privacy: raw media, model bytes, separated stems, credentials, and full local paths
   are not retained in release evidence or emitted in bounded operator errors.
 - Test points: each candidate head must pass quickcheck, hosted SAST/Bandit/secret/security scans,

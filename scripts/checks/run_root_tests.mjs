@@ -2,6 +2,8 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 
+import { runPython } from "./python_launcher.mjs";
+
 const workspaceArgs = process.argv.slice(2).filter((arg) => arg !== "--coverage");
 
 function run(command, args) {
@@ -25,44 +27,13 @@ function run(command, args) {
   }
 }
 
-function runPython(args) {
-  const candidates =
-    process.platform === "win32"
-      ? [
-          ["py", ["-3"]],
-          ["python", []],
-          ["python3", []],
-        ]
-      : [
-          ["python3", []],
-          ["python", []],
-        ];
-
-  for (const [command, prefix] of candidates) {
-    const result = spawnSync(command, [...prefix, ...args], {
-      stdio: "inherit",
-    });
-
-    if (result.error) {
-      continue;
-    }
-    if (result.status !== 0) {
-      process.exit(result.status ?? 1);
-    }
-    return;
-  }
-
-  console.error("Unable to find a Python interpreter for analysis-engine tests.");
-  process.exit(127);
-}
-
 const npmWorkspaceTestArgs = ["run", "test", "--workspaces", "--if-present"];
 if (workspaceArgs.length > 0) {
   npmWorkspaceTestArgs.push("--", ...workspaceArgs);
 }
 
 run("npm", npmWorkspaceTestArgs);
-runPython([
+const pythonStatus = runPython([
   "scripts/checks/run_analysis_command.py",
   "pytest",
   "tests",
@@ -72,3 +43,6 @@ runPython([
   "--cov-report=term-missing",
   "--cov-fail-under=100",
 ]);
+if (pythonStatus !== 0) {
+  process.exit(pythonStatus);
+}
