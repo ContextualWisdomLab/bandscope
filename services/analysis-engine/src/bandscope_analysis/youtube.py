@@ -10,9 +10,30 @@ import os
 import re
 import sys
 import urllib.parse
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional, TypedDict, Union
 
 import yt_dlp  # type: ignore
+
+
+class YouTubeError(TypedDict):
+    code: str
+    message: str
+
+class YouTubeMetadata(TypedDict):
+    id: Optional[str]
+    title: Optional[str]
+    duration: Optional[float]
+    filepath: str
+
+class YouTubeDownloadSuccess(TypedDict):
+    ok: Literal[True]
+    metadata: YouTubeMetadata
+
+class YouTubeDownloadError(TypedDict):
+    ok: Literal[False]
+    error: YouTubeError
+
+YouTubeDownloadResult = Union[YouTubeDownloadSuccess, YouTubeDownloadError]
 
 YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MAX_YOUTUBE_URL_LENGTH = 2000
@@ -72,7 +93,7 @@ def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
     return actual_filepath
 
 
-def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
+def _handle_download_error(e: yt_dlp.utils.DownloadError) -> YouTubeDownloadError:
     """Map yt-dlp DownloadError to the public YouTube import error response."""
     msg = str(e).lower()
     if (
@@ -101,7 +122,7 @@ def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
     }
 
 
-def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
+def download_youtube_audio(url: str, out_dir: str) -> YouTubeDownloadResult:
     """
     Download audio from a YouTube URL to the specified directory.
 
