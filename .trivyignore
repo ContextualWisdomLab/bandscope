@@ -1,2 +1,10 @@
-yt_dlp/extractor/shahid.py
 services/analysis-engine/.venv/lib/python3.12/site-packages/yt_dlp/extractor/shahid.py
+
+# GHSA-wrw7-89jp-8q8g tracked as RUSTSEC-2024-0429
+# Exception for glib 0.18.5 until glib >=0.20
+# Requires Tauri/wry/webkit2gtk/gtk GTK3 stack
+# Windows/macOS artifacts only
+# Guarded by verify_supply_chain.py
+# remove when upstream drops or patches the chain
+# exp:2026-10-09
+GHSA-wrw7-89jp-8q8g exp:2026-10-09
