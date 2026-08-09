@@ -27,6 +27,7 @@ Quickcheck aggregates lint/type/test/build and repository policy checks intended
 
 - Dependency sync: `uv sync --project services/analysis-engine --group dev`
 - Tests: `uv run --project services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100`
+- Real YouTube known-stem validation: `docs/engineering/youtube-known-stem-validation.md`
 
 ## CI parity expectation
 

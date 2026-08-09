@@ -9,9 +9,10 @@ consume.
 Security Notes:
 - Treats the selected audio file as untrusted input: the path is normalized and
   verified to be a file, and a maximum byte size is enforced before decode.
-- Inference runs locally on CPU with no network access. The model weights are
-  loaded from the local Demucs cache or a configured bundled path; offline
-  weight bundling is tracked in the supplemental component inventory.
+- Inference runs locally on CPU after model provisioning. The first Demucs
+  model load may fetch the inventoried weight into its user cache; BandScope
+  does not bundle that artifact, and offline operation requires a trusted
+  pre-provisioned cache.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -66,6 +67,9 @@ class AudioSeparationConfig:
     max_duration_seconds: float = float(MAX_ANALYSIS_DURATION_SECONDS)
     model_name: str = "htdemucs"
     device: str = "cpu"
+    # Disable Demucs' random time-shift augmentation so repeated analysis of
+    # the same bytes is deterministic and benchmark evidence is reproducible.
+    shifts: int = 0
     # Demucs splits long audio into overlapping segments internally, bounding
     # memory so long tracks do not OOM the host on CPU.
     overlap: float = 0.25
@@ -167,6 +171,7 @@ class AudioStemSeparator:
                 model,
                 normalized[None],
                 device=self.config.device,
+                shifts=self.config.shifts,
                 split=True,
                 overlap=self.config.overlap,
                 progress=False,

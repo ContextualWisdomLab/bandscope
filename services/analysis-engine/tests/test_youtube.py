@@ -60,6 +60,8 @@ def test_validate_url_edge_cases() -> None:
     assert validate_url("https://evil.com/youtube.com/watch?v=123") is False
     assert validate_url("https://evil.com?youtube.com/watch?v=123") is False
     assert validate_url("https://evil.com#youtube.com/watch?v=123") is False
+    assert validate_url("https://youtube.com:443@evil.example/watch?v=abc123DEF45") is False
+    assert validate_url("https://youtube.com:444/watch?v=abc123DEF45") is False
 
     # Allowlist behavior and explicit default ports
     assert validate_url("https://kr.youtube.com/watch?v=abc123DEF45") is False
@@ -113,6 +115,7 @@ def test_download_youtube_audio_success(
     assert called_opts["noprogress"] is True
     assert called_opts["noplaylist"] is True
     assert called_opts["geo_bypass"] is False
+    assert called_opts["compat_opts"] == {"no-certifi"}
     assert called_opts["postprocessors"] == [{"key": "FFmpegExtractAudio"}]
     assert "%(id)s.%(ext)s" in called_opts["outtmpl"]
 

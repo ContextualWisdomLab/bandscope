@@ -357,6 +357,7 @@ def test_audio_stem_separator_apply_model_uses_demucs_boundary(
         batch: _FakeTensor,
         *,
         device: str,
+        shifts: int,
         split: bool,
         overlap: float,
         progress: bool,
@@ -365,6 +366,7 @@ def test_audio_stem_separator_apply_model_uses_demucs_boundary(
             {
                 "batch_shape": batch.array.shape,
                 "device": device,
+                "shifts": shifts,
                 "split": split,
                 "overlap": overlap,
                 "progress": progress,
@@ -392,6 +394,7 @@ def test_audio_stem_separator_apply_model_uses_demucs_boundary(
     assert calls == {
         "batch_shape": (1, 2, samples),
         "device": "cpu",
+        "shifts": 0,
         "split": True,
         "overlap": 0.375,
         "progress": False,

@@ -1,7 +1,14 @@
-"""
-YouTube import capabilities for BandScope.
+"""YouTube import capabilities for BandScope.
 
 This module provides a safe wrapper around yt-dlp to download audio from YouTube.
+
+Security Notes:
+- Accepts only bounded, standard HTTPS YouTube watch URLs and disables playlists,
+  geographic bypass, credentials, and interactive authentication.
+- Keeps certificate verification enabled and uses the operating system trust
+  store so managed desktop CA policy is honored.
+- Rejects metadata over 15 minutes and completed files over 50 MiB, returns
+  sanitized public errors, and never logs the requested URL or downloaded audio.
 """
 
 import argparse
@@ -41,7 +48,13 @@ def validate_url(url: str) -> bool:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != "https":
             return False
-        host = parsed.netloc.lower().split(":")[0]
+        if (
+            parsed.username is not None
+            or parsed.password is not None
+            or parsed.port not in (None, 443)
+        ):
+            return False
+        host = parsed.hostname
 
         if host == "youtu.be":
             path = parsed.path.strip("/")
@@ -130,6 +143,9 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
         "noplaylist": True,
         "postprocessors": [{"key": "FFmpegExtractAudio"}],
         "geo_bypass": False,
+        # Keep TLS verification enabled while honoring OS-managed CA roots
+        # (including enterprise desktop trust stores) instead of certifi only.
+        "compat_opts": {"no-certifi"},
     }
 
     try:

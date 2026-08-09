@@ -42,6 +42,24 @@ Changes touching files, URLs, subprocesses, IPC, WebView, updates, model downloa
 
 For protected branches, intended checks are documented in `docs/security/github-required-checks.md`. Work should not reduce or bypass these checks.
 
+## Source-separation quality gates
+
+- Every separator or downloader change must keep the 16 deterministic known-stem metric, alignment,
+  archive-integrity, redirect/path, cleanup, and failure-contract cases passing.
+- A live evidence claim must cross `download_youtube_audio()` and `AudioStemSeparator.separate()` on
+  the same exact candidate, authenticate the separately pinned creator master, compose the two
+  global offsets once, and record duration drift, master identity correlation, baseline/vocal
+  SI-SDR, improvement, assignment margin, model identity, platform, and cleanup.
+- The provisional live thresholds are YouTube/master duration drift ≤ 1.0 s, identity correlation ≥
+  0.90, vocal SI-SDR improvement ≥ +0.5 dB, and vocal assignment margin ≥ 3.0 dB. The quality
+  thresholds are supported by creator-master calibration only; an authorized YouTube baseline is
+  required before promotion. Changing a threshold requires calibration evidence and an ADR; a
+  provider or model failure does not justify weakening it.
+- Skipped, disabled, HTTP/provider-failed, model-unavailable, integrity-failed, drifted, non-finite,
+  predecessor-head, or stale-base execution is not passing evidence.
+- Before the lane can block a release, ADR-0001/0002 blockers—authorization, full-hash pre-load
+  verification, exact-candidate pass, calibration, and supported-platform evidence—must be closed.
+
 ## Evidence policy
 
 Completion claims must be backed by command output and/or GitHub run evidence from the current change set.

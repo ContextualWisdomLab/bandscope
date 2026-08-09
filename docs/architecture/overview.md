@@ -39,6 +39,20 @@ GitHub is the source of truth for repository governance, PR review, CI/CD, Code 
 - bootstrap local audio projects by validating the selected file in Rust, then passing only typed source metadata through the orchestration boundary
 - keep project and temp/cache bootstrap roots under Tauri-resolved app-owned directories rather than the shared OS temp namespace
 
+## Source-separation runtime
+
+- The Python engine uses the real four-source `htdemucs` model on supported platforms; the old FFT
+  profile is retired.
+- Inference is local after a trusted cache is provisioned. Current first use may retrieve the exact
+  inventoried model artifact; full-hash pre-load enforcement remains a release blocker.
+- The known-stem validation branch proves the real YouTube intake → creator-master identity →
+  composed master/vocal alignment → deterministic separator → SI-SDR scoring path. Test-only
+  reference handling never becomes a general runtime downloader.
+- Media and stem arrays are ephemeral. Only bounded numeric/provenance evidence may be retained after
+  authorization, so no physical benchmark database or ERD exists.
+
+See `docs/TRD.md`, `docs/adr/README.md`, and `docs/architecture/diagrams.md`.
+
 ## CI/CD and release flow
 
 - PRs into `develop` and `main` run CI, dependency review, security audit, secret-scan gate, SBOM generation, and CodeQL

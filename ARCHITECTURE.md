@@ -1,6 +1,16 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-09
+
+## Documentation authority
+
+- Product requirements live in `docs/PRD.md`.
+- Technical requirements live in `docs/TRD.md`.
+- Decision status and supersession live in `docs/adr/README.md`.
+- Component, UML, deployment, and logical artifact views live in
+  `docs/architecture/diagrams.md`.
+- Sufficiency and requirement-to-evidence traceability live in
+  `docs/documentation-coverage-matrix.md`.
 
 ## Brand source
 
@@ -75,6 +85,40 @@ Last updated: 2026-03-11
 - A `role` can represent an instrument, a vocal function, or a hand-specific subdivision when the arrangement exposes it clearly.
 - Typical roles include bass, guitar, keyboard players, keyboard left hand, keyboard right hand, lead vocal, backing vocal, horns, strings, and other arrangement-carrying parts.
 - Shared contracts should be able to carry different harmonic guidance for simultaneous roles in the same section.
+
+## Source separation and model delivery
+
+- Production separation uses Demucs 4.0.1 `htdemucs` and returns exactly vocals, bass, drums, and
+  other for downstream local analysis. The retired `bandsplit-v1` profile is not a production
+  model.
+- Demucs random temporal shifts are disabled (`shifts=0`) so the same bytes and model produce
+  reproducible local analysis and benchmark evidence.
+- Model inference is local after provisioning, but the current first load may fetch the exact
+  official weight artifact into a user runtime cache. It is not bundled with the repository or
+  release artifacts.
+- The exact signature, source URL, full SHA-256, byte size, distribution status, and model-rights
+  uncertainty are tracked in `supply-chain/supplemental-component-inventory.json` and ADR-0001.
+- Full-SHA verification before torch deserialization and a model-rights decision remain release
+  blockers. Demucs' filename-prefix check alone is not promoted to full release evidence.
+- Current dependency markers exclude Demucs on macOS Intel; unsupported platforms must surface the
+  existing safe fallback rather than pretending to separate stems.
+
+## Known-stem validation boundary
+
+- The active known-stem branch crosses the production YouTube downloader and production separator,
+  while its reference loader, alignment, and metric utilities remain test-only.
+- It pins a creator-published vocal source and a separate finished master by exact hosts, byte
+  counts, full SHA-256 values, member, and member size; downloads and waveforms stay in test-owned
+  ephemeral storage.
+- The finished master proves candidate identity. YouTube-to-master and master-to-vocal global lags
+  are composed once before separation; predicted stems are never realigned. Quality requires
+  duration/identity checks, zero-mean SI-SDR improvement over the downloaded mixture, and correct
+  vocal-stem assignment margin.
+- Deterministic metric/integrity/security contracts run in ordinary CI. Live network/model execution
+  is explicit opt-in and cannot be scheduled or made release-blocking until authorization and
+  calibration requirements in ADR-0002 are met.
+- The capability has no relational persistence. ADR-0003 and the logical artifact model in
+  `docs/architecture/diagrams.md` are authoritative instead of a physical ERD.
 
 ## Rehearsal outputs
 

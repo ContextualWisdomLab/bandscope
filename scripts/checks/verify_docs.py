@@ -15,6 +15,16 @@ REQUIRED_PATHS = [
     Path("docs/repository/bootstrap-plan.md"),
     Path("docs/repository/gitflow.md"),
     Path("docs/architecture/overview.md"),
+    Path("docs/architecture/diagrams.md"),
+    Path("docs/README.md"),
+    Path("docs/PRD.md"),
+    Path("docs/TRD.md"),
+    Path("docs/adr/README.md"),
+    Path("docs/adr/0001-source-separation-runtime-and-model-delivery.md"),
+    Path("docs/adr/0002-known-stem-youtube-quality-gate.md"),
+    Path("docs/adr/0003-ephemeral-benchmark-evidence-model.md"),
+    Path("docs/documentation-coverage-matrix.md"),
+    Path("docs/doctoring/real-audio-accuracy-acceptance.md"),
     Path("docs/i18n/i18n-policy.md"),
     Path("docs/release/release-policy.md"),
     Path(".github/CODEOWNERS"),
@@ -57,29 +67,45 @@ REQUIRED_REFERENCES = {
         "docs/security/dependency-policy.md",
         "docs/security/cross-platform-build-policy.md",
         "docs/workflow/github-bootstrap-execution-policy.md",
+        "docs/PRD.md",
+        "docs/TRD.md",
+        "docs/adr/README.md",
+        "docs/architecture/diagrams.md",
+    ],
+    Path("docs/README.md"): [
+        "docs/PRD.md",
+        "docs/TRD.md",
+        "docs/adr/README.md",
+        "docs/architecture/diagrams.md",
+        "docs/documentation-coverage-matrix.md",
     ],
 }
 
 
-def main() -> int:
-    """Return a failing exit code when required docs or references are missing."""
-    missing = [str(path) for path in REQUIRED_PATHS if not path.exists()]
-    if missing:
-        print("Missing required docs:")
-        for path in missing:
-            print(f"- {path}")
-        return 1
-    broken_refs: list[str] = []
+def documentation_violations(root: Path = Path(".")) -> list[str]:
+    """Return missing canonical files and broken authority-reference violations."""
+    violations = [
+        f"missing file: {path}" for path in REQUIRED_PATHS if not (root / path).exists()
+    ]
     for path, required_texts in REQUIRED_REFERENCES.items():
-        content = path.read_text(encoding="utf-8")
+        absolute_path = root / path
+        if not absolute_path.exists():
+            continue
+        content = absolute_path.read_text(encoding="utf-8")
         for required_text in required_texts:
             if required_text not in content:
-                broken_refs.append(f"{path} missing reference: {required_text}")
+                violations.append(f"{path} missing reference: {required_text}")
+    return violations
 
-    if broken_refs:
-        print("Missing required doc references:")
-        for item in broken_refs:
-            print(f"- {item}")
+
+def main() -> int:
+    """Return a failing exit code when required docs or references are missing."""
+    violations = documentation_violations()
+
+    if violations:
+        print("Documentation check failed:")
+        for violation in violations:
+            print(f"- {violation}")
         return 1
 
     print("Documentation check passed")

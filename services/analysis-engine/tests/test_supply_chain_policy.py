@@ -13,6 +13,63 @@ import pytest
 from conftest import load_module, make_symlink_or_skip
 
 
+def test_supplemental_inventory_rejects_obsolete_or_missing_runtime_model(
+    tmp_path: Path,
+) -> None:
+    """Require the runtime separator model, not the retired FFT profile, in inventory."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_missing",
+    )
+    inventory_path = tmp_path / "supply-chain" / "supplemental-component-inventory.json"
+    inventory_path.parent.mkdir(parents=True)
+    inventory_path.write_text(
+        json.dumps(
+            {
+                "modelArtifacts": [
+                    {
+                        "name": "bandsplit-v1-profile",
+                        "runtimeModelName": "bandsplit-v1",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    separator_path = tmp_path / "audio_separator.py"
+    separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        separator_path,
+    )
+
+    assert "supplemental inventory contains retired model: bandsplit-v1-profile" in violations
+    assert "supplemental inventory missing runtime model: htdemucs" in violations
+
+
+def test_supplemental_inventory_accepts_pinned_htdemucs_runtime_model() -> None:
+    """Accept the checked-in full-hash htdemucs runtime artifact record."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_repo",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.supplemental_inventory_violations(
+        repo_root / "supply-chain" / "supplemental-component-inventory.json",
+        repo_root
+        / "services"
+        / "analysis-engine"
+        / "src"
+        / "bandscope_analysis"
+        / "separation"
+        / "audio_separator.py",
+    )
+
+    assert violations == []
+
+
 def central_required_workflow_policy_text() -> str:
     """Return the repository policy text that delegates review automation centrally."""
     repo_root = Path(__file__).resolve().parents[3]

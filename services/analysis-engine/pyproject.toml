@@ -32,6 +32,9 @@ packages = ["src/bandscope_analysis"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "youtube_stem_e2e: opt-in network and real-model validation against a known public stem",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

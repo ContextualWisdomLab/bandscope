@@ -66,6 +66,8 @@ runPython([
   "scripts/checks/run_analysis_command.py",
   "pytest",
   "tests",
+  "-m",
+  "not youtube_stem_e2e",
   "--cov=src/bandscope_analysis",
   "--cov-report=term-missing",
   "--cov-fail-under=100",

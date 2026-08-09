@@ -1,0 +1,146 @@
+# BandScope Technical Requirements Document
+
+Status: Active authority
+Last updated: 2026-08-09
+
+## System contract
+
+BandScope is a local-first React/Tauri desktop application with a Rust validation/orchestration
+boundary and a Python analysis subprocess. The stable product hierarchy is `song -> section ->
+role`. Shared TypeScript contracts carry rehearsal results; raw media and separated arrays stay
+inside the local analysis boundary.
+
+This TRD defines the real known-stem validation slice. Detailed commands and fixture provenance are
+in `docs/engineering/youtube-known-stem-validation.md`; decisions are in `docs/adr/README.md`; UML
+and data-flow views are in `docs/architecture/diagrams.md`.
+
+## Technical requirements
+
+| ID | Requirement | Implementation or proof |
+|---|---|---|
+| TRD-KS-001 | Reuse the production downloader with strict HTTPS YouTube URL validation, playlist disabled, public access only, duration ≤ 900 seconds, and completed file ≤ 50 MiB. | `bandscope_analysis.youtube.download_youtube_audio` and unit tests. |
+| TRD-KS-002 | Pin the source archive, extracted WAV, and creator master by exact HTTPS host, byte size, and full SHA-256. | `KnownStemFixture`, `download_verified_reference_stem`, and `download_verified_creator_master`. |
+| TRD-KS-003 | Stream bounded downloads and one member only; never call `extractall()`. | Test-only fixture loader and hostile archive tests. |
+| TRD-KS-004 | Decode YouTube mix, creator master, and vocal reference to mono 44.1 kHz; estimate YouTube-to-master and master-to-vocal global lags, compose them once, select one 12-second active window, and never align predicted stems separately. | `align_active_reference_window` and `align_known_stem_through_master`. |
+| TRD-KS-005 | Produce finite, equal-length `vocals`, `bass`, `drums`, and `other` arrays through `AudioStemSeparator`. | Live assertion at production separator boundary. |
+| TRD-KS-006 | Calculate zero-mean SI-SDR from hand-defined projection/residual arithmetic; reject non-finite, short, or silent input. | `zero_mean_si_sdr` offline tests. |
+| TRD-KS-007 | Gate vocal SI-SDR improvement ≥ a provisional +0.5 dB and vocal assignment margin ≥ 3.0 dB. | Live assertions; creator-master calibration supports the sentinel, but an authorized YouTube baseline is required before promotion. |
+| TRD-KS-008 | Reject candidate drift when YouTube/master duration differs by > 1.0 s or aligned identity correlation is < 0.90. | Pre-inference live assertions against the pinned finished master. |
+| TRD-KS-009 | Run deterministic contract/security tests by default and require `BANDSCOPE_RUN_YOUTUBE_STEM_E2E=1` for live network/model execution. | Pytest marker and environment guard. |
+| TRD-KS-010 | Clean every downloaded/scored artifact on success and failure. | Nested `TemporaryDirectory` plus postcondition. |
+| TRD-KS-011 | Bind model identity to inventory and full SHA-256 before release. | Inventory records htdemucs signature `955717e8`, 84,141,911 bytes, and SHA-256 `8726e21a…a8b4`; full-hash pre-load enforcement is an open release blocker. |
+
+## Data and class contracts
+
+| Type | Required fields | Lifetime |
+|---|---|---|
+| `KnownStemFixture` | YouTube URL/video ID; archive/member/master URLs, hosts, full SHA-256 values, byte sizes; decoded master duration; target stem | Version-controlled test metadata |
+| `AlignedStemWindow` | mixture/reference arrays; single lag; reference start; correlation | Process memory only |
+| `KnownStemBenchmarkWindow` | YouTube/master lag; master/vocal lag; composed mixture/reference window; identity correlation | Process memory only |
+| Separation result | canonical stem arrays; sample rate; duration; role types; notes | Process memory and downstream local analysis |
+| Benchmark evidence | commit, fixture IDs/hashes, model signature/hash, platform, timestamps, scores, outcome code | `planned`; bounded artifact, never raw audio |
+
+No relational database exists for this capability. The logical artifact model in
+`docs/architecture/diagrams.md` is authoritative; a database ERD would falsely imply persistence.
+
+## Metric contract
+
+For zero-mean estimate $\hat{s}$ and reference $s$:
+
+$$
+s_{target}=\frac{\langle \hat{s},s\rangle}{\|s\|^2}s,\qquad
+\mathrm{SI\text{-}SDR}=10\log_{10}\frac{\|s_{target}\|^2}{\|\hat{s}-s_{target}\|^2}.
+$$
+
+Improvement subtracts the downloaded mixture's SI-SDR from the separated vocal's SI-SDR. The
+assignment margin subtracts the best non-vocal stem score from the named vocal score. Expectations
+are literal thresholds, not values recomputed by production helpers.
+
+## Platform and resource matrix
+
+| Platform | Dependency state | Live lane status |
+|---|---|---|
+| Linux x86_64 | Demucs/torch resolved; CPU inference supported | Supported for controlled evidence |
+| Windows amd64/arm64 | Demucs dependency marker permits installation; release build must prove wheel/tool compatibility | Unproven |
+| macOS arm64 | Demucs dependency marker permits installation | Unproven |
+| macOS Intel | Demucs dependency marker excludes installation | Explicitly unavailable; product must surface safe fallback |
+
+The scored excerpt is 12 seconds, mono PCM at 44.1 kHz, with a 13-second separator duration bound
+and 10 MiB scored-file bound. No release latency ceiling is yet accepted; record wall time and peak
+memory during calibration rather than inventing a target.
+
+Production separation passes `shifts=0` to Demucs. This removes its random temporal augmentation so
+the same audio, model, platform, and precision produce repeatable benchmark inputs and avoids a
+global random-seed side effect in the test harness.
+
+## Model delivery and supply chain
+
+`AudioStemSeparator` currently asks Demucs 4.0.1 for `htdemucs`. Demucs maps that name to signature
+`955717e8` and retrieves `955717e8-8726e21a.th` into a user runtime cache on first use. Demucs checks
+the eight-hex filename hash prefix before deserializing. BandScope independently records the full
+SHA-256 and exact byte size, but current production code does not yet enforce the full digest before
+load. Therefore the model is not bundled and offline inference is guaranteed only after a trusted
+cache is provisioned. ADR-0001 makes full-hash pre-load verification and an explicit redistribution
+license decision release blockers.
+
+`ffmpeg` is an operator-provided executable resolved from `PATH`; yt-dlp is a locked Python package.
+Release evidence must record their resolved versions and may not describe either as bundled unless
+packaging and licensing change.
+
+## Failure taxonomy
+
+- `unsupported_url`, `restricted_content`, `duration_exceeded`, `size_exceeded`: production intake
+  policy failures.
+- `download_failed`, `download_error`, `file_not_found`: live media/provider/tool failures.
+- Reference byte/hash/member/redirect error: fixture integrity or SSRF boundary failure.
+- YouTube/master duration drift above 1.0 s or identity correlation below 0.90: wrong or drifted
+  candidate/transcode.
+- Model import/retrieval/load error: platform or supply-chain failure.
+- Non-finite/shape/threshold error: separator correctness failure.
+
+Explicit live invocation converts all of these to a failing test. A failure blocks only the evidence
+lane; it does not authorize a bypass or stop unrelated repository work.
+
+## Verification and evidence
+
+Default verification runs the 16 deterministic known-stem contract tests and explicitly excludes
+the live marker. A live run uses the exact
+command in the operator guide. Evidence must include exact commit and dependency lock, model full
+hash, fixture archive full hash, public video ID, OS/architecture, result code, correlation, baseline
+SI-SDR, vocal SI-SDR, improvement, assignment margin, duration, and cleanup result. Raw audio,
+archive contents, local paths, provider response bodies, cookies, and credentials are forbidden.
+
+On 2026-08-09, commit `5a3648a11d9097b8da48bb4a3ccbd97986aec25b` passed all 13 offline
+contract tests. Its explicit live attempt successfully validated the pinned reference archive but
+failed at the production YouTube download boundary with HTTP 502 and produced no model score. This
+is failure evidence, not a passing live benchmark.
+
+A separate creator-master calibration on the same environment measured deterministic `shifts=0`
+SI-SDR improvement of +1.752 dB and vocal assignment margin of +7.631 dB. The old dry-vocal/mix
+correlation was only 0.016856, proving it was not a valid identity gate. These values justify only
+the provisional +0.5/+3.0 sentinels and the separate master identity design; they are not an
+authorized YouTube pass.
+
+## Traceability
+
+`docs/documentation-coverage-matrix.md` maps product requirements and ADRs to modules, tests, and
+release controls. Any threshold, fixture, model, persistence, or automation-policy change must
+update that matrix and the applicable ADR before merge.
+
+Issue #770's complete real-audio acceptance program is tracked separately in
+`docs/doctoring/real-audio-accuracy-acceptance.md`. This TRD implements only its known-vocal-stem
+production-path slice.
+
+## References
+
+- Brad Sucks. (2004, May 3). *Making Me Nervous source*.
+  https://www.bradsucks.net/news/archives/2004/05/03/making-me-nervous-source
+- Le Roux, J., Wisdom, S., Erdogan, H., & Hershey, J. R. (2019). SDR—Half-baked or well
+  done? In *ICASSP 2019—2019 IEEE International Conference on Acoustics, Speech and Signal
+  Processing* (pp. 626–630). IEEE. https://doi.org/10.1109/ICASSP.2019.8683855
+- National Institute of Standards and Technology. (2023). *Artificial intelligence risk
+  management framework (AI RMF 1.0)* (NIST AI 100-1). https://doi.org/10.6028/NIST.AI.100-1
+- Rouard, S., Stoller, D., & Défossez, A. (2023). Hybrid transformers for music source
+  separation. In *ICASSP 2023—2023 IEEE International Conference on Acoustics, Speech and
+  Signal Processing*. IEEE. https://arxiv.org/abs/2211.08553
+- YouTube. (n.d.). *Terms of Service*. https://www.youtube.com/static?template=terms
