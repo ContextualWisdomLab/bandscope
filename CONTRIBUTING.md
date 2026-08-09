@@ -16,7 +16,9 @@ Read `docs/repository/gitflow.md` before opening a PR.
 ## Pull requests are mandatory
 
 - direct push to `main` or `develop` is not allowed
-- every protected-branch merge requires a passing `CodeRabbit` check
+- every protected-branch merge requires the stable checks and review-equivalent policy in
+  `docs/security/github-required-checks.md`; request CodeRabbit and address its current actionable
+  findings, but do not treat a stale or rate-limited hosted status as review evidence
 - all review conversations must be resolved before merge
 - required checks must stay green; do not bypass them
 

@@ -74,7 +74,7 @@ Supporting packages:
 ## Key conventions
 
 - Coverage is a hard gate: the Python engine requires 100% test coverage and 100% docstring coverage (Ruff `D100`–`D107` across `src`, `tests`, and repo scripts). Exported TypeScript declarations in `packages/shared-types` and `apps/desktop/src` require JSDoc with a description; `no-console` is an error.
-- Gitflow: `develop` is the default branch; `feature/*` targets `develop`, `main` is the protected release branch. Direct pushes to protected branches are not allowed, and every merge needs the required checks plus a passing CodeRabbit review (see `CONTRIBUTING.md` and `docs/repository/gitflow.md`).
+- Gitflow: `develop` is the default branch; `feature/*` targets `develop`, `main` is the protected release branch. Direct pushes to protected branches are not allowed, and every merge needs the stable checks and review-equivalent policy in `docs/security/github-required-checks.md`. CodeRabbit is requested by default and actionable findings must be addressed, but a stale or rate-limited hosted status is not review evidence.
 - The PR template (`.github/PULL_REQUEST_TEMPLATE.md`) requires a quickcheck confirmation, `Security Notes` (attack surface, trust boundary, mitigations, test points), a dependency/supply-chain checklist, and i18n impact.
 - i18n: the UI ships Korean and English locales (`apps/desktop/src/locales/ko`, `en`). Any user-visible string change must update both.
 - Documents under `docs/plans/` must include `Security Notes`; `scripts/checks/verify_security_notes.py` enforces this mechanically.

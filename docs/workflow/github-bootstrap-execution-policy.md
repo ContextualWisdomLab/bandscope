@@ -87,7 +87,9 @@ Do not treat these as TODOs, later hardening, or optional recommendations.
 ### Phase 5. Initial protection baseline
 
 - apply PR-only merge
-- require `CodeRabbit` as the review-equivalent gate
+- request CodeRabbit and require the current stable-check/review-equivalent policy in
+  `docs/security/github-required-checks.md`; do not equate a stale or rate-limited status context
+  with a completed review
 - disable force push
 - restrict deletion
 - checks can be tightened later after workflows exist

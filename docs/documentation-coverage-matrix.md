@@ -34,6 +34,7 @@ acceptance layer.
 | Operations/release | runbook and release policy | Preflight, evidence, triage, rollback, and blocking conditions covered. | Platform matrix and live pass are incomplete. |
 | Supply chain | supplemental inventory and dependency policy | Retired model removed; exact runtime artifact, ffmpeg status, and hash recorded. | Weight redistribution rights and pre-load enforcement unresolved. |
 | Automation | active CWL autonomous loop and `docs/workflow/pr-review-merge-scheduler.md` | BandScope continuity and no-status-only termination are covered without creating a competing writer. | Dedicated BandScope loop remains paused due writer topology/active-task capacity. |
+| Review governance | `docs/security/github-required-checks.md`, governance, gitflow, contributing, bootstrap policy | Stable required checks and review-equivalent policy are canonical; CodeRabbit is requested and actionable findings are addressed, but stale/rate-limited status-only success is not a completed review. | A provider rate limit can still defer review, blocking only merge. |
 
 ## Requirement-to-evidence traceability
 
@@ -63,7 +64,9 @@ YouTube and is not a live pass.
 ## Machine-checkable contract
 
 `scripts/checks/verify_docs.py` requires the canonical index, PRD, TRD, ADR index and records,
-diagram authority, and this matrix, and checks cross-links from architecture and the index.
+diagram authority, and this matrix; checks cross-links from architecture and the index; and requires
+contributing, governance, gitflow, bootstrap, and GitHub bootstrap policy to link the canonical
+required-check authority so review policy cannot silently fork.
 `scripts/checks/verify_supply_chain.py` derives the configured separator model name and rejects an
 inventory that lacks it, uses the retired bandsplit profile, omits required fields, lacks a full
 SHA-256/positive byte size, or uses a non-HTTPS model source.

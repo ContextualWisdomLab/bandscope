@@ -20,6 +20,8 @@
 
 - Kept YouTube TLS verification enabled while honoring OS-managed CA roots used by managed
   desktop environments.
+- Reconciled stale CodeRabbit-gate wording with the canonical stable-check and review-equivalent
+  policy; a rate-limited or status-only success is not treated as a completed review.
 
 ## [0.1.3] - 2026-04-29
 

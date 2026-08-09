@@ -48,6 +48,7 @@ REQUIRED_PATHS = [
 ]
 
 REQUIRED_REFERENCES = {
+    Path("CONTRIBUTING.md"): ["docs/security/github-required-checks.md"],
     Path("README.md"): [
         "docs/security/app-security.md",
         "docs/security/dependency-policy.md",
@@ -78,6 +79,14 @@ REQUIRED_REFERENCES = {
         "docs/adr/README.md",
         "docs/architecture/diagrams.md",
         "docs/documentation-coverage-matrix.md",
+    ],
+    Path("docs/repository/bootstrap-plan.md"): [
+        "docs/security/github-required-checks.md"
+    ],
+    Path("docs/repository/gitflow.md"): ["docs/security/github-required-checks.md"],
+    Path("docs/repository/governance.md"): ["docs/security/github-required-checks.md"],
+    Path("docs/workflow/github-bootstrap-execution-policy.md"): [
+        "docs/security/github-required-checks.md"
     ],
 }
 
