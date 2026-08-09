@@ -12,6 +12,8 @@ from bandscope_analysis.temporal import TemporalAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
+MAX_JSON_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
 
 def failed_cli_response(message: str) -> dict[str, object]:
     """Return a typed CLI failure envelope for malformed stdin payloads."""
@@ -45,7 +47,13 @@ def main() -> int:
             if not input_data.startswith("{"):
                 try:
                     with open(input_data, "r", encoding="utf-8") as f:
-                        input_data = f.read()
+                        input_data = f.read(MAX_JSON_FILE_SIZE)
+                        if f.read(1):
+                            json.dump(
+                                failed_cli_response("Job file exceeds maximum size limit"),
+                                sys.stdout,
+                            )
+                            return 1
                 except Exception:
                     json.dump(failed_cli_response("Failed to read job file"), sys.stdout)
                     return 1
