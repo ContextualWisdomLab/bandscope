@@ -1160,6 +1160,32 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     assert loaded["stem_role_types"] == {"bass": "instrument"}
     assert not arrays_path.with_suffix(".json").exists()
 
+    # Mock Path.write_text to raise OSError, simulating a failure when writing metadata_temp
+    with (
+        patch(
+            "bandscope_analysis.api._multiprocessing_context",
+            return_value=FakeContext(("ok_file", file_payload)),
+        ),
+        patch("bandscope_analysis.api.Path.write_text", side_effect=OSError("Disk full")),
+    ):
+        try:
+            _run_stem_separation_with_timeout("/tmp/audio.wav")
+        except RuntimeError as error:
+            assert "Stem separation returned invalid stem arrays." in str(error)
+        else:
+            raise AssertionError("Expected RuntimeError for OSError during write_text")
+
+    # Mock Path.unlink to raise OSError, simulating a failure when cleaning up metadata_temp
+    with (
+        patch(
+            "bandscope_analysis.api._multiprocessing_context",
+            return_value=FakeContext(("ok_file", file_payload)),
+        ),
+        patch("bandscope_analysis.api.Path.unlink", side_effect=OSError("Permission denied")),
+    ):
+        loaded = _run_stem_separation_with_timeout("/tmp/audio.wav")
+        assert loaded["sr"] == 22050
+
     invalid_file_payloads = [
         ("not-a-dict", "Stem separation returned invalid metadata."),
         (
