@@ -1,17 +1,24 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import { ScoreViewer } from "./ScoreViewer";
 import { loadScorePdf } from "./pdfjs";
 
 vi.mock("./pdfjs", () => ({
-  loadScorePdf: vi.fn()
+  loadScorePdf: vi.fn(),
 }));
 
 vi.mock("../../i18n", () => ({
   createTranslator: () => (key: string) =>
     ({
-      scoreViewerEmpty: "No score PDF attached. Attach a validated score PDF to view it here.",
+      scoreViewerEmpty:
+        "No score PDF attached. Attach a validated score PDF to view it here.",
       scoreViewerLoading: "Loading score PDF...",
       scoreViewerFailedTitle: "Could not display the score",
       scoreViewerRetry: "Retry",
@@ -20,9 +27,9 @@ vi.mock("../../i18n", () => ({
       scoreViewerPageIndicator: "Page {current} of {total}",
       scoreViewerZoomIn: "Zoom in",
       scoreViewerZoomOut: "Zoom out",
-      scoreViewerFitWidth: "Fit width"
+      scoreViewerFitWidth: "Fit width",
     })[key] ?? key,
-  detectPreferredLocale: () => "en"
+  detectPreferredLocale: () => "en",
 }));
 
 interface Deferred<T> {
@@ -47,9 +54,9 @@ function createFakePage(renderPromise: Promise<void> = Promise.resolve()) {
     renderTask,
     getViewport: vi.fn(({ scale }: { scale: number }) => ({
       width: 600 * scale,
-      height: 800 * scale
+      height: 800 * scale,
     })),
-    render: vi.fn(() => renderTask)
+    render: vi.fn(() => renderTask),
   };
 }
 
@@ -58,19 +65,19 @@ function createFakeDocument(numPages = 3, page = createFakePage()) {
     page,
     doc: {
       numPages,
-      getPage: vi.fn(() => Promise.resolve(page))
-    } as unknown as PDFDocumentProxy
+      getPage: vi.fn(() => Promise.resolve(page)),
+    } as unknown as PDFDocumentProxy,
   };
 }
 
 function mockLoadTaskOnce(
   promise: Promise<unknown>,
-  destroy: () => Promise<void> = () => Promise.resolve()
+  destroy: () => Promise<void> = () => Promise.resolve(),
 ) {
   const destroyMock = vi.fn(destroy);
   vi.mocked(loadScorePdf).mockReturnValueOnce({
     promise,
-    destroy: destroyMock
+    destroy: destroyMock,
   } as unknown as PDFDocumentLoadingTask);
   return { destroy: destroyMock };
 }
@@ -91,7 +98,9 @@ describe("ScoreViewer", () => {
     render(<ScoreViewer data={null} onStatusChange={onStatusChange} />);
 
     expect(
-      screen.getByText("No score PDF attached. Attach a validated score PDF to view it here.")
+      screen.getByText(
+        "No score PDF attached. Attach a validated score PDF to view it here.",
+      ),
     ).toBeInTheDocument();
     expect(loadScorePdf).not.toHaveBeenCalled();
     expect(onStatusChange).not.toHaveBeenCalled();
@@ -120,8 +129,12 @@ describe("ScoreViewer", () => {
       expect(page.render).toHaveBeenCalled();
     });
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Previous page" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByRole("button", { name: "Next page" }),
+    ).not.toHaveAttribute("aria-disabled");
   });
 
   it("shows the file name when provided", async () => {
@@ -147,12 +160,16 @@ describe("ScoreViewer", () => {
     // The FAILED status is set from the load promise's catch (a microtask), and
     // onStatusChange fires from a passive effect that may not have flushed the
     // instant the alert appears. Poll for it, matching the READY assertion below.
-    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith("FAILED"));
+    await waitFor(() =>
+      expect(onStatusChange).toHaveBeenLastCalledWith("FAILED"),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
-    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith("READY"));
+    await waitFor(() =>
+      expect(onStatusChange).toHaveBeenLastCalledWith("READY"),
+    );
     expect(loadScorePdf).toHaveBeenCalledTimes(2);
   });
 
@@ -172,16 +189,18 @@ describe("ScoreViewer", () => {
     render(<ScoreViewer data={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
-    const previousButton = screen.getByRole("button", { name: "Previous page" });
+    const previousButton = screen.getByRole("button", {
+      name: "Previous page",
+    });
     const nextButton = screen.getByRole("button", { name: "Next page" });
-    expect(previousButton).toBeDisabled();
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
-    expect(nextButton).toBeDisabled();
+    expect(nextButton).toHaveAttribute("aria-disabled", "true");
 
     await waitFor(() => {
       expect(doc.getPage).toHaveBeenCalledWith(3);
@@ -262,7 +281,7 @@ describe("ScoreViewer", () => {
     await act(async () => {
       resizeCallback?.(
         [{ contentRect: { width: 300 } } as ResizeObserverEntry],
-        {} as ResizeObserver
+        {} as ResizeObserver,
       );
     });
 
@@ -290,7 +309,7 @@ describe("ScoreViewer", () => {
   it("keeps the READY layout when fetching a page fails after load", async () => {
     const doc = {
       numPages: 1,
-      getPage: vi.fn(() => Promise.reject(new Error("destroyed")))
+      getPage: vi.fn(() => Promise.reject(new Error("destroyed"))),
     } as unknown as PDFDocumentProxy;
     mockLoadTaskOnce(Promise.resolve(doc));
 
@@ -306,12 +325,12 @@ describe("ScoreViewer", () => {
   it("destroys the loading task on unmount and ignores late results", async () => {
     const deferred = createDeferred<PDFDocumentProxy>();
     const { destroy } = mockLoadTaskOnce(deferred.promise, () =>
-      Promise.reject(new Error("already destroyed"))
+      Promise.reject(new Error("already destroyed")),
     );
     const onStatusChange = vi.fn();
 
     const { unmount } = render(
-      <ScoreViewer data={SAMPLE_BYTES} onStatusChange={onStatusChange} />
+      <ScoreViewer data={SAMPLE_BYTES} onStatusChange={onStatusChange} />,
     );
     unmount();
 
@@ -330,7 +349,7 @@ describe("ScoreViewer", () => {
     const onStatusChange = vi.fn();
 
     const { unmount } = render(
-      <ScoreViewer data={SAMPLE_BYTES} onStatusChange={onStatusChange} />
+      <ScoreViewer data={SAMPLE_BYTES} onStatusChange={onStatusChange} />,
     );
     unmount();
 
