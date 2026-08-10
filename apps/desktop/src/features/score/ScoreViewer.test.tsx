@@ -16,7 +16,9 @@ vi.mock("../../i18n", () => ({
       scoreViewerFailedTitle: "Could not display the score",
       scoreViewerRetry: "Retry",
       scoreViewerPrevPage: "Previous page",
+      scoreViewerPrevPageDisabled: "Previous page (Unavailable)",
       scoreViewerNextPage: "Next page",
+      scoreViewerNextPageDisabled: "Next page (Unavailable)",
       scoreViewerPageIndicator: "Page {current} of {total}",
       scoreViewerZoomIn: "Zoom in",
       scoreViewerZoomOut: "Zoom out",
@@ -120,8 +122,8 @@ describe("ScoreViewer", () => {
       expect(page.render).toHaveBeenCalled();
     });
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Previous page" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Next page" })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("shows the file name when provided", async () => {
@@ -174,14 +176,22 @@ describe("ScoreViewer", () => {
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     const previousButton = screen.getByRole("button", { name: "Previous page" });
     const nextButton = screen.getByRole("button", { name: "Next page" });
-    expect(previousButton).toBeDisabled();
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
+    const preventDefaultSpyPrev = vi.spyOn(Event.prototype, "preventDefault");
+    fireEvent.click(previousButton);
+    expect(preventDefaultSpyPrev).toHaveBeenCalled();
+    preventDefaultSpyPrev.mockRestore();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
-    expect(nextButton).toBeDisabled();
+    expect(nextButton).toHaveAttribute("aria-disabled", "true");
+    const preventDefaultSpyNext = vi.spyOn(Event.prototype, "preventDefault");
+    fireEvent.click(nextButton);
+    expect(preventDefaultSpyNext).toHaveBeenCalled();
+    preventDefaultSpyNext.mockRestore();
 
     await waitFor(() => {
       expect(doc.getPage).toHaveBeenCalledWith(3);

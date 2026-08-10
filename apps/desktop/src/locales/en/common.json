@@ -148,5 +148,7 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "scoreViewerPrevPageDisabled": "Previous page (Unavailable)",
+  "scoreViewerNextPageDisabled": "Next page (Unavailable)"
 }

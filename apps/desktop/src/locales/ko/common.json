@@ -148,5 +148,7 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "scoreViewerPrevPageDisabled": "이전 페이지 (사용 불가)",
+  "scoreViewerNextPageDisabled": "다음 페이지 (사용 불가)"
 }
