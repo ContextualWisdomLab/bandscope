@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2024-10-24 - O(N) callback overhead in byte array validation
+**Learning:** Using `.every()` to validate large arrays (like byte arrays from IPC) causes O(N) callback invocation overhead, which slows down execution significantly compared to a plain loop.
+**Action:** Use a standard `for` loop with an early return for validating large arrays to achieve significantly faster execution.
