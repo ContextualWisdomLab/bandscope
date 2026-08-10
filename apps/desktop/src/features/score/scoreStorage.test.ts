@@ -32,4 +32,24 @@ describe("scoreStorage bridge resolution", () => {
       BRIDGE_UNAVAILABLE_MESSAGE
     );
   });
+  it("uses the fallback loop for array density checking", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue([1, 2, 3]);
+
+    const result = await readScorePdf("project-1", "score-1");
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe(1);
+    expect(result[1]).toBe(2);
+    expect(result[2]).toBe(3);
+  });
+
+  it("fails array density check if non-number elements are present", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue([1, "two", 3]);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      "Invalid score bridge response"
+    );
+  });
 });
