@@ -17,25 +17,33 @@ import yt_dlp  # type: ignore
 
 class YouTubeError(TypedDict):
     """Public error structure for YouTube operations."""
+
     code: str
     message: str
 
+
 class YouTubeMetadata(TypedDict):
     """Extracted metadata for a downloaded YouTube video."""
+
     id: Optional[str]
     title: Optional[str]
     duration: Optional[float]
     filepath: str
 
+
 class YouTubeDownloadSuccess(TypedDict):
     """Successful YouTube download response."""
+
     ok: Literal[True]
     metadata: YouTubeMetadata
 
+
 class YouTubeDownloadError(TypedDict):
     """Failed YouTube download response."""
+
     ok: Literal[False]
     error: YouTubeError
+
 
 YouTubeDownloadResult = Union[YouTubeDownloadSuccess, YouTubeDownloadError]
 
