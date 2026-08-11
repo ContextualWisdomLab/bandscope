@@ -896,6 +896,7 @@ def test_local_feature_cache_rejects_non_npz_and_bad_zip_inputs(tmp_path) -> Non
     arrays_path.write_bytes(b"PK\\x03\\x04truncated-npz")
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
+
 def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
     """Ensure feature cache writes require app-owned request metadata and arrays."""
     request = validate_analysis_job_request(
