@@ -168,7 +168,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                             }
                             handleChordEdit(section.id, role);
                           }}
-                          title={onSongUpdate ? t("chordEditTitle") : undefined}
+                          title={t("chordEditTitle")}
                           aria-disabled={!onSongUpdate}
                         >
                           {role.harmony.chord}
