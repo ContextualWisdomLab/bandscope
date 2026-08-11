@@ -8,6 +8,7 @@ import logging
 import multiprocessing as mp
 import queue
 import time
+import zipfile
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
@@ -749,7 +750,10 @@ def _read_feature_cache_arrays(
     arrays_path: Path, stem_keys: list[str]
 ) -> dict[str, np.ndarray] | None:
     try:
-        with np.load(arrays_path, allow_pickle=False) as stems_archive:
+        loaded_archive = np.load(arrays_path, allow_pickle=False)
+        if not isinstance(loaded_archive, np.lib.npyio.NpzFile):
+            return None
+        with loaded_archive as stems_archive:
             stems: dict[str, np.ndarray] = {}
             for stem_key in stem_keys:
                 archive_key = f"stem_{stem_key}"
@@ -760,7 +764,7 @@ def _read_feature_cache_arrays(
                     return None
                 stems[stem_key] = stem_array
             return stems
-    except (OSError, ValueError):
+    except (OSError, ValueError, zipfile.BadZipFile):
         return None
 
 
