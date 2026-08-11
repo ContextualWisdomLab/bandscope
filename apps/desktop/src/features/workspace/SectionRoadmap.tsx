@@ -152,7 +152,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         <button
                           type="button"
                           aria-label={editChordLabel(role, section.label)}
-                          className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                          className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 ${
                             onSongUpdate
                               ? "cursor-pointer hover:bg-white/10"
                               : "cursor-default"
@@ -161,9 +161,15 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                               ? "bg-indigo-300/15 text-indigo-200"
                               : "text-cyan-100"
                           }`}
-                          onClick={() => handleChordEdit(section.id, role)}
+                          onClick={(e) => {
+                            if (!onSongUpdate) {
+                              e.preventDefault();
+                              return;
+                            }
+                            handleChordEdit(section.id, role);
+                          }}
                           title={onSongUpdate ? t("chordEditTitle") : undefined}
-                          disabled={!onSongUpdate}
+                          aria-disabled={!onSongUpdate}
                         >
                           {role.harmony.chord}
                         </button>

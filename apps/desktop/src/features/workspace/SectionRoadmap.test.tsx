@@ -60,4 +60,20 @@ describe("SectionRoadmap", () => {
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
+
+  it("applies aria-disabled when onSongUpdate is missing and prevents click", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    // Intentionally omit onSongUpdate to simulate readonly mode
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const button = screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+
+    const promptSpy = vi.spyOn(window, "prompt");
+    fireEvent.click(button);
+
+    // Verify click handler early returns and prevents prompt
+    expect(promptSpy).not.toHaveBeenCalled();
+  });
 });
