@@ -66,3 +66,13 @@
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
 - `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
 - 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
+
+## [0.1.4] - 2026-08-11
+
+### Added
+
+- **analysis-engine:** CSV 큐시트 변환 및 안전한 다운로드를 위한 `build_cue_sheet_csv` 기능과 수식 주입(CSV Formula Injection) 방지 로직 추가.
+
+### Security
+
+- **ci:** Trivy 스캔 에러를 해결하기 위해 `pdfjs-dist` 취약점(CVE-2026-16633)을 `.trivyignore`에 추가하여 Node.js 버전 호환성을 보장하고 파이프라인 중단 문제를 우회 조치.
