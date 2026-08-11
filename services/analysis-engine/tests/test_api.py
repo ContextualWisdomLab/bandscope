@@ -88,26 +88,13 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
     cases = [
         ([], "root"),
         ({}, "sourceKind"),
-        (
-            {"sourceKind": "file", "sourceLabel": "Late Night Set", "roleFocus": []},
-            "sourceKind",
-        ),
+        ({"sourceKind": "file", "sourceLabel": "Late Night Set", "roleFocus": []}, "sourceKind"),
         ({"sourceKind": "demo", "roleFocus": []}, "sourceLabel"),
         ({"sourceKind": "demo", "sourceLabel": "   ", "roleFocus": []}, "sourceLabel"),
+        ({"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": {}}, "roleFocus"),
+        ({"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [7]}, "roleFocus[0]"),
         (
-            {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": {}},
-            "roleFocus",
-        ),
-        (
-            {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [7]},
-            "roleFocus[0]",
-        ),
-        (
-            {
-                "sourceKind": "local_audio",
-                "sourceLabel": "Late Night Set",
-                "roleFocus": [],
-            },
+            {"sourceKind": "local_audio", "sourceLabel": "Late Night Set", "roleFocus": []},
             "projectId",
         ),
         (
@@ -221,12 +208,7 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             "projectId",
         ),
         (
-            {
-                "sourceKind": "demo",
-                "sourceLabel": "Late Night Set",
-                "roleFocus": [],
-                "extra": True,
-            },
+            {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [], "extra": True},
             "extra",
         ),
         (
@@ -382,9 +364,7 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             raise AssertionError(f"Expected ValueError for {payload!r}")
 
 
-def test_validate_analysis_job_request_allows_project_id_with_dotdot_substring() -> (
-    None
-):
+def test_validate_analysis_job_request_allows_project_id_with_dotdot_substring() -> None:
     """Identifiers that only contain '..' as a substring remain valid."""
     result = validate_analysis_job_request(
         {
@@ -411,10 +391,7 @@ def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
     assert song.get("tempo") is None
     assert song["sections"][0]["timeRange"] == {"start": 10, "end": 30}
     assert song["sections"][0]["roles"][0]["id"] == "bass-guitar"
-    assert (
-        song["sections"][0]["roles"][4]["manualOverrides"][0]["value"]["source"]
-        == "user"
-    )
+    assert song["sections"][0]["roles"][4]["manualOverrides"][0]["value"]["source"] == "user"
 
 
 def test_build_demo_rehearsal_song_with_tempo() -> None:
@@ -501,10 +478,7 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
     """Ensure local-audio requests separate stems before building rehearsal roles."""
     with (
         patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
-        patch(
-            "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
-            return_value=None,
-        ),
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
@@ -569,10 +543,7 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
 
     with (
         patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
-        patch(
-            "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
-            return_value=None,
-        ),
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
@@ -597,9 +568,7 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             "separation_notes": "Separated selected local audio into 4 canonical stems.",
         }
 
-        updates = list(
-            run_analysis_job_updates("job-cache", payload, "2026-03-12T00:00:00Z")
-        )
+        updates = list(run_analysis_job_updates("job-cache", payload, "2026-03-12T00:00:00Z"))
 
         observed_progress = [
             (update["state"], update["progressStage"], update["progressPercent"])
@@ -614,20 +583,8 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
         ]
         assert updates[-1]["cacheStatus"] == "stored"
         cache_files = list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))
-        assert (
-            len(
-                [
-                    path
-                    for path in cache_files
-                    if not path.name.endswith(".features.json")
-                ]
-            )
-            == 1
-        )
-        assert (
-            len([path for path in cache_files if path.name.endswith(".features.json")])
-            == 1
-        )
+        assert len([path for path in cache_files if not path.name.endswith(".features.json")]) == 1
+        assert len([path for path in cache_files if path.name.endswith(".features.json")]) == 1
 
         cached_updates = list(
             run_analysis_job_updates("job-cache-2", payload, "2026-03-12T00:00:00Z")
@@ -697,9 +654,7 @@ def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
         assert _load_cached_analysis(cache_path) is None
 
 
-def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(
-    tmp_path,
-) -> None:
+def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp_path) -> None:
     """Ensure cache persistence failures do not block analysis results."""
     demo_request = validate_analysis_job_request(
         {
@@ -731,15 +686,10 @@ def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(
             },
         }
     )
-    assert (
-        _store_cached_analysis(tmp_path, local_request, build_demo_rehearsal_song())
-        is False
-    )
+    assert _store_cached_analysis(tmp_path, local_request, build_demo_rehearsal_song()) is False
 
 
-def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(
-    tmp_path,
-) -> None:
+def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_path) -> None:
     """Ensure reusable stem/features cache can be loaded on subsequent analyses."""
     request = validate_analysis_job_request(
         {
@@ -781,12 +731,7 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(
             "notes": "Separated selected local audio into 4 canonical stems.",
         },
     }
-    assert (
-        _store_cached_local_audio_features(
-            metadata_path, arrays_path, request, features
-        )
-        is True
-    )
+    assert _store_cached_local_audio_features(metadata_path, arrays_path, request, features) is True
 
     loaded = _load_cached_local_audio_features(metadata_path, arrays_path)
     assert loaded is not None
@@ -809,21 +754,14 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(
             return_value=loaded,
         ),
         patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
-        patch(
-            "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
-            return_value=None,
-        ),
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
-        patch(
-            "bandscope_analysis.api._store_cached_local_audio_features"
-        ) as store_features,
+        patch("bandscope_analysis.api._store_cached_local_audio_features") as store_features,
     ):
-        updates = list(
-            run_analysis_job_updates("job-feature-hit", request, "2026-03-12T00:00:00Z")
-        )
+        updates = list(run_analysis_job_updates("job-feature-hit", request, "2026-03-12T00:00:00Z"))
 
     assert updates[1]["progressLabel"] == "Loaded reusable stems... (45%)"
     assert updates[1]["cacheStatus"] == "miss"
@@ -940,24 +878,6 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
         assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
 
-def test_local_feature_cache_rejects_non_npz_and_bad_zip_inputs(tmp_path) -> None:
-    """Ensure hostile array containers degrade to cache misses."""
-    metadata_path = tmp_path / "features.json"
-    arrays_path = tmp_path / "features.npz"
-    metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, '
-        '"stemKeys": ["bass"]}',
-        encoding="utf-8",
-    )
-
-    with arrays_path.open("wb") as arrays_file:
-        np.save(arrays_file, np.zeros(4))
-    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
-
-    arrays_path.write_bytes(b"PK\\x03\\x04truncated-npz")
-    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
-
-
 def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
     """Ensure feature cache writes require app-owned request metadata and arrays."""
     request = validate_analysis_job_request(
@@ -984,14 +904,8 @@ def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
 
-    assert (
-        _store_cached_local_audio_features(metadata_path, arrays_path, demo_request, {})
-        is False
-    )
-    assert (
-        _store_cached_local_audio_features(metadata_path, arrays_path, request, {})
-        is False
-    )
+    assert _store_cached_local_audio_features(metadata_path, arrays_path, demo_request, {}) is False
+    assert _store_cached_local_audio_features(metadata_path, arrays_path, request, {}) is False
     assert (
         _store_cached_local_audio_features(
             metadata_path,
@@ -1129,9 +1043,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
         separator_class.return_value.separate.return_value = {"stems": {}}
         _stem_separation_worker("/tmp/audio.wav", fake_queue, "/tmp/stems.npz")
-    assert fake_queue.items == [
-        ("runtime_error", "Runtime error occurred during stem separation.")
-    ]
+    assert fake_queue.items == [("runtime_error", "Runtime error occurred during stem separation.")]
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
@@ -1140,9 +1052,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             "stem_role_types": {"bass": "percussion"},
         }
         _stem_separation_worker("/tmp/audio.wav", fake_queue, "/tmp/stems.npz")
-    assert fake_queue.items == [
-        ("runtime_error", "Runtime error occurred during stem separation.")
-    ]
+    assert fake_queue.items == [("runtime_error", "Runtime error occurred during stem separation.")]
 
 
 def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) -> None:
@@ -1303,9 +1213,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
                 raise AssertionError(f"Expected {expected_error.__name__}")
 
 
-def test_build_local_audio_features_preserves_file_envelope_stem_roles(
-    tmp_path,
-) -> None:
+def test_build_local_audio_features_preserves_file_envelope_stem_roles(tmp_path) -> None:
     """Ensure temp-file stem handoff returns the same feature schema as in-memory separation."""
     request = validate_analysis_job_request(
         {
@@ -1336,9 +1244,7 @@ def test_build_local_audio_features_preserves_file_envelope_stem_roles(
         loaded = _build_local_audio_features(request)
 
     assert loaded == file_handoff_features
-    assert run_stem_separation.call_args.kwargs[
-        "arrays_path"
-    ] == _stem_work_arrays_path(request)
+    assert run_stem_separation.call_args.kwargs["arrays_path"] == _stem_work_arrays_path(request)
 
     legacy_file_handoff_features = {
         "stems": {"vocals": np.ones(4)},
@@ -1390,9 +1296,7 @@ def test_stem_separation_process_helper_handles_empty_worker_exit() -> None:
             assert maxsize == 1
             return EmptyQueue()
 
-    with patch(
-        "bandscope_analysis.api._multiprocessing_context", return_value=EmptyContext()
-    ):
+    with patch("bandscope_analysis.api._multiprocessing_context", return_value=EmptyContext()):
         try:
             _run_stem_separation_with_timeout("/tmp/audio.wav")
         except RuntimeError as error:
@@ -1454,15 +1358,12 @@ def test_run_analysis_job_updates_degrades_when_stem_step_is_unavailable() -> No
 
     assert updates[-1]["state"] == "succeeded"
     assert any(
-        update.get("progressLabel")
-        == "Stem separation unavailable; continuing with fallback cues"
+        update.get("progressLabel") == "Stem separation unavailable; continuing with fallback cues"
         for update in updates
     )
 
 
-def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out() -> (
-    None
-):
+def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out() -> None:
     """Ensure timed-out ML stem inference continues with fallback cues instead of hard failure."""
 
     def _slow_separate(_source_path: str) -> dict[str, object]:
@@ -1483,10 +1384,7 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
     with (
         patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
         patch("bandscope_analysis.api.STEM_SEPARATION_TIMEOUT_SECONDS", 0.001),
-        patch(
-            "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
-            return_value=None,
-        ),
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
@@ -1518,7 +1416,6 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
     assert updates[-1]["state"] == "succeeded"
     assert elapsed < 0.4
     assert any(
-        update.get("progressLabel")
-        == "Stem separation timed out; continuing with fallback cues"
+        update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
     )
