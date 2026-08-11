@@ -878,6 +878,23 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
         assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
 
+
+def test_local_feature_cache_rejects_non_npz_and_bad_zip_inputs(tmp_path) -> None:
+    """Ensure hostile array containers degrade to cache misses."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    metadata_path.write_text(
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        encoding="utf-8",
+    )
+
+    with arrays_path.open("wb") as arrays_file:
+        np.save(arrays_file, np.zeros(4))
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+    arrays_path.write_bytes(b"PK\\x03\\x04truncated-npz")
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
 def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
     """Ensure feature cache writes require app-owned request metadata and arrays."""
     request = validate_analysis_job_request(
