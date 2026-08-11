@@ -3,7 +3,7 @@ def format_file(file_path):
         lines = f.readlines()
 
     # Remove the mock import at the end
-    lines = [l for l in lines if not l.startswith("from unittest.mock import patch")]
+    lines = [line for line in lines if not line.startswith("from unittest.mock import patch")]
 
     # Add it at the top after from __future__ import annotations
     new_lines = []
