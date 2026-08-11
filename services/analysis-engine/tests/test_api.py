@@ -884,7 +884,8 @@ def test_local_feature_cache_rejects_non_npz_and_bad_zip_inputs(tmp_path) -> Non
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, '
+        '"stemKeys": ["bass"]}',
         encoding="utf-8",
     )
 
