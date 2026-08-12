@@ -6,7 +6,7 @@ a CSV string format of the cue-sheet rows suitable for export.
 Security Notes:
     - Pure dict-to-string transformation: no file, network, or process I/O.
     - Prevents CSV formula injection by explicitly escaping fields starting
-      with `=`, `+`, `-`, or `@`.
+      with formula operators or spreadsheet-recognized control characters.
 """
 
 from __future__ import annotations
@@ -19,15 +19,17 @@ from bandscope_analysis.exports.chart import build_cue_sheet_rows
 
 __all__ = ["build_cue_sheet_csv", "escape_csv_field"]
 
+_DANGEROUS_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n", "\x00")
+
 
 def escape_csv_field(value: str) -> str:
     """Escape CSV field to prevent formula injection.
 
-    If the field starts with a problematic character (``=``, ``+``, ``-``, ``@``),
-    it is prefixed with a single quote (``'``) to force the spreadsheet
-    application to evaluate it as text rather than a formula or command.
+    Fields beginning with a formula operator or spreadsheet-recognized control
+    character are prefixed with a single quote (``'``) so spreadsheet
+    applications treat them as text rather than formulas or commands.
     """
-    if value and value[0] in ("=", "+", "-", "@"):
+    if value and value[0] in _DANGEROUS_PREFIXES:
         return f"'{value}"
     return value
 
