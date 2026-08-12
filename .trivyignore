@@ -27,3 +27,8 @@ GHSA-wrw7-89jp-8q8g exp:2026-10-31
 # wheel), so it is outside the request-time attack surface. Remove once a
 # fixed setuptools publishes and uv can resolve it. Revisit by 2026-10-31.
 CVE-2026-59890 exp:2026-10-31
+
+# CVE-2026-16633: pdfjs-dist <= 6.2.0 in apps/desktop/package.json
+# Upgrading pdfjs-dist requires Node.js >=22.13.0, which breaks existing CI pipelines.
+# As per memory constraints, this is ignored rather than bumped.
+CVE-2026-16633 exp:2026-10-31
