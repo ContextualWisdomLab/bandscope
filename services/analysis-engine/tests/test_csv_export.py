@@ -62,6 +62,10 @@ class TestEscapeCsvField:
         assert escape_csv_field("+SUM(A1)") == "'+SUM(A1)"
         assert escape_csv_field("-100") == "'-100"
         assert escape_csv_field("@cmd") == "'@cmd"
+        assert escape_csv_field("\t=1+2") == "'\t=1+2"
+        assert escape_csv_field("\r=1+2") == "'\r=1+2"
+        assert escape_csv_field("\n=1+2") == "'\n=1+2"
+        assert escape_csv_field("\x00=1+2") == "'\x00=1+2"
 
     def test_injection_characters_not_at_start_are_unchanged(self) -> None:
         """Problematic characters inside the string are left unchanged."""
