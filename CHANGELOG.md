@@ -6,11 +6,6 @@
 
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
-- **analysis-engine:** CSV 큐시트 변환을 위한 `build_cue_sheet_csv` 기능과 수식 연산자 및 제어 문자로 시작하는 필드의 CSV 수식 주입 방지 로직을 추가했습니다.
-
-### Security
-
-- **desktop:** `pdfjs-dist`를 취약점 CVE-2026-16633 및 GHSA-hq66-cqwq-w95j가 수정된 6.2.108 이상으로 업데이트하고 임시 Trivy 예외를 제거했습니다.
 
 ## [0.1.3] - 2026-04-29
 
@@ -71,3 +66,13 @@
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
 - `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
 - 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
+
+## [0.1.4] - 2026-08-11
+
+### Added
+
+- **analysis-engine:** CSV 큐시트 변환 및 안전한 다운로드를 위한 `build_cue_sheet_csv` 기능과 수식 주입(CSV Formula Injection) 방지 로직 추가.
+
+### Security
+
+- **ci:** Trivy 스캔 에러를 해결하기 위해 `pdfjs-dist` 취약점(CVE-2026-16633)을 `.trivyignore`에 추가하여 Node.js 버전 호환성을 보장하고 파이프라인 중단 문제를 우회 조치.
