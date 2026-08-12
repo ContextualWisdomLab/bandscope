@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2024-08-12 - Deduplication Loop O(N) Optimization
+**Learning:** Using `not in list` inside a loop for deduplication creates an O(N) check per element, leading to O(N^2) total execution time, which can become a bottleneck for large datasets.
+**Action:** Replace list-based deduplication with dict keys (`dict.fromkeys()` or `seen_dict[item] = None`). In Python 3.7+, dictionaries guarantee insertion order while providing O(1) lookups, effectively reducing the time complexity to O(N).
