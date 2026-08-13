@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2024-05-18 - Replacing map/filter with reduce for short arrays is an anti-pattern
+**Learning:** Replacing an idiomatic `.filter().map()` chain with a mutating `.reduce()` on very small arrays (like roles in a musical section) is considered a micro-optimization that degrades code readability without any measurable performance impact. It violates the guideline to avoid premature optimizations that sacrifice code clarity.
+**Action:** Do not use `.reduce()` over `.filter().map()` unless dealing with genuinely large collections or high-frequency render paths where garbage collection overhead is a proven bottleneck.
