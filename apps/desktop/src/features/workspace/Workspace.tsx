@@ -4,6 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { PartGraphMap } from "./PartGraphMap";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -476,6 +477,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </div>
                 )}
                 <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
+                <PartGraphMap song={song} activeRoleId={activeRole} roleMap={roleMap} />
                 <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
               </div>
             )}

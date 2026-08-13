@@ -149,4 +149,17 @@
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
   "increasePracticeProgressLabel": "진척도 증가"
+,
+
+  "practiceProgressRegionLabel": "연습 진척도",
+  "practiceProgressLabel": "연습 진척도",
+  "decreasePracticeProgressLabel": "진척도 감소",
+  "increasePracticeProgressLabel": "진척도 증가",
+  "partGraphTitle": "파트 핸드오프 맵",
+  "partGraphActive": "연주 중",
+  "partGraphResting": "휴식 중",
+  "partGraphTakesOverFrom": "이어받기",
+  "partGraphHandsOffTo": "넘겨주기",
+  "partGraphNoHandoffs": "직접적인 교대 없음"
+
 }

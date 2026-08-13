@@ -30,6 +30,20 @@ describe("Workspace", () => {
     });
   });
 
+  it("renders PartGraphMap when a role is selected", () => {
+    const song = createDemoRehearsalSong();
+    render(<Workspace song={song} />);
+
+    // Select the Bass Guitar role
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    // Check if the Part Handoff Map title is rendered
+    // If language is en-US or just default, it should say "Part Handoff Map"
+    expect(screen.getByText("Part Handoff Map")).toBeTruthy();
+    // And it should show the Active badge
+    expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
+  });
+
   it("updates practice progress immutably through onSongUpdate", () => {
     const song = createDemoRehearsalSong();
     // Default mock setup puts "bass-guitar" as the role ID in index 0

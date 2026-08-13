@@ -4,6 +4,7 @@
 
 ### Added
 
+- 합주 워크스페이스 내 각 파트별 연주 상태(Active/Resting)와 다른 파트와의 교대 관계(Handoff from/to)를 시각적으로 보여주는 "파트 핸드오프 맵(Part Handoff Map)" UI 컴포넌트를 새롭게 추가했습니다.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
