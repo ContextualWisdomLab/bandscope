@@ -64,7 +64,9 @@ def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
 
 def test_root_lock_uses_the_supported_location_keyed_format() -> None:
     """Require the npm-v9-and-newer lock format used by the pinned generator."""
-    lock_document = json.loads((_REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8"))
+    lock_document = json.loads(
+        (_REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8")
+    )
 
     assert lock_document["lockfileVersion"] == 3
     assert isinstance(lock_document["packages"], dict)
@@ -72,7 +74,9 @@ def test_root_lock_uses_the_supported_location_keyed_format() -> None:
 
 def test_public_registry_lock_entries_have_integrity_evidence() -> None:
     """Require SRI for every public npm-registry artifact recorded in the root lock."""
-    lock_document = json.loads((_REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8"))
+    lock_document = json.loads(
+        (_REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8")
+    )
     packages = lock_document["packages"]
     assert isinstance(packages, dict)
 
