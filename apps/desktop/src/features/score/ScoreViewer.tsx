@@ -45,11 +45,7 @@ const MAX_ZOOM = 4;
  * error with retry, READY canvas) plus rehearsal-friendly page navigation
  * and zoom in/out/fit-width controls.
  */
-export function ScoreViewer({
-  data,
-  fileName,
-  onStatusChange,
-}: ScoreViewerProps) {
+export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const [status, setStatus] = useState<ScoreViewerStatus>("LOADING");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -106,11 +102,7 @@ export function ScoreViewer({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (
-      status !== "READY" ||
-      !container ||
-      typeof ResizeObserver === "undefined"
-    ) {
+    if (status !== "READY" || !container || typeof ResizeObserver === "undefined") {
       return;
     }
 
@@ -140,9 +132,7 @@ export function ScoreViewer({
         }
         const baseViewport = page.getViewport({ scale: 1 });
         const scale =
-          fitWidth && containerWidth > 0
-            ? containerWidth / baseViewport.width
-            : zoom;
+          fitWidth && containerWidth > 0 ? containerWidth / baseViewport.width : zoom;
         const viewport = page.getViewport({ scale });
         canvas.width = Math.floor(viewport.width);
         canvas.height = Math.floor(viewport.height);
@@ -215,13 +205,8 @@ export function ScoreViewer({
         aria-busy="true"
       >
         <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-          <Loader2
-            className="mb-4 size-10 animate-spin text-cyan-300"
-            aria-hidden="true"
-          />
-          <p className="animate-pulse text-slate-400">
-            {t("scoreViewerLoading")}
-          </p>
+          <Loader2 className="mb-4 size-10 animate-spin text-cyan-300" aria-hidden="true" />
+          <p className="animate-pulse text-slate-400">{t("scoreViewerLoading")}</p>
         </CardContent>
       </Card>
     );
@@ -238,19 +223,13 @@ export function ScoreViewer({
           <div className="mb-4 rounded-full border border-rose-300/30 bg-rose-300/10 p-4 text-rose-200">
             <AlertCircle className="size-8" aria-hidden="true" />
           </div>
-          <h3 className="mb-2 text-lg font-black text-rose-100">
-            {t("scoreViewerFailedTitle")}
-          </h3>
+          <h3 className="mb-2 text-lg font-black text-rose-100">{t("scoreViewerFailedTitle")}</h3>
           {errorMessage && (
             <p className="mb-4 rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">
               {errorMessage}
             </p>
           )}
-          <Button
-            variant="outline"
-            className="h-12 min-w-32 text-base"
-            onClick={retry}
-          >
+          <Button variant="outline" className="h-12 min-w-32 text-base" onClick={retry}>
             <RotateCw aria-hidden="true" />
             {t("scoreViewerRetry")}
           </Button>
@@ -269,10 +248,7 @@ export function ScoreViewer({
         <div className="flex flex-wrap items-center justify-between gap-3">
           {fileName && (
             <div className="flex min-w-0 items-center text-sm font-semibold text-slate-200">
-              <FileMusic
-                className="mr-2 size-4 shrink-0 text-cyan-300"
-                aria-hidden="true"
-              />
+              <FileMusic className="mr-2 size-4 shrink-0 text-cyan-300" aria-hidden="true" />
               <span className="truncate">{fileName}</span>
             </div>
           )}
@@ -282,7 +258,6 @@ export function ScoreViewer({
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomOut")}
-              title={t("scoreViewerZoomOut")}
               onClick={zoomOut}
             >
               <ZoomOut aria-hidden="true" />
@@ -292,7 +267,6 @@ export function ScoreViewer({
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomIn")}
-              title={t("scoreViewerZoomIn")}
               onClick={zoomIn}
             >
               <ZoomIn aria-hidden="true" />
@@ -301,7 +275,6 @@ export function ScoreViewer({
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
               aria-label={t("scoreViewerFitWidth")}
-              title={t("scoreViewerFitWidth")}
               aria-pressed={fitWidth}
               onClick={fitToWidth}
             >
@@ -310,10 +283,7 @@ export function ScoreViewer({
             </Button>
           </div>
         </div>
-        <div
-          ref={containerRef}
-          className="overflow-auto rounded-lg border border-white/10 bg-slate-900/60"
-        >
+        <div ref={containerRef} className="overflow-auto rounded-lg border border-white/10 bg-slate-900/60">
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
@@ -322,15 +292,8 @@ export function ScoreViewer({
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerPrevPage")}
-            title={t("scoreViewerPrevPage")}
-            aria-disabled={pageNumber <= 1 ? "true" : undefined}
-            onClick={(e) => {
-              if (pageNumber <= 1) {
-                e.preventDefault();
-                return;
-              }
-              goToPreviousPage();
-            }}
+            disabled={pageNumber <= 1}
+            onClick={goToPreviousPage}
           >
             <ChevronLeft className="size-6" aria-hidden="true" />
           </Button>
@@ -342,15 +305,8 @@ export function ScoreViewer({
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerNextPage")}
-            title={t("scoreViewerNextPage")}
-            aria-disabled={pageNumber >= pageCount ? "true" : undefined}
-            onClick={(e) => {
-              if (pageNumber >= pageCount) {
-                e.preventDefault();
-                return;
-              }
-              goToNextPage();
-            }}
+            disabled={pageNumber >= pageCount}
+            onClick={goToNextPage}
           >
             <ChevronRight className="size-6" aria-hidden="true" />
           </Button>
