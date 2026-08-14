@@ -61,8 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-
-## 2024-07-25 - O(N) callback overhead in byte array validation
-
-**Learning:** Validating large byte arrays received from Tauri IPC using `.every()` causes significant O(N) callback overhead because it invokes the callback function N times.
-**Action:** Replace `.every()` with a standard `for` loop and an early return for validating large arrays to achieve significantly faster execution.
