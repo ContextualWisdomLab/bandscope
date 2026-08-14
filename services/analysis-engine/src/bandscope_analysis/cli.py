@@ -37,10 +37,22 @@ def failed_cli_response(message: str) -> dict[str, object]:
 
 def main() -> int:
     """Read a job payload from stdin and print a structured job response to stdout."""
-    # Read all input from stdin first, bounded by characters initially, then validated by bytes.
-    raw_text = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
-    if len(raw_text.encode("utf-8")) > MAX_JSON_FILE_SIZE:
+    # Standard CLI stdin exposes ``buffer``; enforce the allocation bound on raw
+    # bytes before UTF-8 decoding. Text-only injected streams are already decoded
+    # outside this boundary, so retain a compatibility path for in-process callers.
+    binary_stdin = getattr(sys.stdin, "buffer", None)
+    if binary_stdin is None:
+        raw_text = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
+        raw_bytes = raw_text.encode("utf-8")
+    else:
+        raw_bytes = binary_stdin.read(MAX_JSON_FILE_SIZE + 1)
+    if len(raw_bytes) > MAX_JSON_FILE_SIZE:
         json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
+        return 1
+    try:
+        raw_text = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        json.dump(failed_cli_response("Job input must be valid UTF-8"), sys.stdout)
         return 1
     input_data = raw_text.strip()
     progress_jsonl = "--progress-jsonl" in sys.argv[1:]
