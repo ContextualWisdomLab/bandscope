@@ -106,6 +106,28 @@ describe("PartGraphMap", () => {
     expect(screen.getAllByText("No direct handoffs")[0]).toBeInTheDocument();
   });
 
+  it("renders resting and no handoffs when the active role node is absent", () => {
+    const sectionWithoutRoleNode = {
+      ...mockSong.sections[0],
+      partGraph: mockSong.sections[0].partGraph.filter((node) => node.role_id !== "keys-right")
+    };
+    const songWithoutRoleNode = {
+      ...mockSong,
+      sections: [sectionWithoutRoleNode]
+    };
+
+    render(
+      <PartGraphMap
+        song={songWithoutRoleNode}
+        activeRoleId="keys-right"
+        roleMap={roleMap}
+      />
+    );
+
+    expect(screen.getByText("Resting")).toBeInTheDocument();
+    expect(screen.getByText("No direct handoffs")).toBeInTheDocument();
+  });
+
   it("falls back to role id if name is missing in map", () => {
     const emptyMap = new Map();
     render(<PartGraphMap song={mockSong} activeRoleId="bass-guitar" roleMap={emptyMap} />);
