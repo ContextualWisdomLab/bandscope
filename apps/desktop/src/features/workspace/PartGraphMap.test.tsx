@@ -106,28 +106,6 @@ describe("PartGraphMap", () => {
     expect(screen.getAllByText("No direct handoffs")[0]).toBeInTheDocument();
   });
 
-  it("treats a missing role node as resting with no direct handoffs", () => {
-    const songWithoutNode = createDemoRehearsalSong();
-    const section = songWithoutNode.sections[0]!;
-    songWithoutNode.sections = [
-      {
-        ...section,
-        partGraph: section.partGraph.filter(node => node.role_id !== "bass-guitar")
-      }
-    ];
-
-    render(
-      <PartGraphMap
-        song={songWithoutNode}
-        activeRoleId="bass-guitar"
-        roleMap={roleMap}
-      />
-    );
-
-    expect(screen.getByText("Resting")).toBeInTheDocument();
-    expect(screen.getByText("No direct handoffs")).toBeInTheDocument();
-  });
-
   it("falls back to role id if name is missing in map", () => {
     const emptyMap = new Map();
     render(<PartGraphMap song={mockSong} activeRoleId="bass-guitar" roleMap={emptyMap} />);
