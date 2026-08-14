@@ -12,7 +12,9 @@ _EXPECTED_NODE_VERSION = "22.22.3"
 
 def _root_manifest() -> dict[str, object]:
     """Return the checked-in root package manifest as a JSON object."""
-    manifest = json.loads((_REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (_REPOSITORY_ROOT / "package.json").read_text(encoding="utf-8")
+    )
     assert isinstance(manifest, dict)
     return manifest
 
