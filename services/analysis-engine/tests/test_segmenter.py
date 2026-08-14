@@ -116,7 +116,7 @@ def _checkerboard_loop_oracle(ssm: np.ndarray, kernel_size: int) -> np.ndarray:
     kernel = np.full((kernel_size, kernel_size), -1.0, dtype=np.float64)
     kernel[:half, :half] = 1.0
     kernel[half:, half:] = 1.0
-    for center in range(half, n - half):
+    for center in range(half, half + (n - kernel_size + 1)):
         start = center - half
         patch = ssm[start : start + kernel_size, start : start + kernel_size]
         expected[center] = float(np.sum(patch * kernel))

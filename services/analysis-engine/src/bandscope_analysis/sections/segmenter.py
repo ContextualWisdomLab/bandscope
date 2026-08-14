@@ -140,13 +140,13 @@ def _checkerboard_novelty_reference(
     # one additional bottom-right window), then contract directly into novelty
     # so no K²×N temporary tensor or second O(N) result vector is materialized.
     windows = sliding_window_view(ssm, (kernel_size, kernel_size))
-    valid_length = n - 2 * half
+    valid_length = n - kernel_size + 1
     diagonal_windows = np.diagonal(windows, axis1=0, axis2=1)[..., :valid_length]
     np.einsum(
         "ij,ijk->k",
         kernel,
         diagonal_windows,
-        out=novelty[half : n - half],
+        out=novelty[half : half + valid_length],
         optimize=False,
     )
 
