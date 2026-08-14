@@ -12,8 +12,7 @@ from bandscope_analysis.temporal import TemporalAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-# Bound every untrusted JSON ingress by encoded bytes, not Python character count.
-MAX_JSON_FILE_SIZE = 10 * 1024 * 1024  # 10 MiB
+MAX_JSON_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def failed_cli_response(message: str) -> dict[str, object]:
@@ -31,68 +30,57 @@ def failed_cli_response(message: str) -> dict[str, object]:
     }
 
 
-def _utf8_size_exceeds_limit(value: str) -> bool:
-    """Return whether ``value`` exceeds the shared UTF-8 JSON byte limit."""
-    return len(value.encode("utf-8")) > MAX_JSON_FILE_SIZE
-
-
-def _read_bounded_stdin() -> tuple[str | None, str | None]:
-    """Read stdin with a hard bound and return text plus an optional error message."""
-    try:
-        input_data = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
-    except UnicodeDecodeError:
-        return None, "Job input must be valid UTF-8"
-    if len(input_data) > MAX_JSON_FILE_SIZE or _utf8_size_exceeds_limit(input_data):
-        return None, "Job input exceeds maximum size limit"
-    return input_data.strip(), None
-
-
-def _read_bounded_job_file(path: str) -> tuple[str | None, str | None]:
-    """Read one UTF-8 job file without allocating beyond the configured byte limit."""
-    try:
-        with open(path, "rb") as job_file:
-            payload = job_file.read(MAX_JSON_FILE_SIZE + 1)
-    except OSError:
-        return None, "Failed to read job file"
-    if len(payload) > MAX_JSON_FILE_SIZE:
-        return None, "Job file exceeds maximum size limit"
-    try:
-        return payload.decode("utf-8").strip(), None
-    except UnicodeDecodeError:
-        return None, "Job file must be valid UTF-8"
-
-
 def main() -> int:
-    """Read a bounded job payload and print a structured job response to stdout."""
-    input_data, input_error = _read_bounded_stdin()
-    if input_error is not None:
-        json.dump(failed_cli_response(input_error), sys.stdout)
+    """Read a job payload from stdin and print a structured job response to stdout."""
+    # Read all input from stdin first, bounded by bytes
+    try:
+        # In production, sys.stdin has a buffer for raw bytes
+        if hasattr(sys.stdin, "buffer"):
+            input_bytes = sys.stdin.buffer.read(MAX_JSON_FILE_SIZE + 1)
+            if len(input_bytes) > MAX_JSON_FILE_SIZE:
+                json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
+                return 1
+            input_data = input_bytes.decode("utf-8").strip()
+        else:
+            # Fallback for tests using StringIO
+            raw_text = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
+            if len(raw_text.encode("utf-8")) > MAX_JSON_FILE_SIZE:
+                json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
+                return 1
+            input_data = raw_text.strip()
+    except Exception:
+        json.dump(failed_cli_response("Failed to read stdin as utf-8"), sys.stdout)
         return 1
-    assert input_data is not None
-
     progress_jsonl = "--progress-jsonl" in sys.argv[1:]
     cli_args = [arg for arg in sys.argv[1:] if arg != "--progress-jsonl"]
 
-    # Check if there are command line arguments (fallback for manual testing).
+    # Check if there are command line arguments (fallback for manual testing)
     if cli_args:
         if cli_args[0] == "--status":
             json.dump(get_analysis_status(), sys.stdout)
             return 0
-        if cli_args[0] == "--job" and len(cli_args) > 1:
+        elif cli_args[0] == "--job" and len(cli_args) > 1:
             input_data = cli_args[1]
-            if input_data.startswith("{"):
-                if _utf8_size_exceeds_limit(input_data):
-                    json.dump(
-                        failed_cli_response("Job input exceeds maximum size limit"),
-                        sys.stdout,
-                    )
+            if not input_data.startswith("{"):
+                try:
+                    with open(input_data, "rb") as f:
+                        input_bytes = f.read(MAX_JSON_FILE_SIZE + 1)
+                        if len(input_bytes) > MAX_JSON_FILE_SIZE:
+                            json.dump(
+                                failed_cli_response("Job file exceeds maximum size limit"),
+                                sys.stdout,
+                            )
+                            return 1
+                        input_data = input_bytes.decode("utf-8")
+                        if f.read(1):
+                            json.dump(
+                                failed_cli_response("Job file exceeds maximum size limit"),
+                                sys.stdout,
+                            )
+                            return 1
+                except Exception:
+                    json.dump(failed_cli_response("Failed to read job file"), sys.stdout)
                     return 1
-            else:
-                input_data, file_error = _read_bounded_job_file(input_data)
-                if file_error is not None:
-                    json.dump(failed_cli_response(file_error), sys.stdout)
-                    return 1
-                assert input_data is not None
 
     if not input_data:
         json.dump(failed_cli_response("Empty input"), sys.stdout)
@@ -134,7 +122,7 @@ def main() -> int:
             try:
                 temporal_analyzer = TemporalAnalyzer()
                 features = temporal_analyzer.analyze(audio_path)
-                logging.info("Extracted BPM: %s", features["bpm"])
+                logging.info(f"Extracted BPM: {features['bpm']}")
             except Exception:
                 logging.warning(
                     "Temporal analysis failed for %s; continuing with safe fallback.",
