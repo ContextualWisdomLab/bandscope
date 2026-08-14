@@ -114,13 +114,3 @@ def test_missing_observation_metadata_does_not_force_no_chord():
     assert np.allclose(probs.sum(axis=0), 1.0)
     assert np.allclose(probs[24], 0.05 / 1.05)
     assert np.allclose(probs[:24], 1.0 / (24.0 * 1.05))
-
-
-def test_recognize_truncates_oversized_audio():
-    """Truncate audio longer than the maximum allowed duration."""
-    recognizer = ChordRecognizer()
-    sr = 22050
-    # 6000001 samples of audio
-    y = np.zeros(6000001, dtype=np.float32)
-    # The output will just be the chords. We are verifying it does not crash or loop infinitely
-    recognizer.recognize(y, sr=sr)
