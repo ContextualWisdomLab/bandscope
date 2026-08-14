@@ -53,8 +53,7 @@ def test_lock_records_match_exact_registry_artifacts_and_preserve_peer_metadata(
     assert isinstance(pdfjs, dict)
     assert pdfjs["version"] == _PDFJS_VERSION
     assert pdfjs["resolved"] == (
-        "https://registry.npmjs.org/pdfjs-dist/-/"
-        f"pdfjs-dist-{_PDFJS_VERSION}.tgz"
+        f"https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-{_PDFJS_VERSION}.tgz"
     )
     assert pdfjs["integrity"] == _PDFJS_INTEGRITY
     assert pdfjs["license"] == "Apache-2.0"
