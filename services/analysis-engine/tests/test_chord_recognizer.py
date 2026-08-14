@@ -20,6 +20,20 @@ def test_chord_recognizer_empty_audio() -> None:
     assert result == []
 
 
+def test_chord_recognizer_exceeds_max_samples() -> None:
+    """Test chord recognition rejects overly long audio to prevent resource exhaustion."""
+    recognizer = ChordRecognizer()
+
+    class MockAudio:
+        def __len__(self):
+            return recognizer.MAX_SAMPLES + 1
+
+    y = MockAudio()
+
+    result = recognizer.recognize(y, sr=22050)  # type: ignore
+    assert result == []
+
+
 def test_chord_recognizer_unvoiced_audio() -> None:
     """Test chord recognition with noise."""
     recognizer = ChordRecognizer()

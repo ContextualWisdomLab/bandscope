@@ -36,6 +36,7 @@ class ChordRecognizer:
 
     def __init__(self) -> None:
         """Initialize the chord recognizer."""
+        self.MAX_SAMPLES = 100_000_000
         # Standard major/minor triads templates for 12 pitch classes
         # C, C#, D, D#, E, F, F#, G, G#, A, A#, B
         self.templates = self._build_templates()
@@ -426,6 +427,13 @@ class ChordRecognizer:
             List of TrackedChord dicts with start_time, end_time, chord, and confidence.
         """
         if len(y) == 0:
+            return []
+
+        if len(y) > self.MAX_SAMPLES:
+            logger.warning(
+                "Input exceeds max samples %d. Returning empty list.",
+                self.MAX_SAMPLES,
+            )
             return []
 
         y_harmonic = self._separate_harmonic(y)

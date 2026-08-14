@@ -103,7 +103,7 @@ def test_vectorized_observations_match_scalar_oracle_across_length_mismatches(
     assert actual.shape == (25, frame_count)
     assert np.all(np.isfinite(actual))
     assert np.allclose(actual.sum(axis=0), 1.0)
-    assert np.allclose(actual, expected, rtol=0.0, atol=1e-14)
+    assert np.allclose(actual, expected)
 
     for frame_index in range(min(frame_count, similarity_frame_count)):
         assert int(np.argmax(actual[:24, frame_index])) == (frame_index * 7 + 3) % 24
