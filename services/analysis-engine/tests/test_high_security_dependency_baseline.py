@@ -49,7 +49,7 @@ def test_lock_records_match_exact_registry_artifacts_and_preserve_peer_metadata(
     assert isinstance(desktop, dict)
     assert desktop["dependencies"]["pdfjs-dist"] == _PDFJS_VERSION  # type: ignore[index]
 
-    pdfjs = packages["apps/desktop/node_modules/pdfjs-dist"]
+    pdfjs = packages["node_modules/pdfjs-dist"]
     assert isinstance(pdfjs, dict)
     assert pdfjs["version"] == _PDFJS_VERSION
     assert pdfjs["resolved"] == (
