@@ -87,6 +87,11 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
     return <CheckCircle2 className="size-4 text-emerald-200" aria-hidden="true" />;
   };
 
+  /** Return a deterministic description ID for one unavailable chord action. */
+  const chordEditUnavailableDescriptionId = (sectionId: string, roleId: string): string => {
+    return `chord-edit-unavailable-${sectionId}-${roleId}`;
+  };
+
   return (
     <div className="mt-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -151,10 +156,11 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionChordLabel")}</span>
                         <button
                           type="button"
-                          aria-label={
+                          aria-label={editChordLabel(role, section.label)}
+                          aria-describedby={
                             onSongUpdate
-                              ? editChordLabel(role, section.label)
-                              : `${editChordLabel(role, section.label)}. ${t("chordEditUnavailableTitle")}`
+                              ? undefined
+                              : chordEditUnavailableDescriptionId(section.id, role.id)
                           }
                           className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 ${
                             onSongUpdate
@@ -177,6 +183,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         >
                           {role.harmony.chord}
                         </button>
+                        {!onSongUpdate && (
+                          <span
+                            id={chordEditUnavailableDescriptionId(section.id, role.id)}
+                            className="sr-only"
+                          >
+                            {t("chordEditUnavailableTitle")}
+                          </span>
+                        )}
                         {role.harmony.source === "user" && (
                           <Badge variant="secondary" className="h-4 bg-indigo-300/20 px-1 text-[0.6rem] text-indigo-100 hover:bg-indigo-300/20">
                             {t("harmonySourceUserBadge")}
