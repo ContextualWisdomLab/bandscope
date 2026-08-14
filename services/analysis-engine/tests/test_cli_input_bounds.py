@@ -64,3 +64,51 @@ def test_cli_rejects_oversized_stdin_before_json_parsing(
     response = json.loads(stdout.getvalue())
     assert response["state"] == "failed"
     assert response["error"]["message"] == "Job input exceeds maximum size limit"
+
+
+def test_cli_stdin_limit_is_measured_in_utf8_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multibyte stdin must not bypass the advertised byte-size boundary."""
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli, "MAX_JSON_FILE_SIZE", 8)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+    monkeypatch.setattr(cli.sys, "stdin", _BoundedReadRequired("é" * 5))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["error"]["message"] == "Job input exceeds maximum size limit"
+
+
+def test_cli_inline_job_argument_obeys_input_byte_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An inline ``--job`` payload cannot bypass the common JSON byte limit."""
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli, "MAX_JSON_FILE_SIZE", 8)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", '{"jobId":"é"}'])
+    monkeypatch.setattr(cli.sys, "stdin", _BoundedReadRequired(""))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["error"]["message"] == "Job input exceeds maximum size limit"
+
+
+def test_cli_job_file_limit_is_measured_in_utf8_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """A multibyte job file is rejected by bytes even when character count is small."""
+    job_file = tmp_path / "multibyte_job.json"
+    job_file.write_text("é" * 5, encoding="utf-8")
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli, "MAX_JSON_FILE_SIZE", 8)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(job_file)])
+    monkeypatch.setattr(cli.sys, "stdin", _BoundedReadRequired(""))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["error"]["message"] == "Job file exceeds maximum size limit"
