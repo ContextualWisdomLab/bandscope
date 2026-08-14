@@ -226,6 +226,7 @@ def test_estimate_downbeats_too_few_beats_returns_first() -> None:
     onset = np.ones(50)
     assert _estimate_downbeats(onset, np.array([0, 10]), np.array([0.0, 0.5])) == [0.0]
 
+
 def test_temporal_analyzer_exception_during_analysis(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
