@@ -94,6 +94,5 @@ def test_public_registry_lock_entries_have_integrity_evidence() -> None:
             continue
         integrity = package_record.get("integrity")
         assert isinstance(integrity, str), f"missing integrity for {location}"
-        assert integrity.startswith(("sha512-", "sha1-")), (
-            f"unsupported integrity for {location}"
-        )
+        supported_algorithm = integrity.startswith(("sha512-", "sha1-"))
+        assert supported_algorithm, f"unsupported integrity for {location}"
