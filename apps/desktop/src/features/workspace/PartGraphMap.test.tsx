@@ -51,6 +51,13 @@ describe("PartGraphMap", () => {
   roleMap.set("keys-right", { id: "keys-right", name: "Keyboard 1 Right Hand" });
   roleMap.set("lead-vocal", { id: "lead-vocal", name: "Lead Vocal" });
 
+  it("asserts the region is discoverable by role/name and focusable", () => {
+    render(<PartGraphMap song={mockSong} activeRoleId="bass-guitar" roleMap={roleMap} />);
+    const region = screen.getByRole("region", { name: "Part Handoff Map" });
+    expect(region).toBeInTheDocument();
+    expect(region).toHaveAttribute("tabIndex", "0");
+  });
+
   it("renders the title correctly", () => {
     render(<PartGraphMap song={mockSong} activeRoleId="bass-guitar" roleMap={roleMap} />);
     expect(screen.getByText("Part Handoff Map")).toBeInTheDocument();

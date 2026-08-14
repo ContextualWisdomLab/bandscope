@@ -31,6 +31,7 @@ describe("Workspace", () => {
   });
 
   it("renders PartGraphMap when a role is selected", () => {
+    setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     render(<Workspace song={song} />);
 

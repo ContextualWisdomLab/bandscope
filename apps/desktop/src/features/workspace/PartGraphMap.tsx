@@ -22,11 +22,15 @@ function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProp
   return (
     <div className="mt-4 rounded-xl border border-teal-300/20 bg-teal-300/[0.08] p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-xs font-black uppercase tracking-[0.24em] text-teal-200">
+        <h3 id="part-graph-title" className="text-xs font-black uppercase tracking-[0.24em] text-teal-200">
           {t("partGraphTitle")}
         </h3>
       </div>
-      <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">
+      <div
+        role="region"
+        tabIndex={0}
+        aria-labelledby="part-graph-title"
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">
         {song.sections.map((section) => {
           const node = section.partGraph.find(n => n.role_id === activeRoleId);
           const isActive = node?.is_active ?? false;
