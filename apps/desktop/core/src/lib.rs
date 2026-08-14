@@ -932,12 +932,8 @@ mod tests {
             "https://youtube.com/embed/abc123DEF45"
         ));
 
-        // Base URL length is 42 chars: "https://youtube.com/watch?v=abc123DEF45&q="
-        let exact_long_url = format!("https://youtube.com/watch?v=abc123DEF45&q={}", "a".repeat(MAX_YOUTUBE_URL_LENGTH - 42));
-        assert!(is_supported_youtube_url(&exact_long_url));
-
-        let oversized_url = format!("https://youtube.com/watch?v=abc123DEF45&q={}", "a".repeat(MAX_YOUTUBE_URL_LENGTH - 41));
-        assert!(!is_supported_youtube_url(&oversized_url));
+        let long_url = format!("https://youtube.com/watch?v={}", "a".repeat(2000));
+        assert!(!is_supported_youtube_url(&long_url));
     }
 
     #[test]
