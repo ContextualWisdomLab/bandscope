@@ -91,19 +91,8 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   if (response instanceof ArrayBuffer) {
     return new Uint8Array(response);
   }
-  if (Array.isArray(response)) {
-    // 성능 최적화: O(N) 콜백 호출 오버헤드를 줄이기 위해 for 루프 사용
-    let isNumberArray = true;
-    for (let i = 0; i < response.length; i++) {
-      if (typeof response[i] !== "number") {
-        isNumberArray = false;
-        break;
-      }
-    }
-
-    if (isNumberArray) {
-      return Uint8Array.from(response as number[]);
-    }
+  if (Array.isArray(response) && response.every((byte) => typeof byte === "number")) {
+    return Uint8Array.from(response as number[]);
   }
 
   throw new Error(INVALID_RESPONSE_MESSAGE);
