@@ -27,12 +27,3 @@ GHSA-wrw7-89jp-8q8g exp:2026-10-31
 # wheel), so it is outside the request-time attack surface. Remove once a
 # fixed setuptools publishes and uv can resolve it. Revisit by 2026-10-31.
 CVE-2026-59890 exp:2026-10-31
-
-CVE-2026-16633
-GHSA-2v37-7h3g-55p8
-GHSA-hq66-cqwq-w95j
-GHSA-8xcm-r25x-g524
-GHSA-4cwx-7wf7-3272
-GHSA-m8rv-5g2x-5cg5
-GHSA-jr45-8vmc-qm54
-GHSA-v3r7-h72x-cjcm
