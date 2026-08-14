@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { invoke } from "@tauri-apps/api/core";
@@ -96,11 +96,27 @@ describe("ScoreView", () => {
 
     expect(screen.getByText("Scores attach to the active analysis project.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
+    const openBtn = screen.getByRole("button", { name: "Open score: opener.pdf" });
+    expect(openBtn).toHaveAttribute("aria-disabled", "true");
+    expect(openBtn).toHaveAttribute("aria-describedby");
+    expect(openBtn).toHaveClass("aria-disabled:cursor-not-allowed", "aria-disabled:opacity-60");
+    expect(openBtn).toHaveAttribute("title", "scoreNavDisabledHint");
+
+    const removeBtn = screen.getByRole("button", { name: "Remove: opener.pdf" });
+    expect(removeBtn).toHaveAttribute("aria-disabled", "true");
+    expect(removeBtn).toHaveAttribute("aria-describedby");
+    expect(removeBtn).toHaveClass("aria-disabled:cursor-not-allowed", "aria-disabled:opacity-60");
+    expect(removeBtn).toHaveAttribute("title", "Remove: opener.pdf");
+
+    const openClickEvent = createEvent.click(openBtn);
+    fireEvent(openBtn, openClickEvent);
+    expect(openClickEvent.defaultPrevented).toBe(true);
     expect(mockInvoke).not.toHaveBeenCalled();
+
+    const clickEvent = createEvent.click(removeBtn);
+    fireEvent(removeBtn, clickEvent);
+    expect(clickEvent.defaultPrevented).toBe(true);
   });
 
   it("attaches a score, persists the metadata, and opens the new PDF", async () => {

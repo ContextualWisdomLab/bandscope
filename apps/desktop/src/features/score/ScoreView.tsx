@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { FileMusic, FilePlus2, Loader2, Trash2 } from "lucide-react";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
@@ -39,6 +39,7 @@ function bridgeErrorDetail(error: unknown, fallback: string): string {
  */
 export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const scoreRequiresProjectId = useId();
   const attachments = useMemo(() => song.scoreAttachments ?? [], [song.scoreAttachments]);
   const [selected, setSelected] = useState<ScoreAttachment | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
@@ -149,7 +150,10 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
           </div>
 
           {!projectId && (
-            <p className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100">
+            <p
+              id={scoreRequiresProjectId}
+              className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100"
+            >
               {t("scoreRequiresProject")}
             </p>
           )}
@@ -183,11 +187,19 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                   >
                     <button
                       type="button"
-                      onClick={projectId ? () => void openAttachment(projectId, attachment) : undefined}
-                      disabled={!projectId}
+                      onClick={(e) => {
+                        if (!projectId) {
+                          e.preventDefault();
+                        } else {
+                          void openAttachment(projectId, attachment);
+                        }
+                      }}
+                      aria-disabled={!projectId}
+                      aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
                       aria-current={selected?.id === attachment.id ? "true" : undefined}
                       aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
-                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      title={!projectId ? t("scoreNavDisabledHint") : undefined}
+                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                     >
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
                       <span className="truncate">{attachment.fileName}</span>
@@ -195,10 +207,18 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
-                      disabled={!projectId}
+                      onClick={(e) => {
+                        if (!projectId) {
+                          e.preventDefault();
+                        } else {
+                          void handleRemove(projectId, attachment);
+                        }
+                      }}
+                      aria-disabled={!projectId}
+                      aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
                       aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
-                      className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
+                      title={`${t("scoreRemove")}: ${attachment.fileName}`}
+                      className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
                     </Button>
