@@ -32,25 +32,12 @@ def failed_cli_response(message: str) -> dict[str, object]:
 
 def main() -> int:
     """Read a job payload from stdin and print a structured job response to stdout."""
-    # Read all input from stdin first, bounded by bytes
-    try:
-        # In production, sys.stdin has a buffer for raw bytes
-        if hasattr(sys.stdin, "buffer"):
-            input_bytes = sys.stdin.buffer.read(MAX_JSON_FILE_SIZE + 1)
-            if len(input_bytes) > MAX_JSON_FILE_SIZE:
-                json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
-                return 1
-            input_data = input_bytes.decode("utf-8").strip()
-        else:
-            # Fallback for tests using StringIO
-            raw_text = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
-            if len(raw_text.encode("utf-8")) > MAX_JSON_FILE_SIZE:
-                json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
-                return 1
-            input_data = raw_text.strip()
-    except Exception:
-        json.dump(failed_cli_response("Failed to read stdin as utf-8"), sys.stdout)
+    # Read all input from stdin first, bounded by characters initially, then validated by bytes
+    raw_text = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
+    if len(raw_text.encode("utf-8")) > MAX_JSON_FILE_SIZE:
+        json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
         return 1
+    input_data = raw_text.strip()
     progress_jsonl = "--progress-jsonl" in sys.argv[1:]
     cli_args = [arg for arg in sys.argv[1:] if arg != "--progress-jsonl"]
 
@@ -72,12 +59,6 @@ def main() -> int:
                             )
                             return 1
                         input_data = input_bytes.decode("utf-8")
-                        if f.read(1):
-                            json.dump(
-                                failed_cli_response("Job file exceeds maximum size limit"),
-                                sys.stdout,
-                            )
-                            return 1
                 except Exception:
                     json.dump(failed_cli_response("Failed to read job file"), sys.stdout)
                     return 1
