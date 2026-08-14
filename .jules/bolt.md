@@ -61,6 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-## 2024-05-22 - [Analysis Engine API Timeout Handling Test Added]
-**Learning:** Verified a testing gap in `api.py` around the `StemSeparationTimedOut` exception logic via mocking `queue.Empty` and overriding `time.monotonic`. Testing coverage was updated and restored to 100%.
-**Action:** Implemented a new pytest `test_stem_separation_process_helper_raises_timeout` in `tests/test_api.py` which mocks a stubborn worker process that hangs instead of completing separation, effectively returning to maximum reliability of analysis-engine timeout handlers.
