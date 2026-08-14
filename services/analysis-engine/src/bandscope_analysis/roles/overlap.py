@@ -67,9 +67,9 @@ def band_energy_profile(
     if not isinstance(audio, np.ndarray) or audio.size == 0 or sr <= 0:
         return zero_profile
 
-    if audio.size > 10_000_000:
+    if audio.size > 100_000_000:
         logger.warning(
-            f"Audio size {audio.size} exceeds maximum allowed 10000000; returning zero profile."
+            f"Audio size {audio.size} exceeds maximum allowed 100000000; returning zero profile."
         )
         return zero_profile
 
@@ -113,9 +113,9 @@ def detect_register_overlap(
     try:
         pitched = sorted(name for name in stems if name not in UNPITCHED_STEMS)
 
-        if len(pitched) > 10:
+        if len(pitched) > 100:
             logger.warning(
-                f"Too many pitched stems ({len(pitched)} > 10); "
+                f"Too many pitched stems ({len(pitched)} > 100); "
                 "returning no overlaps to prevent resource exhaustion."
             )
             return []

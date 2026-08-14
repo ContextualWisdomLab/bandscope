@@ -37,7 +37,6 @@
   },
   "overrides": {
     "brace-expansion": "5.0.9",
-    "postcss": "8.5.25",
-    "pdfjs-dist": "6.2.108"
+    "postcss": "8.5.25"
   }
 }
