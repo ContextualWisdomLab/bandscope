@@ -20,8 +20,8 @@ env:
   EXPECTED_NPM_VERSION: "10.9.8"
 
 jobs:
-  lock-reproduction:
-    name: gate / ci / npm-lock-reproduction
+  lock-validation:
+    name: gate / ci / npm-lock-validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -31,22 +31,14 @@ jobs:
           cache: npm
       - name: Verify exact npm lockfile generator
         run: test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
-      - name: Reproduce package lock without lifecycle execution
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - name: Preserve the exact generated lock as review evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: npm-lock-reproduction-${{ github.event.pull_request.head.sha || github.sha }}
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 3
-      - name: Reject lockfile drift
-        run: git diff --exit-code -- package-lock.json
+      - name: Validate the frozen package lock without lifecycle execution
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Reject manifest or lockfile drift
+        run: git diff --exit-code -- package.json package-lock.json
 
   verify:
     name: ci / build-and-test
-    needs: lock-reproduction
+    needs: lock-validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -79,7 +71,7 @@ jobs:
 
   rust-check:
     name: gate / ci / rust-check
-    needs: lock-reproduction
+    needs: lock-validation
     runs-on: macos-15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

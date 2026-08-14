@@ -2,75 +2,83 @@
 
 ## Decision
 
-BandScope generates and verifies its root npm workspace lock with exactly npm `10.9.8`. The root manifest records that decision through:
+BandScope records npm `10.9.8` as the approved generator for root workspace dependency updates. The root manifest records that decision through:
 
 - `packageManager: npm@10.9.8` as package-manager selection metadata; and
 - `devEngines.packageManager` with `onFail: error` as npm's source-tree command gate.
 
-The npm version is intentionally not repeated under `engines`. npm serializes `engines` into the root lock package, so adding an npm-only source-tool constraint there creates lock metadata churn unrelated to dependency resolution. `devEngines`, the explicit CI assertion, and the replay gate enforce the generator while the published `engines.node` range remains the runtime compatibility contract.
+The npm version is intentionally not repeated under `engines`. npm serializes `engines` into the root lock package, so adding an npm-only source-tool constraint there creates lock metadata churn unrelated to dependency resolution. `devEngines` and the explicit CI assertion enforce the approved generator while the published `engines.node` range remains the runtime compatibility contract.
 
-The primary GitHub Actions workflow uses Node `22.22.3`, verifies the bundled npm version before any installation, runs `npm ci`, then runs a package-lock-only regeneration with scripts, audit, and funding output disabled. Any `package-lock.json` diff fails the exact head.
+Primary CI does **not** regenerate or update `package-lock.json`. It uses Node `22.22.3`, verifies npm `10.9.8`, and validates the committed lock with `npm ci --ignore-scripts --no-audit --no-fund`. The gate then rejects any manifest or lockfile working-tree change. The normal verification job performs the repository's reviewed `npm ci` installation before lint, typecheck, tests, build, and security checks.
 
 The Node runtime support decision remains separate. This change does not raise the public `>=22.13 <23` Node range; a coordinated Node-floor migration is tracked independently.
 
-## Why the generator is part of the lock identity
+## Why generator provenance still matters
 
-npm documents `package-lock.json` as the location-keyed description of the exact dependency tree. Lockfile version 3 is intended for npm 9 and newer. npm also notes that different package-manager versions may use different installation algorithms and metadata representations. A committed lockfile therefore is not fully reproducible unless the generator version and install-shaping flags are versioned with it.
+npm documents `package-lock.json` as the location-keyed description of the exact dependency tree. Lockfile version 3 is intended for npm 9 and newer. npm also notes that package-manager versions and tree-shaping configuration can affect the generated dependency graph and metadata. Dependency updates therefore use the reviewed npm `10.9.8` toolchain, and reviewers examine the complete generated lock diff together with its manifest change.
 
-`npm ci` is the immutable consumption path: it requires a lockfile, rejects manifest/lock dependency disagreement, removes an existing `node_modules`, and does not write the manifest or lock. It does not prove that a future dependency update will regenerate byte-identical metadata. The additional package-lock-only replay closes that gap.
+That provenance is distinct from CI validation. `npm ci` is the immutable consumption path: it requires a lockfile, rejects manifest/lock dependency disagreement, removes an existing `node_modules`, and never writes the manifest or lock. CI relies on that frozen behavior instead of running `npm install`, `npm update`, or `npx` commands that may perform mutable resolution.
+
+The repository additionally requires a Subresource Integrity value for every package-lock entry resolved from the public npm registry. npm documents `integrity` as the SHA-512 or SHA-1 SRI string for the artifact unpacked at that location.
 
 ```mermaid
 flowchart LR
-    M[package.json ranges and workspaces] --> G[npm 10.9.8]
-    C[project npm configuration] --> G
-    G --> L[package-lock.json v3]
-    L --> I[npm ci clean install]
-    I --> R[npm 10.9.8 package-lock-only replay]
-    R --> D{lock diff?}
-    D -->|no| A[reproducible exact-head evidence]
+    M[package.json dependency intent] --> G[approved npm 10.9.8 update toolchain]
+    G --> L[reviewed package-lock.json v3]
+    L --> V[npm ci frozen validation, lifecycle disabled]
+    V --> D{manifest or lock drift?}
     D -->|yes| F[fail closed]
+    D -->|no| S[verify public-registry SRI evidence]
+    S --> C[normal npm ci and repository checks]
 ```
 
 ## Security and operational boundary
 
-- Dependency PRs may change only manifest ranges and the lock records produced by npm `10.9.8`.
-- Reviewers must reject unrelated lock metadata that cannot be reproduced by the pinned generator.
-- No lock record may be added or removed by hand to satisfy a validator.
-- Install-shaping flags that change the tree, such as `legacy-peer-deps` or `install-links`, must be committed in project configuration and used identically by `npm ci` and regeneration.
-- Dependency lifecycle scripts remain disabled for the reproduction pass. The normal clean install retains the repository's reviewed execution behavior.
-- The exact npm version check occurs before `npm ci`; a different bundled or globally installed npm cannot generate acceptance evidence.
-- The lockfile remains the sole npm workspace lock. Nested workspace locks are prohibited.
+- CI lock validation must not run `npm install`, `npm update`, `npx`, or another mutable dependency-resolution command.
+- Dependency PRs change manifest intent and the complete lock artifact produced by the approved npm `10.9.8` update toolchain; reviewers reject unexplained lock churn rather than hand-editing records.
+- The lock-validation job disables dependency lifecycle scripts. The normal clean install retains the repository's reviewed execution behavior.
+- The exact npm version check occurs before either frozen install; a different bundled or globally installed npm cannot provide acceptance evidence.
+- Registry-resolved package records require SRI evidence in the committed lock.
+- Install-shaping flags that affect the dependency tree, such as `legacy-peer-deps` or `install-links`, must be committed in project configuration and applied consistently to generation and `npm ci`.
+- The root `package-lock.json` remains the sole npm workspace lock. Nested workspace locks are prohibited.
 
-`packageManager` alone is not the enforcement boundary for npm because Corepack's npm shim is not enabled by default in Node distributions. Enforcement is provided by npm `devEngines`, the explicit CI version assertion, and the lock replay.
+`packageManager` alone is not the enforcement boundary for npm because Corepack's npm shim is not enabled by default in Node distributions. Enforcement is provided by npm `devEngines`, the explicit CI version assertion, the frozen `npm ci` contract, and repository tests that prohibit mutable resolution in the lock gate.
 
 ## Verification
 
-`services/analysis-engine/tests/test_npm_toolchain_contract.py` verifies the manifest metadata, separation of runtime and generator constraints, exact CI Node/npm identity, replay command and flags, clean lock diff, and lockfile version 3. Repository CI then executes the replay using the hosted toolchain.
+`services/analysis-engine/tests/test_npm_toolchain_contract.py` verifies:
 
-A dependency update is mergeable only after:
+1. the manifest's approved npm metadata and Node/runtime separation;
+2. the exact Node/npm identity used by primary CI;
+3. frozen `npm ci` lock validation with lifecycle execution disabled;
+4. absence of `npm install`, `npm update`, and `npx` from the lock-validation job;
+5. a clean manifest/lock working tree after validation;
+6. package-lock version 3; and
+7. SRI evidence for every public npm-registry artifact in the root lock.
 
-1. npm `10.9.8` produces the checked-in lock from the updated manifest;
-2. a second package-lock-only replay is byte-clean;
-3. `npm ci`, lint, strict typecheck, measured tests, production build, Rust/Tauri checks, and security/supply-chain gates succeed on the same head; and
-4. current-head review, unresolved-thread, independent-approval, and branch-protection requirements succeed without bypass.
+The exact PDF.js and Undici baseline is covered separately by `test_high_security_dependency_baseline.py` and the desktop PDF loader tests.
+
+A dependency update is mergeable only after the updated manifest and complete generated lock are reviewed together and the exact current head passes frozen lock validation, normal install, lint, strict typecheck, measured tests, production build, Rust/Tauri checks, security/supply-chain gates, current review, independent approval, and branch protection without bypass.
+
+## Claim boundary
+
+CI proves that the committed manifest and lock can be consumed as a frozen pair by the approved toolchain and that public-registry lock entries carry integrity evidence. It does **not** claim that resolving mutable manifest ranges again at a later time will reproduce byte-identical lock metadata. When a dependency update is needed, npm `10.9.8` remains the approved generator and its entire resulting lock diff is review evidence.
 
 ## Incident response and rollback
 
-When replay changes the lock unexpectedly:
+When an update produces unexpected lock churn:
 
-1. preserve the exact head SHA, npm and Node versions, command flags, original lock blob SHA, regenerated lock, and CI run ID;
-2. determine whether the manifest changed, npm changed, project configuration changed, or the protected lock was generated by a different toolchain;
-3. never accept a partial or hand-edited lock;
-4. regenerate from a clean checkout using the reviewed npm version and run the replay twice;
+1. preserve the exact head SHA, npm and Node versions, project npm configuration, original lock blob SHA, generated lock, and relevant CI run IDs;
+2. determine whether manifest intent, npm, project configuration, registry metadata, or transitive dependency resolution changed;
+3. never accept a partial or hand-edited lock to satisfy a validator;
+4. regenerate the complete lock in a dedicated update branch using the reviewed npm version, then review the full diff before relying on it; and
 5. if rollback is necessary, restore the prior manifest and complete lock together, then rerun the entire exact-head gate.
 
 ## References
 
 npm, Inc. (2026). *npm ci*. npm Docs. https://docs.npmjs.com/cli/v11/commands/npm-ci/
 
-npm, Inc. (2026). *npm install*. npm Docs. https://docs.npmjs.com/cli/v10/commands/npm-install/
-
-npm, Inc. (2026). *package-lock.json*. npm Docs. https://docs.npmjs.com/cli/v11/configuring-npm/package-lock-json/
+npm, Inc. (2026). *package-lock.json*. npm Docs. https://docs.npmjs.com/cli/v10/configuring-npm/package-lock-json/
 
 npm, Inc. (2026). *package.json*. npm Docs. https://docs.npmjs.com/cli/configuring-npm/package-json/
 

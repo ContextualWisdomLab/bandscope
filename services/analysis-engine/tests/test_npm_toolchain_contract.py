@@ -17,6 +17,20 @@ def _root_manifest() -> dict[str, object]:
     return manifest
 
 
+def _primary_ci_workflow() -> str:
+    """Return the primary CI workflow as source text."""
+    return (_REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+
+def _lock_validation_job(workflow: str) -> str:
+    """Return only the frozen npm lock-validation job from the CI workflow."""
+    start = workflow.index("  lock-validation:")
+    end = workflow.index("\n  verify:", start)
+    return workflow[start:end]
+
+
 def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
     """Require npm and source-tree commands to reject a different generator."""
     manifest = _root_manifest()
@@ -32,25 +46,20 @@ def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
     }
 
 
-def test_primary_ci_proves_exact_npm_before_install_and_lock_reproduction() -> None:
-    """Keep the clean installer and lock reproduction on one explicit toolchain."""
-    workflow = (_REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
+    """Keep lock validation frozen while retaining exact Node and npm provenance."""
+    workflow = _primary_ci_workflow()
+    lock_job = _lock_validation_job(workflow)
 
     assert f'node-version: "{_EXPECTED_NODE_VERSION}"' in workflow
     assert f'EXPECTED_NPM_VERSION: "{_EXPECTED_NPM_VERSION}"' in workflow
-    assert 'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"' in workflow
-    assert "lock-reproduction:" in workflow
-    assert "needs: lock-reproduction" in workflow
-    assert "npm install --package-lock-only" in workflow
-    assert "--ignore-scripts" in workflow
-    assert "--no-audit" in workflow
-    assert "--no-fund" in workflow
-    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
-    assert (
-        "npm-lock-reproduction-${{ github.event.pull_request.head.sha || github.sha }}" in workflow
-    )
-    assert "if-no-files-found: error" in workflow
-    assert "git diff --exit-code -- package-lock.json" in workflow
+    assert 'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"' in lock_job
+    assert "npm ci --ignore-scripts --no-audit --no-fund" in lock_job
+    assert "git diff --exit-code -- package.json package-lock.json" in lock_job
+    assert "needs: lock-validation" in workflow
+    assert "npm install " not in lock_job
+    assert "npm update " not in lock_job
+    assert "npx " not in lock_job
 
 
 def test_root_lock_uses_the_supported_location_keyed_format() -> None:
@@ -59,3 +68,28 @@ def test_root_lock_uses_the_supported_location_keyed_format() -> None:
 
     assert lock_document["lockfileVersion"] == 3
     assert isinstance(lock_document["packages"], dict)
+
+
+def test_public_registry_lock_entries_have_integrity_evidence() -> None:
+    """Require SRI for every public npm-registry artifact recorded in the root lock."""
+    lock_document = json.loads((_REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8"))
+    packages = lock_document["packages"]
+    assert isinstance(packages, dict)
+
+    for location, package_record in packages.items():
+        assert isinstance(location, str)
+        assert isinstance(package_record, dict)
+        resolved = package_record.get("resolved")
+        if not isinstance(resolved, str):
+            continue
+        if not (
+            resolved == "registry.npmjs.org"
+            or resolved.startswith("registry.npmjs.org/")
+            or resolved.startswith("https://registry.npmjs.org/")
+        ):
+            continue
+        integrity = package_record.get("integrity")
+        assert isinstance(integrity, str), f"missing integrity for {location}"
+        assert integrity.startswith(("sha512-", "sha1-")), (
+            f"unsupported integrity for {location}"
+        )
