@@ -246,7 +246,13 @@ class ChordRecognizer:
             return None
 
         # Optional: apply temporal smoothing to chromagram to reduce noise
-        chromagram = librosa.decompose.nn_filter(chromagram, aggregate=np.median, metric="cosine")
+        try:
+            chromagram = librosa.decompose.nn_filter(
+                chromagram, aggregate=np.median, metric="cosine"
+            )
+        except Exception:
+            # If nn_filter fails (e.g., due to too few frames), return unsmoothed chromagram
+            pass  # nosec B110
         return np.asarray(chromagram)
 
     def _calculate_rms(self, y: np.ndarray, chromagram_len: int) -> np.ndarray:
@@ -259,7 +265,14 @@ class ChordRecognizer:
             else:
                 rms = rms[:chromagram_len]
         except Exception:
-            rms = np.ones(chromagram_len)
+            max_fallback_size = 10000
+            safe_len = min(chromagram_len, max_fallback_size)
+            if chromagram_len > max_fallback_size:
+                logger.warning(
+                    f"RMS fallback array truncated from {chromagram_len} to {safe_len} "
+                    f"elements to prevent DoS"
+                )
+            rms = np.ones(safe_len)
         return np.asarray(rms)
 
     def _match_templates(self, chromagram: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -427,6 +440,11 @@ class ChordRecognizer:
         """
         if len(y) == 0:
             return []
+
+        # Limit the audio length to prevent excessive processing
+        max_audio_samples = 6000000  # About 6 million samples
+        if len(y) > max_audio_samples:
+            y = y[:max_audio_samples]
 
         y_harmonic = self._separate_harmonic(y)
         chromagram = self._extract_chromagram(y_harmonic, sr)

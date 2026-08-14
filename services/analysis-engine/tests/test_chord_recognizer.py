@@ -318,3 +318,26 @@ def test_chord_recognizer_compute_confidence_downgrade_path() -> None:
             # Since first frame was high but subsequent were low,
             # the segment confidence should be low (conservative)
             assert non_n[0]["confidence"] == "low"
+
+
+def test_chord_recognizer_nn_filter_exception() -> None:
+    """Test exception handling during nn_filter."""
+    recognizer = ChordRecognizer()
+    y = np.random.randn(11)  # Very short audio signal
+
+    # Should not crash but instead return result successfully
+    result = recognizer.recognize(y, sr=22050)
+    assert isinstance(result, list)
+
+
+def test_chord_recognizer_rms_fallback_truncation() -> None:
+    """Test that RMS fallback array is truncated to prevent DoS."""
+    recognizer = ChordRecognizer()
+
+    # Mock an Exception in librosa.feature.rms
+    with patch("librosa.feature.rms", side_effect=Exception("mock error")):
+        # Request an RMS length greater than max_fallback_size (10000)
+        rms = recognizer._calculate_rms(np.zeros(10), 15000)
+
+    assert len(rms) == 10000
+    assert np.all(rms == 1.0)
