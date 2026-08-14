@@ -6,7 +6,7 @@ BandScope treats the PDF parser and its transitive HTTP client as one security-r
 
 - `pdfjs-dist` is pinned exactly to `6.2.108`;
 - `undici` is pinned exactly to `7.29.0` through the root npm override; and
-- the complete npm workspace lock is generated only by the repository-pinned npm `10.9.8` workflow and imported unchanged from the workflow artifact.
+- npm `10.9.8` is the approved generator for reviewed root-workspace dependency updates, while primary CI consumes the committed lock through frozen validation rather than re-resolving it.
 
 PDF.js `6.2.108` no longer exposes the legacy `isEvalSupported` member in its public `DocumentInitParameters` contract, and `getDocument` no longer reads that member. BandScope therefore does not cast or pass an unknown option that would be ignored while creating false assurance. The primary remediation is the patched parser release, reinforced by a narrow data-only call, copied caller-owned bytes, and a same-origin bundled worker.
 
@@ -18,9 +18,10 @@ flowchart LR
     C --> W[Same-origin bundled worker]
     W --> R[Canvas render]
     J[jsdom development path] --> U[undici 7.29.0 override]
-    N[npm 10.9.8] --> L[Exact package-lock artifact]
-    L --> C
-    L --> U
+    N[npm 10.9.8 approved update toolchain] --> L[Reviewed package-lock artifact]
+    L --> V[npm ci frozen validation]
+    V --> C
+    V --> U
 ```
 
 ## Threat boundary
@@ -33,16 +34,18 @@ Undici is currently a development dependency reached through jsdom, but developm
 
 ## Lockfile provenance
 
-The security manifests are changed before the lock. The exact branch workflow then:
+The dependency manifests and complete lock artifact were generated and reconciled on this branch with the approved Node `22.22.3` / npm `10.9.8` toolchain before the current frozen-validation gate was finalized. The historical generation run and artifact are provenance evidence only; they do **not** satisfy a later head's merge gate and primary CI intentionally does not repeat mutable dependency resolution.
 
-1. verifies Node `22.22.3` and npm `10.9.8`;
-2. runs `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`;
-3. uploads the generated `package-lock.json` under a head-SHA-bound artifact name; and
-4. fails while the generated lock differs from the branch.
+For every current head, primary CI instead:
 
-The maintainer imports that generated artifact byte-for-byte and reruns the workflow. The second run must produce a clean diff. No tarball URL, SRI, dependency range, `peer` classification, or workspace record is edited by hand.
+1. verifies npm `10.9.8` before dependency consumption;
+2. runs `npm ci --ignore-scripts --no-audit --no-fund` in the dedicated lock-validation job;
+3. rejects any `package.json` or `package-lock.json` working-tree drift; and
+4. proceeds to normal repository verification only after the frozen lock is consumable by the approved toolchain.
 
-The lock contract requires the exact public-registry tarball and SHA-512 SRI for both patched packages and requires every existing `node_modules/@esbuild/*` location to retain npm 10.9.8's `peer: true` classification. This distinguishes the intended security graph from unrelated Dependabot generator churn.
+Future dependency updates must use npm `10.9.8` to generate the complete lock in a dedicated update branch, review the entire resulting manifest/lock diff, and then prove frozen consumption on the resulting exact head. No tarball URL, SRI, dependency range, `peer` classification, or workspace record may be hand-edited merely to satisfy a validator.
+
+The lock contract requires the exact public-registry tarball and SHA-512 SRI for both patched packages and requires every existing `node_modules/@esbuild/*` location to retain npm 10.9.8's `peer: true` classification. This distinguishes the intended security graph from unrelated Dependabot generator churn. The narrower provenance and validation contract is specified in `docs/doctoring/npm-lockfile-generator-provenance.md`.
 
 ## Verification
 
@@ -62,7 +65,7 @@ The merge gate includes:
 
 ## Failure, rollback, and incident evidence
 
-On a failed lock replay or parser regression, preserve the exact head SHA, Node/npm versions, generated-lock artifact ID and digest, original and generated lock blob SHA, test output, audit report, and workflow run ID. Do not merge a partially updated graph.
+On a failed frozen-lock validation or parser regression, preserve the exact head SHA, Node/npm versions, original lock blob SHA, test output, audit report, and workflow run ID. If the incident concerns a dependency-generation change, also preserve the generated complete lock and the generation environment/configuration. Do not merge a partially updated graph.
 
 Rollback restores the previous desktop manifest, root override, complete lock, PDF loader, tests, and CHANGELOG entry together. Because the previous graph contains known high findings, rollback is an emergency availability action only and requires an explicit security exception, compensating controls, owner, expiration, and immediate replacement plan.
 
