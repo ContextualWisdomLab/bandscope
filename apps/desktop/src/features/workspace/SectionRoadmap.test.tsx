@@ -62,17 +62,21 @@ describe("SectionRoadmap", () => {
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
-  it("applies aria-disabled when onSongUpdate is missing, explains how to recover, and prevents click", () => {
+  it("applies aria-disabled when onSongUpdate is missing, describes how to recover, and prevents click", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     // Intentionally omit onSongUpdate to simulate readonly mode
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    const button = screen.getByRole("button", {
-      name: "Edit chord for Bass Guitar in verse, current C#m7. Open an editable song to change this chord"
-    });
+    const button = screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" });
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAttribute("title", "Open an editable song to change this chord");
+
+    const descriptionId = button.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? "")?.textContent).toBe(
+      "Open an editable song to change this chord"
+    );
 
     const promptSpy = vi.spyOn(window, "prompt");
     fireEvent.click(button);
