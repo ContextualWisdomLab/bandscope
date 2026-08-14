@@ -43,7 +43,7 @@ fn checkerboard_novelty<'py>(
     }
 
     // valid_range = range(half, n - half)
-    for i in half..(n - half) {
+    for i in half..(half + n - kernel_size + 1) {
         let mut acc = 0.0_f64;
         // patch = ssm[i-half : i+half, i-half : i+half]; sum(patch * kernel)
         for r in 0..kernel_size {
