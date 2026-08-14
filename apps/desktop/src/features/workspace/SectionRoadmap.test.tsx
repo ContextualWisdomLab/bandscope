@@ -68,7 +68,9 @@ describe("SectionRoadmap", () => {
     // Intentionally omit onSongUpdate to simulate readonly mode
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    const button = screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" });
+    const button = screen.getByRole("button", {
+      name: "Edit chord for Bass Guitar in verse, current C#m7. Open an editable song to change this chord"
+    });
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAttribute("title", "Open an editable song to change this chord");
 
