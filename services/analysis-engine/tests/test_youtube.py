@@ -666,6 +666,7 @@ def test_main_block(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixtu
             mock_download.assert_called_with(
                 "https://youtube.com/watch?v=abc123DEF45",
                 "/tmp",
+                allowed_output_root=None,
                 ffmpeg_path="/opt/bandscope/ffmpeg",
                 ffmpeg_sha256="a" * 64,
                 ffprobe_path="/opt/bandscope/ffprobe",
