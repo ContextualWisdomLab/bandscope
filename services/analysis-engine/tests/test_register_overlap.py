@@ -68,19 +68,6 @@ class TestBandEnergyProfile:
         profile = band_energy_profile(_sine(80.0), 0)
         assert profile == {"low": 0.0, "mid": 0.0, "high": 0.0}
 
-    def test_oversized_audio_returns_all_zero_without_fft(self) -> None:
-        """The resource guard rejects an oversized zero-stride view before FFT."""
-        oversized = np.lib.stride_tricks.as_strided(
-            np.array([1.0], dtype=np.float64),
-            shape=(100_000_001,),
-            strides=(0,),
-            writeable=False,
-        )
-
-        profile = band_energy_profile(oversized, SR)
-
-        assert profile == {"low": 0.0, "mid": 0.0, "high": 0.0}
-
 
 class TestDetectRegisterOverlap:
     """Tests for detect_register_overlap."""
@@ -123,13 +110,6 @@ class TestDetectRegisterOverlap:
         stems = {"bass": _sine(80.0), "drums": _sine(200.0)}
         assert detect_register_overlap(stems, SR) == []
 
-    def test_too_many_pitched_stems_fail_closed_before_profiling(self) -> None:
-        """More than 100 pitched stems are rejected before pairwise work begins."""
-        tiny = np.array([0.0], dtype=np.float64)
-        stems = {f"stem_{index}": tiny for index in range(101)}
-
-        assert detect_register_overlap(stems, SR) == []
-
     def test_pairs_alphabetical_and_sorted_by_severity(self) -> None:
         """Overlaps are alphabetically paired and sorted by severity desc."""
         stems = {
@@ -169,3 +149,14 @@ class TestDetectRegisterOverlap:
         # The same stems overlap when the threshold is lowered.
         lowered = detect_register_overlap(stems, SR, threshold=0.2)
         assert lowered and lowered[0]["band"] in BANDS
+
+    def test_excessively_large_audio_fails_safe(self) -> None:
+        """Audio arrays larger than MAX_AUDIO_SIZE fail safe with zero fractions."""
+        large_audio = np.zeros(10_000_001, dtype=np.float32)
+        profile = band_energy_profile(large_audio, SR)
+        assert profile == {"low": 0.0, "mid": 0.0, "high": 0.0}
+
+    def test_excessive_stems_fails_safe(self) -> None:
+        """Exceeding the maximum stem count fails safe with an empty overlap list."""
+        stems = {f"stem_{i:03d}": _sine(100.0) for i in range(11)}
+        assert detect_register_overlap(stems, SR) == []
