@@ -73,6 +73,7 @@ class TestEscapeCsvField:
             "\tplain",
             "\rplain",
             "\nplain",
+            "\x00plain",
         ],
     )
     def test_spreadsheet_sensitive_prefixes_are_escaped(self, value: str) -> None:
