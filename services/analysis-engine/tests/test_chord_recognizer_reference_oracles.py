@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 
+from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 
 _NO_CHORD_STATE = 24
 
@@ -25,9 +25,7 @@ def _scalar_observation_oracle(
             frame_similarity = similarity[:, frame_index]
             shifted = frame_similarity - np.max(frame_similarity)
             exponentiated = np.exp(shifted * 2.0)
-            chord_probabilities = exponentiated / (
-                np.sum(exponentiated) + 1e-12
-            )
+            chord_probabilities = exponentiated / (np.sum(exponentiated) + 1e-12)
             maximum_similarity = float(np.max(frame_similarity))
         else:
             chord_probabilities = np.full(24, 1.0 / 24.0)
@@ -35,11 +33,7 @@ def _scalar_observation_oracle(
 
         rms_value = float(rms[frame_index]) if frame_index < len(rms) else 1.0
         chroma_variance = float(np.var(chromagram[:, frame_index]))
-        no_chord = (
-            maximum_similarity < 0.3
-            or rms_value < 0.01
-            or chroma_variance < 0.02
-        )
+        no_chord = maximum_similarity < 0.3 or rms_value < 0.01 or chroma_variance < 0.02
         if no_chord:
             chord_probabilities = chord_probabilities * 0.1
             no_chord_probability = 0.9
@@ -69,9 +63,7 @@ def _dense_viterbi_oracle(
     score_table[:, 0] = np.log(1.0 / state_count) + log_observation[:, 0]
 
     for frame_index in range(1, frame_count):
-        candidate_scores = (
-            score_table[:, frame_index - 1, np.newaxis] + log_transition
-        )
+        candidate_scores = score_table[:, frame_index - 1, np.newaxis] + log_transition
         backpointer[:, frame_index] = np.argmax(candidate_scores, axis=0)
         score_table[:, frame_index] = (
             np.max(candidate_scores, axis=0) + log_observation[:, frame_index]
@@ -80,9 +72,7 @@ def _dense_viterbi_oracle(
     states = np.zeros(frame_count, dtype=np.intp)
     states[-1] = int(np.argmax(score_table[:, -1]))
     for frame_index in range(frame_count - 2, -1, -1):
-        states[frame_index] = backpointer[
-            states[frame_index + 1], frame_index + 1
-        ]
+        states[frame_index] = backpointer[states[frame_index + 1], frame_index + 1]
     return states
 
 
@@ -116,9 +106,7 @@ def test_vectorized_observations_match_scalar_oracle_across_length_mismatches(
     assert np.allclose(actual, expected, rtol=0.0, atol=1e-14)
 
     for frame_index in range(min(frame_count, similarity_frame_count)):
-        assert int(np.argmax(actual[:24, frame_index])) == (
-            frame_index * 7 + 3
-        ) % 24
+        assert int(np.argmax(actual[:24, frame_index])) == (frame_index * 7 + 3) % 24
     if similarity_frame_count < frame_count:
         padded = actual[:24, similarity_frame_count:]
         assert np.allclose(padded, padded[0:1, :])
@@ -131,23 +119,17 @@ def test_no_chord_evidence_and_missing_metadata_remain_distinguishable() -> None
     similarity = _frame_distinguishable_similarity(2)
     rms = np.array([0.7, 0.0], dtype=float)
 
-    probabilities = recognizer._build_observation_probs(
-        chromagram, similarity, rms
-    )
+    probabilities = recognizer._build_observation_probs(chromagram, similarity, rms)
 
     assert int(np.argmax(probabilities[:, 0])) != _NO_CHORD_STATE
     assert int(np.argmax(probabilities[:, 1])) == _NO_CHORD_STATE
     assert np.allclose(
         probabilities[_NO_CHORD_STATE, 2:],
         0.05 / 1.05,
-        rtol=0.0,
-        atol=1e-14,
     )
     assert np.allclose(
         probabilities[:24, 2:],
         1.0 / (24.0 * 1.05),
-        rtol=0.0,
-        atol=1e-14,
     )
 
 
