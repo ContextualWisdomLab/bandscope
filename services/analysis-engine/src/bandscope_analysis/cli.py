@@ -8,11 +8,16 @@ import sys
 from datetime import UTC, datetime
 
 from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
-from bandscope_analysis.temporal import TemporalAnalyzer
+from bandscope_analysis.temporal import TemporalAnalyzer as _TemporalAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 MAX_JSON_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# Compatibility hook for existing CLI-level tests and downstream monkeypatches.
+# The CLI intentionally does not invoke temporal analysis before request validation;
+# validated orchestration owns every local-audio file access.
+TemporalAnalyzer = _TemporalAnalyzer
 
 
 def failed_cli_response(message: str) -> dict[str, object]:
@@ -32,7 +37,7 @@ def failed_cli_response(message: str) -> dict[str, object]:
 
 def main() -> int:
     """Read a job payload from stdin and print a structured job response to stdout."""
-    # Read all input from stdin first, bounded by characters initially, then validated by bytes
+    # Read all input from stdin first, bounded by characters initially, then validated by bytes.
     raw_text = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
     if len(raw_text.encode("utf-8")) > MAX_JSON_FILE_SIZE:
         json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
@@ -41,7 +46,10 @@ def main() -> int:
     progress_jsonl = "--progress-jsonl" in sys.argv[1:]
     cli_args = [arg for arg in sys.argv[1:] if arg != "--progress-jsonl"]
 
-    # Check if there are command line arguments (fallback for manual testing)
+    # ``--job`` is an explicit local-operator convenience for manual testing only.
+    # The desktop runtime never supplies it: Tauri sends validated project metadata
+    # over bounded stdin. File input therefore remains bounded and does not form an
+    # application IPC path or a remote file-read primitive.
     if cli_args:
         if cli_args[0] == "--status":
             json.dump(get_analysis_status(), sys.stdout)
@@ -93,29 +101,6 @@ def main() -> int:
         return 0
 
     request = payload.get("request")
-
-    # Temporary: Inject temporal analyzer call if it's a local file, just to prove it works
-    # before full orchestrator integration
-    if (
-        isinstance(request, dict)
-        and request.get("sourceKind") == "local_audio"
-        and "localSource" in request
-    ):
-        local_source = request["localSource"]
-        audio_path = local_source.get("sourcePath")
-        file_name = local_source.get("fileName", "selected audio")
-        if audio_path:
-            logging.info("Extracting temporal features from %s...", file_name)
-            try:
-                temporal_analyzer = TemporalAnalyzer()
-                features = temporal_analyzer.analyze(audio_path)
-                logging.info(f"Extracted BPM: {features['bpm']}")
-            except Exception:
-                logging.warning(
-                    "Temporal analysis failed for %s; continuing with safe fallback.",
-                    file_name,
-                )
-
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     if progress_jsonl:
         for update in run_analysis_job_updates(job_id, request, requested_at):
