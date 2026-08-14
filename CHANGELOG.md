@@ -66,7 +66,3 @@
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
 - `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
 - 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
-
-### 성능 최적화 (Performance)
-
-- 차트 내보내기(chart.py)에서 `not in list` 대신 삽입 순서가 보장되는 딕셔너리(`dict.keys()`)를 활용하여 역할, 큐 및 우선순위 데이터의 중복 제거 방식을 $O(N^2)$에서 $O(N)$으로 최적화했습니다.
