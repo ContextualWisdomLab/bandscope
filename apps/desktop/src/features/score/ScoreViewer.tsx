@@ -277,6 +277,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
               aria-label={t("scoreViewerFitWidth")}
+              title={t("scoreViewerFitWidth")}
               aria-pressed={fitWidth}
               onClick={fitToWidth}
             >
@@ -294,7 +295,11 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             aria-label={t("scoreViewerPrevPage")}
-            title={t("scoreViewerPrevPage")}
+            title={
+              pageNumber <= 1
+                ? t("scoreViewerPrevPageDisabled")
+                : t("scoreViewerPrevPage")
+            }
             aria-disabled={pageNumber <= 1}
             onClick={(e) => {
               if (pageNumber <= 1) {
@@ -314,7 +319,11 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             aria-label={t("scoreViewerNextPage")}
-            title={t("scoreViewerNextPage")}
+            title={
+              pageNumber >= pageCount
+                ? t("scoreViewerNextPageDisabled")
+                : t("scoreViewerNextPage")
+            }
             aria-disabled={pageNumber >= pageCount}
             onClick={(e) => {
               if (pageNumber >= pageCount) {
