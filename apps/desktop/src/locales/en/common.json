@@ -59,6 +59,7 @@
   "chordEditAriaLabel": "Edit chord for {roleName} in {sectionLabel}, current {chord}",
   "chordEditPrompt": "Enter new chord:",
   "chordEditTitle": "Click to edit chord",
+  "chordEditUnavailableTitle": "Open an editable song to change this chord",
   "harmonySourceUserBadge": "User",
   "roleSwitcherTitle": "Role-specific View",
   "allRoles": "All Roles",
