@@ -151,7 +151,11 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionChordLabel")}</span>
                         <button
                           type="button"
-                          aria-label={editChordLabel(role, section.label)}
+                          aria-label={
+                            onSongUpdate
+                              ? editChordLabel(role, section.label)
+                              : `${editChordLabel(role, section.label)}. ${t("chordEditUnavailableTitle")}`
+                          }
                           className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 ${
                             onSongUpdate
                               ? "cursor-pointer hover:bg-white/10"
