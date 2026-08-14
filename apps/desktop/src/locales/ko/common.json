@@ -59,7 +59,6 @@
   "chordEditAriaLabel": "{roleName}의 {sectionLabel} 코드 수정, 현재 {chord}",
   "chordEditPrompt": "새 코드 입력:",
   "chordEditTitle": "코드 수정",
-  "chordEditUnavailableTitle": "코드를 바꾸려면 편집 가능한 곡을 여세요",
   "harmonySourceUserBadge": "사용자",
   "roleSwitcherTitle": "악기/보컬 역할",
   "allRoles": "전체 보기",
