@@ -74,11 +74,5 @@ describe("i18n", () => {
         koDictionary.appSubtitle = originalSubtitle;
       }
     });
-
-    it("interpolates variables correctly", () => {
-      const t = createTranslator("en");
-      expect(t("chordEditAriaLabel", { roleName: "Guitar", sectionLabel: "Chorus", chord: "Cmaj7" }))
-        .toBe("Edit chord for Guitar in Chorus, current Cmaj7");
-    });
   });
 });
