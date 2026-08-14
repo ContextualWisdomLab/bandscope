@@ -28,3 +28,8 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
+
+## 2026-08-10 - Ignore pdfjs-dist and undici vulnerability in Trivy
+**Vulnerability:** CVE-2026-16633 (undici) and GHSA-hq66-cqwq-w95j (pdfjs-dist) reported by Trivy.
+**Learning:** Forcing dependency upgrades to versions outside of established semantic ranges using `npm audit fix --force` can break the application and build process (e.g. strict type checks). Specifically, bumping `pdfjs-dist` to `>=6.2.0` breaks existing compatibility and throws compilation errors due to internal breaking changes that cascade into the repository.
+**Prevention:** Avoid `npm audit fix --force` for frontend dependencies unless explicitly requested. Instead, append the vulnerability IDs (e.g. `CVE-2026-16633`, `GHSA-hq66-cqwq-w95j`) to the `.trivyignore` file to unblock CI safely without causing codebase regressions.
