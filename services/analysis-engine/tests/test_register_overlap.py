@@ -149,3 +149,9 @@ class TestDetectRegisterOverlap:
         # The same stems overlap when the threshold is lowered.
         lowered = detect_register_overlap(stems, SR, threshold=0.2)
         assert lowered and lowered[0]["band"] in BANDS
+
+    def test_excessively_large_audio_fails_safe(self) -> None:
+        """Audio arrays larger than MAX_AUDIO_SIZE fail safe with zero fractions."""
+        large_audio = np.zeros(100_000_001, dtype=np.float32)
+        profile = band_energy_profile(large_audio, SR)
+        assert profile == {"low": 0.0, "mid": 0.0, "high": 0.0}

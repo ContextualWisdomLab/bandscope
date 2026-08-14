@@ -67,6 +67,12 @@ def band_energy_profile(
     if not isinstance(audio, np.ndarray) or audio.size == 0 or sr <= 0:
         return zero_profile
 
+    if audio.size > 100_000_000:
+        logger.warning(
+            f"Audio size {audio.size} exceeds maximum allowed 100000000; returning zero profile."
+        )
+        return zero_profile
+
     spectrum = np.abs(np.fft.rfft(audio.astype(np.float64))) ** 2
     freqs = np.fft.rfftfreq(audio.size, d=1.0 / sr)
 
