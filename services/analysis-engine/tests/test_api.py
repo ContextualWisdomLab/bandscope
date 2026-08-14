@@ -1414,7 +1414,7 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
         elapsed = time.monotonic() - started_at
 
     assert updates[-1]["state"] == "succeeded"
-    assert elapsed < 0.5
+    assert elapsed < 0.4
     assert any(
         update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
