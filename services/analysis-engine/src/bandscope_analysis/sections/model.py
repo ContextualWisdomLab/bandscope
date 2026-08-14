@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 from typing import Literal, TypedDict
 
 
-class SectionLabel(StrEnum):
+class SectionLabel(str, Enum):
     """Canonical form labels for song sections.
 
     These labels cover the rehearsal-relevant structural vocabulary for
@@ -29,7 +29,7 @@ class SectionLabel(StrEnum):
 ALL_SECTION_LABELS: tuple[str, ...] = tuple(label.value for label in SectionLabel)
 
 
-class CueAnchorStrategy(StrEnum):
+class CueAnchorStrategy(str, Enum):
     """Strategy used to anchor a section cue."""
 
     LYRIC = "lyric"

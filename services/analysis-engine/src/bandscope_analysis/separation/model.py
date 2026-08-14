@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
 from typing import Any, Literal, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
 
 
-class StemCategory(StrEnum):
+class StemCategory(str, Enum):
     """Canonical stem categories for source separation."""
 
     VOCALS = "vocals"
