@@ -5,8 +5,8 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 Security Notes:
 - Accepts only bounded, standard HTTPS YouTube watch URLs and disables playlists,
   geographic bypass, credentials, and interactive authentication.
-- Rejects parent-directory traversal segments in the local output directory before
-  the path is passed to yt-dlp.
+- Resolves each local output directory under an explicit caller-owned root, or the
+  operating-system temporary root by default, before the path reaches yt-dlp.
 - Keeps certificate verification enabled. It uses the operating-system trust
   store when roots are present and otherwise retains yt-dlp's CA fallback.
 - Optionally accepts sibling absolute ffmpeg/ffprobe paths only with both full
@@ -24,8 +24,9 @@ import os
 import re
 import ssl
 import sys
+import tempfile
 import urllib.parse
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, Optional
 
 import yt_dlp  # type: ignore
@@ -91,6 +92,71 @@ def _contains_parent_path_segment(path: str) -> bool:
     platform cannot smuggle ``..`` through checks performed on another.
     """
     return ".." in path.replace("\\", "/").split("/")
+
+
+def _has_unsafe_windows_path_shape(path: str) -> bool:
+    """Reject foreign or drive-relative Windows paths before native resolution."""
+    windows_path = PureWindowsPath(path)
+    if windows_path.drive and not windows_path.is_absolute():
+        return True
+    return os.name != "nt" and windows_path.is_absolute()
+
+
+def _resolve_output_directory(
+    out_dir: str,
+    allowed_output_root: Optional[str],
+) -> Optional[Path]:
+    """Resolve ``out_dir`` only when it stays inside the allowed output root.
+
+    Relative paths are interpreted below the allowed root. When callers do not
+    provide a root, BandScope uses the operating-system temporary directory. The
+    root must already exist; the output directory itself may be created later by
+    the caller or downloader. Existing direct symlinks are rejected, and parent
+    symlinks are canonicalized before the containment check.
+    """
+    if not isinstance(out_dir, str) or not out_dir.strip():
+        return None
+    if _contains_parent_path_segment(out_dir) or _has_unsafe_windows_path_shape(out_dir):
+        return None
+
+    root_value = tempfile.gettempdir() if allowed_output_root is None else allowed_output_root
+    if not isinstance(root_value, str) or not root_value.strip():
+        return None
+    if _contains_parent_path_segment(root_value) or _has_unsafe_windows_path_shape(root_value):
+        return None
+
+    root_candidate = Path(root_value).expanduser()
+    output_candidate = Path(out_dir).expanduser()
+    if not root_candidate.is_absolute():
+        return None
+    if output_candidate.is_symlink():
+        return None
+    if not output_candidate.is_absolute():
+        output_candidate = root_candidate / output_candidate
+
+    try:
+        resolved_root = root_candidate.resolve(strict=True)
+        resolved_output = output_candidate.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+    if not resolved_root.is_dir():
+        return None
+
+    try:
+        resolved_output.relative_to(resolved_root)
+    except ValueError:
+        return None
+    return resolved_output
+
+
+def _path_is_within_directory(path: str, directory: Path) -> bool:
+    """Return whether a downloader-produced path resolves inside ``directory``."""
+    try:
+        candidate = Path(path).resolve(strict=False)
+        candidate.relative_to(directory)
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return True
 
 
 def _invalid_output_directory_response() -> Dict[str, Any]:
@@ -247,6 +313,7 @@ def download_youtube_audio(
     url: str,
     out_dir: str,
     *,
+    allowed_output_root: Optional[str] = None,
     ffmpeg_path: Optional[str] = None,
     ffmpeg_sha256: Optional[str] = None,
     ffprobe_path: Optional[str] = None,
@@ -257,8 +324,10 @@ def download_youtube_audio(
 
     Args:
         url: The YouTube URL to download.
-        out_dir: The directory to save the audio file. Explicit parent-directory
-            segments are rejected before the path reaches yt-dlp.
+        out_dir: The directory to save the audio file. The resolved path must
+            remain within ``allowed_output_root``.
+        allowed_output_root: Absolute caller-owned output root. When omitted,
+            the operating-system temporary directory is used.
         ffmpeg_path: Optional absolute path to a provisioned ffmpeg executable.
         ffmpeg_sha256: Full lowercase SHA-256 identity for ``ffmpeg_path``.
         ffprobe_path: Optional sibling path to the provisioned ffprobe executable.
@@ -276,7 +345,8 @@ def download_youtube_audio(
             },
         }
 
-    if _contains_parent_path_segment(out_dir):
+    resolved_out_dir = _resolve_output_directory(out_dir, allowed_output_root)
+    if resolved_out_dir is None:
         return _invalid_output_directory_response()
 
     runtime_is_valid, verified_ffmpeg_path = _verify_media_runtime(
@@ -290,7 +360,7 @@ def download_youtube_audio(
 
     ydl_opts: Dict[str, Any] = {
         "format": "bestaudio/best",
-        "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
+        "outtmpl": str(resolved_out_dir / "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,
@@ -323,9 +393,11 @@ def download_youtube_audio(
             info = ydl.extract_info(url, download=True)
             if info is None:
                 raise Exception("Failed to extract info")
-            actual_filepath = ydl.prepare_filename(info)
+            prepared_filepath = ydl.prepare_filename(info)
+            if not _path_is_within_directory(prepared_filepath, resolved_out_dir):
+                return _invalid_output_directory_response()
 
-            actual_filepath = _find_downloaded_file(actual_filepath)
+            actual_filepath = _find_downloaded_file(prepared_filepath)
 
             if actual_filepath is None:
                 return {
@@ -335,6 +407,8 @@ def download_youtube_audio(
                         "message": "Downloaded file could not be found.",
                     },
                 }
+            if not _path_is_within_directory(actual_filepath, resolved_out_dir):
+                return _invalid_output_directory_response()
 
             if (
                 os.path.exists(actual_filepath)
@@ -371,6 +445,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
     parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--allowed-output-root")
     parser.add_argument("--ffmpeg-path")
     parser.add_argument("--ffmpeg-sha256")
     parser.add_argument("--ffprobe-path")
@@ -380,6 +455,7 @@ def main() -> None:
     result = download_youtube_audio(
         args.url,
         args.out_dir,
+        allowed_output_root=args.allowed_output_root,
         ffmpeg_path=args.ffmpeg_path,
         ffmpeg_sha256=args.ffmpeg_sha256,
         ffprobe_path=args.ffprobe_path,
