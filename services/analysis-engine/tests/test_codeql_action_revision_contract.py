@@ -19,8 +19,10 @@ def _codeql_action_references() -> list[tuple[Path, str, str, str]]:
     references: list[tuple[Path, str, str, str]] = []
     for workflow_path in sorted(_WORKFLOW_ROOT.glob("*.y*ml")):
         workflow_text = workflow_path.read_text(encoding="utf-8")
-        for action_name, revision_sha, suffix in _CODEQL_ACTION_REFERENCE.findall(workflow_text):
-            references.append((workflow_path, action_name, revision_sha, suffix.strip()))
+        matches = _CODEQL_ACTION_REFERENCE.findall(workflow_text)
+        for action_name, revision_sha, suffix in matches:
+            reference = (workflow_path, action_name, revision_sha, suffix.strip())
+            references.append(reference)
     return references
 
 
@@ -32,10 +34,8 @@ def test_every_codeql_action_step_uses_the_same_reviewed_revision() -> None:
     assert {revision_sha for _, _, revision_sha, _ in references} == {
         _EXPECTED_CODEQL_ACTION_SHA
     }
-    assert all(
-        f"# {_EXPECTED_CODEQL_ACTION_VERSION}" in suffix
-        for _, _, _, suffix in references
-    )
+    expected_version = f"# {_EXPECTED_CODEQL_ACTION_VERSION}"
+    assert all(expected_version in suffix for _, _, _, suffix in references)
 
 
 def test_analysis_workflow_keeps_init_autobuild_and_analyze_atomic() -> None:
