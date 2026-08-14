@@ -84,14 +84,18 @@ def _summarize_one_section(
         the portion of their duration that overlaps the window.
     """
     durations: dict[str, float] = {}
-    overlapping_chords: list[str] = []
+    chord_changes = 0
+    previous_chord = None
 
     for seg_start, seg_end, chord in segments:
         overlap = min(seg_end, section_end) - max(seg_start, section_start)
         if overlap <= 0.0:
             continue
         durations[chord] = durations.get(chord, 0.0) + overlap
-        overlapping_chords.append(chord)
+
+        if previous_chord is not None and previous_chord != chord:
+            chord_changes += 1
+        previous_chord = chord
 
     chords: list[ChordDuration] = [
         {"chord": chord, "duration": duration}
@@ -103,12 +107,6 @@ def _summarize_one_section(
         if entry["chord"] != _NO_CHORD_LABEL:
             main_chord = entry["chord"]
             break
-
-    chord_changes = sum(
-        1
-        for previous, current in zip(overlapping_chords, overlapping_chords[1:], strict=False)
-        if previous != current
-    )
 
     return {
         "start_time": section_start,
