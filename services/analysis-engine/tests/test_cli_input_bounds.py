@@ -10,10 +10,10 @@ import pytest
 from bandscope_analysis import cli
 
 
-class _BoundedReadRequired(io.StringIO):
-    """Fail when production attempts an unbounded stream read."""
+class _BoundedReadRequired(io.BytesIO):
+    """Fail when production attempts an unbounded binary stream read."""
 
-    def read(self, size: int = -1) -> str:
+    def read(self, size: int = -1) -> bytes:
         """Read only when the caller supplies an explicit nonnegative bound."""
         if size < 0:
             raise AssertionError("CLI stdin read must be explicitly bounded")
@@ -21,17 +21,30 @@ class _BoundedReadRequired(io.StringIO):
 
 
 class _OversizedInput:
-    """Provide an oversized payload without retaining it in the fixture."""
+    """Provide an oversized byte payload without retaining it in the fixture."""
 
-    def read(self, size: int = -1) -> str:
+    def read(self, size: int = -1) -> bytes:
         """Return exactly the requested amount so production observes overflow."""
         if size < 0:
             raise AssertionError("CLI stdin read must be explicitly bounded")
-        return "x" * size
+        return b"x" * size
+
+
+class _BinaryStdin:
+    """Expose a binary buffer like the standard process stdin wrapper."""
+
+    def __init__(self, buffer: _BoundedReadRequired | _OversizedInput) -> None:
+        """Attach the bounded binary stream used by the CLI."""
+        self.buffer = buffer
+
+
+def _stdin_bytes(payload: bytes) -> _BinaryStdin:
+    """Return process-like stdin backed by explicitly bounded bytes."""
+    return _BinaryStdin(_BoundedReadRequired(payload))
 
 
 def test_cli_stdin_read_uses_explicit_size_bound(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A normal stdin job must never trigger an unbounded ``read()`` call."""
+    """A normal stdin job must never trigger an unbounded binary ``read()`` call."""
     payload = json.dumps(
         {
             "jobId": "bounded-stdin",
@@ -41,10 +54,10 @@ def test_cli_stdin_read_uses_explicit_size_bound(monkeypatch: pytest.MonkeyPatch
                 "roleFocus": ["bass-guitar"],
             },
         }
-    )
+    ).encode("utf-8")
     stdout = io.StringIO()
     monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
-    monkeypatch.setattr(cli.sys, "stdin", _BoundedReadRequired(payload))
+    monkeypatch.setattr(cli.sys, "stdin", _stdin_bytes(payload))
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
     assert cli.main() == 0
@@ -54,10 +67,10 @@ def test_cli_stdin_read_uses_explicit_size_bound(monkeypatch: pytest.MonkeyPatch
 def test_cli_rejects_oversized_stdin_before_json_parsing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Oversized stdin is rejected after one bounded read, before JSON parsing."""
+    """Oversized stdin is rejected after one bounded byte read, before JSON parsing."""
     stdout = io.StringIO()
     monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
-    monkeypatch.setattr(cli.sys, "stdin", _OversizedInput())
+    monkeypatch.setattr(cli.sys, "stdin", _BinaryStdin(_OversizedInput()))
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
     assert cli.main() == 1
@@ -73,12 +86,27 @@ def test_cli_stdin_limit_is_measured_in_utf8_bytes(
     stdout = io.StringIO()
     monkeypatch.setattr(cli, "MAX_JSON_FILE_SIZE", 8)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
-    monkeypatch.setattr(cli.sys, "stdin", _BoundedReadRequired("é" * 5))
+    monkeypatch.setattr(cli.sys, "stdin", _stdin_bytes(("é" * 5).encode("utf-8")))
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
     assert cli.main() == 1
     response = json.loads(stdout.getvalue())
     assert response["error"]["message"] == "Job input exceeds maximum size limit"
+
+
+def test_cli_rejects_invalid_utf8_before_json_parsing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid UTF-8 stdin must fail with a stable payload-free error."""
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+    monkeypatch.setattr(cli.sys, "stdin", _stdin_bytes(b"\xff"))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["state"] == "failed"
+    assert response["error"]["message"] == "Job input must be valid UTF-8"
 
 
 def test_cli_inline_job_argument_obeys_input_byte_limit(
@@ -88,7 +116,7 @@ def test_cli_inline_job_argument_obeys_input_byte_limit(
     stdout = io.StringIO()
     monkeypatch.setattr(cli, "MAX_JSON_FILE_SIZE", 8)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", '{"jobId":"é"}'])
-    monkeypatch.setattr(cli.sys, "stdin", _BoundedReadRequired(""))
+    monkeypatch.setattr(cli.sys, "stdin", _stdin_bytes(b""))
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
     assert cli.main() == 1
@@ -106,7 +134,7 @@ def test_cli_job_file_limit_is_measured_in_utf8_bytes(
     stdout = io.StringIO()
     monkeypatch.setattr(cli, "MAX_JSON_FILE_SIZE", 8)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(job_file)])
-    monkeypatch.setattr(cli.sys, "stdin", _BoundedReadRequired(""))
+    monkeypatch.setattr(cli.sys, "stdin", _stdin_bytes(b""))
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
     assert cli.main() == 1
