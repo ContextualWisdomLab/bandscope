@@ -8,6 +8,7 @@ Security Notes:
     - Neutralizes spreadsheet formula prefixes described by CWE-1236 and
       current OWASP CSV-injection guidance, including control and full-width
       variants that may be interpreted specially by spreadsheet software.
+    - Treats a leading NUL as unsafe defense in depth for downstream parsers.
     - Uses :mod:`csv` for field-boundary quoting so attacker-controlled commas,
       quotes, and line breaks cannot create an unquoted sibling cell.
 """
@@ -23,14 +24,14 @@ from bandscope_analysis.exports.chart import build_cue_sheet_rows
 __all__ = ["build_cue_sheet_csv", "escape_csv_field"]
 
 _FORMULA_PREFIXES = frozenset("=+-@＝＋－＠")
-_CONTROL_PREFIXES = frozenset("\t\r\n")
+_CONTROL_PREFIXES = frozenset("\t\r\n\x00")
 
 
 def escape_csv_field(value: str) -> str:
     """Neutralize spreadsheet-sensitive prefixes in an untrusted CSV field.
 
     Formula-sensitive ASCII prefixes (``=``, ``+``, ``-``, ``@``), their
-    full-width variants, and leading tab/CR/LF controls are prefixed with a
+    full-width variants, and leading tab/CR/LF/NUL controls are prefixed with a
     single apostrophe. Formula prefixes are also detected after leading
     whitespace because spreadsheet parsers may normalize that whitespace.
 
