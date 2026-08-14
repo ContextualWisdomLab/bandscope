@@ -667,6 +667,9 @@ async fn import_youtube_url(
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
 ) -> Result<ProjectBootstrapSummaryPayload, String> {
+    if url.len() > bandscope_desktop_core::MAX_YOUTUBE_URL_LENGTH {
+        return Err("URL exceeds maximum allowed length.".to_string());
+    }
     if !is_supported_youtube_url(&url) {
         return Err("Only standard YouTube URLs are supported.".to_string());
     }
