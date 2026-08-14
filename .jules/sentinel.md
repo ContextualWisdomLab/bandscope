@@ -33,3 +33,8 @@
 **Vulnerability:** Calculating FFTs on user-supplied or uncontrolled numpy arrays without bounding the array size allows attackers to trigger excessive memory and CPU consumption (Denial of Service).
 **Learning:** Signal processing libraries (like numpy's `rfft`) attempt to allocate memory proportional to the input size. If input sizes are unbounded, processing an artificially large signal (e.g. 1 billion samples) will exhaust system memory and crash the process.
 **Prevention:** Enforce a hard maximum audio size limit (e.g., `MAX_AUDIO_SIZE = 100_000_000`) before running expensive or high-allocation operations like FFTs. Log a warning and fail safe by returning a default structure (like a zero profile) to gracefully degrade without crashing.
+
+## 2026-08-14 - Denial of Service via Large Number of Stems
+**Vulnerability:** The register overlap detection function performs O(N^2) comparisons where N is the number of stems. An attacker could supply an unexpectedly large number of stems, causing CPU exhaustion and potential memory exhaustion.
+**Learning:** Any nested loop iterating over user-supplied items (like audio stems) must have an upper bound to prevent algorithmic complexity attacks.
+**Prevention:** Introduce a maximum element limit (e.g. 100 stems) before beginning analysis loops. If the count exceeds the threshold, safely return an empty result or error.

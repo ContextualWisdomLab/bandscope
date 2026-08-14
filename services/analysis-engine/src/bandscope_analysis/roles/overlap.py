@@ -112,6 +112,13 @@ def detect_register_overlap(
     """
     try:
         pitched = sorted(name for name in stems if name not in UNPITCHED_STEMS)
+
+        if len(pitched) > 100:
+            logger.warning(
+                f"Too many pitched stems ({len(pitched)} > 100); "
+                "returning no overlaps to prevent resource exhaustion."
+            )
+            return []
         profiles = {name: band_energy_profile(stems[name], sr) for name in pitched}
 
         overlaps: list[dict[str, Any]] = []
