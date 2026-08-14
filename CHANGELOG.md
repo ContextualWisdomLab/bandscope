@@ -4,12 +4,10 @@
 
 ### Added
 
+- 코드 수정 버튼이 비활성화(읽기 전용)된 상태일 때도 툴팁을 표시하고, 스크린 리더에서 읽을 수 있도록 접근성을 개선했습니다.
+
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
-
-### Fixed
-
-- 합주 워크스페이스의 읽기 전용 코드 수정 버튼이 키보드 포커스를 유지하고 `aria-disabled="true"`를 노출하며, 한·영 접근성 이름과 포인터 툴팁으로 편집 가능한 곡을 열어야 한다는 복구 방법을 안내하도록 개선했습니다. 클릭은 계속 실패-폐쇄 방식으로 차단됩니다.
 
 ## [0.1.3] - 2026-04-29
 
@@ -53,7 +51,7 @@
 - Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
 - Issue #40: Enforced 100% Python docstring and test coverage
 - Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Engineered local audio intake and project bootstrap
+- Issue #33: Implemented secure local audio intake and project bootstrap
 - Issue #35: Engineered section, form, and cue anchor extraction pipeline
 - Issue #34: Implemented role extraction targets and part graph
 - Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
