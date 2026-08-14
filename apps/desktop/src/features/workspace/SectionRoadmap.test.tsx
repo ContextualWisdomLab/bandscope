@@ -61,7 +61,7 @@ describe("SectionRoadmap", () => {
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
-  it("applies aria-disabled when onSongUpdate is missing and prevents click", () => {
+  it("applies aria-disabled when onSongUpdate is missing, keeps tooltip, and prevents click", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     // Intentionally omit onSongUpdate to simulate readonly mode
@@ -69,6 +69,7 @@ describe("SectionRoadmap", () => {
 
     const button = screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" });
     expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("title", "Click to edit chord");
 
     const promptSpy = vi.spyOn(window, "prompt");
     fireEvent.click(button);
