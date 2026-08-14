@@ -5,8 +5,11 @@ a CSV string format of the cue-sheet rows suitable for export.
 
 Security Notes:
     - Pure dict-to-string transformation: no file, network, or process I/O.
-    - Prevents CSV formula injection by explicitly escaping fields starting
-      with `=`, `+`, `-`, or `@`.
+    - Neutralizes spreadsheet formula prefixes described by CWE-1236 and
+      current OWASP CSV-injection guidance, including control and full-width
+      variants that may be interpreted specially by spreadsheet software.
+    - Uses :mod:`csv` for field-boundary quoting so attacker-controlled commas,
+      quotes, and line breaks cannot create an unquoted sibling cell.
 """
 
 from __future__ import annotations
@@ -19,23 +22,33 @@ from bandscope_analysis.exports.chart import build_cue_sheet_rows
 
 __all__ = ["build_cue_sheet_csv", "escape_csv_field"]
 
+_FORMULA_PREFIXES = frozenset("=+-@＝＋－＠")
+_CONTROL_PREFIXES = frozenset("\t\r\n")
+
 
 def escape_csv_field(value: str) -> str:
-    """Escape CSV field to prevent formula injection.
+    """Neutralize spreadsheet-sensitive prefixes in an untrusted CSV field.
 
-    If the field starts with a problematic character (``=``, ``+``, ``-``, ``@``)
-    or starts with a whitespace character followed by one of these characters,
-    it is prefixed with a single quote (``'``) to force the spreadsheet
-    application to evaluate it as text rather than a formula or command.
+    Formula-sensitive ASCII prefixes (``=``, ``+``, ``-``, ``@``), their
+    full-width variants, and leading tab/CR/LF controls are prefixed with a
+    single apostrophe. Formula prefixes are also detected after leading
+    whitespace because spreadsheet parsers may normalize that whitespace.
+
+    The apostrophe follows the mitigation documented for CWE-1236. Spreadsheet
+    products do not share one universally reliable CSV formula-neutralization
+    contract, so callers must continue treating exports as untrusted documents.
     """
     if not value:
         return value
+
+    if value[0] in _CONTROL_PREFIXES:
+        return f"'{value}"
+
     stripped = value.lstrip()
-    if stripped and stripped[0] in ("=", "+", "-", "@"):
-        # If there are leading whitespaces, prefix before them or prefix the whole value
-        # Actually, formula injection often works even with leading spaces or tabs.
-        # To be safe, we prefix the entire original string with a single quote
-        # if the first non-whitespace char is a trigger.
+    leading = value[: len(value) - len(stripped)]
+    if any(character in _CONTROL_PREFIXES for character in leading):
+        return f"'{value}"
+    if stripped and stripped[0] in _FORMULA_PREFIXES:
         return f"'{value}"
     return value
 
@@ -44,8 +57,8 @@ def build_cue_sheet_csv(song: Mapping[str, object] | None) -> str:
     """Build a CSV string of cue-sheet rows from a song payload.
 
     Rows are first built via :func:`build_cue_sheet_rows`, then formatted
-    as CSV with headers: ``Section,Start,End,Cue,Roles``. Fields are
-    automatically escaped to mitigate CSV formula injection.
+    with headers ``Section,Start,End,Cue,Roles``. Every untrusted textual field
+    is neutralized before :mod:`csv` performs delimiter and quote escaping.
     """
     rows = build_cue_sheet_rows(song)
     if not rows:
@@ -53,11 +66,8 @@ def build_cue_sheet_csv(song: Mapping[str, object] | None) -> str:
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
-
-    # Write headers
     writer.writerow(["Section", "Start", "End", "Cue", "Roles"])
 
-    # Write rows
     for row in rows:
         roles_str = ", ".join(row.get("roles", []))
         writer.writerow(
