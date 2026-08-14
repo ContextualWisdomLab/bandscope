@@ -32,7 +32,7 @@ def test_role_extractor_with_audio_features() -> None:
         def side_effect_track(y, sr):
             if y is vocals_stem:
                 return {"lowest_note": "A3", "highest_note": "A4"}
-            if y is bass_stem:
+            elif y is bass_stem:
                 return {"lowest_note": "E1", "highest_note": "E2"}
             return None
 
@@ -42,7 +42,7 @@ def test_role_extractor_with_audio_features() -> None:
         def side_effect_recognize(y, sr):
             if y is bass_stem:
                 return [{"chord": "Emaj", "start": 0.0, "end": 1.0}]
-            if y is other_stem:
+            elif y is other_stem:
                 return [{"chord": "Amaj", "start": 0.0, "end": 1.0}]
             return None
 
