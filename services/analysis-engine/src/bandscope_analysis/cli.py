@@ -48,7 +48,13 @@ def main() -> int:
             return 0
         elif cli_args[0] == "--job" and len(cli_args) > 1:
             input_data = cli_args[1]
-            if not input_data.startswith("{"):
+            if input_data.startswith("{"):
+                if len(input_data.encode("utf-8")) > MAX_JSON_FILE_SIZE:
+                    json.dump(
+                        failed_cli_response("Job input exceeds maximum size limit"), sys.stdout
+                    )
+                    return 1
+            else:
                 try:
                     with open(input_data, "rb") as f:
                         input_bytes = f.read(MAX_JSON_FILE_SIZE + 1)
