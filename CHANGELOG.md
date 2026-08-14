@@ -19,6 +19,8 @@
 
 ### Fixed
 
+- Rejected POSIX and Windows parent-directory segments at the YouTube download-output boundary
+  before the path reaches yt-dlp, returning a stable redacted failure without downloader execution.
 - Kept YouTube TLS verification enabled, using populated OS-managed CA roots when available and
   retaining yt-dlp's maintained CA-bundle fallback when the system trust store is empty or fails.
 - Raised `pdfjs-dist` 6.1.200 → 6.2.108 (`GHSA-hq66-cqwq-w95j`), `nanoid` 3.3.16 →
@@ -47,10 +49,11 @@
 - Attack surface and trust boundary: YouTube URLs, response metadata, downloaded media, creator
   fixtures, ffmpeg/ffprobe executables, and htdemucs checkpoint bytes remain untrusted until their
   owning host, shape, size, filesystem identity, and full-hash allowlists pass.
-- Mitigations and failure behavior: TLS verification stays enabled; the complete ffmpeg/ffprobe
-  path-and-hash pair is verified before network fixture access; model loading is offline,
-  same-byte, restricted to `weights_only=True` plus the exact reviewed globals, and fails closed
-  without an unrestricted fallback.
+- Mitigations and failure behavior: TLS verification stays enabled; parent-directory segments are
+  rejected before the output template reaches yt-dlp; the complete ffmpeg/ffprobe path-and-hash
+  pair is verified before network fixture access; model loading is offline, same-byte, restricted
+  to `weights_only=True` plus the exact reviewed globals, and fails closed without an unrestricted
+  fallback.
 - Developer tooling: the cross-platform check launcher is repository-only, invokes only the fixed
   `py`, `python3`, or `python` candidates with argument arrays and no shell, and propagates the first
   available interpreter's failure instead of retrying past it.
