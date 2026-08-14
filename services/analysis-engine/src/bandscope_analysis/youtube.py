@@ -5,6 +5,8 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 Security Notes:
 - Accepts only bounded, standard HTTPS YouTube watch URLs and disables playlists,
   geographic bypass, credentials, and interactive authentication.
+- Rejects parent-directory traversal segments in the local output directory before
+  the path is passed to yt-dlp.
 - Keeps certificate verification enabled. It uses the operating-system trust
   store when roots are present and otherwise retains yt-dlp's CA fallback.
 - Optionally accepts sibling absolute ffmpeg/ffprobe paths only with both full
@@ -36,6 +38,7 @@ YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
 )
 YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Please use a local audio file instead."
 RUNTIME_DEPENDENCY_INVALID_MESSAGE = "The configured media runtime failed identity verification."
+OUTPUT_DIRECTORY_INVALID_MESSAGE = "The local download directory failed safety validation."
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -79,6 +82,26 @@ def validate_url(url: str) -> bool:
         return False
     except ValueError:
         return False
+
+
+def _contains_parent_path_segment(path: str) -> bool:
+    """Return whether a path contains an explicit parent-directory segment.
+
+    Both POSIX and Windows separators are normalized so a path prepared on one
+    platform cannot smuggle ``..`` through checks performed on another.
+    """
+    return ".." in path.replace("\\", "/").split("/")
+
+
+def _invalid_output_directory_response() -> Dict[str, Any]:
+    """Return the stable redacted response for an unsafe output directory."""
+    return {
+        "ok": False,
+        "error": {
+            "code": "invalid_output_directory",
+            "message": OUTPUT_DIRECTORY_INVALID_MESSAGE,
+        },
+    }
 
 
 def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
@@ -234,7 +257,8 @@ def download_youtube_audio(
 
     Args:
         url: The YouTube URL to download.
-        out_dir: The directory to save the audio file.
+        out_dir: The directory to save the audio file. Explicit parent-directory
+            segments are rejected before the path reaches yt-dlp.
         ffmpeg_path: Optional absolute path to a provisioned ffmpeg executable.
         ffmpeg_sha256: Full lowercase SHA-256 identity for ``ffmpeg_path``.
         ffprobe_path: Optional sibling path to the provisioned ffprobe executable.
@@ -251,6 +275,9 @@ def download_youtube_audio(
                 "message": "Only standard YouTube URLs are supported.",
             },
         }
+
+    if _contains_parent_path_segment(out_dir):
+        return _invalid_output_directory_response()
 
     runtime_is_valid, verified_ffmpeg_path = _verify_media_runtime(
         ffmpeg_path,
