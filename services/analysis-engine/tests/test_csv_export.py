@@ -6,6 +6,8 @@ import csv
 import io
 from typing import Any
 
+import pytest
+
 from bandscope_analysis.exports.csv import build_cue_sheet_csv, escape_csv_field
 
 
@@ -44,27 +46,41 @@ def _demo_song() -> dict[str, Any]:
 
 
 class TestEscapeCsvField:
-    """CSV formula injection prevention mitigates problematic characters."""
+    """CSV formula injection prevention mitigates spreadsheet-sensitive prefixes."""
 
-    def test_normal_text_is_unchanged(self) -> None:
-        """Normal string fields are returned unchanged."""
-        assert escape_csv_field("Hello World") == "Hello World"
-        assert escape_csv_field("1234") == "1234"
-        assert escape_csv_field(" drums ") == " drums "
+    @pytest.mark.parametrize("value", ["Hello World", "1234", " drums ", "   "])
+    def test_normal_text_is_unchanged(self, value: str) -> None:
+        """Normal text and harmless whitespace-only fields are returned unchanged."""
+        assert escape_csv_field(value) == value
 
     def test_empty_string_is_unchanged(self) -> None:
         """Empty string is handled safely."""
         assert escape_csv_field("") == ""
 
-    def test_formula_injection_characters_are_escaped(self) -> None:
-        """Fields starting with =, +, -, @ are prefixed with a single quote."""
-        assert escape_csv_field("=1+2") == "'=1+2"
-        assert escape_csv_field("+SUM(A1)") == "'+SUM(A1)"
-        assert escape_csv_field("-100") == "'-100"
-        assert escape_csv_field("@cmd") == "'@cmd"
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "=1+2",
+            "+SUM(A1)",
+            "-100",
+            "@cmd",
+            "＝1+2",
+            "＋SUM(A1)",
+            "－100",
+            "＠cmd",
+            "  =SUM(A1)",
+            " \t@cmd",
+            "\tplain",
+            "\rplain",
+            "\nplain",
+        ],
+    )
+    def test_spreadsheet_sensitive_prefixes_are_escaped(self, value: str) -> None:
+        """ASCII, full-width, control, and whitespace-obscured prefixes fail closed."""
+        assert escape_csv_field(value) == f"'{value}"
 
     def test_injection_characters_not_at_start_are_unchanged(self) -> None:
-        """Problematic characters inside the string are left unchanged."""
+        """Problematic characters inside ordinary text are left unchanged."""
         assert escape_csv_field("Hello=World") == "Hello=World"
         assert escape_csv_field("100-200") == "100-200"
         assert escape_csv_field("user@email.com") == "user@email.com"
@@ -78,32 +94,38 @@ class TestBuildCueSheetCsv:
         csv_out = build_cue_sheet_csv(_demo_song())
         lines = csv_out.strip().split("\n")
         assert len(lines) == 3
-
-        # Check header
         assert lines[0] == "Section,Start,End,Cue,Roles"
 
-        # Check rows
         reader = csv.reader(io.StringIO(csv_out))
         rows = list(reader)
         assert rows[1] == ["intro", "00:00", "00:10", "Count in", "Drums"]
         assert rows[2] == ["verse", "00:10", "00:30", "Walk up", "Bass"]
 
     def test_formula_injection_mitigated_in_csv(self) -> None:
-        """Malicious cues and roles in the song are safely escaped."""
+        """Malicious section, cue, and role text remains one neutralized CSV cell each."""
         song = _demo_song()
-        # Inject malicious cues and section names
         song["sections"][0]["label"] = "=cmd|' /C calc'!A0"
         song["sections"][0]["roles"][0]["cue"]["value"] = "+SUM(A1:A10)"
-        song["sections"][0]["roles"][0]["name"] = "@role"
+        song["sections"][0]["roles"][0]["name"] = "@role,=neighbor"
 
         csv_out = build_cue_sheet_csv(song)
-        reader = csv.reader(io.StringIO(csv_out))
-        rows = list(reader)
+        rows = list(csv.reader(io.StringIO(csv_out)))
 
-        # Verify the single quote prefix is preserved in the CSV data
         assert rows[1][0] == "'=cmd|' /C calc'!A0"
         assert rows[1][3] == "'+SUM(A1:A10)"
-        assert rows[1][4] == "'@role"
+        assert rows[1][4] == "'@role,=neighbor"
+        assert len(rows[1]) == 5
+
+    def test_control_and_full_width_prefixes_are_neutralized_in_csv(self) -> None:
+        """OWASP-documented control and locale-sensitive prefixes are neutralized."""
+        song = _demo_song()
+        song["sections"][0]["label"] = "＠localized"
+        song["sections"][0]["roles"][0]["cue"]["value"] = "\tplain"
+
+        rows = list(csv.reader(io.StringIO(build_cue_sheet_csv(song))))
+
+        assert rows[1][0] == "'＠localized"
+        assert rows[1][3] == "'\tplain"
 
     def test_safe_failure_for_none_and_empty(self) -> None:
         """None or empty mapping yields empty string without exception."""
