@@ -43,8 +43,7 @@ fn checkerboard_novelty<'py>(
         return Ok(novelty.into_pyarray(py));
     }
 
-    // Emit one value for every valid K×K diagonal patch. For even kernels,
-    // this includes the final bottom-right patch that `half..(n - half)` omits.
+    // valid_range = range(half, n - half)
     for i in half..(half + n - kernel_size + 1) {
         let mut acc = 0.0_f64;
         // patch = ssm[i-half : i+half, i-half : i+half]; sum(patch * kernel)
