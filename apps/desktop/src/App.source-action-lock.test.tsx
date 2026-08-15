@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectBootstrapSummary } from "@bandscope/shared-types";
 import { App } from "./App";
-import { selectLocalAudioSource } from "./lib/analysis";
+import { importYoutubeUrl, selectLocalAudioSource } from "./lib/analysis";
 
 vi.mock("./features/score/ScoreView", () => ({
   ScoreView: () => <div>Score view</div>
@@ -29,6 +29,7 @@ vi.mock("./lib/analysis", () => ({
   subscribeToAnalysisJobUpdates: vi.fn(async () => () => undefined)
 }));
 
+const mockedImportYoutubeUrl = vi.mocked(importYoutubeUrl);
 const mockedSelectLocalAudioSource = vi.mocked(selectLocalAudioSource);
 
 /** Return a deterministic local source after the picker completes. */
@@ -50,10 +51,11 @@ function selectedSource(): ProjectBootstrapSummary {
 
 describe("App source-action mutual exclusion", () => {
   beforeEach(() => {
+    mockedImportYoutubeUrl.mockReset();
     mockedSelectLocalAudioSource.mockReset();
   });
 
-  it("blocks competing source actions while local audio selection is pending", async () => {
+  it("blocks competing source actions and project replacement while local audio selection is pending", async () => {
     let resolveSelection: ((value: { ok: true; bootstrap: ProjectBootstrapSummary }) => void) | null = null;
     mockedSelectLocalAudioSource.mockImplementationOnce(
       () =>
@@ -74,6 +76,7 @@ describe("App source-action mutual exclusion", () => {
     });
     expect(screen.getByRole("button", { name: /import handoff/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /import youtube/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /open project/i })).toBeDisabled();
     expect(youtubeInput).toBeDisabled();
 
     resolveSelection?.({ ok: true, bootstrap: selectedSource() });
@@ -81,7 +84,33 @@ describe("App source-action mutual exclusion", () => {
       expect(screen.getByRole("button", { name: /choose local audio/i })).not.toBeDisabled();
       expect(screen.getByRole("button", { name: /import handoff/i })).not.toBeDisabled();
       expect(screen.getByRole("button", { name: /import youtube/i })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: /open project/i })).not.toBeDisabled();
       expect(youtubeInput).not.toBeDisabled();
+    });
+  });
+
+  it("blocks project replacement while a YouTube import is pending", async () => {
+    let resolveImport: ((value: { ok: true; bootstrap: ProjectBootstrapSummary }) => void) | null = null;
+    mockedImportYoutubeUrl.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveImport = resolve;
+        })
+    );
+    render(<App />);
+
+    const youtubeInput = screen.getByLabelText(/youtube url/i);
+    fireEvent.change(youtubeInput, { target: { value: "https://youtu.be/rehearsal" } });
+    fireEvent.click(screen.getByRole("button", { name: /import youtube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /import youtube/i })).toBeDisabled();
+    });
+    expect(screen.getByRole("button", { name: /open project/i })).toBeDisabled();
+
+    resolveImport?.({ ok: true, bootstrap: selectedSource() });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /open project/i })).not.toBeDisabled();
     });
   });
 
