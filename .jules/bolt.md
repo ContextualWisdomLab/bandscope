@@ -65,3 +65,7 @@
 ## 2023-10-27 - O(1) deduplication with order preservation
 **Learning:** Using `if item not in list: list.append(item)` creates an O(N^2) bottleneck for large collections because list membership checks are O(N).
 **Action:** Use a dictionary (e.g., `seen[item] = None`) or `dict.fromkeys(items)` to deduplicate while preserving insertion order in Python 3.7+, achieving O(1) lookups and O(N) overall complexity.
+
+## 2026-08-15 - Resolving npm high-severity vulnerabilities
+**Learning:** Resolving npm security vulnerabilities using `npm audit fix --force` installs newer dependency versions (e.g., pdfjs-dist) outside the originally stated `package.json` ranges, introducing potential breaking changes without addressing out-of-scope issues (like requiring Node > 22.13.0). It updates both `package.json` and `package-lock.json`.
+**Action:** When handling focused backend or application performance tasks, explicitly avoid running `npm audit fix --force` or upgrading out-of-scope global vulnerabilities. Code reviewers reject these side-effects. Address security upgrades in dedicated PRs after verifying compatibility requirements.
