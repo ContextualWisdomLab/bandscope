@@ -34,6 +34,24 @@ describe("scoreStorage bridge resolution", () => {
     expect(Array.from(result)).toEqual([0, 1, 127, 254, 255]);
   });
 
+  it("copies each validated bridge byte during the same read", async () => {
+    const response: unknown[] = [0];
+    let reads = 0;
+    Object.defineProperty(response, 0, {
+      configurable: true,
+      get: () => {
+        reads += 1;
+        return reads === 1 ? 255 : 256;
+      }
+    });
+    stubReadResponse(response);
+
+    const result = await readScorePdf("project-1", "score-1");
+
+    expect(Array.from(result)).toEqual([255]);
+    expect(reads).toBe(1);
+  });
+
   it.each([
     ["string value", [104, "101", 108]],
     ["negative integer", [0, -1, 255]],
