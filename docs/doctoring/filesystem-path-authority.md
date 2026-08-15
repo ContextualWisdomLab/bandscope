@@ -9,9 +9,9 @@
 BandScope accepts local audio and owns cache/temporary filesystem locations for analysis. A path string is therefore an authority-bearing input rather than an inert label. The implementation separates two checks:
 
 1. **Lexical path-shape policy** detects relative authority, parent/current-directory segments, Windows drive-relative forms, network/UNC roots, Win32 device namespaces, legacy DOS device aliases, alternate data streams, and other Win32 filename-normalization ambiguities without depending on the host operating system.
-2. **Native filesystem authority** resolves only paths that can be interpreted as local absolute paths by the current host immediately before repository-owned read/write operations, then verifies file type or canonical containment as appropriate.
+2. **Native filesystem authority** requires the current host to recognize a request path as absolute before analysis progress begins, then repeats canonical file-type or containment checks at the repository-owned read/write boundary. Pure lexical validation remains separately callable so cross-platform syntax can be tested without pretending a foreign-host path is usable by the current runtime.
 
-This separation is intentional. A Windows path such as `C:\Music\rehearsal.wav` can be recognized as a fully qualified local Windows path even when a Linux CI runner is evaluating syntax, while the same string must not be treated as a usable native absolute path by Linux I/O code.
+This separation is intentional. A Windows path such as `C:\Music\rehearsal.wav` can be recognized as a fully qualified local Windows path by the lexical contract even when a Linux CI runner is evaluating syntax, while normal Linux request preflight must reject that string before emitting decode progress because Linux I/O cannot treat it as a native absolute path.
 
 ## Evidence and rationale
 
@@ -21,7 +21,7 @@ Microsoft's current Win32 naming guidance also reserves `CON`, `PRN`, `AUX`, `NU
 
 MITRE CWE-22 treats untrusted pathname construction that can resolve outside an intended restricted location as path traversal. Its observed examples include failures to handle the Windows backslash separator and cases where an absolute input resets a joined path. BandScope therefore does not rely on a single `".."` substring rule.
 
-Python's `pathlib` documentation recommends resolving arbitrary paths before walking them upward because `Path.resolve()` resolves symbolic links and eliminates `..` components. It also notes that `pathlib` does not provide all descriptor-relative facilities available through lower-level `os` APIs. Accordingly, this slice uses canonical resolution to detect already-present symlink escapes but does **not** claim descriptor-level protection against a privileged local actor swapping filesystem entries after validation and before a later open.
+Python's current `pathlib` documentation states that `Path.resolve()` makes paths absolute, resolves symbolic links, and eliminates `..` components; it also distinguishes lexical `PurePath.is_relative_to()` from filesystem resolution. Accordingly, this slice uses canonical resolution to detect already-present symlink escapes but does **not** claim descriptor-level protection against a privileged local actor swapping filesystem entries after validation and before a later open.
 
 ## Implemented/required controls for PR #858
 
@@ -31,21 +31,23 @@ Python's `pathlib` documentation recommends resolving arbitrary paths before wal
 - Reject UNC/network and Win32 device namespaces for `sourcePath`, `cacheRoot`, and `tempRoot`.
 - Reject legacy DOS device aliases in fully qualified Windows path components, including documented superscript COM/LPT variants and extension-bearing aliases such as `NUL.wav`.
 - Reject Win32 reserved punctuation/control characters, alternate-stream `:` syntax outside the drive designator, and components ending in a space or period; these are normalization or namespace forms outside the regular-file contract.
+- Keep host-independent lexical validation available for POSIX/Windows syntax tests, but require normal request preflight to recognize each accepted local path as native absolute authority before any analysis progress is emitted.
 - Keep validation errors payload-safe: identify the field, not the supplied path value.
 - Resolve the selected local source on the native host before separation and reject a direct symlink.
 - Require an existing source to be a regular file, while preserving the established orchestration contract in which an authorized but missing path reaches the separation worker and returns the stable payload-safe `Audio source file not found.` result.
 - Require an existing `cacheRoot` or `tempRoot` to be a directory, and repeat that type check at the derived-path I/O boundary so a regular file cannot be silently accepted as an app-owned writable root.
 - Derive cache and stem-work child names only from repository-controlled directory names and SHA-256 digests.
 - Resolve already-existing child symlinks before checking that derived cache/temp paths remain within the canonical authorized root.
+- Translate a late cache/temp canonicalization failure into one payload-safe `invalid_request` status rather than emitting progress and later misclassifying the failure.
 - Preserve the existing privacy boundary: persisted cache metadata must not include the original absolute source path.
 
 ## Residual risk and follow-up boundary
 
-Canonicalization is a point-in-time check. A sufficiently privileged local process can race a later path open by replacing a filesystem entry after validation. Eliminating that class completely requires descriptor/handle-relative open semantics and platform-specific no-follow/reparse-point controls across every downstream decoder/write boundary. PR #858 must not claim that stronger property unless it is implemented and tested. The current bounded objective is to eliminate ambiguous path syntax, device/stream aliases, direct source symlinks, invalid writable-root types, and already-present cache/temp symlink escapes without expanding filesystem authority.
+Canonicalization is a point-in-time check. A sufficiently privileged local process can race a later path open by replacing a filesystem entry after validation. Eliminating that class completely requires descriptor/handle-relative open semantics and platform-specific no-follow/reparse-point controls across every downstream decoder/write boundary. PR #858 must not claim that stronger property unless it is implemented and tested. The current bounded objective is to eliminate ambiguous path syntax, foreign-host runtime authority, device/stream aliases, direct source symlinks, invalid writable-root types, and already-present cache/temp symlink escapes without expanding filesystem authority.
 
 ## Verification contract
 
-The exact PR head must exercise POSIX and Windows lexical adversarial cases, benign repeated separators, Windows reserved/device/stream/normalization cases independently of the CI host, native absolute success paths, direct source symlink rejection, existing-directory rejection, missing-file orchestration compatibility, existing file rejection for writable cache/temp roots at both preflight and derived-path I/O boundaries, cache/temp fixed-subdirectory symlink escapes, payload-safe failures, native resolution failures, focused API behavior, and the full analysis-engine suite. New production code remains subject to the repository's exact 100% owned statement/branch coverage and public-docstring gates, plus repository CI, SAST, security, supply-chain, SBOM, current automated review, and protected-branch approval rules.
+The exact PR head must exercise POSIX and Windows lexical adversarial cases, benign repeated separators, Windows reserved/device/stream/normalization cases independently of the CI host, explicit host-independent lexical acceptance, foreign-host request-preflight rejection before progress, native absolute success paths, direct source symlink rejection, existing-directory rejection, missing-file orchestration compatibility, existing file rejection for writable cache/temp roots at both preflight and derived-path I/O boundaries, cache/temp fixed-subdirectory symlink escapes both before and after validation, payload-safe failures, native root and fixed-child resolution failures, late API authority-failure translation, focused API behavior, and the full analysis-engine suite. New production code remains subject to the repository's exact 100% owned statement/branch coverage and public-docstring gates, plus repository CI, SAST, security, supply-chain, SBOM, current automated review, and protected-branch approval rules.
 
 ## References
 
@@ -55,4 +57,4 @@ Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retri
 
 MITRE. (2026). *CWE-22: Improper limitation of a pathname to a restricted directory ('Path Traversal') (Version 4.20)*. Common Weakness Enumeration. https://cwe.mitre.org/data/definitions/22.html
 
-Python Software Foundation. (2026). *pathlib — Object-oriented filesystem paths* (Python 3.14 documentation). https://docs.python.org/3.14/library/pathlib.html
+Python Software Foundation. (2026). *pathlib — Object-oriented filesystem paths* (Python 3.14.6 documentation). https://docs.python.org/3.14/library/pathlib.html
