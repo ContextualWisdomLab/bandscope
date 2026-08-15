@@ -9,6 +9,7 @@ import pytest
 from bandscope_analysis.api import (
     _analysis_cache_path,
     _stem_work_arrays_path,
+    run_analysis_job_updates,
     validate_analysis_job_request,
 )
 from bandscope_analysis.path_authority import resolve_local_source_path
@@ -62,6 +63,9 @@ def _request_with_path(field: str, value: str, tmp_path: Path) -> dict[str, obje
         ("localSource.sourcePath", r"C:..\secret.wav"),
         ("cacheRoot", r"C:..\cache"),
         ("tempRoot", r"C:..\temp"),
+        ("localSource.sourcePath", r"C:\Music/../secret.wav"),
+        ("cacheRoot", r"/var/cache\..\outside"),
+        ("tempRoot", "/var/tmp/./bandscope"),
         ("localSource.sourcePath", r"\\server\share\rehearsal.wav"),
         ("cacheRoot", r"\\server\share\cache"),
         ("tempRoot", r"\\server\share\temp"),
@@ -73,7 +77,7 @@ def _request_with_path(field: str, value: str, tmp_path: Path) -> dict[str, obje
 def test_request_paths_reject_ambiguous_or_remote_authority(
     field: str, value: str, tmp_path: Path
 ) -> None:
-    """Reject relative, drive-relative, UNC, and device paths without echoing them."""
+    """Reject relative, mixed traversal, UNC, and device paths without echoing them."""
     request = _request_with_path(field, value, tmp_path)
 
     with pytest.raises(ValueError) as exc_info:
@@ -156,3 +160,27 @@ def test_source_authority_returns_existing_regular_file(tmp_path: Path) -> None:
     source_path.write_bytes(b"RIFF")
 
     assert resolve_local_source_path(str(source_path)) == source_path.resolve(strict=True)
+
+
+def test_job_reports_direct_source_symlink_as_actionable_invalid_request(tmp_path: Path) -> None:
+    """Tell callers to reselect an invalid source instead of blaming engine availability."""
+    real_source = tmp_path / "real.wav"
+    source_link = tmp_path / "selected.wav"
+    real_source.write_bytes(b"RIFF")
+    try:
+        source_link.symlink_to(real_source)
+    except OSError as error:
+        pytest.skip(f"symlink creation unavailable: {error}")
+
+    updates = run_analysis_job_updates(
+        "job-path-authority",
+        _local_request(str(source_link)),
+        "2026-08-15T00:00:00Z",
+    )
+
+    assert updates[-1]["state"] == "failed"
+    assert updates[-1]["error"] == {
+        "code": "invalid_request",
+        "message": "Invalid analysis job request: invalid field 'localSource.sourcePath'",
+    }
+    assert str(source_link) not in str(updates[-1])
