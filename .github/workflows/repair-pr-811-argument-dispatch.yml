@@ -47,5 +47,5 @@ jobs:
             --interpreter "$VENV_PY" \
             --out services/analysis-engine/rust/dist
           uv pip install --python "$VENV_PY" services/analysis-engine/rust/dist/*.whl
-      - name: Execute bounded test-first repair
+      - name: Execute bounded test-first repair after argv isolation
         run: python3 .github/scripts/repair_pr_811.py
