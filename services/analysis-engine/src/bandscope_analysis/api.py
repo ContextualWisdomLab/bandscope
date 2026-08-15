@@ -15,6 +15,11 @@ from typing import Any, Literal, NotRequired, TypedDict, cast
 import numpy as np
 
 from bandscope_analysis.health import HealthReport, build_health_report
+from bandscope_analysis.path_authority import (
+    resolve_authorized_child_path,
+    resolve_local_source_path,
+    validate_local_path_shape,
+)
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
@@ -298,10 +303,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     file_size_bytes = local_source.get("fileSizeBytes")
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
-    if ".." in source_path.replace("\\", "/").split("/"):
-        raise ValueError(
-            "Invalid analysis job request: path traversal detected in 'localSource.sourcePath'"
-        )
+    validate_local_path_shape(source_path, "localSource.sourcePath")
     if not isinstance(file_name, str) or not file_name.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
     if extension not in {"wav", "mp3", "flac", "m4a"}:
@@ -324,16 +326,12 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if cache_root is not None:
         if not isinstance(cache_root, str) or not cache_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
-        if ".." in cache_root.replace("\\", "/").split("/"):
-            logger.warning("Security: path traversal detected in cacheRoot")
-            raise ValueError("Invalid analysis job request: path traversal detected in 'cacheRoot'")
+        validate_local_path_shape(cache_root, "cacheRoot")
         normalized["cacheRoot"] = cache_root
     if temp_root is not None:
         if not isinstance(temp_root, str) or not temp_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
-        if ".." in temp_root.replace("\\", "/").split("/"):
-            logger.warning("Security: path traversal detected in tempRoot")
-            raise ValueError("Invalid analysis job request: path traversal detected in 'tempRoot'")
+        validate_local_path_shape(temp_root, "tempRoot")
         normalized["tempRoot"] = temp_root
 
     return normalized
@@ -613,7 +611,12 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
+    return resolve_authorized_child_path(
+        cache_root,
+        "cacheRoot",
+        "analysis-cache-v1",
+        f"{digest}.json",
+    )
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
@@ -647,7 +650,12 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(temp_root) / "stem-work-v1" / f"{digest}.npz"
+    return resolve_authorized_child_path(
+        temp_root,
+        "tempRoot",
+        "stem-work-v1",
+        f"{digest}.npz",
+    )
 
 
 def _load_cached_analysis(path: Path) -> RehearsalSong | None:
@@ -1014,8 +1022,9 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
 
+    source_path = resolve_local_source_path(request["localSource"]["sourcePath"])
     separation_result = _run_stem_separation_with_timeout(
-        request["localSource"]["sourcePath"],
+        str(source_path),
         arrays_path=_stem_work_arrays_path(request),
     )
     if "sample_rate" not in separation_result:
@@ -1060,7 +1069,20 @@ def run_analysis_job_updates(
             )
         ]
 
-    cache_path = _analysis_cache_path(request)
+    try:
+        cache_path = _analysis_cache_path(request)
+    except ValueError as error:
+        return [
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                error={
+                    "code": "invalid_request",
+                    "message": str(error),
+                },
+            )
+        ]
     cache_status: AnalysisCacheStatus = "disabled" if cache_path is None else "miss"
     if cache_path is not None:
         cached_result = _load_cached_analysis(cache_path)
@@ -1090,7 +1112,20 @@ def run_analysis_job_updates(
     decode_label = (
         "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
     )
-    feature_cache_paths = _feature_cache_paths(request)
+    try:
+        feature_cache_paths = _feature_cache_paths(request)
+    except ValueError as error:
+        return [
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                error={
+                    "code": "invalid_request",
+                    "message": str(error),
+                },
+            )
+        ]
     updates = [
         _build_job_status(
             job_id=job_id,
