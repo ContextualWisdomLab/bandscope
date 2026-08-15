@@ -21,6 +21,8 @@ That provenance is distinct from CI validation. `npm ci` is the immutable consum
 
 The repository additionally requires a Subresource Integrity value for every package-lock entry resolved from the public npm registry. npm documents `integrity` as the SHA-512 or SHA-1 SRI string for the artifact unpacked at that location.
 
+The root lock also retains `peer: true` on the platform-specific `node_modules/@esbuild/*` records produced by the approved tree. Multiple dependency-update branches generated with a different serialization path were observed removing those markers even when the requested package change was unrelated to esbuild. Because frozen `npm ci` consumes rather than regenerates the lock, ordinary frozen-install validation alone cannot prove that this generator-sensitive metadata was preserved. The repository therefore treats those markers as a regression sentinel: a dependency PR that strips them must be regenerated with the approved npm toolchain rather than normalizing the unrelated churn by hand.
+
 ```mermaid
 flowchart LR
     M[package.json dependency intent] --> G[approved npm 10.9.8 update toolchain]
@@ -28,7 +30,7 @@ flowchart LR
     L --> V[npm ci frozen validation, lifecycle disabled]
     V --> D{manifest or lock drift?}
     D -->|yes| F[fail closed]
-    D -->|no| S[verify public-registry SRI evidence]
+    D -->|no| S[verify SRI and generator-sensitive metadata]
     S --> C[normal npm ci and repository checks]
 ```
 
@@ -36,6 +38,7 @@ flowchart LR
 
 - CI lock validation must not run `npm install`, `npm update`, `npx`, or another mutable dependency-resolution command.
 - Dependency PRs change manifest intent and the complete lock artifact produced by the approved npm `10.9.8` update toolchain; reviewers reject unexplained lock churn rather than hand-editing records.
+- Platform-specific root `@esbuild/*` lock records must retain their expected `peer: true` metadata. Missing markers are treated as generator drift, not as an acceptable side effect of an unrelated dependency update.
 - The lock-validation job disables dependency lifecycle scripts. The normal clean install retains the repository's reviewed execution behavior.
 - The exact npm version check occurs before either frozen install; a different bundled or globally installed npm cannot provide acceptance evidence.
 - Registry-resolved package records require SRI evidence in the committed lock.
@@ -53,8 +56,9 @@ flowchart LR
 3. frozen `npm ci` lock validation with lifecycle execution disabled;
 4. absence of `npm install`, `npm update`, and `npx` from the lock-validation job;
 5. a clean manifest/lock working tree after validation;
-6. package-lock version 3; and
-7. SRI evidence for every public npm-registry artifact in the root lock.
+6. package-lock version 3;
+7. SRI evidence for every public npm-registry artifact in the root lock; and
+8. preservation of `peer: true` on every root `node_modules/@esbuild/*` platform record.
 
 The exact PDF.js and Undici baseline is covered separately by `test_high_security_dependency_baseline.py` and the desktop PDF loader tests.
 
@@ -62,7 +66,7 @@ A dependency update is mergeable only after the updated manifest and complete ge
 
 ## Claim boundary
 
-CI proves that the committed manifest and lock can be consumed as a frozen pair by the approved toolchain and that public-registry lock entries carry integrity evidence. It does **not** claim that resolving mutable manifest ranges again at a later time will reproduce byte-identical lock metadata. When a dependency update is needed, npm `10.9.8` remains the approved generator and its entire resulting lock diff is review evidence.
+CI proves that the committed manifest and lock can be consumed as a frozen pair by the approved toolchain, that public-registry lock entries carry integrity evidence, and that the known generator-sensitive `@esbuild/*` peer markers remain present. It does **not** claim that resolving mutable manifest ranges again at a later time will reproduce byte-identical lock metadata. When a dependency update is needed, npm `10.9.8` remains the approved generator and its entire resulting lock diff is review evidence.
 
 ## Incident response and rollback
 
