@@ -29,8 +29,9 @@ class ChordRecognizer:
 
     Security Notes:
     - Processes untrusted audio arrays from stem separation.
+    - Maximum audio duration limited to 600 seconds to prevent resource exhaustion.
     - No file I/O, network access, or shell execution.
-    - Bounded computation: frame count capped by input duration.
+    - Bounded computation: frame count capped by input duration and maximum duration.
     - Safe failure: exceptions in DSP steps return empty results.
     """
 
@@ -429,6 +430,16 @@ class ChordRecognizer:
         """
         if len(y) == 0:
             return []
+
+        # Limit audio duration to prevent resource exhaustion (max 600 seconds)
+        max_samples = sr * 600
+        if len(y) > max_samples:
+            logger.warning(
+                "Audio duration exceeds maximum limit of 600 seconds. "
+                "Truncating from %.2f seconds to 600 seconds.",
+                len(y) / sr,
+            )
+            y = y[:max_samples]
 
         y_harmonic = self._separate_harmonic(y)
         chromagram = self._extract_chromagram(y_harmonic, sr)
