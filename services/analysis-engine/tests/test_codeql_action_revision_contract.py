@@ -26,6 +26,15 @@ def _codeql_action_references() -> list[tuple[Path, str, str, str]]:
     return references
 
 
+def test_reference_scanner_detects_non_sha_codeql_references() -> None:
+    """Mutable CodeQL refs must be visible to the guard instead of being skipped."""
+    workflow_line = "uses: github/codeql-action/init@v4 # mutable reference"
+
+    matches = _CODEQL_ACTION_REFERENCE.findall(workflow_line)
+
+    assert matches == [("init", "v4", " # mutable reference")]
+
+
 def test_every_codeql_action_step_uses_the_same_reviewed_revision() -> None:
     """Prevent independently updated phases from creating mixed CodeQL runtimes."""
     references = _codeql_action_references()
