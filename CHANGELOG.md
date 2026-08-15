@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Reject malformed plain-array PDF bridge responses instead of allowing `Uint8Array.from` to wrap, truncate, or coerce values outside the exact byte range.
+- Reject malformed plain-array PDF bridge responses and copy each validated byte during the same read, preventing coercion or accessor-driven value changes between validation and conversion.
 
 ## [0.1.3] - 2026-04-29
 
