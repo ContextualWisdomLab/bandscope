@@ -7,6 +7,10 @@
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
+### Fixed
+
+- Hardened local analysis filesystem authority so source/cache/temp inputs reject ambiguous, network/device, traversal, direct-symlink, non-directory writable-root, and pre-existing derived-child escape cases before repository-owned I/O while preserving payload-safe errors and the existing missing-source result.
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed
