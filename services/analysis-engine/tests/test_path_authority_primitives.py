@@ -24,7 +24,7 @@ from bandscope_analysis.path_authority import (
 )
 def test_validate_local_path_shape_accepts_fully_qualified_local_syntax(value: str) -> None:
     """Accept fully-qualified local syntax independently of the CI host OS."""
-    validate_local_path_shape(value, "localSource.sourcePath")
+    validate_local_path_shape(value, "localSource.sourcePath", preflight_native=False)
 
 
 @pytest.mark.parametrize(
@@ -121,6 +121,26 @@ def test_validate_local_path_shape_reports_native_resolution_failure(
 
     with pytest.raises(ValueError, match="localSource.sourcePath"):
         validate_local_path_shape(str(source), "localSource.sourcePath")
+
+
+def test_validate_local_path_shape_reports_fixed_child_resolution_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Convert fixed-child preflight resolution failure into a safe root-field error."""
+    root = tmp_path / "cache-root"
+    root.mkdir()
+    original_resolve = Path.resolve
+
+    def fail_child_resolution(path: Path, *, strict: bool = False) -> Path:
+        if path.name == "analysis-cache-v1":
+            raise OSError("simulated fixed-child resolution failure")
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", fail_child_resolution)
+
+    with pytest.raises(ValueError, match="cacheRoot"):
+        validate_local_path_shape(str(root), "cacheRoot")
 
 
 def test_validate_local_path_shape_keeps_unknown_fields_lexical(tmp_path: Path) -> None:
@@ -272,6 +292,31 @@ def test_resolve_authorized_child_path_rejects_resolution_failure(
         raise OSError("simulated resolution failure")
 
     monkeypatch.setattr(Path, "resolve", fail_resolution)
+
+    with pytest.raises(ValueError, match="cacheRoot"):
+        resolve_authorized_child_path(
+            str(root),
+            "cacheRoot",
+            "analysis-cache-v1",
+            "digest.json",
+        )
+
+
+def test_resolve_authorized_child_path_rejects_child_resolution_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Convert repository-owned child canonicalization failure into a safe root error."""
+    root = tmp_path / "cache-root"
+    root.mkdir()
+    original_resolve = Path.resolve
+
+    def fail_child_resolution(path: Path, *, strict: bool = False) -> Path:
+        if path.name == "digest.json":
+            raise OSError("simulated derived-child resolution failure")
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", fail_child_resolution)
 
     with pytest.raises(ValueError, match="cacheRoot"):
         resolve_authorized_child_path(
