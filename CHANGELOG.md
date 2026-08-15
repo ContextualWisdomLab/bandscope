@@ -4,7 +4,7 @@
 
 ### Added
 
-- Import a bounded, validated BandScope metadata-handoff JSON file, require an explicit fresh local-audio pairing, and reuse the handoff's focused rehearsal roles for reanalysis (#739). Competing source actions and project replacement remain locked while handoff validation is pending; once a handoff validates, YouTube import stays unavailable until the handoff is cleared or consumed so only an explicit recipient-selected local file can satisfy the pairing boundary.
+- Import a bounded, validated BandScope metadata-handoff JSON file, require an explicit fresh local-audio pairing, and reuse the handoff's focused rehearsal roles for reanalysis (#739). Competing source actions and project replacement remain locked while handoff validation is pending; project loading reciprocally locks source/handoff changes and saving the prior project until the load settles; once a handoff validates, YouTube import stays unavailable until the handoff is cleared or consumed so only an explicit recipient-selected local file can satisfy the pairing boundary.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
