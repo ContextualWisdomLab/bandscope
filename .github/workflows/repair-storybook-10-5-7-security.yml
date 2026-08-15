@@ -57,6 +57,7 @@ jobs:
           fs.writeFileSync(desktopPath, `${JSON.stringify(desktop, null, 2)}\n`);
           NODE
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm update nanoid undici --package-lock-only --ignore-scripts --no-audit --no-fund
           npm ci --no-audit --no-fund
 
       - name: Verify exact dependency graph
