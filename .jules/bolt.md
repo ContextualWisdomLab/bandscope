@@ -1,6 +1,6 @@
 ## 2023-06-10 - Caching parsed lockfile results
 
-**Learning:** Parsing Cargo.lock files repeatedly per iteration in the supply chain verification script causes significant I/O and CPU overhead.
+**Learning:** Parsing Cargo.lock files repeatedly per iteration causes significant I/O and CPU overhead.
 **Action:** Use `@functools.lru_cache` to cache parsed package dictionaries based on `Path` inputs for static checks.
 
 ## 2024-06-03 - O(1) Map Lookups for Performance
@@ -59,9 +59,5 @@
 **Action:** Use NumPy broadcasting (e.g. `viterbi[:, t - 1, np.newaxis] + log_trans`) to vectorize the inner loop, converting O(N*M) Python loops into O(N) Python loops with fast C-level operations.
 
 ## 2026-07-13 - Array.from mapping optimization
-**Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
+**Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection time, particularly for frequent renders of large transcription arrays.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-
-## 2026-08-14 - Vectorize checkerboard kernel using sliding_window_view and einsum
-**Learning:** Using nested loops over a window alongside Python array slicing (`np.diagonal`) in tight inner loops adds significant O(K^2) overhead to matrix convolution steps, scaling linearly with audio length. Also, the number of valid diagonal positions is exacty `n - kernel_size + 1` for a `kernel_size`, so using `n - 2 * (kernel_size // 2)` drops the last matrix frame on even kernel sizes and leads to out-of-bounds mismatches.
-**Action:** Replace nested loops performing sliding window element-wise multiplication with NumPy's vectorized `sliding_window_view`, extracting elements across dimensions using `np.diagonal`, and performing batched element-wise products via `np.einsum`. Always bound outputs using `valid_length = n - kernel_size + 1`.
