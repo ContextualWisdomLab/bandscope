@@ -1,0 +1,106 @@
+name: Repair Storybook 10.5.7 security dependency set
+
+on:
+  push:
+    branches:
+      - dependabot/npm_and_yarn/develop/storybook-10.5.7
+    paths:
+      - .github/workflows/repair-storybook-10-5-7-security.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-storybook-10-5-7-security
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: dependabot/npm_and_yarn/develop/storybook-10.5.7
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 22.22.3
+          cache: npm
+
+      - name: Align Storybook and remediate audited dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const rootPath = 'package.json';
+          const desktopPath = 'apps/desktop/package.json';
+          const root = JSON.parse(fs.readFileSync(rootPath, 'utf8'));
+          const desktop = JSON.parse(fs.readFileSync(desktopPath, 'utf8'));
+
+          root.overrides = {
+            ...(root.overrides ?? {}),
+            nanoid: '3.3.18',
+            undici: '7.28.1',
+          };
+          desktop.dependencies['pdfjs-dist'] = '6.2.108';
+          desktop.devDependencies.storybook = '10.5.7';
+          desktop.devDependencies['@storybook/react-vite'] = '10.5.7';
+
+          fs.writeFileSync(rootPath, `${JSON.stringify(root, null, 2)}\n`);
+          fs.writeFileSync(desktopPath, `${JSON.stringify(desktop, null, 2)}\n`);
+          NODE
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
+
+      - name: Verify exact dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const expected = new Map([
+            ['node_modules/nanoid', '3.3.18'],
+            ['node_modules/pdfjs-dist', '6.2.108'],
+            ['node_modules/storybook', '10.5.7'],
+            ['node_modules/@storybook/react-vite', '10.5.7'],
+            ['node_modules/undici', '7.28.1'],
+          ]);
+          for (const [path, version] of expected) {
+            const actual = lock.packages?.[path]?.version;
+            if (actual !== version) {
+              throw new Error(`${path}: expected ${version}, received ${actual ?? 'missing'}`);
+            }
+          }
+          NODE
+          npm audit --workspaces --audit-level=high
+
+      - name: Verify application and Storybook
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run ci
+          npm run build-storybook --workspace @bandscope/desktop
+          git diff --check
+
+      - name: Commit verified repair and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/repair-storybook-10-5-7-security.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json apps/desktop/package.json package-lock.json .github/workflows/repair-storybook-10-5-7-security.yml
+          if git diff --cached --quiet; then
+            echo 'No verified dependency repair changes were produced.' >&2
+            exit 1
+          fi
+          git commit -m 'fix(deps): align Storybook and clear high advisories'
+          git push origin HEAD:dependabot/npm_and_yarn/develop/storybook-10.5.7
