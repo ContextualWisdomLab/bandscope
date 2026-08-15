@@ -63,6 +63,36 @@ def _read_bounded_stdin() -> tuple[str | None, int]:
     return raw_text.strip(), 0
 
 
+def _read_bounded_job_file(path: str) -> bytes:
+    """Read a bounded regular job file through an identity-verified descriptor.
+
+    The path is inspected with ``lstat`` before opening so directories, FIFOs,
+    devices, sockets, and symbolic links cannot enter a blocking or redirecting
+    open path. The opened descriptor is then checked with ``fstat`` and must
+    identify the same regular-file inode observed during preflight. ``O_NOFOLLOW``
+    is additionally requested where the platform exposes it. The byte bound is
+    enforced on the descriptor-backed stream rather than on a second path lookup.
+    """
+    before = os.lstat(path)
+    if not stat.S_ISREG(before.st_mode):
+        raise OSError("job path is not a regular file")
+
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
+            raise OSError("opened job path is not a regular file")
+        if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+            raise OSError("job path changed before open")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            return stream.read(MAX_JSON_FILE_SIZE + 1)
+    finally:
+        os.close(descriptor)
+
+
 def main() -> int:
     """Read one explicit argument or bounded stdin job and print its response."""
     progress_jsonl = "--progress-jsonl" in sys.argv[1:]
@@ -98,20 +128,14 @@ def main() -> int:
                     return 1
             else:
                 try:
-                    # Reject directories, FIFOs, sockets, devices, and other special
-                    # files before opening them. In particular, opening a FIFO can
-                    # block indefinitely before the bounded read is ever reached.
-                    if not stat.S_ISREG(os.stat(input_data).st_mode):
-                        raise OSError("job path is not a regular file")
-                    with open(input_data, "rb") as f:
-                        input_bytes = f.read(MAX_JSON_FILE_SIZE + 1)
-                        if len(input_bytes) > MAX_JSON_FILE_SIZE:
-                            json.dump(
-                                failed_cli_response("Job file exceeds maximum size limit"),
-                                sys.stdout,
-                            )
-                            return 1
-                        input_data = input_bytes.decode("utf-8")
+                    input_bytes = _read_bounded_job_file(input_data)
+                    if len(input_bytes) > MAX_JSON_FILE_SIZE:
+                        json.dump(
+                            failed_cli_response("Job file exceeds maximum size limit"),
+                            sys.stdout,
+                        )
+                        return 1
+                    input_data = input_bytes.decode("utf-8")
                 except Exception:
                     json.dump(failed_cli_response("Failed to read job file"), sys.stdout)
                     return 1
