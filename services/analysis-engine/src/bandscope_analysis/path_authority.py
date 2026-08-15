@@ -65,17 +65,18 @@ def _has_invalid_windows_component(path: PureWindowsPath) -> bool:
 
 
 def _preflight_native_path(value: str, field_name: str) -> None:
-    """Reject native symlink and containment violations during request validation.
+    """Reject non-native, symlinked, or escaping paths during request validation.
 
-    A fully qualified path for another operating system remains lexically valid
-    and is left for the actual I/O boundary to reject. Native paths are resolved
-    here so callers receive an actionable ``invalid_request`` before progress is
-    emitted when a direct symlink, invalid writable root, or fixed cache/temp
-    child already violates its authorized filesystem boundary.
+    Cross-platform syntax can still be checked independently by calling
+    :func:`validate_local_path_shape` with ``preflight_native=False``. Request
+    validation uses the default native preflight so a fully qualified path for
+    another operating system fails before progress is emitted. Native paths are
+    then resolved so direct symlinks, invalid writable roots, and fixed
+    cache/temp child escapes are rejected at the same actionable boundary.
     """
     candidate = Path(value).expanduser()
     if not candidate.is_absolute():
-        return
+        raise _invalid_path(field_name)
     if candidate.is_symlink():
         raise _invalid_path(field_name)
 
@@ -108,16 +109,17 @@ def validate_local_path_shape(
     *,
     preflight_native: bool = True,
 ) -> None:
-    """Reject ambiguous, remote, or traversing path syntax for a local-only field.
+    """Reject ambiguous, remote, traversing, or unusable paths for a local-only field.
 
     Fully-qualified local POSIX paths and fully-qualified local Windows drive
-    paths are accepted lexically even when validation runs on the other OS.
-    Windows drive paths must also satisfy the regular Win32 filename contract;
-    device aliases, alternate streams, reserved characters, control characters,
-    and trailing space/period normalization are not accepted. By default, paths
-    native to the current host are also preflighted for direct symlinks,
-    writable-root type, and fixed cache/temp child escapes. I/O helpers disable
-    that early preflight and repeat native checks immediately before use.
+    paths are accepted by the lexical contract even when validation runs on the
+    other OS. Windows drive paths must also satisfy the regular Win32 filename
+    contract; device aliases, alternate streams, reserved characters, control
+    characters, and trailing space/period normalization are not accepted. With
+    the default native preflight, the current host must also recognize the path
+    as absolute and direct symlinks, writable-root type errors, and fixed
+    cache/temp child escapes are rejected. Pure lexical callers can disable that
+    preflight; I/O helpers do so and repeat native checks immediately before use.
     """
     if not value or not value.strip() or "\x00" in value:
         raise _invalid_path(field_name)
