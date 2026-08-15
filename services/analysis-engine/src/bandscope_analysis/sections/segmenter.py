@@ -122,7 +122,7 @@ def _checkerboard_novelty_reference(
     half = kernel_size // 2
     novelty = np.zeros(n, dtype=np.float64)
 
-    if n < kernel_size:
+    if kernel_size == 0 or n < kernel_size:
         return novelty
 
     # Build the Foote checkerboard kernel. On-diagonal quadrants (within a

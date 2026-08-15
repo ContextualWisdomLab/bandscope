@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Optimized `_checkerboard_novelty_reference` by replacing Python inner loops with a vectorized NumPy `sliding_window_view` and `einsum` implementation for fallback parity, preserving the Rust kernel as the production arithmetic path.
+- Optimized `_checkerboard_novelty_reference` by replacing Python inner loops with a vectorized NumPy `sliding_window_view` and `einsum` implementation for fallback parity, preserving the Rust kernel as the production arithmetic path. Zero-sized kernels retain the prior all-zero curve instead of entering an invalid `n + 1` window range.
 
 
 ### Added

@@ -37,8 +37,9 @@ fn checkerboard_novelty<'py>(
     let half = kernel_size / 2;
     let mut novelty = Array1::<f64>::zeros(n);
 
-    // Mirror the Python guard: matrices smaller than the kernel yield zeros.
-    if n < kernel_size {
+    // Preserve the legacy all-zero curve for a zero-sized kernel; matrices
+    // smaller than a nonzero kernel likewise have no valid diagonal patch.
+    if kernel_size == 0 || n < kernel_size {
         return Ok(novelty.into_pyarray(py));
     }
 
