@@ -176,6 +176,7 @@ describe("Workspace", () => {
       overlapWarnings: [
         " ",
         "  Leave the pickup to the lead vocal.  ",
+        "Leave the pickup to the lead vocal.",
         "NONE",
         "Double only after the chorus entrance."
       ]
@@ -191,7 +192,7 @@ describe("Workspace", () => {
     expect(within(guidance).getByText("Hold roots on beats one and three.")).toBeTruthy();
     expect(within(guidance).getByText("Resolve these overlaps")).toBeTruthy();
 
-    const warnings = within(guidance).getByRole("list", { name: "Bass Guitar overlap warnings" });
+    const warnings = within(guidance).getByRole("list", { name: "Resolve these overlaps" });
     expect(within(warnings).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
       "Leave the pickup to the lead vocal.",
       "Double only after the chorus entrance."
@@ -235,6 +236,8 @@ describe("Workspace", () => {
     expect(within(guidance).getByText("연주 전에 준비하세요")).toBeTruthy();
     expect(within(guidance).getByText("합주가 흔들리면 이렇게 단순화하세요")).toBeTruthy();
     expect(within(guidance).getByText("이 겹침을 먼저 해결하세요")).toBeTruthy();
+    const warnings = within(guidance).getByRole("list", { name: "이 겹침을 먼저 해결하세요" });
+    expect(within(warnings).getByText("보컬 픽업과 겹치지 않게 쉬세요.")).toBeTruthy();
   });
 
   it("exports a metadata-only handoff artifact from the workspace", async () => {

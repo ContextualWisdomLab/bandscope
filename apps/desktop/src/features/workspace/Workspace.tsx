@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useId, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -69,12 +69,14 @@ function actionableGuidanceText(value: string | undefined): string | undefined {
   return normalized?.toLowerCase() === "none" ? undefined : normalized;
 }
 
-/** Preserve meaningful overlap-warning order without mutating analysis output. */
+/** Preserve unique meaningful overlap-warning order without mutating analysis output. */
 function actionableOverlapWarnings(values: readonly string[]): string[] {
   const warnings: string[] = [];
+  const seen = new Set<string>();
   for (const value of values) {
     const normalized = actionableGuidanceText(value);
-    if (normalized) {
+    if (normalized && !seen.has(normalized)) {
+      seen.add(normalized);
       warnings.push(normalized);
     }
   }
@@ -145,6 +147,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const overlapWarningsHeadingId = useId();
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -481,11 +484,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       )}
                       {roleOverlapWarnings.length > 0 && (
                         <article className="rounded-xl border border-rose-300/20 bg-rose-300/[0.07] p-3">
-                          <h4 className="text-[0.7rem] font-black uppercase tracking-[0.2em] text-rose-100">
+                          <h4
+                            id={overlapWarningsHeadingId}
+                            className="text-[0.7rem] font-black uppercase tracking-[0.2em] text-rose-100"
+                          >
                             {t("workspaceOverlapWarningsLabel")}
                           </h4>
                           <ul
-                            aria-label={`${activeRoleDetails?.name ?? activeRole} overlap warnings`}
+                            aria-labelledby={overlapWarningsHeadingId}
                             className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-100"
                           >
                             {roleOverlapWarnings.map((warning, warningIndex) => (
