@@ -30,5 +30,11 @@ jobs:
         with:
           node-version: 22.22.3
           cache: npm
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.8.6"
+          enable-cache: false
+      - name: Sync Python development dependencies
+        run: uv sync --project services/analysis-engine --group dev --frozen
       - name: Execute the bounded test-first repair
         run: python3 .github/scripts/repair_pr_750.py
