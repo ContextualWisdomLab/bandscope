@@ -30,17 +30,18 @@ Python's `pathlib` documentation recommends resolving arbitrary paths before wal
 - Keep validation errors payload-safe: identify the field, not the supplied path value.
 - Resolve the selected local source on the native host before separation and reject a direct symlink.
 - Require an existing source to be a regular file, while preserving the established orchestration contract in which an authorized but missing path reaches the separation worker and returns the stable payload-safe `Audio source file not found.` result.
+- Require an existing `cacheRoot` or `tempRoot` to be a directory, and repeat that type check at the derived-path I/O boundary so a regular file cannot be silently accepted as an app-owned writable root.
 - Derive cache and stem-work child names only from repository-controlled directory names and SHA-256 digests.
 - Resolve already-existing child symlinks before checking that derived cache/temp paths remain within the canonical authorized root.
 - Preserve the existing privacy boundary: persisted cache metadata must not include the original absolute source path.
 
 ## Residual risk and follow-up boundary
 
-Canonicalization is a point-in-time check. A sufficiently privileged local process can race a later path open by replacing a filesystem entry after validation. Eliminating that class completely requires descriptor/handle-relative open semantics and platform-specific no-follow/reparse-point controls across every downstream decoder/write boundary. PR #858 must not claim that stronger property unless it is implemented and tested. The current bounded objective is to eliminate ambiguous path syntax, direct source symlinks, and already-present cache/temp symlink escapes without expanding filesystem authority.
+Canonicalization is a point-in-time check. A sufficiently privileged local process can race a later path open by replacing a filesystem entry after validation. Eliminating that class completely requires descriptor/handle-relative open semantics and platform-specific no-follow/reparse-point controls across every downstream decoder/write boundary. PR #858 must not claim that stronger property unless it is implemented and tested. The current bounded objective is to eliminate ambiguous path syntax, direct source symlinks, invalid writable-root types, and already-present cache/temp symlink escapes without expanding filesystem authority.
 
 ## Verification contract
 
-The exact PR head must exercise POSIX and Windows lexical adversarial cases, native absolute success paths, direct source symlink rejection, existing-directory rejection, missing-file orchestration compatibility, cache/temp fixed-subdirectory symlink escapes, payload-safe failures, native resolution failures, focused API behavior, and the full analysis-engine suite. New production code remains subject to the repository's exact 100% owned statement/branch coverage and public-docstring gates, plus repository CI, SAST, security, supply-chain, SBOM, current automated review, and protected-branch approval rules.
+The exact PR head must exercise POSIX and Windows lexical adversarial cases, native absolute success paths, direct source symlink rejection, existing-directory rejection, missing-file orchestration compatibility, existing file rejection for writable cache/temp roots at both preflight and derived-path I/O boundaries, cache/temp fixed-subdirectory symlink escapes, payload-safe failures, native resolution failures, focused API behavior, and the full analysis-engine suite. New production code remains subject to the repository's exact 100% owned statement/branch coverage and public-docstring gates, plus repository CI, SAST, security, supply-chain, SBOM, current automated review, and protected-branch approval rules.
 
 ## References
 
