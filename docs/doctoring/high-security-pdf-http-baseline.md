@@ -8,13 +8,16 @@ BandScope treats the PDF parser and its transitive HTTP client as one security-r
 - `undici` is pinned exactly to `7.29.0` through the root npm override; and
 - npm `10.9.8` is the approved generator for reviewed root-workspace dependency updates, while primary CI consumes the committed lock through frozen validation rather than re-resolving it.
 
-PDF.js `6.2.108` no longer exposes the legacy `isEvalSupported` member in its public `DocumentInitParameters` contract, and `getDocument` no longer reads that member. BandScope therefore does not cast or pass an unknown option that would be ignored while creating false assurance. The primary remediation is the patched parser release, reinforced by a narrow data-only call, copied caller-owned bytes, and a same-origin bundled worker.
+PDF.js `6.2.108` no longer exposes the legacy `isEvalSupported` member in its public `DocumentInitParameters` contract, and `getDocument` no longer reads that member. BandScope therefore does not cast or pass an unknown option that would be ignored while creating false assurance. The primary remediation is the patched parser release, reinforced by a narrow data-only call, copied caller-owned bytes, a same-origin bundled worker, explicit `enableXfa: false`, and explicit `useWorkerFetch: false`.
 
 ```mermaid
 flowchart LR
     A[Validated local PDF bytes] --> B[Copied Uint8Array]
     B --> D[Data-only DocumentInitParameters]
-    D --> C[pdfjs-dist 6.2.108]
+    D --> X[XFA disabled]
+    D --> F[Worker helper fetch disabled]
+    X --> C[pdfjs-dist 6.2.108]
+    F --> C
     C --> W[Same-origin bundled worker]
     W --> R[Canvas render]
     J[jsdom development path] --> U[undici 7.29.0 override]
@@ -26,11 +29,19 @@ flowchart LR
 
 ## Threat boundary
 
-The score viewer accepts only bytes already copied into the app-owned workspace through the native PDF intake boundary. It does not accept a URL, credentials, custom request headers, or a remote worker. This prevents a PDF from selecting an attacker-controlled fetch origin or script asset.
+The score viewer accepts only bytes already copied into the app-owned workspace through the native PDF intake boundary. It does not accept a URL, credentials, custom request headers, or a remote worker. It also disables XFA rendering and PDF.js worker-side fetching of helper resources at this wrapper boundary. These controls prevent the caller from selecting an attacker-controlled document origin or worker asset and make the intended no-XML-form/no-worker-fetch policy explicit rather than relying on upstream defaults.
 
-PDF bytes remain untrusted after the native magic-byte, size, and path checks. Parser vulnerabilities, malformed object graphs, embedded actions, and resource-exhaustion paths can still occur inside a syntactically valid PDF. The patched parser, exact dependency lock, copied data-only input, same-origin worker, and existing native intake limits therefore remain mandatory for locally selected files.
+PDF bytes remain untrusted after the native magic-byte, size, and path checks. Parser vulnerabilities, malformed object graphs, embedded actions, metadata/XML parsing, and resource-exhaustion paths can still occur inside a syntactically valid PDF. The patched parser, exact dependency lock, copied data-only input, explicit parser options, same-origin worker, and existing native intake limits therefore remain mandatory for locally selected files.
+
+The pinned PDF.js XML parser does not expose an external-entity resolver through this wrapper: its default `onDoctype()` hook is a no-op, and `onResolveEntity()` resolves only the built-in XML entities before returning an unknown named entity literally. This source-level observation narrows what BandScope can claim; it is not a general assertion that every future PDF.js XML path is immune to entity-processing defects. Any parser upgrade must re-check the upstream implementation and repeat adversarial PDF verification.
 
 Undici is currently a development dependency reached through jsdom, but development and CI parsers process attacker-controlled fixtures, generated HTML, and network-like request bodies. A dev-only label does not make header injection, shared-cache disclosure, retry desynchronization, or cookie-attribute injection acceptable in the trusted build boundary.
+
+## Strix finding adjudication boundary
+
+Strix run `31871388084` on predecessor head `6f81f52c193c1e327d078eba7a2ea3bdbfbc87c2` reported a possible XXE path through `loadScorePdf`. Its attached proof-of-concept returned only a four-byte `%PDF` prefix and stated that construction of an actual PDF containing the alleged XML payload remained necessary. It did not demonstrate entity expansion, local-file disclosure, a network request, or parser output containing an external entity.
+
+The finding was therefore not suppressed and was not treated as proven exploitation. Instead, the exact dependency source was inspected and the wrapper was hardened at the narrowest supported API boundary: XFA rendering and worker-side helper fetching are now explicitly disabled and regression-locked. A fresh exact-head Strix result remains mandatory; a predecessor report, whether pass or fail, is not transferable merge evidence.
 
 ## Lockfile provenance
 
@@ -52,13 +63,14 @@ The lock contract requires the exact public-registry tarball and SHA-512 SRI for
 The merge gate includes:
 
 - exact manifest and lock artifact tests;
-- a direct PDF.js wrapper test proving copied bytes, the locally bundled worker, and an exact data-only initialization object;
+- a direct PDF.js wrapper test proving copied bytes, the locally bundled worker, `enableXfa: false`, `useWorkerFetch: false`, and no URL-bearing initialization member;
 - TypeScript compilation against the installed PDF.js `DocumentInitParameters` rather than an unsafe cast;
 - valid and malformed local score-PDF component tests;
 - desktop lint, strict typecheck, complete measured tests, and production build;
 - Tauri/Rust checks and native PDF intake regressions;
 - `npm audit --workspaces --audit-level=high` with no high finding;
 - repository SAST, CodeQL, security scan, secret scan, SBOM, and dependency evidence;
+- current-head Strix evidence rather than predecessor-head scanner output;
 - current-head central coverage and automated review;
 - zero unresolved actionable threads and a qualifying independent non-author approval; and
 - normal branch protection without administrative bypass.
@@ -74,6 +86,8 @@ Rollback restores the previous desktop manifest, root override, complete lock, P
 GitHub. (2026). *PDF.js vulnerable to arbitrary JavaScript execution upon opening a malicious PDF* (GHSA-hq66-cqwq-w95j) [Security advisory]. https://github.com/advisories/GHSA-hq66-cqwq-w95j
 
 Mozilla. (2026). *Document initialization parameters in PDF.js 6.2.108* [Source code]. GitHub. https://github.com/mozilla/pdf.js/blob/v6.2.108/src/display/api.js
+
+Mozilla. (2026). *PDF.js XML parser in version 6.2.108* [Source code]. GitHub. https://github.com/mozilla/pdf.js/blob/v6.2.108/src/core/xml_parser.js
 
 Mozilla. (2026). *PDF.js 6.2.108* [Software release]. https://github.com/mozilla/pdf.js/releases/tag/v6.2.108
 
