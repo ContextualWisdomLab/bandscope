@@ -6,6 +6,7 @@ import builtins
 import io
 import json
 import os
+import stat
 
 import pytest
 
@@ -53,6 +54,26 @@ def test_cli_rejects_symlink_job_path_without_following_target(
 
     stdout = io.StringIO()
     monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(link)])
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["state"] == "failed"
+    assert response["error"]["message"] == "Failed to read job file"
+
+
+def test_cli_rejects_non_regular_opened_descriptor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """Descriptor revalidation must reject a non-regular object after open."""
+    path = tmp_path / "job.json"
+    path.write_text('{"jobId":"job","request":{}}', encoding="utf-8")
+    non_regular = os.stat_result((stat.S_IFDIR | 0o755, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.os, "fstat", lambda _descriptor: non_regular)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(path)])
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
     assert cli.main() == 1
