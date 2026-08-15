@@ -184,6 +184,29 @@ def test_cli_job_argument_does_not_consume_stdin(
     assert json.loads(stdout.getvalue())["jobId"] == "argument-job"
 
 
+def test_cli_inline_job_with_leading_json_whitespace_does_not_become_a_file_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Leading JSON whitespace must preserve inline ``--job`` dispatch semantics."""
+    payload = " \n\t" + json.dumps(
+        {
+            "jobId": "whitespace-argument-job",
+            "request": {
+                "sourceKind": "demo",
+                "sourceLabel": "Whitespace Argument Input",
+                "roleFocus": ["bass-guitar"],
+            },
+        }
+    )
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", payload])
+    monkeypatch.setattr(cli.sys, "stdin", _BinaryStdin(_ForbiddenRead()))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 0
+    assert json.loads(stdout.getvalue())["jobId"] == "whitespace-argument-job"
+
+
 @pytest.mark.parametrize(
     "argv",
     [
