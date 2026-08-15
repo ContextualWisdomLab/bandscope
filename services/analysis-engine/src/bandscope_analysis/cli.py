@@ -35,11 +35,15 @@ def failed_cli_response(message: str) -> dict[str, object]:
     }
 
 
-def main() -> int:
-    """Read a job payload from stdin and print a structured job response to stdout."""
-    # Standard CLI stdin exposes ``buffer``; enforce the allocation bound on raw
-    # bytes before UTF-8 decoding. Text-only injected streams are already decoded
-    # outside this boundary, so retain a compatibility path for in-process callers.
+def _read_bounded_stdin() -> tuple[str | None, int]:
+    """Read one bounded UTF-8 stdin payload and return text plus an exit code.
+
+    Standard process stdin exposes ``buffer``; enforce the allocation bound on
+    raw bytes before UTF-8 decoding. Text-only injected streams are already
+    decoded outside this boundary, so retain a compatibility path for in-process
+    callers. Failures are emitted here so callers never need to retain rejected
+    payload content.
+    """
     binary_stdin = getattr(sys.stdin, "buffer", None)
     if binary_stdin is None:
         raw_text = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
@@ -48,25 +52,29 @@ def main() -> int:
         raw_bytes = binary_stdin.read(MAX_JSON_FILE_SIZE + 1)
     if len(raw_bytes) > MAX_JSON_FILE_SIZE:
         json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
-        return 1
+        return None, 1
     try:
         raw_text = raw_bytes.decode("utf-8")
     except UnicodeDecodeError:
         json.dump(failed_cli_response("Job input must be valid UTF-8"), sys.stdout)
-        return 1
-    input_data = raw_text.strip()
+        return None, 1
+    return raw_text.strip(), 0
+
+
+def main() -> int:
+    """Read one explicit argument or bounded stdin job and print its response."""
     progress_jsonl = "--progress-jsonl" in sys.argv[1:]
     cli_args = [arg for arg in sys.argv[1:] if arg != "--progress-jsonl"]
+    input_data: str | None = None
 
-    # ``--job`` is an explicit local-operator convenience for manual testing only.
-    # The desktop runtime never supplies it: Tauri sends validated project metadata
-    # over bounded stdin. File input therefore remains bounded and does not form an
-    # application IPC path or a remote file-read primitive.
+    # Explicit argument modes own their input source. Resolve them before touching
+    # stdin so ``--status`` and ``--job`` cannot block on an unrelated open pipe or
+    # consume data that the caller did not select as the job payload.
     if cli_args:
         if cli_args[0] == "--status":
             json.dump(get_analysis_status(), sys.stdout)
             return 0
-        elif cli_args[0] == "--job" and len(cli_args) > 1:
+        if cli_args[0] == "--job" and len(cli_args) > 1:
             input_data = cli_args[1]
             if input_data.startswith("{"):
                 if len(input_data.encode("utf-8")) > MAX_JSON_FILE_SIZE:
@@ -88,6 +96,11 @@ def main() -> int:
                 except Exception:
                     json.dump(failed_cli_response("Failed to read job file"), sys.stdout)
                     return 1
+
+    if input_data is None:
+        input_data, stdin_exit_code = _read_bounded_stdin()
+        if input_data is None:
+            return stdin_exit_code
 
     if not input_data:
         json.dump(failed_cli_response("Empty input"), sys.stdout)
