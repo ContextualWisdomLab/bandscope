@@ -11,6 +11,9 @@ PERFORMANCE_NOTE = (
     "딕셔너리(`dict.keys()`)를 활용하여 역할, 큐 및 우선순위 데이터의 중복 제거 "
     "방식을 $O(N^2)$에서 $O(N)$으로 최적화했습니다."
 )
+RELEASED_AUDIO_INTAKE_NOTE = (
+    "- Issue #33: Implemented secure local audio intake and project bootstrap"
+)
 
 
 def _repo_root() -> Path:
@@ -29,11 +32,13 @@ def _role(role_id: str, name: str, priority: str) -> dict[str, object]:
 def test_chart_optimization_note_is_owned_by_unreleased() -> None:
     """Keep current performance work out of immutable historical release notes."""
     changelog = (_repo_root() / "CHANGELOG.md").read_text(encoding="utf-8")
-    unreleased, separator, _released = changelog.partition("\n## [0.1.3]")
+    unreleased, separator, released = changelog.partition("\n## [0.1.3]")
 
     assert separator, "expected the first released-version heading"
     assert PERFORMANCE_NOTE in unreleased
     assert changelog.count(PERFORMANCE_NOTE) == 1
+    assert RELEASED_AUDIO_INTAKE_NOTE in released
+    assert "- Issue #33: Engineered secure local audio intake and project bootstrap" not in released
 
 
 def test_priority_deduplication_preserves_first_occurrence_order_exactly() -> None:
