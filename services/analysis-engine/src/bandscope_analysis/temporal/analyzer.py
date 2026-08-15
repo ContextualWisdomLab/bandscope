@@ -20,12 +20,19 @@ logger = logging.getLogger(__name__)
 TARGET_SR = 44100
 MAX_AUDIO_FILE_BYTES = 100 * 1024 * 1024  # 100 MiB
 MAX_ANALYSIS_DURATION_SECONDS = 15 * 60  # 15 minutes
+TEMPORAL_ANALYSIS_FAILED_MESSAGE = (
+    "Temporal analysis failed. Try the file again or choose another supported audio file."
+)
 KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
     (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
     (FutureWarning, r".*Numba.*", r".*numba.*"),
 )
 # ponytail: assumes 4/4; upgrade to meter estimation or a madmom DBN if other meters matter.
 BEATS_PER_BAR = 4
+
+
+class _TemporalAnalysisInputError(ValueError):
+    """Mark repository-authored validation failures that are safe to expose."""
 
 
 def _estimate_downbeats(
@@ -79,7 +86,7 @@ class TemporalAnalyzer:
             with path.open("rb") as fileobj:
                 file_size = os.fstat(fileobj.fileno()).st_size
                 if file_size > MAX_AUDIO_FILE_BYTES:
-                    raise ValueError(
+                    raise _TemporalAnalysisInputError(
                         f"Audio file is too large for temporal analysis: {file_size} bytes "
                         f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
                     )
@@ -109,7 +116,7 @@ class TemporalAnalyzer:
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):
-                raise ValueError("Expected numpy array from librosa.load")
+                raise _TemporalAnalysisInputError("Expected numpy array from librosa.load")
 
             y_array: NDArray[np.floating[Any]] = y
             duration = float(librosa.get_duration(y=y_array, sr=sr))
@@ -139,6 +146,10 @@ class TemporalAnalyzer:
                 "audio_path": path_str,
             }
 
-        except Exception as e:
-            logger.error(f"Failed to analyze audio {path_str}: {e}")
-            raise ValueError(f"Temporal analysis failed: {e}") from e
+        except _TemporalAnalysisInputError as error:
+            raise ValueError(str(error)) from None
+        except Exception:
+            # Preserve third-party diagnostics in repository-controlled logs while
+            # keeping dependency-shaped details out of the caller-facing error.
+            logger.exception("Temporal analysis failed during local audio processing")
+            raise ValueError(TEMPORAL_ANALYSIS_FAILED_MESSAGE) from None
