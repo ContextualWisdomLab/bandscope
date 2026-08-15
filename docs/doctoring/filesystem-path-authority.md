@@ -21,7 +21,9 @@ Microsoft's current Win32 naming guidance also reserves `CON`, `PRN`, `AUX`, `NU
 
 MITRE CWE-22 treats untrusted pathname construction that can resolve outside an intended restricted location as path traversal. Its observed examples include failures to handle the Windows backslash separator and cases where an absolute input resets a joined path. BandScope therefore does not rely on a single `".."` substring rule.
 
-Python's current `pathlib` documentation states that `Path.resolve()` makes paths absolute, resolves symbolic links, and eliminates `..` components; it also distinguishes lexical `PurePath.is_relative_to()` from filesystem resolution. Accordingly, this slice uses canonical resolution to detect already-present symlink escapes but does **not** claim descriptor-level protection against a privileged local actor swapping filesystem entries after validation and before a later open.
+MITRE CWE-59 separately defines link-following weakness as accessing a file by name without preventing that name from identifying a link or shortcut to an unintended resource. That distinction matters for BandScope's derived cache files: a digest-derived filename can still carry unintended authority when an already-present symbolic link occupies that exact child path. The cache contract therefore canonicalizes the exact feature-cache targets and repository-owned atomic-write temporary siblings, not only their parent directory.
+
+Python's current `pathlib` documentation states that `Path.resolve()` makes paths absolute, resolves symbolic links, and eliminates `..` components; in non-strict mode it resolves as far as possible and appends a non-existing remainder. Accordingly, this slice uses canonical resolution to detect already-present symlink escapes but does **not** claim descriptor-level protection against a privileged local actor swapping filesystem entries after validation and before a later open.
 
 ## Implemented/required controls for PR #858
 
@@ -38,6 +40,8 @@ Python's current `pathlib` documentation states that `Path.resolve()` makes path
 - Require an existing `cacheRoot` or `tempRoot` to be a directory, and repeat that type check at the derived-path I/O boundary so a regular file cannot be silently accepted as an app-owned writable root.
 - Derive cache and stem-work child names only from repository-controlled directory names and SHA-256 digests.
 - Resolve already-existing child symlinks before checking that derived cache/temp paths remain within the canonical authorized root.
+- Resolve the exact derived feature-cache metadata and array files before any cache read so an already-present file symlink cannot escape `cacheRoot` merely because its parent directory is authorized.
+- Resolve repository-owned atomic-write temporary siblings before either metadata or array cache file is opened; resolve both feature-cache temporary paths before the first write so one invalid sibling cannot cause a partial external write.
 - Translate a late cache/temp canonicalization failure into one payload-safe `invalid_request` status rather than emitting progress and later misclassifying the failure.
 - Preserve the existing privacy boundary: persisted cache metadata must not include the original absolute source path.
 
@@ -47,7 +51,7 @@ Canonicalization is a point-in-time check. A sufficiently privileged local proce
 
 ## Verification contract
 
-The exact PR head must exercise POSIX and Windows lexical adversarial cases, benign repeated separators, Windows reserved/device/stream/normalization cases independently of the CI host, explicit host-independent lexical acceptance, foreign-host request-preflight rejection before progress, native absolute success paths, direct source symlink rejection, existing-directory rejection, missing-file orchestration compatibility, existing file rejection for writable cache/temp roots at both preflight and derived-path I/O boundaries, cache/temp fixed-subdirectory symlink escapes both before and after validation, payload-safe failures, native root and fixed-child resolution failures, late API authority-failure translation, focused API behavior, and the full analysis-engine suite. New production code remains subject to the repository's exact 100% owned statement/branch coverage and public-docstring gates, plus repository CI, SAST, security, supply-chain, SBOM, current automated review, and protected-branch approval rules.
+The exact PR head must exercise POSIX and Windows lexical adversarial cases, benign repeated separators, Windows reserved/device/stream/normalization cases independently of the CI host, explicit host-independent lexical acceptance, foreign-host request-preflight rejection before progress, native absolute success paths, direct source symlink rejection, existing-directory rejection, missing-file orchestration compatibility, existing file rejection for writable cache/temp roots at both preflight and derived-path I/O boundaries, cache/temp fixed-subdirectory symlink escapes both before and after validation, exact feature-cache metadata/array file symlink escapes, pre-existing atomic-write temporary-file symlink escapes with outside sentinels unchanged, payload-safe failures, native root and fixed-child resolution failures, late API authority-failure translation, focused API behavior, and the full analysis-engine suite. New production code remains subject to the repository's exact 100% owned statement/branch coverage and public-docstring gates, plus repository CI, SAST, security, supply-chain, SBOM, current automated review, and protected-branch approval rules.
 
 ## References
 
@@ -56,5 +60,7 @@ Microsoft. (n.d.). *File path formats on Windows systems*. Microsoft Learn. Retr
 Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 15, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 
 MITRE. (2026). *CWE-22: Improper limitation of a pathname to a restricted directory ('Path Traversal') (Version 4.20)*. Common Weakness Enumeration. https://cwe.mitre.org/data/definitions/22.html
+
+MITRE. (2026). *CWE-59: Improper link resolution before file access ('Link Following') (Version 4.20)*. Common Weakness Enumeration. https://cwe.mitre.org/data/definitions/59.html
 
 Python Software Foundation. (2026). *pathlib — Object-oriented filesystem paths* (Python 3.14.6 documentation). https://docs.python.org/3.14/library/pathlib.html
