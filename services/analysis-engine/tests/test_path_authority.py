@@ -118,7 +118,7 @@ def test_cache_path_rejects_symlinked_fixed_subdirectory(tmp_path: Path) -> None
 
 
 def test_temp_path_rejects_symlinked_fixed_subdirectory(tmp_path: Path) -> None:
-    """Do not let the fixed stem-work subdirectory escape an authorized temp root through a symlink."""
+    """Reject a fixed stem-work symlink that escapes the authorized temp root."""
     temp_root = tmp_path / "temp-root"
     outside_root = tmp_path / "outside-temp"
     temp_root.mkdir()
