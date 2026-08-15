@@ -293,6 +293,7 @@ export function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [isSelectingLocalAudio, setIsSelectingLocalAudio] = useState(false);
   const [isReadingHandoff, setIsReadingHandoff] = useState(false);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
@@ -531,6 +532,7 @@ export function App() {
 
   /** Documented. */
   const handleLoadProject = async () => {
+    setIsLoadingProject(true);
     try {
       const song = await loadProject();
       setJobResult(song);
@@ -544,6 +546,8 @@ export function App() {
       if (!isUserCancellation(e)) {
         setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
       }
+    } finally {
+      setIsLoadingProject(false);
     }
   };
 
@@ -748,7 +752,8 @@ export function App() {
                       isStarting ||
                       isSelectingLocalAudio ||
                       isImporting ||
-                      isReadingHandoff
+                      isReadingHandoff ||
+                      isLoadingProject
                     }
                     variant="secondary"
                     className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 sm:w-auto"
@@ -762,7 +767,8 @@ export function App() {
                       analysisInFlight ||
                       isStarting ||
                       isSelectingLocalAudio ||
-                      isImporting
+                      isImporting ||
+                      isLoadingProject
                     }
                     handoff={pendingHandoff}
                     onHandoffChange={handleHandoffChange}
@@ -788,6 +794,7 @@ export function App() {
                           isSelectingLocalAudio ||
                           isImporting ||
                           isReadingHandoff ||
+                          isLoadingProject ||
                           pendingHandoff !== null
                         }
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
@@ -801,6 +808,7 @@ export function App() {
                       !isImporting &&
                       !isSelectingLocalAudio &&
                       !isReadingHandoff &&
+                      !isLoadingProject &&
                       pendingHandoff === null ? (
                         <button
                           type="button"
@@ -823,6 +831,7 @@ export function App() {
                       isSelectingLocalAudio ||
                       isImporting ||
                       isReadingHandoff ||
+                      isLoadingProject ||
                       pendingHandoff !== null
                     }
                     variant="outline"
@@ -838,7 +847,7 @@ export function App() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting || isReadingHandoff}
+                  disabled={analysisInFlight || isStarting || isReadingHandoff || isLoadingProject}
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label={t("openProject")}
@@ -849,6 +858,7 @@ export function App() {
                 {jobResult ? (
                   <Button
                     onClick={handleSaveProject}
+                    disabled={isLoadingProject}
                     variant="outline"
                     className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                     aria-label={t("saveProject")}
@@ -877,7 +887,8 @@ export function App() {
                     isSelectingLocalAudio ||
                     !selectedBootstrap ||
                     isImporting ||
-                    isReadingHandoff
+                    isReadingHandoff ||
+                    isLoadingProject
                   }
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
