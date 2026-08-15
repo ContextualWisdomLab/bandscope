@@ -28,7 +28,8 @@ Python's `pathlib` documentation recommends resolving arbitrary paths before wal
 - Reject Windows drive-relative paths such as `C:relative.wav` and `C:..\relative.wav`.
 - Reject UNC/network and Win32 device namespaces for `sourcePath`, `cacheRoot`, and `tempRoot`.
 - Keep validation errors payload-safe: identify the field, not the supplied path value.
-- Resolve the selected local source on the native host before separation; reject a direct symlink and require an existing regular file.
+- Resolve the selected local source on the native host before separation and reject a direct symlink.
+- Require an existing source to be a regular file, while preserving the established orchestration contract in which an authorized but missing path reaches the separation worker and returns the stable payload-safe `Audio source file not found.` result.
 - Derive cache and stem-work child names only from repository-controlled directory names and SHA-256 digests.
 - Resolve already-existing child symlinks before checking that derived cache/temp paths remain within the canonical authorized root.
 - Preserve the existing privacy boundary: persisted cache metadata must not include the original absolute source path.
@@ -39,7 +40,7 @@ Canonicalization is a point-in-time check. A sufficiently privileged local proce
 
 ## Verification contract
 
-The exact PR head must exercise POSIX and Windows lexical adversarial cases, native absolute success paths, direct source symlink rejection, cache/temp fixed-subdirectory symlink escapes, payload-safe failures, focused API behavior, and the full analysis-engine suite. New production code remains subject to the repository's exact 100% owned statement/branch coverage and public-docstring gates, plus repository CI, SAST, security, supply-chain, SBOM, current automated review, and protected-branch approval rules.
+The exact PR head must exercise POSIX and Windows lexical adversarial cases, native absolute success paths, direct source symlink rejection, existing-directory rejection, missing-file orchestration compatibility, cache/temp fixed-subdirectory symlink escapes, payload-safe failures, native resolution failures, focused API behavior, and the full analysis-engine suite. New production code remains subject to the repository's exact 100% owned statement/branch coverage and public-docstring gates, plus repository CI, SAST, security, supply-chain, SBOM, current automated review, and protected-branch approval rules.
 
 ## References
 
