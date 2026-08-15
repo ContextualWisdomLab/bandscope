@@ -13,7 +13,8 @@ vi.mock("../../i18n", () => ({
       partGraphResting: "Resting",
       partGraphTakesOverFrom: "Takes over from",
       partGraphHandsOffTo: "Hands off to",
-      partGraphNoHandoffs: "No direct handoffs"
+      partGraphNoHandoffs: "No direct handoffs",
+      partGraphNoRoleEvidence: "No role evidence for this section"
     };
     return translations[key] || key;
   }
@@ -113,13 +114,15 @@ describe("PartGraphMap", () => {
     // Without name mapping, should fallback to role id "lead-vocal"
     expect(screen.getAllByText("lead-vocal")[0]).toBeInTheDocument();
   });
-        it("does not infer resting state when the active role node is absent", () => {
-    render(<PartGraphMap song={mockSong} activeRoleId="missing-role" roleMap={roleMap} />);
-    expect(screen.queryByText("Active")).not.toBeInTheDocument();
 
-    // There are 2 mock sections ("Verse", "Chorus"), so we should see exactly 2 "Resting" indicators
-    // and 2 "No direct handoffs" fallback messages, matching the actual rendered output.
-    expect(screen.queryAllByText("Resting")).toHaveLength(2);
-    expect(screen.getAllByText("No direct handoffs")).toHaveLength(2);
+  it("does not infer rest or no-handoff evidence when role data is missing", () => {
+    render(<PartGraphMap song={mockSong} activeRoleId="missing-role" roleMap={roleMap} />);
+
+    expect(screen.queryByText("Active")).not.toBeInTheDocument();
+    expect(screen.queryByText("Resting")).not.toBeInTheDocument();
+    expect(screen.queryByText("No direct handoffs")).not.toBeInTheDocument();
+    expect(screen.getAllByText("No role evidence for this section")).toHaveLength(
+      mockSong.sections.length
+    );
   });
 });
