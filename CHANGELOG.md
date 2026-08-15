@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject unknown CLI arguments and extra `--status` operands before reading standard input, so malformed explicit invocations fail immediately instead of blocking on an unrelated open pipe.
+
 ### Added
 
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.

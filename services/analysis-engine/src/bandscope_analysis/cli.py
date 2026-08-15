@@ -72,14 +72,18 @@ def main() -> int:
     # consume data that the caller did not select as the job payload.
     if cli_args:
         if cli_args[0] == "--status":
+            if len(cli_args) != 1:
+                json.dump(
+                    failed_cli_response("--status does not accept additional arguments"),
+                    sys.stdout,
+                )
+                return 1
             json.dump(get_analysis_status(), sys.stdout)
             return 0
         if cli_args[0] == "--job":
             if len(cli_args) != 2:
                 json.dump(
-                    failed_cli_response(
-                        "--job requires exactly one JSON payload or file path"
-                    ),
+                    failed_cli_response("--job requires exactly one JSON payload or file path"),
                     sys.stdout,
                 )
                 return 1
@@ -104,6 +108,9 @@ def main() -> int:
                 except Exception:
                     json.dump(failed_cli_response("Failed to read job file"), sys.stdout)
                     return 1
+        else:
+            json.dump(failed_cli_response("Unsupported CLI arguments"), sys.stdout)
+            return 1
 
     if input_data is None:
         input_data, stdin_exit_code = _read_bounded_stdin()

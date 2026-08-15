@@ -148,6 +148,7 @@ def test_cli_main_reads_stdin_and_writes_stdout(monkeypatch: pytest.MonkeyPatch)
     )
     stdout = io.StringIO()
 
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
@@ -160,6 +161,7 @@ def test_cli_main_handles_non_mapping_payload(monkeypatch: pytest.MonkeyPatch) -
     stdin = io.StringIO(json.dumps(["demo"]))
     stdout = io.StringIO()
 
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
@@ -185,6 +187,7 @@ def test_cli_main_rejects_invalid_job_id(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     stdout = io.StringIO()
 
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
@@ -198,6 +201,7 @@ def test_cli_main_handles_malformed_json(monkeypatch: pytest.MonkeyPatch) -> Non
     stdin = io.StringIO("{")
     stdout = io.StringIO()
 
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
@@ -228,6 +232,7 @@ def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     stdout = io.StringIO()
 
+    monkeypatch.setattr(sys, "argv", ["cli.py"])
     monkeypatch.setattr(sys, "stdin", stdin)
     monkeypatch.setattr(sys, "stdout", stdout)
 
@@ -246,6 +251,7 @@ def test_cli_main_empty_input(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure empty input yields an error."""
     stdin = io.StringIO("")
     stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
     assert cli.main() == 0
