@@ -65,6 +65,19 @@ def test_validate_local_path_shape_rejects_native_source_directory(tmp_path: Pat
         validate_local_path_shape(str(directory), "localSource.sourcePath")
 
 
+@pytest.mark.parametrize("field_name", ["cacheRoot", "tempRoot"])
+def test_validate_local_path_shape_rejects_existing_file_roots(
+    tmp_path: Path,
+    field_name: str,
+) -> None:
+    """Reject a regular file where an app-owned writable directory root is required."""
+    root_file = tmp_path / f"{field_name}.file"
+    root_file.write_text("not a directory", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=field_name):
+        validate_local_path_shape(str(root_file), field_name)
+
+
 def test_validate_local_path_shape_reports_native_resolution_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
