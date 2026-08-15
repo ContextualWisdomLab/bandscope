@@ -13,7 +13,8 @@ vi.mock("../../i18n", () => ({
       partGraphResting: "Resting",
       partGraphTakesOverFrom: "Takes over from",
       partGraphHandsOffTo: "Hands off to",
-      partGraphNoHandoffs: "No direct handoffs"
+      partGraphNoHandoffs: "No direct handoffs",
+      partGraphNoRoleEvidence: "No role evidence for this section"
     };
     return translations[key] || key;
   }
@@ -114,11 +115,14 @@ describe("PartGraphMap", () => {
     expect(screen.getAllByText("lead-vocal")[0]).toBeInTheDocument();
   });
 
-  it("does not misreport missing role data as an explicit rest", () => {
+  it("does not infer rest or no-handoff evidence when role data is missing", () => {
     render(<PartGraphMap song={mockSong} activeRoleId="missing-role" roleMap={roleMap} />);
 
     expect(screen.queryByText("Active")).not.toBeInTheDocument();
     expect(screen.queryByText("Resting")).not.toBeInTheDocument();
-    expect(screen.getAllByText("No direct handoffs")).toHaveLength(mockSong.sections.length);
+    expect(screen.queryByText("No direct handoffs")).not.toBeInTheDocument();
+    expect(screen.getAllByText("No role evidence for this section")).toHaveLength(
+      mockSong.sections.length
+    );
   });
 });
