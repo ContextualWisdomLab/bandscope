@@ -30,6 +30,7 @@ describe("SectionRoadmap", () => {
     expect(screen.getAllByText("코드").length).toBeGreaterThan(0);
     expect(screen.getAllByText("큐").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("우선순위: high").length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle("코드를 바꾸려면 편집 가능한 곡을 여세요").length).toBeGreaterThan(0);
     expect(screen.getByText("사용자")).toBeTruthy();
   });
 
@@ -59,5 +60,50 @@ describe("SectionRoadmap", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" }));
 
     expect(onSongUpdate).not.toHaveBeenCalled();
+  });
+
+  it("applies aria-disabled when onSongUpdate is missing, describes how to recover, and prevents click", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    // Intentionally omit onSongUpdate to simulate readonly mode
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const button = screen.getByRole("button", { name: "Edit chord for Bass Guitar in verse, current C#m7" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("title", "Open an editable song to change this chord");
+
+    const descriptionId = button.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? "")?.textContent).toBe(
+      "Open an editable song to change this chord"
+    );
+
+    const promptSpy = vi.spyOn(window, "prompt");
+    fireEvent.click(button);
+
+    // Verify click handler early returns and prevents prompt
+    expect(promptSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses unique whitespace-free description IDs for arbitrary section and role IDs", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0].id = "verse 1";
+    song.sections[0].roles[0].id = "bass guitar";
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const buttons = screen.getAllByRole("button", { name: /^Edit chord for / });
+    const descriptionIds = buttons.map((button) => button.getAttribute("aria-describedby"));
+    expect(descriptionIds.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
+
+    const ids = descriptionIds.filter((id): id is string => id !== null);
+    expect(ids.every((id) => !/\s/.test(id))).toBe(true);
+    expect(new Set(ids).size).toBe(buttons.length);
+    for (const id of ids) {
+      expect(document.getElementById(id)?.textContent).toBe(
+        "Open an editable song to change this chord"
+      );
+    }
   });
 });

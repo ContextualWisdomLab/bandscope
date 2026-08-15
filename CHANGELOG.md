@@ -7,6 +7,10 @@
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
+### Fixed
+
+- 합주 워크스페이스의 읽기 전용 코드 수정 버튼이 키보드 포커스를 유지하고 `aria-disabled="true"`를 노출하며, 한·영 접근성 이름과 설명으로 편집 가능한 곡을 열어야 한다는 복구 방법을 안내하도록 개선했습니다. `aria-describedby`는 분석 데이터의 section/role 식별자 대신 렌더러가 소유하는 고유하고 공백 없는 ID를 사용하여 임의 문자열 식별자에서도 참조 무결성을 유지하고, 포인터 `title`에도 같은 복구 문구를 제공하며 클릭은 계속 실패-폐쇄 방식으로 차단됩니다.
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed
