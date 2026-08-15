@@ -8,10 +8,10 @@ import pytest
 
 from bandscope_analysis.api import (
     _analysis_cache_path,
-    _resolve_local_source_path,
     _stem_work_arrays_path,
     validate_analysis_job_request,
 )
+from bandscope_analysis.path_authority import resolve_local_source_path
 
 
 def _local_request(
@@ -147,7 +147,7 @@ def test_source_authority_rejects_direct_symlink(tmp_path: Path) -> None:
         pytest.skip(f"symlink creation unavailable: {error}")
 
     with pytest.raises(ValueError, match="localSource.sourcePath"):
-        _resolve_local_source_path(str(source_link))
+        resolve_local_source_path(str(source_link))
 
 
 def test_source_authority_returns_existing_regular_file(tmp_path: Path) -> None:
@@ -155,4 +155,4 @@ def test_source_authority_returns_existing_regular_file(tmp_path: Path) -> None:
     source_path = tmp_path / "selected.wav"
     source_path.write_bytes(b"RIFF")
 
-    assert _resolve_local_source_path(str(source_path)) == source_path.resolve(strict=True)
+    assert resolve_local_source_path(str(source_path)) == source_path.resolve(strict=True)
