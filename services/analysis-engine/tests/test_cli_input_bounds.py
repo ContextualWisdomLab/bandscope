@@ -182,3 +182,26 @@ def test_cli_job_argument_does_not_consume_stdin(
 
     assert cli.main() == 0
     assert json.loads(stdout.getvalue())["jobId"] == "argument-job"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["cli.py", "--job"],
+        ["cli.py", "--job", "{}", "unexpected-extra-argument"],
+    ],
+)
+def test_cli_malformed_job_arguments_fail_without_consuming_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+) -> None:
+    """Malformed explicit ``--job`` usage must fail immediately instead of reading stdin."""
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", argv)
+    monkeypatch.setattr(cli.sys, "stdin", _BinaryStdin(_ForbiddenRead()))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["state"] == "failed"
+    assert response["error"]["message"] == "--job requires exactly one JSON payload or file path"
