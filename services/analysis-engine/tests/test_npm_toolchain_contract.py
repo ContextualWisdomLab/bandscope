@@ -90,3 +90,21 @@ def test_public_registry_lock_entries_have_integrity_evidence() -> None:
         assert isinstance(integrity, str), f"missing integrity for {location}"
         supported_algorithm = integrity.startswith(("sha512-", "sha1-"))
         assert supported_algorithm, f"unsupported integrity for {location}"
+
+
+def test_root_lock_preserves_esbuild_peer_metadata() -> None:
+    """Reject serializer drift that strips the root @esbuild peer markers."""
+    lock_document = json.loads((_REPOSITORY_ROOT / "package-lock.json").read_text(encoding="utf-8"))
+    packages = lock_document["packages"]
+    assert isinstance(packages, dict)
+
+    esbuild_records = {
+        location: package_record
+        for location, package_record in packages.items()
+        if isinstance(location, str) and location.startswith("node_modules/@esbuild/")
+    }
+    assert esbuild_records, "root lock must contain @esbuild platform packages"
+
+    for location, package_record in esbuild_records.items():
+        assert isinstance(package_record, dict)
+        assert package_record.get("peer") is True, f"missing peer metadata for {location}"
