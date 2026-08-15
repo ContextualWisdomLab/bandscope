@@ -9,7 +9,7 @@
 
 ### Changed
 
-- Pinned npm `10.9.8` as the approved lockfile generator and made primary CI consume the committed lock only through frozen `npm ci` validation, rejecting mutable npm resolution in the lock gate and requiring integrity evidence for public-registry lock entries.
+- Pinned npm `10.9.8` as the approved lockfile generator and made primary CI consume the committed lock only through frozen `npm ci` validation, rejecting mutable npm resolution in the lock gate, requiring integrity evidence for public-registry lock entries, and rejecting generator-sensitive loss of root `@esbuild/*` peer metadata.
 
 ### Fixed
 
