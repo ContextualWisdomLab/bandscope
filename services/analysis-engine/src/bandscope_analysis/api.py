@@ -624,10 +624,15 @@ def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | Non
     analysis_cache_path = _analysis_cache_path(request)
     if analysis_cache_path is None:
         return None
-    stem_cache_base = analysis_cache_path.with_suffix("")
+    cache_directory = analysis_cache_path.parent
+    digest = analysis_cache_path.stem
     return (
-        stem_cache_base.with_suffix(".features.json"),
-        stem_cache_base.with_suffix(".features.npz"),
+        resolve_authorized_child_path(
+            str(cache_directory), "cacheRoot", f"{digest}.features.json"
+        ),
+        resolve_authorized_child_path(
+            str(cache_directory), "cacheRoot", f"{digest}.features.npz"
+        ),
     )
 
 
@@ -693,11 +698,13 @@ def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: Rehe
     }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_suffix(".tmp")
+        temp_path = resolve_authorized_child_path(
+            str(path.parent), "cacheRoot", path.with_suffix(".tmp").name
+        )
         with temp_path.open("w", encoding="utf-8") as cache_file:
             json.dump(payload, cache_file, separators=(",", ":"))
         temp_path.replace(path)
-    except OSError:
+    except (OSError, ValueError):
         return False
     return True
 
@@ -838,15 +845,19 @@ def _store_cached_local_audio_features(
     }
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
-        arrays_temp = arrays_path.with_name(f"{arrays_path.name}.tmp")
+        metadata_temp = resolve_authorized_child_path(
+            str(metadata_path.parent), "cacheRoot", f"{metadata_path.name}.tmp"
+        )
+        arrays_temp = resolve_authorized_child_path(
+            str(arrays_path.parent), "cacheRoot", f"{arrays_path.name}.tmp"
+        )
         with metadata_temp.open("w", encoding="utf-8") as metadata_file:
             json.dump(metadata_payload, metadata_file, separators=(",", ":"))
         with arrays_temp.open("wb") as arrays_file:
             np.savez_compressed(arrays_file, **cast(Any, serialized_stems))
         arrays_temp.replace(arrays_path)
         metadata_temp.replace(metadata_path)
-    except OSError:
+    except (OSError, ValueError):
         return False
     return True
 
