@@ -56,6 +56,37 @@ def test_validate_local_path_shape_rejects_ambiguous_or_nonlocal_syntax(value: s
         assert value not in str(exc_info.value)
 
 
+def test_validate_local_path_shape_rejects_native_source_directory(tmp_path: Path) -> None:
+    """Reject an existing source directory during request preflight."""
+    directory = tmp_path / "audio-directory"
+    directory.mkdir()
+
+    with pytest.raises(ValueError, match="localSource.sourcePath"):
+        validate_local_path_shape(str(directory), "localSource.sourcePath")
+
+
+def test_validate_local_path_shape_reports_native_resolution_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Convert request-preflight canonicalization failures into safe validation errors."""
+    source = tmp_path / "rehearsal.wav"
+
+    def fail_resolution(_path: Path, *, strict: bool = False) -> Path:
+        del strict
+        raise OSError("simulated resolution failure")
+
+    monkeypatch.setattr(Path, "resolve", fail_resolution)
+
+    with pytest.raises(ValueError, match="localSource.sourcePath"):
+        validate_local_path_shape(str(source), "localSource.sourcePath")
+
+
+def test_validate_local_path_shape_keeps_unknown_fields_lexical(tmp_path: Path) -> None:
+    """Leave future local-only fields without a fixed child as lexical contracts."""
+    validate_local_path_shape(str(tmp_path / "future-root"), "futureRoot")
+
+
 def test_resolve_local_source_path_returns_canonical_regular_file(tmp_path: Path) -> None:
     """Return the canonical path for an existing regular local source."""
     source = tmp_path / "rehearsal.wav"
