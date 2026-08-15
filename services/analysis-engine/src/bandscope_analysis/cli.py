@@ -74,7 +74,15 @@ def main() -> int:
         if cli_args[0] == "--status":
             json.dump(get_analysis_status(), sys.stdout)
             return 0
-        if cli_args[0] == "--job" and len(cli_args) > 1:
+        if cli_args[0] == "--job":
+            if len(cli_args) != 2:
+                json.dump(
+                    failed_cli_response(
+                        "--job requires exactly one JSON payload or file path"
+                    ),
+                    sys.stdout,
+                )
+                return 1
             input_data = cli_args[1]
             if input_data.startswith("{"):
                 if len(input_data.encode("utf-8")) > MAX_JSON_FILE_SIZE:
