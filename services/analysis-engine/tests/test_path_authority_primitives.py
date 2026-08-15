@@ -17,7 +17,9 @@ from bandscope_analysis.path_authority import (
     "value",
     [
         "/var/tmp/bandscope/rehearsal.wav",
+        "/var//tmp/bandscope//rehearsal.wav",
         r"C:\Music\rehearsal.wav",
+        r"C:/Music//rehearsal.wav",
     ],
 )
 def test_validate_local_path_shape_accepts_fully_qualified_local_syntax(value: str) -> None:
@@ -54,6 +56,32 @@ def test_validate_local_path_shape_rejects_ambiguous_or_nonlocal_syntax(value: s
     assert "localSource.sourcePath" in str(exc_info.value)
     if value:
         assert value not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        r"C:\Music\NUL.wav",
+        r"C:\Music\com1",
+        r"C:\Music\LPT³.log",
+        r"C:\Music\rehearsal.wav:alternate",
+        'C:\\Music\\bad"name.wav',
+        r"C:\Music\bad|name.wav",
+        r"C:\Music\bad?name.wav",
+        "C:\\Music\\bad\x1fname.wav",
+        r"C:\Music\rehearsal.wav.",
+        "C:\\Music\\rehearsal.wav ",
+    ],
+)
+def test_validate_local_path_shape_rejects_legacy_devices_and_ambiguous_windows_names(
+    value: str,
+) -> None:
+    """Reject Win32 device aliases, streams, reserved characters, and normalized names."""
+    with pytest.raises(ValueError) as exc_info:
+        validate_local_path_shape(value, "localSource.sourcePath")
+
+    assert "localSource.sourcePath" in str(exc_info.value)
+    assert value not in str(exc_info.value)
 
 
 def test_validate_local_path_shape_rejects_native_source_directory(tmp_path: Path) -> None:
