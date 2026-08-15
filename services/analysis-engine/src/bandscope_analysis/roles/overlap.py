@@ -33,6 +33,7 @@ BANDS: dict[str, tuple[float, float]] = {
     "mid": (250.0, 2000.0),
     "high": (2000.0, 8000.0),
 }
+_BAND_ORDER = {band: index for index, band in enumerate(BANDS)}
 
 # Drums are excluded from pitched-register analysis: percussion is broadband
 # (energy is spread across the spectrum by transients and noise), so band
@@ -106,9 +107,11 @@ def detect_register_overlap(
     Returns:
         List of overlap records ``{"stem_a", "stem_b", "band", "severity"}``
         where ``severity`` is the smaller of the two energy shares rounded to
-        two decimals. Pairs are ordered alphabetically (stem_a < stem_b) and
-        the list is sorted by severity descending. Empty when fewer than two
-        pitched stems have energy or on any internal failure.
+        two decimals. Pairs are ordered alphabetically (stem_a < stem_b), the
+        list is sorted by severity descending, and equal-severity records keep
+        alphabetical pair order followed by the declared :data:`BANDS` order.
+        Empty when fewer than two pitched stems have energy or on any internal
+        failure.
     """
     try:
         pitched = sorted(name for name in stems if name not in UNPITCHED_STEMS)
@@ -139,13 +142,14 @@ def detect_register_overlap(
                         }
                     )
 
-        # Break ties consistently by sorting on stem_a, stem_b, and band as well.
+        # Preserve the pre-optimization stable tie order: alphabetical pairs,
+        # then the declared register-band order rather than lexical band names.
         overlaps.sort(
             key=lambda item: (
                 -float(item["severity"]),
                 item["stem_a"],
                 item["stem_b"],
-                item["band"],
+                _BAND_ORDER[str(item["band"])],
             )
         )
         return overlaps
