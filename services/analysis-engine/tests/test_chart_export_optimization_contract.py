@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bandscope_analysis.exports.chart import build_chart_text
+from bandscope_analysis.exports.chart import build_chart_text, build_cue_sheet_rows
 
 PERFORMANCE_NOTE = (
     "- 차트 내보내기(chart.py)에서 `not in list` 대신 삽입 순서가 보장되는 "
@@ -27,6 +27,15 @@ def _repo_root() -> Path:
 def _role(role_id: str, name: str, priority: str) -> dict[str, object]:
     """Build the minimal role payload used by the priority-order regression."""
     return {"id": role_id, "name": name, "rehearsalPriority": priority}
+
+
+def _cue_role(role_id: str, name: str, cue_value: str) -> dict[str, object]:
+    """Build an active role with a display name and cue for ordered dedup tests."""
+    return {
+        "id": role_id,
+        "name": name,
+        "cue": {"kind": "entrance", "value": cue_value},
+    }
 
 
 def test_chart_optimization_note_is_owned_by_unreleased() -> None:
@@ -74,3 +83,34 @@ def test_priority_deduplication_preserves_first_occurrence_order_exactly() -> No
         "  - Drums: medium",
         "  - Keys: low",
     ]
+
+
+def test_active_role_and_cue_deduplication_uses_distinct_active_role_ids() -> None:
+    """Exercise duplicate display/cue values through distinct active graph role IDs."""
+    song: dict[str, object] = {
+        "title": "Ordered active values",
+        "sections": [
+            {
+                "label": "verse",
+                "timeRange": {"start": 0, "end": 10},
+                "roles": [
+                    _cue_role("bass", "Bass", "Walk up"),
+                    _cue_role("drums", "Drums", "Hit on 1"),
+                    _cue_role("bass-copy", "Bass", "Walk up"),
+                    _cue_role("drums-copy", "Drums", "Hit on 1"),
+                ],
+                "partGraph": [
+                    {"role_id": "bass", "is_active": True},
+                    {"role_id": "drums", "is_active": True},
+                    {"role_id": "bass-copy", "is_active": True},
+                    {"role_id": "drums-copy", "is_active": True},
+                ],
+            }
+        ],
+    }
+
+    rows = build_cue_sheet_rows(song)
+
+    assert rows[0]["roles"] == ["Bass", "Drums"]
+    assert rows[0]["cue"] == "Walk up; Hit on 1"
+    assert "roles: Bass, Drums" in build_chart_text(song)
