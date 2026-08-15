@@ -84,4 +84,33 @@ describe("App source-action mutual exclusion", () => {
       expect(youtubeInput).not.toBeDisabled();
     });
   });
+
+  it("blocks analysis while a replacement local source is still being selected", async () => {
+    let resolveReplacement: ((value: { ok: true; bootstrap: ProjectBootstrapSummary }) => void) | null = null;
+    mockedSelectLocalAudioSource
+      .mockResolvedValueOnce({ ok: true, bootstrap: selectedSource() })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveReplacement = resolve;
+          })
+      );
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^start analysis$/i })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^start analysis$/i })).toBeDisabled();
+    });
+
+    resolveReplacement?.({ ok: true, bootstrap: selectedSource() });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^start analysis$/i })).not.toBeDisabled();
+    });
+  });
 });
