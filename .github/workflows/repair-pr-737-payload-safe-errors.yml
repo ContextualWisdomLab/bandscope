@@ -1,0 +1,141 @@
+name: Repair PR 737 payload-safe errors
+
+on:
+  push:
+    branches:
+      - feat/naruon-rehearsal-handoff-v1
+    paths:
+      - .github/workflows/repair-pr-737-payload-safe-errors.yml
+
+permissions:
+  contents: write
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+
+jobs:
+  repair:
+    if: >-
+      github.repository == 'ContextualWisdomLab/bandscope' &&
+      github.ref == 'refs/heads/feat/naruon-rehearsal-handoff-v1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: feat/naruon-rehearsal-handoff-v1
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22.22.3
+          cache: npm
+      - name: Install approved dependency consumer
+        run: |
+          npm install --global npm@10.9.8
+          npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove the payload-safe regression is red
+        run: |
+          set +e
+          npm exec --workspace @bandscope/shared-types -- \
+            vitest run test/naruon-error-redaction.test.ts --coverage=false
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Expected attacker-controlled unknown-field names to leak before repair" >&2
+            exit 1
+          fi
+      - name: Redact caller-controlled field names while preserving structural location
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("packages/shared-types/src/naruon.ts")
+          source = source_path.read_text(encoding="utf-8")
+          source = source.replace(
+              "/** Return the first key outside an exact allowlist. */",
+              "/** Return the structural parent path when an object contains an unknown key. */",
+          )
+          old = """  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key)) {
+      return `${path}.${key}`;
+    }
+  }
+"""
+          new = """  for (const key of Object.keys(value)) {
+    if (!allowedKeys.includes(key)) {
+      return path;
+    }
+  }
+"""
+          if source.count(old) != 1:
+              raise SystemExit("unexpected unknown-key helper shape")
+          source = source.replace(old, new)
+          source = source.replace("`${sourceExtra} is not allowed`", "`${sourceExtra} contains an unexpected field`")
+          source = source.replace("`${normExtra} is not allowed`", "`${normExtra} contains an unexpected field`")
+          source = source.replace("`${eventExtra} is not allowed`", "`${eventExtra} contains an unexpected field`")
+          source = source.replace("`${commitmentExtra} is not allowed`", "`${commitmentExtra} contains an unexpected field`")
+          source = source.replace("`${provenanceExtra} is not allowed`", "`${provenanceExtra} contains an unexpected field`")
+          source = source.replace("`${rootExtra} is not allowed`", "`${rootExtra} contains an unexpected field`")
+          source = source.replace("`${extra} is not allowed`", "`${extra} contains an unexpected field`")
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("packages/shared-types/test/naruon.test.ts")
+          tests = test_path.read_text(encoding="utf-8")
+          replacements = {
+              '"root.extra"': '"root contains an unexpected field"',
+              '"source.extra"': '"source contains an unexpected field"',
+              '"normGroup.extra"': '"normGroup contains an unexpected field"',
+              '"event.extra"': '"event contains an unexpected field"',
+              '"commitment.extra"': '"commitment contains an unexpected field"',
+              '"provenance.extra"': '"provenance contains an unexpected field"',
+              '"evidence[0].extra"': '"evidence[0] contains an unexpected field"',
+          }
+          for before, after in replacements.items():
+              if tests.count(before) != 1:
+                  raise SystemExit(f"unexpected naruon test expectation: {before}")
+              tests = tests.replace(before, after)
+          test_path.write_text(tests, encoding="utf-8")
+
+          docs_path = Path("docs/integrations/naruon.md")
+          docs = docs_path.read_text(encoding="utf-8")
+          marker = "Parsing snapshots caller-owned data once before validation and canonicalization."
+          insertion = (
+              "Validation errors identify the structural object containing an unknown field but never "
+              "echo the caller-controlled field name. This preserves actionable location without "
+              "copying tenant, person, credential, or other payload text into logs.\n\n"
+          )
+          if docs.count(marker) != 1:
+              raise SystemExit("unexpected naruon privacy insertion point")
+          docs_path.write_text(docs.replace(marker, insertion + marker), encoding="utf-8")
+
+          changelog_path = Path("CHANGELOG.md")
+          changelog = changelog_path.read_text(encoding="utf-8")
+          old_entry = "- Add a versioned, dependency-free BandScope → naruon rehearsal handoff contract with Band norm-group identity, Event and Commitment semantics, calibrated provenance, deterministic JSON serialization, and a public JSON Schema while preserving BandScope's standalone local-first operation."
+          new_entry = old_entry + " Unknown-field errors retain the structural object path without echoing caller-controlled field names."
+          if changelog.count(old_entry) != 1:
+              raise SystemExit("unexpected naruon changelog entry")
+          changelog_path.write_text(changelog.replace(old_entry, new_entry), encoding="utf-8")
+          PY
+      - name: Verify shared contract and repository gate
+        run: |
+          npm exec --workspace @bandscope/shared-types -- \
+            vitest run test/naruon-error-redaction.test.ts --coverage=false
+          npm run lint --workspace @bandscope/shared-types
+          npm run typecheck --workspace @bandscope/shared-types
+          npm run test --workspace @bandscope/shared-types
+          ./scripts/harness/quickcheck.sh
+      - name: Remove repair workflow and publish GREEN head
+        run: |
+          git config user.name "CWL repair bot"
+          git config user.email "actions@users.noreply.github.com"
+          rm .github/workflows/repair-pr-737-payload-safe-errors.yml
+          git add \
+            CHANGELOG.md \
+            docs/integrations/naruon.md \
+            packages/shared-types/src/naruon.ts \
+            packages/shared-types/test/naruon.test.ts \
+            packages/shared-types/test/naruon-error-redaction.test.ts \
+            .github/workflows/repair-pr-737-payload-safe-errors.yml
+          git commit -m "fix(integration): keep naruon errors payload-safe"
+          git push origin HEAD:feat/naruon-rehearsal-handoff-v1
