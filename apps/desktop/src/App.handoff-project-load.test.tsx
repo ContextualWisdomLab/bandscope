@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { App } from "./App";
-import { loadProject, readFileForTestOnly } from "./lib/analysis";
+import { loadProject } from "./lib/analysis";
 
 vi.mock("./features/score/ScoreView", () => ({
   ScoreView: () => <div>Score view</div>
@@ -23,7 +23,6 @@ vi.mock("./lib/analysis", () => ({
   importYoutubeUrl: vi.fn(),
   isSupportedYoutubeUrl: vi.fn(() => true),
   loadProject: vi.fn(),
-  readFileForTestOnly: vi.fn(),
   saveProject: vi.fn(),
   selectLocalAudioSource: vi.fn(),
   startAnalysisJob: vi.fn(),
@@ -56,7 +55,6 @@ function loadedSong(): RehearsalSong {
 describe("App project-load source exclusion", () => {
   beforeEach(() => {
     mockedLoadProject.mockReset();
-    vi.mocked(readFileForTestOnly).mockReset();
   });
 
   it("locks source and handoff controls until project loading settles", async () => {
