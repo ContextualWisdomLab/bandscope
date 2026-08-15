@@ -847,7 +847,14 @@ export function App() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting || isReadingHandoff || isLoadingProject}
+                  disabled={
+                    analysisInFlight ||
+                    isStarting ||
+                    isSelectingLocalAudio ||
+                    isImporting ||
+                    isReadingHandoff ||
+                    isLoadingProject
+                  }
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label={t("openProject")}
