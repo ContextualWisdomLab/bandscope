@@ -74,7 +74,8 @@ The contract fails closed on:
 - unknown fields at every object level;
 - numeric-only IDs (BandScope and naruon IDs must remain opaque strings);
 - blank, untrimmed, control-character-bearing, or oversized values;
-- malformed or calendrically invalid RFC 3339 timestamps;
+- malformed or calendrically invalid timestamps outside BandScope's canonical RFC 3339 profile;
+- leap-second `:60` values and noncanonical lowercase timestamp separators, which this scheduling contract deliberately excludes even though RFC 3339 itself defines broader lexical cases;
 - an end time that is not later than its start time;
 - time-zone identifiers rejected by the runtime's IANA/ICU database;
 - numeric UTC offsets whose asserted local clock fields disagree with the required IANA time zone at that instant, including daylight-saving transitions;
@@ -84,15 +85,17 @@ The contract fails closed on:
 - empty, sparse, oversized, or malformed provenance receipt arrays;
 - JSON inputs larger than 256 KiB of UTF-8 or caller-owned values that cannot be safely snapshotted.
 
-`Z` and `-00:00` are accepted with an explicit IANA zone as unknown-local-offset forms; a numeric `+/-HH:MM` offset is treated as an assertion and must agree with that zone. This follows the RFC 9557 distinction between an asserted numeric offset and time-zone information.
+`Z` and `-00:00` are accepted with an explicit IANA zone as unknown-local-offset forms; a numeric `+/-HH:MM` offset is treated as an assertion and must agree with that zone. This follows RFC 9557's update to RFC 3339: `Z` and `-00:00` do not assert a preferred local offset, while a numeric offset does.
 
 Validation errors identify the structural object containing an unknown field but never echo the caller-controlled field name. This preserves actionable location without copying tenant, person, credential, or other payload text into logs. Diagnostic locations such as `root`, `source`, and `provenance.evidence[0]` are schema-owned labels derived from validation structure, not from payload keys or values.
 
 Parsing snapshots caller-owned data once before validation and canonicalization. It then returns newly allocated nested objects and evidence receipts, so accessors, proxies, concurrent mutation, or retained input references cannot make validation observe different data from the canonical output.
 
+The standards rationale, semantic profile decisions, and APA 7 references are maintained in `docs/doctoring/naruon-rehearsal-handoff.md`.
+
 ## Trust and privacy model
 
-This artifact contains **rehearsal coordination facts only**. It does not grant naruon filesystem, database, calendar, mail, model, or network authority. Transport, tenant authorization, detached signature verification, consent, context bridging, and writeback remain responsibilities of the naruon plugin/connector installation.
+This artifact contains **rehearsal coordination facts only**. It does not grant naruon filesystem, database, calendar, mail, model, or network authority. Transport, tenant authorization, detached signature verification, consent, context bridging, persistence, and writeback remain responsibilities of the naruon plugin/connector installation.
 
 A connector should:
 
@@ -109,4 +112,4 @@ A connector should:
 - `artifactVersion`: `1`
 - Additive fields require a new version because version 1 rejects unknown keys.
 - Breaking semantic changes require a new artifact kind or major version.
-- The JSON Schema companion is `naruon-rehearsal-handoff-v1.schema.json`; validators must compile schema patterns with Unicode semantics for `\p{Nd}`, and the TypeScript parser remains authoritative for payload-size, snapshot, cross-field, leading/trailing whitespace normalization, Unicode-aware numeric-only identifier rejection, RFC 9557 offset/time-zone consistency, and IANA time-zone checks.
+- The JSON Schema companion is `naruon-rehearsal-handoff-v1.schema.json`; validators must compile schema patterns with Unicode semantics for `\p{Nd}`. Under JSON Schema Draft 2020-12, `format` is not an assertion by default, so schema-only consumers must not treat `"format": "date-time"` as proof of complete temporal validity. The TypeScript parser remains authoritative for payload size, snapshotting, cross-field rules, leading/trailing whitespace normalization, Unicode-aware numeric-only identifier rejection, BandScope's canonical timestamp profile, RFC 9557 offset/time-zone consistency, and IANA time-zone checks.
