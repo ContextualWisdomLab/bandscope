@@ -52,7 +52,8 @@ def test_validate_local_path_shape_rejects_ambiguous_or_nonlocal_syntax(value: s
         validate_local_path_shape(value, "localSource.sourcePath")
 
     assert "localSource.sourcePath" in str(exc_info.value)
-    assert value not in str(exc_info.value)
+    if value:
+        assert value not in str(exc_info.value)
 
 
 def test_resolve_local_source_path_returns_canonical_regular_file(tmp_path: Path) -> None:
@@ -63,15 +64,11 @@ def test_resolve_local_source_path_returns_canonical_regular_file(tmp_path: Path
     assert resolve_local_source_path(str(source)) == source.resolve(strict=True)
 
 
-def test_resolve_local_source_path_preserves_safe_missing_file_boundary(tmp_path: Path) -> None:
-    """Report a missing source without echoing the untrusted path value."""
+def test_resolve_local_source_path_returns_canonical_missing_path(tmp_path: Path) -> None:
+    """Leave the payload-safe missing-file result to the separation worker."""
     missing = tmp_path / "missing.wav"
 
-    with pytest.raises(FileNotFoundError) as exc_info:
-        resolve_local_source_path(str(missing))
-
-    assert "Audio source file not found" in str(exc_info.value)
-    assert str(missing) not in str(exc_info.value)
+    assert resolve_local_source_path(str(missing)) == missing.resolve(strict=False)
 
 
 def test_resolve_local_source_path_rejects_directory(tmp_path: Path) -> None:
@@ -95,6 +92,35 @@ def test_resolve_local_source_path_rejects_direct_symlink(tmp_path: Path) -> Non
 
     with pytest.raises(ValueError, match="localSource.sourcePath"):
         resolve_local_source_path(str(link))
+
+
+def test_resolve_local_source_path_rejects_non_native_runtime_shape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Require the actual I/O host to recognize the lexically valid absolute path."""
+    source = tmp_path / "rehearsal.wav"
+    monkeypatch.setattr(Path, "is_absolute", lambda _path: False)
+
+    with pytest.raises(ValueError, match="localSource.sourcePath"):
+        resolve_local_source_path(str(source))
+
+
+def test_resolve_local_source_path_rejects_resolution_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Convert native canonicalization failures into payload-safe validation errors."""
+    source = tmp_path / "rehearsal.wav"
+
+    def fail_resolution(_path: Path, *, strict: bool = False) -> Path:
+        del strict
+        raise OSError("simulated resolution failure")
+
+    monkeypatch.setattr(Path, "resolve", fail_resolution)
+
+    with pytest.raises(ValueError, match="localSource.sourcePath"):
+        resolve_local_source_path(str(source))
 
 
 def test_resolve_authorized_child_path_returns_contained_digest_child(tmp_path: Path) -> None:
@@ -125,6 +151,45 @@ def test_resolve_authorized_child_path_rejects_direct_root_symlink(tmp_path: Pat
 
     with pytest.raises(ValueError, match="cacheRoot"):
         resolve_authorized_child_path(str(link), "cacheRoot", "analysis-cache-v1", "digest.json")
+
+
+def test_resolve_authorized_child_path_rejects_non_native_runtime_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject a root that the actual I/O host does not recognize as absolute."""
+    root = tmp_path / "cache-root"
+    monkeypatch.setattr(Path, "is_absolute", lambda _path: False)
+
+    with pytest.raises(ValueError, match="cacheRoot"):
+        resolve_authorized_child_path(
+            str(root),
+            "cacheRoot",
+            "analysis-cache-v1",
+            "digest.json",
+        )
+
+
+def test_resolve_authorized_child_path_rejects_resolution_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Convert root canonicalization failures into payload-safe validation errors."""
+    root = tmp_path / "cache-root"
+
+    def fail_resolution(_path: Path, *, strict: bool = False) -> Path:
+        del strict
+        raise OSError("simulated resolution failure")
+
+    monkeypatch.setattr(Path, "resolve", fail_resolution)
+
+    with pytest.raises(ValueError, match="cacheRoot"):
+        resolve_authorized_child_path(
+            str(root),
+            "cacheRoot",
+            "analysis-cache-v1",
+            "digest.json",
+        )
 
 
 def test_resolve_authorized_child_path_rejects_existing_child_symlink_escape(
