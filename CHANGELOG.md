@@ -11,6 +11,10 @@
 
 - Vectorized chord observation construction and reduced the NumPy Viterbi parity oracle to rolling scores while preserving exact dense-oracle and Rust numerical behavior.
 
+### Fixed
+
+- Corrected the HMM relative-key transition prior so major chords favor their true relative minor and minor chords favor their true relative major instead of unrelated pitch-class targets.
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed
