@@ -54,6 +54,31 @@ def _request_with_path(field: str, value: str, tmp_path: Path) -> dict[str, obje
     return request
 
 
+def _symlink_fixed_directory(root: Path, child_name: str, outside: Path) -> None:
+    """Create one fixed-directory symlink or skip when the host disallows it."""
+    root.mkdir()
+    outside.mkdir()
+    try:
+        (root / child_name).symlink_to(outside, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"symlink creation unavailable: {error}")
+
+
+def _assert_invalid_request_update(
+    updates: list[dict[str, object]],
+    field_name: str,
+    untrusted_path: Path,
+) -> None:
+    """Assert one payload-safe actionable invalid-request job result."""
+    assert len(updates) == 1
+    assert updates[-1]["state"] == "failed"
+    assert updates[-1]["error"] == {
+        "code": "invalid_request",
+        "message": f"Invalid analysis job request: invalid field '{field_name}'",
+    }
+    assert str(untrusted_path) not in str(updates[-1])
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -106,12 +131,7 @@ def test_cache_path_rejects_symlinked_fixed_subdirectory(tmp_path: Path) -> None
     """Do not let the fixed cache subdirectory escape an authorized root through a symlink."""
     cache_root = tmp_path / "cache-root"
     outside_root = tmp_path / "outside-cache"
-    cache_root.mkdir()
-    outside_root.mkdir()
-    try:
-        (cache_root / "analysis-cache-v1").symlink_to(outside_root, target_is_directory=True)
-    except OSError as error:
-        pytest.skip(f"symlink creation unavailable: {error}")
+    _symlink_fixed_directory(cache_root, "analysis-cache-v1", outside_root)
 
     request = validate_analysis_job_request(
         _local_request(str(tmp_path / "rehearsal.wav"), cache_root=str(cache_root))
@@ -125,12 +145,7 @@ def test_temp_path_rejects_symlinked_fixed_subdirectory(tmp_path: Path) -> None:
     """Reject a fixed stem-work symlink that escapes the authorized temp root."""
     temp_root = tmp_path / "temp-root"
     outside_root = tmp_path / "outside-temp"
-    temp_root.mkdir()
-    outside_root.mkdir()
-    try:
-        (temp_root / "stem-work-v1").symlink_to(outside_root, target_is_directory=True)
-    except OSError as error:
-        pytest.skip(f"symlink creation unavailable: {error}")
+    _symlink_fixed_directory(temp_root, "stem-work-v1", outside_root)
 
     request = validate_analysis_job_request(
         _local_request(str(tmp_path / "rehearsal.wav"), temp_root=str(temp_root))
@@ -178,9 +193,34 @@ def test_job_reports_direct_source_symlink_as_actionable_invalid_request(tmp_pat
         "2026-08-15T00:00:00Z",
     )
 
-    assert updates[-1]["state"] == "failed"
-    assert updates[-1]["error"] == {
-        "code": "invalid_request",
-        "message": "Invalid analysis job request: invalid field 'localSource.sourcePath'",
-    }
-    assert str(source_link) not in str(updates[-1])
+    _assert_invalid_request_update(updates, "localSource.sourcePath", source_link)
+
+
+def test_job_reports_cache_symlink_escape_as_actionable_invalid_request(tmp_path: Path) -> None:
+    """Reject an escaped analysis-cache directory before emitting progress updates."""
+    cache_root = tmp_path / "cache-root"
+    outside_root = tmp_path / "outside-cache"
+    _symlink_fixed_directory(cache_root, "analysis-cache-v1", outside_root)
+
+    updates = run_analysis_job_updates(
+        "job-cache-authority",
+        _local_request(str(tmp_path / "missing.wav"), cache_root=str(cache_root)),
+        "2026-08-15T00:00:00Z",
+    )
+
+    _assert_invalid_request_update(updates, "cacheRoot", cache_root)
+
+
+def test_job_reports_temp_symlink_escape_as_actionable_invalid_request(tmp_path: Path) -> None:
+    """Reject an escaped stem-work directory before emitting progress updates."""
+    temp_root = tmp_path / "temp-root"
+    outside_root = tmp_path / "outside-temp"
+    _symlink_fixed_directory(temp_root, "stem-work-v1", outside_root)
+
+    updates = run_analysis_job_updates(
+        "job-temp-authority",
+        _local_request(str(tmp_path / "missing.wav"), temp_root=str(temp_root)),
+        "2026-08-15T00:00:00Z",
+    )
+
+    _assert_invalid_request_update(updates, "tempRoot", temp_root)
