@@ -14,6 +14,23 @@ from typing import Final
 
 _DEVICE_PREFIXES: Final[tuple[str, ...]] = ("\\\\?\\", "\\\\.\\", "//?/", "//./")
 _NETWORK_PREFIXES: Final[tuple[str, ...]] = ("\\\\", "//")
+_WINDOWS_RESERVED_CHARACTERS: Final[frozenset[str]] = frozenset('<>:"|?*')
+_WINDOWS_RESERVED_DEVICE_NAMES: Final[frozenset[str]] = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{index}" for index in range(1, 10)),
+        *(f"LPT{index}" for index in range(1, 10)),
+        "COM¹",
+        "COM²",
+        "COM³",
+        "LPT¹",
+        "LPT²",
+        "LPT³",
+    }
+)
 _FIXED_CHILD_BY_FIELD: Final[dict[str, str]] = {
     "cacheRoot": "analysis-cache-v1",
     "tempRoot": "stem-work-v1",
@@ -23,6 +40,28 @@ _FIXED_CHILD_BY_FIELD: Final[dict[str, str]] = {
 def _invalid_path(field_name: str) -> ValueError:
     """Build one payload-safe invalid-path error for a request field."""
     return ValueError(f"Invalid analysis job request: invalid field '{field_name}'")
+
+
+def _has_invalid_windows_component(path: PureWindowsPath) -> bool:
+    """Return whether a fully qualified Windows path contains ambiguous file syntax.
+
+    Standard Win32 file names cannot contain reserved punctuation or control
+    characters, cannot end in a space or period, and cannot use the legacy DOS
+    device aliases such as ``NUL`` or ``COM1`` even when an extension follows.
+    Rejecting ``:`` outside the drive anchor also keeps alternate data streams
+    outside BandScope's regular local-file contract.
+    """
+    for component in path.parts[1:]:
+        if component.endswith((" ", ".")):
+            return True
+        if any(character in _WINDOWS_RESERVED_CHARACTERS for character in component):
+            return True
+        if any(ord(character) < 32 for character in component):
+            return True
+        base_name = component.split(".", 1)[0].upper()
+        if base_name in _WINDOWS_RESERVED_DEVICE_NAMES:
+            return True
+    return False
 
 
 def _preflight_native_path(value: str, field_name: str) -> None:
@@ -73,9 +112,12 @@ def validate_local_path_shape(
 
     Fully-qualified local POSIX paths and fully-qualified local Windows drive
     paths are accepted lexically even when validation runs on the other OS.
-    By default, paths native to the current host are also preflighted for direct
-    symlinks, writable-root type, and fixed cache/temp child escapes. I/O helpers
-    disable that early preflight and repeat native checks immediately before use.
+    Windows drive paths must also satisfy the regular Win32 filename contract;
+    device aliases, alternate streams, reserved characters, control characters,
+    and trailing space/period normalization are not accepted. By default, paths
+    native to the current host are also preflighted for direct symlinks,
+    writable-root type, and fixed cache/temp child escapes. I/O helpers disable
+    that early preflight and repeat native checks immediately before use.
     """
     if not value or not value.strip() or "\x00" in value:
         raise _invalid_path(field_name)
@@ -91,7 +133,7 @@ def validate_local_path_shape(
     windows_path = PureWindowsPath(value)
 
     if windows_path.drive:
-        if not windows_path.root:
+        if not windows_path.root or _has_invalid_windows_component(windows_path):
             raise _invalid_path(field_name)
         if preflight_native:
             _preflight_native_path(value, field_name)
