@@ -67,7 +67,7 @@ def _symlink_fixed_directory(root: Path, child_name: str, outside: Path) -> None
 def _assert_invalid_request_update(
     updates: list[dict[str, object]],
     field_name: str,
-    untrusted_path: Path,
+    untrusted_path: str | Path,
 ) -> None:
     """Assert one payload-safe actionable invalid-request job result."""
     assert len(updates) == 1
@@ -194,6 +194,24 @@ def test_job_reports_direct_source_symlink_as_actionable_invalid_request(tmp_pat
     )
 
     _assert_invalid_request_update(updates, "localSource.sourcePath", source_link)
+
+
+def test_job_reports_foreign_os_absolute_source_as_invalid_request() -> None:
+    """Reject a foreign-OS absolute source before progress or engine fallback is emitted."""
+    windows_source = r"C:\Music\rehearsal.wav"
+    foreign_source = (
+        windows_source
+        if not Path(windows_source).is_absolute()
+        else "/var/tmp/bandscope/rehearsal.wav"
+    )
+
+    updates = run_analysis_job_updates(
+        "job-foreign-path-authority",
+        _local_request(foreign_source),
+        "2026-08-15T00:00:00Z",
+    )
+
+    _assert_invalid_request_update(updates, "localSource.sourcePath", foreign_source)
 
 
 def test_job_reports_cache_symlink_escape_as_actionable_invalid_request(tmp_path: Path) -> None:
