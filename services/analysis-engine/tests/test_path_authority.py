@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 import bandscope_analysis.api as api_module
 from bandscope_analysis.api import (
+    RehearsalSong,
     _analysis_cache_path,
+    _feature_cache_paths,
     _stem_work_arrays_path,
+    _store_cached_analysis,
+    _store_cached_local_audio_features,
     run_analysis_job_updates,
     validate_analysis_job_request,
 )
@@ -61,6 +66,14 @@ def _symlink_fixed_directory(root: Path, child_name: str, outside: Path) -> None
     outside.mkdir()
     try:
         (root / child_name).symlink_to(outside, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"symlink creation unavailable: {error}")
+
+
+def _symlink_file(path: Path, target: Path) -> None:
+    """Create one file symlink or skip when the host disallows it."""
+    try:
+        path.symlink_to(target)
     except OSError as error:
         pytest.skip(f"symlink creation unavailable: {error}")
 
@@ -162,6 +175,89 @@ def test_temp_path_rechecks_fixed_subdirectory_after_validation(tmp_path: Path) 
 
     with pytest.raises(ValueError, match="tempRoot"):
         _stem_work_arrays_path(request)
+
+
+@pytest.mark.parametrize("feature_index", [0, 1])
+def test_feature_cache_paths_reject_preexisting_file_symlink_escape(
+    tmp_path: Path,
+    feature_index: int,
+) -> None:
+    """Reject metadata or array cache files that already symlink outside cacheRoot."""
+    cache_root = tmp_path / "cache-root"
+    request = validate_analysis_job_request(
+        _local_request(str(tmp_path / "rehearsal.wav"), cache_root=str(cache_root))
+    )
+    feature_paths = _feature_cache_paths(request)
+    assert feature_paths is not None
+    escaped_path = feature_paths[feature_index]
+    escaped_path.parent.mkdir(parents=True, exist_ok=True)
+    outside_file = tmp_path / f"outside-feature-{feature_index}.bin"
+    outside_file.write_bytes(b"outside sentinel")
+    _symlink_file(escaped_path, outside_file)
+
+    with pytest.raises(ValueError, match="cacheRoot"):
+        _feature_cache_paths(request)
+
+
+def test_analysis_cache_store_does_not_follow_preexisting_temp_symlink(tmp_path: Path) -> None:
+    """Do not write through a pre-existing atomic-write symlink outside cacheRoot."""
+    cache_root = tmp_path / "cache-root"
+    request = validate_analysis_job_request(
+        _local_request(str(tmp_path / "rehearsal.wav"), cache_root=str(cache_root))
+    )
+    cache_path = _analysis_cache_path(request)
+    assert cache_path is not None
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    outside_file = tmp_path / "outside-analysis-cache.json"
+    outside_file.write_bytes(b"outside sentinel")
+    _symlink_file(cache_path.with_suffix(".tmp"), outside_file)
+    song: RehearsalSong = {
+        "id": "song-path-authority",
+        "title": "Path Authority",
+        "sections": [],
+        "exportSummary": {"format": "json", "headline": "", "focusSections": []},
+    }
+
+    assert _store_cached_analysis(cache_path, request, song) is False
+    assert outside_file.read_bytes() == b"outside sentinel"
+
+
+@pytest.mark.parametrize("temp_kind", ["metadata", "arrays"])
+def test_feature_cache_store_does_not_follow_preexisting_temp_symlink(
+    tmp_path: Path,
+    temp_kind: str,
+) -> None:
+    """Do not write feature-cache metadata or arrays through an escaping temp symlink."""
+    cache_root = tmp_path / "cache-root"
+    request = validate_analysis_job_request(
+        _local_request(str(tmp_path / "rehearsal.wav"), cache_root=str(cache_root))
+    )
+    feature_paths = _feature_cache_paths(request)
+    assert feature_paths is not None
+    metadata_path, arrays_path = feature_paths
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    selected_path = metadata_path if temp_kind == "metadata" else arrays_path
+    temp_path = selected_path.with_name(f"{selected_path.name}.tmp")
+    outside_file = tmp_path / f"outside-{temp_kind}.bin"
+    outside_file.write_bytes(b"outside sentinel")
+    _symlink_file(temp_path, outside_file)
+    audio_features = {
+        "stems": {"vocals": np.array([0.0, 0.25], dtype=np.float32)},
+        "sr": 44_100,
+        "stem_role_types": {"vocals": "vocal"},
+        "separation": {},
+    }
+
+    assert (
+        _store_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            audio_features,
+        )
+        is False
+    )
+    assert outside_file.read_bytes() == b"outside sentinel"
 
 
 def test_source_authority_rejects_direct_symlink(tmp_path: Path) -> None:
