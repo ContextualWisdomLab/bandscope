@@ -87,9 +87,9 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
     return <CheckCircle2 className="size-4 text-emerald-200" aria-hidden="true" />;
   };
 
-  /** Return a deterministic description ID for one unavailable chord action. */
-  const chordEditUnavailableDescriptionId = (sectionId: string, roleId: string): string => {
-    return `chord-edit-unavailable-${sectionId}-${roleId}`;
+  /** Return a renderer-owned, whitespace-free description ID for one unavailable chord action. */
+  const chordEditUnavailableDescriptionId = (sectionIndex: number, roleIndex: number): string => {
+    return `chord-edit-unavailable-${sectionIndex}-${roleIndex}`;
   };
 
   return (
@@ -108,7 +108,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         tabIndex={0}
         aria-labelledby={sectionRoadmapTitleId}
       >
-        {song.sections.map((section) => (
+        {song.sections.map((section, sectionIndex) => (
           <Card
             key={section.id}
             className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
@@ -129,7 +129,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
             <CardContent className="p-4 space-y-4">
               {section.roles
                 .filter(role => !activeRole || role.id === activeRole)
-                .map(role => (
+                .map((role, roleIndex) => (
                   <div
                     key={role.id}
                     className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
@@ -160,7 +160,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           aria-describedby={
                             onSongUpdate
                               ? undefined
-                              : chordEditUnavailableDescriptionId(section.id, role.id)
+                              : chordEditUnavailableDescriptionId(sectionIndex, roleIndex)
                           }
                           className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 ${
                             onSongUpdate
@@ -185,7 +185,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         </button>
                         {!onSongUpdate && (
                           <span
-                            id={chordEditUnavailableDescriptionId(section.id, role.id)}
+                            id={chordEditUnavailableDescriptionId(sectionIndex, roleIndex)}
                             className="sr-only"
                           >
                             {t("chordEditUnavailableTitle")}
