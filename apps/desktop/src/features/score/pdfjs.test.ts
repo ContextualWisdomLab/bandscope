@@ -26,7 +26,7 @@ describe("score PDF.js boundary", () => {
     expect(GlobalWorkerOptions.workerSrc).toBe("/assets/pdf.worker.min.mjs");
   });
 
-  it("copies validated bytes through the supported data-only API", () => {
+  it("copies validated bytes through the hardened data-only API", () => {
     const source = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 
     loadScorePdf(source);
@@ -34,9 +34,19 @@ describe("score PDF.js boundary", () => {
     expect(getDocument).toHaveBeenCalledTimes(1);
     const parameters = vi.mocked(getDocument).mock.calls[0]?.[0];
     expect(parameters).toBeTypeOf("object");
-    expect(Object.keys(parameters as object)).toEqual(["data"]);
-    const copiedBytes = (parameters as { data: Uint8Array }).data;
-    expect(copiedBytes).toEqual(source);
-    expect(copiedBytes).not.toBe(source);
+    expect(Object.keys(parameters as object)).toEqual([
+      "data",
+      "enableXfa",
+      "useWorkerFetch"
+    ]);
+    const hardenedParameters = parameters as {
+      data: Uint8Array;
+      enableXfa: boolean;
+      useWorkerFetch: boolean;
+    };
+    expect(hardenedParameters.data).toEqual(source);
+    expect(hardenedParameters.data).not.toBe(source);
+    expect(hardenedParameters.enableXfa).toBe(false);
+    expect(hardenedParameters.useWorkerFetch).toBe(false);
   });
 });
