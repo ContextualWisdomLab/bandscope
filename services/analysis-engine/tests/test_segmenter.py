@@ -110,7 +110,7 @@ def _checkerboard_loop_oracle(ssm: np.ndarray, kernel_size: int) -> np.ndarray:
     n = ssm.shape[0]
     half = kernel_size // 2
     expected = np.zeros(n, dtype=np.float64)
-    if n < kernel_size:
+    if kernel_size == 0 or n < kernel_size:
         return expected
 
     kernel = np.full((kernel_size, kernel_size), -1.0, dtype=np.float64)
