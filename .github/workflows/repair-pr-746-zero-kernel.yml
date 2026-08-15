@@ -39,54 +39,9 @@ jobs:
           npm ci
           uv sync --project services/analysis-engine --group dev --frozen
           rustup toolchain install stable --profile minimal
-      - name: Commit the failing regression first
+      - name: Prove the committed regression is red before implementation
         run: |
-          cat > services/analysis-engine/tests/test_segmenter_zero_kernel.py <<'PY'
-          """Regression coverage for zero-sized checkerboard novelty kernels."""
-
-          from __future__ import annotations
-
-          import numpy as np
-          import pytest
-
-          from bandscope_analysis import _native
-          from bandscope_analysis.sections.segmenter import _checkerboard_novelty_reference
-
-
-          def _identity_similarity() -> np.ndarray:
-              """Return a deterministic square self-similarity matrix."""
-              return np.eye(3, dtype=np.float64)
-
-
-          def test_checkerboard_reference_zero_kernel_preserves_legacy_zeros() -> None:
-              """A zero-sized reference kernel retains the prior all-zero curve."""
-              novelty = _checkerboard_novelty_reference(
-                  _identity_similarity(), kernel_size=0
-              )
-
-              np.testing.assert_array_equal(novelty, np.zeros(3, dtype=np.float64))
-
-
-          @pytest.mark.skipif(
-              not _native.HAVE_RUST or _native._checkerboard_novelty_rust is None,
-              reason="Rust numeric extension is not installed",
-          )
-          def test_checkerboard_native_zero_kernel_matches_reference() -> None:
-              """The Rust kernel must not panic or emit an n+1 position for size zero."""
-              assert _native._checkerboard_novelty_rust is not None
-
-              novelty = _native._checkerboard_novelty_rust(
-                  _identity_similarity(), 0
-              )
-
-              np.testing.assert_array_equal(novelty, np.zeros(3, dtype=np.float64))
-          PY
-          git config user.name "CWL repair bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add services/analysis-engine/tests/test_segmenter_zero_kernel.py
-          git commit -m "test(segmenter): preserve zero-kernel behavior"
-      - name: Prove the regression is red before implementation
-        run: |
+          test -f services/analysis-engine/tests/test_segmenter_zero_kernel.py
           set +e
           uv run --project services/analysis-engine pytest -q \
             services/analysis-engine/tests/test_segmenter_zero_kernel.py::test_checkerboard_reference_zero_kernel_preserves_legacy_zeros
@@ -157,14 +112,15 @@ jobs:
             services/analysis-engine/tests/test_segmenter_short_reference.py \
             services/analysis-engine/tests/test_numeric_parity.py
           cargo +stable test --manifest-path services/analysis-engine/rust/Cargo.toml --locked
-      - name: Verify the repository gate and commit the repair
+      - name: Verify repository gate, self-delete, and push the green repair
         run: |
           ./scripts/harness/quickcheck.sh
+          git config user.name "CWL repair bot"
+          git config user.email "actions@users.noreply.github.com"
           rm .github/workflows/repair-pr-746-zero-kernel.yml
           git add CHANGELOG.md \
             services/analysis-engine/rust/src/lib.rs \
             services/analysis-engine/src/bandscope_analysis/sections/segmenter.py \
-            services/analysis-engine/tests/test_segmenter_zero_kernel.py \
             .github/workflows/repair-pr-746-zero-kernel.yml
           git commit -m "fix(segmenter): guard zero-size novelty kernels"
           git push origin HEAD:bolt/optimize-segmenter-checkerboard-17097112837352231795
