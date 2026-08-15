@@ -183,6 +183,24 @@ def test_resolve_authorized_child_path_returns_contained_digest_child(tmp_path: 
     assert resolved.is_relative_to(root.resolve(strict=False))
 
 
+@pytest.mark.parametrize("field_name", ["cacheRoot", "tempRoot"])
+def test_resolve_authorized_child_path_rejects_existing_file_roots(
+    tmp_path: Path,
+    field_name: str,
+) -> None:
+    """Recheck writable-root directory type immediately before derived-path I/O."""
+    root_file = tmp_path / f"{field_name}.file"
+    root_file.write_text("not a directory", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=field_name):
+        resolve_authorized_child_path(
+            str(root_file),
+            field_name,
+            "analysis-cache-v1" if field_name == "cacheRoot" else "stem-work-v1",
+            "digest.bin",
+        )
+
+
 def test_resolve_authorized_child_path_rejects_direct_root_symlink(tmp_path: Path) -> None:
     """Reject a root whose authority is itself supplied through a symlink."""
     target = tmp_path / "real-cache"
