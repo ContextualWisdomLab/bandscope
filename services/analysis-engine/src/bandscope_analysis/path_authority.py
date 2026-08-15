@@ -51,11 +51,13 @@ def validate_local_path_shape(value: str, field_name: str) -> None:
 
 
 def resolve_local_source_path(value: str, field_name: str = "localSource.sourcePath") -> Path:
-    """Resolve an existing regular local source without following a direct symlink.
+    """Return a canonical native source path without following a direct symlink.
 
-    The returned path is canonical on the native host. Missing files preserve a
-    `FileNotFoundError` boundary so callers can retain the existing safe
-    not-found response instead of converting it into an invalid-request error.
+    Existing paths must be regular files. A missing but otherwise authorized
+    path is returned canonically so the existing separation worker remains the
+    single source of the payload-safe ``Audio source file not found`` result.
+    This preserves orchestration compatibility while keeping lexical authority
+    and direct-symlink checks ahead of decoder access.
     """
     validate_local_path_shape(value, field_name)
     candidate = Path(value).expanduser()
@@ -65,13 +67,11 @@ def resolve_local_source_path(value: str, field_name: str = "localSource.sourceP
         raise ValueError(f"Invalid analysis job request: invalid field '{field_name}'")
 
     try:
-        resolved = candidate.resolve(strict=True)
-    except FileNotFoundError as error:
-        raise FileNotFoundError("Audio source file not found.") from error
+        resolved = candidate.resolve(strict=False)
     except (OSError, RuntimeError) as error:
         raise ValueError(f"Invalid analysis job request: invalid field '{field_name}'") from error
 
-    if not resolved.is_file():
+    if resolved.exists() and not resolved.is_file():
         raise ValueError(f"Invalid analysis job request: invalid field '{field_name}'")
     return resolved
 
