@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import bandscope_analysis.api as api_module
 from bandscope_analysis.api import (
     _analysis_cache_path,
     _stem_work_arrays_path,
@@ -127,29 +128,37 @@ def test_request_paths_accept_native_absolute_roots(tmp_path: Path) -> None:
     assert validated["tempRoot"] == temp_root
 
 
-def test_cache_path_rejects_symlinked_fixed_subdirectory(tmp_path: Path) -> None:
-    """Do not let the fixed cache subdirectory escape an authorized root through a symlink."""
+def test_cache_path_rechecks_fixed_subdirectory_after_validation(tmp_path: Path) -> None:
+    """Reject a cache child that becomes an escaping symlink after request preflight."""
     cache_root = tmp_path / "cache-root"
     outside_root = tmp_path / "outside-cache"
-    _symlink_fixed_directory(cache_root, "analysis-cache-v1", outside_root)
-
+    cache_root.mkdir()
     request = validate_analysis_job_request(
         _local_request(str(tmp_path / "rehearsal.wav"), cache_root=str(cache_root))
     )
+    outside_root.mkdir()
+    try:
+        (cache_root / "analysis-cache-v1").symlink_to(outside_root, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"symlink creation unavailable: {error}")
 
     with pytest.raises(ValueError, match="cacheRoot"):
         _analysis_cache_path(request)
 
 
-def test_temp_path_rejects_symlinked_fixed_subdirectory(tmp_path: Path) -> None:
-    """Reject a fixed stem-work symlink that escapes the authorized temp root."""
+def test_temp_path_rechecks_fixed_subdirectory_after_validation(tmp_path: Path) -> None:
+    """Reject a stem-work child that becomes an escaping symlink after request preflight."""
     temp_root = tmp_path / "temp-root"
     outside_root = tmp_path / "outside-temp"
-    _symlink_fixed_directory(temp_root, "stem-work-v1", outside_root)
-
+    temp_root.mkdir()
     request = validate_analysis_job_request(
         _local_request(str(tmp_path / "rehearsal.wav"), temp_root=str(temp_root))
     )
+    outside_root.mkdir()
+    try:
+        (temp_root / "stem-work-v1").symlink_to(outside_root, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"symlink creation unavailable: {error}")
 
     with pytest.raises(ValueError, match="tempRoot"):
         _stem_work_arrays_path(request)
@@ -212,6 +221,48 @@ def test_job_reports_foreign_os_absolute_source_as_invalid_request() -> None:
     )
 
     _assert_invalid_request_update(updates, "localSource.sourcePath", foreign_source)
+
+
+def test_job_translates_late_cache_authority_failure_to_invalid_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep a post-validation cache authority race actionable and payload-safe."""
+    cache_root = tmp_path / "cache-root"
+
+    def fail_cache_path(_request: object) -> None:
+        raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
+
+    monkeypatch.setattr(api_module, "_analysis_cache_path", fail_cache_path)
+
+    updates = run_analysis_job_updates(
+        "job-cache-race",
+        _local_request(str(tmp_path / "missing.wav"), cache_root=str(cache_root)),
+        "2026-08-15T00:00:00Z",
+    )
+
+    _assert_invalid_request_update(updates, "cacheRoot", cache_root)
+
+
+def test_job_translates_late_feature_cache_authority_failure_to_invalid_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep a post-validation feature-cache authority race ahead of progress updates."""
+    temp_root = tmp_path / "temp-root"
+
+    def fail_feature_cache(_request: object) -> None:
+        raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+
+    monkeypatch.setattr(api_module, "_feature_cache_paths", fail_feature_cache)
+
+    updates = run_analysis_job_updates(
+        "job-feature-cache-race",
+        _local_request(str(tmp_path / "missing.wav"), temp_root=str(temp_root)),
+        "2026-08-15T00:00:00Z",
+    )
+
+    _assert_invalid_request_update(updates, "tempRoot", temp_root)
 
 
 def test_job_reports_cache_symlink_escape_as_actionable_invalid_request(tmp_path: Path) -> None:
