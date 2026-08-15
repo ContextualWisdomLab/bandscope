@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import stat
 import sys
 from datetime import UTC, datetime
 
@@ -96,6 +98,11 @@ def main() -> int:
                     return 1
             else:
                 try:
+                    # Reject directories, FIFOs, sockets, devices, and other special
+                    # files before opening them. In particular, opening a FIFO can
+                    # block indefinitely before the bounded read is ever reached.
+                    if not stat.S_ISREG(os.stat(input_data).st_mode):
+                        raise OSError("job path is not a regular file")
                     with open(input_data, "rb") as f:
                         input_bytes = f.read(MAX_JSON_FILE_SIZE + 1)
                         if len(input_bytes) > MAX_JSON_FILE_SIZE:
