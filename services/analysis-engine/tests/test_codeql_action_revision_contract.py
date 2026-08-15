@@ -10,18 +10,18 @@ _WORKFLOW_ROOT = _REPOSITORY_ROOT / ".github" / "workflows"
 _EXPECTED_CODEQL_ACTION_SHA = "ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd"
 _EXPECTED_CODEQL_ACTION_VERSION = "v4.37.7"
 _CODEQL_ACTION_REFERENCE = re.compile(
-    r"github/codeql-action/(init|autobuild|analyze|upload-sarif)@([0-9a-f]{40})([^\n]*)"
+    r"github/codeql-action/(init|autobuild|analyze|upload-sarif)@([^\s#]+)([^\n]*)"
 )
 
 
 def _codeql_action_references() -> list[tuple[Path, str, str, str]]:
-    """Return every pinned CodeQL Action reference from checked-in workflows."""
+    """Return every CodeQL Action reference from checked-in workflows."""
     references: list[tuple[Path, str, str, str]] = []
     for workflow_path in sorted(_WORKFLOW_ROOT.glob("*.y*ml")):
         workflow_text = workflow_path.read_text(encoding="utf-8")
         matches = _CODEQL_ACTION_REFERENCE.findall(workflow_text)
-        for action_name, revision_sha, suffix in matches:
-            reference = (workflow_path, action_name, revision_sha, suffix.strip())
+        for action_name, revision_ref, suffix in matches:
+            reference = (workflow_path, action_name, revision_ref, suffix.strip())
             references.append(reference)
     return references
 
@@ -40,7 +40,7 @@ def test_every_codeql_action_step_uses_the_same_reviewed_revision() -> None:
     references = _codeql_action_references()
 
     assert references
-    assert {revision_sha for _, _, revision_sha, _ in references} == {_EXPECTED_CODEQL_ACTION_SHA}
+    assert {revision_ref for _, _, revision_ref, _ in references} == {_EXPECTED_CODEQL_ACTION_SHA}
     expected_version = f"# {_EXPECTED_CODEQL_ACTION_VERSION}"
     assert all(expected_version in suffix for _, _, _, suffix in references)
 
@@ -50,8 +50,8 @@ def test_analysis_workflow_keeps_init_autobuild_and_analyze_atomic() -> None:
     workflow_path = _WORKFLOW_ROOT / "codeql.yml"
     workflow_text = workflow_path.read_text(encoding="utf-8")
     references = {
-        action_name: revision_sha
-        for action_name, revision_sha, _suffix in _CODEQL_ACTION_REFERENCE.findall(workflow_text)
+        action_name: revision_ref
+        for action_name, revision_ref, _suffix in _CODEQL_ACTION_REFERENCE.findall(workflow_text)
     }
 
     assert references == {
