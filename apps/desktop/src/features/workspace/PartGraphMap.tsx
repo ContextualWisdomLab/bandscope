@@ -71,31 +71,40 @@ function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProp
               </div>
 
               <div className="space-y-1.5 text-xs text-slate-300">
-                {handoffFrom.length > 0 && (
-                  <div className="flex items-start gap-1.5 text-amber-100">
-                    <LogIn className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                    <span className="leading-snug">
-                      <strong className="mr-1 opacity-70">{t("partGraphTakesOverFrom")}:</strong>
-                      {handoffFrom.join(", ")}
-                    </span>
-                  </div>
-                )}
-
-                {handoffTo.length > 0 && (
-                  <div className="flex items-start gap-1.5 text-sky-100">
-                    <ArrowRight className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                    <span className="leading-snug">
-                      <strong className="mr-1 opacity-70">{t("partGraphHandsOffTo")}:</strong>
-                      {handoffTo.join(", ")}
-                    </span>
-                  </div>
-                )}
-
-                {handoffFrom.length === 0 && handoffTo.length === 0 && (
+                {!node ? (
                   <div className="flex items-center gap-1.5 text-slate-500">
                     <Minus className="size-3.5" aria-hidden="true" />
-                    <span>{t("partGraphNoHandoffs")}</span>
+                    <span>{t("partGraphNoRoleEvidence")}</span>
                   </div>
+                ) : (
+                  <>
+                    {handoffFrom.length > 0 && (
+                      <div className="flex items-start gap-1.5 text-amber-100">
+                        <LogIn className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                        <span className="leading-snug">
+                          <strong className="mr-1 opacity-70">{t("partGraphTakesOverFrom")}:</strong>
+                          {handoffFrom.join(", ")}
+                        </span>
+                      </div>
+                    )}
+
+                    {handoffTo.length > 0 && (
+                      <div className="flex items-start gap-1.5 text-sky-100">
+                        <ArrowRight className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                        <span className="leading-snug">
+                          <strong className="mr-1 opacity-70">{t("partGraphHandsOffTo")}:</strong>
+                          {handoffTo.join(", ")}
+                        </span>
+                      </div>
+                    )}
+
+                    {handoffFrom.length === 0 && handoffTo.length === 0 && (
+                      <div className="flex items-center gap-1.5 text-slate-500">
+                        <Minus className="size-3.5" aria-hidden="true" />
+                        <span>{t("partGraphNoHandoffs")}</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
