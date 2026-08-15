@@ -11,7 +11,7 @@ const dictionaries = {
   ko: koCommon
 } as const;
 
-/** Create a locale-bound translator with literal placeholder interpolation. */
+/** Create a locale-bound translator with single-pass literal placeholder interpolation. */
 export function createTranslator(locale: Locale = "en") {
   return function translate(
     key: TranslationKey,
@@ -19,9 +19,11 @@ export function createTranslator(locale: Locale = "en") {
   ): string {
     let text = dictionaries[locale][key] ?? dictionaries.en[key];
     if (variables) {
-      for (const [variableName, variableValue] of Object.entries(variables)) {
-        text = text.split(`{${variableName}}`).join(variableValue);
-      }
+      text = text.replace(/\{([^{}]+)\}/g, (placeholder, variableName: string) =>
+        Object.prototype.hasOwnProperty.call(variables, variableName)
+          ? variables[variableName]
+          : placeholder
+      );
     }
     return text;
   };
