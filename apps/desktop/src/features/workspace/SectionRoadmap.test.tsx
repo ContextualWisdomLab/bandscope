@@ -84,4 +84,26 @@ describe("SectionRoadmap", () => {
     // Verify click handler early returns and prevents prompt
     expect(promptSpy).not.toHaveBeenCalled();
   });
+
+  it("uses unique whitespace-free description IDs for arbitrary section and role IDs", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0].id = "verse 1";
+    song.sections[0].roles[0].id = "bass guitar";
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const buttons = screen.getAllByRole("button", { name: /^Edit chord for / });
+    const descriptionIds = buttons.map((button) => button.getAttribute("aria-describedby"));
+    expect(descriptionIds.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
+
+    const ids = descriptionIds.filter((id): id is string => id !== null);
+    expect(ids.every((id) => !/\s/.test(id))).toBe(true);
+    expect(new Set(ids).size).toBe(buttons.length);
+    for (const id of ids) {
+      expect(document.getElementById(id)?.textContent).toBe(
+        "Open an editable song to change this chord"
+      );
+    }
+  });
 });
