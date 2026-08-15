@@ -7,6 +7,7 @@ import type {
 } from "@bandscope/shared-types";
 import { App } from "./App";
 import {
+  importYoutubeUrl,
   selectLocalAudioSource,
   startAnalysisJob,
   subscribeToAnalysisJobUpdates
@@ -49,6 +50,7 @@ vi.mock("./lib/handoff", async (importActual) => {
   };
 });
 
+const mockedImportYoutubeUrl = vi.mocked(importYoutubeUrl);
 const mockedSelectLocalAudioSource = vi.mocked(selectLocalAudioSource);
 const mockedStartAnalysisJob = vi.mocked(startAnalysisJob);
 const mockedSubscribeToAnalysisJobUpdates = vi.mocked(subscribeToAnalysisJobUpdates);
@@ -152,6 +154,7 @@ async function selectLocalSource(): Promise<void> {
 
 describe("App handoff round trip", () => {
   beforeEach(() => {
+    mockedImportYoutubeUrl.mockReset();
     mockedSelectLocalAudioSource.mockReset();
     mockedStartAnalysisJob.mockReset();
     mockedSubscribeToAnalysisJobUpdates.mockReset();
@@ -187,6 +190,22 @@ describe("App handoff round trip", () => {
         roleFocus: ["bass-guitar", "lead-vocal"]
       });
     });
+  });
+
+  it("keeps YouTube unavailable while a validated handoff awaits local audio", async () => {
+    render(<App />);
+
+    const youtubeInput = screen.getByLabelText(/youtube url/i);
+    fireEvent.change(youtubeInput, { target: { value: "https://youtu.be/rehearsal" } });
+    expect(screen.getByRole("button", { name: /import youtube/i })).not.toBeDisabled();
+
+    await importValidHandoff();
+
+    expect(youtubeInput).toBeDisabled();
+    expect(screen.getByRole("button", { name: /import youtube/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /import youtube/i }));
+    expect(mockedImportYoutubeUrl).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /choose local audio/i })).not.toBeDisabled();
   });
 
   it("requires explicit source re-selection when a new handoff replaces prior context", async () => {
