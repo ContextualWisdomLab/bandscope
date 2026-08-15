@@ -35,7 +35,6 @@ function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProp
         {song.sections.map((section) => {
           const node = section.partGraph.find((candidate) => candidate.role_id === activeRoleId);
           const isActive = node?.is_active === true;
-          const hasRoleEvidence = node !== undefined;
           const handoffFrom = node ? getRoleNames(node.handoff_from) : [];
           const handoffTo = node ? getRoleNames(node.handoff_to) : [];
 
@@ -50,22 +49,18 @@ function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProp
             >
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-100 capitalize">{section.label}</span>
-                {isActive ? (
-                  <span className="flex items-center gap-1 rounded-full border border-teal-300/30 bg-teal-300/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-teal-200">
-                    <Activity className="size-3" aria-hidden="true" />
-                    {t("partGraphActive")}
-                  </span>
-                ) : hasRoleEvidence ? (
-                  <span className="flex items-center gap-1 rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-slate-300">
-                    <Coffee className="size-3" aria-hidden="true" />
-                    {t("partGraphResting")}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-slate-300">
-                    <Minus className="size-3" aria-hidden="true" />
-                    {t("partGraphUnknown")}
-                  </span>
-                )}
+                {node &&
+                  (isActive ? (
+                    <span className="flex items-center gap-1 rounded-full border border-teal-300/30 bg-teal-300/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-teal-200">
+                      <Activity className="size-3" aria-hidden="true" />
+                      {t("partGraphActive")}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-slate-300">
+                      <Coffee className="size-3" aria-hidden="true" />
+                      {t("partGraphResting")}
+                    </span>
+                  ))}
               </div>
 
               <div className="space-y-1.5 text-xs text-slate-300">
