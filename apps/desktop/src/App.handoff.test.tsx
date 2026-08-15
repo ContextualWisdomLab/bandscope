@@ -294,6 +294,30 @@ describe("App handoff round trip", () => {
     });
   });
 
+  it("blocks project replacement while a handoff is being validated", async () => {
+    let resolveImport: ((value: Awaited<ReturnType<typeof readMetadataHandoffFile>>) => void) | null =
+      null;
+    mockedReadMetadataHandoffFile.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveImport = resolve;
+        })
+    );
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/handoff JSON file/i), {
+      target: { files: [uploadFile()] }
+    });
+
+    expect(await screen.findByRole("button", { name: /validating handoff/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /open project/i })).toBeDisabled();
+
+    resolveImport?.({ ok: false, code: "invalid_artifact" });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /open project/i })).not.toBeDisabled();
+    });
+  });
+
   it("clears a prior handoff error after a replacement validates", async () => {
     mockedReadMetadataHandoffFile
       .mockResolvedValueOnce({ ok: false, code: "invalid_json" })
