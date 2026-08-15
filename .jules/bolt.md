@@ -1,6 +1,6 @@
 ## 2023-06-10 - Caching parsed lockfile results
 
-**Learning:** Parsing Cargo.lock files repeatedly per iteration causes significant I/O and CPU overhead.
+**Learning:** Parsing Cargo.lock files repeatedly per iteration in the supply chain verification script causes significant I/O and CPU overhead.
 **Action:** Use `@functools.lru_cache` to cache parsed package dictionaries based on `Path` inputs for static checks.
 
 ## 2024-06-03 - O(1) Map Lookups for Performance
@@ -59,5 +59,5 @@
 **Action:** Use NumPy broadcasting (e.g. `viterbi[:, t - 1, np.newaxis] + log_trans`) to vectorize the inner loop, converting O(N*M) Python loops into O(N) Python loops with fast C-level operations.
 
 ## 2026-07-13 - Array.from mapping optimization
-**Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection time, particularly for frequent renders of large transcription arrays.
+**Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
