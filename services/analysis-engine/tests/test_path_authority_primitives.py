@@ -127,7 +127,9 @@ def test_resolve_authorized_child_path_rejects_direct_root_symlink(tmp_path: Pat
         resolve_authorized_child_path(str(link), "cacheRoot", "analysis-cache-v1", "digest.json")
 
 
-def test_resolve_authorized_child_path_rejects_existing_child_symlink_escape(tmp_path: Path) -> None:
+def test_resolve_authorized_child_path_rejects_existing_child_symlink_escape(
+    tmp_path: Path,
+) -> None:
     """Reject a fixed cache directory that already redirects outside its authorized root."""
     root = tmp_path / "cache-root"
     outside = tmp_path / "outside"
