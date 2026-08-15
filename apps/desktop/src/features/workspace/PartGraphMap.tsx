@@ -3,20 +3,20 @@ import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ArrowRight, LogIn, Activity, Coffee, Minus } from "lucide-react";
 
-/** Documented. */
+/** Props required to render the selected role's section-by-section handoff evidence. */
 interface PartGraphMapProps {
   song: RehearsalSong;
   activeRoleId: string;
   roleMap: Map<string, RehearsalRole>;
 }
 
-/** Documented. */
+/** Render a keyboard-discoverable handoff map without inferring state from missing evidence. */
 function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProps) {
   const t = createTranslator(detectPreferredLocale());
 
-  /** Documented. */
+  /** Resolve stable display names while preserving unknown role identifiers verbatim. */
   const getRoleNames = (roleIds: string[]): string[] => {
-    return roleIds.map(id => roleMap.get(id)?.name ?? id);
+    return roleIds.map((id) => roleMap.get(id)?.name ?? id);
   };
 
   return (
@@ -30,10 +30,12 @@ function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProp
         role="region"
         tabIndex={0}
         aria-labelledby="part-graph-title"
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+      >
         {song.sections.map((section) => {
-          const node = section.partGraph.find(n => n.role_id === activeRoleId);
-          const isActive = node?.is_active ?? false;
+          const node = section.partGraph.find((candidate) => candidate.role_id === activeRoleId);
+          const isActive = node?.is_active === true;
+          const hasRoleEvidence = node !== undefined;
           const handoffFrom = node ? getRoleNames(node.handoff_from) : [];
           const handoffTo = node ? getRoleNames(node.handoff_to) : [];
 
@@ -53,10 +55,15 @@ function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProp
                     <Activity className="size-3" aria-hidden="true" />
                     {t("partGraphActive")}
                   </span>
-                ) : (
+                ) : hasRoleEvidence ? (
                   <span className="flex items-center gap-1 rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-slate-300">
                     <Coffee className="size-3" aria-hidden="true" />
                     {t("partGraphResting")}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 rounded-full border border-slate-500/30 bg-slate-500/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-slate-300">
+                    <Minus className="size-3" aria-hidden="true" />
+                    {t("partGraphUnknown")}
                   </span>
                 )}
               </div>
@@ -97,8 +104,5 @@ function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProp
   );
 }
 
-/** Documented. */
-export /**
- *
- */
-const PartGraphMap = memo(PartGraphMapComponent);
+/** Memoized handoff map for the active rehearsal role. */
+export const PartGraphMap = memo(PartGraphMapComponent);
