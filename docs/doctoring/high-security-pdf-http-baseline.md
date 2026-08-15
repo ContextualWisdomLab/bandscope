@@ -8,7 +8,9 @@ BandScope treats the PDF parser and its transitive HTTP client as one security-r
 - `undici` is pinned exactly to `7.29.0` through the root npm override; and
 - npm `10.9.8` is the approved generator for reviewed root-workspace dependency updates, while primary CI consumes the committed lock through frozen validation rather than re-resolving it.
 
-PDF.js `6.2.108` no longer exposes the legacy `isEvalSupported` member in its public `DocumentInitParameters` contract, and `getDocument` no longer reads that member. BandScope therefore does not cast or pass an unknown option that would be ignored while creating false assurance. The primary remediation is the patched parser release, reinforced by a narrow data-only call, copied caller-owned bytes, a same-origin bundled worker, explicit `enableXfa: false`, and explicit `useWorkerFetch: false`.
+Repository dependency/security tooling reported the protected-base `pdfjs-dist@6.1.200` as requiring a newer floor. That finding is kept distinct from the older, GitHub-reviewed CVE-2024-4367 / GHSA-wgrm-67xf-hhpq: the 2024 advisory affected `pdfjs-dist <=4.1.392` and was fixed in `4.2.67`, so it is historical parser-risk context and is **not** evidence that `6.1.200` was affected by that CVE. BandScope pins the current `6.2.108` artifact selected by the repository security baseline and requires current-head audit/security evidence rather than misattributing a scanner result to an unrelated advisory.
+
+PDF.js `6.2.108` no longer exposes the legacy `isEvalSupported` member in its public `DocumentInitParameters` contract, and `getDocument` no longer reads that member. BandScope therefore does not cast or pass an unknown option that would be ignored while creating false assurance. The parser boundary is reinforced by a narrow data-only call, copied caller-owned bytes, a same-origin bundled worker, explicit `enableXfa: false`, and explicit `useWorkerFetch: false`.
 
 ```mermaid
 flowchart LR
@@ -31,7 +33,7 @@ flowchart LR
 
 The score viewer accepts only bytes already copied into the app-owned workspace through the native PDF intake boundary. It does not accept a URL, credentials, custom request headers, or a remote worker. It also disables XFA rendering and PDF.js worker-side fetching of helper resources at this wrapper boundary. These controls prevent the caller from selecting an attacker-controlled document origin or worker asset and make the intended no-XML-form/no-worker-fetch policy explicit rather than relying on upstream defaults.
 
-PDF bytes remain untrusted after the native magic-byte, size, and path checks. Parser vulnerabilities, malformed object graphs, embedded actions, metadata/XML parsing, and resource-exhaustion paths can still occur inside a syntactically valid PDF. The patched parser, exact dependency lock, copied data-only input, explicit parser options, same-origin worker, and existing native intake limits therefore remain mandatory for locally selected files.
+PDF bytes remain untrusted after the native magic-byte, size, and path checks. Parser vulnerabilities, malformed object graphs, embedded actions, metadata/XML parsing, and resource-exhaustion paths can still occur inside a syntactically valid PDF. The exact dependency lock, copied data-only input, explicit parser options, same-origin worker, and existing native intake limits therefore remain mandatory for locally selected files.
 
 The pinned PDF.js XML parser does not expose an external-entity resolver through this wrapper: its default `onDoctype()` hook is a no-op, and `onResolveEntity()` resolves only the built-in XML entities before returning an unknown named entity literally. This source-level observation narrows what BandScope can claim; it is not a general assertion that every future PDF.js XML path is immune to entity-processing defects. Any parser upgrade must re-check the upstream implementation and repeat adversarial PDF verification.
 
@@ -83,7 +85,7 @@ Rollback restores the previous desktop manifest, root override, complete lock, P
 
 ## References
 
-GitHub. (2026). *PDF.js vulnerable to arbitrary JavaScript execution upon opening a malicious PDF* (GHSA-hq66-cqwq-w95j) [Security advisory]. https://github.com/advisories/GHSA-hq66-cqwq-w95j
+GitHub. (2024). *PDF.js vulnerable to arbitrary JavaScript execution upon opening a malicious PDF* (GHSA-wgrm-67xf-hhpq) [Security advisory]. https://github.com/advisories/GHSA-wgrm-67xf-hhpq
 
 Mozilla. (2026). *Document initialization parameters in PDF.js 6.2.108* [Source code]. GitHub. https://github.com/mozilla/pdf.js/blob/v6.2.108/src/display/api.js
 
