@@ -7,7 +7,7 @@
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
-### 성능 최적화 (Performance)
+### Changed
 
 - 차트 내보내기(chart.py)에서 `not in list` 대신 삽입 순서가 보장되는 딕셔너리(`dict.keys()`)를 활용하여 역할, 큐 및 우선순위 데이터의 중복 제거 방식을 $O(N^2)$에서 $O(N)$으로 최적화했습니다.
 
