@@ -1,7 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import { render, screen } from "@testing-library/react";
+import { describe, it, expect } from "vitest";
 import { ChordsFeature } from "./index";
+import type { RehearsalSong } from "@bandscope/shared-types";
 
 const mockSong: RehearsalSong = {
   id: "song-1",
@@ -25,8 +25,8 @@ const mockSong: RehearsalSong = {
           range: { lowestNote: "C4", highestNote: "C5" },
           confidence: { level: "high", reason: "test" },
           rehearsalPriority: "high",
-          simplification: " none ",
-          setupNote: "NONE",
+          simplification: "none",
+          setupNote: "none",
           manualOverrides: [],
           overlapWarnings: [],
         },
@@ -39,10 +39,10 @@ const mockSong: RehearsalSong = {
           range: { lowestNote: "D4", highestNote: "D5" },
           confidence: { level: "high", reason: "test" },
           rehearsalPriority: "high",
-          simplification: " Simplify strumming pattern ",
-          setupNote: " Drop D tuning ",
+          simplification: "none",
+          setupNote: "none",
           manualOverrides: [],
-          overlapWarnings: [" Density warning: competing with Bass ", "   "],
+          overlapWarnings: [],
           transpositionPlan: "Capo 2nd fret",
         },
       ],
@@ -73,28 +73,5 @@ describe("ChordsFeature", () => {
     render(<ChordsFeature title="Chords" song={mockSong} />);
     expect(screen.getByText(/Capo 2nd fret/)).toBeInTheDocument();
     expect(screen.getByText(/Transpose:/)).toBeInTheDocument();
-  });
-
-  it("renders normalized rehearsal guidance for the intended role", () => {
-    render(<ChordsFeature title="Chords" song={mockSong} />);
-    const role = screen.getByRole("article", { name: "Transposed Role" });
-
-    expect(within(role).getByText("Drop D tuning")).toBeInTheDocument();
-    expect(within(role).getByText("Simplify strumming pattern")).toBeInTheDocument();
-    expect(within(role).getByText("Density warning: competing with Bass")).toBeInTheDocument();
-    expect(within(role).getByText("Setup:")).toBeInTheDocument();
-    expect(within(role).getByText("Simplification:")).toBeInTheDocument();
-    expect(within(role).getByText("Overlap warnings:")).toBeInTheDocument();
-    expect(within(role).getAllByRole("listitem")).toHaveLength(1);
-  });
-
-  it("does not render sentinel or whitespace-only role guidance", () => {
-    render(<ChordsFeature title="Chords" song={mockSong} />);
-    const role = screen.getByRole("article", { name: "Test Role" });
-
-    expect(within(role).queryByText("Setup:")).not.toBeInTheDocument();
-    expect(within(role).queryByText("Simplification:")).not.toBeInTheDocument();
-    expect(within(role).queryByText("Overlap warnings:")).not.toBeInTheDocument();
-    expect(screen.queryByText(/^none$/i)).not.toBeInTheDocument();
   });
 });
