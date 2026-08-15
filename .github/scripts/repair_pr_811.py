@@ -109,7 +109,6 @@ def isolate_stdin_mode_tests() -> None:
 
 def main() -> None:
     """Execute focused RED/GREEN, full verification, and workflow self-removal."""
-    run("uv", "sync", "--project", "services/analysis-engine", "--group", "dev", "--frozen")
     red = run(
         "uv",
         "run",
@@ -125,6 +124,13 @@ def main() -> None:
 
     implement_fail_closed_argument_dispatch()
     isolate_stdin_mode_tests()
+    run(
+        "python3",
+        "scripts/checks/run_analysis_command.py",
+        "ruff",
+        "format",
+        "src/bandscope_analysis/cli.py",
+    )
     run(
         "uv",
         "run",
