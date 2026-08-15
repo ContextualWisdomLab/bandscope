@@ -31,8 +31,8 @@ def _preflight_native_path(value: str, field_name: str) -> None:
     A fully qualified path for another operating system remains lexically valid
     and is left for the actual I/O boundary to reject. Native paths are resolved
     here so callers receive an actionable ``invalid_request`` before progress is
-    emitted when a direct symlink or fixed cache/temp child already escapes its
-    authorized root.
+    emitted when a direct symlink, invalid writable root, or fixed cache/temp
+    child already violates its authorized filesystem boundary.
     """
     candidate = Path(value).expanduser()
     if not candidate.is_absolute():
@@ -53,6 +53,8 @@ def _preflight_native_path(value: str, field_name: str) -> None:
     fixed_child = _FIXED_CHILD_BY_FIELD.get(field_name)
     if fixed_child is None:
         return
+    if resolved.exists() and not resolved.is_dir():
+        raise _invalid_path(field_name)
     try:
         child = resolved.joinpath(fixed_child).resolve(strict=False)
     except (OSError, RuntimeError) as error:
@@ -72,8 +74,8 @@ def validate_local_path_shape(
     Fully-qualified local POSIX paths and fully-qualified local Windows drive
     paths are accepted lexically even when validation runs on the other OS.
     By default, paths native to the current host are also preflighted for direct
-    symlinks and fixed cache/temp child escapes. I/O helpers disable that early
-    preflight and repeat the native checks immediately before use.
+    symlinks, writable-root type, and fixed cache/temp child escapes. I/O helpers
+    disable that early preflight and repeat native checks immediately before use.
     """
     if not value or not value.strip() or "\x00" in value:
         raise _invalid_path(field_name)
@@ -139,13 +141,14 @@ def resolve_authorized_child_path(
 ) -> Path:
     """Return a canonical repository-owned child that remains inside its local root.
 
-    Existing symlinks in fixed child directories are resolved before containment
-    is checked. This closes the common pre-existing-symlink escape while keeping
-    caller-controlled values out of child path components. It is not a claim of
-    descriptor-level race freedom: a privileged local actor could still swap a
-    path after validation and before a later open, so callers must keep the
-    validation-to-I/O interval bounded and treat stronger descriptor-based I/O
-    as a separate hardening layer when that threat model is required.
+    Existing writable roots must be directories. Existing symlinks in fixed
+    child directories are resolved before containment is checked. This closes
+    the common pre-existing-symlink escape while keeping caller-controlled values
+    out of child path components. It is not a claim of descriptor-level race
+    freedom: a privileged local actor could still swap a path after validation
+    and before a later open, so callers must keep the validation-to-I/O interval
+    bounded and treat stronger descriptor-based I/O as a separate hardening
+    layer when that threat model is required.
     """
     validate_local_path_shape(root_value, field_name, preflight_native=False)
     root = Path(root_value).expanduser()
@@ -154,6 +157,11 @@ def resolve_authorized_child_path(
 
     try:
         resolved_root = root.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise _invalid_path(field_name) from error
+    if resolved_root.exists() and not resolved_root.is_dir():
+        raise _invalid_path(field_name)
+    try:
         candidate = resolved_root.joinpath(*relative_parts).resolve(strict=False)
     except (OSError, RuntimeError) as error:
         raise _invalid_path(field_name) from error
