@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Reject unknown CLI arguments and extra `--status` operands before reading standard input, keep valid whitespace-prefixed inline JSON `--job` payloads on the inline path, and fail malformed explicit invocations immediately instead of blocking on an unrelated open pipe.
+- Reject unknown CLI arguments and extra `--status` operands before reading standard input, keep valid whitespace-prefixed inline JSON `--job` payloads on the inline path, reject non-regular `--job` paths before opening them, and fail malformed explicit invocations immediately instead of blocking on unrelated pipes or special files.
 
 ### Added
 
