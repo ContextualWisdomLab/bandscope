@@ -36,6 +36,8 @@ The change does not alter workflow triggers, language selection, build behavior,
 2. every reference carries the matching `v4.37.7` annotation; and
 3. `codeql.yml` keeps `init`, `autobuild`, and `analyze` on that same revision.
 
+The scanner intentionally recognizes mutable and malformed revision tokens such as `@v4` before enforcing the exact-SHA invariant. A tag-style reference therefore becomes a failing value instead of disappearing from the evidence set because it did not already look like a 40-character SHA.
+
 Repository CI, CodeQL, SAST, dependency/security scans, SBOM generation, central coverage evidence, automated review, independent approval, and branch protection must all validate the final exact head. Results from split predecessor pull requests are not transferable.
 
 ## Update procedure
