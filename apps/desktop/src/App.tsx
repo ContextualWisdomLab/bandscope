@@ -465,6 +465,10 @@ export function App() {
 
   /** Documented. */
   const handleImportYoutube = async () => {
+    if (pendingHandoff) {
+      return;
+    }
+
     setSelectionError(null);
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
@@ -780,10 +784,11 @@ export function App() {
                         onChange={(e) => setYoutubeUrl(e.target.value)}
                         disabled={
                           analysisInFlight ||
-                      isStarting ||
-                      isSelectingLocalAudio ||
-                      isImporting ||
-                      isReadingHandoff
+                          isStarting ||
+                          isSelectingLocalAudio ||
+                          isImporting ||
+                          isReadingHandoff ||
+                          pendingHandoff !== null
                         }
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
@@ -795,7 +800,8 @@ export function App() {
                       !isStarting &&
                       !isImporting &&
                       !isSelectingLocalAudio &&
-                      !isReadingHandoff ? (
+                      !isReadingHandoff &&
+                      pendingHandoff === null ? (
                         <button
                           type="button"
                           onClick={handleClearYoutubeUrl}
@@ -816,7 +822,8 @@ export function App() {
                       isStarting ||
                       isSelectingLocalAudio ||
                       isImporting ||
-                      isReadingHandoff
+                      isReadingHandoff ||
+                      pendingHandoff !== null
                     }
                     variant="outline"
                     className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
