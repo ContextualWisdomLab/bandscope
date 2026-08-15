@@ -114,3 +114,13 @@ def test_missing_observation_metadata_does_not_force_no_chord():
     assert np.allclose(probs.sum(axis=0), 1.0)
     assert np.allclose(probs[24], 0.05 / 1.05)
     assert np.allclose(probs[:24], 1.0 / (24.0 * 1.05))
+
+
+def test_transition_prior_prefers_true_relative_major_minor_pairs():
+    """Prefer C↔Am over the unrelated D♯m/F♯ pairs in the HMM transition prior."""
+    recognizer = ChordRecognizer()
+    labels = {label: index for index, label in enumerate(recognizer.chord_labels)}
+    transition = recognizer._transition_matrix
+
+    assert transition[labels["C"], labels["Am"]] > transition[labels["C"], labels["D#m"]]
+    assert transition[labels["Am"], labels["C"]] > transition[labels["Am"], labels["F#"]]
