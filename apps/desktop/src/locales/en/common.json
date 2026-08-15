@@ -154,5 +154,6 @@
   "partGraphResting": "Resting",
   "partGraphTakesOverFrom": "Takes over from",
   "partGraphHandsOffTo": "Hands off to",
-  "partGraphNoHandoffs": "No direct handoffs"
+  "partGraphNoHandoffs": "No direct handoffs",
+  "partGraphNoRoleEvidence": "No role evidence for this section"
 }
