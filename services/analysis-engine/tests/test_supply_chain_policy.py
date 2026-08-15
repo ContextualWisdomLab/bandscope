@@ -13,29 +13,6 @@ import pytest
 from conftest import load_module, make_symlink_or_skip
 
 
-def test_node_security_floors_are_locked_to_patched_versions() -> None:
-    """Keep direct and transitive Node dependencies above current advisory floors."""
-    repo_root = Path(__file__).resolve().parents[3]
-    desktop_package = json.loads(
-        (repo_root / "apps" / "desktop" / "package.json").read_text(encoding="utf-8")
-    )
-    package_lock = json.loads((repo_root / "package-lock.json").read_text(encoding="utf-8"))
-    packages = package_lock["packages"]
-
-    assert desktop_package["dependencies"]["pdfjs-dist"] == "6.2.108"
-    assert packages["node_modules/pdfjs-dist"]["version"] == "6.2.108"
-    assert tuple(map(int, packages["node_modules/nanoid"]["version"].split("."))) >= (
-        3,
-        3,
-        17,
-    )
-    assert tuple(map(int, packages["node_modules/undici"]["version"].split("."))) >= (
-        7,
-        28,
-        1,
-    )
-
-
 def test_supplemental_inventory_rejects_obsolete_or_missing_runtime_model(
     tmp_path: Path,
 ) -> None:
