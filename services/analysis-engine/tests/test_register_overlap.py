@@ -155,6 +155,18 @@ class TestDetectRegisterOverlap:
         assert all(a < b for a, b in pairs)
         assert ("bass", "vocals") in pairs
 
+    def test_equal_severity_keeps_declared_band_order(self) -> None:
+        """Optimization must preserve the historical band order for severity ties."""
+        broadband = _sine(100.0) + _sine(500.0) + _sine(3000.0)
+        overlaps = detect_register_overlap(
+            {"bass": broadband, "other": broadband.copy()},
+            SR,
+            threshold=0.2,
+        )
+
+        assert [overlap["band"] for overlap in overlaps] == list(BANDS)
+        assert len({overlap["severity"] for overlap in overlaps}) == 1
+
     def test_malformed_stem_values_fail_safe(self) -> None:
         """Non-array stem values are treated as silent, not raised."""
         stems: dict[str, Any] = {"bass": None, "other": _sine(80.0)}
