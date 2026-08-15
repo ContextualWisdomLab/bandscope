@@ -207,6 +207,36 @@ def test_cli_inline_job_with_leading_json_whitespace_does_not_become_a_file_path
     assert json.loads(stdout.getvalue())["jobId"] == "whitespace-argument-job"
 
 
+def test_cli_non_json_whitespace_prefix_remains_a_job_file_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """Unicode whitespace outside JSON grammar must not redefine a file operand."""
+    job_file_name = "\u00a0{job.json"
+    job_file = tmp_path / job_file_name
+    job_file.write_text(
+        json.dumps(
+            {
+                "jobId": "unicode-space-file-job",
+                "request": {
+                    "sourceKind": "demo",
+                    "sourceLabel": "Unicode Space File Input",
+                    "roleFocus": ["bass-guitar"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    stdout = io.StringIO()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", job_file_name])
+    monkeypatch.setattr(cli.sys, "stdin", _BinaryStdin(_ForbiddenRead()))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 0
+    assert json.loads(stdout.getvalue())["jobId"] == "unicode-space-file-job"
+
+
 @pytest.mark.parametrize(
     "argv",
     [
