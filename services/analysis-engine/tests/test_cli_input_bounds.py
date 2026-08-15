@@ -30,10 +30,18 @@ class _OversizedInput:
         return b"x" * size
 
 
+class _ForbiddenRead:
+    """Fail if an explicit CLI argument unexpectedly consumes standard input."""
+
+    def read(self, size: int = -1) -> bytes:
+        """Reject every read because explicit argument modes own their input source."""
+        raise AssertionError("explicit CLI arguments must not read stdin")
+
+
 class _BinaryStdin:
     """Expose a binary buffer like the standard process stdin wrapper."""
 
-    def __init__(self, buffer: _BoundedReadRequired | _OversizedInput) -> None:
+    def __init__(self, buffer: _BoundedReadRequired | _OversizedInput | _ForbiddenRead) -> None:
         """Attach the bounded binary stream used by the CLI."""
         self.buffer = buffer
 
@@ -140,3 +148,37 @@ def test_cli_job_file_limit_is_measured_in_utf8_bytes(
     assert cli.main() == 1
     response = json.loads(stdout.getvalue())
     assert response["error"]["message"] == "Job file exceeds maximum size limit"
+
+
+def test_cli_status_argument_does_not_consume_stdin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The status command must return immediately without waiting for standard input."""
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--status"])
+    monkeypatch.setattr(cli.sys, "stdin", _BinaryStdin(_ForbiddenRead()))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 0
+    assert json.loads(stdout.getvalue())["status"] == "ready"
+
+
+def test_cli_job_argument_does_not_consume_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit inline job must not block on or consume unrelated standard input."""
+    payload = json.dumps(
+        {
+            "jobId": "argument-job",
+            "request": {
+                "sourceKind": "demo",
+                "sourceLabel": "Argument Input",
+                "roleFocus": ["bass-guitar"],
+            },
+        }
+    )
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", payload])
+    monkeypatch.setattr(cli.sys, "stdin", _BinaryStdin(_ForbiddenRead()))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 0
+    assert json.loads(stdout.getvalue())["jobId"] == "argument-job"
