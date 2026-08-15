@@ -100,4 +100,6 @@ function PartGraphMapComponent({ song, activeRoleId, roleMap }: PartGraphMapProp
 }
 
 /** Memoized handoff map for the active rehearsal role. */
-export const PartGraphMap = memo(PartGraphMapComponent);
+const PartGraphMap = memo(PartGraphMapComponent);
+
+export { PartGraphMap };
