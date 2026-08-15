@@ -97,7 +97,9 @@ class ChordRecognizer:
             # Fifth relationship (e.g. C -> G, Am -> Em)
             fifth = (root + 7) % 12
             fourth = (root + 5) % 12
-            relative = (root + 3) % 12 if i < 12 else (root + 9) % 12
+            # Relative minor is nine semitones above a major root (C -> A),
+            # while relative major is three semitones above a minor root (A -> C).
+            relative = (root + 9) % 12 if i < 12 else (root + 3) % 12
 
             # Same root major/minor interchange
             parallel = (i + 12) % 24
