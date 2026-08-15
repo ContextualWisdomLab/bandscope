@@ -291,6 +291,7 @@ export function App() {
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | "handoff" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isSelectingLocalAudio, setIsSelectingLocalAudio] = useState(false);
   const [isReadingHandoff, setIsReadingHandoff] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
@@ -445,16 +446,21 @@ export function App() {
   const handleChooseLocalAudio = async () => {
     setSelectionError(null);
     setSelectionErrorSource(null);
-    const selection = await selectLocalAudioSource();
-    if (selection.ok) {
-      setSelectedBootstrap(selection.bootstrap);
-      return;
-    }
+    setIsSelectingLocalAudio(true);
+    try {
+      const selection = await selectLocalAudioSource();
+      if (selection.ok) {
+        setSelectedBootstrap(selection.bootstrap);
+        return;
+      }
 
-    setSelectedBootstrap(null);
-    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
-    setSelectionErrorSource("local");
-    setJobStatus(null);
+      setSelectedBootstrap(null);
+      setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
+      setSelectionErrorSource("local");
+      setJobStatus(null);
+    } finally {
+      setIsSelectingLocalAudio(false);
+    }
   };
 
   /** Documented. */
@@ -734,7 +740,11 @@ export function App() {
                   <Button
                     onClick={handleChooseLocalAudio}
                     disabled={
-                      analysisInFlight || isStarting || isImporting || isReadingHandoff
+                      analysisInFlight ||
+                      isStarting ||
+                      isSelectingLocalAudio ||
+                      isImporting ||
+                      isReadingHandoff
                     }
                     variant="secondary"
                     className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 sm:w-auto"
@@ -744,7 +754,12 @@ export function App() {
                     {t("chooseLocalAudio")}
                   </Button>
                   <HandoffImportControl
-                    disabled={analysisInFlight || isStarting || isImporting}
+                    disabled={
+                      analysisInFlight ||
+                      isStarting ||
+                      isSelectingLocalAudio ||
+                      isImporting
+                    }
                     handoff={pendingHandoff}
                     onHandoffChange={handleHandoffChange}
                     onImportError={handleHandoffImportError}
@@ -764,7 +779,11 @@ export function App() {
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
                         disabled={
-                          analysisInFlight || isStarting || isImporting || isReadingHandoff
+                          analysisInFlight ||
+                      isStarting ||
+                      isSelectingLocalAudio ||
+                      isImporting ||
+                      isReadingHandoff
                         }
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
@@ -775,6 +794,7 @@ export function App() {
                       !analysisInFlight &&
                       !isStarting &&
                       !isImporting &&
+                      !isSelectingLocalAudio &&
                       !isReadingHandoff ? (
                         <button
                           type="button"
@@ -794,6 +814,7 @@ export function App() {
                       !youtubeUrl ||
                       analysisInFlight ||
                       isStarting ||
+                      isSelectingLocalAudio ||
                       isImporting ||
                       isReadingHandoff
                     }
@@ -846,6 +867,7 @@ export function App() {
                   disabled={
                     analysisInFlight ||
                     isStarting ||
+                    isSelectingLocalAudio ||
                     !selectedBootstrap ||
                     isImporting ||
                     isReadingHandoff
