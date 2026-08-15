@@ -11,6 +11,7 @@ vi.mock("../../i18n", () => ({
       partGraphTitle: "Part Handoff Map",
       partGraphActive: "Active",
       partGraphResting: "Resting",
+      partGraphUnknown: "No role data",
       partGraphTakesOverFrom: "Takes over from",
       partGraphHandsOffTo: "Hands off to",
       partGraphNoHandoffs: "No direct handoffs"
@@ -80,10 +81,8 @@ describe("PartGraphMap", () => {
   it("renders resting section with handoffs correctly", () => {
     render(<PartGraphMap song={mockSong} activeRoleId="bass-guitar" roleMap={roleMap} />);
 
-    // In chorus-1, bass-guitar is resting and hands off to lead-vocal
+    // In chorus-1, bass-guitar is explicitly present and inactive.
     expect(screen.getByText("chorus")).toBeInTheDocument();
-
-    // Should have Resting badge
     expect(screen.getByText("Resting")).toBeInTheDocument();
 
     // Lead Vocal handoff should still be visible (though we matched it in previous test, we can check multiple elements)
@@ -106,7 +105,7 @@ describe("PartGraphMap", () => {
     expect(screen.getAllByText("No direct handoffs")[0]).toBeInTheDocument();
   });
 
-  it("renders resting and no handoffs when the active role node is absent", () => {
+  it("does not misreport missing role data as an explicit rest", () => {
     const sectionWithoutRoleNode = {
       ...mockSong.sections[0],
       partGraph: mockSong.sections[0].partGraph.filter((node) => node.role_id !== "keys-right")
@@ -124,7 +123,8 @@ describe("PartGraphMap", () => {
       />
     );
 
-    expect(screen.getByText("Resting")).toBeInTheDocument();
+    expect(screen.getByText("No role data")).toBeInTheDocument();
+    expect(screen.queryByText("Resting")).not.toBeInTheDocument();
     expect(screen.getByText("No direct handoffs")).toBeInTheDocument();
   });
 
