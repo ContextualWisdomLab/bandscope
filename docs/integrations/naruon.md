@@ -86,6 +86,8 @@ The contract fails closed on:
 
 `Z` and `-00:00` are accepted with an explicit IANA zone as unknown-local-offset forms; a numeric `+/-HH:MM` offset is treated as an assertion and must agree with that zone. This follows the RFC 9557 distinction between an asserted numeric offset and time-zone information.
 
+Validation errors identify the structural object containing an unknown field but never echo the caller-controlled field name. This preserves actionable location without copying tenant, person, credential, or other payload text into logs.
+
 Parsing snapshots caller-owned data once before validation and canonicalization. It then returns newly allocated nested objects and evidence receipts, so accessors, proxies, concurrent mutation, or retained input references cannot make validation observe different data from the canonical output.
 
 ## Trust and privacy model

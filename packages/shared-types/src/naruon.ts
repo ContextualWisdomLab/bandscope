@@ -126,7 +126,7 @@ function isDenseArray(value: unknown, maximumLength: number): value is unknown[]
   return true;
 }
 
-/** Return the first key outside an exact allowlist. */
+/** Return the structural parent path when an object contains an unknown key. */
 function unexpectedKey(
   value: Record<string, unknown>,
   allowedKeys: readonly string[],
@@ -134,7 +134,7 @@ function unexpectedKey(
 ): string | null {
   for (const key of Object.keys(value)) {
     if (!allowedKeys.includes(key)) {
-      return `${path}.${key}`;
+      return path;
     }
   }
   return null;
@@ -249,7 +249,7 @@ function isOffsetConsistentWithTimeZone(timestamp: string, timeZone: string): bo
 function validateEvidenceReceipt(value: unknown, path: string): string | null {
   if (!isRecord(value)) return `${path} must be an object`;
   const extra = unexpectedKey(value, ["field", "value"], path);
-  if (extra) return `${extra} is not allowed`;
+  if (extra) return `${extra} contains an unexpected field`;
   if (!isDisplayText(value.field, MAX_IDENTIFIER_LENGTH)) return `${path}.field is invalid`;
   if (!isDisplayText(value.value)) return `${path}.value is invalid`;
   return null;
@@ -272,7 +272,7 @@ function validateSnapshot(value: unknown): string | null {
     ],
     "root"
   );
-  if (rootExtra) return `${rootExtra} is not allowed`;
+  if (rootExtra) return `${rootExtra} contains an unexpected field`;
   if (value.artifactKind !== NARUON_REHEARSAL_HANDOFF_KIND) return "artifactKind is invalid";
   if (value.artifactVersion !== NARUON_REHEARSAL_HANDOFF_VERSION) return "artifactVersion is invalid";
   if (!isRfc3339(value.createdAt)) return "createdAt is invalid";
@@ -283,7 +283,7 @@ function validateSnapshot(value: unknown): string | null {
     ["application", "workspaceId", "bandId", "rehearsalId"],
     "source"
   );
-  if (sourceExtra) return `${sourceExtra} is not allowed`;
+  if (sourceExtra) return `${sourceExtra} contains an unexpected field`;
   if (value.source.application !== "bandscope") return "source.application is invalid";
   for (const field of ["workspaceId", "bandId", "rehearsalId"] as const) {
     if (!isOpaqueIdentifier(value.source[field])) return `source.${field} is invalid`;
@@ -291,7 +291,7 @@ function validateSnapshot(value: unknown): string | null {
 
   if (!isRecord(value.normGroup)) return "normGroup must be an object";
   const normExtra = unexpectedKey(value.normGroup, ["kind", "id", "label"], "normGroup");
-  if (normExtra) return `${normExtra} is not allowed`;
+  if (normExtra) return `${normExtra} contains an unexpected field`;
   if (value.normGroup.kind !== "band") return "normGroup.kind is invalid";
   if (!isOpaqueIdentifier(value.normGroup.id)) return "normGroup.id is invalid";
   if (!isDisplayText(value.normGroup.label)) return "normGroup.label is invalid";
@@ -303,7 +303,7 @@ function validateSnapshot(value: unknown): string | null {
     ["title", "startsAt", "endsAt", "timeZone", "venue"],
     "event"
   );
-  if (eventExtra) return `${eventExtra} is not allowed`;
+  if (eventExtra) return `${eventExtra} contains an unexpected field`;
   if (!isDisplayText(value.event.title)) return "event.title is invalid";
   if (!isRfc3339(value.event.startsAt)) return "event.startsAt is invalid";
   if (!isRfc3339(value.event.endsAt)) return "event.endsAt is invalid";
@@ -327,7 +327,7 @@ function validateSnapshot(value: unknown): string | null {
     ["status", "rsvpDirection"],
     "commitment"
   );
-  if (commitmentExtra) return `${commitmentExtra} is not allowed`;
+  if (commitmentExtra) return `${commitmentExtra} contains an unexpected field`;
   if (!isOneOf(COMMITMENT_STATUSES, value.commitment.status)) {
     return "commitment.status is invalid";
   }
@@ -341,7 +341,7 @@ function validateSnapshot(value: unknown): string | null {
     ["sourceRecordId", "confidence", "evidence"],
     "provenance"
   );
-  if (provenanceExtra) return `${provenanceExtra} is not allowed`;
+  if (provenanceExtra) return `${provenanceExtra} contains an unexpected field`;
   if (!isOpaqueIdentifier(value.provenance.sourceRecordId)) {
     return "provenance.sourceRecordId is invalid";
   }
