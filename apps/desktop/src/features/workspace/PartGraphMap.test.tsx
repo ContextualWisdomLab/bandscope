@@ -116,11 +116,10 @@ describe("PartGraphMap", () => {
         it("does not infer resting state when the active role node is absent", () => {
     render(<PartGraphMap song={mockSong} activeRoleId="missing-role" roleMap={roleMap} />);
     expect(screen.queryByText("Active")).not.toBeInTheDocument();
-    expect(screen.queryAllByText("Resting").length).toBeGreaterThan(0);
 
-    const elements = screen.getAllByText("No direct handoffs");
-    // Filter out hidden elements or whatever might cause multiple
-    // or just check the length is > 0
-    expect(elements.length).toBeGreaterThan(0);
+    // There are 2 mock sections ("Verse", "Chorus"), so we should see exactly 2 "Resting" indicators
+    // and 2 "No direct handoffs" fallback messages, matching the actual rendered output.
+    expect(screen.queryAllByText("Resting")).toHaveLength(2);
+    expect(screen.getAllByText("No direct handoffs")).toHaveLength(2);
   });
 });
