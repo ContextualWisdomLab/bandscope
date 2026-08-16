@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Hardened local analysis filesystem authority so source/cache/temp inputs reject ambiguous, foreign-host absolute, network/device, traversal, Win32 leading/trailing ASCII-space or trailing-period normalization, direct-symlink, non-directory writable-root, pre-existing derived-child, exact feature-cache file, and atomic-write temporary-file symlink escape cases before repository-owned I/O while preserving payload-safe errors and the existing missing-source result.
+- Hardened local analysis filesystem authority so source/cache/temp inputs reject ambiguous, foreign-host absolute, network/device, Win32 console-device aliases (`CONIN$`/`CONOUT$`), traversal, Win32 leading/trailing ASCII-space or trailing-period normalization, direct-symlink, non-directory writable-root, pre-existing derived-child, exact feature-cache file, and atomic-write temporary-file symlink escape cases before repository-owned I/O while preserving payload-safe errors and the existing missing-source result.
 
 ## [0.1.3] - 2026-04-29
 
