@@ -12,7 +12,8 @@ float arrays at a common sample rate.
 
 Security Notes:
 - Operates only on in-memory numpy arrays; no file I/O or network access.
-- All FFT and reduction operations are bounded by the input array sizes.
+- Canonical orchestration owns audio-size, stem-count, memory, CPU/GPU, and
+  cancellation admission policy before feature analyzers execute.
 - Fails safe: empty, silent, or malformed stems produce an empty result and
   no exception escapes the public functions.
 """
@@ -52,7 +53,9 @@ def band_energy_profile(
     """Compute the fraction of a stem's spectral energy in each register band.
 
     Energy is the magnitude-squared of the real FFT summed over the bins that
-    fall inside each band defined in :data:`BANDS`.
+    fall inside each band defined in :data:`BANDS`. Resource admission is a
+    canonical orchestration concern; this feature consumes the accepted audio
+    artifact without inventing a second sample-count ceiling.
 
     Args:
         audio: Mono float audio samples for one stem.
@@ -66,12 +69,6 @@ def band_energy_profile(
     zero_profile = {band: 0.0 for band in BANDS}
 
     if not isinstance(audio, np.ndarray) or audio.size == 0 or sr <= 0:
-        return zero_profile
-
-    if audio.size > 100_000_000:
-        logger.warning(
-            f"Audio size {audio.size} exceeds maximum allowed 100000000; returning zero profile."
-        )
         return zero_profile
 
     spectrum = np.abs(np.fft.rfft(audio.astype(np.float64))) ** 2
@@ -98,6 +95,8 @@ def detect_register_overlap(
     band in which both stems concentrate at least ``threshold`` of their
     spectral energy. Drums are excluded (see :data:`UNPITCHED_STEMS`): as a
     broadband percussion source they do not occupy a pitched register.
+    Resource admission is owned by canonical orchestration rather than a
+    feature-local stem-count ceiling.
 
     Args:
         stems: Dict mapping stem names to mono float audio arrays.
@@ -115,13 +114,6 @@ def detect_register_overlap(
     """
     try:
         pitched = sorted(name for name in stems if name not in UNPITCHED_STEMS)
-
-        if len(pitched) > 100:
-            logger.warning(
-                f"Too many pitched stems ({len(pitched)} > 100); "
-                "returning no overlaps to prevent resource exhaustion."
-            )
-            return []
         profiles = {name: band_energy_profile(stems[name], sr) for name in pitched}
 
         overlaps: list[dict[str, Any]] = []
