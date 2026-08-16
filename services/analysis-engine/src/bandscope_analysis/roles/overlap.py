@@ -247,7 +247,10 @@ def format_overlap_warnings(overlaps: list[dict[str, Any]]) -> dict[str, list[st
             f"The {band_label} is crowded between {name_a} and {name_b}. "
             "Thin one part in this section so players can hear their cue."
         )
-        for role_id in (*_STEM_TO_ROLE_IDS[stem_a], *_STEM_TO_ROLE_IDS[stem_b]):
+        for role_id in (
+            *_STEM_TO_ROLE_IDS.get(stem_a, ()),
+            *_STEM_TO_ROLE_IDS.get(stem_b, ()),
+        ):
             bucket = warnings.setdefault(role_id, [])
             if message not in bucket:
                 bucket.append(message)

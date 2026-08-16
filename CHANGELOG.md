@@ -16,6 +16,7 @@
 - Keep silent stems from becoming zero-severity rehearsal overlap warnings at a zero threshold, and fail closed on invalid negative, non-finite, or boolean threshold configuration.
 - Derive section-level register-overlap warnings from measured stem spectra instead of fabricating keyboard or vocal clash copy when no audio evidence exists.
 - Keep mixed `other`-stem accompaniment evidence role-agnostic instead of assigning the same overlap warning and rehearsal priority to specific keyboard-hand or guitar roles the separator cannot identify.
+- Omit register-overlap warnings when section windows are missing or do not match the section list, instead of measuring the whole song and repeating that average on every card.
 
 ## [0.1.3] - 2026-04-29
 
@@ -49,6 +50,7 @@
 - Resolve npm audit vulnerabilities
 - Fix ruff import sorting and formatting errors
 - Add missing docstrings to tests
+- Fix test configuration and typing issues
 
 ## [0.1.0] - 2026-03-27
 

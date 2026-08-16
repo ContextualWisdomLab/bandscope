@@ -79,7 +79,7 @@ class RoleExtractor:
                 # Fallback to heuristic-based topology
                 topology = self._build_topology(section_id, i == 0, roles)
 
-            section_boundary = boundaries[i] if stems and i < len(boundaries) else None
+            section_boundary = boundaries[i] if stems and len(boundaries) == len(sections) else None
             section_warnings = self._section_overlap_warnings(stems, sr, section_boundary)
             topology["active_roles"] = [
                 self._apply_section_warnings(role, section_warnings)
@@ -187,18 +187,19 @@ class RoleExtractor:
         Args:
             stems: Dict mapping stem names to mono float audio arrays.
             sr: Sample rate in Hz.
-            boundary: Optional ``(start_seconds, end_seconds)`` section window.
+            boundary: ``(start_seconds, end_seconds)`` section window. ``None``
+                means the extractor has no matching section window, so this
+                method fails closed instead of measuring the whole song.
 
         Returns:
             Mapping of role id to rehearsal warnings. Empty when stems are
-            missing or overlap mapping fails closed.
+            missing, the section window is absent, or overlap mapping fails
+            closed.
         """
-        if not stems:
+        if not stems or boundary is None:
             return {}
         try:
-            windowed = stems
-            if boundary is not None:
-                windowed = slice_stems_to_window(stems, boundary[0], boundary[1], int(sr))
+            windowed = slice_stems_to_window(stems, boundary[0], boundary[1], int(sr))
             return format_overlap_warnings(detect_register_overlap(windowed, int(sr)))
         except Exception:
             logger.warning(

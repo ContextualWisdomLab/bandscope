@@ -10,6 +10,7 @@ from bandscope_analysis.roles.model import (
     RehearsalPriority,
     RoleType,
 )
+from bandscope_analysis.roles.overlap import band_energy_profile
 
 
 def test_role_type_enum() -> None:
@@ -166,20 +167,97 @@ def test_role_extractor_uses_measured_register_overlap_per_section() -> None:
         "boundaries": [(0.0, 1.0), (1.0, 2.0)],
     }
 
+    verse_profile = band_energy_profile(crowded, sample_rate)
+    chorus_profile = band_energy_profile(separated, sample_rate)
+    ideal_low = {"low": 1.0, "mid": 0.0, "high": 0.0}
+    ideal_mid = {"low": 0.0, "mid": 1.0, "high": 0.0}
+    verse_rmse = (
+        sum((verse_profile[band] - ideal_low[band]) ** 2 for band in ideal_low) / 3
+    ) ** 0.5
+    chorus_rmse = (
+        sum((chorus_profile[band] - ideal_mid[band]) ** 2 for band in ideal_mid) / 3
+    ) ** 0.5
+    assert verse_rmse < 1e-6
+    assert chorus_rmse < 1e-6
+
     result = extractor.extract([{"id": "verse-1"}, {"id": "chorus-1"}], audio_features)
 
     verse_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
     chorus_roles = {role["id"]: role for role in result["topologies"][1]["active_roles"]}
 
-    verse_warning = verse_roles["bass-guitar"]["overlapWarnings"][0]
-    assert "low register" in verse_warning
-    assert "Bass Guitar" in verse_warning
-    assert "accompaniment" in verse_warning
-    assert "Thin one part" in verse_warning
-    assert (
-        verse_roles["keys-left"]["overlapWarnings"] == verse_roles["bass-guitar"]["overlapWarnings"]
+    expected = (
+        "The low register is crowded between Bass Guitar and accompaniment. "
+        "Thin one part in this section so players can hear their cue."
     )
+    assert verse_roles["bass-guitar"]["overlapWarnings"] == [expected]
+    assert verse_roles["keys-left"]["overlapWarnings"] == []
+    assert verse_roles["keys-right"]["overlapWarnings"] == []
+    assert verse_roles["acoustic-guitar"]["overlapWarnings"] == []
     assert chorus_roles["bass-guitar"]["overlapWarnings"] == []
+    assert chorus_roles["keys-left"]["overlapWarnings"] == []
+
+
+def test_role_extractor_omits_warnings_when_section_windows_are_missing() -> None:
+    """Stems without matching section windows must not emit a song-wide clash."""
+    extractor = RoleExtractor()
+    sample_rate = 22_050
+    crowded = _tone(80.0, 1.0, sample_rate)
+    audio_features = {
+        "stems": {"bass": crowded, "other": crowded.copy()},
+        "sr": sample_rate,
+    }
+
+    result = extractor.extract([{"id": "verse-1"}, {"id": "chorus-1"}], audio_features)
+
+    assert all(
+        role["overlapWarnings"] == []
+        for topology in result["topologies"]
+        for role in topology["active_roles"]
+    )
+
+
+def test_role_extractor_omits_warnings_when_boundary_count_mismatches_sections() -> None:
+    """A partial boundary list is not enough evidence to measure any section."""
+    extractor = RoleExtractor()
+    sample_rate = 22_050
+    crowded = _tone(80.0, 2.0, sample_rate)
+    audio_features = {
+        "stems": {"bass": crowded, "other": crowded.copy()},
+        "sr": sample_rate,
+        "boundaries": [(0.0, 1.0)],
+    }
+
+    result = extractor.extract([{"id": "verse-1"}, {"id": "chorus-1"}], audio_features)
+
+    assert all(
+        role["overlapWarnings"] == []
+        for topology in result["topologies"]
+        for role in topology["active_roles"]
+    )
+
+
+def test_role_extractor_keeps_mixed_vocal_overlap_off_named_accompaniment_roles() -> None:
+    """other + vocals may warn lead vocal only; keyboard identity stays unclaimed."""
+    extractor = RoleExtractor()
+    sample_rate = 22_050
+    mid_tone = _tone(1000.0, 1.0, sample_rate)
+    audio_features = {
+        "stems": {"vocals": mid_tone, "other": mid_tone.copy()},
+        "sr": sample_rate,
+        "boundaries": [(0.0, 1.0)],
+    }
+
+    result = extractor.extract([{"id": "chorus-1"}], audio_features)
+    roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
+
+    expected = (
+        "The mid register is crowded between accompaniment and Lead Vocal. "
+        "Thin one part in this section so players can hear their cue."
+    )
+    assert roles["lead-vocal"]["overlapWarnings"] == [expected]
+    assert roles["keys-left"]["overlapWarnings"] == []
+    assert roles["keys-right"]["overlapWarnings"] == []
+    assert roles["acoustic-guitar"]["overlapWarnings"] == []
 
 
 def test_role_extractor_omits_warnings_when_overlap_mapping_fails() -> None:

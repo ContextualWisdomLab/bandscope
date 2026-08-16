@@ -38,6 +38,8 @@ transients do not mark a rehearsal register.
 Temporal structure uses the same section boundaries as novelty-based form
 analysis already present in the engine (Foote, 2000; Paulus et al., 2010).
 That keeps overlap aligned with the roadmap a player actually rehearses.
+If stems arrive without a matching boundary for every section, the
+extractor emits no overlap warning rather than averaging the whole song.
 
 ## What the player should do next
 

@@ -285,6 +285,21 @@ class TestFormatOverlapWarnings:
             == {}
         )
 
+    def test_display_only_stem_does_not_raise_when_role_map_omits_it(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A later display label must not KeyError if it has no role authority."""
+        monkeypatch.setitem(overlap_module._STEM_DISPLAY_NAMES, "synth", "Synth")
+        warnings = format_overlap_warnings(
+            [{"stem_a": "bass", "stem_b": "synth", "band": "low", "severity": 0.8}]
+        )
+        expected = (
+            "The low register is crowded between Bass Guitar and Synth. "
+            "Thin one part in this section so players can hear their cue."
+        )
+        assert warnings == {"bass-guitar": [expected]}
+
     def test_duplicate_records_and_vocal_pairs_dedupe(self) -> None:
         """Repeated records stay one warning and mixed accompaniment stays ambiguous."""
         record = {

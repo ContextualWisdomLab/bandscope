@@ -15,9 +15,11 @@ contracts.
 ## Task
 
 1. Keep heuristic extraction (no stems) at empty `overlapWarnings`.
-2. When stems exist, slice to the section boundary when one is present.
-3. Map `vocals` / `bass` / `other` to Lead Vocal, Bass Guitar, and
-   accompaniment roles only.
+2. Measure overlap only when every section has a matching boundary;
+   missing or mismatched windows fail closed to no warnings.
+3. Map `vocals` and `bass` to Lead Vocal and Bass Guitar. Keep mixed
+   `other` in player-facing copy as accompaniment, but do not assign that
+   evidence to Keyboard Left Hand, Keyboard Right Hand, or Acoustic Guitar.
 4. Recalculate rehearsal priority from the section-local warnings.
 5. Fail closed to no warnings when mapping throws.
 
@@ -45,7 +47,8 @@ contracts.
 ### Test points
 
 - Known 80 Hz bass+accompaniment verse versus 1 kHz chorus fixture
-- Empty warnings when stems are absent
+- Empty warnings when stems are absent or section windows are missing
+- Mixed `other` overlap warns only the unambiguous stem-side role
 - Mapping exception omits warnings without aborting extraction
 - Invalid slice windows return empty arrays
 
