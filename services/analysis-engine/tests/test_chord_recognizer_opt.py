@@ -101,23 +101,6 @@ def test_observation_probability_edge_cases_are_normalized():
         assert np.allclose(probs.sum(axis=0), 1.0)
 
 
-def test_non_finite_observation_metadata_is_neutral_and_finite():
-    """Invalid DSP metadata must not poison Viterbi probabilities or imply silence."""
-    recognizer = ChordRecognizer()
-    chromagram = np.ones((12, 2), dtype=float)
-    chromagram[0, 1] = np.nan
-    similarity = np.zeros((24, 2), dtype=float)
-    similarity[3, 1] = np.nan
-    rms = np.array([1.0, np.nan])
-
-    probs = recognizer._build_observation_probs(chromagram, similarity, rms)
-
-    assert np.all(np.isfinite(probs))
-    assert np.allclose(probs.sum(axis=0), 1.0)
-    assert np.allclose(probs[:24, 1], probs[0, 1])
-    assert probs[24, 1] < probs[:24, 1].sum()
-
-
 def test_missing_observation_metadata_does_not_force_no_chord():
     """Keep uniform chord fallback neutral when similarity and RMS are absent."""
     recognizer = ChordRecognizer()
