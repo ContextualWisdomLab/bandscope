@@ -21,6 +21,13 @@ active just because mixed `other` has energy. Browser-fallback and shared
 demo fixtures use the same next-action copy the engine emits, and they
 never attach that copy to a named keyboard or guitar role.
 
+Section slicing is fail-closed on invalid temporal evidence. Start/end
+bounds and sample rate must be finite, the sample rate must be positive,
+and the end must follow the start. Invalid values return empty stem windows
+rather than reaching sample-index conversion, raising from NaN/Infinity, or
+falling back to whole-song overlap. This preserves the contract that absent
+or malformed section authority produces no density warning.
+
 ## Psychoacoustic and MIR basis
 
 Auditory scene analysis treats concurrent sources as streams that compete
@@ -50,6 +57,14 @@ extractor emits no overlap warning rather than averaging the whole song.
 Copy is action-first: name the crowded register, name the two sides, and
 tell the player to thin one part in *this* section. It does not declare a
 correct voicing.
+
+## Security and test boundary
+
+Overlap analysis operates on already-admitted in-memory arrays. It adds no
+file, network, subprocess, model, database, or IPC authority. Direct tests
+cover finite and non-finite section/sample-rate inputs, silent or malformed
+stems, threshold validation, section-local slicing, mixed-`other` identity,
+and de-duplicated next-action warning copy.
 
 ## References
 
