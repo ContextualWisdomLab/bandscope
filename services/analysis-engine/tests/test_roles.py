@@ -190,6 +190,7 @@ def test_role_extractor_uses_measured_register_overlap_per_section() -> None:
         "Thin one part in this section so players can hear their cue."
     )
     assert verse_roles["bass-guitar"]["overlapWarnings"] == [expected]
+    assert verse_roles["bass-guitar"]["rehearsalPriority"] == "high"
     assert "keys-left" not in verse_roles
     assert "keys-right" not in verse_roles
     assert "acoustic-guitar" not in verse_roles
@@ -198,6 +199,7 @@ def test_role_extractor_uses_measured_register_overlap_per_section() -> None:
     assert verse_graph["keys-right"]["is_active"] is False
     assert verse_graph["acoustic-guitar"]["is_active"] is False
     assert chorus_roles["bass-guitar"]["overlapWarnings"] == []
+    assert chorus_roles["bass-guitar"]["rehearsalPriority"] == "medium"
     assert "keys-left" not in chorus_roles
 
 
