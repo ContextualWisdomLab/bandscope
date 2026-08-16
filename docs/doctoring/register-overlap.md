@@ -32,6 +32,13 @@ an overflowed product, or falling back to whole-song overlap. This preserves
 the contract that absent or malformed section authority produces no density
 warning.
 
+Register energy is computed only from one-dimensional mono arrays, matching
+the separator contract consumed by this feature. A malformed multichannel or
+higher-dimensional array is not flattened, mixed, or interpreted as valid
+register evidence: it produces an all-zero profile instead. This prevents an
+FFT-shape mismatch from escaping the public helper and prevents malformed
+stem structure from fabricating or aborting buyer-facing overlap guidance.
+
 ## Psychoacoustic and MIR basis
 
 Auditory scene analysis treats concurrent sources as streams that compete
@@ -67,9 +74,10 @@ correct voicing.
 Overlap analysis operates on already-admitted in-memory arrays. It adds no
 file, network, subprocess, model, database, or IPC authority. Direct tests
 cover finite and non-finite section/sample-rate inputs, finite inputs whose
-scaled sample-index products overflow, silent or malformed stems, threshold
-validation, section-local slicing, mixed-`other` identity, and de-duplicated
-next-action warning copy.
+scaled sample-index products overflow, one-dimensional mono admission versus
+malformed multichannel stems, silent or malformed stems, threshold validation,
+section-local slicing, mixed-`other` identity, and de-duplicated next-action
+warning copy.
 
 ## References
 
