@@ -45,17 +45,14 @@ def test_windows_drive_relative_job_paths_fail_before_filesystem_lookup(
     path: str,
 ) -> None:
     """Drive-relative Win32 input must not inherit per-drive current-directory authority."""
-    original_lstat = cli.os.lstat
 
-    def guarded_lstat(candidate: object, *args: object, **kwargs: object) -> object:
-        """Fail only if the target path itself reaches the filesystem boundary."""
-        if candidate == path:
-            raise AssertionError("drive-relative job path reached os.lstat")
-        return original_lstat(candidate, *args, **kwargs)  # type: ignore[arg-type]
+    def forbidden_lstat(*_args: object, **_kwargs: object) -> object:
+        """Prove lexical rejection happens before any filesystem metadata lookup."""
+        raise AssertionError("drive-relative job path reached os.lstat")
 
-    monkeypatch.setattr(cli.os, "lstat", guarded_lstat)
+    monkeypatch.setattr(cli.os, "lstat", forbidden_lstat)
 
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match="local regular-file namespace"):
         cli._read_bounded_job_file(path)
 
 
