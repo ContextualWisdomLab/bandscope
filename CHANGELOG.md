@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Reject Boolean chord timing and tempo metric inputs so `True`/`False` cannot masquerade as numeric MIR acceptance evidence through Python's `bool`-as-`int` semantics.
 - Reject blank or edge-whitespace-padded accuracy-report case IDs, metric names, and truth labels so portable acceptance evidence preserves exact registered identities.
 - Reject empty or reversed chord-estimate intervals before duration-weighted recall so malformed timing evidence cannot be silently ignored by an accuracy acceptance score.
 - Fail closed when accuracy-report provenance cannot resolve a non-empty product `VERSION`, instead of publishing an `unknown` engine version as valid evidence.
