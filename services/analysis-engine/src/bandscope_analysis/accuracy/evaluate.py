@@ -30,17 +30,28 @@ def evaluate_c_major_pcm(
     """Score a C major triad through the production chord recognizer.
 
     Args:
-        audio: Decoded mono PCM. Do not pass a chroma matrix.
-        sample_rate: Sample rate of ``audio``.
+        audio: Decoded one-dimensional mono PCM. Do not pass a chroma matrix or
+            an unresolved multichannel buffer.
+        sample_rate: Finite positive non-Boolean sample rate of ``audio``.
         audio_sha256: Digest of the on-disk fixture that produced ``audio``.
 
     Returns:
         A case report whose metric is duration-weighted recall of ``C``.
+
+    Raises:
+        ValueError: If PCM is not mono or the sample-rate evidence is Boolean,
+            non-finite, or non-positive.
     """
+    if isinstance(sample_rate, bool) or not np.isfinite(sample_rate) or sample_rate <= 0:
+        raise ValueError("sample_rate must be a finite positive non-Boolean number")
+    samples = np.asarray(audio, dtype=np.float32)
+    if samples.ndim != 1:
+        raise ValueError("audio must be one-dimensional mono PCM")
+
     recognizer = ChordRecognizer()
-    tracked = recognizer.recognize(np.asarray(audio, dtype=np.float32), sr=sample_rate)
+    tracked = recognizer.recognize(samples, sr=sample_rate)
     segments = [(item["start_time"], item["end_time"], item["chord"]) for item in tracked]
-    duration = float(len(audio) / sample_rate)
+    duration = float(len(samples) / sample_rate)
     recall = duration_weighted_chord_recall(segments, C_MAJOR_LABEL, 0.0, duration)
     return build_case_report(
         case_id="c-major-triad",
