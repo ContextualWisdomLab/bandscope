@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Reject blank or edge-whitespace-padded accuracy-report case IDs, metric names, and truth labels so portable acceptance evidence preserves exact registered identities.
 - Reject empty or reversed chord-estimate intervals before duration-weighted recall so malformed timing evidence cannot be silently ignored by an accuracy acceptance score.
 - Fail closed when accuracy-report provenance cannot resolve a non-empty product `VERSION`, instead of publishing an `unknown` engine version as valid evidence.
 - Reject non-finite chord annotation and estimate timings before duration-weighted recall so NaN/Inf evidence cannot fabricate covered duration.
