@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 
@@ -66,21 +67,26 @@ def tempo_acc1(
     """Return whether estimated tempo is within Acc1 tolerance of the true tempo.
 
     Acc1 accepts an estimate within ``relative_tolerance`` of the true BPM and
-    does not credit octave errors (Schreiber & Müller, 2020).
+    does not credit octave errors (Schreiber & Müller, 2020). Non-finite
+    estimates, ground truth, or tolerances are invalid evidence and fail
+    closed instead of being converted into an ordinary metric miss.
 
     Args:
-        estimated_bpm: Engine tempo in beats per minute.
-        true_bpm: Known fixture tempo. Must be positive.
-        relative_tolerance: Non-negative Acc1 window. The default is 4%.
+        estimated_bpm: Engine tempo in beats per minute. Must be finite.
+        true_bpm: Known fixture tempo. Must be finite and positive.
+        relative_tolerance: Finite non-negative Acc1 window. The default is 4%.
 
     Returns:
         ``True`` when the estimate is inside the Acc1 window.
 
     Raises:
-        ValueError: If ``true_bpm`` is not positive or the tolerance is negative.
+        ValueError: If any metric input is non-finite, ``true_bpm`` is not
+            positive, or the tolerance is negative.
     """
-    if true_bpm <= 0:
-        raise ValueError("true_bpm must be positive")
-    if relative_tolerance < 0:
-        raise ValueError("relative_tolerance must be non-negative")
+    if not math.isfinite(estimated_bpm):
+        raise ValueError("estimated_bpm must be finite")
+    if not math.isfinite(true_bpm) or true_bpm <= 0:
+        raise ValueError("true_bpm must be finite and positive")
+    if not math.isfinite(relative_tolerance) or relative_tolerance < 0:
+        raise ValueError("relative_tolerance must be finite and non-negative")
     return abs(estimated_bpm - true_bpm) / true_bpm <= relative_tolerance
