@@ -5073,14 +5073,36 @@ def test_opencode_approval_write_failure_updates_overview_only() -> None:
     assert "source-backed repository findings" in policy
 
 
+def test_opencode_uses_nvidia_nim_only() -> None:
+    """Ensure local OpenCode is NVIDIA NIM only and does not use GitHub Models."""
+    repo_root = Path(__file__).resolve().parents[3]
+    opencode_text = (repo_root / "opencode.jsonc").read_text(encoding="utf-8")
+    opencode_config = json.loads(opencode_text)
+
+    assert opencode_config["model"] == "nvidia-nim/nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    assert opencode_config["enabled_providers"] == ["nvidia-nim"]
+    assert set(opencode_config["provider"]) == {"nvidia-nim"}
+
+    nim_provider = opencode_config["provider"]["nvidia-nim"]
+    assert nim_provider["options"]["baseURL"] == "https://integrate.api.nvidia.com/v1"
+    assert nim_provider["options"]["apiKey"] == "{env:NVIDIA_API_KEY}"
+    assert "nvidia/llama-3.3-nemotron-super-49b-v1.5" in nim_provider["models"]
+
+    leftover_tokens = (
+        "github-models",
+        "STRIX_GITHUB_MODELS_TOKEN",
+        "COPILOT_GITHUB_TOKEN",
+        "openai/gpt-5",
+        "models.github.ai",
+    )
+    for leftover in leftover_tokens:
+        assert leftover not in opencode_text
+
+
 def test_pr_review_merge_scheduler_uses_central_mutation_credential() -> None:
     """Ensure mechanical PR queue handling uses the central mutation credential."""
-    repo_root = Path(__file__).resolve().parents[3]
     policy = central_required_workflow_policy_text()
 
-    opencode_config = (repo_root / "opencode.jsonc").read_text(encoding="utf-8")
-    assert '"openai/o3"' in opencode_config
-    assert '"openai/o4-mini"' in opencode_config
     assert_local_review_workflows_removed()
     assert "selected workflow mutation" in policy
     assert "credential, not by a maintainer's local `gh` session" in policy
