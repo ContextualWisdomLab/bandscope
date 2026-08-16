@@ -140,7 +140,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   }
 
   if (command === "save_project") {
-    return;
+    throw new Error("Project save requires the Tauri runtime.");
   }
 
   if (command === "import_youtube_url") {
