@@ -108,7 +108,10 @@ def _read_bounded_job_file(path: str) -> bytes:
 
     UNC/network shapes, device namespaces, drive-relative Win32 paths, NTFS
     alternate-stream syntax, and reserved DOS device aliases are rejected
-    lexically before any filesystem lookup. Drive-relative forms such as
+    lexically before any filesystem lookup. Slash translation is applied before
+    the UNC/device-namespace prefix test so mixed-separator forms such as
+    ``/\\server\\share`` or ``/\\.\\pipe\\...`` cannot reach ``lstat`` or
+    ``open``. Drive-relative forms such as
     ``C:job.json`` are authority-bearing: Win32 resolves them through a per-drive
     current directory rather than from the drive root. The remaining path is
     inspected with ``lstat`` before opening so known directories, FIFOs, devices,
@@ -123,8 +126,9 @@ def _read_bounded_job_file(path: str) -> bytes:
     """
     drive, drive_tail = ntpath.splitdrive(path)
     uses_drive_relative_path = bool(drive) and not drive_tail.startswith(("\\", "/"))
+    uses_unc_or_device_namespace = path.replace("/", "\\").startswith("\\\\")
     if (
-        path.startswith(("\\\\", "//"))
+        uses_unc_or_device_namespace
         or uses_drive_relative_path
         or _uses_windows_alternate_stream(path)
         or _uses_windows_device_alias(path)
