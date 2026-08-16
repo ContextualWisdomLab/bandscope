@@ -52,10 +52,14 @@ _STEM_DISPLAY_NAMES = {
     "bass": "Bass Guitar",
     "other": "accompaniment",
 }
+# Role assignment is narrower than display naming. The mixed `other` stem may
+# be named as accompaniment in copy, but it cannot establish whether a keyboard
+# hand or guitar caused the overlap. Attach warnings only to stems with an
+# unambiguous role identity; the opposite mixed side remains role-agnostic.
 _STEM_TO_ROLE_IDS = {
     "vocals": ("lead-vocal",),
     "bass": ("bass-guitar",),
-    "other": ("keys-left", "keys-right", "acoustic-guitar"),
+    "other": (),
 }
 _BAND_LABELS = {
     "low": "low register",
@@ -224,9 +228,10 @@ def format_overlap_warnings(overlaps: list[dict[str, Any]]) -> dict[str, list[st
         overlaps: Records from :func:`detect_register_overlap`.
 
     Returns:
-        Mapping of role id to de-duplicated warning strings. Unknown stems or
-        bands are omitted so the product never invents a named keyboard or
-        guitar clash from a mixed accompaniment stem.
+        Mapping of unambiguous role ids to de-duplicated warning strings.
+        Unknown stems or bands are omitted. Mixed accompaniment may appear in
+        the message text but never authorizes assigning that observation to a
+        named keyboard hand or guitar role.
     """
     warnings: dict[str, list[str]] = {}
     for record in overlaps:
