@@ -72,6 +72,28 @@ function normalizedNoteLabel(note: string): string {
 }
 
 /**
+ * Normalize one section's range without admitting a contradictory complete pair.
+ *
+ * Partial valid evidence remains usable so a later section can supply the
+ * missing boundary. When both boundaries are valid but the reported lower
+ * note is above the upper note, both are discarded together so one bad
+ * section cannot widen an otherwise trustworthy aggregate lane.
+ */
+function normalizedRangeEvidence(
+  lowestNote: string,
+  highestNote: string
+): Pick<StemLane, "lowestNote" | "highestNote"> {
+  const normalizedLowest = normalizedNoteLabel(lowestNote);
+  const normalizedHighest = normalizedNoteLabel(highestNote);
+  const lowestPitch = notePitchValue(normalizedLowest);
+  const highestPitch = notePitchValue(normalizedHighest);
+  if (lowestPitch !== null && highestPitch !== null && lowestPitch > highestPitch) {
+    return { lowestNote: "", highestNote: "" };
+  }
+  return { lowestNote: normalizedLowest, highestNote: normalizedHighest };
+}
+
+/**
  * Choose the more extreme valid note while retaining the first label on ties.
  */
 function widerRangeBoundary(
@@ -135,14 +157,16 @@ function pushUniqueLabel(labels: string[], value: string): void {
  * exists. Callers must keep playback copy honest until a stem audio contract
  * is attached. When one role spans sections, its lane widens to the lowest and
  * highest valid pitch reported anywhere in those sections. Malformed initial
- * pitch labels are discarded, and a complete range whose lower boundary is
- * above its upper boundary fails closed rather than being presented as playable.
+ * pitch labels and contradictory complete section ranges are discarded, and a
+ * complete aggregate range whose lower boundary is above its upper boundary
+ * fails closed rather than being presented as playable.
  */
 export function collectStemLanes(song: RehearsalSong): StemLane[] {
   const lanes = new Map<string, StemLane>();
 
   for (const section of song.sections) {
     for (const role of section.roles) {
+      const rangeEvidence = normalizedRangeEvidence(role.range.lowestNote, role.range.highestNote);
       const existing = lanes.get(role.id);
       if (!existing) {
         const sectionLabel = section.label.trim();
@@ -150,8 +174,8 @@ export function collectStemLanes(song: RehearsalSong): StemLane[] {
           roleId: role.id,
           roleName: role.name.trim(),
           roleType: role.roleType,
-          lowestNote: normalizedNoteLabel(role.range.lowestNote),
-          highestNote: normalizedNoteLabel(role.range.highestNote),
+          lowestNote: rangeEvidence.lowestNote,
+          highestNote: rangeEvidence.highestNote,
           sectionLabels: sectionLabel ? [sectionLabel] : [],
           overlapWarnings: [...new Set(role.overlapWarnings.map((warning) => warning.trim()).filter(Boolean))],
           rehearsalPriority: role.rehearsalPriority
@@ -164,12 +188,12 @@ export function collectStemLanes(song: RehearsalSong): StemLane[] {
       }
       existing.lowestNote = widerRangeBoundary(
         existing.lowestNote,
-        role.range.lowestNote,
+        rangeEvidence.lowestNote,
         (candidatePitch, currentPitch) => candidatePitch < currentPitch
       );
       existing.highestNote = widerRangeBoundary(
         existing.highestNote,
-        role.range.highestNote,
+        rangeEvidence.highestNote,
         (candidatePitch, currentPitch) => candidatePitch > currentPitch
       );
       existing.rehearsalPriority = higherRehearsalPriority(
