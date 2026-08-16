@@ -237,7 +237,6 @@ function sectionCountDetail(t: ReturnType<typeof createTranslator>, sectionCount
 function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnType<typeof createTranslator> }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
-
   // Performance: Avoid O(N) array scan with .reduce() to find minimum confidence.
   // Instead use a for loop that can early exit (O(K)) as soon as the lowest bound ("low") is hit.
   let lowestConfidence: RehearsalSong["sections"][number]["confidence"]["level"] | null = null;
@@ -357,7 +356,6 @@ export function App() {
     }, 20);
     return () => window.clearTimeout(timer);
   }, [jobStatus?.progressPercent, jobStatus?.state, renderedProgressPercent]);
-
   useEffect(() => {
     if (!jobStatus || (jobStatus.state !== "queued" && jobStatus.state !== "running")) {
       return;
@@ -529,6 +527,8 @@ export function App() {
     setPendingHandoff(handoff);
     if (handoff) {
       setSelectedBootstrap(null);
+      setSelectionError(null);
+      setSelectionErrorSource(null);
     }
   };
 
