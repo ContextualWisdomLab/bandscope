@@ -128,16 +128,16 @@ def parse_case_report(value: object) -> AccuracyCaseReport:
     engine_version = value["engine_version"]
     true_label = value["true_label"]
 
-    if not isinstance(case_id, str) or not case_id:
-        raise ValueError("case_id must be a non-empty string")
+    if not isinstance(case_id, str) or not case_id or case_id.strip() != case_id:
+        raise ValueError("case_id must be an exact non-empty string")
     if (
         not isinstance(audio_sha256, str)
         or len(audio_sha256) != 64
         or any(character not in _HEX_DIGITS for character in audio_sha256)
     ):
         raise ValueError("audio_sha256 must be a 64-character hex digest")
-    if not isinstance(metric_name, str) or not metric_name:
-        raise ValueError("metric_name must be a non-empty string")
+    if not isinstance(metric_name, str) or not metric_name or metric_name.strip() != metric_name:
+        raise ValueError("metric_name must be an exact non-empty string")
     if isinstance(metric_value, bool) or not isinstance(metric_value, (int, float)):
         raise ValueError("metric_value must be a finite number")
     try:
@@ -155,8 +155,8 @@ def parse_case_report(value: object) -> AccuracyCaseReport:
         or engine_version.lower() == "unknown"
     ):
         raise ValueError("engine_version must be an exact non-empty version, not unknown")
-    if not isinstance(true_label, str) or not true_label:
-        raise ValueError("true_label must be a non-empty string")
+    if not isinstance(true_label, str) or not true_label or true_label.strip() != true_label:
+        raise ValueError("true_label must be an exact non-empty string")
 
     return {
         "case_id": case_id,
