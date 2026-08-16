@@ -62,6 +62,30 @@ def test_windows_drive_relative_job_paths_fail_before_filesystem_lookup(
 @pytest.mark.parametrize(
     "path",
     [
+        "job.json:secret",
+        "job.json::$DATA",
+        r"C:\tmp\job.json:secret",
+    ],
+)
+def test_windows_alternate_stream_job_paths_fail_before_filesystem_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    """NTFS alternate-stream syntax must stay outside the regular-file job namespace."""
+
+    def forbidden_lstat(_path: str) -> object:
+        """Fail if alternate-stream syntax reaches the filesystem boundary."""
+        raise AssertionError("alternate stream job path reached os.lstat")
+
+    monkeypatch.setattr(cli.os, "lstat", forbidden_lstat)
+
+    with pytest.raises(OSError):
+        cli._read_bounded_job_file(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
         "NUL",
         "nul.txt",
         "NUL:",
