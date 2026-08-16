@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectBootstrapSummary, RehearsalSong } from "@bandscope/shared-types";
 import { App } from "./App";
-import { loadProject, selectLocalAudioSource, startAnalysisJob } from "./lib/analysis";
+import { loadProject, saveProject, selectLocalAudioSource, startAnalysisJob } from "./lib/analysis";
 
 vi.mock("./features/score/ScoreView", () => ({
   ScoreView: () => <div>Score view</div>
@@ -37,6 +37,7 @@ vi.mock("./lib/analysis", () => ({
 }));
 
 const mockedLoadProject = vi.mocked(loadProject);
+const mockedSaveProject = vi.mocked(saveProject);
 const mockedSelectLocalAudioSource = vi.mocked(selectLocalAudioSource);
 const mockedStartAnalysisJob = vi.mocked(startAnalysisJob);
 
@@ -74,6 +75,7 @@ function loadedSong(): RehearsalSong {
 describe("App source-transition handler guards", () => {
   beforeEach(() => {
     mockedLoadProject.mockReset();
+    mockedSaveProject.mockReset();
     mockedSelectLocalAudioSource.mockReset();
     mockedStartAnalysisJob.mockReset();
   });
@@ -136,6 +138,35 @@ describe("App source-transition handler guards", () => {
     });
     await waitFor(() => {
       expect(openProject).toHaveAttribute("data-disabled", "false");
+    });
+  });
+
+  it("rejects a bypassed save while project loading is pending", async () => {
+    mockedLoadProject.mockResolvedValueOnce(loadedSong());
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await screen.findByText("Workspace result");
+
+    let resolveProject: ((song: RehearsalSong) => void) | null = null;
+    mockedLoadProject.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveProject = resolve;
+        })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    const saveProjectButton = screen.getByRole("button", { name: /save project/i });
+    await waitFor(() => {
+      expect(saveProjectButton).toHaveAttribute("data-disabled", "true");
+    });
+
+    fireEvent.click(saveProjectButton);
+    expect(mockedSaveProject).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveProject?.(loadedSong());
     });
   });
 
