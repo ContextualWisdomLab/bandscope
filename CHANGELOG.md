@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Reject Windows UNC/network and device-namespace `--job` file shapes before any filesystem metadata lookup so a caller-selected local job file cannot silently acquire remote-share or device authority on another host.
+- Reject Windows UNC/network, device-namespace, and reserved Win32 device-alias `--job` file shapes before any filesystem metadata lookup, including aliases exposed only after Win32 leading/trailing ASCII-space/period, extension, stream-suffix, and case normalization, so a caller-selected local job file cannot silently acquire remote-share or device authority on another host.
 - Reject unknown CLI arguments and extra `--status` operands before reading standard input, keep valid whitespace-prefixed inline JSON `--job` payloads on the inline path, reject surrogate-bearing inline job arguments and text-only injected stdin with the stable UTF-8 validation error instead of terminating on an uncaught encoding exception, and fail malformed explicit invocations immediately instead of blocking on unrelated pipes or special files. File-backed `--job` reads now reject symlinks and non-regular paths before opening, request no-follow/close-on-exec/nonblocking descriptor semantics where available, verify the opened descriptor still identifies the preflighted regular file, and enforce the byte bound through that descriptor; where supported, nonblocking acquisition prevents a path swapped to a FIFO/device after preflight from turning `open()` itself into an unbounded wait.
 
 ### Added
