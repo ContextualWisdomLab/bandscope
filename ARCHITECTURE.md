@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-16
 
 ## Brand source
 
@@ -116,6 +116,14 @@ Last updated: 2026-03-11
 - Those bootstrap roots should resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
 - Product and UX decisions should prefer rehearsal-first simplicity while still maintaining high analytical accuracy.
 - Security decisions should prefer allowlisted narrow capabilities over generic convenience APIs.
+
+## Real-audio accuracy acceptance
+
+- Unit and job-envelope tests are not musical accuracy evidence. A buyer-visible claim requires decoded PCM through the production intake bounds.
+- Tier-1 fixtures live in `bandscope_analysis.accuracy`: a deterministic C-major triad WAV is hashed, decoded with `AudioStemSeparator` path/size/duration bounds, recognized, and scored as one section window via `summarize_section_harmony`.
+- The metric for this increment is segment-duration-weighted chord-symbol recall against a registered expected main chord (Raffel et al., 2014; Harte, 2010). The manifest stores the basename and SHA-256 only — never an absolute path.
+- Harmony remains `song → section → role`. A one-section fixture is still a section window, not a song-wide chord collapse.
+- Plan and remaining tiers: `docs/plans/2026-08-16-real-audio-accuracy-acceptance.md` (issue #770).
 
 ## Verification model
 

@@ -78,6 +78,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - `docs/security/github-required-checks.md`
 - `docs/plans/2026-03-10-bandscope-harness-design.md`
 - `docs/plans/2026-03-10-bandscope-harness.md`
+- `docs/plans/2026-08-16-real-audio-accuracy-acceptance.md`
 
 ## Code style
 - Keep UI and analysis engine decoupled through shared contracts.
@@ -85,6 +86,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
+- Buyer-visible harmony claims require decoded PCM through production intake bounds and a section-level accuracy manifest (`bandscope_analysis.accuracy`, issue #770). Mocked recognizer tests are not accuracy evidence.
 
 ## Safety
 - Do not add network-dependent runtime paths for local analysis.
