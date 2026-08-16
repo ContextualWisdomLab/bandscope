@@ -78,9 +78,9 @@ export async function getWorkspaceState(): Promise<RehearsalWorkspace | null> {
     const response = await invokeRunner("get_workspace_state");
     if (!response) return null;
     return parseRehearsalWorkspace(response);
-  } catch (error) {
-    // eslint-disable-next-line no-console -- Error logging for workspace state fetch failure
-    console.error("Failed to get workspace state:", error instanceof Error ? error.message : "Unknown error");
+  } catch {
+    // eslint-disable-next-line no-console -- Stable diagnostics exclude native error payloads.
+    console.error("Failed to get workspace state.");
     return null;
   }
 }
