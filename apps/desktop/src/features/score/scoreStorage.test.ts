@@ -62,6 +62,17 @@ describe("scoreStorage bridge resolution", () => {
   });
 
   it.each([
+    ["null response", null],
+    ["primitive response", "score-1"]
+  ])("rejects attach metadata with a %s", async (_label, response) => {
+    stubReadResponse(response);
+
+    await expect(attachScorePdf("project-1", "song-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
+  });
+
+  it.each([
     ["negative size", -1],
     ["fractional size", 1.5],
     ["NaN size", Number.NaN],
