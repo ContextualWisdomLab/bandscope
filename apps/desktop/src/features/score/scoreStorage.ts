@@ -93,10 +93,10 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
 export async function readScorePdf(projectId: string, scoreId: string): Promise<Uint8Array> {
   const response = await invokeScoreCommand("read_score_pdf", { projectId, scoreId });
   if (response instanceof Uint8Array) {
-    return response;
+    return new Uint8Array(response);
   }
   if (response instanceof ArrayBuffer) {
-    return new Uint8Array(response);
+    return new Uint8Array(response).slice();
   }
   if (Array.isArray(response)) {
     const byteCount = response.length;
