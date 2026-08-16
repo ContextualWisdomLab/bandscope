@@ -25,6 +25,56 @@ describe("scoreStorage bridge resolution", () => {
     delete tauriWindow.__TAURI_INVOKE__;
   });
 
+  it("copies validated attach metadata from the same property reads", async () => {
+    const reads = { scoreId: 0, fileName: 0, fileSizeBytes: 0 };
+    const response = Object.create(null) as Record<string, unknown>;
+    Object.defineProperties(response, {
+      scoreId: {
+        enumerable: true,
+        get: () => {
+          reads.scoreId += 1;
+          return reads.scoreId === 1 ? "score-1" : 42;
+        }
+      },
+      fileName: {
+        enumerable: true,
+        get: () => {
+          reads.fileName += 1;
+          return reads.fileName === 1 ? "score.pdf" : null;
+        }
+      },
+      fileSizeBytes: {
+        enumerable: true,
+        get: () => {
+          reads.fileSizeBytes += 1;
+          return reads.fileSizeBytes === 1 ? 512 : Number.NaN;
+        }
+      }
+    });
+    stubReadResponse(response);
+
+    await expect(attachScorePdf("project-1", "song-1")).resolves.toEqual({
+      id: "score-1",
+      fileName: "score.pdf",
+      fileSizeBytes: 512
+    });
+    expect(reads).toEqual({ scoreId: 1, fileName: 1, fileSizeBytes: 1 });
+  });
+
+  it.each([
+    ["negative size", -1],
+    ["fractional size", 1.5],
+    ["NaN size", Number.NaN],
+    ["infinite size", Number.POSITIVE_INFINITY],
+    ["unsafe integer size", Number.MAX_SAFE_INTEGER + 1]
+  ])("rejects attach metadata with a %s", async (_label, fileSizeBytes) => {
+    stubReadResponse({ scoreId: "score-1", fileName: "score.pdf", fileSizeBytes });
+
+    await expect(attachScorePdf("project-1", "song-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
+  });
+
   it("converts a validated numeric byte array without coercing its values", async () => {
     stubReadResponse([0, 1, 127, 254, 255]);
 
