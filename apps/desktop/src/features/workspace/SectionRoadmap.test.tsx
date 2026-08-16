@@ -48,6 +48,14 @@ describe("SectionRoadmap", () => {
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("marks the focused section for the lock-in handoff", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} focusedSectionId="verse-1" />);
+
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
   it("does not update when the trimmed chord is unchanged", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

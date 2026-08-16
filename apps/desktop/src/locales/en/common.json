@@ -50,6 +50,7 @@
   "workspaceStemsLabel": "Stems",
   "workspaceRehearsalPrioritiesLabel": "Rehearsal Priorities",
   "workspaceLockInFirstLabel": "Lock in first",
+  "workspaceLockInPairAction": "Show {roleName} in {sectionLabel} on the roadmap",
   "workspacePriorityFocusLead": "Start with this section",
   "workspacePriorityEmpty": "No named parts to lock in yet. Pick the first entrance on the section roadmap.",
   "workspaceRolesHarmonyLabel": "Roles & Harmony",

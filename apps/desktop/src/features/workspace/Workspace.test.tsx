@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -269,6 +269,7 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("먼저 맞춰 볼 것")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "로드맵에서 verse의 Bass Guitar 보기" })).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
 
@@ -368,6 +369,22 @@ describe("Workspace", () => {
     expect(priorities.textContent).toContain("Keyboard 1 Right Hand · verse");
     expect(priorities.textContent).toContain("Lead Vocal · chorus");
     expect(priorities.textContent?.match(/Bass Guitar · verse/g)).toHaveLength(1);
+  });
+
+  it("selects the named role and section when a lock-in pair is activated", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(
+      within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus on the roadmap" })
+    );
+
+    expect(screen.getByRole("tab", { name: "Lead Vocal" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
   });
 
   it("falls back to the first section label when every role is low and focus sections are empty", () => {

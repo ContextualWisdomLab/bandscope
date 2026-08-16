@@ -5,6 +5,7 @@
 ### Added
 
 - Surface high-priority role and section pairs in the workspace so players can see what to lock in first before rehearsal.
+- Let players open a named lock-in pair to select that role and section on the roadmap.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 

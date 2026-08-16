@@ -44,6 +44,8 @@ type Translator = ReturnType<typeof createTranslator>;
 /** One role-and-section pair a player should lock in before the room starts. */
 type LockInFirstItem = {
   id: string;
+  roleId: string;
+  sectionId: string;
   roleName: string;
   sectionLabel: string;
 };
@@ -114,7 +116,7 @@ function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
 
         seenIds.add(id);
         seenDisplayPairs.add(displayKey);
-        items.push({ id, roleName, sectionLabel });
+        items.push({ id, roleId: role.id, sectionId: section.id, roleName, sectionLabel });
         if (items.length === MAX_LOCK_IN_FIRST_ITEMS) {
           return items;
         }
@@ -239,6 +241,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [focusedSectionId, setFocusedSectionId] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -333,6 +336,23 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     nonBlankText(activeRoleDetails?.simplification);
   const lockInFirstItems = useMemo(() => collectLockInFirstItems(song), [song]);
   const focusSectionLabels = useMemo(() => collectFocusSectionLabels(song), [song]);
+
+  /**
+   * Select the named role and section so the roadmap shows the part to lock in.
+   */
+  const handleLockInPairActivate = (item: LockInFirstItem): void => {
+    setActiveRole(item.roleId);
+    setFocusedSectionId(item.sectionId);
+  };
+
+  /**
+   * Build the action label that tells a player which roadmap part will open.
+   */
+  const lockInPairActionLabel = (item: LockInFirstItem): string => {
+    return t("workspaceLockInPairAction")
+      .replace("{roleName}", item.roleName)
+      .replace("{sectionLabel}", item.sectionLabel);
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -455,7 +475,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <ul className="space-y-1 text-sm font-semibold text-slate-100">
                     {lockInFirstItems.map((item) => (
                       <li key={item.id}>
-                        {item.roleName} · {item.sectionLabel}
+                        <button
+                          type="button"
+                          className="rounded text-left font-semibold text-slate-100 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                          onClick={() => handleLockInPairActivate(item)}
+                          aria-label={lockInPairActionLabel(item)}
+                        >
+                          {item.roleName} · {item.sectionLabel}
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -627,6 +654,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SectionRoadmap
             song={song}
             activeRole={activeRole}
+            focusedSectionId={focusedSectionId}
             onSongUpdate={onSongUpdate}
           />
           </section>

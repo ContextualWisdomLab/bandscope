@@ -37,7 +37,7 @@
 
 ### Remaining risk
 
-- Clicking a named pair does not yet select that role and section on the roadmap. That is the next buyer-visible slice, not a security control.
+- Focus-section fallback labels are still not clickable. A later slice can map a focus label to the first matching section id.
 
 ## References
 

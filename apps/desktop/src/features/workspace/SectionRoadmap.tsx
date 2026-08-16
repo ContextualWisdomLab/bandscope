@@ -10,11 +10,12 @@ import { AlertCircle, CheckCircle2, Music2, Wand2, Lightbulb, Info } from "lucid
 interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
+  focusedSectionId?: string | null;
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
 /** Documented. */
-export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
+export function SectionRoadmap({ song, activeRole, focusedSectionId = null, onSongUpdate }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
@@ -106,7 +107,13 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         {song.sections.map((section) => (
           <Card
             key={section.id}
+            data-testid={`section-roadmap-${section.id}`}
+            data-focused-section={section.id === focusedSectionId ? "true" : undefined}
             className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
+              section.id === focusedSectionId
+                ? "ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950"
+                : ""
+            } ${
               section.confidence.level === "low" ? "border-rose-300/30 bg-rose-950/30" : "border-white/10 bg-slate-950/80"
             }`}
           >
