@@ -15,6 +15,22 @@ from bandscope_analysis.temporal import TemporalAnalyzer as _TemporalAnalyzer
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 MAX_JSON_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+_WINDOWS_DEVICE_NAMES = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{index}" for index in range(1, 10)),
+        *(f"LPT{index}" for index in range(1, 10)),
+        "COM¹",
+        "COM²",
+        "COM³",
+        "LPT¹",
+        "LPT²",
+        "LPT³",
+    }
+)
 
 # Compatibility hook for existing CLI-level tests and downstream monkeypatches.
 # The CLI intentionally does not invoke temporal analysis before request validation;
@@ -63,20 +79,30 @@ def _read_bounded_stdin() -> tuple[str | None, int]:
     return raw_text.strip(), 0
 
 
+def _uses_windows_device_alias(path: str) -> bool:
+    """Return whether any path component names a reserved Win32 DOS device."""
+    for component in path.replace("\\", "/").split("/"):
+        base_name = component.split(".", 1)[0].upper()
+        if base_name in _WINDOWS_DEVICE_NAMES:
+            return True
+    return False
+
+
 def _read_bounded_job_file(path: str) -> bytes:
     """Read a bounded regular local job file through a verified descriptor.
 
-    UNC/network and device-namespace shapes are rejected lexically before any
-    filesystem lookup. The remaining path is inspected with ``lstat`` before
-    opening so directories, FIFOs, devices, sockets, and symbolic links cannot
-    enter a blocking or redirecting open path. The opened descriptor is then
-    checked with ``fstat`` and must identify the same regular-file inode observed
-    during preflight. ``O_NOFOLLOW`` is additionally requested where the platform
-    exposes it. The byte bound is enforced on the descriptor-backed stream rather
-    than on a second path lookup.
+    UNC/network shapes, device namespaces, and reserved Win32 DOS device aliases
+    are rejected lexically before any filesystem lookup. The remaining path is
+    inspected with ``lstat`` before opening so directories, FIFOs, devices,
+    sockets, and symbolic links cannot enter a blocking or redirecting open
+    path. The opened descriptor is then checked with ``fstat`` and must identify
+    the same regular-file inode observed during preflight. ``O_NOFOLLOW`` is
+    additionally requested where the platform exposes it. The byte bound is
+    enforced on the descriptor-backed stream rather than on a second path
+    lookup.
     """
-    if path.startswith(("\\\\", "//")):
-        raise OSError("job path must use the local filesystem namespace")
+    if path.startswith(("\\\\", "//")) or _uses_windows_device_alias(path):
+        raise OSError("job path must use the local regular-file namespace")
 
     before = os.lstat(path)
     if not stat.S_ISREG(before.st_mode):
