@@ -1,5 +1,5 @@
 import { useState, useMemo, memo, type MouseEvent } from "react";
-import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
+import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalPriority, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
@@ -41,7 +41,116 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
 
 type Translator = ReturnType<typeof createTranslator>;
 
-/** Documented. */
+/** One role-and-section pair a player should lock in before the room starts. */
+type LockInFirstItem = {
+  id: string;
+  roleName: string;
+  sectionLabel: string;
+};
+
+const MAX_LOCK_IN_FIRST_ITEMS = 3;
+
+/**
+ * Return whether a role priority belongs in the preferred lock-in list.
+ *
+ * High-priority parts are shown first. Medium is used only when no high
+ * priority exists so the card still names a concrete part instead of a
+ * section label alone.
+ */
+function matchesPreferredLockInPriority(
+  priority: RehearsalPriority,
+  preferred: Exclude<RehearsalPriority, "low">
+): boolean {
+  switch (priority) {
+    case "high":
+      return preferred === "high";
+    case "medium":
+      return preferred === "medium";
+    case "low":
+      return false;
+    default: {
+      const exhaustive: never = priority;
+      return exhaustive;
+    }
+  }
+}
+
+/**
+ * Collect the first role-and-section pairs a player should lock in.
+ *
+ * Prefers `high` rehearsal priority, then `medium`. Blank names and `none`
+ * sentinels are skipped so the card never turns missing evidence into an
+ * instruction.
+ */
+function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
+  const collectFor = (preferred: Exclude<RehearsalPriority, "low">): LockInFirstItem[] => {
+    const items: LockInFirstItem[] = [];
+    const seen = new Set<string>();
+
+    for (const section of song.sections) {
+      const sectionLabel = nonBlankText(section.label);
+      if (!sectionLabel || sectionLabel.toLowerCase() === "none") {
+        continue;
+      }
+
+      for (const role of section.roles) {
+        if (!matchesPreferredLockInPriority(role.rehearsalPriority, preferred)) {
+          continue;
+        }
+
+        const roleName = nonBlankText(role.name);
+        if (!roleName || roleName.toLowerCase() === "none") {
+          continue;
+        }
+
+        const id = `${role.id}:${section.id}`;
+        if (seen.has(id)) {
+          continue;
+        }
+
+        seen.add(id);
+        items.push({ id, roleName, sectionLabel });
+        if (items.length === MAX_LOCK_IN_FIRST_ITEMS) {
+          return items;
+        }
+      }
+    }
+
+    return items;
+  };
+
+  const highPriorityItems = collectFor("high");
+  return highPriorityItems.length > 0 ? highPriorityItems : collectFor("medium");
+}
+
+/**
+ * Collect focus-section labels when no role-level lock-in pair exists.
+ *
+ * Blank and case-insensitive `none` values are dropped so a missing focus
+ * list cannot become a rehearsal action.
+ */
+function collectFocusSectionLabels(song: RehearsalSong): string[] {
+  const focusLabels: string[] = [];
+  for (const label of song.exportSummary?.focusSections ?? []) {
+    const trimmed = label.trim();
+    if (!trimmed || trimmed.toLowerCase() === "none") {
+      continue;
+    }
+    focusLabels.push(trimmed);
+    if (focusLabels.length === MAX_LOCK_IN_FIRST_ITEMS) {
+      return focusLabels;
+    }
+  }
+
+  const firstSectionLabel = nonBlankText(song.sections[0]?.label);
+  if (focusLabels.length === 0 && firstSectionLabel && firstSectionLabel.toLowerCase() !== "none") {
+    return [firstSectionLabel];
+  }
+
+  return focusLabels;
+}
+
+/** Prevent clicks on rehearsal controls that are not available yet. */
 function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
   event.preventDefault();
 }
@@ -212,6 +321,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const lockInFirstItems = useMemo(() => collectLockInFirstItems(song), [song]);
+  const focusSectionLabels = useMemo(() => collectFocusSectionLabels(song), [song]);
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -323,11 +434,34 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               <p className="mt-2 text-sm leading-6 text-slate-300">Stem lanes will appear when separation results are available.</p>
             </section>
 
-            <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
+            <section
+              className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4"
+              aria-label={t("workspaceRehearsalPrioritiesLabel")}
+            >
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
-              </p>
+              {lockInFirstItems.length > 0 ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-sm leading-6 text-slate-300">{t("workspaceLockInFirstLabel")}</p>
+                  <ul className="space-y-1 text-sm font-semibold text-slate-100">
+                    {lockInFirstItems.map((item) => (
+                      <li key={item.id}>
+                        {item.roleName} · {item.sectionLabel}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : focusSectionLabels.length > 0 ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-sm leading-6 text-slate-300">{t("workspacePriorityFocusLead")}</p>
+                  <ul className="space-y-1 text-sm font-semibold text-slate-100">
+                    {focusSectionLabels.map((label) => (
+                      <li key={label}>{label}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-300">{t("workspacePriorityEmpty")}</p>
+              )}
             </section>
           </div>
 

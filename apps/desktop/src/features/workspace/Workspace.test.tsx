@@ -268,6 +268,71 @@ describe("Workspace", () => {
     expect(screen.getByText("협업")).toBeTruthy();
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
+    expect(screen.getByText("먼저 맞춰 볼 것")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("names high-priority role and section pairs to lock in first", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Lock in first");
+    expect(priorities.textContent).toContain("Bass Guitar · verse");
+    expect(priorities.textContent).toContain("Keyboard 1 Right Hand · verse");
+    expect(priorities.textContent).not.toContain("Lead Vocal · verse");
+    expect(priorities.textContent).not.toContain("Focus:");
+  });
+
+  it("falls back to medium-priority parts when no high-priority role exists", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = role.rehearsalPriority === "high" ? "low" : role.rehearsalPriority;
+      }
+    }
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Lock in first");
+    expect(priorities.textContent).toContain("Lead Vocal · verse");
+    expect(priorities.textContent).not.toContain("Bass Guitar · verse");
+  });
+
+  it("falls back to focus sections when every role is low priority", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Start with this section");
+    expect(priorities.textContent).toContain("verse");
+    expect(priorities.textContent).not.toContain("Lock in first");
+  });
+
+  it("does not turn blank or none sentinels into lock-in instructions", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["NONE", "  ", "none"]
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Open a role on the roadmap to see what to lock in first.");
+    expect(priorities.textContent).not.toMatch(/NONE/i);
   });
 });
