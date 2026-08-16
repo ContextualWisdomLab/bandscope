@@ -64,15 +64,20 @@ def _read_bounded_stdin() -> tuple[str | None, int]:
 
 
 def _read_bounded_job_file(path: str) -> bytes:
-    """Read a bounded regular job file through an identity-verified descriptor.
+    """Read a bounded regular local job file through a verified descriptor.
 
-    The path is inspected with ``lstat`` before opening so directories, FIFOs,
-    devices, sockets, and symbolic links cannot enter a blocking or redirecting
-    open path. The opened descriptor is then checked with ``fstat`` and must
-    identify the same regular-file inode observed during preflight. ``O_NOFOLLOW``
-    is additionally requested where the platform exposes it. The byte bound is
-    enforced on the descriptor-backed stream rather than on a second path lookup.
+    UNC/network and device-namespace shapes are rejected lexically before any
+    filesystem lookup. The remaining path is inspected with ``lstat`` before
+    opening so directories, FIFOs, devices, sockets, and symbolic links cannot
+    enter a blocking or redirecting open path. The opened descriptor is then
+    checked with ``fstat`` and must identify the same regular-file inode observed
+    during preflight. ``O_NOFOLLOW`` is additionally requested where the platform
+    exposes it. The byte bound is enforced on the descriptor-backed stream rather
+    than on a second path lookup.
     """
+    if path.startswith(("\\\\", "//")):
+        raise OSError("job path must use the local filesystem namespace")
+
     before = os.lstat(path)
     if not stat.S_ISREG(before.st_mode):
         raise OSError("job path is not a regular file")
