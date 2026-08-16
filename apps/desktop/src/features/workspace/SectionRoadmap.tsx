@@ -1,6 +1,6 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useId, useMemo } from "react";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { useEffect, useId, useMemo, useRef } from "react";
+import { createTranslator, detectPreferredLocale, interpolateTemplate } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,21 +10,53 @@ import { AlertCircle, CheckCircle2, Music2, Wand2, Lightbulb, Info } from "lucid
 interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
+  focusedSectionId?: string | null;
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
-/** Documented. */
-export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
+/**
+ * Return whether the player asked the OS to reduce motion.
+ *
+ * Instant scroll keeps the named card in view without a horizontal animation
+ * that can hide the first entrance on a long Late Night Set roadmap.
+ */
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * Render the horizontal section roadmap and keep the focused card in view.
+ */
+export function SectionRoadmap({ song, activeRole, focusedSectionId = null, onSongUpdate }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
+  const focusedCardRef = useRef<HTMLDivElement | null>(null);
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
+  useEffect(() => {
+    if (!focusedSectionId) {
+      return;
+    }
+    const focusedCard = focusedCardRef.current;
+    if (typeof focusedCard?.scrollIntoView === "function") {
+      focusedCard.scrollIntoView({
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+        inline: "start",
+        block: "nearest"
+      });
+    }
+  }, [focusedSectionId]);
+
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
-    return t("chordEditAriaLabel")
-      .replace("{roleName}", role.name)
-      .replace("{sectionLabel}", sectionLabel)
-      .replace("{chord}", role.harmony.chord);
+    return interpolateTemplate(t("chordEditAriaLabel"), {
+      roleName: role.name,
+      sectionLabel,
+      chord: role.harmony.chord
+    });
   };
 
   /** Documented. */
@@ -106,7 +138,15 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         {song.sections.map((section) => (
           <Card
             key={section.id}
+            ref={section.id === focusedSectionId ? focusedCardRef : undefined}
+            data-testid={`section-roadmap-${section.id}`}
+            data-focused-section={section.id === focusedSectionId ? "true" : undefined}
+            aria-current={section.id === focusedSectionId ? "true" : undefined}
             className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
+              section.id === focusedSectionId
+                ? "ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950"
+                : ""
+            } ${
               section.confidence.level === "low" ? "border-rose-300/30 bg-rose-950/30" : "border-white/10 bg-slate-950/80"
             }`}
           >

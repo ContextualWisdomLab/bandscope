@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -8,6 +8,7 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -28,6 +29,7 @@ describe("Workspace", () => {
       configurable: true,
       value: originalRevokeObjectUrl
     });
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
   it("updates practice progress immutably through onSongUpdate", () => {
@@ -268,6 +270,323 @@ describe("Workspace", () => {
     expect(screen.getByText("협업")).toBeTruthy();
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
+    expect(screen.getByText("먼저 맞춰 볼 것")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "로드맵에서 0:10 verse의 Bass Guitar 보기" })).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names high-priority role and section pairs to lock in first", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Lock in first");
+    expect(priorities.textContent).toContain("Bass Guitar · verse");
+    expect(priorities.textContent).toContain("Keyboard 1 Right Hand · verse");
+    expect(priorities.textContent).not.toContain("Lead Vocal · verse");
+    expect(priorities.textContent).not.toContain("Focus:");
+  });
+
+  it("falls back to medium-priority parts when no high-priority role exists", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = role.rehearsalPriority === "high" ? "low" : role.rehearsalPriority;
+      }
+    }
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Lock in first");
+    expect(priorities.textContent).toContain("Lead Vocal · verse");
+    expect(priorities.textContent).not.toContain("Bass Guitar · verse");
+  });
+
+  it("falls back to focus sections when every role is low priority", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Start with this section");
+    expect(priorities.textContent).toContain("verse");
+    expect(priorities.textContent).not.toContain("Lock in first");
+  });
+
+  it("does not turn blank or none sentinels into lock-in instructions", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["NONE", "  ", "none"]
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain(
+      "No named parts to lock in yet. Pick the first entrance on the section roadmap."
+    );
+    expect(priorities.textContent).not.toContain("Open a role on the roadmap");
+    expect(priorities.textContent).not.toMatch(/NONE/i);
+  });
+
+  it("localizes the empty lock-in copy without promising a role click will fill the card", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "합주 우선순위" });
+    expect(priorities.textContent).toContain("아직 먼저 맞출 파트가 없습니다. 구간 로드맵에서 첫 입구를 고르세요.");
+    expect(priorities.textContent).not.toContain("로드맵에서 역할을 열면");
+  });
+
+  it("keeps repeated verse labels from consuming a third lock-in slot", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Lock in first");
+    expect(priorities.querySelectorAll("li")).toHaveLength(3);
+    expect(priorities.textContent).toContain("Bass Guitar · verse");
+    expect(priorities.textContent).toContain("Keyboard 1 Right Hand · verse");
+    expect(priorities.textContent).toContain("Lead Vocal · chorus");
+    expect(priorities.textContent?.match(/Bass Guitar · verse/g)).toHaveLength(1);
+  });
+
+  it("selects the named role and section when a lock-in pair is activated", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(
+      within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus at 0:30 on the roadmap" })
+    );
+
+    expect(screen.getByRole("tab", { name: "Lead Vocal" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("song-structure-chorus-1")).toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("song-structure-verse-1")).not.toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("focuses the matching section when a fallback focus label is activated", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["chorus"]
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show chorus at 0:30 on the roadmap" }));
+
+    expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("omits unmatched focus labels so they cannot clear a real section", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["verse", "bridge"]
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse at 0:10 on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+    expect(within(priorities).queryByRole("button", { name: "Show bridge at 0:10 on the roadmap" })).toBeNull();
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("falls back to the first valid section when unmatched focus labels are the only evidence", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["bridge"]
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(within(priorities).queryByRole("button", { name: /Show bridge/ })).toBeNull();
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse at 0:10 on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("falls back to the first section label when every role is low and focus sections are empty", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Start with this section");
+    expect(priorities.textContent).toContain("verse");
+    expect(priorities.textContent).not.toContain("chorus");
+    expect(priorities.textContent).not.toContain("Lock in first");
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse at 0:10 on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("skips a none first-section label when falling back to the roadmap entrance", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.sections[0] = { ...song.sections[0]!, label: "none" };
+    song.sections[1] = { ...song.sections[1]!, label: "NONE" };
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(within(priorities).queryByRole("button", { name: /Show none/ })).toBeNull();
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show chorus at 0:30 on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("names the first entrance time on each lock-in pair so players know when to lock in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus at 0:30 on the roadmap" })).toBeTruthy();
+    expect(priorities.textContent).toContain("Lead Vocal · chorus · 0:30");
+    expect(priorities.textContent).toContain("Bass Guitar · verse · 0:10");
+  });
+
+  it("marks the activated lock-in pair as the current rehearsal action", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    const chorusAction = within(priorities).getByRole("button", {
+      name: "Show Lead Vocal in chorus at 0:30 on the roadmap"
+    });
+    fireEvent.click(chorusAction);
+
+    expect(chorusAction).toHaveAttribute("aria-current", "true");
+    expect(
+      within(priorities).getByRole("button", { name: "Show Bass Guitar in verse at 0:10 on the roadmap" })
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("keeps a role name that contains a later token from rewriting the aria-label", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "Lead {sectionLabel} Vocal",
+      rehearsalPriority: "high"
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(
+      screen.getByRole("button", { name: "Show Lead {sectionLabel} Vocal in verse at 0:10 on the roadmap" })
+    ).toBeTruthy();
+  });
+
+  it("scrolls the named section into view when a lock-in pair is activated", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(
+      within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus at 0:30 on the roadmap" })
+    );
+
+    const chorusCard = screen.getByTestId("section-roadmap-chorus-1");
+    expect(chorusCard).toHaveAttribute("data-focused-section", "true");
+    expect(chorusCard).toHaveAttribute("aria-current", "true");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
 });
+
+/**
+ * Build a Late Night Set with verse, chorus, and a second verse that reuses
+ * the same role names and section label the analysis engine emits for repeats.
+ */
+function createLateNightSetWithRepeatedVerse(): RehearsalSong {
+  const song = createDemoRehearsalSong();
+  const verse = song.sections[0]!;
+  const chorus = structuredClone(verse);
+  chorus.id = "chorus-1";
+  chorus.label = "chorus";
+  chorus.timeRange = { start: 30, end: 50 };
+  chorus.roles = chorus.roles.map((role) => ({
+    ...role,
+    rehearsalPriority: role.id === "lead-vocal" ? "high" : "low"
+  }));
+  const verseRepeat = structuredClone(verse);
+  verseRepeat.id = "verse-2";
+  verseRepeat.timeRange = { start: 50, end: 70 };
+  song.sections = [verse, verseRepeat, chorus];
+  return song;
+}

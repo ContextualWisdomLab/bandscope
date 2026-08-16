@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SectionRoadmap } from "./SectionRoadmap";
 
 const originalLanguage = window.navigator.language;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+const originalMatchMedia = window.matchMedia;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(window.navigator, "language", {
@@ -16,6 +18,8 @@ describe("SectionRoadmap", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
     vi.restoreAllMocks();
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    window.matchMedia = originalMatchMedia;
   });
 
   it("localizes roadmap controls and provenance badges", () => {
@@ -46,6 +50,48 @@ describe("SectionRoadmap", () => {
     expect(promptSpy).toHaveBeenCalledWith("새 코드 입력:", "C#m7");
     expect(screen.getAllByTitle("코드 수정").length).toBeGreaterThan(0);
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks the focused section for the lock-in handoff", () => {
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<SectionRoadmap song={song} activeRole={null} focusedSectionId="verse-1" />);
+
+    const focusedCard = screen.getByTestId("section-roadmap-verse-1");
+    expect(focusedCard).toHaveAttribute("data-focused-section", "true");
+    expect(focusedCard).toHaveAttribute("aria-current", "true");
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "smooth",
+      inline: "start",
+      block: "nearest"
+    });
+  });
+
+  it("skips smooth scrolling when the player prefers reduced motion", () => {
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
+    window.matchMedia = matchMedia;
+
+    render(<SectionRoadmap song={song} activeRole={null} focusedSectionId="verse-1" />);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "auto",
+      inline: "start",
+      block: "nearest"
+    });
   });
 
   it("does not update when the trimmed chord is unchanged", () => {

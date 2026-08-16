@@ -4,8 +4,24 @@
 
 ### Added
 
+- Surface high-priority role and section pairs in the workspace so players can see what to lock in first before rehearsal.
+- Let players open a named lock-in pair to select that role and section on the roadmap.
+- Let players open a fallback focus-section label to highlight that section on the roadmap.
+- Scroll the named roadmap card into view when a lock-in pair or focus label is opened.
+- Name the first entrance time on each lock-in pair and focus label so players know when to start.
+- Mark the activated lock-in pair as the current rehearsal action.
+- Highlight the same focused section on the song-structure timeline so the lock-in click has one visible destination.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
+
+### Fixed
+
+- Deduplicate normalized focus-section fallback labels so repeated analysis evidence does not consume all three rehearsal-priority slots or render duplicate list keys.
+- Deduplicate lock-in role and section display pairs so a repeated verse label cannot consume the third rehearsal-priority slot.
+- Replace empty rehearsal-priority copy that incorrectly told players a role click would name lock-in parts.
+- Omit unmatched focus-section labels so a missing bridge cannot be sold as a roadmap action or clear verse focus.
+- Keep lock-in aria-labels from rewriting later tokens when a role name contains `{sectionLabel}`.
+- Skip smooth roadmap scrolling when the player prefers reduced motion.
 
 ## [0.1.3] - 2026-04-29
 

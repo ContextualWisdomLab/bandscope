@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, interpolateTemplate } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -60,6 +60,24 @@ describe("i18n", () => {
       const t = createTranslator("ko");
       expect(t("appTitle")).toBe("BandScope");
       expect(t("appSubtitle")).toBe("합주 준비를 위한 로컬-퍼스트 분석 도구");
+    });
+
+    it("fills named tokens in one pass so a value cannot rewrite later placeholders", () => {
+      expect(
+        interpolateTemplate("Show {roleName} in {sectionLabel} at {startTime}", {
+          roleName: "Lead {sectionLabel} Vocal",
+          sectionLabel: "chorus",
+          startTime: "0:30"
+        })
+      ).toBe("Show Lead {sectionLabel} Vocal in chorus at 0:30");
+    });
+
+    it("leaves unknown tokens in the template", () => {
+      expect(interpolateTemplate("Show {missing}", { sectionLabel: "verse" })).toBe("Show {missing}");
+    });
+
+    it("keeps an empty known value instead of restoring the placeholder", () => {
+      expect(interpolateTemplate("Show {sectionLabel}", { sectionLabel: "" })).toBe("Show ");
     });
 
     it("falls back to English when a Korean translation is missing", () => {

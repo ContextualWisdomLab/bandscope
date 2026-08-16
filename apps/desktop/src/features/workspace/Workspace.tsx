@@ -1,10 +1,10 @@
 import { useState, useMemo, memo, type MouseEvent } from "react";
-import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
+import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalPriority, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { createTranslator, detectPreferredLocale, interpolateTemplate } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -41,7 +41,188 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
 
 type Translator = ReturnType<typeof createTranslator>;
 
-/** Documented. */
+/** One role-and-section pair a player should lock in before the room starts. */
+type LockInFirstItem = {
+  id: string;
+  roleId: string;
+  sectionId: string;
+  roleName: string;
+  sectionLabel: string;
+  sectionStartSeconds: number;
+};
+
+/** One matching focus-section label when no role-level lock-in pair exists. */
+type FocusSectionItem = {
+  sectionId: string;
+  sectionLabel: string;
+  sectionStartSeconds: number;
+};
+
+const MAX_LOCK_IN_FIRST_ITEMS = 3;
+
+/**
+ * Return whether a role priority belongs in the preferred lock-in list.
+ *
+ * High-priority parts are shown first. Medium is used only when no high
+ * priority exists so the card still names a concrete part instead of a
+ * section label alone.
+ */
+function matchesPreferredLockInPriority(
+  priority: RehearsalPriority,
+  preferred: Exclude<RehearsalPriority, "low">
+): boolean {
+  switch (priority) {
+    case "high":
+      return preferred === "high";
+    case "medium":
+      return preferred === "medium";
+    case "low":
+      return false;
+    default: {
+      const exhaustive: never = priority;
+      return exhaustive;
+    }
+  }
+}
+
+/**
+ * Collect the first role-and-section pairs a player should lock in.
+ *
+ * Prefers `high` rehearsal priority, then `medium`. Blank names and `none`
+ * sentinels are skipped so the card never turns missing evidence into an
+ * instruction. Equivalent display pairs are de-duplicated case-insensitively
+ * so repeated verse or chorus labels cannot consume every lock-in slot.
+ */
+function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
+  /** Collect lock-in pairs for one preferred priority without repeating display text. */
+  const collectFor = (preferred: Exclude<RehearsalPriority, "low">): LockInFirstItem[] => {
+    const items: LockInFirstItem[] = [];
+    const seenIds = new Set<string>();
+    const seenDisplayPairs = new Set<string>();
+
+    for (const section of song.sections) {
+      const sectionLabel = nonBlankText(section.label);
+      if (!sectionLabel || sectionLabel.toLowerCase() === "none") {
+        continue;
+      }
+
+      for (const role of section.roles) {
+        if (!matchesPreferredLockInPriority(role.rehearsalPriority, preferred)) {
+          continue;
+        }
+
+        const roleName = nonBlankText(role.name);
+        if (!roleName || roleName.toLowerCase() === "none") {
+          continue;
+        }
+
+        const id = `${role.id}:${section.id}`;
+        const displayKey = `${roleName.toLowerCase()}|${sectionLabel.toLowerCase()}`;
+        if (seenIds.has(id) || seenDisplayPairs.has(displayKey)) {
+          continue;
+        }
+
+        seenIds.add(id);
+        seenDisplayPairs.add(displayKey);
+        items.push({
+          id,
+          roleId: role.id,
+          sectionId: section.id,
+          roleName,
+          sectionLabel,
+          sectionStartSeconds: section.timeRange.start
+        });
+        if (items.length === MAX_LOCK_IN_FIRST_ITEMS) {
+          return items;
+        }
+      }
+    }
+
+    return items;
+  };
+
+  const highPriorityItems = collectFor("high");
+  return highPriorityItems.length > 0 ? highPriorityItems : collectFor("medium");
+}
+
+/**
+ * Collect focus-section labels when no role-level lock-in pair exists.
+ *
+ * Blank and case-insensitive `none` values are dropped. Labels that do not
+ * match a roadmap section are omitted so the card never sells a no-op click
+ * or clears an earlier focus. Each kept label carries the first entrance
+ * time so players know when to start. Equivalent labels are de-duplicated
+ * case-insensitively after trimming so repeated analysis evidence cannot
+ * consume all three buyer-visible fallback slots or create duplicate React
+ * keys. First-occurrence display text and order are preserved. When every
+ * focus label is unmatched, the first valid section label is the fallback.
+ */
+function collectFocusSectionLabels(song: RehearsalSong): FocusSectionItem[] {
+  const focusItems: FocusSectionItem[] = [];
+  const seenLabels = new Set<string>();
+  for (const label of song.exportSummary?.focusSections ?? []) {
+    const trimmed = label.trim();
+    const normalized = trimmed.toLowerCase();
+    if (!trimmed || normalized === "none" || seenLabels.has(normalized)) {
+      continue;
+    }
+    const matchedSection = findSectionForFocusLabel(song, trimmed);
+    if (!matchedSection) {
+      continue;
+    }
+    seenLabels.add(normalized);
+    focusItems.push({
+      sectionId: matchedSection.id,
+      sectionLabel: trimmed,
+      sectionStartSeconds: matchedSection.timeRange.start
+    });
+    if (focusItems.length === MAX_LOCK_IN_FIRST_ITEMS) {
+      return focusItems;
+    }
+  }
+
+  if (focusItems.length === 0) {
+    for (const section of song.sections) {
+      const firstSectionLabel = nonBlankText(section.label);
+      if (firstSectionLabel && firstSectionLabel.toLowerCase() !== "none") {
+        return [{
+          sectionId: section.id,
+          sectionLabel: firstSectionLabel,
+          sectionStartSeconds: section.timeRange.start
+        }];
+      }
+    }
+  }
+
+  return focusItems;
+}
+
+/**
+ * Return the first section id whose label matches a focus label.
+ *
+ * Matching is case-insensitive after trim so analysis spelling variants still
+ * open the same roadmap card.
+ */
+function findSectionForFocusLabel(
+  song: RehearsalSong,
+  focusLabel: string
+): RehearsalSong["sections"][number] | null {
+  const normalized = focusLabel.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  for (const section of song.sections) {
+    const sectionLabel = nonBlankText(section.label);
+    if (sectionLabel && sectionLabel.toLowerCase() === normalized) {
+      return section;
+    }
+  }
+
+  return null;
+}
+
+/** Prevent clicks on rehearsal controls that are not available yet. */
 function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
   event.preventDefault();
 }
@@ -71,7 +252,15 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 }
 
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({
+  sections,
+  focusedSectionId,
+  t
+}: {
+  sections: RehearsalSong["sections"];
+  focusedSectionId: string | null;
+  t: Translator;
+}) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -91,7 +280,16 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
           {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
+            <div
+              key={section.id}
+              data-testid={`song-structure-${section.id}`}
+              data-focused-section={section.id === focusedSectionId ? "true" : undefined}
+              className={`border-r border-white/10 px-3 py-3 last:border-r-0 ${
+                section.id === focusedSectionId
+                  ? "bg-cyan-300/15 ring-2 ring-inset ring-cyan-300"
+                  : "bg-cyan-300/[0.05]"
+              }`}
+            >
               <p className="text-sm font-black text-white">
                 {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
               </p>
@@ -120,6 +318,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [focusedSectionId, setFocusedSectionId] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -212,6 +411,58 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const lockInFirstItems = useMemo(() => collectLockInFirstItems(song), [song]);
+  const focusSectionLabels = useMemo(() => collectFocusSectionLabels(song), [song]);
+
+  /**
+   * Select the named role and section so the roadmap shows the part to lock in.
+   */
+  const handleLockInPairActivate = (item: LockInFirstItem): void => {
+    setActiveRole(item.roleId);
+    setFocusedSectionId(item.sectionId);
+  };
+
+  /**
+   * Build the action label that tells a player which roadmap part will open.
+   */
+  const lockInPairActionLabel = (item: LockInFirstItem): string => {
+    return interpolateTemplate(t("workspaceLockInPairAction"), {
+      roleName: item.roleName,
+      sectionLabel: item.sectionLabel,
+      startTime: formatTimelineTime(item.sectionStartSeconds)
+    });
+  };
+
+  /**
+   * Focus the matching roadmap section for a fallback focus label.
+   */
+  const handleFocusSectionActivate = (item: FocusSectionItem): void => {
+    setFocusedSectionId(item.sectionId);
+  };
+
+  /**
+   * Build the visible lock-in pair that names the part and its first entrance.
+   */
+  const lockInPairVisibleLabel = (item: LockInFirstItem): string => {
+    return `${item.roleName} · ${item.sectionLabel} · ${formatTimelineTime(item.sectionStartSeconds)}`;
+  };
+
+  /**
+   * Build the visible focus label that names the section and its first entrance.
+   */
+  const focusSectionVisibleLabel = (item: FocusSectionItem): string => {
+    return `${item.sectionLabel} · ${formatTimelineTime(item.sectionStartSeconds)}`;
+  };
+
+  /**
+   * Build the action label that opens a focus section on the roadmap.
+   */
+  const focusSectionActionLabel = (item: FocusSectionItem): string => {
+    return interpolateTemplate(t("workspacePriorityFocusAction"), {
+      sectionLabel: item.sectionLabel,
+      startTime: formatTimelineTime(item.sectionStartSeconds)
+    });
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -323,15 +574,60 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               <p className="mt-2 text-sm leading-6 text-slate-300">Stem lanes will appear when separation results are available.</p>
             </section>
 
-            <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
+            <section
+              className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4"
+              aria-label={t("workspaceRehearsalPrioritiesLabel")}
+            >
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
-              </p>
+              {lockInFirstItems.length > 0 ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-sm leading-6 text-slate-300">{t("workspaceLockInFirstLabel")}</p>
+                  <ul className="space-y-1 text-sm font-semibold text-slate-100">
+                    {lockInFirstItems.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          className="rounded text-left font-semibold text-slate-100 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                          onClick={() => handleLockInPairActivate(item)}
+                          aria-label={lockInPairActionLabel(item)}
+                          aria-current={
+                            focusedSectionId === item.sectionId && activeRole === item.roleId
+                              ? "true"
+                              : undefined
+                          }
+                        >
+                          {lockInPairVisibleLabel(item)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : focusSectionLabels.length > 0 ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-sm leading-6 text-slate-300">{t("workspacePriorityFocusLead")}</p>
+                  <ul className="space-y-1 text-sm font-semibold text-slate-100">
+                    {focusSectionLabels.map((item) => (
+                      <li key={item.sectionId}>
+                        <button
+                          type="button"
+                          className="rounded text-left font-semibold text-slate-100 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                          onClick={() => handleFocusSectionActivate(item)}
+                          aria-label={focusSectionActionLabel(item)}
+                          aria-current={focusedSectionId === item.sectionId ? "true" : undefined}
+                        >
+                          {focusSectionVisibleLabel(item)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-300">{t("workspacePriorityEmpty")}</p>
+              )}
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure sections={song.sections} focusedSectionId={focusedSectionId} t={t} />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -483,6 +779,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SectionRoadmap
             song={song}
             activeRole={activeRole}
+            focusedSectionId={focusedSectionId}
             onSongUpdate={onSongUpdate}
           />
           </section>
