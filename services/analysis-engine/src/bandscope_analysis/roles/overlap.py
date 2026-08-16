@@ -101,7 +101,8 @@ def detect_register_overlap(
     Args:
         stems: Dict mapping stem names to mono float audio arrays.
         sr: Common sample rate in Hz.
-        threshold: Minimum energy fraction for a stem to occupy a band.
+        threshold: Minimum energy fraction for a stem to occupy a band. Values
+            outside the finite ``0.0..1.0`` range fail safe with no overlaps.
 
     Returns:
         List of overlap records ``{"stem_a", "stem_b", "band", "severity"}``
@@ -109,10 +110,16 @@ def detect_register_overlap(
         two decimals. Pairs are ordered alphabetically (stem_a < stem_b), the
         list is sorted by severity descending, and equal-severity records keep
         alphabetical pair order followed by the declared :data:`BANDS` order.
-        Empty when fewer than two pitched stems have energy or on any internal
-        failure.
+        Empty when fewer than two pitched stems have positive band energy, the
+        threshold is invalid, or any internal failure occurs.
     """
     try:
+        if isinstance(threshold, bool):
+            return []
+        threshold_value = float(threshold)
+        if not np.isfinite(threshold_value) or not 0.0 <= threshold_value <= 1.0:
+            return []
+
         pitched = sorted(name for name in stems if name not in UNPITCHED_STEMS)
         profiles = {name: band_energy_profile(stems[name], sr) for name in pitched}
 
@@ -121,7 +128,8 @@ def detect_register_overlap(
             active_stems = [
                 (stem, profiles[stem][band])
                 for stem in pitched
-                if profiles[stem][band] >= threshold
+                if profiles[stem][band] > 0.0
+                and profiles[stem][band] >= threshold_value
             ]
             for i, (stem_a, share_a) in enumerate(active_stems):
                 for stem_b, share_b in active_stems[i + 1 :]:
