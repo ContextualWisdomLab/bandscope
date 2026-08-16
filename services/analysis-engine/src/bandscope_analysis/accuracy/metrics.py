@@ -16,7 +16,9 @@ def duration_weighted_chord_recall(
     This is a single-label duration-weighted recall on one interval, the
     smallest WCSR-style score that still answers “did the engine hear the
     known chord for most of the fixture?” (Odekerken et al., 2021; Raffel
-    et al., 2014).
+    et al., 2014). Matching estimate intervals are unioned after clipping to
+    the annotation window, so overlapping estimates cannot count the same
+    annotated time more than once.
 
     Args:
         segments: ``(start, end, chord)`` estimates in seconds.
@@ -33,12 +35,26 @@ def duration_weighted_chord_recall(
     if end_seconds <= start_seconds:
         raise ValueError("annotation end_seconds must be greater than start_seconds")
 
-    covered = 0.0
+    matching_intervals: list[tuple[float, float]] = []
     for segment_start, segment_end, chord in segments:
         overlap_start = max(start_seconds, segment_start)
         overlap_end = min(end_seconds, segment_end)
         if overlap_end > overlap_start and chord == expected_chord:
-            covered += overlap_end - overlap_start
+            matching_intervals.append((overlap_start, overlap_end))
+
+    if not matching_intervals:
+        return 0.0
+
+    matching_intervals.sort(key=lambda interval: (interval[0], interval[1]))
+    current_start, current_end = matching_intervals[0]
+    covered = 0.0
+    for interval_start, interval_end in matching_intervals[1:]:
+        if interval_start <= current_end:
+            current_end = max(current_end, interval_end)
+            continue
+        covered += current_end - current_start
+        current_start, current_end = interval_start, interval_end
+    covered += current_end - current_start
     return covered / (end_seconds - start_seconds)
 
 
