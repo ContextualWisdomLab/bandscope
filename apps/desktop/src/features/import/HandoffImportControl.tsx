@@ -31,8 +31,11 @@ export function HandoffImportControl({
   const roleFocusCount = handoff ? handoffRoleFocus(handoff).length : 0;
   const controlsDisabled = disabled || isReading;
 
-  /** Open the browser-owned local file picker. */
+  /** Open the browser-owned local file picker when this control owns source transition authority. */
   const handleOpenPicker = () => {
+    if (controlsDisabled) {
+      return;
+    }
     inputRef.current?.click();
   };
 
@@ -41,7 +44,7 @@ export function HandoffImportControl({
     const input = event.currentTarget;
     const file = input.files?.[0];
     input.value = "";
-    if (!file) {
+    if (controlsDisabled || !file) {
       return;
     }
 
@@ -61,8 +64,11 @@ export function HandoffImportControl({
     }
   };
 
-  /** Remove the pending handoff without touching the selected audio source. */
+  /** Remove the pending handoff only while this control owns source transition authority. */
   const handleClear = () => {
+    if (controlsDisabled) {
+      return;
+    }
     onHandoffChange(null);
     onImportError(null);
   };
@@ -83,7 +89,7 @@ export function HandoffImportControl({
         onClick={handleOpenPicker}
         disabled={controlsDisabled}
         variant="outline"
-        className="min-h-11 w-full border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 hover:bg-teal-300/20 hover:text-white sm:w-auto"
+        className="min-h-11 w-full border border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 hover:bg-teal-300/20 hover:text-white sm:w-auto"
         aria-label={
           isReading
             ? t("validatingHandoff")
