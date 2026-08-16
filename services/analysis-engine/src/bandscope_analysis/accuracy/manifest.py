@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import TypedDict
 
@@ -16,6 +17,7 @@ REQUIRED_REPORT_KEYS = frozenset(
         "true_label",
     }
 )
+_HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
 
 
 class AccuracyCaseReport(TypedDict):
@@ -97,7 +99,7 @@ def parse_case_report(value: object) -> AccuracyCaseReport:
         The same fields after type and presence checks.
 
     Raises:
-        ValueError: If the payload is missing keys or uses the wrong types.
+        ValueError: If the payload is missing keys or uses invalid values.
     """
     if not isinstance(value, dict):
         raise ValueError("Accuracy case report must be an object")
@@ -117,12 +119,22 @@ def parse_case_report(value: object) -> AccuracyCaseReport:
 
     if not isinstance(case_id, str) or not case_id:
         raise ValueError("case_id must be a non-empty string")
-    if not isinstance(audio_sha256, str) or len(audio_sha256) != 64:
+    if (
+        not isinstance(audio_sha256, str)
+        or len(audio_sha256) != 64
+        or any(character not in _HEX_DIGITS for character in audio_sha256)
+    ):
         raise ValueError("audio_sha256 must be a 64-character hex digest")
     if not isinstance(metric_name, str) or not metric_name:
         raise ValueError("metric_name must be a non-empty string")
     if isinstance(metric_value, bool) or not isinstance(metric_value, (int, float)):
-        raise ValueError("metric_value must be a number")
+        raise ValueError("metric_value must be a finite number")
+    try:
+        normalized_metric_value = float(metric_value)
+    except OverflowError as error:
+        raise ValueError("metric_value must be a finite number") from error
+    if not math.isfinite(normalized_metric_value):
+        raise ValueError("metric_value must be a finite number")
     if not isinstance(passed, bool):
         raise ValueError("passed must be a boolean")
     if not isinstance(engine_version, str) or not engine_version:
@@ -134,7 +146,7 @@ def parse_case_report(value: object) -> AccuracyCaseReport:
         "case_id": case_id,
         "audio_sha256": audio_sha256,
         "metric_name": metric_name,
-        "metric_value": float(metric_value),
+        "metric_value": normalized_metric_value,
         "passed": passed,
         "engine_version": engine_version,
         "true_label": true_label,
