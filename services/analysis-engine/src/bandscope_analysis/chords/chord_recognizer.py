@@ -292,13 +292,16 @@ class ChordRecognizer:
         n_frames = chromagram.shape[1]
         obs_probs = np.zeros((_NUM_CHORD_STATES, n_frames))
 
-        # Chord observation likelihoods from template similarity
-        # Normalize similarity per frame to get valid probability-like values
+        # Chord observation likelihoods from template similarity. A frame with
+        # any non-finite similarity is unknown evidence: neutralize the entire
+        # frame rather than allowing partial/corrupt DSP metadata into Viterbi.
         n_sim_frames = similarity.shape[1]
+        valid_similarity_frames = np.all(np.isfinite(similarity), axis=0)
+        safe_similarity = np.where(valid_similarity_frames[np.newaxis, :], similarity, 0.0)
 
         if n_sim_frames > 0:
-            sim_max = similarity.max(axis=0, keepdims=True)
-            sim_shifted = similarity - sim_max
+            sim_max = safe_similarity.max(axis=0, keepdims=True)
+            sim_shifted = safe_similarity - sim_max
             exp_sim = np.exp(sim_shifted * 2.0)
             sim_sum = exp_sim.sum(axis=0, keepdims=True) + 1e-12
             if n_sim_frames >= n_frames:
@@ -310,10 +313,12 @@ class ChordRecognizer:
         if n_sim_frames < n_frames:
             obs_probs[:24, n_sim_frames:] = 1.0 / 24.0
 
-        # N (no-chord) observation probability based on noise indicators
+        # N (no-chord) observation probability based on noise indicators.
+        # Non-finite chroma variance is unknown, not evidence of a flat signal.
         chroma_vars = np.var(chromagram, axis=0)
+        chroma_vars = np.where(np.isfinite(chroma_vars), chroma_vars, 1.0)
 
-        # Missing RMS is unknown rather than evidence of silence.
+        # Missing or non-finite RMS is unknown rather than evidence of silence.
         rms_vals = (
             rms[:n_frames]
             if len(rms) >= n_frames
@@ -323,13 +328,15 @@ class ChordRecognizer:
                 constant_values=1.0,
             )
         )
+        rms_vals = np.where(np.isfinite(rms_vals), rms_vals, 1.0)
 
-        # Max similarity per frame: handle array length mismatches explicitly
-        n_sim_frames = similarity.shape[1]
+        # Max similarity per frame: handle array length mismatches explicitly.
+        # Invalid similarity frames remain neutral for no-chord detection.
         if n_sim_frames == 0:
             max_sims = np.full(n_frames, 1.0)
         else:
-            sim_max_raw = similarity.max(axis=0)
+            sim_max_raw = safe_similarity.max(axis=0)
+            sim_max_raw = np.where(valid_similarity_frames, sim_max_raw, 1.0)
             if n_sim_frames >= n_frames:
                 max_sims = sim_max_raw[:n_frames]
             else:
