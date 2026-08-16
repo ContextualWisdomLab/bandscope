@@ -8,6 +8,7 @@ type TauriWindow = Window & {
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
+const MAX_SCORE_PDF_BYTES = 25 * 1024 * 1024;
 
 function stubReadResponse(response: unknown): void {
   vi.stubGlobal("window", {
@@ -77,7 +78,8 @@ describe("scoreStorage bridge resolution", () => {
     ["fractional size", 1.5],
     ["NaN size", Number.NaN],
     ["infinite size", Number.POSITIVE_INFINITY],
-    ["unsafe integer size", Number.MAX_SAFE_INTEGER + 1]
+    ["unsafe integer size", Number.MAX_SAFE_INTEGER + 1],
+    ["size above the Rust PDF cap", MAX_SCORE_PDF_BYTES + 1]
   ])("rejects attach metadata with a %s", async (_label, fileSizeBytes) => {
     stubReadResponse({ scoreId: "score-1", fileName: "score.pdf", fileSizeBytes });
 
@@ -152,6 +154,25 @@ describe("scoreStorage bridge resolution", () => {
     );
   });
 
+  it("rejects a numeric bridge array above the Rust PDF cap before reading bytes", async () => {
+    const response = new Proxy([] as unknown[], {
+      get(target, property, receiver) {
+        if (property === "length") {
+          return MAX_SCORE_PDF_BYTES + 1;
+        }
+        if (property === "0") {
+          throw new Error("oversized bridge payload was read");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    stubReadResponse(response);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
+  });
+
   it("snapshots a Uint8Array bridge response before returning it", async () => {
     const response = new Uint8Array([1, 2]);
     stubReadResponse(response);
@@ -163,6 +184,22 @@ describe("scoreStorage bridge resolution", () => {
     expect(Array.from(result)).toEqual([1, 2]);
   });
 
+  it("rejects an oversized Uint8Array-shaped bridge response before copying", async () => {
+    const response = new Proxy(new Uint8Array([1]), {
+      get(target, property, receiver) {
+        if (property === "byteLength") {
+          return MAX_SCORE_PDF_BYTES + 1;
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    stubReadResponse(response);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
+  });
+
   it("snapshots an ArrayBuffer bridge response before returning its bytes", async () => {
     const response = new Uint8Array([3, 4]);
     stubReadResponse(response.buffer);
@@ -172,6 +209,22 @@ describe("scoreStorage bridge resolution", () => {
 
     expect(result.buffer).not.toBe(response.buffer);
     expect(Array.from(result)).toEqual([3, 4]);
+  });
+
+  it("rejects an oversized ArrayBuffer-shaped bridge response before copying", async () => {
+    const response = new Proxy(new ArrayBuffer(1), {
+      get(target, property, receiver) {
+        if (property === "byteLength") {
+          return MAX_SCORE_PDF_BYTES + 1;
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    stubReadResponse(response);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
   });
 
   it.each([
