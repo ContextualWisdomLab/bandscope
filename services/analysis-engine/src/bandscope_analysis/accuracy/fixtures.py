@@ -27,19 +27,19 @@ def render_c_major_triad(
     """Render a unit-peak C major triad as float32 PCM.
 
     Args:
-        duration_seconds: Positive fixture length in seconds.
-        sample_rate: Positive samples-per-second rate.
+        duration_seconds: Finite positive fixture length in seconds.
+        sample_rate: Finite positive samples-per-second rate.
 
     Returns:
         Mono float32 samples in ``[-1, 1]``.
 
     Raises:
-        ValueError: If duration or sample rate is not positive.
+        ValueError: If duration or sample rate is non-finite or not positive.
     """
-    if duration_seconds <= 0:
-        raise ValueError("duration_seconds must be positive")
-    if sample_rate <= 0:
-        raise ValueError("sample_rate must be positive")
+    if not np.isfinite(duration_seconds) or duration_seconds <= 0:
+        raise ValueError("duration_seconds must be finite and positive")
+    if not np.isfinite(sample_rate) or sample_rate <= 0:
+        raise ValueError("sample_rate must be finite and positive")
 
     sample_count = int(duration_seconds * sample_rate)
     times = np.arange(sample_count, dtype=np.float32) / np.float32(sample_rate)
@@ -59,18 +59,23 @@ def render_click_track(
     """Render a click track at a known tempo.
 
     Args:
-        bpm: Positive true tempo in beats per minute.
-        duration_seconds: Positive fixture length in seconds.
-        sample_rate: Positive samples-per-second rate.
+        bpm: Finite positive true tempo in beats per minute.
+        duration_seconds: Finite positive fixture length in seconds.
+        sample_rate: Finite positive samples-per-second rate.
 
     Returns:
         Mono float32 samples with a decaying click on each beat.
 
     Raises:
-        ValueError: If tempo, duration, or sample rate is not positive.
+        ValueError: If tempo, duration, or sample rate is non-finite or not
+            positive.
     """
-    if bpm <= 0 or duration_seconds <= 0 or sample_rate <= 0:
-        raise ValueError("bpm, duration_seconds, and sample_rate must be positive")
+    if not np.isfinite(bpm) or bpm <= 0:
+        raise ValueError("bpm must be finite and positive")
+    if not np.isfinite(duration_seconds) or duration_seconds <= 0:
+        raise ValueError("duration_seconds must be finite and positive")
+    if not np.isfinite(sample_rate) or sample_rate <= 0:
+        raise ValueError("sample_rate must be finite and positive")
 
     sample_count = int(duration_seconds * sample_rate)
     audio = np.zeros(sample_count, dtype=np.float32)
@@ -103,16 +108,16 @@ def write_pcm_wav(path: Path, audio: NDArray[np.floating], sample_rate: int) -> 
     Args:
         path: Destination path. Parent directories are created.
         audio: Mono PCM samples.
-        sample_rate: Samples-per-second rate used to write the file.
+        sample_rate: Finite positive samples-per-second rate used to write the file.
 
     Returns:
         Lowercase hex SHA-256 of the written file.
 
     Raises:
-        ValueError: If the sample rate is not positive.
+        ValueError: If the sample rate is non-finite or not positive.
     """
-    if sample_rate <= 0:
-        raise ValueError("sample_rate must be positive")
+    if not np.isfinite(sample_rate) or sample_rate <= 0:
+        raise ValueError("sample_rate must be finite and positive")
     path.parent.mkdir(parents=True, exist_ok=True)
     sf.write(path, np.asarray(audio, dtype=np.float32), sample_rate)
     return hashlib.sha256(path.read_bytes()).hexdigest()
