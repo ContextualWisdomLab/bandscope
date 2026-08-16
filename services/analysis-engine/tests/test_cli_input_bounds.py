@@ -117,6 +117,21 @@ def test_cli_rejects_invalid_utf8_before_json_parsing(
     assert response["error"]["message"] == "Job input must be valid UTF-8"
 
 
+def test_cli_text_only_stdin_rejects_surrogate_before_size_measurement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Text-only compatibility stdin must translate surrogate encoding failures safely."""
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+    monkeypatch.setattr(cli.sys, "stdin", io.StringIO('{"jobId":"' + chr(0xDCFF) + '"}'))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["state"] == "failed"
+    assert response["error"]["message"] == "Job input must be valid UTF-8"
+
+
 def test_cli_inline_job_argument_obeys_input_byte_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
