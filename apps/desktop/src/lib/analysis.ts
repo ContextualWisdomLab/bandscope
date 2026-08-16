@@ -35,6 +35,7 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   "Could not prepare the local temp workspace."
 ]);
 const BROWSER_ANALYSIS_UNAVAILABLE_MESSAGE = "BandScope analysis requires the Tauri runtime";
+const YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Try again or choose a local audio file.";
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
 
@@ -293,13 +294,12 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       ok: true,
       bootstrap: parseProjectBootstrapSummary(response)
     };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : (typeof error === "string" ? error : "YouTube import failed.");
+  } catch {
     return {
       ok: false,
       error: {
         code: "invalid_request",
-        message
+        message: YOUTUBE_IMPORT_FAILED_MESSAGE
       }
     };
   }
