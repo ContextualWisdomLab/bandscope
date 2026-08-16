@@ -16,6 +16,7 @@ export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
+const MIN_SCORE_PDF_BYTES = 5;
 const MAX_SCORE_PDF_BYTES = 25 * 1024 * 1024;
 
 /**
@@ -56,16 +57,17 @@ async function invokeScoreCommand(command: string, args: Record<string, unknown>
 /**
  * Return whether a bridge-reported PDF byte count is safe to allocate/copy.
  *
- * The value must match the Rust desktop bridge's 25 MiB PDF cap. Keeping the
- * same fail-closed bound on the JavaScript side prevents malformed or
- * accessor-backed bridge values from driving oversized allocations even when
- * the privileged producer is replaced by a test/dev shim.
+ * The value must match the Rust desktop bridge's `%PDF-` minimum and 25 MiB
+ * cap. Keeping the same fail-closed bounds on the JavaScript side prevents
+ * malformed or accessor-backed bridge values from driving invalid or
+ * oversized allocations even when the privileged producer is replaced by a
+ * test/dev shim.
  */
 function isValidPdfByteCount(value: unknown): value is number {
   return (
     typeof value === "number" &&
     Number.isSafeInteger(value) &&
-    value >= 0 &&
+    value >= MIN_SCORE_PDF_BYTES &&
     value <= MAX_SCORE_PDF_BYTES
   );
 }
