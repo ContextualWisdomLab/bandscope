@@ -25,6 +25,7 @@ __all__ = ["build_cue_sheet_csv", "escape_csv_field"]
 
 _FORMULA_PREFIXES = frozenset("=+-@＝＋－＠")
 _CONTROL_PREFIXES = frozenset("\t\r\n\x00")
+_UNSAFE_PREFIXES = _FORMULA_PREFIXES | _CONTROL_PREFIXES
 
 
 def escape_csv_field(value: str) -> str:
@@ -50,9 +51,7 @@ def escape_csv_field(value: str) -> str:
     leading = value[: len(value) - len(stripped)]
     if any(character in _CONTROL_PREFIXES for character in leading):
         return f"'{value}"
-    if stripped and (
-        stripped[0] in _FORMULA_PREFIXES or stripped[0] in _CONTROL_PREFIXES
-    ):
+    if stripped and stripped[0] in _UNSAFE_PREFIXES:
         return f"'{value}"
     return value
 
