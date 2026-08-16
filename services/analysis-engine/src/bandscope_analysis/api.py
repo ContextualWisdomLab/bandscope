@@ -627,12 +627,8 @@ def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | Non
     cache_directory = analysis_cache_path.parent
     digest = analysis_cache_path.stem
     return (
-        resolve_authorized_child_path(
-            str(cache_directory), "cacheRoot", f"{digest}.features.json"
-        ),
-        resolve_authorized_child_path(
-            str(cache_directory), "cacheRoot", f"{digest}.features.npz"
-        ),
+        resolve_authorized_child_path(str(cache_directory), "cacheRoot", f"{digest}.features.json"),
+        resolve_authorized_child_path(str(cache_directory), "cacheRoot", f"{digest}.features.npz"),
     )
 
 
