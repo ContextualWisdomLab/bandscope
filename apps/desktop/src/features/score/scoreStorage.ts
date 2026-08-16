@@ -60,21 +60,28 @@ async function invokeScoreCommand(command: string, args: Record<string, unknown>
  */
 export async function attachScorePdf(projectId: string, songId: string): Promise<ScoreAttachResult> {
   const response = await invokeScoreCommand("attach_score_pdf", { projectId, songId });
+  if (typeof response !== "object" || response === null) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+
+  const payload = response as Record<string, unknown>;
+  const scoreId = payload.scoreId;
+  const fileName = payload.fileName;
+  const fileSizeBytes = payload.fileSizeBytes;
   if (
-    typeof response !== "object" ||
-    response === null ||
-    typeof (response as Record<string, unknown>).scoreId !== "string" ||
-    typeof (response as Record<string, unknown>).fileName !== "string" ||
-    typeof (response as Record<string, unknown>).fileSizeBytes !== "number"
+    typeof scoreId !== "string" ||
+    typeof fileName !== "string" ||
+    typeof fileSizeBytes !== "number" ||
+    !Number.isSafeInteger(fileSizeBytes) ||
+    fileSizeBytes < 0
   ) {
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
 
-  const payload = response as { scoreId: string; fileName: string; fileSizeBytes: number };
   return {
-    id: payload.scoreId,
-    fileName: payload.fileName,
-    fileSizeBytes: payload.fileSizeBytes
+    id: scoreId,
+    fileName,
+    fileSizeBytes
   };
 }
 
