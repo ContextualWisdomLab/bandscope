@@ -20,6 +20,23 @@ def test_chord_recognizer_empty_audio() -> None:
     assert result == []
 
 
+def test_chord_recognizer_exceeds_max_duration() -> None:
+    """Test chord recognition truncates overly long audio to prevent resource exhaustion."""
+    recognizer = ChordRecognizer()
+    sr = 22050
+    # Create an array that is 600.01 seconds long
+    y = np.zeros(int(sr * 600.01), dtype=np.float32)
+    # The recognize method should truncate this to 600 seconds and continue
+    # We mock _separate_harmonic to verify the truncated array size
+    with patch.object(recognizer, "_separate_harmonic", return_value=np.array([])) as mock_separate:
+        result = recognizer.recognize(y, sr=sr)
+        # Should have called separate_harmonic with truncated array
+        mock_separate.assert_called_once()
+        called_y = mock_separate.call_args[0][0]
+        assert len(called_y) == sr * 600
+        assert result == []
+
+
 def test_chord_recognizer_unvoiced_audio() -> None:
     """Test chord recognition with noise."""
     recognizer = ChordRecognizer()
