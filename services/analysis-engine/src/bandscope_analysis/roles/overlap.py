@@ -86,11 +86,18 @@ def band_energy_profile(
     Returns:
         Dict mapping band name ("low", "mid", "high") to the fraction of the
         stem's total spectral energy in that band. All fractions are 0.0 when
-        the stem is empty, non-mono, malformed, or has zero total energy.
+        the stem is empty, non-mono, malformed, has an invalid sample rate, or
+        has zero total energy.
     """
     zero_profile = {band: 0.0 for band in BANDS}
 
-    if not isinstance(audio, np.ndarray) or audio.ndim != 1 or audio.size == 0 or sr <= 0:
+    if (
+        not isinstance(audio, np.ndarray)
+        or audio.ndim != 1
+        or audio.size == 0
+        or not np.isfinite(sr)
+        or sr <= 0
+    ):
         return zero_profile
 
     spectrum = np.abs(np.fft.rfft(audio.astype(np.float64))) ** 2
