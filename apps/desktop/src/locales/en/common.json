@@ -148,5 +148,17 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "stemLabTitle": "Stem Lab",
+  "stemLabSubtitle": "These lanes are the parts to isolate. Local stem audio is not attached yet, so lock the range and section cues by ear.",
+  "stemLabEmptyNextAction": "Choose a local audio file and start analysis. Stem lanes appear after the song is split into roles.",
+  "stemLabLaneListLabel": "Parts to isolate",
+  "stemLabRoleTypeInstrument": "Instrument",
+  "stemLabRoleTypeVocal": "Vocal",
+  "stemLabRoleTypeHand": "Hand part",
+  "stemLabRangeLabel": "Playable range",
+  "stemLabSectionsLabel": "Lock first in",
+  "stemLabSectionsUnknown": "Section labels will appear after form detection finishes.",
+  "stemLabOverlapLabel": "Watch the clash:",
+  "stemLabLaneNextAction": "Lock this range in the matching sections before the room starts. Come back here when a local stem file is attached."
 }

@@ -58,6 +58,9 @@
     --bandscope-teal: #5eead4;
     --bandscope-violet: #a78bfa;
     --bandscope-amber: #fcd34d;
+    --bandscope-stem-lane-border: rgb(196 181 253 / 22%);
+    --bandscope-stem-lane-surface: rgb(8 18 35 / 78%);
+    --bandscope-stem-lane-fill: rgb(124 58 237 / 8%);
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);

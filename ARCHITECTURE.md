@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-16
 
 ## Brand source
 
@@ -68,6 +68,7 @@ Last updated: 2026-03-11
 - BandScope is not only a shell around chord labels, stems, and ranges.
 - The technical scope includes rehearsal-facing outputs for harmony, section roadmap, groove cues, role entry and dropout cues, simplification guidance, transposition or setup guidance, confidence flags, and rehearsal priority.
 - These outputs must stay aligned with `docs/brand-story.md` rather than drifting back to a song-summary-only analyzer.
+- Stem Lab is a first-class rehearsal view. It lists role isolation lanes from the analyzed song. It must not invent playable stem files or expose a generic audio-read API; playback waits for an allowlisted local stem-file contract. Evidence: `docs/doctoring/stem-lab-role-lanes.md`.
 
 ## Analysis target model
 

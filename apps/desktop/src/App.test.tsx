@@ -1616,4 +1616,38 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
     expect(screen.queryByText(/Song Timeline/i)).toBeNull();
   });
+
+  it("opens Stem Lab before analysis with a next action instead of coming soon", () => {
+    render(<App />);
+
+    const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
+    const stemLabButton = within(primaryNav).getByRole("button", { name: "Stem Lab" });
+    expect(stemLabButton).not.toHaveAttribute("aria-disabled");
+    expect(stemLabButton).not.toHaveAttribute("title", "Coming soon");
+    fireEvent.click(stemLabButton);
+
+    expect(screen.getByRole("heading", { name: "Stem Lab" })).toBeTruthy();
+    expect(
+      screen.getByText(/Choose a local audio file and start analysis/i)
+    ).toBeTruthy();
+    expect(within(primaryNav).getByRole("button", { name: "Stem Lab" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+  });
+
+  it("lists isolation lanes in Stem Lab after a project is loaded", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^Stem Lab$/i })[0]);
+    expect(await screen.findByRole("heading", { name: "Bass Guitar" })).toBeTruthy();
+    expect(screen.getByText(/C#2–E3/)).toBeTruthy();
+    expect(screen.queryByText(/Song Timeline/i)).toBeNull();
+  });
 });
