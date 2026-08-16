@@ -217,7 +217,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                       aria-disabled={!projectId}
                       aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
                       aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
-                      title={`${t("scoreRemove")}: ${attachment.fileName}`}
+                      title={
+                        !projectId
+                          ? t("scoreNavDisabledHint")
+                          : `${t("scoreRemove")}: ${attachment.fileName}`
+                      }
                       className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
