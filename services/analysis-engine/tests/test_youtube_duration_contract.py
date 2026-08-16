@@ -9,7 +9,35 @@ import pytest
 from bandscope_analysis.youtube import download_youtube_audio
 
 
-@pytest.mark.parametrize("duration", [True, 0, -1, float("nan"), float("inf"), "60"])
+class _ValueErrorFloat(float):
+    """Numeric metadata whose explicit float conversion is malformed."""
+
+    def __float__(self) -> float:
+        """Reject conversion with the malformed-value failure shape."""
+        raise ValueError("malformed duration")
+
+
+class _OverflowFloat(float):
+    """Numeric metadata whose explicit float conversion overflows."""
+
+    def __float__(self) -> float:
+        """Reject conversion with the overflow failure shape."""
+        raise OverflowError("duration overflow")
+
+
+@pytest.mark.parametrize(
+    "duration",
+    [
+        True,
+        0,
+        -1,
+        float("nan"),
+        float("inf"),
+        "60",
+        _ValueErrorFloat(1.0),
+        _OverflowFloat(1.0),
+    ],
+)
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
 def test_youtube_rejects_malformed_announced_duration_before_download(
     mock_ydl_class: MagicMock,
