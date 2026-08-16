@@ -74,7 +74,11 @@ class AudioResourcePolicy:
         ):
             raise ValueError(_POLICY_ERROR)
         decoded_samples = self.target_sample_rate * float(self.max_duration_seconds)
-        if not math.isfinite(decoded_samples) or decoded_samples < 1.0 or decoded_samples > sys.maxsize - 1:
+        if (
+            not math.isfinite(decoded_samples)
+            or decoded_samples < 1.0
+            or decoded_samples > sys.maxsize - 1
+        ):
             raise ValueError(_POLICY_ERROR)
 
     @property
