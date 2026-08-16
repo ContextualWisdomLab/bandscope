@@ -14,9 +14,9 @@ class _BoundedReadRequired(io.BytesIO):
     """Fail when production attempts an unbounded binary stream read."""
 
     def read(self, size: int = -1) -> bytes:
-        """Read only when the caller supplies an explicit nonnegative bound."""
-        if size < 0:
-            raise AssertionError("CLI stdin read must be explicitly bounded")
+        """Read only when the caller supplies the exact bounded-size envelope."""
+        if not 0 <= size <= cli.MAX_JSON_FILE_SIZE + 1:
+            raise AssertionError("CLI stdin read must use the maximum bounded size")
         return super().read(size)
 
 
@@ -25,8 +25,8 @@ class _OversizedInput:
 
     def read(self, size: int = -1) -> bytes:
         """Return exactly the requested amount so production observes overflow."""
-        if size < 0:
-            raise AssertionError("CLI stdin read must be explicitly bounded")
+        if not 0 <= size <= cli.MAX_JSON_FILE_SIZE + 1:
+            raise AssertionError("CLI stdin read must use the maximum bounded size")
         return b"x" * size
 
 
@@ -132,6 +132,22 @@ def test_cli_inline_job_argument_obeys_input_byte_limit(
     assert response["error"]["message"] == "Job input exceeds maximum size limit"
 
 
+def test_cli_inline_job_rejects_surrogate_before_json_parsing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A surrogate-bearing argv payload must fail with the stable UTF-8 error."""
+    surrogate_payload = '{"jobId":"' + chr(0xDCFF) + '"}'
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", surrogate_payload])
+    monkeypatch.setattr(cli.sys, "stdin", _BinaryStdin(_ForbiddenRead()))
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["state"] == "failed"
+    assert response["error"]["message"] == "Job input must be valid UTF-8"
+
+
 def test_cli_job_file_limit_is_measured_in_utf8_bytes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -142,7 +158,7 @@ def test_cli_job_file_limit_is_measured_in_utf8_bytes(
     stdout = io.StringIO()
     monkeypatch.setattr(cli, "MAX_JSON_FILE_SIZE", 8)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(job_file)])
-    monkeypatch.setattr(cli.sys, "stdin", _stdin_bytes(b""))
+    monkeypatch.setattr(cli.sys, "stdin", _BinaryStdin(_ForbiddenRead()))
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
     assert cli.main() == 1
