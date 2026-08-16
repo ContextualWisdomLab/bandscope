@@ -13,7 +13,7 @@
 
 ### Fixed
 
-- Fail closed on malformed multichannel register-overlap stems instead of letting an FFT shape mismatch escape the public energy-profile boundary.
+- Fail closed on malformed multichannel register-overlap stems and non-finite register sample rates instead of letting FFT shape/frequency-grid failures escape the public energy-profile boundary.
 - Fail closed on non-finite sample rates when slicing stems to section windows, so malformed temporal evidence cannot raise during sample-index conversion or fall back to song-wide overlap.
 - Keep silent stems from becoming zero-severity rehearsal overlap warnings at a zero threshold, and fail closed on invalid negative, non-finite, or boolean threshold configuration.
 - Derive section-level register-overlap warnings from measured stem spectra instead of fabricating keyboard or vocal clash copy when no audio evidence exists.
