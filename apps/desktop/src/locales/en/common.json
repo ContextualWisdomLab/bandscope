@@ -51,7 +51,7 @@
   "workspaceRehearsalPrioritiesLabel": "Rehearsal Priorities",
   "workspaceLockInFirstLabel": "Lock in first",
   "workspacePriorityFocusLead": "Start with this section",
-  "workspacePriorityEmpty": "Open a role on the roadmap to see what to lock in first.",
+  "workspacePriorityEmpty": "No named parts to lock in yet. Pick the first entrance on the section roadmap.",
   "workspaceRolesHarmonyLabel": "Roles & Harmony",
   "sectionRoadmapTitle": "Section Roadmap",
   "sectionRoadmapScrollHint": "Scroll for more sections →",

@@ -80,12 +80,15 @@ function matchesPreferredLockInPriority(
  *
  * Prefers `high` rehearsal priority, then `medium`. Blank names and `none`
  * sentinels are skipped so the card never turns missing evidence into an
- * instruction.
+ * instruction. Equivalent display pairs are de-duplicated case-insensitively
+ * so repeated verse or chorus labels cannot consume every lock-in slot.
  */
 function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
+  /** Collect lock-in pairs for one preferred priority without repeating display text. */
   const collectFor = (preferred: Exclude<RehearsalPriority, "low">): LockInFirstItem[] => {
     const items: LockInFirstItem[] = [];
-    const seen = new Set<string>();
+    const seenIds = new Set<string>();
+    const seenDisplayPairs = new Set<string>();
 
     for (const section of song.sections) {
       const sectionLabel = nonBlankText(section.label);
@@ -104,11 +107,13 @@ function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
         }
 
         const id = `${role.id}:${section.id}`;
-        if (seen.has(id)) {
+        const displayKey = `${roleName.toLowerCase()}|${sectionLabel.toLowerCase()}`;
+        if (seenIds.has(id) || seenDisplayPairs.has(displayKey)) {
           continue;
         }
 
-        seen.add(id);
+        seenIds.add(id);
+        seenDisplayPairs.add(displayKey);
         items.push({ id, roleName, sectionLabel });
         if (items.length === MAX_LOCK_IN_FIRST_ITEMS) {
           return items;

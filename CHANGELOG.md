@@ -11,6 +11,8 @@
 ### Fixed
 
 - Deduplicate normalized focus-section fallback labels so repeated analysis evidence does not consume all three rehearsal-priority slots or render duplicate list keys.
+- Deduplicate lock-in role and section display pairs so a repeated verse label cannot consume the third rehearsal-priority slot.
+- Replace empty rehearsal-priority copy that incorrectly told players a role click would name lock-in parts.
 
 ## [0.1.3] - 2026-04-29
 

@@ -332,7 +332,85 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
-    expect(priorities.textContent).toContain("Open a role on the roadmap to see what to lock in first.");
+    expect(priorities.textContent).toContain(
+      "No named parts to lock in yet. Pick the first entrance on the section roadmap."
+    );
+    expect(priorities.textContent).not.toContain("Open a role on the roadmap");
     expect(priorities.textContent).not.toMatch(/NONE/i);
   });
+
+  it("localizes the empty lock-in copy without promising a role click will fill the card", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "합주 우선순위" });
+    expect(priorities.textContent).toContain("아직 먼저 맞출 파트가 없습니다. 구간 로드맵에서 첫 입구를 고르세요.");
+    expect(priorities.textContent).not.toContain("로드맵에서 역할을 열면");
+  });
+
+  it("keeps repeated verse labels from consuming a third lock-in slot", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Lock in first");
+    expect(priorities.querySelectorAll("li")).toHaveLength(3);
+    expect(priorities.textContent).toContain("Bass Guitar · verse");
+    expect(priorities.textContent).toContain("Keyboard 1 Right Hand · verse");
+    expect(priorities.textContent).toContain("Lead Vocal · chorus");
+    expect(priorities.textContent?.match(/Bass Guitar · verse/g)).toHaveLength(1);
+  });
+
+  it("falls back to the first section label when every role is low and focus sections are empty", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(priorities.textContent).toContain("Start with this section");
+    expect(priorities.textContent).toContain("verse");
+    expect(priorities.textContent).not.toContain("chorus");
+    expect(priorities.textContent).not.toContain("Lock in first");
+  });
 });
+
+/**
+ * Build a Late Night Set with verse, chorus, and a second verse that reuses
+ * the same role names and section label the analysis engine emits for repeats.
+ */
+function createLateNightSetWithRepeatedVerse(): RehearsalSong {
+  const song = createDemoRehearsalSong();
+  const verse = song.sections[0]!;
+  const chorus = structuredClone(verse);
+  chorus.id = "chorus-1";
+  chorus.label = "chorus";
+  chorus.timeRange = { start: 30, end: 50 };
+  chorus.roles = chorus.roles.map((role) => ({
+    ...role,
+    rehearsalPriority: role.id === "lead-vocal" ? "high" : "low"
+  }));
+  const verseRepeat = structuredClone(verse);
+  verseRepeat.id = "verse-2";
+  verseRepeat.timeRange = { start: 50, end: 70 };
+  song.sections = [verse, verseRepeat, chorus];
+  return song;
+}

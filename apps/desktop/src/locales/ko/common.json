@@ -51,7 +51,7 @@
   "workspaceRehearsalPrioritiesLabel": "합주 우선순위",
   "workspaceLockInFirstLabel": "먼저 맞춰 볼 것",
   "workspacePriorityFocusLead": "이 구간부터 맞춰 보세요",
-  "workspacePriorityEmpty": "로드맵에서 역할을 열면 먼저 맞출 파트가 보입니다.",
+  "workspacePriorityEmpty": "아직 먼저 맞출 파트가 없습니다. 구간 로드맵에서 첫 입구를 고르세요.",
   "workspaceRolesHarmonyLabel": "역할과 화성",
   "sectionRoadmapTitle": "구간 흐름",
   "sectionRoadmapScrollHint": "더 많은 구간은 옆으로 스크롤하세요 →",
