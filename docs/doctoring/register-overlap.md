@@ -23,10 +23,14 @@ never attach that copy to a named keyboard or guitar role.
 
 Section slicing is fail-closed on invalid temporal evidence. Start/end
 bounds and sample rate must be finite, the sample rate must be positive,
-and the end must follow the start. Invalid values return empty stem windows
-rather than reaching sample-index conversion, raising from NaN/Infinity, or
-falling back to whole-song overlap. This preserves the contract that absent
-or malformed section authority produces no density warning.
+and the end must follow the start. The derived sample positions
+`start_sec * sample_rate` and `end_sec * sample_rate` must also remain
+finite before integer conversion; individually finite values can still
+overflow when scaled together. Invalid values return empty stem windows
+rather than reaching sample-index conversion, raising from NaN/Infinity or
+an overflowed product, or falling back to whole-song overlap. This preserves
+the contract that absent or malformed section authority produces no density
+warning.
 
 ## Psychoacoustic and MIR basis
 
@@ -62,9 +66,10 @@ correct voicing.
 
 Overlap analysis operates on already-admitted in-memory arrays. It adds no
 file, network, subprocess, model, database, or IPC authority. Direct tests
-cover finite and non-finite section/sample-rate inputs, silent or malformed
-stems, threshold validation, section-local slicing, mixed-`other` identity,
-and de-duplicated next-action warning copy.
+cover finite and non-finite section/sample-rate inputs, finite inputs whose
+scaled sample-index products overflow, silent or malformed stems, threshold
+validation, section-local slicing, mixed-`other` identity, and de-duplicated
+next-action warning copy.
 
 ## References
 
