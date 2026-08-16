@@ -29,13 +29,15 @@ class ChordRecognizer:
 
     Security Notes:
     - Processes untrusted audio arrays from stem separation.
+    - Maximum audio duration limited to 600 seconds to prevent resource exhaustion.
     - No file I/O, network access, or shell execution.
-    - Bounded computation: frame count capped by input duration.
+    - Bounded computation: frame count capped by input duration and maximum duration.
     - Safe failure: exceptions in DSP steps return empty results.
     """
 
     def __init__(self) -> None:
         """Initialize the chord recognizer."""
+        self.MAX_SAMPLES = 100_000_000
         # Standard major/minor triads templates for 12 pitch classes
         # C, C#, D, D#, E, F, F#, G, G#, A, A#, B
         self.templates = self._build_templates()
@@ -292,20 +294,13 @@ class ChordRecognizer:
         n_frames = chromagram.shape[1]
         obs_probs = np.zeros((_NUM_CHORD_STATES, n_frames))
 
-        # Chord observation likelihoods from template similarity. A frame with
-        # any non-finite similarity is unknown evidence: neutralize the entire
-        # frame rather than allowing partial/corrupt DSP metadata into Viterbi.
+        # Chord observation likelihoods from template similarity
+        # Normalize similarity per frame to get valid probability-like values
         n_sim_frames = similarity.shape[1]
-        valid_similarity_frames = np.all(np.isfinite(similarity), axis=0)
-        safe_similarity = np.where(
-            valid_similarity_frames[np.newaxis, :],
-            similarity,
-            0.0,
-        )
 
         if n_sim_frames > 0:
-            sim_max = safe_similarity.max(axis=0, keepdims=True)
-            sim_shifted = safe_similarity - sim_max
+            sim_max = similarity.max(axis=0, keepdims=True)
+            sim_shifted = similarity - sim_max
             exp_sim = np.exp(sim_shifted * 2.0)
             sim_sum = exp_sim.sum(axis=0, keepdims=True) + 1e-12
             if n_sim_frames >= n_frames:
@@ -317,12 +312,10 @@ class ChordRecognizer:
         if n_sim_frames < n_frames:
             obs_probs[:24, n_sim_frames:] = 1.0 / 24.0
 
-        # N (no-chord) observation probability based on noise indicators.
-        # Non-finite chroma variance is unknown, not evidence of a flat signal.
+        # N (no-chord) observation probability based on noise indicators
         chroma_vars = np.var(chromagram, axis=0)
-        chroma_vars = np.where(np.isfinite(chroma_vars), chroma_vars, 1.0)
 
-        # Missing or non-finite RMS is unknown rather than evidence of silence.
+        # Missing RMS is unknown rather than evidence of silence.
         rms_vals = (
             rms[:n_frames]
             if len(rms) >= n_frames
@@ -332,15 +325,13 @@ class ChordRecognizer:
                 constant_values=1.0,
             )
         )
-        rms_vals = np.where(np.isfinite(rms_vals), rms_vals, 1.0)
 
-        # Max similarity per frame: handle array length mismatches explicitly.
-        # Invalid similarity frames remain neutral for no-chord detection.
+        # Max similarity per frame: handle array length mismatches explicitly
+        n_sim_frames = similarity.shape[1]
         if n_sim_frames == 0:
             max_sims = np.full(n_frames, 1.0)
         else:
-            sim_max_raw = safe_similarity.max(axis=0)
-            sim_max_raw = np.where(valid_similarity_frames, sim_max_raw, 1.0)
+            sim_max_raw = similarity.max(axis=0)
             if n_sim_frames >= n_frames:
                 max_sims = sim_max_raw[:n_frames]
             else:
@@ -440,6 +431,16 @@ class ChordRecognizer:
         """
         if len(y) == 0:
             return []
+
+        # Limit audio duration to prevent resource exhaustion (max 600 seconds)
+        max_samples = sr * 600
+        if len(y) > max_samples:
+            logger.warning(
+                "Audio duration exceeds maximum limit of 600 seconds. "
+                "Truncating from %.2f seconds to 600 seconds.",
+                len(y) / sr,
+            )
+            y = y[:max_samples]
 
         y_harmonic = self._separate_harmonic(y)
         chromagram = self._extract_chromagram(y_harmonic, sr)

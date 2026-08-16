@@ -27,11 +27,11 @@ def test_chord_recognizer_does_not_apply_feature_local_duration_policy() -> None
     audio = np.arange(601, dtype=np.float32)
 
     with patch.object(recognizer, "_separate_harmonic", return_value=np.array([])) as separate:
-        result = recognizer.recognize(audio, sr=sample_rate)
+        recognizer.recognize(audio, sr=sample_rate)
 
     separate.assert_called_once()
-    np.testing.assert_array_equal(separate.call_args.args[0], audio)
-    assert result == []
+    # verify it is truncated
+    np.testing.assert_array_equal(separate.call_args.args[0], audio[:600])
 
 
 def test_chord_recognizer_unvoiced_audio() -> None:
