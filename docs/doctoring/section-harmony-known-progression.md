@@ -25,6 +25,7 @@ each section's main chord and keep weighted recall at or above 0.70.
 - Section length: 4.0 s
 - Minimum duration-weighted recall: 0.70
 - Canonical roots: `C` then `G`, and `G` then `C`
+- Minor labels (`Cm`, `Gm`) must not satisfy a major window
 
 ## References
 

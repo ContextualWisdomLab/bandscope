@@ -22,25 +22,20 @@ _C4_HZ = 261.63
 _G4_HZ = 392.00
 
 
-def _canonical_chord_symbol(label: str) -> str:
-    """Collapse recognizer spellings onto a major-triad root.
+def _canonical_major_symbol(label: str) -> str:
+    """Keep major-triad spellings; do not treat minor as a match.
 
     Args:
         label: Raw recognizer or annotation chord string.
 
     Returns:
-        A root letter such as ``C`` or ``G``, or the original label when the
-        token is empty or a no-chord sentinel.
+        ``C`` or ``G`` for those major labels (including a ``:maj`` suffix),
+        otherwise the stripped original so ``Cm`` cannot satisfy a C window.
     """
     stripped = label.strip()
-    if not stripped or stripped in {"N", "Unknown"}:
-        return stripped
-    head = stripped.split(":", maxsplit=1)[0]
-    if head.endswith("maj"):
-        return head[: -len("maj")]
-    if head.endswith("m") and not head.endswith("dim"):
-        return head[:-1]
-    return head
+    if stripped.endswith(":maj"):
+        return stripped[: -len(":maj")]
+    return stripped
 
 
 def _major_triad_take(root_hz: float, duration_seconds: float, sample_rate: int) -> np.ndarray:
@@ -93,9 +88,18 @@ def _duration_weighted_symbol_recall(
             overlap = min(segment["end_time"], truth_end) - max(segment["start_time"], truth_start)
             if overlap <= 0.0:
                 continue
-            if _canonical_chord_symbol(segment["chord"]) == truth_chord:
+            if _canonical_major_symbol(segment["chord"]) == truth_chord:
                 matched_duration += overlap
     return matched_duration / annotated_duration
+
+
+def test_canonical_major_symbol_rejects_minor_as_major() -> None:
+    """Keep ``Cm`` distinct from ``C`` so a minor estimate cannot pass."""
+    assert _canonical_major_symbol("C") == "C"
+    assert _canonical_major_symbol("C:maj") == "C"
+    assert _canonical_major_symbol("Cm") == "Cm"
+    assert _canonical_major_symbol("G:maj") == "G"
+    assert _canonical_major_symbol("Gm") == "Gm"
 
 
 def test_section_harmony_recovers_verse_c_then_chorus_g() -> None:
@@ -120,8 +124,8 @@ def test_section_harmony_recovers_verse_c_then_chorus_g() -> None:
     summaries = summarize_section_harmony(segments, boundaries)
 
     assert len(summaries) == 2
-    assert _canonical_chord_symbol(summaries[0]["main_chord"]) == "C"
-    assert _canonical_chord_symbol(summaries[1]["main_chord"]) == "G"
+    assert _canonical_major_symbol(summaries[0]["main_chord"]) == "C"
+    assert _canonical_major_symbol(summaries[1]["main_chord"]) == "G"
     assert _duration_weighted_symbol_recall(segments, truth_windows) >= _MINIMUM_WEIGHTED_RECALL
 
 
@@ -145,6 +149,6 @@ def test_section_harmony_keeps_later_c_off_the_opening_window() -> None:
     summaries = summarize_section_harmony(segments, boundaries)
 
     assert len(summaries) == 2
-    assert _canonical_chord_symbol(summaries[0]["main_chord"]) == "G"
-    assert _canonical_chord_symbol(summaries[1]["main_chord"]) == "C"
+    assert _canonical_major_symbol(summaries[0]["main_chord"]) == "G"
+    assert _canonical_major_symbol(summaries[1]["main_chord"]) == "C"
     assert _duration_weighted_symbol_recall(segments, truth_windows) >= _MINIMUM_WEIGHTED_RECALL
