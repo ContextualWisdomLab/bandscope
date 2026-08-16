@@ -1,0 +1,115 @@
+name: repair-source-transition-handler-guards
+
+on:
+  push:
+    branches:
+      - feat/handoff-import-roundtrip
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/handoff-import-roundtrip
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply exact source-transition guards
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one match in {path}: got {count}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          app = Path("apps/desktop/src/App.tsx")
+          replace_once(
+              app,
+              '  const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";\n  const selectedRequest: AnalysisJobRequest = createAnalysisRequestForSelection(',
+              '  const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";\n  const sourceTransitionLocked =\n    analysisInFlight ||\n    isStarting ||\n    isSelectingLocalAudio ||\n    isImporting ||\n    isReadingHandoff ||\n    isLoadingProject;\n  const selectedRequest: AnalysisJobRequest = createAnalysisRequestForSelection('
+          )
+          replace_once(
+              app,
+              '  const handleStartAnalysis = async () => {\n    const submittedBootstrap = selectedBootstrap;',
+              '  const handleStartAnalysis = async () => {\n    if (sourceTransitionLocked || !selectedBootstrap) {\n      return;\n    }\n\n    const submittedBootstrap = selectedBootstrap;'
+          )
+          replace_once(
+              app,
+              '  const handleChooseLocalAudio = async () => {\n    setSelectionError(null);',
+              '  const handleChooseLocalAudio = async () => {\n    if (sourceTransitionLocked) {\n      return;\n    }\n\n    setSelectionError(null);'
+          )
+          replace_once(
+              app,
+              '  const handleImportYoutube = async () => {\n    if (pendingHandoff) {',
+              '  const handleImportYoutube = async () => {\n    if (sourceTransitionLocked || pendingHandoff) {'
+          )
+          replace_once(
+              app,
+              '  const handleLoadProject = async () => {\n    setIsLoadingProject(true);',
+              '  const handleLoadProject = async () => {\n    if (sourceTransitionLocked) {\n      return;\n    }\n\n    setIsLoadingProject(true);'
+          )
+
+          test = Path("apps/desktop/src/App.source-handler-guard.test.tsx")
+          replace_once(
+              test,
+              'import { fireEvent, render, screen, waitFor } from "@testing-library/react";',
+              'import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";'
+          )
+          replace_once(
+              test,
+              '    resolveProject?.(loadedSong());\n    await screen.findByText("Workspace result");',
+              '    await act(async () => {\n      resolveProject?.(loadedSong());\n    });\n    await screen.findByText("Workspace result");'
+          )
+          replace_once(
+              test,
+              '    resolveSelection?.({\n      ok: false,\n      error: { code: "invalid_request", message: "Selection cancelled." }\n    });\n    await waitFor(() => {',
+              '    await act(async () => {\n      resolveSelection?.({\n        ok: false,\n        error: { code: "invalid_request", message: "Selection cancelled." }\n      });\n    });\n    await waitFor(() => {'
+          )
+          replace_once(
+              test,
+              '    resolveReplacement?.({\n      ok: false,\n      error: { code: "invalid_request", message: "Selection cancelled." }\n    });\n    await waitFor(() => {',
+              '    await act(async () => {\n      resolveReplacement?.({\n        ok: false,\n        error: { code: "invalid_request", message: "Selection cancelled." }\n      });\n    });\n    await waitFor(() => {'
+          )
+
+          docs = Path("docs/workflows/metadata-handoff-import.md")
+          replace_once(
+              docs,
+              'Importing metadata never starts analysis automatically and never dereferences file paths or URLs carried by the artifact.\n',
+              'Importing metadata never starts analysis automatically and never dereferences file paths or URLs carried by the artifact. Source selection, project loading, and analysis-start handlers independently reject stale overlapping transitions even if a UI component fails to enforce its disabled state; DOM disablement is an accessibility/usability layer, not the sole state-authority boundary.\n'
+          )
+          replace_once(
+              docs,
+              'Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, source-action and project-load exclusion during handoff validation, reciprocal source/handoff exclusion during project loading, YouTube exclusion while a validated handoff awaits its local source, explicit local-source selection and re-selection, cache-safe role projection, graph-link filtering, and successful pending-state cleanup.',
+              'Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, source-action and project-load exclusion during handoff validation, reciprocal source/handoff exclusion during project loading, handler-level rejection of bypassed overlapping local-source/project/analysis transitions, YouTube exclusion while a validated handoff awaits its local source, explicit local-source selection and re-selection, cache-safe role projection, graph-link filtering, and successful pending-state cleanup.'
+          )
+
+          changelog = Path("CHANGELOG.md")
+          replace_once(
+              changelog,
+              '- Import a bounded, validated BandScope metadata-handoff JSON file, require an explicit fresh local-audio pairing, and reuse the handoff\'s focused rehearsal roles for reanalysis (#739). Competing source actions and project replacement remain locked while handoff validation is pending; project loading reciprocally locks source/handoff changes and saving the prior project until the load settles; once a handoff validates, YouTube import stays unavailable until the handoff is cleared or consumed so only an explicit recipient-selected local file can satisfy the pairing boundary.',
+              '- Import a bounded, validated BandScope metadata-handoff JSON file, require an explicit fresh local-audio pairing, and reuse the handoff\'s focused rehearsal roles for reanalysis (#739). Competing source actions and project replacement remain locked while handoff validation is pending; project loading reciprocally locks source/handoff changes and saving the prior project until the load settles; source/project/analysis handlers independently reject stale overlapping transitions even if UI disablement is bypassed; once a handoff validates, YouTube import stays unavailable until the handoff is cleared or consumed so only an explicit recipient-selected local file can satisfy the pairing boundary.'
+          )
+          PY
+
+          rm .github/workflows/repair-source-transition-handler-guards.yml
+          git diff --check
+
+      - name: Commit self-cleaning repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop/src/App.tsx apps/desktop/src/App.source-handler-guard.test.tsx docs/workflows/metadata-handoff-import.md CHANGELOG.md .github/workflows/repair-source-transition-handler-guards.yml
+          git commit -m "fix(ui): enforce source transition guards in handlers"
+          git push origin HEAD:feat/handoff-import-roundtrip
