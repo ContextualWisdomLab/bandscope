@@ -23,5 +23,20 @@ def test_c_major_pcm_rejects_non_mono_audio() -> None:
     """Accuracy acceptance must not reinterpret multichannel arrays as mono PCM."""
     stereo = np.zeros((32, 2), dtype=np.float32)
 
-    with pytest.raises(ValueError, match="mono"):
+    with pytest.raises(ValueError, match="audio"):
         evaluate_c_major_pcm(stereo, 22_050, "a" * 64)
+
+
+@pytest.mark.parametrize(
+    "audio",
+    [
+        np.zeros(0, dtype=np.float32),
+        np.array([0.0, np.nan], dtype=np.float32),
+        np.array([0.0, np.inf], dtype=np.float32),
+        np.zeros(32, dtype=np.int16),
+    ],
+)
+def test_c_major_pcm_rejects_malformed_decoded_audio(audio: np.ndarray) -> None:
+    """Empty, non-finite, or non-floating decoded evidence must fail closed."""
+    with pytest.raises(ValueError, match="audio"):
+        evaluate_c_major_pcm(audio, 22_050, "a" * 64)
