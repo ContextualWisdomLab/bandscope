@@ -18,6 +18,8 @@ _WINDOWS_RESERVED_CHARACTERS: Final[frozenset[str]] = frozenset('<>:"|?*')
 _WINDOWS_RESERVED_DEVICE_NAMES: Final[frozenset[str]] = frozenset(
     {
         "CON",
+        "CONIN$",
+        "CONOUT$",
         "PRN",
         "AUX",
         "NUL",
@@ -48,8 +50,10 @@ def _has_invalid_windows_component(path: PureWindowsPath) -> bool:
     Standard Win32 file names cannot contain reserved punctuation or control
     characters, cannot begin or end in an ASCII space or end in a period, and
     cannot use legacy DOS device aliases such as ``NUL`` or ``COM1`` even when
-    an extension follows. Rejecting ``:`` outside the drive anchor also keeps
-    alternate data streams outside BandScope's regular local-file contract.
+    an extension follows. Console device aliases ``CONIN$`` and ``CONOUT$`` are
+    also device authority rather than regular local files. Rejecting ``:``
+    outside the drive anchor keeps alternate data streams outside BandScope's
+    regular local-file contract.
     """
     for component in path.parts[1:]:
         if component.startswith(" ") or component.endswith((" ", ".")):
