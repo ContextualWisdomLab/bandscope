@@ -299,8 +299,8 @@ def test_parse_case_report_rejects_malformed_payloads() -> None:
         parse_case_report({**valid, "true_label": ""})
 
 
-def test_read_product_version_uses_version_file_or_unknown(tmp_path: Path) -> None:
-    """Version lookup must read VERSION and fall back to unknown."""
+def test_read_product_version_uses_version_file_and_fails_closed(tmp_path: Path) -> None:
+    """Version lookup must read VERSION and reject missing provenance."""
     versioned = tmp_path / "versioned"
     versioned.mkdir()
     (versioned / "VERSION").write_text("9.9.9\n", encoding="utf-8")
@@ -309,5 +309,6 @@ def test_read_product_version_uses_version_file_or_unknown(tmp_path: Path) -> No
     empty = tmp_path / "empty-tree"
     empty.mkdir()
     (empty / "VERSION").write_text("   \n", encoding="utf-8")
-    assert read_product_version(empty) == "unknown"
+    with pytest.raises(ValueError, match="VERSION"):
+        read_product_version(empty)
     assert read_product_version() != "unknown"
