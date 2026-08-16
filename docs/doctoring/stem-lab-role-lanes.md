@@ -14,18 +14,18 @@ Stem Lab is a display-only isolation board:
 
 1. Before analysis, tell the player to choose a local audio file and start analysis.
 2. After analysis, collapse `song -> section -> role` into one lane per role id.
-3. Each lane shows a validated playable range when both range boundaries are valid scientific-pitch labels, the sections to lock first, the merged rehearsal priority, and any overlap warning.
+3. Each lane shows a validated playable range only when both boundaries are valid scientific-pitch labels and the lower boundary does not exceed the upper boundary, plus the sections to lock first, the merged rehearsal priority, and any overlap warning.
 4. First-seen section labels and valid range notes are trimmed before display so padded analysis labels cannot duplicate after merge.
-5. Malformed initial range evidence is discarded. If either range boundary remains unavailable, show an explicit ear-check next action instead of presenting malformed text or an empty dash as a playable range.
+5. Malformed initial range evidence is discarded. If either boundary remains unavailable, or the complete pair is inverted, show an explicit ear-check next action instead of presenting malformed, contradictory, or empty evidence as a playable range.
 6. Do not show Play / Loop / Solo controls until a local stem-file contract exists.
 
 This follows self-descriptiveness and suitability-for-the-task: the interface must say what the player can do now, not advertise a control or evidence state that cannot support the task (International Organization for Standardization, 2020; World Wide Web Consortium, 2024).
 
 ## Trust boundary and test points
 
-Role names, range labels, section labels, and overlap warnings are analysis-derived presentation data, not trusted UI literals. React text rendering prevents markup execution, while Stem Lab separately validates the scientific-pitch shape used for buyer-facing range claims. A later valid section may replace missing range evidence; later malformed labels cannot widen a valid range.
+Role names, range labels, section labels, and overlap warnings are analysis-derived presentation data, not trusted UI literals. React text rendering prevents markup execution, while Stem Lab separately validates the scientific-pitch shape and ordering used for buyer-facing range claims. A later valid section may replace missing range evidence; later malformed labels cannot widen a valid range. A complete low/high pair whose parsed lower pitch is above its parsed upper pitch fails closed before the UI can label it playable.
 
-Direct regressions cover padded first labels, pitch-aware cross-section widening, recovery from initially missing range evidence, rejection of later malformed notes, rejection of malformed first-only range evidence, and the UI fallback that tells the player to verify the part by ear rather than showing a fake playable range.
+Direct regressions cover padded first labels, pitch-aware cross-section widening, recovery from initially missing range evidence, rejection of later malformed notes, rejection of malformed first-only range evidence, rejection of an inverted validated range, and the UI fallback that tells the player to verify the part by ear rather than showing a fake playable range.
 
 ## Design tokens
 
