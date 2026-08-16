@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDemoAnalysisJobRequest, createDemoRehearsalSong } from "@bandscope/shared-types";
 import {
+  MAX_LOCAL_AUDIO_FILE_BYTES,
   MAX_YOUTUBE_URL_LENGTH,
   getAnalysisJobStatus,
   importYoutubeUrl,
+  selectLocalAudioSource,
   startAnalysisJob
 } from "./analysis";
 
@@ -18,6 +20,32 @@ describe("analysis bridge", () => {
   beforeEach(() => {
     delete tauriWindow.__TAURI_INTERNALS__;
     delete tauriWindow.__TAURI_INVOKE__;
+  });
+
+  it("rejects an oversized native local-audio selection before it becomes project state", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
+      projectId: "native-local-project",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/native-local-project",
+      cacheRoot: "/tmp/bandscope/cache/native-local-project",
+      tempRoot: "/tmp/bandscope/temp/native-local-project",
+      source: {
+        sourcePath: "/tmp/bandscope/input.wav",
+        fileName: "input.wav",
+        extension: "wav",
+        fileSizeBytes: MAX_LOCAL_AUDIO_FILE_BYTES + 1
+      }
+    });
+
+    const selection = await selectLocalAudioSource();
+
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Selected audio file exceeds the 100 MiB analysis limit."
+      }
+    });
   });
 
   it("imports a standard YouTube URL through the browser fallback when Tauri is absent", async () => {
