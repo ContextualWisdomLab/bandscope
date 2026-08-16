@@ -217,12 +217,18 @@ def test_parse_case_report_rejects_malformed_payloads() -> None:
         parse_case_report({**valid, "case_id": ""})
     with pytest.raises(ValueError, match="audio_sha256"):
         parse_case_report({**valid, "audio_sha256": "short"})
+    with pytest.raises(ValueError, match="audio_sha256"):
+        parse_case_report({**valid, "audio_sha256": "g" * 64})
     with pytest.raises(ValueError, match="metric_name"):
         parse_case_report({**valid, "metric_name": ""})
     with pytest.raises(ValueError, match="metric_value"):
         parse_case_report({**valid, "metric_value": True})
     with pytest.raises(ValueError, match="metric_value"):
         parse_case_report({**valid, "metric_value": "0.9"})
+    with pytest.raises(ValueError, match="metric_value"):
+        parse_case_report({**valid, "metric_value": np.nan})
+    with pytest.raises(ValueError, match="metric_value"):
+        parse_case_report({**valid, "metric_value": np.inf})
     with pytest.raises(ValueError, match="passed"):
         parse_case_report({**valid, "passed": 1})
     with pytest.raises(ValueError, match="engine_version"):
