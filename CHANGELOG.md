@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Union overlapping matching chord-estimate intervals before duration-weighted recall so acceptance scores cannot double-count annotated time or exceed 100%.
 - Reject malformed accuracy-report provenance, including non-hex SHA-256 text and non-finite metric values, before acceptance evidence is consumed.
 - Score the C major acceptance case from checksummed on-disk WAV bytes instead of the pre-write in-memory triad.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
