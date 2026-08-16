@@ -32,6 +32,9 @@ stem quality, or private-corpus readiness.
 - `click-120-bpm`: eight seconds of 120 BPM clicks decoded by
   `TemporalAnalyzer`. Pass when estimated tempo satisfies Acc1 at 4%
   (Schreiber & Müller, 2020). Acc1 does not credit half-time or double-time.
+  Estimated BPM, true BPM, and the tolerance must all be finite; non-finite
+  metric inputs are invalid acceptance evidence and fail closed rather than
+  being recorded as an ordinary miss.
 - Checksum mismatch fails closed on both file evaluators. Do not score a
   tampered file as a pass.
 - Machine-readable case reports are accepted only when the registered
@@ -68,17 +71,21 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
 
 ## Security Notes
 
-- Attack surface: generated WAV bytes, SHA-256 digests, decoded PCM, and parsed
-  case-report mappings passed into the accuracy acceptance path.
-- Trust boundary: untrusted audio and manifests; trusted repo-controlled
-  fixture generators, metric definitions, and registered floors.
+- Attack surface: generated WAV bytes, SHA-256 digests, decoded PCM, recognizer
+  segment timings, tempo estimates, and parsed case-report mappings passed into
+  the accuracy acceptance path.
+- Trust boundary: untrusted audio, recognizer output, and manifests; trusted
+  repo-controlled fixture generators, true labels, metric definitions, and
+  registered floors.
 - Mitigations: no network, no shell, checksum fail-closed before C-major
-  decode and before tempo scoring, strict SHA-256 syntax, finite-only metric
-  values, bounded fixture durations, no copyrighted commercial recordings.
+  decode and before tempo scoring, overlap-safe chord duration, finite-only
+  tempo metric inputs, strict SHA-256 syntax, finite-only report metric values,
+  bounded fixture durations, and no copyrighted commercial recordings.
   Fixture paths are pytest temp files; reports store only SHA-256 and labels,
   not waveform bytes.
 - Test points: deterministic digest, C major recall after file decode,
   overlapping matching intervals do not double-count annotation duration,
-  silence-on-disk vs in-memory triad, 120 BPM Acc1, checksum mismatch through
-  both file evaluators, malformed/non-hex manifest provenance, NaN/infinity
-  rejection, and silence must not pass as C major.
+  silence-on-disk vs in-memory triad, 120 BPM Acc1, non-finite tempo estimate /
+  truth / tolerance rejection, checksum mismatch through both file evaluators,
+  malformed/non-hex manifest provenance, NaN/infinity report rejection, and
+  silence must not pass as C major.
