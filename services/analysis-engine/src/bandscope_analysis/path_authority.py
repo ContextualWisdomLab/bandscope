@@ -46,13 +46,13 @@ def _has_invalid_windows_component(path: PureWindowsPath) -> bool:
     """Return whether a fully qualified Windows path contains ambiguous file syntax.
 
     Standard Win32 file names cannot contain reserved punctuation or control
-    characters, cannot end in a space or period, and cannot use the legacy DOS
-    device aliases such as ``NUL`` or ``COM1`` even when an extension follows.
-    Rejecting ``:`` outside the drive anchor also keeps alternate data streams
-    outside BandScope's regular local-file contract.
+    characters, cannot begin or end in an ASCII space or end in a period, and
+    cannot use legacy DOS device aliases such as ``NUL`` or ``COM1`` even when
+    an extension follows. Rejecting ``:`` outside the drive anchor also keeps
+    alternate data streams outside BandScope's regular local-file contract.
     """
     for component in path.parts[1:]:
-        if component.endswith((" ", ".")):
+        if component.startswith(" ") or component.endswith((" ", ".")):
             return True
         if any(character in _WINDOWS_RESERVED_CHARACTERS for character in component):
             return True
@@ -115,11 +115,11 @@ def validate_local_path_shape(
     paths are accepted by the lexical contract even when validation runs on the
     other OS. Windows drive paths must also satisfy the regular Win32 filename
     contract; device aliases, alternate streams, reserved characters, control
-    characters, and trailing space/period normalization are not accepted. With
-    the default native preflight, the current host must also recognize the path
-    as absolute and direct symlinks, writable-root type errors, and fixed
-    cache/temp child escapes are rejected. Pure lexical callers can disable that
-    preflight; I/O helpers do so and repeat native checks immediately before use.
+    characters, and ASCII-space/period normalization are not accepted. With the
+    default native preflight, the current host must also recognize the path as
+    absolute and direct symlinks, writable-root type errors, and fixed cache/temp
+    child escapes are rejected. Pure lexical callers can disable that preflight;
+    I/O helpers do so and repeat native checks immediately before use.
     """
     if not value or not value.strip() or "\x00" in value:
         raise _invalid_path(field_name)
