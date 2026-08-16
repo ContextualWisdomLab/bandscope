@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Fail closed when accuracy-report provenance cannot resolve a non-empty product `VERSION`, instead of publishing an `unknown` engine version as valid evidence.
 - Reject non-finite chord annotation and estimate timings before duration-weighted recall so NaN/Inf evidence cannot fabricate covered duration.
 - Reject non-finite tempo estimates, ground-truth BPM values, and Acc1 tolerances as invalid accuracy evidence instead of recording them as ordinary misses.
 - Union overlapping matching chord-estimate intervals before duration-weighted recall so acceptance scores cannot double-count annotated time or exceed 100%.
