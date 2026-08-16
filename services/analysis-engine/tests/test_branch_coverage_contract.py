@@ -68,9 +68,7 @@ def test_chord_analyzer_all_no_chord_recognition_falls_back_to_legacy_confidence
     """Use legacy confidence when recognizer output exists but every frame is no-chord."""
     analyzer = ChordAnalyzer()
     chords = [{"chord": "G", "functionLabel": "I", "source": "model"}]
-    recognized = [
-        {"start_time": 0.0, "end_time": 1.0, "chord": "N", "confidence": "low"}
-    ]
+    recognized = [{"start_time": 0.0, "end_time": 1.0, "chord": "N", "confidence": "low"}]
 
     assert analyzer._compute_section_confidence(chords, recognized, []) == ("medium", "model")
 
