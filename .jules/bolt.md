@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2025-03-02 - List Membership Optimization
+**Learning:** Checking for membership with `not in list` inside a loop has O(N^2) time complexity. Using it to deduplicate strings in frequent export flows is a hidden performance bottleneck.
+**Action:** Replace `not in list` checks with O(1) dictionary key assignments (`dict[key] = None`) followed by `list(dict)` to preserve insertion order (in Python 3.7+) and reduce time complexity to O(N).
