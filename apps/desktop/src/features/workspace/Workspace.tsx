@@ -162,6 +162,28 @@ function collectFocusSectionLabels(song: RehearsalSong): string[] {
   return focusLabels;
 }
 
+/**
+ * Return the first section id whose label matches a focus label.
+ *
+ * Matching is case-insensitive after trim so analysis spelling variants still
+ * open the same roadmap card.
+ */
+function findSectionIdForFocusLabel(song: RehearsalSong, focusLabel: string): string | null {
+  const normalized = focusLabel.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  for (const section of song.sections) {
+    const sectionLabel = nonBlankText(section.label);
+    if (sectionLabel && sectionLabel.toLowerCase() === normalized) {
+      return section.id;
+    }
+  }
+
+  return null;
+}
+
 /** Prevent clicks on rehearsal controls that are not available yet. */
 function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
   event.preventDefault();
@@ -354,6 +376,20 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       .replace("{sectionLabel}", item.sectionLabel);
   };
 
+  /**
+   * Focus the first roadmap section that matches a fallback focus label.
+   */
+  const handleFocusSectionActivate = (label: string): void => {
+    setFocusedSectionId(findSectionIdForFocusLabel(song, label));
+  };
+
+  /**
+   * Build the action label that opens a focus section on the roadmap.
+   */
+  const focusSectionActionLabel = (label: string): string => {
+    return t("workspacePriorityFocusAction").replace("{sectionLabel}", label);
+  };
+
   /** Documented. */
   const handleExportCueSheet = () => {
     const csv = generateCueSheetCsv(song);
@@ -492,7 +528,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <p className="text-sm leading-6 text-slate-300">{t("workspacePriorityFocusLead")}</p>
                   <ul className="space-y-1 text-sm font-semibold text-slate-100">
                     {focusSectionLabels.map((label) => (
-                      <li key={label}>{label}</li>
+                      <li key={label}>
+                        <button
+                          type="button"
+                          className="rounded text-left font-semibold text-slate-100 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                          onClick={() => handleFocusSectionActivate(label)}
+                          aria-label={focusSectionActionLabel(label)}
+                        >
+                          {label}
+                        </button>
+                      </li>
                     ))}
                   </ul>
                 </div>

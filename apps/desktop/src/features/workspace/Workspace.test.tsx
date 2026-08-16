@@ -387,6 +387,50 @@ describe("Workspace", () => {
     expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
   });
 
+  it("focuses the matching section when a fallback focus label is activated", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["chorus"]
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show chorus on the roadmap" }));
+
+    expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("does not focus a section when the fallback label has no matching roadmap card", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["bridge"]
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show bridge on the roadmap" }));
+
+    expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("section-roadmap-chorus-1")).not.toHaveAttribute("data-focused-section", "true");
+  });
+
   it("falls back to the first section label when every role is low and focus sections are empty", () => {
     setNavigatorLanguage("en-US");
     const song = createLateNightSetWithRepeatedVerse();

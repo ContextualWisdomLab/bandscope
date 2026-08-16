@@ -37,7 +37,7 @@
 
 ### Remaining risk
 
-- Focus-section fallback labels are still not clickable. A later slice can map a focus label to the first matching section id.
+- A focus label with no matching section id is a no-op. That is safe failure, not a missing control.
 
 ## References
 
