@@ -43,6 +43,8 @@ def test_encoded_file_size_accepts_exact_boundary() -> None:
         (np.zeros(8_001, dtype=np.float32), 8_000),
         (np.zeros((2, 4_000), dtype=np.float32), 8_000),
         (np.array([0.0, np.nan], dtype=np.float32), 8_000),
+        (np.array(["not-a-sample"], dtype=object), 8_000),
+        (np.zeros(10, dtype=np.int16), 8_000),
         (np.zeros(10, dtype=np.float32), 0),
         (np.zeros(10, dtype=np.float32), True),
     ],
@@ -51,7 +53,7 @@ def test_decoded_audio_fails_closed_outside_policy(
     audio: np.ndarray,
     sample_rate: object,
 ) -> None:
-    """Decoded output is revalidated for shape, finiteness, rate, and sample budget."""
+    """Decoded output is revalidated for type, shape, finiteness, rate, and sample budget."""
     policy = AudioResourcePolicy(target_sample_rate=8_000, max_duration_seconds=1.0)
 
     with pytest.raises(ValueError, match="audio resource policy"):
@@ -83,7 +85,17 @@ def test_policy_configuration_itself_fails_closed(kwargs: dict[str, object]) -> 
         AudioResourcePolicy(**kwargs)  # type: ignore[arg-type]
 
 
-def test_policy_configuration_fails_closed_on_unrepresentable_sample_budget() -> None:
-    """Extreme integer metadata cannot escape the policy through float conversion overflow."""
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"target_sample_rate": 10**400, "max_duration_seconds": 1.0},
+        {"target_sample_rate": 1, "max_duration_seconds": 10**400},
+        {"max_encoded_file_bytes": 10**400},
+    ],
+)
+def test_policy_configuration_fails_closed_on_unrepresentable_limits(
+    kwargs: dict[str, object],
+) -> None:
+    """Extreme integer limits cannot escape stable policy validation through overflow."""
     with pytest.raises(ValueError, match="audio resource policy"):
-        AudioResourcePolicy(target_sample_rate=10**400, max_duration_seconds=1.0)
+        AudioResourcePolicy(**kwargs)  # type: ignore[arg-type]
