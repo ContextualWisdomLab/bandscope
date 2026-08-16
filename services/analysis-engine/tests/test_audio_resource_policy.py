@@ -81,3 +81,9 @@ def test_policy_configuration_itself_fails_closed(kwargs: dict[str, object]) -> 
     """Invalid policy construction cannot silently create an unbounded budget."""
     with pytest.raises(ValueError, match="audio resource policy"):
         AudioResourcePolicy(**kwargs)  # type: ignore[arg-type]
+
+
+def test_policy_configuration_fails_closed_on_unrepresentable_sample_budget() -> None:
+    """Extreme integer metadata cannot escape the policy through float conversion overflow."""
+    with pytest.raises(ValueError, match="audio resource policy"):
+        AudioResourcePolicy(target_sample_rate=10**400, max_duration_seconds=1.0)
