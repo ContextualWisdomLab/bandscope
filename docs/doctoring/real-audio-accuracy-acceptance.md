@@ -8,6 +8,7 @@ evidence.
 uv run --project services/analysis-engine pytest \
   services/analysis-engine/tests/test_accuracy_acceptance.py \
   services/analysis-engine/tests/test_accuracy_boolean_fixture_inputs.py \
+  services/analysis-engine/tests/test_accuracy_pcm_input_contract.py \
   services/analysis-engine/tests/test_accuracy_manifest_version.py \
   services/analysis-engine/tests/test_accuracy_metric_interval_contract.py
 ```
@@ -34,8 +35,12 @@ stem quality, or private-corpus readiness.
   clipping, and each estimate interval must have a strictly increasing
   start/end pair; Boolean, NaN, infinite, empty, or reversed timing is invalid
   acceptance evidence and fails closed instead of being silently ignored or
-  allowed to fabricate covered duration. The metric family is WCSR/CSR
-  (Odekerken et al., 2021; Raffel et al., 2014).
+  allowed to fabricate covered duration. The decoded C-major evaluator also
+  requires one-dimensional mono PCM and a finite positive non-Boolean sample
+  rate before the production recognizer runs; malformed multichannel buffers or
+  invalid rate evidence are rejected rather than reinterpreted as acceptance
+  input. The metric family is WCSR/CSR (Odekerken et al., 2021; Raffel et al.,
+  2014).
 - `click-120-bpm`: eight seconds of 120 BPM clicks decoded by
   `TemporalAnalyzer`. Pass when estimated tempo satisfies Acc1 at 4%
   (Schreiber & Müller, 2020). Acc1 does not credit half-time or double-time.
@@ -91,27 +96,30 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
 ## Security Notes
 
 - Attack surface: generated WAV bytes, fixture duration/BPM/sample-rate inputs,
-  SHA-256 digests, decoded PCM, recognizer segment timings, tempo estimates,
-  product-version provenance, and parsed case-report mappings passed into the
-  accuracy acceptance path.
-- Trust boundary: untrusted audio, runtime numeric evidence, recognizer output,
-  and manifests; trusted repo-controlled fixture definitions, true labels,
-  metric definitions, registered floors, and the repository product `VERSION`.
+  decoded PCM shape/sample-rate evidence, SHA-256 digests, recognizer segment
+  timings, tempo estimates, product-version provenance, and parsed case-report
+  mappings passed into the accuracy acceptance path.
+- Trust boundary: untrusted audio, runtime numeric evidence, decoded buffer
+  structure, recognizer output, and manifests; trusted repo-controlled fixture
+  definitions, true labels, metric definitions, registered floors, and the
+  repository product `VERSION`.
 - Mitigations: no network, no shell, checksum fail-closed before C-major
-  decode and before tempo scoring, overlap-safe chord duration, finite
-  non-Boolean annotation/estimate timing, strictly increasing estimate
-  intervals, finite non-Boolean tempo metric inputs, finite positive
-  non-Boolean fixture duration/BPM/sample-rate inputs, strict SHA-256 syntax,
-  finite-only report metric values, exact non-empty product-version provenance,
-  bounded fixture durations, and no copyrighted commercial recordings. Fixture
-  paths are pytest temp files; reports store only SHA-256 and labels, not
-  waveform bytes.
+  decode and before tempo scoring, one-dimensional mono PCM admission before
+  C-major recognition, finite positive non-Boolean decoded sample-rate evidence,
+  overlap-safe chord duration, finite non-Boolean annotation/estimate timing,
+  strictly increasing estimate intervals, finite non-Boolean tempo metric
+  inputs, finite positive non-Boolean fixture duration/BPM/sample-rate inputs,
+  strict SHA-256 syntax, finite-only report metric values, exact non-empty
+  product-version provenance, bounded fixture durations, and no copyrighted
+  commercial recordings. Fixture paths are pytest temp files; reports store
+  SHA-256 and labels, not waveform bytes.
 - Test points: deterministic digest, C major recall after file decode,
-  overlapping matching intervals do not double-count annotation duration,
-  non-finite and Boolean chord annotation/estimate timing rejection,
-  empty/reversed estimate interval rejection, silence-on-disk vs in-memory
-  triad, 120 BPM Acc1, non-finite and Boolean tempo estimate / truth / tolerance
-  rejection, non-finite and Boolean fixture generation/WAV sample-rate
-  rejection, checksum mismatch through both file evaluators, malformed/non-hex
-  manifest provenance, NaN/infinity report rejection, missing/empty product
-  `VERSION` rejection, and silence must not pass as C major.
+  decoded-PCM non-mono rejection and invalid sample-rate rejection, overlapping
+  matching intervals do not double-count annotation duration, non-finite and
+  Boolean chord annotation/estimate timing rejection, empty/reversed estimate
+  interval rejection, silence-on-disk vs in-memory triad, 120 BPM Acc1,
+  non-finite and Boolean tempo estimate / truth / tolerance rejection,
+  non-finite and Boolean fixture generation/WAV sample-rate rejection, checksum
+  mismatch through both file evaluators, malformed/non-hex manifest provenance,
+  NaN/infinity report rejection, missing/empty product `VERSION` rejection, and
+  silence must not pass as C major.
