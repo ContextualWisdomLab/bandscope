@@ -65,7 +65,10 @@ def test_separator_rejects_zero_byte_file_before_decoder(
     def fail_if_decoder_runs(*_args: object, **_kwargs: object) -> tuple[np.ndarray, int]:
         raise AssertionError("zero-byte input must be rejected before decoder invocation")
 
-    monkeypatch.setattr("bandscope_analysis.separation.audio_separator.librosa.load", fail_if_decoder_runs)
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.librosa.load",
+        fail_if_decoder_runs,
+    )
 
     with pytest.raises(ValueError, match="Stem separation decode failed"):
         separator.separate(audio_path)
