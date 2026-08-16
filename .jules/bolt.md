@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2026-08-16 - Graph traversal memory optimization
+**Learning:** Using `frozenset` unions inside a tight dependency path graph traversal loop (like `cargo_lock_has_named_dependency_path`) creates significant memory allocation overhead, becoming a major performance bottleneck for large lockfiles.
+**Action:** Use a single shared `set` tracking `(current_node, state)` pairs to achieve O(1) loop allocations and drastically reduce execution time without sacrificing correctness.
