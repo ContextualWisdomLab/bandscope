@@ -7,8 +7,8 @@ import pytest
 
 from bandscope_analysis.audio_resource_policy import (
     AUDIO_RESOURCE_POLICY_VERSION,
-    AudioResourcePolicy,
     DEFAULT_AUDIO_RESOURCE_POLICY,
+    AudioResourcePolicy,
 )
 
 

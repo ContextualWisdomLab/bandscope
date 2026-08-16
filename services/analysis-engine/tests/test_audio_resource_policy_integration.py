@@ -7,8 +7,8 @@ import pytest
 
 from bandscope_analysis.api import validate_analysis_job_request
 from bandscope_analysis.audio_resource_policy import (
-    AudioResourcePolicy,
     DEFAULT_AUDIO_RESOURCE_POLICY,
+    AudioResourcePolicy,
 )
 from bandscope_analysis.separation.audio_separator import (
     AudioSeparationConfig,
@@ -51,7 +51,10 @@ def test_request_preflight_accepts_exact_encoded_byte_boundary() -> None:
         _local_request(DEFAULT_AUDIO_RESOURCE_POLICY.max_encoded_file_bytes)
     )
 
-    assert request["localSource"]["fileSizeBytes"] == DEFAULT_AUDIO_RESOURCE_POLICY.max_encoded_file_bytes
+    assert (
+        request["localSource"]["fileSizeBytes"]
+        == DEFAULT_AUDIO_RESOURCE_POLICY.max_encoded_file_bytes
+    )
 
 
 def test_temporal_decoder_probes_one_sample_past_duration_limit_and_fails_closed(
@@ -78,7 +81,9 @@ def test_temporal_decoder_probes_one_sample_past_duration_limit_and_fails_closed
     monkeypatch.setattr(
         librosa.beat,
         "beat_track",
-        lambda **_: (_ for _ in ()).throw(AssertionError("analysis must not run after policy rejection")),
+        lambda **_: (_ for _ in ()).throw(
+            AssertionError("analysis must not run after policy rejection")
+        ),
     )
 
     with pytest.raises(ValueError, match="audio resource policy"):
@@ -115,7 +120,9 @@ def test_stem_decoder_probes_one_sample_past_duration_limit_and_fails_closed(
     monkeypatch.setattr(
         AudioStemSeparator,
         "_separate_signal",
-        lambda *_: (_ for _ in ()).throw(AssertionError("model must not run after policy rejection")),
+        lambda *_: (_ for _ in ()).throw(
+            AssertionError("model must not run after policy rejection")
+        ),
     )
 
     with pytest.raises(ValueError, match="audio resource policy"):
