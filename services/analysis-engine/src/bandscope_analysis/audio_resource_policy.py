@@ -10,10 +10,12 @@ Security Notes:
 - Encoded byte counts are validated before decode/allocation work when the
   opened file descriptor can provide an authoritative size.
 - Decoded audio is revalidated because container metadata and decoder behavior
-  are untrusted; accepted artifacts are finite, mono, at the configured sample
-  rate, and within the configured decoded-sample budget.
+  are untrusted; accepted artifacts are finite, mono, floating-point, at the
+  configured sample rate, and within the configured decoded-sample budget.
 - Decoders receive a one-sample-over-budget probe duration so a longer source is
   rejected instead of being silently truncated to the accepted duration.
+- Policy arithmetic rejects unrepresentable limits before float/sample-count
+  conversion so malformed configuration cannot escape the stable failure mode.
 - Validation errors are payload-free and never include source paths or audio
   content.
 """
@@ -57,6 +59,7 @@ class AudioResourcePolicy:
             isinstance(self.max_encoded_file_bytes, bool)
             or not isinstance(self.max_encoded_file_bytes, int)
             or self.max_encoded_file_bytes <= 0
+            or self.max_encoded_file_bytes > sys.maxsize - 1
         ):
             raise ValueError(_POLICY_ERROR)
         if (
@@ -66,14 +69,17 @@ class AudioResourcePolicy:
             or self.target_sample_rate > sys.maxsize - 1
         ):
             raise ValueError(_POLICY_ERROR)
-        if (
-            isinstance(self.max_duration_seconds, bool)
-            or not isinstance(self.max_duration_seconds, int | float)
-            or not math.isfinite(float(self.max_duration_seconds))
-            or float(self.max_duration_seconds) <= 0.0
+        if isinstance(self.max_duration_seconds, bool) or not isinstance(
+            self.max_duration_seconds, int | float
         ):
             raise ValueError(_POLICY_ERROR)
-        decoded_samples = self.target_sample_rate * float(self.max_duration_seconds)
+        try:
+            duration_seconds = float(self.max_duration_seconds)
+        except (OverflowError, ValueError):
+            raise ValueError(_POLICY_ERROR) from None
+        if not math.isfinite(duration_seconds) or duration_seconds <= 0.0:
+            raise ValueError(_POLICY_ERROR)
+        decoded_samples = self.target_sample_rate * duration_seconds
         if (
             not math.isfinite(decoded_samples)
             or decoded_samples < 1.0
@@ -124,13 +130,18 @@ class AudioResourcePolicy:
             sample_rate: Decoder-reported sample rate in Hz.
 
         Returns:
-            The original validated NumPy array without copying it.
+            The original validated NumPy floating-point array without copying it.
 
         Raises:
-            ValueError: If shape, sample rate, sample count, or finiteness does
-                not satisfy this policy.
+            ValueError: If dtype, shape, sample rate, sample count, or finiteness
+                does not satisfy this policy.
         """
-        if not isinstance(audio, np.ndarray) or audio.ndim != 1 or audio.size == 0:
+        if (
+            not isinstance(audio, np.ndarray)
+            or audio.ndim != 1
+            or audio.size == 0
+            or not np.issubdtype(audio.dtype, np.floating)
+        ):
             raise ValueError(_POLICY_ERROR)
         if (
             isinstance(sample_rate, bool)
