@@ -30,7 +30,7 @@ describe("collectStemLanes", () => {
       sections: [
         {
           id: "verse-1",
-          label: "verse",
+          label: "  verse  ",
           groove: "straight",
           timeRange: { start: 0, end: 8 },
           confidence: { level: "high", source: "model", notes: "stable" },
@@ -186,6 +186,40 @@ describe("collectStemLanes", () => {
     const lane = collectStemLanes(song)[0];
     expect(lane.lowestNote).toBe("C#2");
     expect(lane.highestNote).toBe("E3");
+  });
+
+  it("trims first-seen range labels and drops a blank first section name", () => {
+    const song = createDemoRehearsalSong();
+    song.sections = [
+      {
+        ...song.sections[0],
+        label: "   ",
+        roles: [
+          {
+            ...song.sections[0].roles[0],
+            id: "padded-range",
+            range: { lowestNote: "  A1  ", highestNote: "  C3  " }
+          }
+        ]
+      },
+      {
+        ...song.sections[0],
+        id: "chorus-1",
+        label: "chorus",
+        roles: [
+          {
+            ...song.sections[0].roles[0],
+            id: "padded-range",
+            range: { lowestNote: "A1", highestNote: "C3" }
+          }
+        ]
+      }
+    ];
+
+    const lane = collectStemLanes(song)[0];
+    expect(lane.lowestNote).toBe("A1");
+    expect(lane.highestNote).toBe("C3");
+    expect(lane.sectionLabels).toEqual(["chorus"]);
   });
 
   it("falls back to the role id when the display name is blank", () => {
