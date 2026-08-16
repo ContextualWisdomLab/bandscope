@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from "vitest";
-import { createDemoAnalysisJobRequest } from "@bandscope/shared-types";
+import { createDemoAnalysisJobRequest, createDemoRehearsalSong } from "@bandscope/shared-types";
 
-import { getAnalysisJobStatus, startAnalysisJob } from "./analysis";
+import { getAnalysisJobStatus, saveProject, startAnalysisJob } from "./analysis";
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -40,4 +40,10 @@ it("does not retain a synthetic browser job after fail-closed analysis rejection
     }
   });
   expect(lookup.result).toBeUndefined();
+});
+
+it("fails closed instead of reporting browser-only project save success", async () => {
+  await expect(saveProject(createDemoRehearsalSong())).rejects.toThrow(
+    "Project save requires the Tauri runtime."
+  );
 });
