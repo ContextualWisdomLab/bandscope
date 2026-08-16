@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Reject Windows UNC/network and device-namespace `--job` file shapes before any filesystem metadata lookup so a caller-selected local job file cannot silently acquire remote-share or device authority on another host.
 - Reject unknown CLI arguments and extra `--status` operands before reading standard input, keep valid whitespace-prefixed inline JSON `--job` payloads on the inline path, and fail malformed explicit invocations immediately instead of blocking on unrelated pipes or special files. File-backed `--job` reads now reject symlinks and non-regular paths before opening, request no-follow/close-on-exec descriptor semantics where available, verify the opened descriptor still identifies the preflighted regular file, and enforce the byte bound through that descriptor.
 
 ### Added
