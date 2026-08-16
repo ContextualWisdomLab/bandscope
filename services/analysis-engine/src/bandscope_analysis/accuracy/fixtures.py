@@ -75,7 +75,7 @@ def render_click_track(
             or not positive.
     """
     if isinstance(bpm, bool) or not np.isfinite(bpm) or bpm <= 0:
-        raise ValueError("bpm must be a finite positive non-Boolean number")
+        raise ValueError("bpm must be positive, finite, and non-Boolean")
     if (
         isinstance(duration_seconds, bool)
         or not np.isfinite(duration_seconds)
