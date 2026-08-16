@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- Fail closed on non-finite sample rates when slicing stems to section windows, so malformed temporal evidence cannot raise during sample-index conversion or fall back to song-wide overlap.
 - Keep silent stems from becoming zero-severity rehearsal overlap warnings at a zero threshold, and fail closed on invalid negative, non-finite, or boolean threshold configuration.
 - Derive section-level register-overlap warnings from measured stem spectra instead of fabricating keyboard or vocal clash copy when no audio evidence exists.
 - Keep mixed `other`-stem accompaniment evidence role-agnostic instead of assigning the same overlap warning and rehearsal priority to specific keyboard-hand or guitar roles the separator cannot identify.
