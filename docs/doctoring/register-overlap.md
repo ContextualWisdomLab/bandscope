@@ -32,12 +32,14 @@ an overflowed product, or falling back to whole-song overlap. This preserves
 the contract that absent or malformed section authority produces no density
 warning.
 
-Register energy is computed only from one-dimensional mono arrays, matching
-the separator contract consumed by this feature. A malformed multichannel or
-higher-dimensional array is not flattened, mixed, or interpreted as valid
-register evidence: it produces an all-zero profile instead. This prevents an
-FFT-shape mismatch from escaping the public helper and prevents malformed
-stem structure from fabricating or aborting buyer-facing overlap guidance.
+Register energy is computed only from one-dimensional mono arrays at a finite,
+positive sample rate, matching the separator contract consumed by this feature.
+A malformed multichannel or higher-dimensional array is not flattened, mixed,
+or interpreted as valid register evidence, and NaN/Infinity sample-rate values
+never reach FFT frequency-bin construction. Both cases produce an all-zero
+profile instead. This prevents FFT-shape or frequency-grid failures from
+escaping the public helper and prevents malformed stem structure or temporal
+metadata from fabricating or aborting buyer-facing overlap guidance.
 
 ## Psychoacoustic and MIR basis
 
@@ -75,9 +77,9 @@ Overlap analysis operates on already-admitted in-memory arrays. It adds no
 file, network, subprocess, model, database, or IPC authority. Direct tests
 cover finite and non-finite section/sample-rate inputs, finite inputs whose
 scaled sample-index products overflow, one-dimensional mono admission versus
-malformed multichannel stems, silent or malformed stems, threshold validation,
-section-local slicing, mixed-`other` identity, and de-duplicated next-action
-warning copy.
+malformed multichannel stems, direct register-profile rejection of non-finite
+sample rates, silent or malformed stems, threshold validation, section-local
+slicing, mixed-`other` identity, and de-duplicated next-action warning copy.
 
 ## References
 
