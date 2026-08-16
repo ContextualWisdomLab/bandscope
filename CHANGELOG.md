@@ -50,7 +50,7 @@
 ### Added
 
 - Issue #29: Defined core `song -> section -> role` rehearsal domain contracts
-- Issue #38: Added cross-architecture build support (Windows/macOS amd64+arm64)
+- Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
 - Issue #40: Enforced 100% Python docstring and test coverage
 - Issue #32: Implemented local analysis orchestration and secure IPC boundaries
 - Issue #33: Implemented secure local audio intake and project bootstrap
