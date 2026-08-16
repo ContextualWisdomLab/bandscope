@@ -68,7 +68,9 @@ def _duration_weighted_symbol_recall(
     """Score recovered segments against true section windows.
 
     The denominator is annotated duration so a silent or smeared boundary
-    cannot inflate the score (McVicar et al., 2014).
+    cannot inflate the score (McVicar et al., 2014). Matching recognizer
+    intervals are unioned inside each annotation window so duplicate or
+    overlapping estimates cannot count the same section time twice.
 
     Args:
         segments: Time-stamped recognizer output.
@@ -84,12 +86,27 @@ def _duration_weighted_symbol_recall(
 
     matched_duration = 0.0
     for truth_start, truth_end, truth_chord in truth_windows:
+        matching_intervals: list[tuple[float, float]] = []
         for segment in segments:
-            overlap = min(segment["end_time"], truth_end) - max(segment["start_time"], truth_start)
-            if overlap <= 0.0:
+            if _canonical_major_symbol(segment["chord"]) != truth_chord:
                 continue
-            if _canonical_major_symbol(segment["chord"]) == truth_chord:
-                matched_duration += overlap
+            overlap_start = max(segment["start_time"], truth_start)
+            overlap_end = min(segment["end_time"], truth_end)
+            if overlap_end > overlap_start:
+                matching_intervals.append((overlap_start, overlap_end))
+
+        matching_intervals.sort(key=lambda interval: (interval[0], interval[1]))
+        if not matching_intervals:
+            continue
+        current_start, current_end = matching_intervals[0]
+        for interval_start, interval_end in matching_intervals[1:]:
+            if interval_start <= current_end:
+                current_end = max(current_end, interval_end)
+                continue
+            matched_duration += current_end - current_start
+            current_start, current_end = interval_start, interval_end
+        matched_duration += current_end - current_start
+
     return matched_duration / annotated_duration
 
 
