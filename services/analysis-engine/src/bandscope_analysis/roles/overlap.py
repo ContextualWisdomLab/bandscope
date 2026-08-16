@@ -81,7 +81,7 @@ def band_energy_profile(
 
     Args:
         audio: Mono float audio samples for one stem.
-        sr: Sample rate in Hz.
+        sr: Finite positive non-Boolean sample rate in Hz.
 
     Returns:
         Dict mapping band name ("low", "mid", "high") to the fraction of the
@@ -95,6 +95,7 @@ def band_energy_profile(
         not isinstance(audio, np.ndarray)
         or audio.ndim != 1
         or audio.size == 0
+        or isinstance(sr, bool)
         or not np.isfinite(sr)
         or sr <= 0
     ):
@@ -196,19 +197,22 @@ def slice_stems_to_window(
 
     Args:
         stems: Dict mapping stem names to mono float audio arrays.
-        start_sec: Inclusive window start in seconds.
-        end_sec: Exclusive window end in seconds.
-        sr: Sample rate in Hz.
+        start_sec: Inclusive finite non-Boolean window start in seconds.
+        end_sec: Exclusive finite non-Boolean window end in seconds.
+        sr: Finite positive non-Boolean sample rate in Hz.
 
     Returns:
-        A new stem dict cropped to the window. Invalid windows, non-finite or
-        non-positive sample rates, non-finite scaled sample positions, or
-        non-array values become empty arrays so later FFT work fails closed
-        instead of using the whole song by accident.
+        A new stem dict cropped to the window. Invalid windows, Boolean,
+        non-finite or non-positive sample rates, non-finite scaled sample
+        positions, or non-array values become empty arrays so later FFT work
+        fails closed instead of using the whole song by accident.
     """
     empty = np.array([], dtype=np.float64)
     if (
-        not np.isfinite(sr)
+        isinstance(sr, bool)
+        or isinstance(start_sec, bool)
+        or isinstance(end_sec, bool)
+        or not np.isfinite(sr)
         or sr <= 0
         or not np.isfinite(start_sec)
         or not np.isfinite(end_sec)
