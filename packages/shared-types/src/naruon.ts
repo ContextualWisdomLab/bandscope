@@ -366,6 +366,11 @@ function validateSnapshot(value: unknown): string | null {
     );
     if (error) return error;
   }
+
+  const canonicalSerialized = `${JSON.stringify(canonicalizeSnapshot(value))}\n`;
+  if (serializedByteLength(canonicalSerialized) > MAX_NARUON_SERIALIZED_BYTES) {
+    return "serialized handoff is oversized";
+  }
   return null;
 }
 
