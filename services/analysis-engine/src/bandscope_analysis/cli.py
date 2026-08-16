@@ -90,7 +90,7 @@ def _read_bounded_stdin() -> tuple[str | None, int]:
 def _uses_windows_device_alias(path: str) -> bool:
     """Return whether any component normalizes to a reserved Win32 device."""
     for component in path.replace("\\", "/").split("/"):
-        normalized_component = component.rstrip(" .")
+        normalized_component = component.lstrip(" ").rstrip(" .")
         base_name = normalized_component.split(".", 1)[0].rstrip(" ").split(":", 1)[0].upper()
         if base_name in _WINDOWS_DEVICE_NAMES:
             return True
