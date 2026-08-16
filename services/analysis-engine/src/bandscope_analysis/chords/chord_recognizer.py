@@ -297,7 +297,9 @@ class ChordRecognizer:
         # frame rather than allowing partial/corrupt DSP metadata into Viterbi.
         n_sim_frames = similarity.shape[1]
         valid_similarity_frames = np.all(np.isfinite(similarity), axis=0)
-        safe_similarity = np.where(valid_similarity_frames[np.newaxis, :], similarity, 0.0)
+        safe_similarity = np.where(
+            valid_similarity_frames[np.newaxis, :], similarity, 0.0
+        )
 
         if n_sim_frames > 0:
             sim_max = safe_similarity.max(axis=0, keepdims=True)
