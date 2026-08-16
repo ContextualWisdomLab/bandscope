@@ -148,5 +148,8 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "exportCueSheet": "큐 시트 내보내기 (CSV)",
+  "exportChart": "차트 요약 내보내기 (JSON)",
+  "exportHandoff": "핸드오프 데이터 내보내기 (JSON)"
 }
