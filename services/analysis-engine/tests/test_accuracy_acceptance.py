@@ -225,6 +225,25 @@ def test_duration_weighted_recall_rejects_non_finite_timing(
         duration_weighted_chord_recall(segments, "C", start_seconds, end_seconds)
 
 
+@pytest.mark.parametrize(
+    ("segments", "start_seconds", "end_seconds"),
+    [
+        ([(True, 2.0, "C")], 0.0, 4.0),
+        ([(0.0, True, "C")], 0.0, 4.0),
+        ([(0.0, 2.0, "C")], False, 4.0),
+        ([(0.0, 2.0, "C")], 0.0, True),
+    ],
+)
+def test_duration_weighted_recall_rejects_boolean_timing_evidence(
+    segments: list[tuple[float | bool, float | bool, str]],
+    start_seconds: float | bool,
+    end_seconds: float | bool,
+) -> None:
+    """Boolean timestamps must not be accepted as numeric MIR timing evidence."""
+    with pytest.raises(ValueError, match="times must be finite numbers"):
+        duration_weighted_chord_recall(segments, "C", start_seconds, end_seconds)  # type: ignore[arg-type]
+
+
 def test_tempo_acc1_window_and_guards() -> None:
     """Acc1 must accept a 4% window and reject octave errors and bad inputs."""
     assert tempo_acc1(120.0, 120.0) is True
@@ -256,6 +275,25 @@ def test_tempo_acc1_rejects_non_finite_evidence(
     """Non-finite estimate, truth, or tolerance must fail closed."""
     with pytest.raises(ValueError, match=message):
         tempo_acc1(estimated_bpm, true_bpm, relative_tolerance)
+
+
+@pytest.mark.parametrize(
+    ("estimated_bpm", "true_bpm", "relative_tolerance", "message"),
+    [
+        (True, 120.0, 0.04, "estimated_bpm"),
+        (120.0, True, 0.04, "true_bpm"),
+        (120.0, 120.0, True, "relative_tolerance"),
+    ],
+)
+def test_tempo_acc1_rejects_boolean_numeric_evidence(
+    estimated_bpm: float | bool,
+    true_bpm: float | bool,
+    relative_tolerance: float | bool,
+    message: str,
+) -> None:
+    """Boolean values must not satisfy numeric Acc1 evidence contracts."""
+    with pytest.raises(ValueError, match=message):
+        tempo_acc1(estimated_bpm, true_bpm, relative_tolerance)  # type: ignore[arg-type]
 
 
 def test_parse_case_report_rejects_malformed_payloads() -> None:
