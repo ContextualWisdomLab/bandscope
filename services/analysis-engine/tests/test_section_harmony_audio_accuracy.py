@@ -93,6 +93,18 @@ def _duration_weighted_symbol_recall(
     return matched_duration / annotated_duration
 
 
+def test_duration_weighted_symbol_recall_unions_duplicate_time() -> None:
+    """Overlapping matching estimates must not count section time twice."""
+    segments: list[TrackedChord] = [
+        {"start_time": 0.0, "end_time": 3.0, "chord": "C", "confidence": "high"},
+        {"start_time": 1.0, "end_time": 4.0, "chord": "C:maj", "confidence": "high"},
+        {"start_time": 4.0, "end_time": 8.0, "chord": "G", "confidence": "high"},
+    ]
+    truth_windows = [(0.0, 4.0, "C"), (4.0, 8.0, "G")]
+
+    assert _duration_weighted_symbol_recall(segments, truth_windows) == 1.0
+
+
 def test_canonical_major_symbol_rejects_minor_as_major() -> None:
     """Keep ``Cm`` distinct from ``C`` so a minor estimate cannot pass."""
     assert _canonical_major_symbol("C") == "C"
