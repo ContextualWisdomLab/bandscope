@@ -88,11 +88,11 @@ def build_case_report(
         ValueError: If required report evidence is invalid or the default product
             ``VERSION`` cannot be resolved.
     """
-    report: AccuracyCaseReport = {
+    report: dict[str, object] = {
         "case_id": case_id,
         "audio_sha256": audio_sha256,
         "metric_name": metric_name,
-        "metric_value": float(metric_value),
+        "metric_value": metric_value,
         "passed": passed,
         "engine_version": engine_version if engine_version is not None else read_product_version(),
         "true_label": true_label,
