@@ -140,6 +140,26 @@ def test_malformed_segments_are_skipped() -> None:
     assert result[0]["chord_changes"] == 0
 
 
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        (float("nan"), 1.0),
+        (0.0, float("nan")),
+        (float("-inf"), 1.0),
+        (0.0, float("inf")),
+    ],
+)
+def test_non_finite_segments_are_skipped(start: float, end: float) -> None:
+    """Non-finite timing cannot poison an otherwise valid harmony summary."""
+    segments = [_segment(start, end, "G"), _segment(0.0, 2.0, "C")]
+
+    result = summarize_section_harmony(segments, [(0.0, 2.0)])
+
+    assert result[0]["main_chord"] == "C"
+    assert result[0]["chords"] == [{"chord": "C", "duration": pytest.approx(2.0)}]
+    assert result[0]["chord_changes"] == 0
+
+
 def test_malformed_boundary_is_skipped() -> None:
     """A boundary that cannot be coerced to floats is dropped, others survive."""
     boundaries: Any = [("x", "y"), (0.0, 2.0)]
@@ -147,6 +167,31 @@ def test_malformed_boundary_is_skipped() -> None:
     result = summarize_section_harmony([_segment(0.0, 2.0, "D")], boundaries)
 
     assert len(result) == 1
+    assert result[0]["main_chord"] == "D"
+
+
+@pytest.mark.parametrize(
+    "invalid_boundary",
+    [
+        (float("nan"), 2.0),
+        (0.0, float("nan")),
+        (float("-inf"), 2.0),
+        (0.0, float("inf")),
+        (2.0, 2.0),
+        (3.0, 2.0),
+    ],
+)
+def test_invalid_numeric_boundary_is_skipped(
+    invalid_boundary: tuple[float, float],
+) -> None:
+    """Only finite positive-span section windows can enter result summaries."""
+    boundaries = [invalid_boundary, (0.0, 2.0)]
+
+    result = summarize_section_harmony([_segment(0.0, 2.0, "D")], boundaries)
+
+    assert len(result) == 1
+    assert result[0]["start_time"] == 0.0
+    assert result[0]["end_time"] == 2.0
     assert result[0]["main_chord"] == "D"
 
 
