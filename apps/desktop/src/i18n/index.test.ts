@@ -76,3 +76,33 @@ describe("i18n", () => {
     });
   });
 });
+
+describe("translator placeholder interpolation", () => {
+  it("does not recursively interpolate placeholder text inside replacement values", () => {
+    const t = createTranslator("en");
+
+    expect(
+      t("transcriptionComingSoon", { roleName: "Bass {roleName}" })
+    ).toBe("Bass {roleName} transcription is coming soon. Bass is ready first.");
+  });
+
+  it("does not interpolate a later placeholder inside an earlier replacement value", () => {
+    const t = createTranslator("en");
+
+    expect(
+      t("chordEditAriaLabel", {
+        roleName: "{sectionLabel}",
+        sectionLabel: "Bridge",
+        chord: "Cmaj7"
+      })
+    ).toBe("Edit chord for {sectionLabel} in Bridge, current Cmaj7");
+  });
+
+  it("preserves replacement characters literally", () => {
+    const t = createTranslator("en");
+
+    expect(t("transcriptionComingSoon", { roleName: "$& [lead].*" })).toBe(
+      "$& [lead].* transcription is coming soon. Bass is ready first."
+    );
+  });
+});

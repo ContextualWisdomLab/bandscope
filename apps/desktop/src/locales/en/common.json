@@ -148,5 +148,19 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "exportCueSheetCsv": "Export Cue Sheet (CSV)",
+  "exportChartJson": "Export Chart (JSON)",
+  "exportHandoffJson": "Export Handoff (JSON)",
+  "stemPlayerLabel": "Stem Player",
+  "playStem": "Play stem",
+  "playStemSoon": "Stem playback is coming soon.",
+  "loopSection": "Loop section",
+  "loopSectionSoon": "Section looping is coming soon.",
+  "soloMuteOthers": "Solo / mute others",
+  "soloMuteOthersSoon": "Solo and mute controls are coming soon.",
+  "transcribeBass": "Transcribe Bass",
+  "transcribePart": "Transcribe part",
+  "transcriptionComingSoon": "{roleName} transcription is coming soon. Bass is ready first.",
+  "thisRole": "This role"
 }
