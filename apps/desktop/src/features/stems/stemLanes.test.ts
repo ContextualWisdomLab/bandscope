@@ -188,6 +188,26 @@ describe("collectStemLanes", () => {
     expect(lane.highestNote).toBe("E3");
   });
 
+  it("drops malformed first-only range evidence instead of presenting it as playable", () => {
+    const song = createDemoRehearsalSong();
+    song.sections = [
+      {
+        ...song.sections[0],
+        roles: [
+          {
+            ...song.sections[0].roles[0],
+            id: "malformed-range",
+            range: { lowestNote: "not-a-note", highestNote: "also-not-a-note" }
+          }
+        ]
+      }
+    ];
+
+    const lane = collectStemLanes(song)[0];
+    expect(lane.lowestNote).toBe("");
+    expect(lane.highestNote).toBe("");
+  });
+
   it("trims first-seen range labels and drops a blank first section name", () => {
     const song = createDemoRehearsalSong();
     song.sections = [
