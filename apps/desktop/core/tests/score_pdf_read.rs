@@ -49,7 +49,7 @@ fn score_pdf_read_rejects_empty_short_and_wrong_magic_content() {
 }
 
 #[test]
-fn score_pdf_read_rejects_oversized_sparse_file_after_bounded_read() {
+fn score_pdf_read_rejects_oversized_sparse_file_before_heap_allocation() {
     let root = unique_test_dir("score-read-oversized");
     std::fs::create_dir_all(&root).expect("test directory should be created");
     let path = root.join("oversized.pdf");
@@ -63,6 +63,19 @@ fn score_pdf_read_rejects_oversized_sparse_file_after_bounded_read() {
     let error = read_validated_score_pdf(&path).expect_err("oversized PDF must fail closed");
 
     assert_eq!(error, "Score PDF is too large (exceeds 25MB limit).");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn score_pdf_read_rejects_non_file_descriptor() {
+    let root = unique_test_dir("score-read-directory");
+    std::fs::create_dir_all(&root).expect("test directory should be created");
+
+    let error = read_validated_score_pdf(&root).expect_err("directory must fail closed");
+
+    assert_eq!(error, "Could not read the score PDF.");
+    assert!(!error.contains(root.to_string_lossy().as_ref()));
     let _ = std::fs::remove_dir_all(root);
 }
 
