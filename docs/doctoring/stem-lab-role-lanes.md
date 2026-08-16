@@ -14,8 +14,9 @@ Stem Lab is a display-only isolation board:
 
 1. Before analysis, tell the player to choose a local audio file and start analysis.
 2. After analysis, collapse `song -> section -> role` into one lane per role id.
-3. Each lane shows the playable range, the sections to lock first, and any overlap warning.
-4. Do not show Play / Loop / Solo controls until a local stem-file contract exists.
+3. Each lane shows the playable range, the sections to lock first, the merged rehearsal priority, and any overlap warning.
+4. First-seen section labels and range notes are trimmed before display so padded analysis labels cannot duplicate after merge.
+5. Do not show Play / Loop / Solo controls until a local stem-file contract exists.
 
 This follows self-descriptiveness and suitability-for-the-task: the interface must say what the player can do now, not advertise a control that cannot complete the task (International Organization for Standardization, 2020; World Wide Web Consortium, 2024).
 

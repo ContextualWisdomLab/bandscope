@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { RehearsalRole, RehearsalSong } from "@bandscope/shared-types";
+import type { RehearsalPriority, RehearsalRole, RehearsalSong } from "@bandscope/shared-types";
 import { AudioWaveform } from "lucide-react";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "../../i18n";
 import { collectStemLanes, type StemLane } from "./stemLanes";
@@ -31,6 +31,27 @@ export function stemRoleTypeLabel(
       return t("stemLabRoleTypeHand");
     default: {
       const _exhaustive: never = roleType;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * Translate a merged rehearsal priority into the next action for that lane.
+ */
+export function stemLanePriorityLabel(
+  priority: RehearsalPriority,
+  t: (key: TranslationKey) => string
+): string {
+  switch (priority) {
+    case "high":
+      return t("stemLabPriorityHigh");
+    case "medium":
+      return t("stemLabPriorityMedium");
+    case "low":
+      return t("stemLabPriorityLow");
+    default: {
+      const _exhaustive: never = priority;
       return _exhaustive;
     }
   }
@@ -111,6 +132,9 @@ function StemLaneCard({
           {t("stemLabOverlapLabel")} {lane.overlapWarnings.join(" ")}
         </p>
       ) : null}
+      <p className="mt-2 text-sm leading-6 text-rose-100">
+        {t("stemLabPriorityLabel")} {stemLanePriorityLabel(lane.rehearsalPriority, t)}
+      </p>
       <p className="mt-3 text-sm font-semibold leading-6 text-cyan-100">{t("stemLabLaneNextAction")}</p>
     </li>
   );

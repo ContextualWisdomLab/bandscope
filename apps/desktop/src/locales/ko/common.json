@@ -160,5 +160,9 @@
   "stemLabSectionsLabel": "먼저 잠글 구간",
   "stemLabSectionsUnknown": "형식 탐지가 끝나면 구간 이름이 나타납니다.",
   "stemLabOverlapLabel": "겹침을 확인하세요:",
+  "stemLabPriorityLabel": "오늘 맞출 순서",
+  "stemLabPriorityHigh": "오늘 이 파트부터 잠그세요",
+  "stemLabPriorityMedium": "급한 파트를 맞춘 뒤에 이 파트를 확인하세요",
+  "stemLabPriorityLow": "핵심 파트가 잠기면 이 소리는 귀로만 따라가세요",
   "stemLabLaneNextAction": "합주가 시작되기 전에 해당 구간에서 이 음역을 잠그세요. 로컬 스템 파일이 붙으면 여기로 다시 오면 됩니다."
 }

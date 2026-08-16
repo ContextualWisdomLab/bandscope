@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { StemLab, stemRoleTypeLabel } from "./StemLab";
+import { StemLab, stemLanePriorityLabel, stemRoleTypeLabel } from "./StemLab";
 import { createTranslator } from "../../i18n";
 
 const originalLanguage = navigator.language;
@@ -19,6 +19,15 @@ describe("stemRoleTypeLabel", () => {
     expect(stemRoleTypeLabel("instrument", t)).toBe("Instrument");
     expect(stemRoleTypeLabel("vocal", t)).toBe("Vocal");
     expect(stemRoleTypeLabel("hand", t)).toBe("Hand part");
+  });
+});
+
+describe("stemLanePriorityLabel", () => {
+  it("covers every rehearsal priority with a next action", () => {
+    const t = createTranslator("en");
+    expect(stemLanePriorityLabel("high", t)).toBe("Lock this part first tonight");
+    expect(stemLanePriorityLabel("medium", t)).toBe("Check this after the urgent parts");
+    expect(stemLanePriorityLabel("low", t)).toBe("Keep this in earshot once the core parts lock");
   });
 });
 
@@ -46,6 +55,7 @@ describe("StemLab", () => {
     expect(screen.getByRole("list", { name: /Parts to isolate/i })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Bass Guitar" })).toBeTruthy();
     expect(screen.getByText(/C#2–E3/)).toBeTruthy();
+    expect(screen.getAllByText(/Lock this part first tonight/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Lock this range in the matching sections/i).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /play stem/i })).toBeNull();
     expect(screen.queryByText(/coming soon/i)).toBeNull();
@@ -57,6 +67,14 @@ describe("StemLab", () => {
 
     expect(screen.getByRole("heading", { name: "스템 랩" })).toBeTruthy();
     expect(screen.getByText(/로컬 오디오를 고르고 분석을 시작하세요/)).toBeTruthy();
+  });
+
+  it("uses Korean priority next actions after analysis", () => {
+    setNavigatorLanguage("ko-KR");
+    render(<StemLab song={createDemoRehearsalSong()} />);
+
+    expect(screen.getAllByText(/오늘 이 파트부터 잠그세요/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/급한 파트를 맞춘 뒤에 이 파트를 확인하세요/)).toBeTruthy();
   });
 
   it("keeps the board inert when a lane is inspected", () => {

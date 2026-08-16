@@ -29,7 +29,8 @@
 ### Test points
 
 - Empty-state next action before analysis
-- Demo-song lanes show real role names and ranges
+- Demo-song lanes show real role names, ranges, and merged rehearsal priority
+- First-seen section labels and range notes are trimmed before display
 - Navigation is enabled without a `coming soon` dead end
 - Korean and English locale keys stay paired
 

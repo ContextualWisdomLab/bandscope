@@ -160,5 +160,9 @@
   "stemLabSectionsLabel": "Lock first in",
   "stemLabSectionsUnknown": "Section labels will appear after form detection finishes.",
   "stemLabOverlapLabel": "Watch the clash:",
+  "stemLabPriorityLabel": "Tonight's order",
+  "stemLabPriorityHigh": "Lock this part first tonight",
+  "stemLabPriorityMedium": "Check this after the urgent parts",
+  "stemLabPriorityLow": "Keep this in earshot once the core parts lock",
   "stemLabLaneNextAction": "Lock this range in the matching sections before the room starts. Come back here when a local stem file is attached."
 }
