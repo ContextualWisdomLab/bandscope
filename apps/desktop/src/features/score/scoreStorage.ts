@@ -16,6 +16,7 @@ export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
+const MAX_SCORE_PDF_BYTES = 25 * 1024 * 1024;
 
 /**
  * Resolve the desktop invoke bridge following the same detection rules as
@@ -53,6 +54,23 @@ async function invokeScoreCommand(command: string, args: Record<string, unknown>
 }
 
 /**
+ * Return whether a bridge-reported PDF byte count is safe to allocate/copy.
+ *
+ * The value must match the Rust desktop bridge's 25 MiB PDF cap. Keeping the
+ * same fail-closed bound on the JavaScript side prevents malformed or
+ * accessor-backed bridge values from driving oversized allocations even when
+ * the privileged producer is replaced by a test/dev shim.
+ */
+function isValidPdfByteCount(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= MAX_SCORE_PDF_BYTES
+  );
+}
+
+/**
  * Open the native PDF picker and copy the validated score into the
  * app-owned project workspace. Security Notes: the file path never crosses
  * the IPC boundary from JS; the Rust command owns the dialog, validation
@@ -71,9 +89,7 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
   if (
     typeof scoreId !== "string" ||
     typeof fileName !== "string" ||
-    typeof fileSizeBytes !== "number" ||
-    !Number.isSafeInteger(fileSizeBytes) ||
-    fileSizeBytes < 0
+    !isValidPdfByteCount(fileSizeBytes)
   ) {
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
@@ -93,14 +109,22 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
 export async function readScorePdf(projectId: string, scoreId: string): Promise<Uint8Array> {
   const response = await invokeScoreCommand("read_score_pdf", { projectId, scoreId });
   if (response instanceof Uint8Array) {
+    const byteCount = response.byteLength;
+    if (!isValidPdfByteCount(byteCount)) {
+      throw new Error(INVALID_RESPONSE_MESSAGE);
+    }
     return new Uint8Array(response);
   }
   if (response instanceof ArrayBuffer) {
+    const byteCount = response.byteLength;
+    if (!isValidPdfByteCount(byteCount)) {
+      throw new Error(INVALID_RESPONSE_MESSAGE);
+    }
     return new Uint8Array(response).slice();
   }
   if (Array.isArray(response)) {
     const byteCount = response.length;
-    if (!Number.isSafeInteger(byteCount) || byteCount < 0) {
+    if (!isValidPdfByteCount(byteCount)) {
       throw new Error(INVALID_RESPONSE_MESSAGE);
     }
     const bytes = new Uint8Array(byteCount);
