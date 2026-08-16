@@ -133,6 +133,25 @@ describe("scoreStorage bridge resolution", () => {
     expect(lengthReads).toBe(1);
   });
 
+  it.each([
+    ["NaN", Number.NaN],
+    ["fractional", 1.5]
+  ])("rejects a bridge array with a %s length before allocation", async (_label, length) => {
+    const response = new Proxy([1, 2], {
+      get(target, property, receiver) {
+        if (property === "length") {
+          return length;
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    stubReadResponse(response);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
+  });
+
   it("snapshots a Uint8Array bridge response before returning it", async () => {
     const response = new Uint8Array([1, 2]);
     stubReadResponse(response);
