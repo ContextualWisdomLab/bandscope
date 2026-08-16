@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Reject malformed decoded-PCM accuracy evidence before chord recognition: sample rates must be finite, positive, and non-Boolean, and the C-major acceptance buffer must be one-dimensional mono PCM.
 - Reject Boolean fixture duration, tempo, and sample-rate inputs so Python `True`/`False` values cannot become numeric real-audio acceptance authority or a 1 Hz WAV contract.
 - Reject Boolean chord timing and tempo metric inputs so `True`/`False` cannot masquerade as numeric MIR acceptance evidence through Python's `bool`-as-`int` semantics.
 - Reject blank or edge-whitespace-padded accuracy-report case IDs, metric names, and truth labels so portable acceptance evidence preserves exact registered identities.
