@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Reject malformed plain-array PDF bridge responses and copy each validated byte during the same read, preventing coercion or accessor-driven value changes between validation and conversion.
+- Reject malformed plain-array PDF bridge responses and snapshot attach metadata, array length, and each validated byte during the same authoritative reads, preventing coercion or accessor-driven changes between validation and conversion.
 
 ## [0.1.3] - 2026-04-29
 
