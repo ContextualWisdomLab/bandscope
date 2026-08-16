@@ -340,6 +340,25 @@ describe("App handoff round trip", () => {
     });
   });
 
+  it("clears a prior local-source error after a handoff validates", async () => {
+    mockedSelectLocalAudioSource.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Choose a WAV, MP3, FLAC, or M4A file to start analysis."
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/choose a WAV, MP3, FLAC, or M4A/i);
+
+    await importValidHandoff();
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  });
+
   it("clears the pending handoff after an immediately completed analysis", async () => {
     mockedStartAnalysisJob.mockResolvedValueOnce({
       jobId: "job-immediate",
