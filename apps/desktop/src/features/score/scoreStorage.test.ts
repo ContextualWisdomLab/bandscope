@@ -9,6 +9,7 @@ type TauriWindow = Window & {
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
 const MAX_SCORE_PDF_BYTES = 25 * 1024 * 1024;
+const MINIMAL_PDF_BYTES = [37, 80, 68, 70, 45] as const;
 
 function stubReadResponse(response: unknown): void {
   vi.stubGlobal("window", {
@@ -98,31 +99,31 @@ describe("scoreStorage bridge resolution", () => {
   });
 
   it("copies each validated bridge byte during the same read", async () => {
-    const response: unknown[] = [0];
+    const response: unknown[] = [...MINIMAL_PDF_BYTES];
     let reads = 0;
     Object.defineProperty(response, 0, {
       configurable: true,
       get: () => {
         reads += 1;
-        return reads === 1 ? 255 : 256;
+        return reads === 1 ? MINIMAL_PDF_BYTES[0] : 256;
       }
     });
     stubReadResponse(response);
 
     const result = await readScorePdf("project-1", "score-1");
 
-    expect(Array.from(result)).toEqual([255]);
+    expect(Array.from(result)).toEqual(MINIMAL_PDF_BYTES);
     expect(reads).toBe(1);
   });
 
   it("snapshots the bridge array length before validating bytes", async () => {
-    const backing: unknown[] = [1, 2];
+    const backing: unknown[] = [...MINIMAL_PDF_BYTES];
     let lengthReads = 0;
     const response = new Proxy(backing, {
       get(target, property, receiver) {
         if (property === "length") {
           lengthReads += 1;
-          return lengthReads === 1 ? 2 : 1;
+          return lengthReads === 1 ? MINIMAL_PDF_BYTES.length : MINIMAL_PDF_BYTES.length - 1;
         }
         return Reflect.get(target, property, receiver);
       }
@@ -131,7 +132,7 @@ describe("scoreStorage bridge resolution", () => {
 
     const result = await readScorePdf("project-1", "score-1");
 
-    expect(Array.from(result)).toEqual([1, 2]);
+    expect(Array.from(result)).toEqual(MINIMAL_PDF_BYTES);
     expect(lengthReads).toBe(1);
   });
 
@@ -174,14 +175,14 @@ describe("scoreStorage bridge resolution", () => {
   });
 
   it("snapshots a Uint8Array bridge response before returning it", async () => {
-    const response = new Uint8Array([1, 2]);
+    const response = new Uint8Array(MINIMAL_PDF_BYTES);
     stubReadResponse(response);
 
     const result = await readScorePdf("project-1", "score-1");
     response[0] = 9;
 
     expect(result).not.toBe(response);
-    expect(Array.from(result)).toEqual([1, 2]);
+    expect(Array.from(result)).toEqual(MINIMAL_PDF_BYTES);
   });
 
   it("rejects an oversized Uint8Array-shaped bridge response before copying", async () => {
@@ -201,14 +202,14 @@ describe("scoreStorage bridge resolution", () => {
   });
 
   it("snapshots an ArrayBuffer bridge response before returning its bytes", async () => {
-    const response = new Uint8Array([3, 4]);
+    const response = new Uint8Array(MINIMAL_PDF_BYTES);
     stubReadResponse(response.buffer);
 
     const result = await readScorePdf("project-1", "score-1");
     response[0] = 9;
 
     expect(result.buffer).not.toBe(response.buffer);
-    expect(Array.from(result)).toEqual([3, 4]);
+    expect(Array.from(result)).toEqual(MINIMAL_PDF_BYTES);
   });
 
   it("rejects an oversized ArrayBuffer-shaped bridge response before copying", async () => {
@@ -228,12 +229,12 @@ describe("scoreStorage bridge resolution", () => {
   });
 
   it.each([
-    ["string value", [104, "101", 108]],
-    ["negative integer", [0, -1, 255]],
-    ["integer above the byte range", [0, 256, 255]],
-    ["fractional number", [0, 1.5, 255]],
-    ["NaN", [0, Number.NaN, 255]],
-    ["infinity", [0, Number.POSITIVE_INFINITY, 255]]
+    ["string value", [104, "101", 108, 108, 111]],
+    ["negative integer", [0, -1, 255, 0, 0]],
+    ["integer above the byte range", [0, 256, 255, 0, 0]],
+    ["fractional number", [0, 1.5, 255, 0, 0]],
+    ["NaN", [0, Number.NaN, 255, 0, 0]],
+    ["infinity", [0, Number.POSITIVE_INFINITY, 255, 0, 0]]
   ])("rejects a bridge array containing a %s", async (_label, response) => {
     stubReadResponse(response);
 
@@ -243,7 +244,7 @@ describe("scoreStorage bridge resolution", () => {
   });
 
   it("stops validating after the first invalid byte", async () => {
-    const response: unknown[] = [-1, 0];
+    const response: unknown[] = [-1, 0, 0, 0, 0];
     Object.defineProperty(response, 1, {
       configurable: true,
       get: () => {

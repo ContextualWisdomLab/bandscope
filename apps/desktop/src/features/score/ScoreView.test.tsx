@@ -47,6 +47,7 @@ const tauriWindow = window as TauriWindow;
 const mockInvoke = vi.mocked(invoke);
 
 const SCORE_ID = "3f2c8f0e-1a2b-4c3d-8e9f-001122334455";
+const MINIMAL_PDF_BYTES = [37, 80, 68, 70, 45] as const;
 
 function makeSong(scoreAttachments?: ScoreAttachment[]): RehearsalSong {
   return {
@@ -106,7 +107,7 @@ describe("ScoreView", () => {
   it("attaches a score, persists the metadata, and opens the new PDF", async () => {
     mockInvoke
       .mockResolvedValueOnce(attachResponse())
-      .mockResolvedValueOnce([1, 2, 3]);
+      .mockResolvedValueOnce([...MINIMAL_PDF_BYTES]);
     const onSongUpdate = vi.fn();
     const song = makeSong();
 
@@ -115,7 +116,7 @@ describe("ScoreView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add score" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:3:opener.pdf");
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:opener.pdf");
     });
     expect(mockInvoke).toHaveBeenNthCalledWith(1, "attach_score_pdf", {
       projectId: "project-1-2",
@@ -157,7 +158,7 @@ describe("ScoreView", () => {
   });
 
   it("opens an existing attachment through the read command", async () => {
-    const bytes = new Uint8Array([9, 9, 9, 9]).buffer;
+    const bytes = new Uint8Array(MINIMAL_PDF_BYTES).buffer;
     let resolveRead!: (value: unknown) => void;
     mockInvoke.mockImplementationOnce(
       () => new Promise((resolve) => { resolveRead = resolve; })
@@ -172,7 +173,7 @@ describe("ScoreView", () => {
     resolveRead(bytes);
 
     await waitFor(() => {
-      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:4:opener.pdf");
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:opener.pdf");
     });
     expect(mockInvoke).toHaveBeenCalledWith("read_score_pdf", {
       projectId: "project-1-2",
@@ -181,7 +182,7 @@ describe("ScoreView", () => {
   });
 
   it("accepts Uint8Array read responses from the bridge", async () => {
-    mockInvoke.mockResolvedValueOnce(new Uint8Array([7, 7]));
+    mockInvoke.mockResolvedValueOnce(new Uint8Array(MINIMAL_PDF_BYTES));
     const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
 
     render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={vi.fn()} />);
@@ -189,7 +190,7 @@ describe("ScoreView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:opener.pdf");
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:opener.pdf");
     });
   });
 
@@ -222,7 +223,7 @@ describe("ScoreView", () => {
 
   it("removes an attachment after confirmation and resets the open viewer", async () => {
     mockInvoke
-      .mockResolvedValueOnce([1, 2])
+      .mockResolvedValueOnce([...MINIMAL_PDF_BYTES])
       .mockResolvedValueOnce(true);
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const onSongUpdate = vi.fn();
@@ -232,7 +233,7 @@ describe("ScoreView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
     await waitFor(() => {
-      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:opener.pdf");
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:opener.pdf");
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
@@ -307,7 +308,7 @@ describe("ScoreView", () => {
 
   it("uses the legacy invoke shim when Tauri internals are absent", async () => {
     delete tauriWindow.__TAURI_INTERNALS__;
-    const legacyInvoke = vi.fn().mockResolvedValueOnce([5]);
+    const legacyInvoke = vi.fn().mockResolvedValueOnce([...MINIMAL_PDF_BYTES]);
     tauriWindow.__TAURI_INVOKE__ = legacyInvoke;
     const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
 
@@ -316,7 +317,7 @@ describe("ScoreView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:1:opener.pdf");
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:opener.pdf");
     });
     expect(legacyInvoke).toHaveBeenCalledWith("read_score_pdf", {
       projectId: "project-1-2",
@@ -344,7 +345,7 @@ describe("ScoreView", () => {
     let resolveStale!: (value: unknown) => void;
     mockInvoke
       .mockImplementationOnce(() => new Promise((resolve) => { resolveStale = resolve; }))
-      .mockResolvedValueOnce([9, 9]);
+      .mockResolvedValueOnce([...MINIMAL_PDF_BYTES]);
     const song = makeSong([
       { id: "id-1", fileName: "first.pdf" },
       { id: "id-2", fileName: "second.pdf" }
@@ -356,14 +357,14 @@ describe("ScoreView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open score: second.pdf" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:second.pdf");
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:second.pdf");
     });
 
     await act(async () => {
       resolveStale([1, 1, 1, 1, 1]);
     });
 
-    expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:second.pdf");
+    expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:second.pdf");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -373,7 +374,7 @@ describe("ScoreView", () => {
     let rejectStale!: (reason: unknown) => void;
     mockInvoke
       .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectStale = reject; }))
-      .mockResolvedValueOnce([4, 4]);
+      .mockResolvedValueOnce([...MINIMAL_PDF_BYTES]);
     const song = makeSong([
       { id: "id-1", fileName: "first.pdf" },
       { id: "id-2", fileName: "second.pdf" }
@@ -385,14 +386,14 @@ describe("ScoreView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open score: second.pdf" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:second.pdf");
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:second.pdf");
     });
 
     await act(async () => {
       rejectStale(new Error("Stale read failed."));
     });
 
-    expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:second.pdf");
+    expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:5:second.pdf");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
