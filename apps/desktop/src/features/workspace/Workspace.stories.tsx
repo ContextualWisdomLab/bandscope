@@ -47,12 +47,12 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Demo song: names Bass Guitar and Keyboard 1 Right Hand on verse. */
+/** Demo song: names Bass Guitar and Keyboard 1 Right Hand on verse at 0:10. */
 export const LockInHighPriorityParts: Story = {
   args: { song: createDemoRehearsalSong() }
 };
 
-/** Repeated verse plus chorus: the third slot is Lead Vocal · chorus. */
+/** Repeated verse plus chorus: the third slot is Lead Vocal · chorus · 0:30. */
 export const DedupedRepeatedVerse: Story = {
   args: { song: createLateNightSetWithRepeatedVerse() }
 };

@@ -1,6 +1,6 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { useEffect, useId, useMemo, useRef } from "react";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { createTranslator, detectPreferredLocale, interpolateTemplate } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,19 @@ interface SectionRoadmapProps {
   activeRole: string | null; // null means all roles
   focusedSectionId?: string | null;
   onSongUpdate?: (song: RehearsalSong) => void;
+}
+
+/**
+ * Return whether the player asked the OS to reduce motion.
+ *
+ * Instant scroll keeps the named card in view without a horizontal animation
+ * that can hide the first entrance on a long Late Night Set roadmap.
+ */
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**
@@ -30,7 +43,7 @@ export function SectionRoadmap({ song, activeRole, focusedSectionId = null, onSo
     const focusedCard = focusedCardRef.current;
     if (typeof focusedCard?.scrollIntoView === "function") {
       focusedCard.scrollIntoView({
-        behavior: "smooth",
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
         inline: "start",
         block: "nearest"
       });
@@ -39,10 +52,11 @@ export function SectionRoadmap({ song, activeRole, focusedSectionId = null, onSo
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
-    return t("chordEditAriaLabel")
-      .replace("{roleName}", role.name)
-      .replace("{sectionLabel}", sectionLabel)
-      .replace("{chord}", role.harmony.chord);
+    return interpolateTemplate(t("chordEditAriaLabel"), {
+      roleName: role.name,
+      sectionLabel,
+      chord: role.harmony.chord
+    });
   };
 
   /** Documented. */

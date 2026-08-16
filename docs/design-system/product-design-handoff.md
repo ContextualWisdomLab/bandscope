@@ -93,7 +93,7 @@ Wireframe rules:
 | --- | --- | --- |
 | Player | As a player, I can choose a local audio file and start analysis only after the source is valid. | Start Analysis is disabled until `selectedBootstrap` exists; invalid selections show a safe source error. |
 | Vocalist | As a vocalist, I can filter rehearsal guidance by role without losing song structure context. | Role switcher changes role-specific guidance while timeline and section roadmap remain visible. |
-| Band leader | As a band leader, I can see priority sections and confidence before rehearsal. | Metrics, focus section, confidence badges, and section roadmap are visible in the ready workspace. |
+| Band leader | As a band leader, I can see which parts to lock in first and when those sections start. | The Rehearsal Priorities card names up to three role-and-section pairs with first entrance times, and opening a pair focuses that roadmap card. |
 | Publisher | As a publisher, I can export cue sheet, chart, and handoff files from the ready workspace. | Export buttons exist only when `jobResult` exists and produce CSV/JSON downloads. |
 | Privacy-conscious user | As a local-first user, I can recover from errors without exposing local paths, URLs, or secrets. | Error copy passes through `safeErrorDetail` and uses alert semantics. |
 

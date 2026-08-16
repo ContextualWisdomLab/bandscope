@@ -4,7 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { createTranslator, detectPreferredLocale, interpolateTemplate } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -48,6 +48,14 @@ type LockInFirstItem = {
   sectionId: string;
   roleName: string;
   sectionLabel: string;
+  sectionStartSeconds: number;
+};
+
+/** One matching focus-section label when no role-level lock-in pair exists. */
+type FocusSectionItem = {
+  sectionId: string;
+  sectionLabel: string;
+  sectionStartSeconds: number;
 };
 
 const MAX_LOCK_IN_FIRST_ITEMS = 3;
@@ -116,7 +124,14 @@ function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
 
         seenIds.add(id);
         seenDisplayPairs.add(displayKey);
-        items.push({ id, roleId: role.id, sectionId: section.id, roleName, sectionLabel });
+        items.push({
+          id,
+          roleId: role.id,
+          sectionId: section.id,
+          roleName,
+          sectionLabel,
+          sectionStartSeconds: section.timeRange.start
+        });
         if (items.length === MAX_LOCK_IN_FIRST_ITEMS) {
           return items;
         }
@@ -135,14 +150,15 @@ function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
  *
  * Blank and case-insensitive `none` values are dropped. Labels that do not
  * match a roadmap section are omitted so the card never sells a no-op click
- * or clears an earlier focus. Equivalent labels are de-duplicated
+ * or clears an earlier focus. Each kept label carries the first entrance
+ * time so players know when to start. Equivalent labels are de-duplicated
  * case-insensitively after trimming so repeated analysis evidence cannot
  * consume all three buyer-visible fallback slots or create duplicate React
  * keys. First-occurrence display text and order are preserved. When every
  * focus label is unmatched, the first valid section label is the fallback.
  */
-function collectFocusSectionLabels(song: RehearsalSong): string[] {
-  const focusLabels: string[] = [];
+function collectFocusSectionLabels(song: RehearsalSong): FocusSectionItem[] {
+  const focusItems: FocusSectionItem[] = [];
   const seenLabels = new Set<string>();
   for (const label of song.exportSummary?.focusSections ?? []) {
     const trimmed = label.trim();
@@ -150,26 +166,35 @@ function collectFocusSectionLabels(song: RehearsalSong): string[] {
     if (!trimmed || normalized === "none" || seenLabels.has(normalized)) {
       continue;
     }
-    if (!findSectionIdForFocusLabel(song, trimmed)) {
+    const matchedSection = findSectionForFocusLabel(song, trimmed);
+    if (!matchedSection) {
       continue;
     }
     seenLabels.add(normalized);
-    focusLabels.push(trimmed);
-    if (focusLabels.length === MAX_LOCK_IN_FIRST_ITEMS) {
-      return focusLabels;
+    focusItems.push({
+      sectionId: matchedSection.id,
+      sectionLabel: trimmed,
+      sectionStartSeconds: matchedSection.timeRange.start
+    });
+    if (focusItems.length === MAX_LOCK_IN_FIRST_ITEMS) {
+      return focusItems;
     }
   }
 
-  if (focusLabels.length === 0) {
+  if (focusItems.length === 0) {
     for (const section of song.sections) {
       const firstSectionLabel = nonBlankText(section.label);
       if (firstSectionLabel && firstSectionLabel.toLowerCase() !== "none") {
-        return [firstSectionLabel];
+        return [{
+          sectionId: section.id,
+          sectionLabel: firstSectionLabel,
+          sectionStartSeconds: section.timeRange.start
+        }];
       }
     }
   }
 
-  return focusLabels;
+  return focusItems;
 }
 
 /**
@@ -178,7 +203,10 @@ function collectFocusSectionLabels(song: RehearsalSong): string[] {
  * Matching is case-insensitive after trim so analysis spelling variants still
  * open the same roadmap card.
  */
-function findSectionIdForFocusLabel(song: RehearsalSong, focusLabel: string): string | null {
+function findSectionForFocusLabel(
+  song: RehearsalSong,
+  focusLabel: string
+): RehearsalSong["sections"][number] | null {
   const normalized = focusLabel.trim().toLowerCase();
   if (!normalized) {
     return null;
@@ -187,7 +215,7 @@ function findSectionIdForFocusLabel(song: RehearsalSong, focusLabel: string): st
   for (const section of song.sections) {
     const sectionLabel = nonBlankText(section.label);
     if (sectionLabel && sectionLabel.toLowerCase() === normalized) {
-      return section.id;
+      return section;
     }
   }
 
@@ -381,26 +409,42 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
    * Build the action label that tells a player which roadmap part will open.
    */
   const lockInPairActionLabel = (item: LockInFirstItem): string => {
-    return t("workspaceLockInPairAction")
-      .replace("{roleName}", item.roleName)
-      .replace("{sectionLabel}", item.sectionLabel);
+    return interpolateTemplate(t("workspaceLockInPairAction"), {
+      roleName: item.roleName,
+      sectionLabel: item.sectionLabel,
+      startTime: formatTimelineTime(item.sectionStartSeconds)
+    });
   };
 
   /**
-   * Focus the first roadmap section that matches a fallback focus label.
+   * Focus the matching roadmap section for a fallback focus label.
    */
-  const handleFocusSectionActivate = (label: string): void => {
-    const sectionId = findSectionIdForFocusLabel(song, label);
-    if (sectionId) {
-      setFocusedSectionId(sectionId);
-    }
+  const handleFocusSectionActivate = (item: FocusSectionItem): void => {
+    setFocusedSectionId(item.sectionId);
+  };
+
+  /**
+   * Build the visible lock-in pair that names the part and its first entrance.
+   */
+  const lockInPairVisibleLabel = (item: LockInFirstItem): string => {
+    return `${item.roleName} · ${item.sectionLabel} · ${formatTimelineTime(item.sectionStartSeconds)}`;
+  };
+
+  /**
+   * Build the visible focus label that names the section and its first entrance.
+   */
+  const focusSectionVisibleLabel = (item: FocusSectionItem): string => {
+    return `${item.sectionLabel} · ${formatTimelineTime(item.sectionStartSeconds)}`;
   };
 
   /**
    * Build the action label that opens a focus section on the roadmap.
    */
-  const focusSectionActionLabel = (label: string): string => {
-    return t("workspacePriorityFocusAction").replace("{sectionLabel}", label);
+  const focusSectionActionLabel = (item: FocusSectionItem): string => {
+    return interpolateTemplate(t("workspacePriorityFocusAction"), {
+      sectionLabel: item.sectionLabel,
+      startTime: formatTimelineTime(item.sectionStartSeconds)
+    });
   };
 
   /** Documented. */
@@ -529,8 +573,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                           className="rounded text-left font-semibold text-slate-100 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                           onClick={() => handleLockInPairActivate(item)}
                           aria-label={lockInPairActionLabel(item)}
+                          aria-current={
+                            focusedSectionId === item.sectionId && activeRole === item.roleId
+                              ? "true"
+                              : undefined
+                          }
                         >
-                          {item.roleName} · {item.sectionLabel}
+                          {lockInPairVisibleLabel(item)}
                         </button>
                       </li>
                     ))}
@@ -540,15 +589,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <div className="mt-2 space-y-2">
                   <p className="text-sm leading-6 text-slate-300">{t("workspacePriorityFocusLead")}</p>
                   <ul className="space-y-1 text-sm font-semibold text-slate-100">
-                    {focusSectionLabels.map((label) => (
-                      <li key={label}>
+                    {focusSectionLabels.map((item) => (
+                      <li key={item.sectionId}>
                         <button
                           type="button"
                           className="rounded text-left font-semibold text-slate-100 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                          onClick={() => handleFocusSectionActivate(label)}
-                          aria-label={focusSectionActionLabel(label)}
+                          onClick={() => handleFocusSectionActivate(item)}
+                          aria-label={focusSectionActionLabel(item)}
+                          aria-current={focusedSectionId === item.sectionId ? "true" : undefined}
                         >
-                          {label}
+                          {focusSectionVisibleLabel(item)}
                         </button>
                       </li>
                     ))}

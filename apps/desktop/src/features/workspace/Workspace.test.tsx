@@ -271,7 +271,7 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("먼저 맞춰 볼 것")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "로드맵에서 verse의 Bass Guitar 보기" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "로드맵에서 0:10 verse의 Bass Guitar 보기" })).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
 
@@ -381,7 +381,7 @@ describe("Workspace", () => {
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
     fireEvent.click(
-      within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus on the roadmap" })
+      within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus at 0:30 on the roadmap" })
     );
 
     expect(screen.getByRole("tab", { name: "Lead Vocal" })).toHaveAttribute("aria-selected", "true");
@@ -405,7 +405,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
-    fireEvent.click(within(priorities).getByRole("button", { name: "Show chorus on the roadmap" }));
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show chorus at 0:30 on the roadmap" }));
 
     expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
     expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
@@ -427,9 +427,9 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
-    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse on the roadmap" }));
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse at 0:10 on the roadmap" }));
     expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
-    expect(within(priorities).queryByRole("button", { name: "Show bridge on the roadmap" })).toBeNull();
+    expect(within(priorities).queryByRole("button", { name: "Show bridge at 0:10 on the roadmap" })).toBeNull();
     expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
   });
 
@@ -449,8 +449,8 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
-    expect(within(priorities).queryByRole("button", { name: "Show bridge on the roadmap" })).toBeNull();
-    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse on the roadmap" }));
+    expect(within(priorities).queryByRole("button", { name: /Show bridge/ })).toBeNull();
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse at 0:10 on the roadmap" }));
     expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
   });
 
@@ -474,7 +474,7 @@ describe("Workspace", () => {
     expect(priorities.textContent).toContain("verse");
     expect(priorities.textContent).not.toContain("chorus");
     expect(priorities.textContent).not.toContain("Lock in first");
-    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse on the roadmap" }));
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse at 0:10 on the roadmap" }));
     expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
   });
 
@@ -496,9 +496,55 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
-    expect(within(priorities).queryByRole("button", { name: "Show none on the roadmap" })).toBeNull();
-    fireEvent.click(within(priorities).getByRole("button", { name: "Show chorus on the roadmap" }));
+    expect(within(priorities).queryByRole("button", { name: /Show none/ })).toBeNull();
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show chorus at 0:30 on the roadmap" }));
     expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("names the first entrance time on each lock-in pair so players know when to lock in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus at 0:30 on the roadmap" })).toBeTruthy();
+    expect(priorities.textContent).toContain("Lead Vocal · chorus · 0:30");
+    expect(priorities.textContent).toContain("Bass Guitar · verse · 0:10");
+  });
+
+  it("marks the activated lock-in pair as the current rehearsal action", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    const chorusAction = within(priorities).getByRole("button", {
+      name: "Show Lead Vocal in chorus at 0:30 on the roadmap"
+    });
+    fireEvent.click(chorusAction);
+
+    expect(chorusAction).toHaveAttribute("aria-current", "true");
+    expect(
+      within(priorities).getByRole("button", { name: "Show Bass Guitar in verse at 0:10 on the roadmap" })
+    ).not.toHaveAttribute("aria-current");
+  });
+
+  it("keeps a role name that contains a later token from rewriting the aria-label", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "Lead {sectionLabel} Vocal",
+      rehearsalPriority: "high"
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(
+      screen.getByRole("button", { name: "Show Lead {sectionLabel} Vocal in verse at 0:10 on the roadmap" })
+    ).toBeTruthy();
   });
 
   it("scrolls the named section into view when a lock-in pair is activated", () => {
@@ -511,7 +557,7 @@ describe("Workspace", () => {
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
     fireEvent.click(
-      within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus on the roadmap" })
+      within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus at 0:30 on the roadmap" })
     );
 
     const chorusCard = screen.getByTestId("section-roadmap-chorus-1");

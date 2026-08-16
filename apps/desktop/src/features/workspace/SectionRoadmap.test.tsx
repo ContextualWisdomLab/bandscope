@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 
 const originalLanguage = window.navigator.language;
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+const originalMatchMedia = window.matchMedia;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(window.navigator, "language", {
@@ -18,6 +19,7 @@ describe("SectionRoadmap", () => {
     setNavigatorLanguage(originalLanguage);
     vi.restoreAllMocks();
     HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    window.matchMedia = originalMatchMedia;
   });
 
   it("localizes roadmap controls and provenance badges", () => {
@@ -60,7 +62,36 @@ describe("SectionRoadmap", () => {
     const focusedCard = screen.getByTestId("section-roadmap-verse-1");
     expect(focusedCard).toHaveAttribute("data-focused-section", "true");
     expect(focusedCard).toHaveAttribute("aria-current", "true");
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "smooth",
+      inline: "start",
+      block: "nearest"
+    });
+  });
+
+  it("skips smooth scrolling when the player prefers reduced motion", () => {
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
+    window.matchMedia = matchMedia;
+
+    render(<SectionRoadmap song={song} activeRole={null} focusedSectionId="verse-1" />);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "auto",
+      inline: "start",
+      block: "nearest"
+    });
   });
 
   it("does not update when the trimmed chord is unchanged", () => {

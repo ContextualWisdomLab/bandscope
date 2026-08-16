@@ -34,7 +34,7 @@ describe("Workspace rehearsal-priority focus fallback", () => {
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
     const buttons = within(priorities).getAllByRole("button");
-    expect(buttons.map((button) => button.textContent)).toEqual(["verse", "chorus"]);
+    expect(buttons.map((button) => button.textContent)).toEqual(["verse · 0:10", "chorus · 0:30"]);
     expect(within(priorities).queryByText("bridge")).toBeNull();
   });
 });
