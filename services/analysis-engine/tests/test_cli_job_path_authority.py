@@ -35,6 +35,30 @@ def test_remote_or_device_job_paths_fail_before_filesystem_lookup(
 @pytest.mark.parametrize(
     "path",
     [
+        "C:",
+        r"C:job.json",
+        r"D:..\job.json",
+    ],
+)
+def test_windows_drive_relative_job_paths_fail_before_filesystem_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    """Drive-relative Win32 input must not inherit per-drive current-directory authority."""
+
+    def forbidden_lstat(_path: str) -> object:
+        """Fail if drive-relative input reaches the filesystem boundary."""
+        raise AssertionError("drive-relative job path reached os.lstat")
+
+    monkeypatch.setattr(cli.os, "lstat", forbidden_lstat)
+
+    with pytest.raises(OSError):
+        cli._read_bounded_job_file(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
         "NUL",
         "nul.txt",
         "NUL:",
