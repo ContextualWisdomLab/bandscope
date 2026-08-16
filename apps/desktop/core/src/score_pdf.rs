@@ -26,7 +26,8 @@ pub fn read_validated_score_pdf(path: &Path) -> Result<Vec<u8>, String> {
         return Err(SCORE_TOO_LARGE_ERROR.to_string());
     }
 
-    let expected_len = usize::try_from(metadata.len()).map_err(|_| SCORE_TOO_LARGE_ERROR.to_string())?;
+    let expected_len = usize::try_from(metadata.len())
+        .map_err(|_| SCORE_TOO_LARGE_ERROR.to_string())?;
     let mut bytes = vec![0_u8; expected_len];
     file.read_exact(&mut bytes)
         .map_err(|_| SCORE_READ_ERROR.to_string())?;
