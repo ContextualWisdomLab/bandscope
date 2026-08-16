@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import builtins
 import io
 import json
 import os
@@ -17,18 +16,18 @@ def test_cli_rejects_non_regular_job_path_before_open(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    """A non-regular ``--job`` path must fail before any blocking file open."""
+    """A non-regular ``--job`` path must fail before any descriptor open."""
     stdout = io.StringIO()
     open_called = False
-    original_open = builtins.open
+    original_os_open = cli.os.open
 
-    def tracking_open(*args: object, **kwargs: object):
-        """Record an attempted open while preserving the underlying behavior."""
+    def tracking_os_open(path: str, flags: int, mode: int = 0o777) -> int:
+        """Record descriptor opens while preserving the underlying behavior."""
         nonlocal open_called
         open_called = True
-        return original_open(*args, **kwargs)
+        return original_os_open(path, flags, mode)
 
-    monkeypatch.setattr(builtins, "open", tracking_open)
+    monkeypatch.setattr(cli.os, "open", tracking_os_open)
     monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(tmp_path)])
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
