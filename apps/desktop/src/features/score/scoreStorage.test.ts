@@ -122,6 +122,28 @@ describe("scoreStorage bridge resolution", () => {
     expect(lengthReads).toBe(1);
   });
 
+  it("snapshots a Uint8Array bridge response before returning it", async () => {
+    const response = new Uint8Array([1, 2]);
+    stubReadResponse(response);
+
+    const result = await readScorePdf("project-1", "score-1");
+    response[0] = 9;
+
+    expect(result).not.toBe(response);
+    expect(Array.from(result)).toEqual([1, 2]);
+  });
+
+  it("snapshots an ArrayBuffer bridge response before returning its bytes", async () => {
+    const response = new Uint8Array([3, 4]);
+    stubReadResponse(response.buffer);
+
+    const result = await readScorePdf("project-1", "score-1");
+    response[0] = 9;
+
+    expect(result.buffer).not.toBe(response.buffer);
+    expect(Array.from(result)).toEqual([3, 4]);
+  });
+
   it.each([
     ["string value", [104, "101", 108]],
     ["negative integer", [0, -1, 255]],
