@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from bandscope_analysis.accuracy import read_product_version
+from bandscope_analysis.accuracy import build_case_report, parse_case_report, read_product_version
 
 
 def test_missing_or_empty_product_version_fails_closed(tmp_path: Path) -> None:
@@ -21,3 +21,28 @@ def test_missing_or_empty_product_version_fails_closed(tmp_path: Path) -> None:
     (empty_tree / "VERSION").write_text("   \n", encoding="utf-8")
     with pytest.raises(ValueError, match="VERSION"):
         read_product_version(empty_tree)
+
+
+def test_unknown_engine_version_is_rejected_at_report_boundary() -> None:
+    """Explicit or parsed ``unknown`` provenance must not become valid evidence."""
+    report = {
+        "case_id": "c-major-triad",
+        "audio_sha256": "a" * 64,
+        "metric_name": "duration_weighted_chord_recall",
+        "metric_value": 0.9,
+        "passed": True,
+        "engine_version": "unknown",
+        "true_label": "C",
+    }
+    with pytest.raises(ValueError, match="engine_version"):
+        parse_case_report(report)
+    with pytest.raises(ValueError, match="engine_version"):
+        build_case_report(
+            case_id="c-major-triad",
+            audio_sha256="a" * 64,
+            metric_name="duration_weighted_chord_recall",
+            metric_value=0.9,
+            passed=True,
+            true_label="C",
+            engine_version="unknown",
+        )
