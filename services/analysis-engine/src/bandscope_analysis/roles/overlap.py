@@ -45,6 +45,24 @@ UNPITCHED_STEMS = frozenset({"drums"})
 # occupying that register.
 DEFAULT_THRESHOLD = 0.35
 
+# Display names keep 4-stem honesty: htdemucs `other` is mixed accompaniment,
+# not a named keyboard or guitar part.
+_STEM_DISPLAY_NAMES = {
+    "vocals": "Lead Vocal",
+    "bass": "Bass Guitar",
+    "other": "accompaniment",
+}
+_STEM_TO_ROLE_IDS = {
+    "vocals": ("lead-vocal",),
+    "bass": ("bass-guitar",),
+    "other": ("keys-left", "keys-right", "acoustic-guitar"),
+}
+_BAND_LABELS = {
+    "low": "low register",
+    "mid": "mid register",
+    "high": "high register",
+}
+
 
 def band_energy_profile(
     audio: NDArray[np.floating[Any]],
@@ -128,8 +146,7 @@ def detect_register_overlap(
             active_stems = [
                 (stem, profiles[stem][band])
                 for stem in pitched
-                if profiles[stem][band] > 0.0
-                and profiles[stem][band] >= threshold_value
+                if profiles[stem][band] > 0.0 and profiles[stem][band] >= threshold_value
             ]
             for i, (stem_a, share_a) in enumerate(active_stems):
                 for stem_b, share_b in active_stems[i + 1 :]:
@@ -156,3 +173,77 @@ def detect_register_overlap(
     except Exception:  # pragma: no cover - defensive fail-safe path
         logger.warning("Register-overlap detection failed; returning no overlaps.", exc_info=True)
         return []
+
+
+def slice_stems_to_window(
+    stems: dict[str, Any],
+    start_sec: float,
+    end_sec: float,
+    sr: int,
+) -> dict[str, NDArray[np.floating[Any]]]:
+    """Slice each stem to one section window without inventing samples.
+
+    Args:
+        stems: Dict mapping stem names to mono float audio arrays.
+        start_sec: Inclusive window start in seconds.
+        end_sec: Exclusive window end in seconds.
+        sr: Sample rate in Hz.
+
+    Returns:
+        A new stem dict cropped to the window. Invalid windows, non-positive
+        sample rates, or non-array values become empty arrays so later FFT
+        work fails closed instead of using the whole song by accident.
+    """
+    empty = np.array([], dtype=np.float64)
+    if sr <= 0 or not np.isfinite(start_sec) or not np.isfinite(end_sec) or end_sec <= start_sec:
+        return {name: empty.copy() for name in stems}
+
+    start_sample = max(0, int(start_sec * sr))
+    end_sample = max(0, int(end_sec * sr))
+    if end_sample <= start_sample:
+        return {name: empty.copy() for name in stems}
+
+    windowed: dict[str, NDArray[np.floating[Any]]] = {}
+    for name, audio in stems.items():
+        if not isinstance(audio, np.ndarray) or audio.size == 0:
+            windowed[name] = empty.copy()
+            continue
+        low_index = min(start_sample, int(audio.size))
+        high_index = min(end_sample, int(audio.size))
+        if high_index <= low_index:
+            windowed[name] = empty.copy()
+            continue
+        windowed[name] = audio[low_index:high_index]
+    return windowed
+
+
+def format_overlap_warnings(overlaps: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Turn measured overlap records into next-action rehearsal warnings.
+
+    Args:
+        overlaps: Records from :func:`detect_register_overlap`.
+
+    Returns:
+        Mapping of role id to de-duplicated warning strings. Unknown stems or
+        bands are omitted so the product never invents a named keyboard or
+        guitar clash from a mixed accompaniment stem.
+    """
+    warnings: dict[str, list[str]] = {}
+    for record in overlaps:
+        stem_a = str(record.get("stem_a", ""))
+        stem_b = str(record.get("stem_b", ""))
+        band = str(record.get("band", ""))
+        name_a = _STEM_DISPLAY_NAMES.get(stem_a)
+        name_b = _STEM_DISPLAY_NAMES.get(stem_b)
+        band_label = _BAND_LABELS.get(band)
+        if name_a is None or name_b is None or band_label is None:
+            continue
+        message = (
+            f"The {band_label} is crowded between {name_a} and {name_b}. "
+            "Thin one part in this section so players can hear their cue."
+        )
+        for role_id in (*_STEM_TO_ROLE_IDS[stem_a], *_STEM_TO_ROLE_IDS[stem_b]):
+            bucket = warnings.setdefault(role_id, [])
+            if message not in bucket:
+                bucket.append(message)
+    return warnings

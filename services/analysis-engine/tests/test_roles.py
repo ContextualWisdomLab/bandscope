@@ -56,7 +56,7 @@ def test_role_extractor_basic() -> None:
     assert "keys-right" in roles_by_id
     assert "keys-left" in roles_by_id
     assert roles_by_id["lead-vocal"]["roleType"] == "vocal"
-    assert "Melodic overlap" in roles_by_id["lead-vocal"]["overlapWarnings"][0]
+    assert roles_by_id["lead-vocal"]["overlapWarnings"] == []
 
     intro_graph = intro_topology["part_graph"]
     graph_by_role = {n["role_id"]: n for n in intro_graph}
@@ -71,8 +71,8 @@ def test_role_extractor_basic() -> None:
     assert len(verse_topology["active_roles"]) == 2
     assert verse_topology["active_roles"][0]["id"] == "bass-guitar"
     assert verse_topology["active_roles"][0]["roleType"] == "instrument"
-    assert verse_topology["active_roles"][0]["rehearsalPriority"] == "high"
-    assert "Density warning" in verse_topology["active_roles"][0]["overlapWarnings"][0]
+    assert verse_topology["active_roles"][0]["rehearsalPriority"] == "medium"
+    assert verse_topology["active_roles"][0]["overlapWarnings"] == []
 
     verse_graph = verse_topology["part_graph"]
     assert len(verse_graph) == 5
@@ -133,3 +133,69 @@ def test_role_extractor_falls_back_when_activity_detection_fails() -> None:
 
     assert result["topologies"][0]["section_id"] == "verse-1"
     assert result["topologies"][0]["part_graph"][0]["role_id"] == "bass-guitar"
+
+
+def _tone(freq: float, seconds: float, sr: int) -> np.ndarray:
+    """Build a deterministic mono sine used as a known-register fixture.
+
+    Args:
+        freq: Tone frequency in Hz.
+        seconds: Duration of the tone.
+        sr: Sample rate in Hz.
+
+    Returns:
+        Mono float64 sine wave of the requested duration.
+    """
+    sample_count = int(sr * seconds)
+    timeline = np.arange(sample_count, dtype=np.float64) / sr
+    return np.sin(2.0 * np.pi * freq * timeline)
+
+
+def test_role_extractor_uses_measured_register_overlap_per_section() -> None:
+    """Measured low-register clash appears only in the section that contains it."""
+    extractor = RoleExtractor()
+    sample_rate = 22_050
+    crowded = _tone(80.0, 1.0, sample_rate)
+    separated = _tone(1000.0, 1.0, sample_rate)
+    audio_features = {
+        "stems": {
+            "bass": np.concatenate([crowded, crowded]),
+            "other": np.concatenate([crowded, separated]),
+        },
+        "sr": sample_rate,
+        "boundaries": [(0.0, 1.0), (1.0, 2.0)],
+    }
+
+    result = extractor.extract([{"id": "verse-1"}, {"id": "chorus-1"}], audio_features)
+
+    verse_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
+    chorus_roles = {role["id"]: role for role in result["topologies"][1]["active_roles"]}
+
+    verse_warning = verse_roles["bass-guitar"]["overlapWarnings"][0]
+    assert "low register" in verse_warning
+    assert "Bass Guitar" in verse_warning
+    assert "accompaniment" in verse_warning
+    assert "Thin one part" in verse_warning
+    assert (
+        verse_roles["keys-left"]["overlapWarnings"] == verse_roles["bass-guitar"]["overlapWarnings"]
+    )
+    assert chorus_roles["bass-guitar"]["overlapWarnings"] == []
+
+
+def test_role_extractor_omits_warnings_when_overlap_mapping_fails() -> None:
+    """Overlap mapping failures must not invent density copy or abort extraction."""
+    extractor = RoleExtractor()
+    audio_features = {
+        "stems": {"bass": _tone(80.0, 0.5, 22_050), "other": _tone(80.0, 0.5, 22_050)},
+        "sr": 22_050,
+        "boundaries": [(0.0, 0.5)],
+    }
+
+    with patch(
+        "bandscope_analysis.roles.extractor.detect_register_overlap",
+        side_effect=RuntimeError("overlap mapping exploded"),
+    ):
+        result = extractor.extract([{"id": "verse-1"}], audio_features)
+
+    assert result["topologies"][0]["active_roles"]
+    assert all(role["overlapWarnings"] == [] for role in result["topologies"][0]["active_roles"])

@@ -17,6 +17,7 @@ from .model import (
     RoleType,
     SectionRoleTopology,
 )
+from .overlap import detect_register_overlap, format_overlap_warnings, slice_stems_to_window
 from .priority import calculate_rehearsal_priority
 from .tuning import get_setup_note
 
@@ -78,6 +79,12 @@ class RoleExtractor:
                 # Fallback to heuristic-based topology
                 topology = self._build_topology(section_id, i == 0, roles)
 
+            section_boundary = boundaries[i] if stems and i < len(boundaries) else None
+            section_warnings = self._section_overlap_warnings(stems, sr, section_boundary)
+            topology["active_roles"] = [
+                self._apply_section_warnings(role, section_warnings)
+                for role in topology["active_roles"]
+            ]
             topologies.append(topology)
 
         extraction_method = (
@@ -169,6 +176,59 @@ class RoleExtractor:
 
         return vocal_range, vocal_chord, bass_range, bass_chord
 
+    def _section_overlap_warnings(
+        self,
+        stems: dict[str, Any],
+        sr: int,
+        boundary: tuple[float, float] | None,
+    ) -> dict[str, list[str]]:
+        """Derive role warnings from measured register overlap in one window.
+
+        Args:
+            stems: Dict mapping stem names to mono float audio arrays.
+            sr: Sample rate in Hz.
+            boundary: Optional ``(start_seconds, end_seconds)`` section window.
+
+        Returns:
+            Mapping of role id to rehearsal warnings. Empty when stems are
+            missing or overlap mapping fails closed.
+        """
+        if not stems:
+            return {}
+        try:
+            windowed = stems
+            if boundary is not None:
+                windowed = slice_stems_to_window(stems, boundary[0], boundary[1], int(sr))
+            return format_overlap_warnings(detect_register_overlap(windowed, int(sr)))
+        except Exception:
+            logger.warning(
+                "Register-overlap warning mapping failed; omitting warnings.",
+                exc_info=True,
+            )
+            return {}
+
+    def _apply_section_warnings(
+        self,
+        role: RehearsalRole,
+        warnings_by_role: dict[str, list[str]],
+    ) -> RehearsalRole:
+        """Copy a role with section-local overlap warnings and refreshed priority.
+
+        Args:
+            role: Source rehearsal role.
+            warnings_by_role: Measured warnings keyed by role id.
+
+        Returns:
+            A shallow role copy whose overlap warnings and priority match this
+            section instead of a song-wide fabricated string.
+        """
+        updated: RehearsalRole = {
+            **role,
+            "overlapWarnings": list(warnings_by_role.get(role["id"], [])),
+        }
+        updated["rehearsalPriority"] = calculate_rehearsal_priority(updated)
+        return updated
+
     def _build_roles(
         self,
         bass_chord: str,
@@ -201,9 +261,7 @@ class RoleExtractor:
             "setupNote": get_setup_note("Bass Guitar", [bass_chord])
             or "Keep the attack short so the verse breathes.",
             "manualOverrides": [],
-            "overlapWarnings": [
-                "Density warning: competing with Keyboard Left Hand in low register."
-            ],
+            "overlapWarnings": [],
         }
 
         keys_left_role: RehearsalRole = {
@@ -230,7 +288,7 @@ class RoleExtractor:
             "setupNote": get_setup_note("Keyboard", ["C#"])
             or "Use a darker patch to avoid clashing with right hand.",
             "manualOverrides": [],
-            "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
+            "overlapWarnings": [],
         }
 
         keys_role: RehearsalRole = {
@@ -257,7 +315,7 @@ class RoleExtractor:
             "setupNote": get_setup_note("Keyboard", ["Emaj7"])
             or "Keep the patch bright enough to stay over the guitars.",
             "manualOverrides": [],
-            "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
+            "overlapWarnings": [],
         }
 
         vocal_role: RehearsalRole = {
@@ -291,7 +349,7 @@ class RoleExtractor:
                     "source": "user",
                 }
             ],
-            "overlapWarnings": ["Melodic overlap: competing with Keyboard 1 Right Hand."],
+            "overlapWarnings": [],
         }
 
         acoustic_guitar_role: RehearsalRole = {

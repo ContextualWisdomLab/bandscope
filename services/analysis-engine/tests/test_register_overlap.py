@@ -19,6 +19,8 @@ from bandscope_analysis.roles.overlap import (
     BANDS,
     band_energy_profile,
     detect_register_overlap,
+    format_overlap_warnings,
+    slice_stems_to_window,
 )
 
 SR = 22050
@@ -221,3 +223,84 @@ class TestDetectRegisterOverlap:
         # The same stems overlap when the threshold is lowered.
         lowered = detect_register_overlap(stems, SR, threshold=0.2)
         assert lowered and lowered[0]["band"] in BANDS
+
+
+class TestSliceStemsToWindow:
+    """Tests for section-windowed stem slicing."""
+
+    def test_window_keeps_only_the_requested_seconds(self) -> None:
+        """A one-second window returns that many samples at the source rate."""
+        audio = np.arange(SR * 2, dtype=np.float64)
+        windowed = slice_stems_to_window({"bass": audio}, 1.0, 2.0, SR)
+
+        assert windowed["bass"].tolist() == audio[SR:].tolist()
+
+    def test_invalid_window_returns_empty_arrays(self) -> None:
+        """Inverted, empty, or non-positive-rate windows fail closed."""
+        audio = np.ones(SR, dtype=np.float64)
+
+        assert slice_stems_to_window({"bass": audio}, 1.0, 0.5, SR)["bass"].size == 0
+        assert slice_stems_to_window({"bass": audio}, 0.0, 1.0, 0)["bass"].size == 0
+        assert slice_stems_to_window({"bass": None}, 0.0, 1.0, SR)["bass"].size == 0
+        assert slice_stems_to_window({"bass": audio}, float("nan"), 1.0, SR)["bass"].size == 0
+        assert (
+            slice_stems_to_window({"bass": np.array([], dtype=np.float64)}, 0.0, 1.0, SR)[
+                "bass"
+            ].size
+            == 0
+        )
+        assert slice_stems_to_window({"bass": audio}, 8.0, 9.0, SR)["bass"].size == 0
+        assert slice_stems_to_window({"bass": audio}, 0.4, 0.6, 1)["bass"].size == 0
+
+
+class TestFormatOverlapWarnings:
+    """Tests for rehearsal-facing overlap copy."""
+
+    def test_pair_warning_is_attached_to_mapped_roles(self) -> None:
+        """Bass/other low overlap tells both sides to thin the crowded register."""
+        warnings = format_overlap_warnings(
+            [
+                {
+                    "stem_a": "bass",
+                    "stem_b": "other",
+                    "band": "low",
+                    "severity": 0.91,
+                }
+            ]
+        )
+
+        expected = (
+            "The low register is crowded between Bass Guitar and accompaniment. "
+            "Thin one part in this section so players can hear their cue."
+        )
+        assert warnings["bass-guitar"] == [expected]
+        assert warnings["keys-left"] == [expected]
+        assert warnings["keys-right"] == [expected]
+        assert warnings["acoustic-guitar"] == [expected]
+        assert "lead-vocal" not in warnings
+
+    def test_unknown_stems_and_empty_input_fail_closed(self) -> None:
+        """Unknown names and empty overlap lists produce no role warnings."""
+        assert format_overlap_warnings([]) == {}
+        assert (
+            format_overlap_warnings(
+                [{"stem_a": "synth", "stem_b": "pad", "band": "mid", "severity": 0.8}]
+            )
+            == {}
+        )
+
+    def test_duplicate_records_and_vocal_pairs_dedupe(self) -> None:
+        """Repeated records stay one warning and vocals map to the lead role."""
+        record = {
+            "stem_a": "other",
+            "stem_b": "vocals",
+            "band": "mid",
+            "severity": 0.7,
+        }
+        warnings = format_overlap_warnings([record, record.copy()])
+        expected = (
+            "The mid register is crowded between accompaniment and Lead Vocal. "
+            "Thin one part in this section so players can hear their cue."
+        )
+        assert warnings["lead-vocal"] == [expected]
+        assert warnings["keys-right"] == [expected]
