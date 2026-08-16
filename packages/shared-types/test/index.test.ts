@@ -736,6 +736,17 @@ describe("shared type helpers", () => {
     });
 
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
+    expect(song.sections[0]?.roles[0]?.overlapWarnings).toEqual([
+      "The low register is crowded between Bass Guitar and accompaniment. Thin one part in this section so players can hear their cue."
+    ]);
+    expect(song.sections[0]?.roles[1]?.overlapWarnings).toEqual([]);
+    expect(song.sections[0]?.roles[2]?.overlapWarnings).toEqual([
+      "The mid register is crowded between accompaniment and Lead Vocal. Thin one part in this section so players can hear their cue."
+    ]);
+    const fabricatedIdentity = /Density warning|Melodic overlap|Keyboard Left Hand|Keyboard 1 Right Hand/;
+    for (const role of song.sections[0]?.roles ?? []) {
+      expect(role.overlapWarnings.join(" ")).not.toMatch(fabricatedIdentity);
+    }
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
     expect(song.collaboration?.assignments).toHaveLength(2);

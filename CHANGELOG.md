@@ -17,6 +17,8 @@
 - Derive section-level register-overlap warnings from measured stem spectra instead of fabricating keyboard or vocal clash copy when no audio evidence exists.
 - Keep mixed `other`-stem accompaniment evidence role-agnostic instead of assigning the same overlap warning and rehearsal priority to specific keyboard-hand or guitar roles the separator cannot identify.
 - Omit register-overlap warnings when section windows are missing or do not match the section list, instead of measuring the whole song and repeating that average on every card.
+- Keep mixed `other` stem energy from marking Keyboard Left Hand, Keyboard Right Hand, or Acoustic Guitar as active parts.
+- Replace fabricated demo and browser-fallback clash copy with the same next-action register-overlap wording the engine emits for unambiguous bass and vocal roles.
 
 ## [0.1.3] - 2026-04-29
 

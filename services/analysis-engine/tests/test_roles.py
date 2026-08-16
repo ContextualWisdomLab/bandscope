@@ -190,11 +190,15 @@ def test_role_extractor_uses_measured_register_overlap_per_section() -> None:
         "Thin one part in this section so players can hear their cue."
     )
     assert verse_roles["bass-guitar"]["overlapWarnings"] == [expected]
-    assert verse_roles["keys-left"]["overlapWarnings"] == []
-    assert verse_roles["keys-right"]["overlapWarnings"] == []
-    assert verse_roles["acoustic-guitar"]["overlapWarnings"] == []
+    assert "keys-left" not in verse_roles
+    assert "keys-right" not in verse_roles
+    assert "acoustic-guitar" not in verse_roles
+    verse_graph = {node["role_id"]: node for node in result["topologies"][0]["part_graph"]}
+    assert verse_graph["keys-left"]["is_active"] is False
+    assert verse_graph["keys-right"]["is_active"] is False
+    assert verse_graph["acoustic-guitar"]["is_active"] is False
     assert chorus_roles["bass-guitar"]["overlapWarnings"] == []
-    assert chorus_roles["keys-left"]["overlapWarnings"] == []
+    assert "keys-left" not in chorus_roles
 
 
 def test_role_extractor_omits_warnings_when_section_windows_are_missing() -> None:
@@ -255,9 +259,13 @@ def test_role_extractor_keeps_mixed_vocal_overlap_off_named_accompaniment_roles(
         "Thin one part in this section so players can hear their cue."
     )
     assert roles["lead-vocal"]["overlapWarnings"] == [expected]
-    assert roles["keys-left"]["overlapWarnings"] == []
-    assert roles["keys-right"]["overlapWarnings"] == []
-    assert roles["acoustic-guitar"]["overlapWarnings"] == []
+    assert "keys-left" not in roles
+    assert "keys-right" not in roles
+    assert "acoustic-guitar" not in roles
+    chorus_graph = {node["role_id"]: node for node in result["topologies"][0]["part_graph"]}
+    assert chorus_graph["keys-left"]["is_active"] is False
+    assert chorus_graph["keys-right"]["is_active"] is False
+    assert chorus_graph["acoustic-guitar"]["is_active"] is False
 
 
 def test_role_extractor_omits_warnings_when_overlap_mapping_fails() -> None:

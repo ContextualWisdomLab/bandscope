@@ -48,6 +48,20 @@ describe("SectionRoadmap", () => {
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("shows measured overlap copy from the demo song instead of a named keyboard clash", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(
+      screen.getByText(
+        "The low register is crowded between Bass Guitar and accompaniment. Thin one part in this section so players can hear their cue."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText(/Density warning|Melodic overlap|Keyboard Left Hand/)).toBeNull();
+  });
+
   it("does not update when the trimmed chord is unchanged", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

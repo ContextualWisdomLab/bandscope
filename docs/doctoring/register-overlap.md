@@ -15,7 +15,11 @@ time-local observation rather than an atomistic song average.
 Four-stem separation (`vocals`, `bass`, `drums`, `other`) cannot honestly
 name Keyboard Left Hand versus Acoustic Guitar. The mixed `other` stem is
 labeled accompaniment. Inventing a keyboard clash from that stem is a
-product lie.
+product lie. The same honesty applies to presence: `map_stems_to_roles`
+must not mark Keyboard Left Hand, Keyboard Right Hand, or Acoustic Guitar
+active just because mixed `other` has energy. Browser-fallback and shared
+demo fixtures use the same next-action copy the engine emits, and they
+never attach that copy to a named keyboard or guitar role.
 
 ## Psychoacoustic and MIR basis
 

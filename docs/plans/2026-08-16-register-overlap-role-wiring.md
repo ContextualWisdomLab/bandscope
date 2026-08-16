@@ -63,4 +63,6 @@ contracts.
 
 - Four-stem `other` still cannot separate keys from guitar. Finer role
   identity needs a later source-separation or user-override path, not
-  fabricated names.
+  fabricated names. Presence mapping and demo fixtures now follow the
+  same rule: mixed accompaniment does not activate or warn a named
+  keyboard or guitar role.

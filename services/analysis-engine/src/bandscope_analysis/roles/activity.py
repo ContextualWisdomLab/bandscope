@@ -97,7 +97,9 @@ def map_stems_to_roles(stem_activity: dict[str, bool]) -> dict[str, bool]:
     - vocals -> lead-vocal
     - bass -> bass-guitar
     - drums -> (no dedicated role, contributes to groove detection)
-    - other -> keys-right, keys-left, acoustic-guitar
+    - other -> no named keyboard or guitar role. Mixed accompaniment
+      energy cannot establish Keyboard Left Hand, Keyboard Right Hand,
+      or Acoustic Guitar identity.
 
     Args:
         stem_activity: Dict mapping stem names to active booleans.
@@ -107,14 +109,13 @@ def map_stems_to_roles(stem_activity: dict[str, bool]) -> dict[str, bool]:
     """
     vocals_active = stem_activity.get("vocals", False)
     bass_active = stem_activity.get("bass", False)
-    other_active = stem_activity.get("other", False)
 
     return {
         "bass-guitar": bass_active,
-        "keys-left": other_active,
-        "keys-right": other_active,
+        "keys-left": False,
+        "keys-right": False,
         "lead-vocal": vocals_active,
-        "acoustic-guitar": other_active,
+        "acoustic-guitar": False,
     }
 
 
