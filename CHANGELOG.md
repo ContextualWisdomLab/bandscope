@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- Reject Boolean register-overlap sample rates and section-window timestamps so Python `True`/`False` values cannot masquerade as numeric temporal evidence and fabricate FFT or slicing authority.
 - Fail closed on malformed multichannel register-overlap stems and non-finite register sample rates instead of letting FFT shape/frequency-grid failures escape the public energy-profile boundary.
 - Fail closed on non-finite sample rates when slicing stems to section windows, so malformed temporal evidence cannot raise during sample-index conversion or fall back to song-wide overlap.
 - Keep silent stems from becoming zero-severity rehearsal overlap warnings at a zero threshold, and fail closed on invalid negative, non-finite, or boolean threshold configuration.
