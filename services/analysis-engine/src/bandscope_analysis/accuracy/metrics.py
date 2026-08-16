@@ -19,25 +19,32 @@ def duration_weighted_chord_recall(
     known chord for most of the fixture?” (Odekerken et al., 2021; Raffel
     et al., 2014). Matching estimate intervals are unioned after clipping to
     the annotation window, so overlapping estimates cannot count the same
-    annotated time more than once.
+    annotated time more than once. Non-finite annotation or estimate timing is
+    invalid acceptance evidence and fails closed before clipping.
 
     Args:
-        segments: ``(start, end, chord)`` estimates in seconds.
+        segments: ``(start, end, chord)`` estimates in seconds. Segment timing
+            values must be finite.
         expected_chord: Ground-truth chord symbol for the interval.
-        start_seconds: Inclusive annotation start.
-        end_seconds: Exclusive annotation end. Must be greater than start.
+        start_seconds: Inclusive finite annotation start.
+        end_seconds: Exclusive finite annotation end. Must be greater than start.
 
     Returns:
         A value in ``[0, 1]``.
 
     Raises:
-        ValueError: If the annotation interval is empty or reversed.
+        ValueError: If annotation or estimate timing is non-finite, or the
+            annotation interval is empty or reversed.
     """
+    if not math.isfinite(start_seconds) or not math.isfinite(end_seconds):
+        raise ValueError("annotation times must be finite")
     if end_seconds <= start_seconds:
         raise ValueError("annotation end_seconds must be greater than start_seconds")
 
     matching_intervals: list[tuple[float, float]] = []
     for segment_start, segment_end, chord in segments:
+        if not math.isfinite(segment_start) or not math.isfinite(segment_end):
+            raise ValueError("segment times must be finite")
         overlap_start = max(start_seconds, segment_start)
         overlap_end = min(end_seconds, segment_end)
         if overlap_end > overlap_start and chord == expected_chord:
