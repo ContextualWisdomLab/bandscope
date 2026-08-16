@@ -157,6 +157,7 @@
   "stemLabRoleTypeVocal": "Vocal",
   "stemLabRoleTypeHand": "Hand part",
   "stemLabRangeLabel": "Playable range",
+  "stemLabRangeUnknown": "Playable range unavailable; verify this part by ear.",
   "stemLabSectionsLabel": "Lock first in",
   "stemLabSectionsUnknown": "Section labels will appear after form detection finishes.",
   "stemLabOverlapLabel": "Watch the clash:",
