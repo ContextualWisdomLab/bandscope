@@ -10,6 +10,7 @@
 ### Fixed
 
 - Enforce one canonical local-audio resource policy across Python request preflight, temporal decoding, and stem separation so oversized, overlong, malformed, wrong-rate, or non-finite decoded input fails before expensive analysis/model work.
+- Bound native stored-score PDF reads to the 25 MiB product limit before heap allocation and revalidate PDF magic on the same opened descriptor, preventing an attached score that later grows from bypassing the local resource boundary.
 
 ## [0.1.3] - 2026-04-29
 
