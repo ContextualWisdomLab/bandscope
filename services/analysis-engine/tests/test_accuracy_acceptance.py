@@ -207,6 +207,28 @@ def test_tempo_acc1_window_and_guards() -> None:
         tempo_acc1(120.0, 120.0, relative_tolerance=-0.01)
 
 
+@pytest.mark.parametrize(
+    ("estimated_bpm", "true_bpm", "relative_tolerance", "message"),
+    [
+        (np.nan, 120.0, 0.04, "estimated_bpm"),
+        (np.inf, 120.0, 0.04, "estimated_bpm"),
+        (120.0, np.nan, 0.04, "true_bpm"),
+        (120.0, np.inf, 0.04, "true_bpm"),
+        (120.0, 120.0, np.nan, "relative_tolerance"),
+        (120.0, 120.0, np.inf, "relative_tolerance"),
+    ],
+)
+def test_tempo_acc1_rejects_non_finite_evidence(
+    estimated_bpm: float,
+    true_bpm: float,
+    relative_tolerance: float,
+    message: str,
+) -> None:
+    """Non-finite estimate, truth, or tolerance must fail closed."""
+    with pytest.raises(ValueError, match=message):
+        tempo_acc1(estimated_bpm, true_bpm, relative_tolerance)
+
+
 def test_parse_case_report_rejects_malformed_payloads() -> None:
     """Manifest parsing must fail closed on missing or mistyped fields."""
     valid = build_case_report(
