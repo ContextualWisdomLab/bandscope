@@ -93,13 +93,15 @@ def _read_bounded_job_file(path: str) -> bytes:
 
     UNC/network shapes, device namespaces, and reserved Win32 DOS device aliases
     are rejected lexically before any filesystem lookup. The remaining path is
-    inspected with ``lstat`` before opening so directories, FIFOs, devices,
-    sockets, and symbolic links cannot enter a blocking or redirecting open
-    path. The opened descriptor is then checked with ``fstat`` and must identify
-    the same regular-file inode observed during preflight. ``O_NOFOLLOW`` is
-    additionally requested where the platform exposes it. The byte bound is
-    enforced on the descriptor-backed stream rather than on a second path
-    lookup.
+    inspected with ``lstat`` before opening so known directories, FIFOs, devices,
+    sockets, and symbolic links fail before descriptor acquisition. The open also
+    requests nonblocking mode where available so a path replaced by a FIFO/device
+    after preflight cannot turn descriptor acquisition into an unbounded wait.
+    The obtained descriptor is then checked with ``fstat`` and must identify the
+    same regular-file inode observed during preflight. ``O_NOFOLLOW`` and
+    close-on-exec are additionally requested where the platform exposes them. The
+    byte bound is enforced on the descriptor-backed stream rather than on a
+    second path lookup.
     """
     if path.startswith(("\\\\", "//")) or _uses_windows_device_alias(path):
         raise OSError("job path must use the local regular-file namespace")
@@ -111,6 +113,7 @@ def _read_bounded_job_file(path: str) -> bytes:
     flags = os.O_RDONLY
     flags |= getattr(os, "O_CLOEXEC", 0)
     flags |= getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_NONBLOCK", 0)
     descriptor = os.open(path, flags)
     try:
         opened = os.fstat(descriptor)
