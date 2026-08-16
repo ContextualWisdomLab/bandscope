@@ -1,11 +1,26 @@
-"""
-YouTube import capabilities for BandScope.
+"""YouTube import capabilities for BandScope.
 
 This module provides a safe wrapper around yt-dlp to download audio from YouTube.
+
+Security Notes:
+    - URL intake remains host/path/query allowlisted before any network work.
+    - Encoded-byte admission uses the same canonical 100 MiB policy as local
+      audio. yt-dlp ``max_filesize`` and a progress hook abort in-flight
+      transfers so a multi-gigabyte download cannot fill the cache root before
+      the post-download check runs.
+    - Announced ``filesize`` / ``filesize_approx`` values over the policy
+      ceiling reject the import before ``download=True``.
+    - The opened-file size is revalidated with ``AudioResourcePolicy`` after
+      download; oversize artifacts are deleted.
+    - Validation errors are payload-free and never include source paths, URLs,
+      cookies, or audio content.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -14,6 +29,12 @@ from typing import Any, Dict, Optional
 
 import yt_dlp  # type: ignore
 
+from bandscope_analysis.audio_resource_policy import (
+    DEFAULT_AUDIO_RESOURCE_POLICY,
+    DEFAULT_MAX_DURATION_SECONDS,
+    DEFAULT_MAX_ENCODED_FILE_BYTES,
+)
+
 YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MAX_YOUTUBE_URL_LENGTH = 2000
 SUPPORTED_AUDIO_EXTENSIONS = (".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg")
@@ -21,6 +42,22 @@ YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
     "Failed to download audio from YouTube. Please use a local audio file instead."
 )
 YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Please use a local audio file instead."
+YOUTUBE_SIZE_EXCEEDED_MESSAGE = "Selected audio file exceeds the 100 MiB analysis limit."
+
+
+class YoutubeResourceLimitError(Exception):
+    """Fail-closed YouTube admission error that never includes payload paths."""
+
+    def __init__(self, code: str, message: str) -> None:
+        """Store a payload-safe public error code and next-action message.
+
+        Args:
+            code: Stable machine-readable error code.
+            message: User-facing instruction that omits paths and URLs.
+        """
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 def validate_url(url: str) -> bool:
@@ -72,9 +109,71 @@ def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
     return actual_filepath
 
 
+def _size_exceeded_result() -> Dict[str, Any]:
+    """Return the payload-safe oversize result shared by every admission path."""
+    return {
+        "ok": False,
+        "error": {
+            "code": "size_exceeded",
+            "message": YOUTUBE_SIZE_EXCEEDED_MESSAGE,
+        },
+    }
+
+
+def _announced_size_exceeds_policy(announced: object) -> bool:
+    """Return whether yt-dlp metadata already reports an over-budget file.
+
+    Args:
+        announced: Candidate ``filesize`` or ``filesize_approx`` value.
+
+    Returns:
+        True when the value is a finite number strictly above the policy ceiling.
+    """
+    if isinstance(announced, bool) or not isinstance(announced, int | float):
+        return False
+    if isinstance(announced, float) and not math.isfinite(announced):
+        return False
+    size_bytes: int | float = announced
+    return bool(size_bytes > DEFAULT_MAX_ENCODED_FILE_BYTES)
+
+
+def _reject_announced_oversize(info: dict[str, Any]) -> Dict[str, Any] | None:
+    """Reject before download when extract_info already announced oversize bytes.
+
+    Args:
+        info: Metadata dictionary from ``extract_info(..., download=False)``.
+
+    Returns:
+        The size-exceeded result, or ``None`` when download may proceed.
+    """
+    if _announced_size_exceeds_policy(info.get("filesize")) or _announced_size_exceeds_policy(
+        info.get("filesize_approx")
+    ):
+        return _size_exceeded_result()
+    return None
+
+
+def _abort_over_budget_download(status: dict[str, Any]) -> None:
+    """Abort an in-flight download once encoded bytes exceed the policy ceiling.
+
+    Args:
+        status: yt-dlp progress-hook payload. Unknown statuses are ignored.
+    """
+    if status.get("status") not in {"downloading", "finished"}:
+        return
+    for key in ("downloaded_bytes", "total_bytes", "total_bytes_estimate"):
+        candidate = status.get(key)
+        if isinstance(candidate, bool) or not isinstance(candidate, int):
+            continue
+        if candidate > DEFAULT_MAX_ENCODED_FILE_BYTES:
+            raise YoutubeResourceLimitError("size_exceeded", YOUTUBE_SIZE_EXCEEDED_MESSAGE)
+
+
 def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
     """Map yt-dlp DownloadError to the public YouTube import error response."""
     msg = str(e).lower()
+    if "max-filesize" in msg or "100 mib" in msg:
+        return _size_exceeded_result()
     if (
         "sign in" in msg
         or "members-only" in msg
@@ -130,6 +229,8 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
         "noplaylist": True,
         "postprocessors": [{"key": "FFmpegExtractAudio"}],
         "geo_bypass": False,
+        "max_filesize": DEFAULT_MAX_ENCODED_FILE_BYTES,
+        "progress_hooks": [_abort_over_budget_download],
     }
 
     try:
@@ -138,7 +239,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             if info is None:
                 raise Exception("Failed to extract info")
             duration = info.get("duration")
-            if duration is not None and duration > 15 * 60:
+            if duration is not None and duration > DEFAULT_MAX_DURATION_SECONDS:
                 return {
                     "ok": False,
                     "error": {
@@ -146,6 +247,9 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                         "message": "Video exceeds the 15-minute limit.",
                     },
                 }
+            announced_rejection = _reject_announced_oversize(info)
+            if announced_rejection is not None:
+                return announced_rejection
 
             info = ydl.extract_info(url, download=True)
             if info is None:
@@ -163,18 +267,14 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                     },
                 }
 
-            if (
-                os.path.exists(actual_filepath)
-                and os.path.getsize(actual_filepath) > 50 * 1024 * 1024
-            ):
-                os.remove(actual_filepath)
-                return {
-                    "ok": False,
-                    "error": {
-                        "code": "size_exceeded",
-                        "message": "Downloaded file exceeds the 50MB limit.",
-                    },
-                }
+            try:
+                DEFAULT_AUDIO_RESOURCE_POLICY.validate_encoded_file_bytes(
+                    os.path.getsize(actual_filepath)
+                )
+            except ValueError:
+                if os.path.exists(actual_filepath):
+                    os.remove(actual_filepath)
+                return _size_exceeded_result()
             return {
                 "ok": True,
                 "metadata": {
@@ -184,6 +284,8 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                     "filepath": actual_filepath,
                 },
             }
+    except YoutubeResourceLimitError:
+        return _size_exceeded_result()
     except yt_dlp.utils.DownloadError as e:
         return _handle_download_error(e)
     except Exception:

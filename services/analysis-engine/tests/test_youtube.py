@@ -7,7 +7,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yt_dlp  # type: ignore
 
-from bandscope_analysis.youtube import MAX_YOUTUBE_URL_LENGTH, download_youtube_audio, validate_url
+from bandscope_analysis.audio_resource_policy import DEFAULT_MAX_ENCODED_FILE_BYTES
+from bandscope_analysis.youtube import (
+    MAX_YOUTUBE_URL_LENGTH,
+    YOUTUBE_SIZE_EXCEEDED_MESSAGE,
+    download_youtube_audio,
+    validate_url,
+)
 
 
 def test_validate_url() -> None:
@@ -89,6 +95,8 @@ def test_download_youtube_audio_success(
         "id": "abc123DEF45",
         "title": "Test Video",
         "duration": 60,
+        "filesize": True,
+        "filesize_approx": float("nan"),
     }
     mock_ydl.extract_info.return_value = mock_info
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
@@ -114,6 +122,8 @@ def test_download_youtube_audio_success(
     assert called_opts["noplaylist"] is True
     assert called_opts["geo_bypass"] is False
     assert called_opts["postprocessors"] == [{"key": "FFmpegExtractAudio"}]
+    assert called_opts["max_filesize"] == DEFAULT_MAX_ENCODED_FILE_BYTES
+    assert called_opts["progress_hooks"]
     assert "%(id)s.%(ext)s" in called_opts["outtmpl"]
 
     # Verify extract_info was called twice correctly: once for metadata, once for download
@@ -275,6 +285,49 @@ def test_download_youtube_audio_duration_exceeded(mock_ydl_class: MagicMock) -> 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")
 @patch("bandscope_analysis.youtube.os.path.exists")
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_accepts_size_between_legacy_and_canonical_ceiling(
+    mock_ydl_class: MagicMock,
+    mock_exists: MagicMock,
+    mock_getsize: MagicMock,
+) -> None:
+    """A 60 MiB download that the old 50 MB check rejected is now accepted."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
+    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_exists.return_value = True
+    mock_getsize.return_value = 60 * 1024 * 1024
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["ok"] is True
+    assert result["metadata"]["filepath"] == "/tmp/abc123DEF45.m4a"
+
+
+@patch("bandscope_analysis.youtube.os.path.getsize")
+@patch("bandscope_analysis.youtube.os.path.exists")
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_accepts_exact_policy_ceiling(
+    mock_ydl_class: MagicMock,
+    mock_exists: MagicMock,
+    mock_getsize: MagicMock,
+) -> None:
+    """An encoded YouTube file exactly at the 100 MiB ceiling is accepted."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
+    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_exists.return_value = True
+    mock_getsize.return_value = DEFAULT_MAX_ENCODED_FILE_BYTES
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["ok"] is True
+
+
+@patch("bandscope_analysis.youtube.os.path.getsize")
+@patch("bandscope_analysis.youtube.os.path.exists")
 @patch("bandscope_analysis.youtube.os.remove")
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
 def test_download_youtube_audio_size_exceeded(
@@ -283,18 +336,191 @@ def test_download_youtube_audio_size_exceeded(
     mock_exists: MagicMock,
     mock_getsize: MagicMock,
 ) -> None:
-    """Test download fails if size exceeds 50MB."""
+    """Post-download files one byte over the canonical 100 MiB ceiling are deleted."""
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
     mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
     mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
     mock_exists.return_value = True
-    mock_getsize.return_value = 51 * 1024 * 1024
+    mock_getsize.return_value = DEFAULT_MAX_ENCODED_FILE_BYTES + 1
 
     result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
     assert result["ok"] is False
     assert result["error"]["code"] == "size_exceeded"
+    assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
     mock_remove.assert_called_with("/tmp/abc123DEF45.m4a")
+
+
+@patch("bandscope_analysis.youtube.os.path.getsize")
+@patch("bandscope_analysis.youtube.os.path.exists")
+@patch("bandscope_analysis.youtube.os.remove")
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_oversize_skips_remove_when_file_already_gone(
+    mock_ydl_class: MagicMock,
+    mock_remove: MagicMock,
+    mock_exists: MagicMock,
+    mock_getsize: MagicMock,
+) -> None:
+    """A vanished oversize artifact still fails closed without a remove race."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
+    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_exists.side_effect = [True, False]
+    mock_getsize.return_value = DEFAULT_MAX_ENCODED_FILE_BYTES + 1
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "size_exceeded"
+    mock_remove.assert_not_called()
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_announced_filesize_before_download(
+    mock_ydl_class: MagicMock,
+) -> None:
+    """Announced filesize over the policy ceiling must not start the download."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {
+        "id": "abc123DEF45",
+        "duration": 60,
+        "filesize": DEFAULT_MAX_ENCODED_FILE_BYTES + 1,
+    }
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "size_exceeded"
+    assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
+    mock_ydl.extract_info.assert_called_once_with(
+        "https://youtube.com/watch?v=abc123DEF45",
+        download=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "info",
+    [
+        {
+            "id": "abc123DEF45",
+            "duration": 60,
+            "filesize_approx": DEFAULT_MAX_ENCODED_FILE_BYTES + 1,
+        },
+        {
+            "id": "abc123DEF45",
+            "duration": 60,
+            "filesize_approx": float(DEFAULT_MAX_ENCODED_FILE_BYTES) + 0.5,
+        },
+    ],
+)
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_announced_approximate_oversize(
+    mock_ydl_class: MagicMock,
+    info: dict[str, object],
+) -> None:
+    """Approximate oversize metadata rejects the import before download starts."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = info
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "size_exceeded"
+    mock_ydl.extract_info.assert_called_once()
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_progress_hook_aborts_over_budget(
+    mock_ydl_class: MagicMock,
+) -> None:
+    """In-flight progress that crosses the encoded-byte ceiling fails closed."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+
+    def extract_info(_url: str, download: bool = False) -> dict[str, object]:
+        """Invoke the registered progress hook when the download starts."""
+        if download:
+            hook = mock_ydl_class.call_args[0][0]["progress_hooks"][0]
+            hook(
+                {
+                    "status": "downloading",
+                    "downloaded_bytes": DEFAULT_MAX_ENCODED_FILE_BYTES + 1,
+                }
+            )
+        return {"id": "abc123DEF45", "duration": 60}
+
+    mock_ydl.extract_info.side_effect = extract_info
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "size_exceeded"
+    assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
+
+
+@patch("bandscope_analysis.youtube.os.path.getsize")
+@patch("bandscope_analysis.youtube.os.path.exists")
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_progress_hook_ignores_non_budget_updates(
+    mock_ydl_class: MagicMock,
+    mock_exists: MagicMock,
+    mock_getsize: MagicMock,
+) -> None:
+    """Unknown statuses and non-integer byte fields do not abort a valid download."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 60}
+    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_exists.return_value = True
+    mock_getsize.return_value = 10 * 1024 * 1024
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    hook = mock_ydl_class.call_args[0][0]["progress_hooks"][0]
+    hook({"status": "error"})
+    hook({"status": "downloading", "downloaded_bytes": True})
+    hook({"status": "downloading", "downloaded_bytes": 12.5})
+    hook({"status": "downloading", "downloaded_bytes": 10})
+    hook({"status": "finished", "total_bytes": DEFAULT_MAX_ENCODED_FILE_BYTES})
+
+    assert result["ok"] is True
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_maps_max_filesize_download_error(
+    mock_ydl_class: MagicMock,
+) -> None:
+    """yt-dlp max-filesize aborts become the payload-safe size-exceeded result."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.side_effect = yt_dlp.utils.DownloadError(
+        "File is larger than max-filesize"
+    )
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "size_exceeded"
+    assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
+    assert "max-filesize" not in result["error"]["message"]
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_maps_mib_limit_download_error(
+    mock_ydl_class: MagicMock,
+) -> None:
+    """Download errors that mention the 100 MiB ceiling stay payload-safe."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.side_effect = yt_dlp.utils.DownloadError(YOUTUBE_SIZE_EXCEEDED_MESSAGE)
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "size_exceeded"
+    assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
 
 
 def test_main_block(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
