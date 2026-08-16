@@ -14,6 +14,10 @@ from bandscope_analysis import cli
         "//server/share/job.json",
         r"\\?\UNC\server\share\job.json",
         r"\\.\pipe\bandscope-job",
+        r"/\server\share\job.json",
+        r"\/server\share\job.json",
+        r"/\.\pipe\bandscope-job",
+        r"/\?\UNC\server\share\job.json",
     ],
 )
 def test_remote_or_device_job_paths_fail_before_filesystem_lookup(
@@ -26,9 +30,14 @@ def test_remote_or_device_job_paths_fail_before_filesystem_lookup(
         """Fail if lexical rejection happens after a filesystem lookup."""
         raise AssertionError("unsafe job path reached os.lstat")
 
-    monkeypatch.setattr(cli.os, "lstat", forbidden_lstat)
+    def forbidden_open(*_args: object, **_kwargs: object) -> int:
+        """Fail if lexical rejection happens after descriptor acquisition."""
+        raise AssertionError("unsafe job path reached os.open")
 
-    with pytest.raises(OSError):
+    monkeypatch.setattr(cli.os, "lstat", forbidden_lstat)
+    monkeypatch.setattr(cli.os, "open", forbidden_open)
+
+    with pytest.raises(OSError, match="local regular-file namespace"):
         cli._read_bounded_job_file(path)
 
 
