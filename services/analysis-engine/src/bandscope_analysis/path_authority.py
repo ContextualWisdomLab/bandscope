@@ -12,8 +12,6 @@ from __future__ import annotations
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Final
 
-_DEVICE_PREFIXES: Final[tuple[str, ...]] = ("\\\\?\\", "\\\\.\\", "//?/", "//./")
-_NETWORK_PREFIXES: Final[tuple[str, ...]] = ("\\\\", "//")
 _WINDOWS_RESERVED_CHARACTERS: Final[frozenset[str]] = frozenset('<>:"|?*')
 _WINDOWS_RESERVED_DEVICE_NAMES: Final[frozenset[str]] = frozenset(
     {
@@ -119,16 +117,22 @@ def validate_local_path_shape(
     paths are accepted by the lexical contract even when validation runs on the
     other OS. Windows drive paths must also satisfy the regular Win32 filename
     contract; device aliases, alternate streams, reserved characters, control
-    characters, and ASCII-space/period normalization are not accepted. With the
-    default native preflight, the current host must also recognize the path as
-    absolute and direct symlinks, writable-root type errors, and fixed cache/temp
-    child escapes are rejected. Pure lexical callers can disable that preflight;
-    I/O helpers do so and repeat native checks immediately before use.
+    characters, ASCII-space/period normalization, and mixed-separator network
+    or device namespace prefixes are not accepted. With the default native
+    preflight, the current host must also recognize the path as absolute and
+    direct symlinks, writable-root type errors, and fixed cache/temp child
+    escapes are rejected. Pure lexical callers can disable that preflight; I/O
+    helpers do so and repeat native checks immediately before use.
     """
     if not value or not value.strip() or "\x00" in value:
         raise _invalid_path(field_name)
 
-    if value.startswith(_DEVICE_PREFIXES) or value.startswith(_NETWORK_PREFIXES):
+    # Win32 accepts both slash characters as path separators in many path
+    # parsing surfaces. Normalize only for authority-prefix classification so
+    # mixed forms such as ``/\server\share`` or ``\/.\pipe`` cannot evade the
+    # UNC/device fail-closed boundary. The original value remains untouched for
+    # all later path parsing and payload-safe diagnostics.
+    if value.replace("/", "\\").startswith("\\\\"):
         raise _invalid_path(field_name)
 
     normalized_parts = value.replace("\\", "/").split("/")
