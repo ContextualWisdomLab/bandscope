@@ -30,7 +30,7 @@ describe("collectStemLanes", () => {
       sections: [
         {
           id: "verse-1",
-          label: "verse",
+          label: "  verse  ",
           groove: "straight",
           timeRange: { start: 0, end: 8 },
           confidence: { level: "high", source: "model", notes: "stable" },
