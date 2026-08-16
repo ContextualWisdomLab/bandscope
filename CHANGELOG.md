@@ -11,6 +11,10 @@
 
 - Compute per-section sequential chord-change counts in one pass without retaining a separate list of overlapping chord labels.
 
+### Fixed
+
+- Reject non-finite chord timestamps and non-finite or non-positive section windows before harmony aggregation so malformed timing cannot emit `NaN`/infinite durations or invalid section ranges.
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed
