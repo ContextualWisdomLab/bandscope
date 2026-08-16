@@ -8,6 +8,8 @@ Security Notes:
       audio. yt-dlp ``max_filesize`` and a progress hook abort in-flight
       transfers so a multi-gigabyte download cannot fill the cache root before
       the post-download check runs.
+    - Announced duration must be a finite positive non-Boolean number when
+      present; malformed known-duration metadata fails closed before download.
     - Announced ``filesize`` / ``filesize_approx`` values over the policy
       ceiling reject the import before ``download=True``.
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
@@ -121,6 +123,46 @@ def _size_exceeded_result() -> Dict[str, Any]:
             "message": YOUTUBE_SIZE_EXCEEDED_MESSAGE,
         },
     }
+
+
+def _download_error_result() -> Dict[str, Any]:
+    """Return the payload-safe generic import failure result."""
+    return {
+        "ok": False,
+        "error": {"code": "download_error", "message": YOUTUBE_IMPORT_FAILED_MESSAGE},
+    }
+
+
+def _reject_invalid_or_oversize_duration(info: dict[str, Any]) -> Dict[str, Any] | None:
+    """Validate announced duration before authorizing download work.
+
+    Args:
+        info: Metadata dictionary from ``extract_info(..., download=False)``.
+
+    Returns:
+        A payload-safe failure for malformed/over-budget known duration, or
+        ``None`` when duration is absent or valid and within policy.
+    """
+    duration = info.get("duration")
+    if duration is None:
+        return None
+    if isinstance(duration, bool) or not isinstance(duration, int | float):
+        return _download_error_result()
+    try:
+        duration_seconds = float(duration)
+    except (OverflowError, ValueError):
+        return _download_error_result()
+    if not math.isfinite(duration_seconds) or duration_seconds <= 0.0:
+        return _download_error_result()
+    if duration_seconds > DEFAULT_MAX_DURATION_SECONDS:
+        return {
+            "ok": False,
+            "error": {
+                "code": "duration_exceeded",
+                "message": "Video exceeds the 15-minute limit.",
+            },
+        }
+    return None
 
 
 def _announced_size_exceeds_policy(announced: object) -> bool:
@@ -336,15 +378,9 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             info = ydl.extract_info(url, download=False)
             if info is None:
                 raise Exception("Failed to extract info")
-            duration = info.get("duration")
-            if duration is not None and duration > DEFAULT_MAX_DURATION_SECONDS:
-                return {
-                    "ok": False,
-                    "error": {
-                        "code": "duration_exceeded",
-                        "message": "Video exceeds the 15-minute limit.",
-                    },
-                }
+            duration_rejection = _reject_invalid_or_oversize_duration(info)
+            if duration_rejection is not None:
+                return duration_rejection
             announced_rejection = _reject_announced_oversize(info)
             if announced_rejection is not None:
                 return announced_rejection
@@ -387,10 +423,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
     except yt_dlp.utils.DownloadError as e:
         return _handle_download_error(e)
     except Exception:
-        return {
-            "ok": False,
-            "error": {"code": "download_error", "message": YOUTUBE_IMPORT_FAILED_MESSAGE},
-        }
+        return _download_error_result()
 
 
 def main() -> None:
