@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Reject non-finite chord annotation and estimate timings before duration-weighted recall so NaN/Inf evidence cannot fabricate covered duration.
 - Reject non-finite tempo estimates, ground-truth BPM values, and Acc1 tolerances as invalid accuracy evidence instead of recording them as ordinary misses.
 - Union overlapping matching chord-estimate intervals before duration-weighted recall so acceptance scores cannot double-count annotated time or exceed 100%.
 - Reject malformed accuracy-report provenance, including non-hex SHA-256 text and non-finite metric values, before acceptance evidence is consumed.
