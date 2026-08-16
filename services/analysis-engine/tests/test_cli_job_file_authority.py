@@ -107,3 +107,31 @@ def test_cli_rejects_path_replacement_between_metadata_and_open(
     response = json.loads(stdout.getvalue())
     assert response["state"] == "failed"
     assert response["error"]["message"] == "Failed to read job file"
+
+
+def test_job_file_open_requests_nonblocking_mode_when_supported(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """A path swap to a FIFO/device must not turn descriptor acquisition into a blocking wait."""
+    nonblocking = getattr(os, "O_NONBLOCK", 0)
+    if not nonblocking:
+        pytest.skip("O_NONBLOCK is unavailable on this platform")
+
+    path = tmp_path / "job.json"
+    expected = b'{"jobId":"job","request":{}}'
+    path.write_bytes(expected)
+    observed_flags: int | None = None
+    original_os_open = cli.os.open
+
+    def tracking_os_open(path_value: str, flags: int, mode: int = 0o777) -> int:
+        """Capture the authority-bearing open flags and preserve normal file I/O."""
+        nonlocal observed_flags
+        observed_flags = flags
+        return original_os_open(path_value, flags, mode)
+
+    monkeypatch.setattr(cli.os, "open", tracking_os_open)
+
+    assert cli._read_bounded_job_file(str(path)) == expected
+    assert observed_flags is not None
+    assert observed_flags & nonblocking == nonblocking
