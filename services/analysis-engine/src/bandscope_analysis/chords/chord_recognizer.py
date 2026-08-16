@@ -202,6 +202,8 @@ class ChordRecognizer:
         """
         if best_state == _NO_CHORD_STATE:
             return "low"
+        if similarity.size == 0 or not np.all(np.isfinite(similarity)):
+            return "low"
 
         # Normalize similarities to probability distribution
         sim_shifted = similarity - similarity.max()
