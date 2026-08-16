@@ -11,17 +11,19 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import soundfile as sf
 
 from bandscope_analysis.accuracy import (
     C_MAJOR_LABEL,
     DEFAULT_CLICK_BPM,
     DEFAULT_SAMPLE_RATE,
-    assert_fixture_checksum,
     build_case_report,
     duration_weighted_chord_recall,
+    evaluate_c_major_file,
     evaluate_c_major_pcm,
     evaluate_click_tempo_file,
     parse_case_report,
+    read_pcm_wav,
     read_product_version,
     render_c_major_triad,
     render_click_track,
@@ -44,9 +46,9 @@ def test_c_major_fixture_is_deterministic(tmp_path: Path) -> None:
 def test_c_major_wav_recovers_c_after_file_decode(tmp_path: Path) -> None:
     """A decoded C major WAV must recover C for most of the fixture duration."""
     audio = render_c_major_triad(duration_seconds=3.0)
-    digest = write_pcm_wav(tmp_path / "c-major.wav", audio, DEFAULT_SAMPLE_RATE)
-    assert_fixture_checksum(tmp_path / "c-major.wav", digest)
-    report = evaluate_c_major_pcm(audio, DEFAULT_SAMPLE_RATE, digest)
+    path = tmp_path / "c-major.wav"
+    digest = write_pcm_wav(path, audio, DEFAULT_SAMPLE_RATE)
+    report = evaluate_c_major_file(path, digest)
     assert report["true_label"] == C_MAJOR_LABEL
     assert report["metric_name"] == "duration_weighted_chord_recall"
     assert report["metric_value"] >= C_MAJOR_RECALL_FLOOR
@@ -85,11 +87,49 @@ def test_click_tempo_acc1_fails_when_true_tempo_is_wrong(tmp_path: Path) -> None
 
 def test_checksum_mismatch_fails_closed(tmp_path: Path) -> None:
     """A tampered fixture must not be scored as a passing case."""
-    audio = render_click_track()
-    path = tmp_path / "click.wav"
-    write_pcm_wav(path, audio, DEFAULT_SAMPLE_RATE)
+    click = render_click_track()
+    click_path = tmp_path / "click.wav"
+    write_pcm_wav(click_path, click, DEFAULT_SAMPLE_RATE)
     with pytest.raises(ValueError, match="checksum mismatch"):
-        assert_fixture_checksum(path, "0" * 64)
+        evaluate_click_tempo_file(click_path, "0" * 64)
+
+    triad = render_c_major_triad()
+    triad_path = tmp_path / "c-major.wav"
+    write_pcm_wav(triad_path, triad, DEFAULT_SAMPLE_RATE)
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        evaluate_c_major_file(triad_path, "0" * 64)
+
+
+def test_c_major_file_decode_scores_disk_not_memory(tmp_path: Path) -> None:
+    """Silence on disk must fail even when a C major array exists in memory."""
+    triad = render_c_major_triad(duration_seconds=3.0)
+    silence = np.zeros_like(triad)
+    path = tmp_path / "silence.wav"
+    digest = write_pcm_wav(path, silence, DEFAULT_SAMPLE_RATE)
+    report = evaluate_c_major_file(path, digest)
+    assert report["passed"] is False
+    assert report["metric_value"] < C_MAJOR_RECALL_FLOOR
+    memory_report = evaluate_c_major_pcm(triad, DEFAULT_SAMPLE_RATE, digest)
+    assert memory_report["passed"] is True
+
+
+def test_read_pcm_wav_mixes_stereo_to_mono(tmp_path: Path) -> None:
+    """A stereo fixture must collapse to mono before scoring."""
+    path = tmp_path / "stereo.wav"
+    stereo = np.column_stack([np.ones(8, dtype=np.float32), np.zeros(8, dtype=np.float32)])
+    sf.write(path, stereo, DEFAULT_SAMPLE_RATE)
+    audio, sample_rate = read_pcm_wav(path)
+    assert sample_rate == DEFAULT_SAMPLE_RATE
+    assert audio.shape == (8,)
+    assert np.allclose(audio, 0.5, atol=1e-3)
+
+
+def test_read_pcm_wav_rejects_empty_file(tmp_path: Path) -> None:
+    """An empty WAV must fail closed instead of scoring as a pass."""
+    path = tmp_path / "empty.wav"
+    sf.write(path, np.zeros(0, dtype=np.float32), DEFAULT_SAMPLE_RATE)
+    with pytest.raises(ValueError, match="no samples"):
+        read_pcm_wav(path)
 
 
 def test_pipeline_surfaces_c_on_active_lead_vocal() -> None:

@@ -118,6 +118,27 @@ def write_pcm_wav(path: Path, audio: NDArray[np.floating], sample_rate: int) -> 
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def read_pcm_wav(path: Path) -> tuple[NDArray[np.float32], int]:
+    """Decode a WAV file to mono float32 PCM.
+
+    Args:
+        path: Existing WAV path written by ``write_pcm_wav``.
+
+    Returns:
+        A tuple of mono samples and the file sample rate.
+
+    Raises:
+        ValueError: If the file has no samples after decode.
+    """
+    audio, sample_rate = sf.read(path, dtype="float32", always_2d=False)
+    samples = np.asarray(audio, dtype=np.float32)
+    if samples.ndim > 1:
+        samples = np.mean(samples, axis=1).astype(np.float32)
+    if samples.size == 0:
+        raise ValueError("decoded WAV has no samples")
+    return samples, int(sample_rate)
+
+
 def assert_fixture_checksum(path: Path, expected_sha256: str) -> None:
     """Fail closed when a fixture file does not match its registered digest.
 

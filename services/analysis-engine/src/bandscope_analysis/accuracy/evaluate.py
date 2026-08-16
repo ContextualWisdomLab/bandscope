@@ -12,6 +12,7 @@ from bandscope_analysis.accuracy.fixtures import (
     DEFAULT_CLICK_BPM,
     DEFAULT_SAMPLE_RATE,
     assert_fixture_checksum,
+    read_pcm_wav,
 )
 from bandscope_analysis.accuracy.manifest import AccuracyCaseReport, build_case_report
 from bandscope_analysis.accuracy.metrics import duration_weighted_chord_recall, tempo_acc1
@@ -49,6 +50,21 @@ def evaluate_c_major_pcm(
         passed=recall >= C_MAJOR_RECALL_FLOOR,
         true_label=C_MAJOR_LABEL,
     )
+
+
+def evaluate_c_major_file(audio_path: Path, expected_sha256: str) -> AccuracyCaseReport:
+    """Checksum, decode, and score a C major WAV through ChordRecognizer.
+
+    Args:
+        audio_path: On-disk WAV written by ``write_pcm_wav``.
+        expected_sha256: Registered digest. Mismatch fails closed before decode.
+
+    Returns:
+        A case report whose metric is duration-weighted recall of ``C``.
+    """
+    assert_fixture_checksum(audio_path, expected_sha256)
+    audio, sample_rate = read_pcm_wav(audio_path)
+    return evaluate_c_major_pcm(audio, sample_rate, expected_sha256)
 
 
 def evaluate_click_tempo_file(

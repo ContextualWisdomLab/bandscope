@@ -21,13 +21,16 @@ stem quality, or private-corpus readiness.
 
 ## Held cases
 
-- `c-major-triad`: three seconds of C4+E4+G4 written to WAV, decoded, and
-  scored with duration-weighted chord recall. Pass when recall of `C` is at
-  least `0.70` (Odekerken et al., 2021).
+- `c-major-triad`: three seconds of C4+E4+G4 written to WAV, checksummed,
+  decoded from those bytes, and scored with duration-weighted chord recall.
+  Pass when recall of `C` is at least `0.70`. That floor is a BandScope Tier 1
+  tolerance. The metric family is WCSR/CSR (Odekerken et al., 2021; Raffel et
+  al., 2014).
 - `click-120-bpm`: eight seconds of 120 BPM clicks decoded by
   `TemporalAnalyzer`. Pass when estimated tempo satisfies Acc1 at 4%
   (Schreiber & Müller, 2020). Acc1 does not credit half-time or double-time.
-- Checksum mismatch fails closed. Do not score a tampered file as a pass.
+- Checksum mismatch fails closed on both file evaluators. Do not score a
+  tampered file as a pass.
 
 ## Claim boundary
 
@@ -61,7 +64,10 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   passed into `ChordRecognizer` and `TemporalAnalyzer`.
 - Trust boundary: untrusted audio and manifests; trusted repo-controlled
   fixture generators and metric floors.
-- Mitigations: no network, no shell, checksum fail-closed, bounded fixture
-  durations, no copyrighted commercial recordings.
-- Test points: deterministic digest, C major recall, 120 BPM Acc1, checksum
-  mismatch, malformed manifest, silence must not pass as C major.
+- Mitigations: no network, no shell, checksum fail-closed before C-major
+  decode and before tempo scoring, bounded fixture durations, no copyrighted
+  commercial recordings. Fixture paths are pytest temp files; reports store
+  only SHA-256 and labels, not waveform bytes.
+- Test points: deterministic digest, C major recall after file decode,
+  silence-on-disk vs in-memory triad, 120 BPM Acc1, checksum mismatch through
+  both file evaluators, malformed manifest, silence must not pass as C major.
