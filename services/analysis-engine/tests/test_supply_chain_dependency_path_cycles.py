@@ -21,6 +21,11 @@ def test_dependency_path_does_not_reuse_a_package_key_through_a_cycle() -> None:
         "root 1.0.0",
         ("alpha", "alpha", "charlie"),
     )
+    assert supply_chain.cargo_lock_has_named_dependency_path(
+        package_dependencies,
+        "root 1.0.0",
+        ("alpha", "charlie"),
+    )
 
 
 def test_dependency_path_can_match_same_name_on_distinct_package_keys() -> None:
