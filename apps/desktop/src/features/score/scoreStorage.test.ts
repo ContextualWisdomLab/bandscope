@@ -102,6 +102,26 @@ describe("scoreStorage bridge resolution", () => {
     expect(reads).toBe(1);
   });
 
+  it("snapshots the bridge array length before validating bytes", async () => {
+    const backing: unknown[] = [1, 2];
+    let lengthReads = 0;
+    const response = new Proxy(backing, {
+      get(target, property, receiver) {
+        if (property === "length") {
+          lengthReads += 1;
+          return lengthReads === 1 ? 2 : 1;
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    stubReadResponse(response);
+
+    const result = await readScorePdf("project-1", "score-1");
+
+    expect(Array.from(result)).toEqual([1, 2]);
+    expect(lengthReads).toBe(1);
+  });
+
   it.each([
     ["string value", [104, "101", 108]],
     ["negative integer", [0, -1, 255]],
