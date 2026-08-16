@@ -298,7 +298,9 @@ class ChordRecognizer:
         n_sim_frames = similarity.shape[1]
         valid_similarity_frames = np.all(np.isfinite(similarity), axis=0)
         safe_similarity = np.where(
-            valid_similarity_frames[np.newaxis, :], similarity, 0.0
+            valid_similarity_frames[np.newaxis, :],
+            similarity,
+            0.0,
         )
 
         if n_sim_frames > 0:
