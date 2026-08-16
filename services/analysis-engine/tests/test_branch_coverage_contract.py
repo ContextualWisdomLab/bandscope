@@ -17,7 +17,10 @@ from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 from bandscope_analysis.exports import chart
 from bandscope_analysis.roles.activity import compute_handoffs
 from bandscope_analysis.roles.extractor import RoleExtractor
-from bandscope_analysis.sections.segmenter import detect_boundaries
+from bandscope_analysis.sections.segmenter import (
+    _checkerboard_novelty_reference,
+    detect_boundaries,
+)
 from bandscope_analysis.temporal import hits
 from bandscope_analysis.transcription import api as transcription_api
 
@@ -176,6 +179,16 @@ def test_role_feature_extraction_handles_absent_and_partial_stem_evidence() -> N
     assert bass_range == {"lowestNote": "", "highestNote": ""}
     assert vocal_chord == ""
     assert bass_chord == ""
+
+
+def test_checkerboard_reference_preserves_zero_novelty_without_division() -> None:
+    """Keep a flat full-size SSM finite instead of normalizing a zero peak."""
+    flat_ssm = np.zeros((6, 6), dtype=np.float64)
+
+    novelty = _checkerboard_novelty_reference(flat_ssm, kernel_size=4)
+
+    np.testing.assert_array_equal(novelty, np.zeros(6, dtype=np.float64))
+    assert np.isfinite(novelty).all()
 
 
 def test_boundary_detection_skips_peak_without_matching_frame_time() -> None:
