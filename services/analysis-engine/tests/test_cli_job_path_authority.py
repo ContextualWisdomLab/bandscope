@@ -30,3 +30,34 @@ def test_remote_or_device_job_paths_fail_before_filesystem_lookup(
 
     with pytest.raises(OSError):
         cli._read_bounded_job_file(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "NUL",
+        "nul.txt",
+        "CON",
+        "PRN.json",
+        "AUX",
+        "COM1",
+        "com9.json",
+        "LPT1.txt",
+        "parent/COM¹.log",
+        r"parent\LPT³.json",
+    ],
+)
+def test_windows_device_aliases_fail_before_filesystem_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    """Reserved Win32 device aliases must be rejected before path lookup."""
+
+    def forbidden_lstat(_path: str) -> object:
+        """Fail if a reserved device alias reaches the filesystem boundary."""
+        raise AssertionError("Windows device alias reached os.lstat")
+
+    monkeypatch.setattr(cli.os, "lstat", forbidden_lstat)
+
+    with pytest.raises(OSError):
+        cli._read_bounded_job_file(path)
