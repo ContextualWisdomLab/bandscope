@@ -42,16 +42,21 @@ class SectionHarmony(TypedDict):
     chord_changes: int
 
 
-def _coerce_segment(segment: Mapping[str, object]) -> tuple[float, float, str] | None:
-    """Extract (start, end, chord) from a chord segment mapping.
+def _coerce_segment(segment: object) -> tuple[float, float, str] | None:
+    """Extract ``(start, end, chord)`` from a possible chord-segment mapping.
 
     Args:
-        segment: Mapping with ``start_time``, ``end_time``, and ``chord`` keys.
+        segment: Candidate mapping with ``start_time``, ``end_time``, and
+            ``chord`` keys. Non-mapping values are malformed entries and are
+            skipped without discarding neighboring valid segments.
 
     Returns:
         A ``(start, end, chord)`` tuple, or ``None`` if the segment is
         malformed, non-finite, or has a non-positive span.
     """
+    if not isinstance(segment, Mapping):
+        return None
+
     start_raw = segment.get("start_time")
     end_raw = segment.get("end_time")
     chord_raw = segment.get("chord")
