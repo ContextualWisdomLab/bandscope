@@ -174,7 +174,8 @@ describe("App source-transition handler guards", () => {
       });
     });
     await waitFor(() => {
-      expect(startAnalysis).toHaveAttribute("data-disabled", "false");
+      expect(startAnalysis).toHaveAttribute("data-disabled", "true");
     });
+    expect(mockedStartAnalysisJob).not.toHaveBeenCalled();
   });
 });
