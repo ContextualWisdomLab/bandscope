@@ -1,3 +1,4 @@
+import type { ButtonHTMLAttributes } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MetadataHandoffArtifact } from "@bandscope/shared-types";
@@ -11,6 +12,12 @@ vi.mock("./features/score/ScoreView", () => ({
 
 vi.mock("./features/workspace/Workspace", () => ({
   Workspace: () => <div>Workspace result</div>
+}));
+
+vi.mock("@/components/ui/button", () => ({
+  Button: ({ disabled, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props} data-disabled={disabled ? "true" : "false"} />
+  )
 }));
 
 vi.mock("./lib/analysis", () => ({
@@ -83,7 +90,7 @@ describe("App handoff YouTube defense in depth", () => {
     mockedReadMetadataHandoffFile.mockReset();
   });
 
-  it("keeps the handler fail-closed if a disabled YouTube control is tampered with", async () => {
+  it("keeps the handler fail-closed if the UI disablement boundary is bypassed", async () => {
     mockedReadMetadataHandoffFile.mockResolvedValueOnce({
       ok: true,
       fileName: "handoff.json",
@@ -105,11 +112,11 @@ describe("App handoff YouTube defense in depth", () => {
     });
 
     await screen.findByText("Friday rehearsal");
-    expect(importButton).toBeDisabled();
+    expect(importButton).toHaveAttribute("data-disabled", "true");
 
-    // UI disablement is not an authorization boundary. Simulate local DOM tampering
-    // and prove that the handler itself still refuses the stale YouTube action.
-    (importButton as HTMLButtonElement).disabled = false;
+    // The test Button deliberately records but does not enforce `disabled`,
+    // modeling a compromised UI primitive. The handler must still reject the
+    // stale YouTube action while validated handoff authority is pending.
     fireEvent.click(importButton);
 
     expect(mockedImportYoutubeUrl).not.toHaveBeenCalled();
