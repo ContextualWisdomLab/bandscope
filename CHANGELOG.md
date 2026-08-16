@@ -10,7 +10,7 @@
 
 ### Fixed
 
-- Fail closed on malformed or incomplete Stem Lab range evidence: invalid first-seen pitch labels are discarded and the player gets an explicit ear-check action instead of a fake playable range.
+- Fail closed on malformed, incomplete, or inverted Stem Lab range evidence: invalid first-seen pitch labels are discarded, contradictory low/high boundaries are withheld, and the player gets an explicit ear-check action instead of a fake playable range.
 
 ## [0.1.3] - 2026-04-29
 
