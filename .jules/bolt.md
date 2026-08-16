@@ -61,6 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-## 2026-08-16 - Graph traversal memory optimization
-**Learning:** Using `frozenset` unions inside a tight dependency path graph traversal loop (like `cargo_lock_has_named_dependency_path`) creates significant memory allocation overhead, becoming a major performance bottleneck for large lockfiles.
-**Action:** Use a single shared `set` tracking `(current_node, state)` pairs to achieve O(1) loop allocations and drastically reduce execution time without sacrificing correctness.
+## 2026-08-16 - Graph traversal memory optimization is unsafe
+**Learning:** Replacing path-local `frozenset` cycle prevention in `cargo_lock_has_named_dependency_path` with a shared `(package_key, matched_count)` cache changes simple-path semantics. On `root → alpha@1 → beta → alpha@1 → charlie`, the same key can satisfy two `alpha` positions and falsely accept `("alpha", "alpha", "charlie")`.
+**Action:** Keep a path-local `frozenset` of package keys. Do not reintroduce a global state cache. Distinct keys that share a name (`alpha@1` then `alpha@2`) remain valid matches. Keep the cycle regressions.
