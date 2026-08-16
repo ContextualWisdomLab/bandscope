@@ -24,8 +24,11 @@ stem quality, or private-corpus readiness.
 - `c-major-triad`: three seconds of C4+E4+G4 written to WAV, checksummed,
   decoded from those bytes, and scored with duration-weighted chord recall.
   Pass when recall of `C` is at least `0.70`. That floor is a BandScope Tier 1
-  tolerance. The metric family is WCSR/CSR (Odekerken et al., 2021; Raffel et
-  al., 2014).
+  tolerance. Matching estimate intervals are clipped to the annotation window
+  and unioned before duration is accumulated, so overlapping or duplicate
+  estimates cannot count the same annotated time twice or produce recall above
+  `1.0`. The metric family is WCSR/CSR (Odekerken et al., 2021; Raffel et al.,
+  2014).
 - `click-120-bpm`: eight seconds of 120 BPM clicks decoded by
   `TemporalAnalyzer`. Pass when estimated tempo satisfies Acc1 at 4%
   (Schreiber & Müller, 2020). Acc1 does not credit half-time or double-time.
@@ -75,6 +78,7 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   Fixture paths are pytest temp files; reports store only SHA-256 and labels,
   not waveform bytes.
 - Test points: deterministic digest, C major recall after file decode,
+  overlapping matching intervals do not double-count annotation duration,
   silence-on-disk vs in-memory triad, 120 BPM Acc1, checksum mismatch through
   both file evaluators, malformed/non-hex manifest provenance, NaN/infinity
   rejection, and silence must not pass as C major.
