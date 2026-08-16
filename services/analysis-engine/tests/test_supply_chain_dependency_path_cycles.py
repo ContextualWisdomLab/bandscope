@@ -23,6 +23,26 @@ def test_dependency_path_does_not_reuse_a_package_key_through_a_cycle() -> None:
     )
 
 
+def test_dependency_path_still_matches_direct_path_on_cyclic_graph() -> None:
+    """Cycle prevention must not reject a valid simple path that avoids reuse."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_dependency_path_cycle_direct_regression",
+    )
+    package_dependencies = {
+        "root 1.0.0": ["alpha 1.0.0"],
+        "alpha 1.0.0": ["beta 1.0.0", "charlie 1.0.0"],
+        "beta 1.0.0": ["alpha 1.0.0"],
+        "charlie 1.0.0": [],
+    }
+
+    assert supply_chain.cargo_lock_has_named_dependency_path(
+        package_dependencies,
+        "root 1.0.0",
+        ("alpha", "charlie"),
+    )
+
+
 def test_dependency_path_can_match_same_name_on_distinct_package_keys() -> None:
     """Ensure distinct package instances may legitimately satisfy repeated names."""
     supply_chain = load_module(
