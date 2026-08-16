@@ -50,8 +50,8 @@ secret onto `NVIDIA_API_KEY` for the OpenCode client.
 
 ## Security Notes
 
-- Attack surface: organization required workflows with write access to PR comments, PR branch updates, and normal merges; local `opencode.jsonc` that calls NVIDIA NIM over HTTPS.
-- Trust boundary touched: GitHub repository governance, PR review state, status checks, CodeRabbit review requests, and the local OpenCode provider allowlist (`nvidia-nim` + `{env:NVIDIA_API_KEY}`).
+- Attack surface: organization required workflows with write access to PR comments, PR branch updates, and normal merges. Local developer OpenCode (`opencode.jsonc`) is a separate HTTPS client to NVIDIA NIM and is not invoked by this scheduler.
+- Trust boundary touched: GitHub repository governance, PR review state, status checks, and CodeRabbit review requests. The local OpenCode provider allowlist (`nvidia-nim` + `{env:NVIDIA_API_KEY}`) is recorded here so agents do not restore GitHub Models or review-agent secrets into this repository.
 - Realistic threats: spammed review comments, merging a PR with unresolved conversations, merging without required checks, or hiding conflicts behind automation.
 - Mitigations: central required workflow source pinning, idempotent per-head review comment marker,
   explicit unresolved-thread check, retry-bounded GitHub API reads, required-check verification
@@ -60,5 +60,5 @@ secret onto `NVIDIA_API_KEY` for the OpenCode client.
 - Test points: organization ruleset inheritance, current-head OpenCode approval, unresolved review
   thread count, required-check rollup, approved behind PR, approved conflict-free PR, approved dirty PR,
   external failed-check classification, provider/runtime failure summary, Strix evidence lookup
-  scope diagnostics, and local `opencode.jsonc` NIM-only contract (`small_model`, `{env:NVIDIA_API_KEY}`,
-  no GitHub Models / Copilot leftovers).
+  scope diagnostics, and the separate local `opencode.jsonc` NIM-only contract (`small_model`,
+  `{env:NVIDIA_API_KEY}`, no `reasoningEffort`, no GitHub Models / Copilot leftovers).

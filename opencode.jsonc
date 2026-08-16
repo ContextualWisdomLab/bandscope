@@ -49,9 +49,6 @@
           "name": "NVIDIA Llama 3.3 Nemotron Super 49B v1.5",
           "tool_call": true,
           "reasoning": true,
-          "options": {
-            "reasoningEffort": "high"
-          },
           "limit": {
             "context": 131072,
             "output": 32768

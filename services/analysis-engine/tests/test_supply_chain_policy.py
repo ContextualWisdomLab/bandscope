@@ -5090,6 +5090,10 @@ def test_opencode_uses_nvidia_nim_only() -> None:
     assert "nvidia/llama-3.3-nemotron-super-49b-v1.5" in nim_provider["models"]
     assert "meta/llama-3.3-70b-instruct" in nim_provider["models"]
 
+    primary_model = nim_provider["models"]["nvidia/llama-3.3-nemotron-super-49b-v1.5"]
+    assert "reasoningEffort" not in primary_model.get("options", {})
+    assert "{env:NVIDIA_NIM_API_KEY}" not in opencode_text
+
     leftover_tokens = (
         "github-models",
         "STRIX_GITHUB_MODELS_TOKEN",
