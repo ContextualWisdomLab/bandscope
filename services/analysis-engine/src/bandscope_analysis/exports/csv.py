@@ -32,8 +32,9 @@ def escape_csv_field(value: str) -> str:
 
     Formula-sensitive ASCII prefixes (``=``, ``+``, ``-``, ``@``), their
     full-width variants, and leading tab/CR/LF/NUL controls are prefixed with a
-    single apostrophe. Formula prefixes are also detected after leading
-    whitespace because spreadsheet parsers may normalize that whitespace.
+    single apostrophe. Dangerous formula or control prefixes are also detected
+    after leading whitespace because downstream parser normalization is not
+    uniform across spreadsheet products.
 
     The apostrophe follows the mitigation documented for CWE-1236. Spreadsheet
     products do not share one universally reliable CSV formula-neutralization
@@ -49,7 +50,9 @@ def escape_csv_field(value: str) -> str:
     leading = value[: len(value) - len(stripped)]
     if any(character in _CONTROL_PREFIXES for character in leading):
         return f"'{value}"
-    if stripped and stripped[0] in _FORMULA_PREFIXES:
+    if stripped and (
+        stripped[0] in _FORMULA_PREFIXES or stripped[0] in _CONTROL_PREFIXES
+    ):
         return f"'{value}"
     return value
 

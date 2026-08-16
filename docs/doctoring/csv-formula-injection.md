@@ -4,9 +4,9 @@
 
 BandScope treats every rehearsal-derived CSV field as untrusted spreadsheet input. The analysis-engine cue-sheet exporter neutralizes spreadsheet-sensitive prefixes before handing each field to Python's standard `csv` writer. This is a defense-in-depth boundary for exported artifacts that may later be opened in Microsoft Excel, LibreOffice Calc, Apple Numbers, or another spreadsheet application.
 
-The implementation covers the formula initiators identified by CWE-1236 (`=`, `+`, `-`, and `@`) and the additional control/full-width prefixes in current OWASP CSV Injection testing guidance: horizontal tab, carriage return, line feed, and the full-width variants `＝`, `＋`, `－`, and `＠`. Formula initiators hidden behind leading whitespace are also neutralized because spreadsheet import behavior is not uniform across products.
+The implementation covers the formula initiators identified by CWE-1236 (`=`, `+`, `-`, and `@`) and the additional control/full-width prefixes in current OWASP CSV Injection testing guidance: horizontal tab, carriage return, line feed, and the full-width variants `＝`, `＋`, `－`, and `＠`. Formula initiators and control prefixes hidden behind leading ordinary whitespace are also neutralized because downstream parser normalization is not uniform across spreadsheet products.
 
-OWASP ASVS 5.0.0 requirement `v5.0.0-1.2.10` is the current stable verification baseline for this boundary. It requires CSV/formula-injection protection, the RFC 4180 section 2.6/2.7 quoting rules, and single-apostrophe escaping when `=`, `+`, `-`, `@`, tab, or NUL is the first field character. BandScope's leading-NUL rule therefore directly satisfies the current ASVS requirement; the broader leading-whitespace, CR/LF, and full-width handling remains defense in depth informed by OWASP's current CSV Injection testing guidance.
+OWASP ASVS 5.0.0 requirement `v5.0.0-1.2.10` is the current stable verification baseline for this boundary. It requires CSV/formula-injection protection, the RFC 4180 section 2.6/2.7 quoting rules, and single-apostrophe escaping when `=`, `+`, `-`, `@`, tab, or NUL is the first field character. BandScope's leading-NUL rule therefore directly satisfies the current ASVS requirement; the broader handling of prefixes exposed after leading whitespace, CR/LF, and full-width variants remains defense in depth informed by OWASP's current CSV Injection testing guidance.
 
 ## Threat model and boundary
 
@@ -27,7 +27,7 @@ Regression tests require all of the following:
 - ASCII formula prefixes are neutralized;
 - full-width formula prefixes are neutralized;
 - tab, CR, LF, and leading NUL controls are neutralized;
-- a dangerous prefix after leading whitespace is neutralized;
+- a formula or control prefix exposed after leading whitespace is neutralized;
 - attacker-controlled commas remain inside one parsed field after serialization;
 - malformed or row-less song payloads keep the existing fail-closed empty export behavior.
 
