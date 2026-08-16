@@ -12,7 +12,8 @@ float arrays at a common sample rate.
 
 Security Notes:
 - Operates only on in-memory numpy arrays; no file I/O or network access.
-- All FFT and reduction operations are bounded by the input array sizes.
+- Canonical orchestration owns audio-size, stem-count, memory, CPU/GPU, and
+  cancellation admission policy before feature analyzers execute.
 - Fails safe: empty, silent, or malformed stems produce an empty result and
   no exception escapes the public functions.
 """
@@ -20,7 +21,6 @@ Security Notes:
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any
 
 import numpy as np
@@ -34,6 +34,7 @@ BANDS: dict[str, tuple[float, float]] = {
     "mid": (250.0, 2000.0),
     "high": (2000.0, 8000.0),
 }
+_BAND_ORDER = {band: index for index, band in enumerate(BANDS)}
 
 # Drums are excluded from pitched-register analysis: percussion is broadband
 # (energy is spread across the spectrum by transients and noise), so band
@@ -52,7 +53,9 @@ def band_energy_profile(
     """Compute the fraction of a stem's spectral energy in each register band.
 
     Energy is the magnitude-squared of the real FFT summed over the bins that
-    fall inside each band defined in :data:`BANDS`.
+    fall inside each band defined in :data:`BANDS`. Resource admission is a
+    canonical orchestration concern; this feature consumes the accepted audio
+    artifact without inventing a second sample-count ceiling.
 
     Args:
         audio: Mono float audio samples for one stem.
@@ -66,12 +69,6 @@ def band_energy_profile(
     zero_profile = {band: 0.0 for band in BANDS}
 
     if not isinstance(audio, np.ndarray) or audio.size == 0 or sr <= 0:
-        return zero_profile
-
-    if audio.size > 10_000_000:
-        logger.warning(
-            f"Audio size {audio.size} exceeds maximum allowed 10000000; returning zero profile."
-        )
         return zero_profile
 
     spectrum = np.abs(np.fft.rfft(audio.astype(np.float64))) ** 2
@@ -98,36 +95,32 @@ def detect_register_overlap(
     band in which both stems concentrate at least ``threshold`` of their
     spectral energy. Drums are excluded (see :data:`UNPITCHED_STEMS`): as a
     broadband percussion source they do not occupy a pitched register.
+    Resource admission is owned by canonical orchestration rather than a
+    feature-local stem-count ceiling.
 
     Args:
         stems: Dict mapping stem names to mono float audio arrays.
         sr: Common sample rate in Hz.
-        threshold: Minimum energy fraction for a stem to occupy a band.
+        threshold: Minimum energy fraction for a stem to occupy a band. Values
+            outside the finite ``0.0..1.0`` range fail safe with no overlaps.
 
     Returns:
         List of overlap records ``{"stem_a", "stem_b", "band", "severity"}``
         where ``severity`` is the smaller of the two energy shares rounded to
-        two decimals. Pairs are ordered alphabetically (stem_a < stem_b) and
-        the list is sorted by severity descending. Empty when fewer than two
-        pitched stems have energy or on any internal failure.
+        two decimals. Pairs are ordered alphabetically (stem_a < stem_b), the
+        list is sorted by severity descending, and equal-severity records keep
+        alphabetical pair order followed by the declared :data:`BANDS` order.
+        Empty when fewer than two pitched stems have positive band energy, the
+        threshold is invalid, or any internal failure occurs.
     """
     try:
-        if not math.isfinite(threshold):
-            logger.warning("threshold must be finite; defaulting to %f", DEFAULT_THRESHOLD)
-            threshold = DEFAULT_THRESHOLD
-        elif not (0.0 <= threshold <= 1.0):
-            clamped = max(0.0, min(1.0, threshold))
-            logger.warning("threshold %f out of range; clamped to %f", threshold, clamped)
-            threshold = clamped
+        if isinstance(threshold, bool):
+            return []
+        threshold_value = float(threshold)
+        if not np.isfinite(threshold_value) or not 0.0 <= threshold_value <= 1.0:
+            return []
 
         pitched = sorted(name for name in stems if name not in UNPITCHED_STEMS)
-
-        if len(pitched) > 10:
-            logger.warning(
-                f"Too many pitched stems ({len(pitched)} > 10); "
-                "returning no overlaps to prevent resource exhaustion."
-            )
-            return []
         profiles = {name: band_energy_profile(stems[name], sr) for name in pitched}
 
         overlaps: list[dict[str, Any]] = []
@@ -135,7 +128,8 @@ def detect_register_overlap(
             active_stems = [
                 (stem, profiles[stem][band])
                 for stem in pitched
-                if profiles[stem][band] >= threshold
+                if profiles[stem][band] > 0.0
+                and profiles[stem][band] >= threshold_value
             ]
             for i, (stem_a, share_a) in enumerate(active_stems):
                 for stem_b, share_b in active_stems[i + 1 :]:
@@ -148,13 +142,14 @@ def detect_register_overlap(
                         }
                     )
 
-        # Break ties consistently by sorting on stem_a, stem_b, and band as well.
+        # Preserve the pre-optimization stable tie order: alphabetical pairs,
+        # then the declared register-band order rather than lexical band names.
         overlaps.sort(
             key=lambda item: (
                 -float(item["severity"]),
                 item["stem_a"],
                 item["stem_b"],
-                list(BANDS).index(item["band"]),
+                _BAND_ORDER[str(item["band"])],
             )
         )
         return overlaps
