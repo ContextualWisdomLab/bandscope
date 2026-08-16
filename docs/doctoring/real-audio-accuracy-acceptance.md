@@ -29,18 +29,20 @@ stem quality, or private-corpus readiness.
   tolerance. Matching estimate intervals are clipped to the annotation window
   and unioned before duration is accumulated, so overlapping or duplicate
   estimates cannot count the same annotated time twice or produce recall above
-  `1.0`. Annotation and estimate times must be finite before clipping, and each
-  estimate interval must have a strictly increasing start/end pair; NaN,
-  infinite, empty, or reversed timing is invalid acceptance evidence and fails
-  closed instead of being silently ignored or allowed to fabricate covered
-  duration. The metric family is WCSR/CSR (Odekerken et al., 2021; Raffel et
-  al., 2014).
+  `1.0`. Annotation and estimate times must be finite non-Boolean numbers before
+  clipping, and each estimate interval must have a strictly increasing
+  start/end pair; Boolean, NaN, infinite, empty, or reversed timing is invalid
+  acceptance evidence and fails closed instead of being silently ignored or
+  allowed to fabricate covered duration. The metric family is WCSR/CSR
+  (Odekerken et al., 2021; Raffel et al., 2014).
 - `click-120-bpm`: eight seconds of 120 BPM clicks decoded by
   `TemporalAnalyzer`. Pass when estimated tempo satisfies Acc1 at 4%
   (Schreiber & Müller, 2020). Acc1 does not credit half-time or double-time.
-  Estimated BPM, true BPM, and the tolerance must all be finite; non-finite
-  metric inputs are invalid acceptance evidence and fail closed rather than
-  being recorded as an ordinary miss.
+  Estimated BPM, true BPM, and the tolerance must all be finite non-Boolean
+  numbers; Boolean or non-finite metric inputs are invalid acceptance evidence
+  and fail closed rather than being recorded as an ordinary miss. This matters
+  in Python because `bool` is an integer subtype and would otherwise satisfy
+  ordinary numeric comparisons.
 - Checksum mismatch fails closed on both file evaluators. Do not score a
   tampered file as a pass.
 - Machine-readable case reports are accepted only when the registered
@@ -88,17 +90,18 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   repo-controlled fixture generators, true labels, metric definitions,
   registered floors, and the repository product `VERSION`.
 - Mitigations: no network, no shell, checksum fail-closed before C-major
-  decode and before tempo scoring, overlap-safe chord duration, finite-only
-  annotation/estimate timing, strictly increasing estimate intervals, finite-only
-  tempo metric inputs, strict SHA-256 syntax, finite-only report metric values,
-  exact non-empty product-version provenance, bounded fixture durations, and no
-  copyrighted commercial recordings. Fixture paths are pytest temp files;
-  reports store only SHA-256 and labels, not waveform bytes.
+  decode and before tempo scoring, overlap-safe chord duration, finite
+  non-Boolean annotation/estimate timing, strictly increasing estimate
+  intervals, finite non-Boolean tempo metric inputs, strict SHA-256 syntax,
+  finite-only report metric values, exact non-empty product-version provenance,
+  bounded fixture durations, and no copyrighted commercial recordings. Fixture
+  paths are pytest temp files; reports store only SHA-256 and labels, not
+  waveform bytes.
 - Test points: deterministic digest, C major recall after file decode,
   overlapping matching intervals do not double-count annotation duration,
-  non-finite chord annotation/estimate timing rejection, empty/reversed estimate
-  interval rejection, silence-on-disk vs in-memory triad, 120 BPM Acc1,
-  non-finite tempo estimate / truth / tolerance rejection, checksum mismatch
-  through both file evaluators, malformed/non-hex manifest provenance,
-  NaN/infinity report rejection, missing/empty product `VERSION` rejection, and
-  silence must not pass as C major.
+  non-finite and Boolean chord annotation/estimate timing rejection,
+  empty/reversed estimate interval rejection, silence-on-disk vs in-memory
+  triad, 120 BPM Acc1, non-finite and Boolean tempo estimate / truth / tolerance
+  rejection, checksum mismatch through both file evaluators, malformed/non-hex
+  manifest provenance, NaN/infinity report rejection, missing/empty product
+  `VERSION` rejection, and silence must not pass as C major.
