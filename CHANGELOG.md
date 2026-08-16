@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Enforce one canonical local-audio resource policy across desktop bridge intake, Python request preflight, temporal decoding, and stem separation so oversized, overlong, malformed, wrong-rate, or non-finite decoded input fails before it becomes project state or reaches expensive analysis/model work.
+- Enforce one canonical local-audio resource policy across Python request preflight, temporal decoding, and stem separation so oversized, overlong, malformed, wrong-rate, or non-finite decoded input fails before expensive analysis/model work.
 
 ## [0.1.3] - 2026-04-29
 
@@ -33,23 +33,40 @@
 
 ### Added
 
-- Added a deterministic rehearsal planner output contract for section order, role priorities, handoff cues, and export summaries.
-- Added local-first YouTube import fallback behavior with explicit source labeling and no credential storage.
-- Added project score PDF attachment metadata and app-owned local score storage.
-
-### Changed
-
-- Hardened local audio intake and project bootstrap around app-owned project/cache/temp roots.
-- Tightened analysis-job payload parsing, status validation, and desktop/native bridge behavior.
-- Expanded deterministic music-analysis fixtures and release-preflight coverage.
+- Implemented rehearsal workspace design (Issue #107)
+- Add capo and tuning detection heuristics (Issue #103)
+- Add bandit security scan workflow
 
 ### Fixed
 
-- Prevented malformed project, audio, score, and bridge payloads from silently reaching downstream analysis or persistence boundaries.
+- Upgrade pytest to 9.0.3 to fix GHSA-6w46-j5rx-g56g
+- Resolve npm audit vulnerabilities
+- Fix ruff import sorting and formatting errors
+- Add missing docstrings to tests
+- Fix test configuration and typing issues
 
-## [0.1.0] - 2026-04-27
+## [0.1.0] - 2026-03-27
 
 ### Added
 
-- Implemented secure local audio intake and project bootstrap.
-- Added the first local-first rehearsal workspace, project persistence flow, and bounded analysis bridge.
+- Issue #29: Defined core `song -> section -> role` rehearsal domain contracts
+- Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
+- Issue #40: Enforced 100% Python docstring and test coverage
+- Issue #32: Implemented local analysis orchestration and secure IPC boundaries
+- Issue #33: Implemented secure local audio intake and project bootstrap
+- Issue #35: Engineered section, form, and cue anchor extraction pipeline
+- Issue #34: Implemented role extraction targets and part graph
+- Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
+- Issue #28: Delivered practical rehearsal workspace UI
+- Issue #27: Supported manual overrides, provenance tracking, and local project persistence
+- Issue #36: Implemented rehearsal priority calculation and cue-sheet (CSV) / chart (JSON) exports
+- Issue #30: Added policy-constrained YouTube import with local fallback
+- Issue #26: Finalized roadmap and prepared application for initial release
+
+## [0.1.4] - 2026-05-15
+
+### 추가됨 (Added)
+
+- `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
+- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
+- 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
