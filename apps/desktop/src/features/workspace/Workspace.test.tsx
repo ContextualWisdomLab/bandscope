@@ -269,5 +269,8 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "큐 시트 내보내기 (CSV)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "차트 요약 내보내기 (JSON)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "핸드오프 데이터 내보내기 (JSON)" })).toBeTruthy();
   });
 });
