@@ -79,7 +79,7 @@ def build_case_report(
         metric_value: Numeric score for this run.
         passed: Whether the score met the registered tolerance.
         true_label: Ground-truth label the buyer should hear.
-        engine_version: Optional override. Defaults to the product ``VERSION``.
+        engine_version: Optional exact override. Defaults to the product ``VERSION``.
 
     Returns:
         A report that ``parse_case_report`` will accept.
@@ -148,8 +148,13 @@ def parse_case_report(value: object) -> AccuracyCaseReport:
         raise ValueError("metric_value must be a finite number")
     if not isinstance(passed, bool):
         raise ValueError("passed must be a boolean")
-    if not isinstance(engine_version, str) or not engine_version:
-        raise ValueError("engine_version must be a non-empty string")
+    if (
+        not isinstance(engine_version, str)
+        or not engine_version
+        or engine_version.strip() != engine_version
+        or engine_version.lower() == "unknown"
+    ):
+        raise ValueError("engine_version must be an exact non-empty version, not unknown")
     if not isinstance(true_label, str) or not true_label:
         raise ValueError("true_label must be a non-empty string")
 
