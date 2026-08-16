@@ -30,7 +30,7 @@ describe("collectStemLanes", () => {
       sections: [
         {
           id: "verse-1",
-          label: "  verse  ",
+          label: "verse",
           groove: "straight",
           timeRange: { start: 0, end: 8 },
           confidence: { level: "high", source: "model", notes: "stable" },
@@ -78,7 +78,7 @@ describe("collectStemLanes", () => {
         },
         {
           id: "blank-section",
-          label: "   ",
+          label: "stop",
           groove: "stop",
           timeRange: { start: 16, end: 18 },
           confidence: { level: "low", source: "model", notes: "short" },
@@ -109,13 +109,44 @@ describe("collectStemLanes", () => {
 
     const bass = lanes[0];
     expect(bass.roleName).toBe("Bass Guitar");
+    expect(bass.lowestNote).toBe("A1");
+    expect(bass.highestNote).toBe("C3");
     expect(bass.rehearsalPriority).toBe("high");
     expect(bass.sectionLabels).toEqual(["verse", "chorus"]);
     expect(bass.overlapWarnings).toEqual(["Density warning: keys", "Watch the kick"]);
 
     const vocal = lanes[1];
     expect(vocal.roleId).toBe("lead-vocal");
-    expect(vocal.sectionLabels).toEqual([]);
+    expect(vocal.sectionLabels).toEqual(["stop"]);
+  });
+
+  it("widens ranges by pitch rather than note-name string order", () => {
+    const song = createDemoRehearsalSong();
+    const firstSection = structuredClone(song.sections[0]);
+    const secondSection = structuredClone(song.sections[0]);
+    firstSection.id = "verse-1";
+    firstSection.label = "verse";
+    firstSection.roles = [
+      {
+        ...firstSection.roles[0],
+        id: "wide-role",
+        range: { lowestNote: "B2", highestNote: "B3" }
+      }
+    ];
+    secondSection.id = "chorus-1";
+    secondSection.label = "chorus";
+    secondSection.roles = [
+      {
+        ...secondSection.roles[0],
+        id: "wide-role",
+        range: { lowestNote: "C2", highestNote: "C4" }
+      }
+    ];
+    song.sections = [firstSection, secondSection];
+
+    const lane = collectStemLanes(song)[0];
+    expect(lane.lowestNote).toBe("C2");
+    expect(lane.highestNote).toBe("C4");
   });
 
   it("falls back to the role id when the display name is blank", () => {
