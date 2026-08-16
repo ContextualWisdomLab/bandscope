@@ -36,10 +36,13 @@ const BROWSER_PROGRESS_STEPS = [
 ] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
 const LOCAL_AUDIO_TOO_LARGE_MESSAGE = "Selected audio file exceeds the 100 MiB analysis limit.";
+const LOCAL_AUDIO_POLICY_MESSAGE =
+  "Selected audio file metadata violates the analysis resource policy.";
 const MAX_LOCAL_AUDIO_FILE_BYTES = 100 * 1024 * 1024;
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   LOCAL_AUDIO_TOO_LARGE_MESSAGE,
+  LOCAL_AUDIO_POLICY_MESSAGE,
   "Could not read the selected audio file.",
   "Could not prepare the local project workspace.",
   "Could not prepare the local cache workspace.",
@@ -230,7 +233,11 @@ async function invokeAnalysis(command: string, args?: Record<string, unknown>): 
  */
 function parseBoundedAudioBootstrap(response: unknown): ProjectBootstrapSummary {
   const bootstrap = parseProjectBootstrapSummary(response);
-  if (bootstrap.source.fileSizeBytes > MAX_LOCAL_AUDIO_FILE_BYTES) {
+  const fileSizeBytes = bootstrap.source.fileSizeBytes;
+  if (!Number.isSafeInteger(fileSizeBytes)) {
+    throw new Error(LOCAL_AUDIO_POLICY_MESSAGE);
+  }
+  if (fileSizeBytes > MAX_LOCAL_AUDIO_FILE_BYTES) {
     throw new Error(LOCAL_AUDIO_TOO_LARGE_MESSAGE);
   }
   return bootstrap;
