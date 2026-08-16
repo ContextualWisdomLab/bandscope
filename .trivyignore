@@ -27,3 +27,10 @@ GHSA-wrw7-89jp-8q8g exp:2026-10-31
 # wheel), so it is outside the request-time attack surface. Remove once a
 # fixed setuptools publishes and uv can resolve it. Revisit by 2026-10-31.
 CVE-2026-59890 exp:2026-10-31
+
+# CVE-2026-16633: pdfjs-dist < 6.2.108
+# BandScope currently uses pdfjs-dist 6.1.200. Updating to 6.2.108 breaks the
+# engine requirements. Wait until a fix is ported to 6.1 or engine requirement
+# is updated to Node 23.
+CVE-2026-16633 exp:2026-10-31
+GHSA-hq66-cqwq-w95j exp:2026-10-31
