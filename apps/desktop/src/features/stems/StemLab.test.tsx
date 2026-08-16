@@ -61,6 +61,28 @@ describe("StemLab", () => {
     expect(screen.queryByText(/coming soon/i)).toBeNull();
   });
 
+  it("shows an honest next action instead of a fake playable range", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [
+      {
+        ...song.sections[0],
+        roles: [
+          {
+            ...song.sections[0].roles[0],
+            id: "malformed-range",
+            range: { lowestNote: "not-a-note", highestNote: "also-not-a-note" }
+          }
+        ]
+      }
+    ];
+
+    render(<StemLab song={song} />);
+
+    expect(screen.getByText(/Playable range unavailable; verify this part by ear/i)).toBeTruthy();
+    expect(screen.queryByText(/not-a-note/i)).toBeNull();
+  });
+
   it("uses Korean next-action copy for Korean locales", () => {
     setNavigatorLanguage("ko-KR");
     render(<StemLab song={null} />);
