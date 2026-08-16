@@ -100,6 +100,9 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   }
   if (Array.isArray(response)) {
     const byteCount = response.length;
+    if (!Number.isSafeInteger(byteCount) || byteCount < 0) {
+      throw new Error(INVALID_RESPONSE_MESSAGE);
+    }
     const bytes = new Uint8Array(byteCount);
     for (let index = 0; index < byteCount; index += 1) {
       const byte = response[index];
