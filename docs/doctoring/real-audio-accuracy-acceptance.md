@@ -6,7 +6,8 @@ evidence.
 
 ```bash
 uv run --project services/analysis-engine pytest \
-  services/analysis-engine/tests/test_accuracy_acceptance.py
+  services/analysis-engine/tests/test_accuracy_acceptance.py \
+  services/analysis-engine/tests/test_accuracy_manifest_version.py
 ```
 
 ## Why this lock exists
@@ -44,6 +45,10 @@ stem quality, or private-corpus readiness.
   hexadecimal characters, and `metric_value` is a finite numeric value.
   Boolean, NaN, infinity, overflow-to-float, malformed digest, or missing-field
   evidence fails closed rather than becoming a portable acceptance record.
+- When a caller does not provide an explicit engine version, report creation
+  resolves the repository product `VERSION`. Missing or empty `VERSION`
+  provenance fails closed; `unknown` is not accepted as a substitute for the
+  exact engine version required by the accuracy evidence contract.
 
 ## Claim boundary
 
@@ -74,21 +79,22 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
 ## Security Notes
 
 - Attack surface: generated WAV bytes, SHA-256 digests, decoded PCM, recognizer
-  segment timings, tempo estimates, and parsed case-report mappings passed into
-  the accuracy acceptance path.
+  segment timings, tempo estimates, product-version provenance, and parsed
+  case-report mappings passed into the accuracy acceptance path.
 - Trust boundary: untrusted audio, recognizer output, and manifests; trusted
-  repo-controlled fixture generators, true labels, metric definitions, and
-  registered floors.
+  repo-controlled fixture generators, true labels, metric definitions,
+  registered floors, and the repository product `VERSION`.
 - Mitigations: no network, no shell, checksum fail-closed before C-major
   decode and before tempo scoring, overlap-safe chord duration, finite-only
   annotation/estimate timing and tempo metric inputs, strict SHA-256 syntax,
-  finite-only report metric values, bounded fixture durations, and no
-  copyrighted commercial recordings. Fixture paths are pytest temp files;
-  reports store only SHA-256 and labels, not waveform bytes.
+  finite-only report metric values, exact non-empty product-version provenance,
+  bounded fixture durations, and no copyrighted commercial recordings.
+  Fixture paths are pytest temp files; reports store only SHA-256 and labels,
+  not waveform bytes.
 - Test points: deterministic digest, C major recall after file decode,
   overlapping matching intervals do not double-count annotation duration,
   non-finite chord annotation/estimate timing rejection, silence-on-disk vs
   in-memory triad, 120 BPM Acc1, non-finite tempo estimate / truth / tolerance
   rejection, checksum mismatch through both file evaluators, malformed/non-hex
-  manifest provenance, NaN/infinity report rejection, and silence must not pass
-  as C major.
+  manifest provenance, NaN/infinity report rejection, missing/empty product
+  `VERSION` rejection, and silence must not pass as C major.
