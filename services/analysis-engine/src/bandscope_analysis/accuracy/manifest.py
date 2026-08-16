@@ -33,13 +33,20 @@ class AccuracyCaseReport(TypedDict):
 
 
 def read_product_version(start: Path | None = None) -> str:
-    """Return the nearest ``VERSION`` file contents, or ``unknown``.
+    """Return the nearest non-empty ``VERSION`` file contents.
+
+    Accuracy reports are provenance evidence, so an unavailable product version
+    is not converted into an ``unknown`` value that could still pass report
+    validation.
 
     Args:
         start: File or directory to walk upward from. Defaults to this module.
 
     Returns:
-        Stripped version text, or ``unknown`` when no non-empty file is found.
+        Stripped product version text.
+
+    Raises:
+        ValueError: If no non-empty ``VERSION`` file exists in the ancestor path.
     """
     current = start if start is not None else Path(__file__).resolve()
     cursor = current.parent if current.is_file() else current
@@ -50,7 +57,7 @@ def read_product_version(start: Path | None = None) -> str:
         text = candidate.read_text(encoding="utf-8").strip()
         if text:
             return text
-    return "unknown"
+    raise ValueError("Product VERSION file is missing or empty")
 
 
 def build_case_report(
@@ -76,6 +83,10 @@ def build_case_report(
 
     Returns:
         A report that ``parse_case_report`` will accept.
+
+    Raises:
+        ValueError: If required report evidence is invalid or the default product
+            ``VERSION`` cannot be resolved.
     """
     report: AccuracyCaseReport = {
         "case_id": case_id,
