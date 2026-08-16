@@ -23,3 +23,17 @@ def test_slice_stems_rejects_non_finite_sample_rate(sample_rate: float) -> None:
     )
 
     assert result["bass"].size == 0
+
+
+def test_slice_stems_rejects_finite_rate_when_scaled_indices_overflow() -> None:
+    """Finite inputs whose sample-index product overflows must still fail closed."""
+    audio = np.ones(16, dtype=np.float64)
+
+    result = slice_stems_to_window(
+        {"bass": audio},
+        10.0,
+        11.0,
+        cast(Any, 1e308),
+    )
+
+    assert result["bass"].size == 0
