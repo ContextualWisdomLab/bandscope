@@ -14,6 +14,7 @@
 ### Fixed
 
 - Corrected the HMM relative-key transition prior so major chords favor their true relative minor and minor chords favor their true relative major instead of unrelated pitch-class targets.
+- Neutralize non-finite chromagram, similarity, and RMS metadata in the chord observation path so corrupt DSP frames stay finite and do not get treated as silence.
 
 ## [0.1.3] - 2026-04-29
 

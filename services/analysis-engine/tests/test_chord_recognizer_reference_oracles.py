@@ -23,16 +23,25 @@ def _scalar_observation_oracle(
     for frame_index in range(frame_count):
         if frame_index < similarity_frame_count:
             frame_similarity = similarity[:, frame_index]
-            shifted = frame_similarity - np.max(frame_similarity)
-            exponentiated = np.exp(shifted * 2.0)
-            chord_probabilities = exponentiated / (np.sum(exponentiated) + 1e-12)
-            maximum_similarity = float(np.max(frame_similarity))
+            if np.all(np.isfinite(frame_similarity)):
+                shifted = frame_similarity - np.max(frame_similarity)
+                exponentiated = np.exp(shifted * 2.0)
+                chord_probabilities = exponentiated / (np.sum(exponentiated) + 1e-12)
+                maximum_similarity = float(np.max(frame_similarity))
+            else:
+                chord_probabilities = np.full(24, 1.0 / 24.0)
+                maximum_similarity = 1.0
         else:
             chord_probabilities = np.full(24, 1.0 / 24.0)
             maximum_similarity = 1.0
 
-        rms_value = float(rms[frame_index]) if frame_index < len(rms) else 1.0
+        if frame_index < len(rms) and np.isfinite(rms[frame_index]):
+            rms_value = float(rms[frame_index])
+        else:
+            rms_value = 1.0
         chroma_variance = float(np.var(chromagram[:, frame_index]))
+        if not np.isfinite(chroma_variance):
+            chroma_variance = 1.0
         no_chord = maximum_similarity < 0.3 or rms_value < 0.01 or chroma_variance < 0.02
         if no_chord:
             chord_probabilities = chord_probabilities * 0.1
@@ -110,6 +119,25 @@ def test_vectorized_observations_match_scalar_oracle_across_length_mismatches(
     if similarity_frame_count < frame_count:
         padded = actual[:24, similarity_frame_count:]
         assert np.allclose(padded, padded[0:1, :])
+
+
+def test_vectorized_observations_match_scalar_oracle_for_non_finite_metadata() -> None:
+    """Corrupt DSP metadata must stay finite, normalized, and oracle-aligned."""
+    recognizer = ChordRecognizer()
+    chromagram = np.ones((12, 3), dtype=float)
+    chromagram[0, 1] = np.nan
+    similarity = _frame_distinguishable_similarity(3)
+    similarity[5, 1] = np.inf
+    rms = np.array([0.8, np.nan, -np.inf], dtype=float)
+
+    actual = recognizer._build_observation_probs(chromagram, similarity, rms)
+    expected = _scalar_observation_oracle(chromagram, similarity, rms)
+
+    assert np.all(np.isfinite(actual))
+    assert np.allclose(actual.sum(axis=0), 1.0)
+    assert np.allclose(actual, expected)
+    assert np.allclose(actual[:24, 1], actual[0, 1])
+    assert actual[24, 1] < actual[:24, 1].sum()
 
 
 def test_no_chord_evidence_and_missing_metadata_remain_distinguishable() -> None:
