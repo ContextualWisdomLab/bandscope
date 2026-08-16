@@ -48,6 +48,32 @@ describe("analysis bridge", () => {
     });
   });
 
+  it("rejects an oversized native YouTube import before it becomes project state", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
+      projectId: "native-youtube-project",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/native-youtube-project",
+      cacheRoot: "/tmp/bandscope/cache/native-youtube-project",
+      tempRoot: "/tmp/bandscope/temp/native-youtube-project",
+      source: {
+        sourcePath: "/tmp/bandscope/temp/native-youtube-project/youtube.wav",
+        fileName: "youtube.wav",
+        extension: "wav",
+        fileSizeBytes: MAX_LOCAL_AUDIO_FILE_BYTES + 1
+      }
+    });
+
+    const selection = await importYoutubeUrl("https://youtu.be/4ozX4yFUC34");
+
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Selected audio file exceeds the 100 MiB analysis limit."
+      }
+    });
+  });
+
   it("imports a standard YouTube URL through the browser fallback when Tauri is absent", async () => {
     const selection = await importYoutubeUrl("https://www.youtube.com/watch?v=4ozX4yFUC34");
 
