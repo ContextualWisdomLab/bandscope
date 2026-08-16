@@ -4,6 +4,7 @@ import {
   createNaruonRehearsalHandoff,
   deserializeNaruonRehearsalHandoff,
   parseNaruonRehearsalHandoff,
+  serializeNaruonRehearsalHandoff,
   validateNaruonRehearsalHandoff,
   type CreateNaruonRehearsalHandoffInput
 } from "../src/naruon";
@@ -132,6 +133,21 @@ describe("naruon handoff boundary hardening", () => {
     );
     expect(validateNaruonRehearsalHandoff(artifact(input))).toBe(
       "provenance.evidence is invalid"
+    );
+  });
+
+  it("rejects handoffs whose canonical UTF-8 serialization exceeds the wire limit", () => {
+    const input = validInput();
+    input.provenance.evidence = Array.from(
+      { length: MAX_NARUON_EVIDENCE_RECEIPTS },
+      (_, index) => ({ field: `field-${index}`, value: "界".repeat(2_048) })
+    );
+    const value = artifact(input);
+
+    expect(validateNaruonRehearsalHandoff(value)).toBe("serialized handoff is oversized");
+    expect(() => parseNaruonRehearsalHandoff(value)).toThrow("serialized handoff is oversized");
+    expect(() => serializeNaruonRehearsalHandoff(value)).toThrow(
+      "serialized handoff is oversized"
     );
   });
 
