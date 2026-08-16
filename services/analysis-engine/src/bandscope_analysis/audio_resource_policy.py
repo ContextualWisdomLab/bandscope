@@ -12,6 +12,8 @@ Security Notes:
 - Decoded audio is revalidated because container metadata and decoder behavior
   are untrusted; accepted artifacts are finite, mono, at the configured sample
   rate, and within the configured decoded-sample budget.
+- Decoders receive a one-sample-over-budget probe duration so a longer source is
+  rejected instead of being silently truncated to the accepted duration.
 - Validation errors are payload-free and never include source paths or audio
   content.
 """
@@ -19,6 +21,7 @@ Security Notes:
 from __future__ import annotations
 
 import math
+import sys
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -69,11 +72,19 @@ class AudioResourcePolicy:
             or float(self.max_duration_seconds) <= 0.0
         ):
             raise ValueError(_POLICY_ERROR)
+        decoded_samples = self.target_sample_rate * float(self.max_duration_seconds)
+        if not math.isfinite(decoded_samples) or decoded_samples < 1.0 or decoded_samples > sys.maxsize - 1:
+            raise ValueError(_POLICY_ERROR)
 
     @property
     def max_decoded_samples(self) -> int:
         """Return the maximum mono sample count allowed after decoding."""
         return int(self.target_sample_rate * float(self.max_duration_seconds))
+
+    @property
+    def decode_probe_duration_seconds(self) -> float:
+        """Return a bounded decoder duration that includes one rejection probe sample."""
+        return (self.max_decoded_samples + 1) / self.target_sample_rate
 
     def validate_encoded_file_bytes(self, file_size: object) -> int:
         """Validate an authoritative encoded file size before decoding.
