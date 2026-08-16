@@ -12,6 +12,8 @@ A pathname is not merely a string on Windows. Universal Naming Convention (UNC) 
 
 The CLI consequently rejects pathname strings beginning with two backslashes or two forward slashes **before any filesystem metadata lookup**. This catches ordinary UNC forms, extended UNC forms such as `\\?\UNC\server\share`, and device namespace forms such as `\\.\pipe\...`, while making the same explicit-input contract deterministic across hosts.
 
+Reserved Win32 device aliases are also classified before metadata lookup. Device-name comparison strips the leading ASCII space that Win32 can normalize away during file/folder creation, then applies the already-established trailing ASCII-space/period, extension, alternate-stream, and case normalization. This prevents forms such as ` NUL`, ` NUL.txt`, ` COM1 .log`, and ` AUX:` from bypassing the lexical authority boundary merely because a caller prepended an ASCII space (Microsoft, n.d.-b).
+
 ## Descriptor-bound local-file validation
 
 For a pathname that passes the lexical namespace boundary, the CLI uses this sequence:
@@ -30,6 +32,8 @@ Python documents `os.fstat()` as descriptor-based status inspection, `os.lstat()
 The original regression test landed before the namespace repair. It supplies ordinary UNC, forward-slash UNC, extended UNC, and named-pipe device paths while replacing `os.lstat()` with a sentinel that fails if any filesystem lookup is attempted. Exact-head release preflight on that RED commit failed in harness verification, establishing that the previous implementation reached the filesystem lookup. The production repair then moved namespace rejection ahead of `os.lstat()`.
 
 A second regression-first cycle covers the `lstat()`-to-`open()` availability race. The test captures the exact descriptor flags used by `_read_bounded_job_file()` while preserving normal regular-file I/O and requires `O_NONBLOCK` whenever the host exposes it. The test-only predecessor head failed on that assertion, proving that close-on-exec/no-follow alone did not prevent a substituted FIFO/device from turning descriptor acquisition into a wait. The production repair adds only the nonblocking descriptor flag; `fstat()` regular-file and identity checks remain unchanged.
+
+A third regression-first cycle covers Win32 leading-space normalization. The RED test replaces `os.lstat()` with a sentinel and supplies leading-space reserved aliases; therefore any failure to classify the alias lexically is observable as an attempted filesystem lookup. The production repair changes only the reserved-device normalization step by removing leading ASCII spaces before device-name comparison. It does not broadly trim arbitrary leading periods or Unicode whitespace and therefore does not widen the lexical policy beyond the documented Win32 normalization boundary.
 
 Commercial merge evidence still requires the final exact head to pass repository CI/release/build-baseline, owned statement and branch coverage, docstring, SAST, security, SBOM/supply-chain, and qualifying independent non-author review gates. Protected-base dependency failures owned by canonical PR #783 are not suppressed or treated as leaf-branch success.
 
