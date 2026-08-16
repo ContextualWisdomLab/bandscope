@@ -90,19 +90,6 @@ Every bootstrap, PR, or release report that claims this baseline is enforced mus
 - any failed command or GitHub API call when enforcement could not be completed
 - any remaining manual review item that still needs repository-admin action
 
-## Named dependency-path authority
-
-`scripts/checks/verify_supply_chain.py` treats a Cargo owner chain as a
-*simple path*: a package key may appear at most once on a candidate walk
-(Cormen et al., 2022, Appendix B.4). A shared
-`(package_key, matched_count)` cache is not an equivalent optimization.
-On a cycle such as `root → alpha@1 → beta → alpha@1 → charlie`, that cache
-can reuse `alpha@1` to satisfy a second `alpha` position and falsely accept
-the chain. Distinct keys that share a name (`alpha@1` then `alpha@2`) remain
-valid. Do not reintroduce a global state cache to save `frozenset` copies.
-Keep cycle and distinct-key regressions in
-`services/analysis-engine/tests/test_supply_chain_dependency_path_cycles.py`.
-
 ## Vulnerability exception handling
 
 Exceptions are allowed only when no patched version exists and the advisory is non-exploitable for this repository context.
@@ -151,7 +138,3 @@ Mark work as `BLOCKED` only when platform execution is impossible because GitHub
 ## Fast reference
 
 `모든 보호 브랜치 변경은 dependency review, 보안 점검, SBOM 생성·검증을 통과해야 하며, release 산출물은 GitHub에서 추적 가능한 SBOM과 함께 배포되고, 이 공급망 통제는 에이전트가 임의로 해제하지 않는다.`
-
-## References
-
-Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to algorithms* (4th ed.). MIT Press.
