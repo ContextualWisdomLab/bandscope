@@ -71,7 +71,7 @@ describe("collectStemLanes", () => {
               simplification: "roots",
               setupNote: "short",
               manualOverrides: [],
-              overlapWarnings: ["Watch the kick"]
+              overlapWarnings: ["Density warning: keys", "   ", "Watch the kick"]
             }
           ],
           partGraph: []
@@ -130,7 +130,7 @@ describe("collectStemLanes", () => {
       {
         ...firstSection.roles[0],
         id: "wide-role",
-        range: { lowestNote: "B2", highestNote: "B3" }
+        range: { lowestNote: "B♭2", highestNote: "B3" }
       }
     ];
     secondSection.id = "chorus-1";
@@ -139,14 +139,53 @@ describe("collectStemLanes", () => {
       {
         ...secondSection.roles[0],
         id: "wide-role",
-        range: { lowestNote: "C2", highestNote: "C4" }
+        range: { lowestNote: "C#2", highestNote: "C4" }
       }
     ];
     song.sections = [firstSection, secondSection];
 
     const lane = collectStemLanes(song)[0];
-    expect(lane.lowestNote).toBe("C2");
+    expect(lane.lowestNote).toBe("C#2");
     expect(lane.highestNote).toBe("C4");
+  });
+
+  it("adopts later valid range evidence and ignores later malformed notes", () => {
+    const song = createDemoRehearsalSong();
+    const firstSection = structuredClone(song.sections[0]);
+    const secondSection = structuredClone(song.sections[0]);
+    const thirdSection = structuredClone(song.sections[0]);
+    firstSection.id = "verse-1";
+    firstSection.label = "verse";
+    firstSection.roles = [
+      {
+        ...firstSection.roles[0],
+        id: "recoverable-role",
+        range: { lowestNote: "", highestNote: "" }
+      }
+    ];
+    secondSection.id = "chorus-1";
+    secondSection.label = "chorus";
+    secondSection.roles = [
+      {
+        ...secondSection.roles[0],
+        id: "recoverable-role",
+        range: { lowestNote: "C#2", highestNote: "E3" }
+      }
+    ];
+    thirdSection.id = "bridge-1";
+    thirdSection.label = "bridge";
+    thirdSection.roles = [
+      {
+        ...thirdSection.roles[0],
+        id: "recoverable-role",
+        range: { lowestNote: "not-a-note", highestNote: "also-not-a-note" }
+      }
+    ];
+    song.sections = [firstSection, secondSection, thirdSection];
+
+    const lane = collectStemLanes(song)[0];
+    expect(lane.lowestNote).toBe("C#2");
+    expect(lane.highestNote).toBe("E3");
   });
 
   it("falls back to the role id when the display name is blank", () => {
