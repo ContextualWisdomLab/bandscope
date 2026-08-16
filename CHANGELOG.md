@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Removed the browser-only synthetic analysis workspace and timed fake success path. Analysis mutations now require the native Tauri runtime; browser-only execution fails closed instead of manufacturing `ready` rehearsal results.
+- Removed the browser-only synthetic analysis workspace and timed fake success path. Analysis execution and project-save mutations now require the native Tauri runtime; browser-only execution fails closed instead of manufacturing `ready` rehearsal results or silently reporting an unpersisted save as successful.
 
 ## [0.1.3] - 2026-04-29
 
@@ -68,5 +68,5 @@
 ### 추가됨 (Added)
 
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
-- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
+- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트(Role)의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
 - 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
