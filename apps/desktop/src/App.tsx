@@ -572,8 +572,12 @@ export function App() {
 
   /** Documented. */
   const handleSaveProject = async () => {
+    if (isLoadingProject || !jobResult) {
+      return;
+    }
+
     try {
-      await saveProject(jobResult!);
+      await saveProject(jobResult);
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
