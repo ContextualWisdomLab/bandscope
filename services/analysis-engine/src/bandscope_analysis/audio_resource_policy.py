@@ -63,6 +63,7 @@ class AudioResourcePolicy:
             isinstance(self.target_sample_rate, bool)
             or not isinstance(self.target_sample_rate, int)
             or self.target_sample_rate <= 0
+            or self.target_sample_rate > sys.maxsize - 1
         ):
             raise ValueError(_POLICY_ERROR)
         if (
