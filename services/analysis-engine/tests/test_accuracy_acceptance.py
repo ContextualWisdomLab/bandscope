@@ -206,6 +206,25 @@ def test_duration_weighted_recall_unions_overlapping_matching_estimates() -> Non
     assert recall == pytest.approx(0.8)
 
 
+@pytest.mark.parametrize(
+    ("segments", "start_seconds", "end_seconds"),
+    [
+        ([(np.nan, 2.0, "C")], 0.0, 4.0),
+        ([(0.0, np.inf, "C")], 0.0, 4.0),
+        ([(0.0, 2.0, "C")], np.nan, 4.0),
+        ([(0.0, 2.0, "C")], 0.0, np.inf),
+    ],
+)
+def test_duration_weighted_recall_rejects_non_finite_timing(
+    segments: list[tuple[float, float, str]],
+    start_seconds: float,
+    end_seconds: float,
+) -> None:
+    """Non-finite estimate or annotation times must not fabricate recall."""
+    with pytest.raises(ValueError, match="finite"):
+        duration_weighted_chord_recall(segments, "C", start_seconds, end_seconds)
+
+
 def test_tempo_acc1_window_and_guards() -> None:
     """Acc1 must accept a 4% window and reject octave errors and bad inputs."""
     assert tempo_acc1(120.0, 120.0) is True
