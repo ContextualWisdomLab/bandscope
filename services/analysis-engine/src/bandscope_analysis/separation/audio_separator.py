@@ -9,6 +9,9 @@ consume.
 Security Notes:
 - Treats the selected audio file as untrusted input: the path is normalized and
   verified to be a file, and a maximum byte size is enforced before decode.
+- Decoded audio is revalidated against the same versioned resource policy before
+  Demucs/model work so overlong, malformed, or non-finite decoder output fails
+  closed instead of being silently truncated or normalized.
 - Inference runs locally on CPU with no network access. The model weights are
   loaded from the local Demucs cache or a configured bundled path; offline
   weight bundling is tracked in the supplemental component inventory.
@@ -31,9 +34,12 @@ from typing import Any, cast
 import librosa
 import numpy as np
 
+from bandscope_analysis.audio_resource_policy import (
+    DEFAULT_MAX_DURATION_SECONDS,
+    AudioResourcePolicy,
+)
 from bandscope_analysis.temporal.analyzer import (
     KNOWN_LIBROSA_NUMBA_WARNING_FILTERS,
-    MAX_ANALYSIS_DURATION_SECONDS,
     MAX_AUDIO_FILE_BYTES,
     TARGET_SR,
 )
@@ -63,7 +69,7 @@ class AudioSeparationConfig:
 
     target_sample_rate: int = TARGET_SR
     max_file_bytes: int = MAX_AUDIO_FILE_BYTES
-    max_duration_seconds: float = float(MAX_ANALYSIS_DURATION_SECONDS)
+    max_duration_seconds: float = float(DEFAULT_MAX_DURATION_SECONDS)
     model_name: str = "htdemucs"
     device: str = "cpu"
     # Demucs splits long audio into overlapping segments internally, bounding
@@ -75,8 +81,13 @@ class AudioStemSeparator:
     """Split a selected local mix into canonical stems for downstream analysis."""
 
     def __init__(self, config: AudioSeparationConfig | None = None) -> None:
-        """Initialize the local stem separator (model is loaded lazily)."""
+        """Initialize the local stem separator and its canonical resource policy."""
         self.config = config or AudioSeparationConfig()
+        self.resource_policy = AudioResourcePolicy(
+            max_encoded_file_bytes=self.config.max_file_bytes,
+            target_sample_rate=self.config.target_sample_rate,
+            max_duration_seconds=self.config.max_duration_seconds,
+        )
         self._model: Any = None
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
@@ -190,15 +201,16 @@ class AudioStemSeparator:
         return path
 
     def _load_audio(self, path: Path) -> tuple[AudioStemArray, int]:
-        """Load bounded mono audio without logging or exposing the full source path."""
+        """Load and revalidate bounded mono audio before model inference."""
         try:
             with path.open("rb") as fileobj:
                 file_size = os.fstat(fileobj.fileno()).st_size
-                if file_size > self.config.max_file_bytes:
-                    raise ValueError(
-                        "Audio file is too large for stem separation: "
-                        f"{file_size} bytes (max {self.config.max_file_bytes} bytes)"
-                    )
+                if file_size <= 0:
+                    raise ValueError(f"Stem separation decode failed for {path.name}")
+                try:
+                    self.resource_policy.validate_encoded_file_bytes(file_size)
+                except ValueError as error:
+                    raise ValueError("Audio file is too large for stem separation") from error
 
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
@@ -214,16 +226,19 @@ class AudioStemSeparator:
                         )
                     y, sr = librosa.load(
                         fileobj,
-                        sr=self.config.target_sample_rate,
+                        sr=self.resource_policy.target_sample_rate,
                         mono=True,
-                        duration=self.config.max_duration_seconds,
+                        duration=self.resource_policy.decode_probe_duration_seconds,
                     )
         except ValueError:
             raise
         except Exception as error:
             raise ValueError(f"Stem separation decode failed for {path.name}") from error
 
-        return _as_float_array(y), int(sr)
+        if isinstance(y, np.ndarray) and y.size == 0:
+            raise ValueError(f"Stem separation decode failed for {path.name}")
+        validated_audio = self.resource_policy.validate_decoded_audio(y, sr)
+        return _as_float_array(validated_audio), int(sr)
 
     def _fit_length(self, audio: AudioStemArray, target_length: int) -> AudioStemArray:
         """Trim or pad a stem to match the source length exactly."""
