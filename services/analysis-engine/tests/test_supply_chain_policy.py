@@ -5080,6 +5080,7 @@ def test_opencode_uses_nvidia_nim_only() -> None:
     opencode_config = json.loads(opencode_text)
 
     assert opencode_config["model"] == "nvidia-nim/nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    assert opencode_config["small_model"] == "nvidia-nim/meta/llama-3.3-70b-instruct"
     assert opencode_config["enabled_providers"] == ["nvidia-nim"]
     assert set(opencode_config["provider"]) == {"nvidia-nim"}
 
@@ -5087,12 +5088,15 @@ def test_opencode_uses_nvidia_nim_only() -> None:
     assert nim_provider["options"]["baseURL"] == "https://integrate.api.nvidia.com/v1"
     assert nim_provider["options"]["apiKey"] == "{env:NVIDIA_API_KEY}"
     assert "nvidia/llama-3.3-nemotron-super-49b-v1.5" in nim_provider["models"]
+    assert "meta/llama-3.3-70b-instruct" in nim_provider["models"]
 
     leftover_tokens = (
         "github-models",
         "STRIX_GITHUB_MODELS_TOKEN",
         "COPILOT_GITHUB_TOKEN",
         "openai/gpt-5",
+        "openai/o3",
+        "openai/o4-mini",
         "models.github.ai",
     )
     for leftover in leftover_tokens:
