@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Reject malformed plain-array PDF bridge responses and snapshot attach metadata, array length, and every returned PDF byte during the same authoritative reads or into fresh owned buffers, preventing coercion, accessor-driven changes, or later bridge-side mutation from changing validated results.
+- Reject malformed or oversized PDF bridge responses before allocation/copy, enforcing the desktop bridge's 25 MiB PDF cap while snapshotting attach metadata, array length, and every returned PDF byte during authoritative reads or into fresh owned buffers so coercion, accessor-driven changes, or later bridge-side mutation cannot change validated results.
 
 ## [0.1.3] - 2026-04-29
 
