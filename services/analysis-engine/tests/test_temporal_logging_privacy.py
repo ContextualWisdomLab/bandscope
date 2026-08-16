@@ -19,9 +19,7 @@ def test_temporal_failure_logs_do_not_expose_path_or_dependency_detail(
 
     test_wav = tmp_path / "Alice-session.wav"
     test_wav.write_bytes(b"dummy")
-    sensitive_detail = (
-        "decoder failed for /private/customer/Alice/session.wav token=super-secret"
-    )
+    sensitive_detail = "decoder failed for /private/customer/Alice/session.wav token=super-secret"
 
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
         raise RuntimeError(sensitive_detail)
