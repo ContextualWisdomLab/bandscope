@@ -185,6 +185,17 @@ def test_duration_weighted_recall_covers_overlap_and_misses() -> None:
         duration_weighted_chord_recall([], "C", 1.0, 1.0)
 
 
+def test_duration_weighted_recall_unions_overlapping_matching_estimates() -> None:
+    """Overlapping matching estimates must not count annotation time twice."""
+    recall = duration_weighted_chord_recall(
+        [(0.0, 2.0, "C"), (1.0, 3.0, "C"), (4.0, 5.0, "C")],
+        "C",
+        0.0,
+        5.0,
+    )
+    assert recall == pytest.approx(0.8)
+
+
 def test_tempo_acc1_window_and_guards() -> None:
     """Acc1 must accept a 4% window and reject octave errors and bad inputs."""
     assert tempo_acc1(120.0, 120.0) is True
