@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const invokeMock = vi.fn();
-
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: invokeMock,
+  invoke: vi.fn(),
   isTauri: vi.fn(() => true),
 }));
 
@@ -11,7 +9,10 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(),
 }));
 
+import { invoke } from "@tauri-apps/api/core";
 import { getWorkspaceState } from "./job_runner";
+
+const invokeMock = vi.mocked(invoke);
 
 describe("workspace diagnostic privacy boundary", () => {
   beforeEach(() => {
