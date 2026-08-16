@@ -195,8 +195,9 @@ def slice_stems_to_window(
 
     Returns:
         A new stem dict cropped to the window. Invalid windows, non-finite or
-        non-positive sample rates, or non-array values become empty arrays so
-        later FFT work fails closed instead of using the whole song by accident.
+        non-positive sample rates, non-finite scaled sample positions, or
+        non-array values become empty arrays so later FFT work fails closed
+        instead of using the whole song by accident.
     """
     empty = np.array([], dtype=np.float64)
     if (
@@ -208,8 +209,13 @@ def slice_stems_to_window(
     ):
         return {name: empty.copy() for name in stems}
 
-    start_sample = max(0, int(start_sec * sr))
-    end_sample = max(0, int(end_sec * sr))
+    start_position = start_sec * sr
+    end_position = end_sec * sr
+    if not np.isfinite(start_position) or not np.isfinite(end_position):
+        return {name: empty.copy() for name in stems}
+
+    start_sample = max(0, int(start_position))
+    end_sample = max(0, int(end_position))
     if end_sample <= start_sample:
         return {name: empty.copy() for name in stems}
 
