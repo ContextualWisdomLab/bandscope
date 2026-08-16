@@ -2,6 +2,7 @@
 
 import importlib
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,6 +12,9 @@ from bandscope_analysis.audio_resource_policy import DEFAULT_MAX_ENCODED_FILE_BY
 from bandscope_analysis.youtube import (
     MAX_YOUTUBE_URL_LENGTH,
     YOUTUBE_SIZE_EXCEEDED_MESSAGE,
+    _owned_file_path,
+    _remove_download_artifacts,
+    _remove_owned_file,
     download_youtube_audio,
     validate_url,
 )
@@ -459,6 +463,129 @@ def test_download_youtube_audio_progress_hook_aborts_over_budget(
     assert result["ok"] is False
     assert result["error"]["code"] == "size_exceeded"
     assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_progress_hook_deletes_partial_artifacts(
+    mock_ydl_class: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """In-flight abort must delete written partials so they cannot fill the cache."""
+    out_dir = tmp_path / "import-cache"
+    out_dir.mkdir()
+    outsider = tmp_path / "unrelated-youtube-partial.part"
+    partial = out_dir / "abc123DEF45.m4a.part"
+    fragment = out_dir / "abc123DEF45.m4a-Frag1"
+    control = out_dir / "abc123DEF45.m4a.ytdl"
+    keep = out_dir / "keep-me.txt"
+    partial.write_bytes(b"partial-cache-bytes")
+    fragment.write_bytes(b"hls-fragment-bytes")
+    control.write_bytes(b"ytdl-control-bytes")
+    keep.write_bytes(b"unrelated-cache-note")
+    outsider.write_bytes(b"must-not-delete")
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+
+    def extract_info(_url: str, download: bool = False) -> dict[str, object]:
+        """Abort after yt-dlp has already written the current block to disk."""
+        if download:
+            hook = mock_ydl_class.call_args[0][0]["progress_hooks"][0]
+            hook(
+                {
+                    "status": "downloading",
+                    "downloaded_bytes": DEFAULT_MAX_ENCODED_FILE_BYTES + 1,
+                    "tmpfilename": str(partial),
+                    "filename": str(out_dir / "abc123DEF45.m4a"),
+                }
+            )
+        return {"id": "abc123DEF45", "duration": 60}
+
+    mock_ydl.extract_info.side_effect = extract_info
+
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        str(out_dir),
+    )
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "size_exceeded"
+    assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
+    assert not partial.exists()
+    assert not fragment.exists()
+    assert not control.exists()
+    assert keep.exists()
+    assert outsider.exists()
+
+
+def test_owned_file_path_rejects_empty_foreign_and_unresolvable_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Abort cleanup must not follow empty, escaped, or unresolvable paths."""
+    out_dir = tmp_path / "import-cache"
+    out_dir.mkdir()
+    escaped = tmp_path / "outside.part"
+    escaped.write_bytes(b"keep")
+
+    assert _owned_file_path(None, str(out_dir)) is None
+    assert _owned_file_path("", str(out_dir)) is None
+    assert _owned_file_path(str(out_dir), str(out_dir)) is None
+    assert _owned_file_path(str(escaped), str(out_dir)) is None
+
+    def boom(_path: str) -> str:
+        """Simulate a filesystem error while resolving a candidate path."""
+        raise OSError("realpath failed")
+
+    monkeypatch.setattr("bandscope_analysis.youtube.os.path.realpath", boom)
+    assert _owned_file_path(str(out_dir / "clip.part"), str(out_dir)) is None
+
+
+def test_remove_owned_file_ignores_missing_directories_and_remove_races(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Owned cleanup skips non-files and treats remove races as already gone."""
+    out_dir = tmp_path / "import-cache"
+    nested = out_dir / "nested-dir"
+    nested.mkdir(parents=True)
+    _remove_owned_file(None, str(out_dir))
+    _remove_owned_file(str(nested), str(out_dir))
+    assert nested.is_dir()
+
+    target = out_dir / "clip.part"
+    target.write_bytes(b"partial")
+
+    def boom(_path: str) -> None:
+        """Simulate a disappearing file during abort cleanup."""
+        raise OSError("remove failed")
+
+    monkeypatch.setattr("bandscope_analysis.youtube.os.remove", boom)
+    _remove_owned_file(str(target), str(out_dir))
+    assert target.exists()
+
+
+def test_remove_download_artifacts_skips_empty_status_and_unlistable_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Artifact sweep no-ops when yt-dlp omitted paths or the cache vanished."""
+    out_dir = tmp_path / "import-cache"
+    out_dir.mkdir()
+    leftover = out_dir / "other-file.txt"
+    leftover.write_bytes(b"keep")
+    _remove_download_artifacts({"tmpfilename": None, "filename": 12}, str(out_dir))
+    assert leftover.exists()
+
+    partial = out_dir / "abc123DEF45.m4a.part"
+    partial.write_bytes(b"partial")
+
+    def boom(_path: str) -> list[str]:
+        """Simulate the import cache disappearing after the first delete."""
+        raise OSError("listdir failed")
+
+    monkeypatch.setattr("bandscope_analysis.youtube.os.listdir", boom)
+    _remove_download_artifacts({"tmpfilename": str(partial)}, str(out_dir))
+    assert leftover.exists()
 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")

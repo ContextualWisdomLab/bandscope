@@ -17,7 +17,7 @@ The current Python policy accepts at most 100 MiB of encoded local-audio input a
 
 ## Residual risk and follow-up
 
-This policy now bounds Python decode/model entry, native local-file bootstrap, and YouTube download/bootstrap encoded-byte admission. Remaining #781 work is source channel/rate metadata contracts, decoded-memory estimates, CPU/GPU admission budgets, cancellation/resource measurements, and whole-product CPU/GPU parity evidence. Do not treat a post-download-only size check as sufficient: in-flight abort must stay in place so an unknown-size transfer cannot fill the cache root.
+This policy now bounds Python decode/model entry, native local-file bootstrap, and YouTube download/bootstrap encoded-byte admission. In-flight abort also deletes owned `.part`, `.ytdl`, and `-Frag*` siblings that stay inside that import's output directory; paths that escape the directory are ignored. Remaining #781 work is source channel/rate metadata contracts, decoded-memory estimates, CPU/GPU admission budgets, cancellation/resource measurements, and whole-product CPU/GPU parity evidence. Do not treat a post-download-only size check as sufficient: in-flight abort and owned-partial deletion must stay in place so an unknown-size transfer cannot fill the cache root.
 
 ## References
 

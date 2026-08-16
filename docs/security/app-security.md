@@ -149,7 +149,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Validate scheme, host, path, and query before any fetch or handoff.
 - Do not widen URL intake into a generic remote downloader.
 - Sanitize remote metadata before display.
-- Apply the same canonical 100 MiB encoded-byte ceiling during YouTube download as local-file intake. Abort with yt-dlp `max_filesize` and a progress hook; do not keep a divergent post-download-only 50 MB limit that lets a large transfer fill the cache root first.
+- Apply the same canonical 100 MiB encoded-byte ceiling during YouTube download as local-file intake. Abort with yt-dlp `max_filesize` and a progress hook, then delete owned `.part` / `.ytdl` / `-Frag*` siblings that stay inside that import directory. Do not keep a divergent post-download-only 50 MB limit that lets a large transfer fill the cache root first.
 - Revalidate the filesystem-observed downloaded length before storing bootstrap state. Treat announced `filesize` / `filesize_approx` as a pre-download hint only.
 
 ### Subprocesses and native tools

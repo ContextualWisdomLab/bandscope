@@ -12,6 +12,9 @@ Security Notes:
       ceiling reject the import before ``download=True``.
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
       download; oversize artifacts are deleted.
+    - In-flight abort deletes owned ``tmpfilename`` / ``filename`` siblings
+      (``.part``, ``.ytdl``, ``-Frag*``) that stay inside this import's
+      ``out_dir``. Paths that escape the directory are ignored.
     - Validation errors are payload-free and never include source paths, URLs,
       cookies, or audio content.
 """
@@ -153,11 +156,84 @@ def _reject_announced_oversize(info: dict[str, Any]) -> Dict[str, Any] | None:
     return None
 
 
-def _abort_over_budget_download(status: dict[str, Any]) -> None:
+def _owned_file_path(path: object, out_dir: str) -> str | None:
+    """Return a real path only when it stays inside this import's output directory.
+
+    Args:
+        path: Candidate filesystem path from yt-dlp status or sibling lookup.
+        out_dir: Directory passed to this import call.
+
+    Returns:
+        The resolved file path, or ``None`` when the value is unsafe or foreign.
+    """
+    if not isinstance(path, str) or path == "":
+        return None
+    try:
+        resolved = os.path.realpath(path)
+        root = os.path.realpath(out_dir)
+    except OSError:
+        return None
+    if resolved == root or not resolved.startswith(root + os.sep):
+        return None
+    return resolved
+
+
+def _remove_owned_file(path: object, out_dir: str) -> None:
+    """Delete one owned regular file, ignoring missing-path races.
+
+    Args:
+        path: Candidate path that must resolve inside ``out_dir``.
+        out_dir: Directory passed to this import call.
+    """
+    owned = _owned_file_path(path, out_dir)
+    if owned is None:
+        return
+    try:
+        if os.path.isfile(owned):
+            os.remove(owned)
+    except OSError:
+        return
+
+
+def _remove_download_artifacts(status: dict[str, Any], out_dir: str) -> None:
+    """Delete the current download's partial, fragment, and control files.
+
+    Args:
+        status: yt-dlp progress-hook payload that may name ``tmpfilename``
+            and ``filename``.
+        out_dir: Directory passed to this import call.
+    """
+    stems: set[str] = set()
+    for key in ("tmpfilename", "filename"):
+        owned = _owned_file_path(status.get(key), out_dir)
+        if owned is None:
+            continue
+        _remove_owned_file(owned, out_dir)
+        name = os.path.basename(owned)
+        if name.endswith(".part"):
+            name = name[: -len(".part")]
+        stems.add(name)
+    if not stems:
+        return
+    try:
+        entries = os.listdir(out_dir)
+    except OSError:
+        return
+    for entry in entries:
+        matches_stem = any(
+            entry == stem or entry.startswith(f"{stem}.") or entry.startswith(f"{stem}-")
+            for stem in stems
+        )
+        if matches_stem:
+            _remove_owned_file(os.path.join(out_dir, entry), out_dir)
+
+
+def _abort_over_budget_download(status: dict[str, Any], out_dir: str) -> None:
     """Abort an in-flight download once encoded bytes exceed the policy ceiling.
 
     Args:
         status: yt-dlp progress-hook payload. Unknown statuses are ignored.
+        out_dir: Directory passed to this import call, used to delete partials.
     """
     if status.get("status") not in {"downloading", "finished"}:
         return
@@ -166,7 +242,29 @@ def _abort_over_budget_download(status: dict[str, Any]) -> None:
         if isinstance(candidate, bool) or not isinstance(candidate, int):
             continue
         if candidate > DEFAULT_MAX_ENCODED_FILE_BYTES:
+            _remove_download_artifacts(status, out_dir)
             raise YoutubeResourceLimitError("size_exceeded", YOUTUBE_SIZE_EXCEEDED_MESSAGE)
+
+
+def _make_abort_hook(out_dir: str) -> Any:
+    """Bind the in-flight abort hook to one import output directory.
+
+    Args:
+        out_dir: Directory passed to this import call.
+
+    Returns:
+        A yt-dlp progress hook that aborts and deletes owned partials.
+    """
+
+    def _bound_abort_over_budget_download(status: dict[str, Any]) -> None:
+        """Abort and delete owned partials for this import directory.
+
+        Args:
+            status: yt-dlp progress-hook payload.
+        """
+        _abort_over_budget_download(status, out_dir)
+
+    return _bound_abort_over_budget_download
 
 
 def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
@@ -230,7 +328,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
         "postprocessors": [{"key": "FFmpegExtractAudio"}],
         "geo_bypass": False,
         "max_filesize": DEFAULT_MAX_ENCODED_FILE_BYTES,
-        "progress_hooks": [_abort_over_budget_download],
+        "progress_hooks": [_make_abort_hook(out_dir)],
     }
 
     try:
