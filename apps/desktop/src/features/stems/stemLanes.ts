@@ -64,13 +64,14 @@ export function collectStemLanes(song: RehearsalSong): StemLane[] {
     for (const role of section.roles) {
       const existing = lanes.get(role.id);
       if (!existing) {
+        const sectionLabel = section.label.trim();
         lanes.set(role.id, {
           roleId: role.id,
           roleName: role.name.trim(),
           roleType: role.roleType,
           lowestNote: role.range.lowestNote,
           highestNote: role.range.highestNote,
-          sectionLabels: section.label.trim() ? [section.label] : [],
+          sectionLabels: sectionLabel ? [sectionLabel] : [],
           overlapWarnings: [...new Set(role.overlapWarnings.map((warning) => warning.trim()).filter(Boolean))],
           rehearsalPriority: role.rehearsalPriority
         });
