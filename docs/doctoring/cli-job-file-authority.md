@@ -16,22 +16,28 @@ The CLI consequently rejects pathname strings beginning with two backslashes or 
 
 For a pathname that passes the lexical namespace boundary, the CLI uses this sequence:
 
-1. call `os.lstat()` and require a regular file, rejecting directories, FIFOs, devices, sockets, and symlinks before `open()`;
-2. open read-only, requesting close-on-exec and no-follow flags where the host exposes them;
+1. call `os.lstat()` and require a regular file, rejecting directories, FIFOs, devices, sockets, and symlinks visible at preflight before `open()`;
+2. open read-only, requesting close-on-exec, no-follow, and nonblocking descriptor semantics where the host exposes them;
 3. call `os.fstat()` on the obtained descriptor and require a regular file whose `(st_dev, st_ino)` identity matches the preflighted file; and
 4. read at most `MAX_JSON_FILE_SIZE + 1` bytes through that verified descriptor.
 
-Python documents `os.fstat()` as descriptor-based status inspection, `os.lstat()` as a non-following pathname status operation, and `O_NOFOLLOW`/related flags as platform extensions that may be unavailable when the underlying C library does not define them (Python Software Foundation, 2026). The inode/device identity check is therefore retained even when `O_NOFOLLOW` is available rather than treating one platform-specific flag as the complete authority boundary.
+The nonblocking flag closes a narrower availability race that descriptor revalidation alone cannot close. A local actor can replace a preflighted regular pathname with a FIFO or blocking device between `lstat()` and `open()`. Because `fstat()` executes only after descriptor acquisition, a blocking `open(O_RDONLY)` could otherwise wait indefinitely before the authority check runs. Requesting `O_NONBLOCK` where available prevents FIFO/device acquisition from waiting for a peer, while regular-file reads retain their normal semantics; the subsequent descriptor type and inode/device checks still reject any substituted object.
+
+Python documents `os.fstat()` as descriptor-based status inspection, `os.lstat()` as a non-following pathname status operation, and `O_NONBLOCK`, `O_NOFOLLOW`, and related flags as platform extensions that may be unavailable when the underlying C library does not define them (Python Software Foundation, 2026). The inode/device identity check is therefore retained even when these flags are available rather than treating one platform-specific flag as the complete authority boundary.
 
 ## TDD evidence contract
 
-The regression test first landed without the production guard. It supplies ordinary UNC, forward-slash UNC, extended UNC, and named-pipe device paths while replacing `os.lstat()` with a sentinel that fails if any filesystem lookup is attempted. Exact-head release preflight on that RED commit failed in harness verification, establishing that the previous implementation reached the filesystem lookup. The production repair then moved namespace rejection ahead of `os.lstat()`.
+The original regression test landed before the namespace repair. It supplies ordinary UNC, forward-slash UNC, extended UNC, and named-pipe device paths while replacing `os.lstat()` with a sentinel that fails if any filesystem lookup is attempted. Exact-head release preflight on that RED commit failed in harness verification, establishing that the previous implementation reached the filesystem lookup. The production repair then moved namespace rejection ahead of `os.lstat()`.
+
+A second regression-first cycle covers the `lstat()`-to-`open()` availability race. The test captures the exact descriptor flags used by `_read_bounded_job_file()` while preserving normal regular-file I/O and requires `O_NONBLOCK` whenever the host exposes it. The test-only predecessor head failed on that assertion, proving that close-on-exec/no-follow alone did not prevent a substituted FIFO/device from turning descriptor acquisition into a wait. The production repair adds only the nonblocking descriptor flag; `fstat()` regular-file and identity checks remain unchanged.
 
 Commercial merge evidence still requires the final exact head to pass repository CI/release/build-baseline, owned statement and branch coverage, docstring, SAST, security, SBOM/supply-chain, and qualifying independent non-author review gates. Protected-base dependency failures owned by canonical PR #783 are not suppressed or treated as leaf-branch success.
 
 ## Residual boundary
 
-This lexical rule deliberately does not claim to prove physical storage locality for drive-letter paths. Windows can expose storage through mounts or mappings whose network provenance is controlled outside this process. The CLI boundary prevents caller-selected UNC/device namespaces from acquiring authority and verifies the selected regular file descriptor; host-level mount policy remains an deployment/endpoint-control responsibility.
+This lexical rule deliberately does not claim to prove physical storage locality for drive-letter paths. Windows can expose storage through mounts or mappings whose network provenance is controlled outside this process. The CLI boundary prevents caller-selected UNC/device namespaces from acquiring authority and verifies the selected regular file descriptor; host-level mount policy remains a deployment/endpoint-control responsibility.
+
+`O_NONBLOCK` also does not claim general descriptor-level race freedom across every filesystem or operating system. It prevents the specific blocking-open availability failure where supported. Stronger race-resistant pathname acquisition primitives remain a separate platform-hardening layer when a deployment threat model includes a privileged local actor continuously replacing directory entries.
 
 ## References
 
