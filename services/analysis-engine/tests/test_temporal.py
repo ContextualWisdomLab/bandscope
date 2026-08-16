@@ -104,21 +104,28 @@ def test_temporal_analyzer_exception_handling(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Ensure temporal analyzer catches general exceptions and raises ValueError."""
+    """Unexpected decoder failures expose stable recovery copy, not dependency details."""
     import librosa
 
     from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
 
+    sensitive_detail = "decoder failed for /private/customer/Alice/session.wav"
+
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
-        raise Exception("Mocked general error")
+        raise Exception(sensitive_detail)
 
     monkeypatch.setattr(librosa, "load", fake_load)
 
     test_wav = tmp_path / "test.wav"
     test_wav.write_bytes(b"dummy")
 
-    with pytest.raises(ValueError, match="Temporal analysis failed: Mocked general error"):
+    with pytest.raises(ValueError) as exc_info:
         TemporalAnalyzer().analyze(test_wav)
+
+    assert str(exc_info.value) == (
+        "Temporal analysis failed. Try the file again or choose another supported audio file."
+    )
+    assert sensitive_detail not in str(exc_info.value)
 
 
 def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -> None:
@@ -225,3 +232,36 @@ def test_estimate_downbeats_too_few_beats_returns_first() -> None:
     """Fewer beats than a bar falls back to the first beat as the downbeat."""
     onset = np.ones(50)
     assert _estimate_downbeats(onset, np.array([0, 10]), np.array([0.0, 0.5])) == [0.0]
+
+
+def test_temporal_analyzer_exception_during_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Unexpected beat-tracking failures keep third-party details out of the public error."""
+    import librosa
+
+    from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
+
+    sensitive_detail = "beat tracking crashed for /private/customer/Alice/session.wav"
+
+    def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
+        return np.zeros(1024, dtype=float), 44100
+
+    def fake_beat_track(*args: object, **kwargs: object) -> tuple[np.ndarray, np.ndarray]:
+        raise RuntimeError(sensitive_detail)
+
+    monkeypatch.setattr(librosa, "load", fake_load)
+    monkeypatch.setattr(librosa, "get_duration", lambda *, y, sr: 1.0)
+    monkeypatch.setattr(librosa.beat, "beat_track", fake_beat_track)
+
+    test_wav = tmp_path / "test.wav"
+    test_wav.write_bytes(b"dummy")
+
+    with pytest.raises(ValueError) as exc_info:
+        TemporalAnalyzer().analyze(test_wav)
+
+    assert str(exc_info.value) == (
+        "Temporal analysis failed. Try the file again or choose another supported audio file."
+    )
+    assert sensitive_detail not in str(exc_info.value)
