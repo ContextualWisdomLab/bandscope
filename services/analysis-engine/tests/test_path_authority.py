@@ -12,6 +12,7 @@ from bandscope_analysis.api import (
     RehearsalSong,
     _analysis_cache_path,
     _feature_cache_paths,
+    _run_stem_separation_with_timeout,
     _stem_work_arrays_path,
     _store_cached_analysis,
     _store_cached_local_audio_features,
@@ -389,3 +390,118 @@ def test_job_reports_temp_symlink_escape_as_actionable_invalid_request(tmp_path:
     )
 
     _assert_invalid_request_update(updates, "tempRoot", temp_root)
+
+
+class _FakeStemWorkQueue:
+    """Return one parent-side stem-work envelope without starting a worker."""
+
+    def __init__(self, item: tuple[str, object]) -> None:
+        """Store the exact worker envelope the parent helper should consume."""
+        self.item = item
+
+    def get(self, timeout: float) -> tuple[str, object]:
+        """Return the stored envelope after the parent applies a positive timeout."""
+        assert timeout > 0
+        return self.item
+
+    def close(self) -> None:
+        """Satisfy the parent helper close contract."""
+        return None
+
+    def join_thread(self) -> None:
+        """Satisfy the parent helper join contract."""
+        return None
+
+
+class _FakeStemWorkProcess:
+    """Stand in for the stem-work child process during sidecar authority tests."""
+
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        """Accept the parent helper process constructor without spawning a child."""
+        return None
+
+    def start(self) -> None:
+        """Mark the fake process as started without spawning a child."""
+        return None
+
+    def join(self, timeout: float | None = None) -> None:
+        """Satisfy the parent helper join contract."""
+        del timeout
+
+    def is_alive(self) -> bool:
+        """Report that the fake process has already exited."""
+        return False
+
+
+class _FakeStemWorkContext:
+    """Provide the multiprocessing surface used by the stem-work parent helper."""
+
+    def __init__(self, item: tuple[str, object]) -> None:
+        """Bind one worker envelope to the fake queue and process constructors."""
+        self.item = item
+        self.Process = _FakeStemWorkProcess
+
+    def Queue(self, maxsize: int) -> _FakeStemWorkQueue:
+        """Return a one-item queue that matches the parent helper contract."""
+        assert maxsize == 1
+        return _FakeStemWorkQueue(self.item)
+
+
+def test_stem_work_handoff_does_not_follow_preexisting_json_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not write stem-work metadata through an escaping .json sidecar symlink."""
+    temp_root = tmp_path / "temp-root"
+    request = validate_analysis_job_request(
+        _local_request(str(tmp_path / "rehearsal.wav"), temp_root=str(temp_root))
+    )
+    arrays_path = _stem_work_arrays_path(request)
+    assert arrays_path is not None
+    arrays_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(arrays_path, stem_vocals=np.array([0.0, 0.25], dtype=np.float32))
+    outside_file = tmp_path / "outside-stem-work.json"
+    outside_file.write_bytes(b"outside sentinel")
+    _symlink_file(arrays_path.with_suffix(".json"), outside_file)
+    file_payload = {
+        "arraysPath": str(arrays_path),
+        "sampleRate": 44_100,
+        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "ok"},
+        "stemKeys": ["vocals"],
+        "stemRoleTypes": {"vocals": "vocal"},
+    }
+    monkeypatch.setattr(
+        api_module,
+        "_multiprocessing_context",
+        lambda: _FakeStemWorkContext(("ok_file", file_payload)),
+    )
+
+    with pytest.raises(ValueError, match="tempRoot"):
+        _run_stem_separation_with_timeout(str(tmp_path / "rehearsal.wav"), arrays_path=arrays_path)
+
+    assert outside_file.read_bytes() == b"outside sentinel"
+
+
+def test_job_reports_stem_work_sidecar_symlink_as_actionable_invalid_request(
+    tmp_path: Path,
+) -> None:
+    """Reject an escaped stem-work metadata sidecar before emitting progress updates."""
+    temp_root = tmp_path / "temp-root"
+    request = validate_analysis_job_request(
+        _local_request(str(tmp_path / "missing.wav"), temp_root=str(temp_root))
+    )
+    arrays_path = _stem_work_arrays_path(request)
+    assert arrays_path is not None
+    arrays_path.parent.mkdir(parents=True, exist_ok=True)
+    outside_file = tmp_path / "outside-job-sidecar.json"
+    outside_file.write_bytes(b"outside sentinel")
+    _symlink_file(arrays_path.with_suffix(".json"), outside_file)
+
+    updates = run_analysis_job_updates(
+        "job-stem-work-sidecar",
+        _local_request(str(tmp_path / "missing.wav"), temp_root=str(temp_root)),
+        "2026-08-16T00:00:00Z",
+    )
+
+    _assert_invalid_request_update(updates, "tempRoot", temp_root)
+    assert outside_file.read_bytes() == b"outside sentinel"

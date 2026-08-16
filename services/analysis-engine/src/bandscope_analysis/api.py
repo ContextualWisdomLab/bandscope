@@ -659,6 +659,21 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
     )
 
 
+def _stem_work_sidecar_path(arrays_path: Path) -> Path:
+    """Return the authorized metadata sidecar for one stem-work arrays file.
+
+    The parent helper writes ``{digest}.json`` next to the worker ``.npz``
+    handoff. That sibling must be re-checked immediately before use so a
+    pre-existing symlink cannot escape ``tempRoot`` merely because the arrays
+    file itself stayed inside the authorized directory.
+    """
+    return resolve_authorized_child_path(
+        str(arrays_path.parent),
+        "tempRoot",
+        f"{arrays_path.stem}.json",
+    )
+
+
 def _load_cached_analysis(path: Path) -> RehearsalSong | None:
     """Load a cached rehearsal result, treating malformed cache as a miss."""
     try:
@@ -1005,7 +1020,7 @@ def _run_stem_separation_with_timeout(
             "stemRoleTypes": payload.get("stemRoleTypes"),
         }
         arrays_output_path = Path(str(payload.get("arraysPath", "")))
-        metadata_temp = arrays_output_path.with_suffix(".json")
+        metadata_temp = _stem_work_sidecar_path(arrays_output_path)
         try:
             metadata_temp.write_text(json.dumps(metadata_payload), encoding="utf-8")
             loaded = _load_cached_local_audio_features(metadata_temp, arrays_output_path)
@@ -1121,6 +1136,22 @@ def run_analysis_job_updates(
     )
     try:
         feature_cache_paths = _feature_cache_paths(request)
+    except ValueError as error:
+        return [
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                error={
+                    "code": "invalid_request",
+                    "message": str(error),
+                },
+            )
+        ]
+    try:
+        stem_work_arrays_path = _stem_work_arrays_path(request)
+        if stem_work_arrays_path is not None:
+            _stem_work_sidecar_path(stem_work_arrays_path)
     except ValueError as error:
         return [
             _build_job_status(
