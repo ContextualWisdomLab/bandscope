@@ -19,6 +19,11 @@ reverse order) so CI does not depend on a copyrighted master. The true
 parameters are the section windows and triad roots. The estimate must recover
 each section's main chord and keep weighted recall at or above 0.70.
 
+For evidence integrity, matching recognizer intervals are clipped to each true
+section window and unioned before matched duration is accumulated. Duplicate
+or overlapping estimates therefore cannot count the same annotated time twice
+or inflate recall above the actual fraction of section time recovered.
+
 ## Held values
 
 - Sample rate: 22050 Hz
@@ -26,6 +31,7 @@ each section's main chord and keep weighted recall at or above 0.70.
 - Minimum duration-weighted recall: 0.70
 - Canonical roots: `C` then `G`, and `G` then `C`
 - Minor labels (`Cm`, `Gm`) must not satisfy a major window
+- Overlapping matching estimates count only the union of covered section time
 
 ## References
 
@@ -45,10 +51,15 @@ https://doi.org/10.1109/TASLP.2013.2294580
 
 ## Security Notes
 
-- Attack surface: in-memory float audio arrays only. The lock does not read
-  user files, URLs, or subprocess output.
-- Trust boundary: synthetic fixtures are trusted test input. Production
-  recognizer input remains untrusted decoded audio from stem separation.
-- Mitigations: no file I/O, no network, no shell. Failures stay inside pytest.
-- Test points: `test_section_harmony_recovers_verse_c_then_chorus_g` and
+- Attack surface: in-memory float audio arrays and recognizer segment timings
+  only. The lock does not read user files, URLs, or subprocess output.
+- Trust boundary: synthetic fixtures and annotated section windows are trusted
+  test input. Production recognizer output remains untrusted evidence until it
+  is scored against those annotations.
+- Mitigations: no file I/O, no network, no shell; major/minor labels remain
+  distinct; matching intervals are unioned before duration accumulation so
+  duplicate-time evidence cannot create a false high score. Failures stay
+  inside pytest.
+- Test points: `test_duration_weighted_symbol_recall_unions_duplicate_time`,
+  `test_section_harmony_recovers_verse_c_then_chorus_g`, and
   `test_section_harmony_keeps_later_c_off_the_opening_window`.
