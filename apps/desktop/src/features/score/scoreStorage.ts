@@ -73,6 +73,25 @@ function isValidPdfByteCount(value: unknown): value is number {
 }
 
 /**
+ * Read a typed bridge payload's real byte length from the platform intrinsic.
+ *
+ * Own accessors and Proxy traps are untrusted bridge metadata: querying the
+ * prototype intrinsic with the candidate as receiver either returns the
+ * object's internal byte length or throws when the receiver lacks the native
+ * internal slot. The latter fails closed instead of trusting a forged length.
+ */
+function getIntrinsicPdfByteCount(value: Uint8Array | ArrayBuffer): number | null {
+  try {
+    if (value instanceof Uint8Array) {
+      return Reflect.get(Uint8Array.prototype, "byteLength", value) as number;
+    }
+    return Reflect.get(ArrayBuffer.prototype, "byteLength", value) as number;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Open the native PDF picker and copy the validated score into the
  * app-owned project workspace. Security Notes: the file path never crosses
  * the IPC boundary from JS; the Rust command owns the dialog, validation
@@ -111,14 +130,14 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
 export async function readScorePdf(projectId: string, scoreId: string): Promise<Uint8Array> {
   const response = await invokeScoreCommand("read_score_pdf", { projectId, scoreId });
   if (response instanceof Uint8Array) {
-    const byteCount = response.byteLength;
+    const byteCount = getIntrinsicPdfByteCount(response);
     if (!isValidPdfByteCount(byteCount)) {
       throw new Error(INVALID_RESPONSE_MESSAGE);
     }
     return new Uint8Array(response);
   }
   if (response instanceof ArrayBuffer) {
-    const byteCount = response.byteLength;
+    const byteCount = getIntrinsicPdfByteCount(response);
     if (!isValidPdfByteCount(byteCount)) {
       throw new Error(INVALID_RESPONSE_MESSAGE);
     }
