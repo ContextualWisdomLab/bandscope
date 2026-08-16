@@ -299,6 +299,13 @@ export function App() {
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
+  const sourceTransitionLocked =
+    analysisInFlight ||
+    isStarting ||
+    isSelectingLocalAudio ||
+    isImporting ||
+    isReadingHandoff ||
+    isLoadingProject;
   const selectedRequest: AnalysisJobRequest = createAnalysisRequestForSelection(
     defaultRequest,
     selectedBootstrap,
@@ -416,6 +423,10 @@ export function App() {
 
   /** Documented. */
   const handleStartAnalysis = async () => {
+    if (sourceTransitionLocked || !selectedBootstrap) {
+      return;
+    }
+
     const submittedBootstrap = selectedBootstrap;
     setJobError(null);
     setJobResult(null);
@@ -445,6 +456,10 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
+    if (sourceTransitionLocked) {
+      return;
+    }
+
     setSelectionError(null);
     setSelectionErrorSource(null);
     setIsSelectingLocalAudio(true);
@@ -466,7 +481,7 @@ export function App() {
 
   /** Documented. */
   const handleImportYoutube = async () => {
-    if (pendingHandoff) {
+    if (sourceTransitionLocked || pendingHandoff) {
       return;
     }
 
@@ -532,6 +547,10 @@ export function App() {
 
   /** Documented. */
   const handleLoadProject = async () => {
+    if (sourceTransitionLocked) {
+      return;
+    }
+
     setIsLoadingProject(true);
     try {
       const song = await loadProject();

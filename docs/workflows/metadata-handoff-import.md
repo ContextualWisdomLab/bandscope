@@ -11,7 +11,7 @@ BandScope metadata handoffs let one musician share rehearsal scope without embed
 5. Start analysis. BandScope creates a local-audio analysis request with the imported role focus.
 6. Clear or replace the pending handoff at any time before the analysis starts. Clearing the handoff does not discard an audio source selected after that handoff.
 
-Importing metadata never starts analysis automatically and never dereferences file paths or URLs carried by the artifact.
+Importing metadata never starts analysis automatically and never dereferences file paths or URLs carried by the artifact. Source selection, project loading, and analysis-start handlers independently reject stale overlapping transitions even if a UI component fails to enforce its disabled state; DOM disablement is an accessibility/usability layer, not the sole state-authority boundary.
 
 ## Focus enforcement and cache behavior
 
@@ -53,4 +53,4 @@ The UI boundary is implemented by:
 - `HandoffImportControl` for accessible import, replace, progress, summary, clear, and validation-activity controls;
 - `_focus_rehearsal_song` for non-mutating backend result projection over complete cached analysis.
 
-Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, source-action and project-load exclusion during handoff validation, reciprocal source/handoff exclusion during project loading, YouTube exclusion while a validated handoff awaits its local source, explicit local-source selection and re-selection, cache-safe role projection, graph-link filtering, and successful pending-state cleanup.
+Tests cover valid import, malformed and oversized input, invalid UTF-8, unsupported artifacts, cancellation, replacement, deduplication, payload-free errors, source-action and project-load exclusion during handoff validation, reciprocal source/handoff exclusion during project loading, handler-level rejection of bypassed overlapping local-source/project/analysis transitions, YouTube exclusion while a validated handoff awaits its local source, explicit local-source selection and re-selection, cache-safe role projection, graph-link filtering, and successful pending-state cleanup.

@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectBootstrapSummary, RehearsalSong } from "@bandscope/shared-types";
 import { App } from "./App";
@@ -100,7 +100,9 @@ describe("App source-transition handler guards", () => {
     fireEvent.click(chooseLocal);
     expect(mockedSelectLocalAudioSource).not.toHaveBeenCalled();
 
-    resolveProject?.(loadedSong());
+    await act(async () => {
+      resolveProject?.(loadedSong());
+    });
     await screen.findByText("Workspace result");
   });
 
@@ -126,9 +128,11 @@ describe("App source-transition handler guards", () => {
     fireEvent.click(openProject);
     expect(mockedLoadProject).not.toHaveBeenCalled();
 
-    resolveSelection?.({
-      ok: false,
-      error: { code: "invalid_request", message: "Selection cancelled." }
+    await act(async () => {
+      resolveSelection?.({
+        ok: false,
+        error: { code: "invalid_request", message: "Selection cancelled." }
+      });
     });
     await waitFor(() => {
       expect(openProject).toHaveAttribute("data-disabled", "false");
@@ -163,9 +167,11 @@ describe("App source-transition handler guards", () => {
     fireEvent.click(startAnalysis);
     expect(mockedStartAnalysisJob).not.toHaveBeenCalled();
 
-    resolveReplacement?.({
-      ok: false,
-      error: { code: "invalid_request", message: "Selection cancelled." }
+    await act(async () => {
+      resolveReplacement?.({
+        ok: false,
+        error: { code: "invalid_request", message: "Selection cancelled." }
+      });
     });
     await waitFor(() => {
       expect(startAnalysis).toHaveAttribute("data-disabled", "false");
