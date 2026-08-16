@@ -11,7 +11,7 @@ Security Notes:
   opened file descriptor can provide an authoritative size.
 - Decoded audio is revalidated because container metadata and decoder behavior
   are untrusted; accepted artifacts are finite, mono, floating-point, at the
-  configured sample rate, and within the configured decoded-sample budget.
+  configured sample rate, and within configured sample and memory budgets.
 - Decoders receive a one-sample-over-budget probe duration so a longer source is
   rejected instead of being silently truncated to the accepted duration.
 - Policy arithmetic rejects unrepresentable limits before float/sample-count
@@ -34,6 +34,9 @@ AUDIO_RESOURCE_POLICY_VERSION = "1"
 DEFAULT_TARGET_SAMPLE_RATE = 44_100
 DEFAULT_MAX_ENCODED_FILE_BYTES = 100 * 1024 * 1024
 DEFAULT_MAX_DURATION_SECONDS = 15 * 60
+DEFAULT_MAX_DECODED_AUDIO_BYTES = (
+    DEFAULT_TARGET_SAMPLE_RATE * DEFAULT_MAX_DURATION_SECONDS * np.dtype(np.float64).itemsize
+)
 _POLICY_ERROR = "Audio input violates the audio resource policy."
 
 
@@ -47,11 +50,14 @@ class AudioResourcePolicy:
             artifact.
         max_duration_seconds: Maximum decoded duration represented as a sample
             ceiling at ``target_sample_rate``.
+        max_decoded_audio_bytes: Maximum in-memory byte size of the canonical
+            decoded mono NumPy buffer.
     """
 
     max_encoded_file_bytes: int = DEFAULT_MAX_ENCODED_FILE_BYTES
     target_sample_rate: int = DEFAULT_TARGET_SAMPLE_RATE
     max_duration_seconds: float = float(DEFAULT_MAX_DURATION_SECONDS)
+    max_decoded_audio_bytes: int = DEFAULT_MAX_DECODED_AUDIO_BYTES
 
     def __post_init__(self) -> None:
         """Reject invalid policy configuration before it can weaken admission."""
@@ -71,6 +77,13 @@ class AudioResourcePolicy:
             raise ValueError(_POLICY_ERROR)
         if isinstance(self.max_duration_seconds, bool) or not isinstance(
             self.max_duration_seconds, int | float
+        ):
+            raise ValueError(_POLICY_ERROR)
+        if (
+            isinstance(self.max_decoded_audio_bytes, bool)
+            or not isinstance(self.max_decoded_audio_bytes, int)
+            or self.max_decoded_audio_bytes <= 0
+            or self.max_decoded_audio_bytes > sys.maxsize - 1
         ):
             raise ValueError(_POLICY_ERROR)
         try:
@@ -133,8 +146,8 @@ class AudioResourcePolicy:
             The original validated NumPy floating-point array without copying it.
 
         Raises:
-            ValueError: If dtype, shape, sample rate, sample count, or finiteness
-                does not satisfy this policy.
+            ValueError: If dtype, shape, sample rate, sample count, memory use,
+                or finiteness does not satisfy this policy.
         """
         if (
             not isinstance(audio, np.ndarray)
@@ -149,7 +162,11 @@ class AudioResourcePolicy:
             or sample_rate != self.target_sample_rate
         ):
             raise ValueError(_POLICY_ERROR)
-        if audio.size > self.max_decoded_samples or not np.isfinite(audio).all():
+        if (
+            audio.size > self.max_decoded_samples
+            or audio.nbytes > self.max_decoded_audio_bytes
+            or not np.isfinite(audio).all()
+        ):
             raise ValueError(_POLICY_ERROR)
         return cast(NDArray[np.floating[Any]], audio)
 
@@ -160,6 +177,7 @@ __all__ = [
     "AUDIO_RESOURCE_POLICY_VERSION",
     "AudioResourcePolicy",
     "DEFAULT_AUDIO_RESOURCE_POLICY",
+    "DEFAULT_MAX_DECODED_AUDIO_BYTES",
     "DEFAULT_MAX_DURATION_SECONDS",
     "DEFAULT_MAX_ENCODED_FILE_BYTES",
     "DEFAULT_TARGET_SAMPLE_RATE",
