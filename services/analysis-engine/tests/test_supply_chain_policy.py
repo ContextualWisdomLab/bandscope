@@ -5108,3 +5108,66 @@ def test_opencode_strix_lookup_reports_missing_actions_read_scope() -> None:
     assert_local_review_workflows_removed()
     assert "Strix evidence lookup" in policy
     assert "Actions read access" in policy
+
+
+def test_named_dependency_path_does_not_reuse_a_package_key_through_a_cycle() -> None:
+    """Ensure a cycle cannot make one package instance satisfy two path positions."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_policy_dependency_path_cycle",
+    )
+    package_dependencies = {
+        "root 1.0.0": ["alpha 1.0.0"],
+        "alpha 1.0.0": ["beta 1.0.0", "charlie 1.0.0"],
+        "beta 1.0.0": ["alpha 1.0.0"],
+        "charlie 1.0.0": [],
+    }
+
+    assert not supply_chain.cargo_lock_has_named_dependency_path(
+        package_dependencies,
+        "root 1.0.0",
+        ("alpha", "alpha", "charlie"),
+    )
+
+
+def test_named_dependency_path_can_match_same_name_on_distinct_package_keys() -> None:
+    """Ensure distinct package instances may legitimately satisfy repeated names."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_policy_dependency_path_distinct",
+    )
+    package_dependencies = {
+        "root 1.0.0": ["alpha 1.0.0"],
+        "alpha 1.0.0": ["beta 1.0.0"],
+        "beta 1.0.0": ["alpha 2.0.0"],
+        "alpha 2.0.0": ["charlie 1.0.0"],
+        "charlie 1.0.0": [],
+    }
+
+    assert supply_chain.cargo_lock_has_named_dependency_path(
+        package_dependencies,
+        "root 1.0.0",
+        ("alpha", "alpha", "charlie"),
+    )
+
+
+def test_dependency_policy_documents_named_dependency_path_simple_path_authority() -> None:
+    """Keep the simple-path rule, cycle counter-example, and APA citation in policy."""
+    repo_root = Path(__file__).resolve().parents[3]
+    dependency_policy = (repo_root / "docs" / "security" / "dependency-policy.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "## Named dependency-path authority" in dependency_policy
+    assert "*simple path*" in dependency_policy
+    assert "Cormen et al., 2022, Appendix B.4" in dependency_policy
+    assert "`(package_key, matched_count)` cache is not an equivalent optimization" in (
+        dependency_policy
+    )
+    assert "root → alpha@1 → beta → alpha@1 → charlie" in dependency_policy
+    assert "test_supply_chain_dependency_path_cycles.py" in dependency_policy
+    assert "## References" in dependency_policy
+    assert (
+        "Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). "
+        "*Introduction to algorithms* (4th ed.). MIT Press."
+    ) in dependency_policy
