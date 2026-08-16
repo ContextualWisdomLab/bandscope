@@ -133,10 +133,13 @@ function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
 /**
  * Collect focus-section labels when no role-level lock-in pair exists.
  *
- * Blank and case-insensitive `none` values are dropped. Equivalent labels are
- * de-duplicated case-insensitively after trimming so repeated analysis
- * evidence cannot consume all three buyer-visible fallback slots or create
- * duplicate React keys. First-occurrence display text and order are preserved.
+ * Blank and case-insensitive `none` values are dropped. Labels that do not
+ * match a roadmap section are omitted so the card never sells a no-op click
+ * or clears an earlier focus. Equivalent labels are de-duplicated
+ * case-insensitively after trimming so repeated analysis evidence cannot
+ * consume all three buyer-visible fallback slots or create duplicate React
+ * keys. First-occurrence display text and order are preserved. When every
+ * focus label is unmatched, the first valid section label is the fallback.
  */
 function collectFocusSectionLabels(song: RehearsalSong): string[] {
   const focusLabels: string[] = [];
@@ -147,6 +150,9 @@ function collectFocusSectionLabels(song: RehearsalSong): string[] {
     if (!trimmed || normalized === "none" || seenLabels.has(normalized)) {
       continue;
     }
+    if (!findSectionIdForFocusLabel(song, trimmed)) {
+      continue;
+    }
     seenLabels.add(normalized);
     focusLabels.push(trimmed);
     if (focusLabels.length === MAX_LOCK_IN_FIRST_ITEMS) {
@@ -154,9 +160,13 @@ function collectFocusSectionLabels(song: RehearsalSong): string[] {
     }
   }
 
-  const firstSectionLabel = nonBlankText(song.sections[0]?.label);
-  if (focusLabels.length === 0 && firstSectionLabel && firstSectionLabel.toLowerCase() !== "none") {
-    return [firstSectionLabel];
+  if (focusLabels.length === 0) {
+    for (const section of song.sections) {
+      const firstSectionLabel = nonBlankText(section.label);
+      if (firstSectionLabel && firstSectionLabel.toLowerCase() !== "none") {
+        return [firstSectionLabel];
+      }
+    }
   }
 
   return focusLabels;
@@ -380,7 +390,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
    * Focus the first roadmap section that matches a fallback focus label.
    */
   const handleFocusSectionActivate = (label: string): void => {
-    setFocusedSectionId(findSectionIdForFocusLabel(song, label));
+    const sectionId = findSectionIdForFocusLabel(song, label);
+    if (sectionId) {
+      setFocusedSectionId(sectionId);
+    }
   };
 
   /**
