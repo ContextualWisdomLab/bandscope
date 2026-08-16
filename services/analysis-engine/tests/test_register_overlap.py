@@ -256,8 +256,8 @@ class TestSliceStemsToWindow:
 class TestFormatOverlapWarnings:
     """Tests for rehearsal-facing overlap copy."""
 
-    def test_pair_warning_is_attached_to_mapped_roles(self) -> None:
-        """Bass/other low overlap tells both sides to thin the crowded register."""
+    def test_pair_warning_is_attached_only_to_unambiguous_role_identity(self) -> None:
+        """Bass/other overlap warns bass without inventing a specific accompaniment role."""
         warnings = format_overlap_warnings(
             [
                 {
@@ -273,11 +273,7 @@ class TestFormatOverlapWarnings:
             "The low register is crowded between Bass Guitar and accompaniment. "
             "Thin one part in this section so players can hear their cue."
         )
-        assert warnings["bass-guitar"] == [expected]
-        assert warnings["keys-left"] == [expected]
-        assert warnings["keys-right"] == [expected]
-        assert warnings["acoustic-guitar"] == [expected]
-        assert "lead-vocal" not in warnings
+        assert warnings == {"bass-guitar": [expected]}
 
     def test_unknown_stems_and_empty_input_fail_closed(self) -> None:
         """Unknown names and empty overlap lists produce no role warnings."""
@@ -290,7 +286,7 @@ class TestFormatOverlapWarnings:
         )
 
     def test_duplicate_records_and_vocal_pairs_dedupe(self) -> None:
-        """Repeated records stay one warning and vocals map to the lead role."""
+        """Repeated records stay one warning and mixed accompaniment stays ambiguous."""
         record = {
             "stem_a": "other",
             "stem_b": "vocals",
@@ -302,5 +298,4 @@ class TestFormatOverlapWarnings:
             "The mid register is crowded between accompaniment and Lead Vocal. "
             "Thin one part in this section so players can hear their cue."
         )
-        assert warnings["lead-vocal"] == [expected]
-        assert warnings["keys-right"] == [expected]
+        assert warnings == {"lead-vocal": [expected]}
