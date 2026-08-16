@@ -387,6 +387,8 @@ describe("Workspace", () => {
     expect(screen.getByRole("tab", { name: "Lead Vocal" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
     expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("song-structure-chorus-1")).toHaveAttribute("data-focused-section", "true");
+    expect(screen.getByTestId("song-structure-verse-1")).not.toHaveAttribute("data-focused-section", "true");
   });
 
   it("focuses the matching section when a fallback focus label is activated", () => {

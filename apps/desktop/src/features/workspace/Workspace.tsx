@@ -252,7 +252,15 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 }
 
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({
+  sections,
+  focusedSectionId,
+  t
+}: {
+  sections: RehearsalSong["sections"];
+  focusedSectionId: string | null;
+  t: Translator;
+}) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -272,7 +280,16 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
           {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
+            <div
+              key={section.id}
+              data-testid={`song-structure-${section.id}`}
+              data-focused-section={section.id === focusedSectionId ? "true" : undefined}
+              className={`border-r border-white/10 px-3 py-3 last:border-r-0 ${
+                section.id === focusedSectionId
+                  ? "bg-cyan-300/15 ring-2 ring-inset ring-cyan-300"
+                  : "bg-cyan-300/[0.05]"
+              }`}
+            >
               <p className="text-sm font-black text-white">
                 {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
               </p>
@@ -610,7 +627,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure sections={song.sections} focusedSectionId={focusedSectionId} t={t} />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

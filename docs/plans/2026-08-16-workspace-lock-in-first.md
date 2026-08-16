@@ -33,6 +33,7 @@
 - Clicking a named pair or fallback label scrolls that roadmap card into view.
 - Each named pair and focus label shows the first entrance time from `section.timeRange.start`.
 - The activated lock-in pair exposes `aria-current="true"`.
+- The song-structure timeline marks the same focused section.
 - Role names that contain `{sectionLabel}` cannot rewrite later aria-label tokens.
 - `prefers-reduced-motion: reduce` uses instant `scrollIntoView` instead of smooth animation.
 
