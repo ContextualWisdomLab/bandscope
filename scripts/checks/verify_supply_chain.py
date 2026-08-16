@@ -1988,23 +1988,27 @@ def cargo_lock_has_named_dependency_path(
     root_package: str,
     package_names: tuple[str, ...],
 ) -> bool:
-    """Return whether a dependency path contains package names in order."""
-    pending: list[tuple[str, int]] = [(root_package, 0)]
-    seen: set[tuple[str, int]] = set()
+    """Return whether a simple dependency path contains package names in order.
+
+    A package key may appear at most once on a candidate path. Shared
+    ``(package_key, matched_count)`` caches are unsafe: a cycle can revisit
+    the same key with a later match count and falsely satisfy a repeated
+    name. Distinct keys that share a package name remain valid matches.
+    """
+    pending: list[tuple[str, int, frozenset[str]]] = [(root_package, 0, frozenset())]
     while pending:
-        current, matched_count = pending.pop()
-        state = (current, matched_count)
-        if state in seen:
+        current, matched_count, seen = pending.pop()
+        if current in seen:
             continue
-        seen.add(state)
         current_name = current.rsplit(" ", maxsplit=1)[0]
         next_matched_count = matched_count
         if matched_count < len(package_names) and current_name == package_names[matched_count]:
             next_matched_count += 1
             if next_matched_count == len(package_names):
                 return True
+        next_seen = seen | {current}
         for dependency in package_dependencies.get(current, []):
-            pending.append((dependency, next_matched_count))
+            pending.append((dependency, next_matched_count, next_seen))
     return False
 
 
