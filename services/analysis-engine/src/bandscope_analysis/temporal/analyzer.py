@@ -80,7 +80,7 @@ class TemporalAnalyzer:
         if not path.exists() or not path.is_file():
             raise FileNotFoundError(f"Audio file not found: {path_str}")
 
-        logger.info(f"Loading and decoding audio: {path_str}")
+        logger.info("Loading and decoding local audio")
 
         try:
             with path.open("rb") as fileobj:
@@ -148,8 +148,11 @@ class TemporalAnalyzer:
 
         except _TemporalAnalysisInputError as error:
             raise ValueError(str(error)) from None
-        except Exception:
-            # Preserve third-party diagnostics in repository-controlled logs while
-            # keeping dependency-shaped details out of the caller-facing error.
-            logger.exception("Temporal analysis failed during local audio processing")
+        except Exception as error:
+            # Record only bounded diagnostic metadata. Dependency-controlled exception
+            # text and traceback can contain local paths, tokens, or media details.
+            logger.error(
+                "Temporal analysis failed during local audio processing; error_type=%s",
+                type(error).__name__,
+            )
             raise ValueError(TEMPORAL_ANALYSIS_FAILED_MESSAGE) from None
