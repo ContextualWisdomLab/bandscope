@@ -65,7 +65,11 @@ def _read_bounded_stdin() -> tuple[str | None, int]:
     binary_stdin = getattr(sys.stdin, "buffer", None)
     if binary_stdin is None:
         raw_text = sys.stdin.read(MAX_JSON_FILE_SIZE + 1)
-        raw_bytes = raw_text.encode("utf-8")
+        try:
+            raw_bytes = raw_text.encode("utf-8")
+        except UnicodeEncodeError:
+            json.dump(failed_cli_response("Job input must be valid UTF-8"), sys.stdout)
+            return None, 1
     else:
         raw_bytes = binary_stdin.read(MAX_JSON_FILE_SIZE + 1)
     if len(raw_bytes) > MAX_JSON_FILE_SIZE:
