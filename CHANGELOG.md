@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- Redact dependency-controlled YouTube import failures at the desktop bridge so URLs, local paths, tokens, cookies, or tool diagnostics cannot be surfaced directly to the UI; users receive one safe next-action message instead.
 - Removed the browser-only synthetic analysis workspace and timed fake success path. Analysis execution and project-save mutations now require the native Tauri runtime; browser-only execution fails closed instead of manufacturing `ready` rehearsal results or silently reporting an unpersisted save as successful.
 
 ## [0.1.3] - 2026-04-29
@@ -53,7 +54,7 @@
 - Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
 - Issue #40: Enforced 100% Python docstring and test coverage
 - Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Implemented secure local audio intake and project bootstrap
+- Issue #33: Engineered section, form, and cue anchor extraction pipeline
 - Issue #35: Engineered section, form, and cue anchor extraction pipeline
 - Issue #34: Implemented role extraction targets and part graph
 - Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
