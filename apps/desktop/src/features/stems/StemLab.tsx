@@ -62,8 +62,9 @@ export function stemLanePriorityLabel(
  *
  * It does not invent playable stem files. When analysis has roles, each lane
  * tells the player the range, sections, and clashes to lock before rehearsal.
- * When analysis has not run, the empty copy tells the player to choose local
- * audio next.
+ * Invalid or incomplete range evidence is replaced by an explicit ear-check
+ * action rather than presented as a playable range. When analysis has not run,
+ * the empty copy tells the player to choose local audio next.
  */
 export function StemLab({ song }: StemLabProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
@@ -111,6 +112,8 @@ function StemLaneCard({
   lane: StemLane;
   t: (key: TranslationKey) => string;
 }) {
+  const hasTrustedRange = Boolean(lane.lowestNote && lane.highestNote);
+
   return (
     <li className="rounded-2xl border border-[color:var(--bandscope-stem-lane-border)] bg-[var(--bandscope-stem-lane-fill)] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -120,7 +123,9 @@ function StemLaneCard({
         </p>
       </div>
       <p className="mt-2 text-sm leading-6 text-slate-200">
-        {t("stemLabRangeLabel")} {lane.lowestNote}–{lane.highestNote}
+        {hasTrustedRange
+          ? `${t("stemLabRangeLabel")} ${lane.lowestNote}–${lane.highestNote}`
+          : t("stemLabRangeUnknown")}
       </p>
       <p className="mt-1 text-sm leading-6 text-slate-300">
         {lane.sectionLabels.length > 0
