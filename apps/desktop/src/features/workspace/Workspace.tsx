@@ -126,16 +126,21 @@ function collectLockInFirstItems(song: RehearsalSong): LockInFirstItem[] {
 /**
  * Collect focus-section labels when no role-level lock-in pair exists.
  *
- * Blank and case-insensitive `none` values are dropped so a missing focus
- * list cannot become a rehearsal action.
+ * Blank and case-insensitive `none` values are dropped. Equivalent labels are
+ * de-duplicated case-insensitively after trimming so repeated analysis
+ * evidence cannot consume all three buyer-visible fallback slots or create
+ * duplicate React keys. First-occurrence display text and order are preserved.
  */
 function collectFocusSectionLabels(song: RehearsalSong): string[] {
   const focusLabels: string[] = [];
+  const seenLabels = new Set<string>();
   for (const label of song.exportSummary?.focusSections ?? []) {
     const trimmed = label.trim();
-    if (!trimmed || trimmed.toLowerCase() === "none") {
+    const normalized = trimmed.toLowerCase();
+    if (!trimmed || normalized === "none" || seenLabels.has(normalized)) {
       continue;
     }
+    seenLabels.add(normalized);
     focusLabels.push(trimmed);
     if (focusLabels.length === MAX_LOCK_IN_FIRST_ITEMS) {
       return focusLabels;
