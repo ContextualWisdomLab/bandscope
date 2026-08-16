@@ -23,15 +23,16 @@ def test_missing_or_empty_product_version_fails_closed(tmp_path: Path) -> None:
         read_product_version(empty_tree)
 
 
-def test_unknown_engine_version_is_rejected_at_report_boundary() -> None:
-    """Explicit or parsed ``unknown`` provenance must not become valid evidence."""
+@pytest.mark.parametrize("engine_version", ["unknown", "UNKNOWN", " 0.1.3 "])
+def test_inexact_engine_version_is_rejected_at_report_boundary(engine_version: str) -> None:
+    """Unknown or whitespace-obscured versions must not become valid evidence."""
     report = {
         "case_id": "c-major-triad",
         "audio_sha256": "a" * 64,
         "metric_name": "duration_weighted_chord_recall",
         "metric_value": 0.9,
         "passed": True,
-        "engine_version": "unknown",
+        "engine_version": engine_version,
         "true_label": "C",
     }
     with pytest.raises(ValueError, match="engine_version"):
@@ -44,5 +45,5 @@ def test_unknown_engine_version_is_rejected_at_report_boundary() -> None:
             metric_value=0.9,
             passed=True,
             true_label="C",
-            engine_version="unknown",
+            engine_version=engine_version,
         )
