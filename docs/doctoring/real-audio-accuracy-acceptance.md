@@ -31,6 +31,11 @@ stem quality, or private-corpus readiness.
   (Schreiber & Müller, 2020). Acc1 does not credit half-time or double-time.
 - Checksum mismatch fails closed on both file evaluators. Do not score a
   tampered file as a pass.
+- Machine-readable case reports are accepted only when the registered
+  provenance fields are present and typed, `audio_sha256` is exactly 64
+  hexadecimal characters, and `metric_value` is a finite numeric value.
+  Boolean, NaN, infinity, overflow-to-float, malformed digest, or missing-field
+  evidence fails closed rather than becoming a portable acceptance record.
 
 ## Claim boundary
 
@@ -60,14 +65,16 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
 
 ## Security Notes
 
-- Attack surface: generated WAV bytes, SHA-256 digests, and decoded PCM
-  passed into `ChordRecognizer` and `TemporalAnalyzer`.
+- Attack surface: generated WAV bytes, SHA-256 digests, decoded PCM, and parsed
+  case-report mappings passed into the accuracy acceptance path.
 - Trust boundary: untrusted audio and manifests; trusted repo-controlled
-  fixture generators and metric floors.
+  fixture generators, metric definitions, and registered floors.
 - Mitigations: no network, no shell, checksum fail-closed before C-major
-  decode and before tempo scoring, bounded fixture durations, no copyrighted
-  commercial recordings. Fixture paths are pytest temp files; reports store
-  only SHA-256 and labels, not waveform bytes.
+  decode and before tempo scoring, strict SHA-256 syntax, finite-only metric
+  values, bounded fixture durations, no copyrighted commercial recordings.
+  Fixture paths are pytest temp files; reports store only SHA-256 and labels,
+  not waveform bytes.
 - Test points: deterministic digest, C major recall after file decode,
   silence-on-disk vs in-memory triad, 120 BPM Acc1, checksum mismatch through
-  both file evaluators, malformed manifest, silence must not pass as C major.
+  both file evaluators, malformed/non-hex manifest provenance, NaN/infinity
+  rejection, and silence must not pass as C major.
