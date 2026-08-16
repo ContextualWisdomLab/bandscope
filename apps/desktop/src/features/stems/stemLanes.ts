@@ -91,6 +91,22 @@ function widerRangeBoundary(
 }
 
 /**
+ * Clear a complete range when its validated lower boundary is above its upper boundary.
+ *
+ * Partial ranges stay partial so later sections can still supply the missing
+ * boundary. A complete but inverted pair is contradictory evidence and must
+ * not be presented under the buyer-facing "Playable range" label.
+ */
+function failClosedInvertedRange(lane: StemLane): StemLane {
+  const lowestPitch = notePitchValue(lane.lowestNote);
+  const highestPitch = notePitchValue(lane.highestNote);
+  if (lowestPitch === null || highestPitch === null || lowestPitch <= highestPitch) {
+    return lane;
+  }
+  return { ...lane, lowestNote: "", highestNote: "" };
+}
+
+/**
  * Return the higher of two rehearsal priorities so a role stays marked urgent
  * if any section still needs attention.
  */
@@ -119,7 +135,8 @@ function pushUniqueLabel(labels: string[], value: string): void {
  * exists. Callers must keep playback copy honest until a stem audio contract
  * is attached. When one role spans sections, its lane widens to the lowest and
  * highest valid pitch reported anywhere in those sections. Malformed initial
- * pitch labels are discarded rather than presented as playable evidence.
+ * pitch labels are discarded, and a complete range whose lower boundary is
+ * above its upper boundary fails closed rather than being presented as playable.
  */
 export function collectStemLanes(song: RehearsalSong): StemLane[] {
   const lanes = new Map<string, StemLane>();
@@ -166,8 +183,10 @@ export function collectStemLanes(song: RehearsalSong): StemLane[] {
     }
   }
 
-  return [...lanes.values()].map((lane) => ({
-    ...lane,
-    roleName: lane.roleName || lane.roleId
-  }));
+  return [...lanes.values()].map((lane) =>
+    failClosedInvertedRange({
+      ...lane,
+      roleName: lane.roleName || lane.roleId
+    })
+  );
 }
