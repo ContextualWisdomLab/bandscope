@@ -25,7 +25,6 @@ __all__ = ["build_cue_sheet_csv", "escape_csv_field"]
 
 _FORMULA_PREFIXES = frozenset("=+-@＝＋－＠")
 _CONTROL_PREFIXES = frozenset("\t\r\n\x00")
-_UNSAFE_PREFIXES = _FORMULA_PREFIXES | _CONTROL_PREFIXES
 
 
 def escape_csv_field(value: str) -> str:
@@ -33,9 +32,8 @@ def escape_csv_field(value: str) -> str:
 
     Formula-sensitive ASCII prefixes (``=``, ``+``, ``-``, ``@``), their
     full-width variants, and leading tab/CR/LF/NUL controls are prefixed with a
-    single apostrophe. Dangerous formula or control prefixes are also detected
-    after leading whitespace because downstream parser normalization is not
-    uniform across spreadsheet products.
+    single apostrophe. Formula prefixes are also detected after leading
+    whitespace because spreadsheet parsers may normalize that whitespace.
 
     The apostrophe follows the mitigation documented for CWE-1236. Spreadsheet
     products do not share one universally reliable CSV formula-neutralization
@@ -44,15 +42,14 @@ def escape_csv_field(value: str) -> str:
     if not value:
         return value
 
-    if value[0] in _CONTROL_PREFIXES:
-        return f"'{value}"
+    for char in value:
+        if char in _CONTROL_PREFIXES:
+            return f"'{value}"
+        if not char.isspace():
+            if char in _FORMULA_PREFIXES:
+                return f"'{value}"
+            break
 
-    stripped = value.lstrip()
-    leading = value[: len(value) - len(stripped)]
-    if any(character in _CONTROL_PREFIXES for character in leading):
-        return f"'{value}"
-    if stripped and stripped[0] in _UNSAFE_PREFIXES:
-        return f"'{value}"
     return value
 
 
