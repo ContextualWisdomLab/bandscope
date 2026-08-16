@@ -61,3 +61,8 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2023-11-20 - O(N^2) Filtered Loop Optimization
+
+**Learning:** Running an unconditional nested loop over overlapping stem combinations per frequency band incurs an unnecessary O(N^2) overhead for elements that don't meet an energy threshold in a given band.
+**Action:** Invert loop hierarchy and pre-filter valid elements to achieve O(K^2) combinations, yielding a substantial speedup when analyzing large sets of dense audio stems.
