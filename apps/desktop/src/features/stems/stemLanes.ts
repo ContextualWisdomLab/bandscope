@@ -10,9 +10,9 @@ export type StemLane = {
   roleName: string;
   /** Arrangement role class: instrument, vocal, or hand. */
   roleType: RehearsalRole["roleType"];
-  /** Lowest playable note reported for the role. */
+  /** Lowest playable note reported for the role, or blank when untrusted. */
   lowestNote: string;
-  /** Highest playable note reported for the role. */
+  /** Highest playable note reported for the role, or blank when untrusted. */
   highestNote: string;
   /** Section labels where this role is present, first-seen order. */
   sectionLabels: string[];
@@ -64,6 +64,14 @@ function notePitchValue(note: string): number | null {
 }
 
 /**
+ * Return a trimmed scientific-pitch label, or blank when it is malformed.
+ */
+function normalizedNoteLabel(note: string): string {
+  const trimmed = note.trim();
+  return notePitchValue(trimmed) === null ? "" : trimmed;
+}
+
+/**
  * Choose the more extreme valid note while retaining the first label on ties.
  */
 function widerRangeBoundary(
@@ -110,7 +118,8 @@ function pushUniqueLabel(labels: string[], value: string): void {
  * Lanes are rehearsal isolation targets, not proof that a local stem file
  * exists. Callers must keep playback copy honest until a stem audio contract
  * is attached. When one role spans sections, its lane widens to the lowest and
- * highest valid pitch reported anywhere in those sections.
+ * highest valid pitch reported anywhere in those sections. Malformed initial
+ * pitch labels are discarded rather than presented as playable evidence.
  */
 export function collectStemLanes(song: RehearsalSong): StemLane[] {
   const lanes = new Map<string, StemLane>();
@@ -124,8 +133,8 @@ export function collectStemLanes(song: RehearsalSong): StemLane[] {
           roleId: role.id,
           roleName: role.name.trim(),
           roleType: role.roleType,
-          lowestNote: role.range.lowestNote.trim(),
-          highestNote: role.range.highestNote.trim(),
+          lowestNote: normalizedNoteLabel(role.range.lowestNote),
+          highestNote: normalizedNoteLabel(role.range.highestNote),
           sectionLabels: sectionLabel ? [sectionLabel] : [],
           overlapWarnings: [...new Set(role.overlapWarnings.map((warning) => warning.trim()).filter(Boolean))],
           rehearsalPriority: role.rehearsalPriority
