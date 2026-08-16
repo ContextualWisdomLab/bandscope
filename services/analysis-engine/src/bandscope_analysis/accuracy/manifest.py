@@ -117,7 +117,11 @@ def parse_case_report(value: object) -> AccuracyCaseReport:
 
     if not isinstance(case_id, str) or not case_id:
         raise ValueError("case_id must be a non-empty string")
-    if not isinstance(audio_sha256, str) or len(audio_sha256) != 64:
+    if (
+        not isinstance(audio_sha256, str)
+        or len(audio_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in audio_sha256)
+    ):
         raise ValueError("audio_sha256 must be a 64-character hex digest")
     if not isinstance(metric_name, str) or not metric_name:
         raise ValueError("metric_name must be a non-empty string")

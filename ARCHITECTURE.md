@@ -127,4 +127,4 @@ Last updated: 2026-08-16
 - Supply-chain docs, workflow pinning, and lockfile verification are part of the default quickcheck path so dependency drift is caught early.
 - Quickcheck and CI are expected to verify dependency review, audit, supplemental inventory, and SBOM baseline presence as part of bootstrap.
 - Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path.
-- Real-audio accuracy acceptance is a separate buyer-facing gate from unit coverage. Tier 1 decoded-PCM fixtures, duration-weighted chord recall, and tempo Acc1 live in `docs/doctoring/real-audio-accuracy-acceptance.md` and `bandscope_analysis.accuracy`.
+- Real-audio accuracy acceptance is a separate buyer-facing gate from unit coverage. Tier 1 decoded-PCM fixtures, duration-weighted chord recall, and tempo Acc1 live in `docs/doctoring/real-audio-accuracy-acceptance.md` and `bandscope_analysis.accuracy`. Measured `other`-stem harmony is written onto keys-left, keys-right, acoustic-guitar, and lead vocal; arrangement defaults stay on the no-stem demo path only.

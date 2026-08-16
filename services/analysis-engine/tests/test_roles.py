@@ -4,6 +4,11 @@ from unittest.mock import patch
 
 import numpy as np
 
+from bandscope_analysis.accuracy.fixtures import (
+    C_MAJOR_LABEL,
+    DEFAULT_SAMPLE_RATE,
+    render_c_major_triad,
+)
 from bandscope_analysis.roles.extractor import RoleExtractor
 from bandscope_analysis.roles.model import (
     CueAnchorKind,
@@ -55,6 +60,9 @@ def test_role_extractor_basic() -> None:
     assert "lead-vocal" in roles_by_id
     assert "keys-right" in roles_by_id
     assert "keys-left" in roles_by_id
+    assert roles_by_id["keys-left"]["harmony"]["chord"] == "C#"
+    assert roles_by_id["keys-right"]["harmony"]["chord"] == "Emaj7"
+    assert roles_by_id["acoustic-guitar"]["harmony"]["chord"] == "Eb"
     assert roles_by_id["lead-vocal"]["roleType"] == "vocal"
     assert "Melodic overlap" in roles_by_id["lead-vocal"]["overlapWarnings"][0]
 
@@ -133,3 +141,29 @@ def test_role_extractor_falls_back_when_activity_detection_fails() -> None:
 
     assert result["topologies"][0]["section_id"] == "verse-1"
     assert result["topologies"][0]["part_graph"][0]["role_id"] == "bass-guitar"
+
+
+def test_role_extractor_uses_measured_other_stem_harmony() -> None:
+    """Keys and guitar must show the measured other-stem chord, not arrangement defaults."""
+    audio = render_c_major_triad(duration_seconds=3.0)
+    silence = np.zeros_like(audio)
+    extractor = RoleExtractor()
+    result = extractor.extract(
+        [{"id": "verse-1"}],
+        {
+            "stems": {
+                "vocals": silence,
+                "bass": silence,
+                "drums": silence,
+                "other": audio,
+            },
+            "sr": DEFAULT_SAMPLE_RATE,
+            "boundaries": [(0.0, 3.0)],
+        },
+    )
+    roles_by_id = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
+    assert roles_by_id["keys-left"]["harmony"]["chord"] == C_MAJOR_LABEL
+    assert roles_by_id["keys-right"]["harmony"]["chord"] == C_MAJOR_LABEL
+    assert roles_by_id["acoustic-guitar"]["harmony"]["chord"] == C_MAJOR_LABEL
+    assert roles_by_id["keys-right"]["harmony"]["functionLabel"] == "shared harmony"
+    assert roles_by_id["acoustic-guitar"]["harmony"]["functionLabel"] == "shared harmony"

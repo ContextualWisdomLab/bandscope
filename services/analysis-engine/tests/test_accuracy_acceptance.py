@@ -19,6 +19,7 @@ from bandscope_analysis.accuracy import (
     assert_fixture_checksum,
     build_case_report,
     duration_weighted_chord_recall,
+    evaluate_c_major_file,
     evaluate_c_major_pcm,
     evaluate_click_tempo_file,
     parse_case_report,
@@ -44,9 +45,10 @@ def test_c_major_fixture_is_deterministic(tmp_path: Path) -> None:
 def test_c_major_wav_recovers_c_after_file_decode(tmp_path: Path) -> None:
     """A decoded C major WAV must recover C for most of the fixture duration."""
     audio = render_c_major_triad(duration_seconds=3.0)
-    digest = write_pcm_wav(tmp_path / "c-major.wav", audio, DEFAULT_SAMPLE_RATE)
-    assert_fixture_checksum(tmp_path / "c-major.wav", digest)
-    report = evaluate_c_major_pcm(audio, DEFAULT_SAMPLE_RATE, digest)
+    path = tmp_path / "c-major.wav"
+    digest = write_pcm_wav(path, audio, DEFAULT_SAMPLE_RATE)
+    assert_fixture_checksum(path, digest)
+    report = evaluate_c_major_file(path, digest)
     assert report["true_label"] == C_MAJOR_LABEL
     assert report["metric_name"] == "duration_weighted_chord_recall"
     assert report["metric_value"] >= C_MAJOR_RECALL_FLOOR
@@ -90,6 +92,22 @@ def test_checksum_mismatch_fails_closed(tmp_path: Path) -> None:
     write_pcm_wav(path, audio, DEFAULT_SAMPLE_RATE)
     with pytest.raises(ValueError, match="checksum mismatch"):
         assert_fixture_checksum(path, "0" * 64)
+    triad = render_c_major_triad()
+    triad_path = tmp_path / "c-major-tampered.wav"
+    write_pcm_wav(triad_path, triad, DEFAULT_SAMPLE_RATE)
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        evaluate_c_major_file(triad_path, "0" * 64)
+
+
+def test_c_major_file_mixes_stereo_channels(tmp_path: Path) -> None:
+    """A stereo C major WAV must still recover C after a mono mixdown."""
+    mono = render_c_major_triad(duration_seconds=3.0)
+    stereo = np.stack([mono, mono], axis=1)
+    path = tmp_path / "c-major-stereo.wav"
+    digest = write_pcm_wav(path, stereo, DEFAULT_SAMPLE_RATE)
+    report = evaluate_c_major_file(path, digest)
+    assert report["passed"] is True
+    assert report["true_label"] == C_MAJOR_LABEL
 
 
 def test_pipeline_surfaces_c_on_active_lead_vocal() -> None:
@@ -116,6 +134,14 @@ def test_pipeline_surfaces_c_on_active_lead_vocal() -> None:
         if role["id"] == "lead-vocal"
     ]
     assert C_MAJOR_LABEL in lead_chords
+    role_chords = {
+        role["id"]: role["harmony"]["chord"]
+        for section in song["sections"]
+        for role in section["roles"]
+    }
+    assert role_chords.get("keys-left") == C_MAJOR_LABEL
+    assert role_chords.get("keys-right") == C_MAJOR_LABEL
+    assert role_chords.get("acoustic-guitar") == C_MAJOR_LABEL
 
 
 def test_render_helpers_reject_non_positive_inputs() -> None:
@@ -177,6 +203,8 @@ def test_parse_case_report_rejects_malformed_payloads() -> None:
         parse_case_report({**valid, "case_id": ""})
     with pytest.raises(ValueError, match="audio_sha256"):
         parse_case_report({**valid, "audio_sha256": "short"})
+    with pytest.raises(ValueError, match="audio_sha256"):
+        parse_case_report({**valid, "audio_sha256": "A" * 64})
     with pytest.raises(ValueError, match="metric_name"):
         parse_case_report({**valid, "metric_name": ""})
     with pytest.raises(ValueError, match="metric_value"):

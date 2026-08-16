@@ -34,9 +34,9 @@ stem quality, or private-corpus readiness.
 A passing case supports only the registered fixture, metric, engine version,
 and tolerance. It does not establish universal musical correctness.
 
-Keys-left, keys-right, and acoustic-guitar roles still carry arrangement
-defaults (`C#`, `Emaj7`, `Eb`). Lead vocal harmony is the role that currently
-reflects the `other` stem recognizer. Do not treat those defaults as
+When the `other` stem is measured, keys-left, keys-right, acoustic-guitar,
+and lead vocal share that chord. Arrangement defaults (`C#`, `Emaj7`, `Eb`)
+remain only for the no-stem demo path. Do not treat demo defaults as
 measured accuracy.
 
 ## References
@@ -63,5 +63,6 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   fixture generators and metric floors.
 - Mitigations: no network, no shell, checksum fail-closed, bounded fixture
   durations, no copyrighted commercial recordings.
-- Test points: deterministic digest, C major recall, 120 BPM Acc1, checksum
-  mismatch, malformed manifest, silence must not pass as C major.
+- Test points: deterministic digest, C major recall after file decode, 120
+  BPM Acc1, checksum mismatch, malformed manifest, silence must not pass as
+  C major, measured `other` stem must label keys and guitar as `C`.

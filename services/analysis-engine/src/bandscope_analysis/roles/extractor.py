@@ -176,7 +176,12 @@ class RoleExtractor:
         vocal_chord: str,
         vocal_range: RangeSummary,
     ) -> dict[str, RehearsalRole]:
-        """Build the 5 rehearsal roles and compute their priorities."""
+        """Build the 5 rehearsal roles and compute their priorities.
+
+        ``vocal_chord`` is the measured ``other``-stem harmony. When it is
+        present, keys-left, keys-right, and acoustic-guitar use that label
+        instead of arrangement defaults.
+        """
         bass_role: RehearsalRole = {
             "id": "bass-guitar",
             "name": "Bass Guitar",
@@ -206,12 +211,19 @@ class RoleExtractor:
             ],
         }
 
+        keys_left_chord = vocal_chord or "C#"
+        keys_right_chord = vocal_chord or "Emaj7"
+        guitar_chord = vocal_chord or "Eb"
+        keys_right_function = "shared harmony" if vocal_chord else "Imaj7 color"
+        guitar_function = "shared harmony" if vocal_chord else "I"
+        guitar_setup_chords = [guitar_chord] if vocal_chord else ["Eb", "Bb", "Fm", "Ab"]
+
         keys_left_role: RehearsalRole = {
             "id": "keys-left",
             "name": "Keyboard 1 Left Hand",
             "roleType": RoleType.HAND,
             "harmony": {
-                "chord": "C#",
+                "chord": keys_left_chord,
                 "functionLabel": "Root reinforcement",
                 "source": "model",
             },
@@ -227,7 +239,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.MEDIUM,  # to be replaced
             "simplification": "Omit if bass is covering the lower register.",
-            "setupNote": get_setup_note("Keyboard", ["C#"])
+            "setupNote": get_setup_note("Keyboard", [keys_left_chord])
             or "Use a darker patch to avoid clashing with right hand.",
             "manualOverrides": [],
             "overlapWarnings": ["Density warning: competing with Bass Guitar in low register."],
@@ -238,8 +250,8 @@ class RoleExtractor:
             "name": "Keyboard 1 Right Hand",
             "roleType": RoleType.HAND,
             "harmony": {
-                "chord": "Emaj7",
-                "functionLabel": "Imaj7 color",
+                "chord": keys_right_chord,
+                "functionLabel": keys_right_function,
                 "source": "model",
             },
             "cue": {
@@ -254,7 +266,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.HIGH,  # to be replaced
             "simplification": "Drop top extension if the chorus turnaround feels busy.",
-            "setupNote": get_setup_note("Keyboard", ["Emaj7"])
+            "setupNote": get_setup_note("Keyboard", [keys_right_chord])
             or "Keep the patch bright enough to stay over the guitars.",
             "manualOverrides": [],
             "overlapWarnings": ["Melodic overlap: top notes conflict with Lead Vocal range."],
@@ -299,8 +311,8 @@ class RoleExtractor:
             "name": "Acoustic Guitar",
             "roleType": RoleType.INSTRUMENT,
             "harmony": {
-                "chord": "Eb",
-                "functionLabel": "I",
+                "chord": guitar_chord,
+                "functionLabel": guitar_function,
                 "source": "model",
             },
             "cue": {"kind": CueAnchorKind.TRANSITION, "value": "Strum on the downbeat."},
@@ -312,7 +324,7 @@ class RoleExtractor:
             },
             "rehearsalPriority": RehearsalPriority.MEDIUM,
             "simplification": "Simplify strumming pattern if rushing.",
-            "setupNote": get_setup_note("Acoustic Guitar", ["Eb", "Bb", "Fm", "Ab"])
+            "setupNote": get_setup_note("Acoustic Guitar", guitar_setup_chords)
             or "Check tuning.",
             "manualOverrides": [],
             "overlapWarnings": [],

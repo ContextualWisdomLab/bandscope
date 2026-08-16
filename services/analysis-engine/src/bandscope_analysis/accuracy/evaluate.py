@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
+import soundfile as sf  # type: ignore[import-untyped]
+
 from bandscope_analysis.accuracy.fixtures import (
     C_MAJOR_LABEL,
     DEFAULT_CLICK_BPM,
@@ -49,6 +51,24 @@ def evaluate_c_major_pcm(
         passed=recall >= C_MAJOR_RECALL_FLOOR,
         true_label=C_MAJOR_LABEL,
     )
+
+
+def evaluate_c_major_file(audio_path: Path, expected_sha256: str) -> AccuracyCaseReport:
+    """Decode a C major WAV from disk and score duration-weighted recall.
+
+    Args:
+        audio_path: On-disk WAV written by ``write_pcm_wav``.
+        expected_sha256: Registered digest. Mismatch fails closed.
+
+    Returns:
+        A case report whose metric is duration-weighted recall of ``C``.
+    """
+    assert_fixture_checksum(audio_path, expected_sha256)
+    audio, sample_rate = sf.read(str(audio_path), dtype="float32", always_2d=False)
+    decoded = np.asarray(audio, dtype=np.float32)
+    if decoded.ndim > 1:
+        decoded = np.mean(decoded, axis=-1).astype(np.float32)
+    return evaluate_c_major_pcm(decoded, int(sample_rate), expected_sha256)
 
 
 def evaluate_click_tempo_file(

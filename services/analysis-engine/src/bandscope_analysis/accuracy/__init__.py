@@ -5,7 +5,7 @@ result is accurate. These helpers score decoded PCM against known labels. They
 do not replace Demucs stem separation or private-corpus benchmarks.
 """
 
-from .evaluate import evaluate_c_major_pcm, evaluate_click_tempo_file
+from .evaluate import evaluate_c_major_file, evaluate_c_major_pcm, evaluate_click_tempo_file
 from .fixtures import (
     C_MAJOR_LABEL,
     DEFAULT_CLICK_BPM,
@@ -31,6 +31,7 @@ __all__ = [
     "assert_fixture_checksum",
     "build_case_report",
     "duration_weighted_chord_recall",
+    "evaluate_c_major_file",
     "evaluate_c_major_pcm",
     "evaluate_click_tempo_file",
     "parse_case_report",

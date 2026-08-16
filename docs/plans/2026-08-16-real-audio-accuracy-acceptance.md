@@ -47,4 +47,6 @@ cited as release evidence.
 ### Remaining risk
 
 Tier 1 does not cover Demucs stems, private commercial recordings, or
-CPU/GPU numeric parity. Those remain later #770 tiers.
+CPU/GPU numeric parity. Those remain later #770 tiers. Keys and guitar now
+share the measured `other` stem; separate keyboard or guitar stems remain
+later work.
