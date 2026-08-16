@@ -170,6 +170,16 @@ def test_render_helpers_reject_non_positive_inputs() -> None:
         write_pcm_wav(Path("unused.wav"), np.zeros(4, dtype=np.float32), 0)
 
 
+def test_render_helpers_reject_non_finite_inputs() -> None:
+    """Fixture generation must reject non-finite timing before allocation/loops."""
+    with pytest.raises(ValueError, match="duration_seconds.*finite"):
+        render_c_major_triad(duration_seconds=np.nan)
+    with pytest.raises(ValueError, match="bpm.*finite"):
+        render_click_track(bpm=np.nan)
+    with pytest.raises(ValueError, match="duration_seconds.*finite"):
+        render_click_track(duration_seconds=np.inf)
+
+
 def test_click_track_with_zero_length_click_stays_silent() -> None:
     """A 1 Hz sample rate makes the click window empty and leaves silence."""
     audio = render_click_track(bpm=60.0, duration_seconds=1.0, sample_rate=1)
