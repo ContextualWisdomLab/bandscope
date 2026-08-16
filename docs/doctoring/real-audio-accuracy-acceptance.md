@@ -7,6 +7,7 @@ evidence.
 ```bash
 uv run --project services/analysis-engine pytest \
   services/analysis-engine/tests/test_accuracy_acceptance.py \
+  services/analysis-engine/tests/test_accuracy_boolean_fixture_inputs.py \
   services/analysis-engine/tests/test_accuracy_manifest_version.py \
   services/analysis-engine/tests/test_accuracy_metric_interval_contract.py
 ```
@@ -43,6 +44,12 @@ stem quality, or private-corpus readiness.
   and fail closed rather than being recorded as an ordinary miss. This matters
   in Python because `bool` is an integer subtype and would otherwise satisfy
   ordinary numeric comparisons.
+- Fixture generation and WAV serialization accept only finite positive
+  non-Boolean duration, BPM, and sample-rate evidence. In Python, `True` would
+  otherwise act as numeric `1`, which could create a one-second fixture, a
+  one-BPM click contract, or a one-Hz WAV while still looking type-compatible at
+  runtime. Those values now fail closed before allocation, loop construction,
+  or file serialization.
 - Checksum mismatch fails closed on both file evaluators. Do not score a
   tampered file as a pass.
 - Machine-readable case reports are accepted only when the registered
@@ -83,16 +90,18 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
 
 ## Security Notes
 
-- Attack surface: generated WAV bytes, SHA-256 digests, decoded PCM, recognizer
-  segment timings, tempo estimates, product-version provenance, and parsed
-  case-report mappings passed into the accuracy acceptance path.
-- Trust boundary: untrusted audio, recognizer output, and manifests; trusted
-  repo-controlled fixture generators, true labels, metric definitions,
-  registered floors, and the repository product `VERSION`.
+- Attack surface: generated WAV bytes, fixture duration/BPM/sample-rate inputs,
+  SHA-256 digests, decoded PCM, recognizer segment timings, tempo estimates,
+  product-version provenance, and parsed case-report mappings passed into the
+  accuracy acceptance path.
+- Trust boundary: untrusted audio, runtime numeric evidence, recognizer output,
+  and manifests; trusted repo-controlled fixture definitions, true labels,
+  metric definitions, registered floors, and the repository product `VERSION`.
 - Mitigations: no network, no shell, checksum fail-closed before C-major
   decode and before tempo scoring, overlap-safe chord duration, finite
   non-Boolean annotation/estimate timing, strictly increasing estimate
-  intervals, finite non-Boolean tempo metric inputs, strict SHA-256 syntax,
+  intervals, finite non-Boolean tempo metric inputs, finite positive
+  non-Boolean fixture duration/BPM/sample-rate inputs, strict SHA-256 syntax,
   finite-only report metric values, exact non-empty product-version provenance,
   bounded fixture durations, and no copyrighted commercial recordings. Fixture
   paths are pytest temp files; reports store only SHA-256 and labels, not
@@ -102,6 +111,7 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   non-finite and Boolean chord annotation/estimate timing rejection,
   empty/reversed estimate interval rejection, silence-on-disk vs in-memory
   triad, 120 BPM Acc1, non-finite and Boolean tempo estimate / truth / tolerance
+  rejection, non-finite and Boolean fixture generation/WAV sample-rate
   rejection, checksum mismatch through both file evaluators, malformed/non-hex
   manifest provenance, NaN/infinity report rejection, missing/empty product
   `VERSION` rejection, and silence must not pass as C major.
