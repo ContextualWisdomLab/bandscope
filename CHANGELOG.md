@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Temporal-analysis dependency failures now return stable, action-oriented recovery guidance instead of copying third-party exception details into the caller-visible error. Original exception detail remains in repository-controlled diagnostic logs, while explicit BandScope input-validation failures stay actionable.
+- Temporal-analysis dependency failures now return stable, action-oriented recovery guidance instead of copying third-party exception details into the caller-visible error. Ordinary temporal diagnostics keep a bounded operation/error-type event without logging the selected local path, raw dependency exception text, traceback, or secret-shaped payload detail, while explicit BandScope input-validation failures stay actionable.
 
 ## [0.1.3] - 2026-04-29
 
