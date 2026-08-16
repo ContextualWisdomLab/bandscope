@@ -12,12 +12,13 @@ Security Notes:
   network access, or shell execution.
 - Bounded: work is O(len(chord_segments) * len(boundaries)) with no
   recursion or unbounded allocation.
-- Safe failure: malformed segments are skipped and empty inputs produce
-  empty (per-section) summaries; no exceptions escape the public API.
+- Safe failure: malformed or non-finite timing is skipped and empty inputs
+  produce empty (per-section) summaries; no exceptions escape the public API.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from typing import TypedDict
 
@@ -49,7 +50,7 @@ def _coerce_segment(segment: Mapping[str, object]) -> tuple[float, float, str] |
 
     Returns:
         A ``(start, end, chord)`` tuple, or ``None`` if the segment is
-        malformed (missing keys, non-numeric times, or non-positive span).
+        malformed, non-finite, or has a non-positive span.
     """
     start_raw = segment.get("start_time")
     end_raw = segment.get("end_time")
@@ -62,7 +63,7 @@ def _coerce_segment(segment: Mapping[str, object]) -> tuple[float, float, str] |
         return None
     start = float(start_raw)
     end = float(end_raw)
-    if end <= start:
+    if not math.isfinite(start) or not math.isfinite(end) or end <= start:
         return None
     return (start, end, chord_raw)
 
@@ -76,8 +77,8 @@ def _summarize_one_section(
 
     Args:
         segments: Validated ``(start, end, chord)`` tuples in input order.
-        section_start: Section window start time in seconds.
-        section_end: Section window end time in seconds.
+        section_start: Finite section window start time in seconds.
+        section_end: Finite section window end time in seconds.
 
     Returns:
         A :class:`SectionHarmony` for the window. Segments contribute only
@@ -131,13 +132,15 @@ def summarize_section_harmony(
     Args:
         chord_segments: Chord segments shaped like
             ``{"start_time": float, "end_time": float, "chord": str, ...}``
-            (e.g. ``TrackedChord`` from the chord recognizer). Malformed
-            entries are skipped.
+            (e.g. ``TrackedChord`` from the chord recognizer). Malformed,
+            non-finite, and non-positive-span entries are skipped.
         boundaries: Section windows as ``(start, end)`` pairs in seconds.
+            Windows must be finite and have ``end > start``; invalid windows
+            are skipped.
 
     Returns:
-        One :class:`SectionHarmony` per boundary, in boundary order. Empty
-        ``boundaries`` yields ``[]``; empty or fully malformed
+        One :class:`SectionHarmony` per valid boundary, in boundary order.
+        Empty ``boundaries`` yields ``[]``; empty or fully malformed
         ``chord_segments`` yields per-section empty summaries with
         ``main_chord == ""``. Never raises.
     """
@@ -154,6 +157,12 @@ def summarize_section_harmony(
                 section_start = float(boundary[0])
                 section_end = float(boundary[1])
             except (IndexError, TypeError, ValueError):
+                continue
+            if (
+                not math.isfinite(section_start)
+                or not math.isfinite(section_end)
+                or section_end <= section_start
+            ):
                 continue
             summaries.append(_summarize_one_section(segments, section_start, section_end))
         return summaries
