@@ -1995,27 +1995,21 @@ def cargo_lock_has_named_dependency_path(
     the same key with a later match count and falsely satisfy a repeated
     name. Distinct keys that share a package name remain valid matches.
     """
-    seen_in_path: set[str] = set()
-
-    def dfs(current: str, matched_count: int) -> bool:
-        if current in seen_in_path:
-            return False
-
+    pending: list[tuple[str, int, frozenset[str]]] = [(root_package, 0, frozenset())]
+    while pending:
+        current, matched_count, seen = pending.pop()
+        if current in seen:
+            continue
         current_name = current.rsplit(" ", maxsplit=1)[0]
+        next_matched_count = matched_count
         if matched_count < len(package_names) and current_name == package_names[matched_count]:
-            matched_count += 1
-            if matched_count == len(package_names):
+            next_matched_count += 1
+            if next_matched_count == len(package_names):
                 return True
-
-        seen_in_path.add(current)
+        next_seen = seen | {current}
         for dependency in package_dependencies.get(current, []):
-            if dfs(dependency, matched_count):
-                return True
-        seen_in_path.remove(current)
-
-        return False
-
-    return dfs(root_package, 0)
+            pending.append((dependency, next_matched_count, next_seen))
+    return False
 
 
 def unsupported_numeric_semver_violation(
