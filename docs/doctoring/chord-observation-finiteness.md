@@ -12,20 +12,22 @@ Missing metadata and invalid metadata are different events:
 
 - missing similarity or RMS is unknown evidence and must stay neutral;
 - non-finite similarity invalidates the whole frame and must fall back to a uniform chord distribution;
-- non-finite RMS or chromagram variance is unknown, not evidence of silence.
+- non-finite RMS or chromagram variance is unknown, not evidence of silence; and
+- confidence computation treats non-finite similarity as unknown evidence and returns low confidence without performing invalid entropy arithmetic.
 
 The next action for a player is unchanged: read the surviving chord label, or treat a neutralized frame as “listen again” rather than as a forced no-chord cut.
 
 ## Research rationale
 
-Rabiner (1989) defines HMM decoding over valid observation probabilities; a non-finite column is outside that model. Lee and Slaney (2006) treat frame-level chord observations as the input to Viterbi, so observation integrity is an accuracy precondition rather than a presentation detail. Mauch and Dixon (2010) likewise keep the observation model separate from the transition prior, which is why this repair stays inside probability construction and does not change the 25-state vocabulary or the Rust production decoder.
+Rabiner (1989) defines HMM decoding over valid observation probabilities; a non-finite column is outside that model. Lee and Slaney (2006) treat frame-level chord observations as the input to Viterbi, so observation integrity is an accuracy precondition rather than a presentation detail. Mauch and Dixon (2010) likewise keep the observation model separate from the transition prior, which is why this repair stays inside probability construction and confidence reporting and does not change the 25-state vocabulary or the Rust production decoder.
 
 ## Test-first verification contract
 
 - a frame with any non-finite similarity stays finite and column-normalized;
 - that frame uses a uniform 24-chord fallback and does not raise the no-chord state above the chord mass;
 - non-finite RMS or chromagram variance does not satisfy the silence thresholds;
-- the vectorized implementation matches an independent framewise scalar oracle on the same corrupt inputs;
+- confidence on NaN or infinite similarity falls back to `low` without emitting a NumPy `RuntimeWarning` from invalid arithmetic;
+- the vectorized implementation matches an independent framewise scalar oracle on the same corrupt inputs; and
 - `recognize()` still forwards the full audio array to the harmonic separator, so duration policy stays upstream.
 
 ## References
