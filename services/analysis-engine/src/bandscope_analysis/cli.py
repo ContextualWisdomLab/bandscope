@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import ntpath
 import os
 import stat
 import sys
@@ -99,19 +100,27 @@ def _uses_windows_device_alias(path: str) -> bool:
 def _read_bounded_job_file(path: str) -> bytes:
     """Read a bounded regular local job file through a verified descriptor.
 
-    UNC/network shapes, device namespaces, and reserved Win32 DOS device aliases
-    are rejected lexically before any filesystem lookup. The remaining path is
-    inspected with ``lstat`` before opening so known directories, FIFOs, devices,
-    sockets, and symbolic links fail before descriptor acquisition. The open also
-    requests nonblocking mode where available so a path replaced by a FIFO/device
-    after preflight cannot turn descriptor acquisition into an unbounded wait.
-    The obtained descriptor is then checked with ``fstat`` and must identify the
-    same regular-file inode observed during preflight. ``O_NOFOLLOW`` and
-    close-on-exec are additionally requested where the platform exposes them. The
-    byte bound is enforced on the descriptor-backed stream rather than on a
-    second path lookup.
+    UNC/network shapes, device namespaces, drive-relative Win32 paths, and
+    reserved DOS device aliases are rejected lexically before any filesystem
+    lookup. Drive-relative forms such as ``C:job.json`` are authority-bearing:
+    Win32 resolves them through a per-drive current directory rather than from
+    the drive root. The remaining path is inspected with ``lstat`` before
+    opening so known directories, FIFOs, devices, sockets, and symbolic links
+    fail before descriptor acquisition. The open also requests nonblocking mode
+    where available so a path replaced by a FIFO/device after preflight cannot
+    turn descriptor acquisition into an unbounded wait. The obtained descriptor
+    is then checked with ``fstat`` and must identify the same regular-file inode
+    observed during preflight. ``O_NOFOLLOW`` and close-on-exec are additionally
+    requested where the platform exposes them. The byte bound is enforced on
+    the descriptor-backed stream rather than on a second path lookup.
     """
-    if path.startswith(("\\\\", "//")) or _uses_windows_device_alias(path):
+    drive, drive_tail = ntpath.splitdrive(path)
+    uses_drive_relative_path = bool(drive) and not drive_tail.startswith(("\\", "/"))
+    if (
+        path.startswith(("\\\\", "//"))
+        or uses_drive_relative_path
+        or _uses_windows_device_alias(path)
+    ):
         raise OSError("job path must use the local regular-file namespace")
 
     before = os.lstat(path)
