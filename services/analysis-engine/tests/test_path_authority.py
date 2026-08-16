@@ -482,6 +482,126 @@ def test_stem_work_handoff_does_not_follow_preexisting_json_symlink(
     assert outside_file.read_bytes() == b"outside sentinel"
 
 
+def test_stem_work_handoff_rejects_worker_arrays_path_outside_temp_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not treat a worker-supplied arraysPath as writable tempRoot authority."""
+    temp_root = tmp_path / "temp-root"
+    request = validate_analysis_job_request(
+        _local_request(str(tmp_path / "rehearsal.wav"), temp_root=str(temp_root))
+    )
+    arrays_path = _stem_work_arrays_path(request)
+    assert arrays_path is not None
+    arrays_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(arrays_path, stem_vocals=np.array([0.0, 0.25], dtype=np.float32))
+    outside_dir = tmp_path / "outside-worker-root"
+    outside_dir.mkdir()
+    outside_arrays = outside_dir / arrays_path.name
+    outside_sidecar = outside_arrays.with_suffix(".json")
+    outside_sidecar.write_bytes(b"outside sentinel")
+    file_payload = {
+        "arraysPath": str(outside_arrays),
+        "sampleRate": 44_100,
+        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "ok"},
+        "stemKeys": ["vocals"],
+        "stemRoleTypes": {"vocals": "vocal"},
+    }
+    monkeypatch.setattr(
+        api_module,
+        "_multiprocessing_context",
+        lambda: _FakeStemWorkContext(("ok_file", file_payload)),
+    )
+
+    with pytest.raises(ValueError, match="tempRoot"):
+        _run_stem_separation_with_timeout(str(tmp_path / "rehearsal.wav"), arrays_path=arrays_path)
+
+    assert outside_sidecar.read_bytes() == b"outside sentinel"
+    assert not arrays_path.with_suffix(".json").exists()
+
+
+def test_stem_work_handoff_rejects_file_result_without_authorized_arrays_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject an ok_file envelope when the parent helper has no authorized arrays path."""
+    outside_sidecar = tmp_path / "outside-unbound.json"
+    outside_sidecar.write_bytes(b"outside sentinel")
+    file_payload = {
+        "arraysPath": str(tmp_path / "outside-unbound.npz"),
+        "sampleRate": 44_100,
+        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "ok"},
+        "stemKeys": ["vocals"],
+        "stemRoleTypes": {"vocals": "vocal"},
+    }
+    monkeypatch.setattr(
+        api_module,
+        "_multiprocessing_context",
+        lambda: _FakeStemWorkContext(("ok_file", file_payload)),
+    )
+
+    with pytest.raises(ValueError, match="tempRoot"):
+        _run_stem_separation_with_timeout(str(tmp_path / "rehearsal.wav"))
+
+    assert outside_sidecar.read_bytes() == b"outside sentinel"
+
+
+def test_job_translates_late_stem_work_authority_failure_to_invalid_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep a post-progress stem-work authority failure actionable and payload-safe."""
+    temp_root = tmp_path / "temp-root"
+    source_path = tmp_path / "rehearsal.wav"
+    source_path.write_bytes(b"RIFF")
+
+    def fail_local_features(_request: object) -> None:
+        raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+
+    monkeypatch.setattr(api_module, "_build_local_audio_features", fail_local_features)
+
+    updates = run_analysis_job_updates(
+        "job-late-stem-work-authority",
+        _local_request(str(source_path), temp_root=str(temp_root)),
+        "2026-08-16T00:00:00Z",
+    )
+
+    assert updates[-1]["state"] == "failed"
+    assert updates[-1]["error"] == {
+        "code": "invalid_request",
+        "message": "Invalid analysis job request: invalid field 'tempRoot'",
+    }
+    assert str(temp_root) not in str(updates[-1])
+
+
+def test_job_keeps_missing_source_after_progress_as_engine_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep a late missing-source failure distinct from path-authority rejection."""
+    temp_root = tmp_path / "temp-root"
+    source_path = tmp_path / "rehearsal.wav"
+    source_path.write_bytes(b"RIFF")
+
+    def fail_local_features(_request: object) -> None:
+        raise FileNotFoundError("Audio source file not found.")
+
+    monkeypatch.setattr(api_module, "_build_local_audio_features", fail_local_features)
+
+    updates = run_analysis_job_updates(
+        "job-late-missing-source",
+        _local_request(str(source_path), temp_root=str(temp_root)),
+        "2026-08-16T00:00:00Z",
+    )
+
+    assert updates[-1]["state"] == "failed"
+    assert updates[-1]["error"] == {
+        "code": "engine_unavailable",
+        "message": "Stem separation failed",
+    }
+    assert str(source_path) not in str(updates[-1])
+
+
 def test_job_reports_stem_work_sidecar_symlink_as_actionable_invalid_request(
     tmp_path: Path,
 ) -> None:

@@ -663,9 +663,11 @@ def _stem_work_sidecar_path(arrays_path: Path) -> Path:
     """Return the authorized metadata sidecar for one stem-work arrays file.
 
     The parent helper writes ``{digest}.json`` next to the worker ``.npz``
-    handoff. That sibling must be re-checked immediately before use so a
-    pre-existing symlink cannot escape ``tempRoot`` merely because the arrays
-    file itself stayed inside the authorized directory.
+    handoff. Callers must pass the already-authorized parent-helper arrays
+    path, not a worker-supplied ``arraysPath``. The sibling is re-checked
+    immediately before use so a pre-existing symlink cannot escape
+    ``tempRoot`` merely because the arrays file itself stayed inside the
+    authorized directory.
     """
     return resolve_authorized_child_path(
         str(arrays_path.parent),
@@ -1019,11 +1021,13 @@ def _run_stem_separation_with_timeout(
             "stemKeys": payload.get("stemKeys"),
             "stemRoleTypes": payload.get("stemRoleTypes"),
         }
-        arrays_output_path = Path(str(payload.get("arraysPath", "")))
-        metadata_temp = _stem_work_sidecar_path(arrays_output_path)
+        payload_arrays_path = Path(str(payload.get("arraysPath", "")))
+        if arrays_path is None or payload_arrays_path != arrays_path:
+            raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
+        metadata_temp = _stem_work_sidecar_path(arrays_path)
         try:
             metadata_temp.write_text(json.dumps(metadata_payload), encoding="utf-8")
-            loaded = _load_cached_local_audio_features(metadata_temp, arrays_output_path)
+            loaded = _load_cached_local_audio_features(metadata_temp, arrays_path)
         except OSError:
             loaded = None
         finally:
@@ -1234,7 +1238,22 @@ def run_analysis_job_updates(
                 )
             )
             audio_features = None
-        except (FileNotFoundError, ValueError):
+        except (FileNotFoundError, ValueError) as error:
+            if isinstance(error, ValueError) and str(error).startswith(
+                "Invalid analysis job request:"
+            ):
+                updates.append(
+                    _build_job_status(
+                        job_id=job_id,
+                        state="failed",
+                        requested_at=requested_at,
+                        error={
+                            "code": "invalid_request",
+                            "message": str(error),
+                        },
+                    )
+                )
+                return updates
             logger.exception("Stem separation failed before analysis job completion.")
             updates.append(
                 _build_job_status(
