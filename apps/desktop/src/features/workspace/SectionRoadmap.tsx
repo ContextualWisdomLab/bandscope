@@ -1,5 +1,5 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -14,11 +14,28 @@ interface SectionRoadmapProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
-/** Documented. */
+/**
+ * Render the horizontal section roadmap and keep the focused card in view.
+ */
 export function SectionRoadmap({ song, activeRole, focusedSectionId = null, onSongUpdate }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
+  const focusedCardRef = useRef<HTMLDivElement | null>(null);
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+
+  useEffect(() => {
+    if (!focusedSectionId) {
+      return;
+    }
+    const focusedCard = focusedCardRef.current;
+    if (typeof focusedCard?.scrollIntoView === "function") {
+      focusedCard.scrollIntoView({
+        behavior: "smooth",
+        inline: "start",
+        block: "nearest"
+      });
+    }
+  }, [focusedSectionId]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -107,8 +124,10 @@ export function SectionRoadmap({ song, activeRole, focusedSectionId = null, onSo
         {song.sections.map((section) => (
           <Card
             key={section.id}
+            ref={section.id === focusedSectionId ? focusedCardRef : undefined}
             data-testid={`section-roadmap-${section.id}`}
             data-focused-section={section.id === focusedSectionId ? "true" : undefined}
+            aria-current={section.id === focusedSectionId ? "true" : undefined}
             className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
               section.id === focusedSectionId
                 ? "ring-2 ring-cyan-300 ring-offset-2 ring-offset-slate-950"

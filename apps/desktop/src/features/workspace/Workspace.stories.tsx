@@ -61,3 +61,26 @@ export const DedupedRepeatedVerse: Story = {
 export const EmptyPriorityCard: Story = {
   args: { song: createEmptyPrioritySong() }
 };
+
+/**
+ * Build a low-priority Late Night Set whose focus list names a missing
+ * bridge so Storybook can show only the matching verse action.
+ */
+function createUnmatchedFocusSong(): RehearsalSong {
+  const song = createLateNightSetWithRepeatedVerse();
+  for (const section of song.sections) {
+    for (const role of section.roles) {
+      role.rehearsalPriority = "low";
+    }
+  }
+  song.exportSummary = {
+    ...song.exportSummary,
+    focusSections: ["verse", "bridge"]
+  };
+  return song;
+}
+
+/** Unmatched bridge is omitted; verse remains the only clickable focus. */
+export const ActionableFocusLabelsOnly: Story = {
+  args: { song: createUnmatchedFocusSong() }
+};

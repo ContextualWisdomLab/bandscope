@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
-import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it } from "vitest";
 import { Workspace } from "./Workspace";
 
@@ -19,7 +19,7 @@ describe("Workspace rehearsal-priority focus fallback", () => {
 
   it("deduplicates normalized focus labels while preserving first-occurrence order", () => {
     setNavigatorLanguage("en-US");
-    const song = createDemoRehearsalSong();
+    const song = createLateNightSetWithChorus();
     for (const section of song.sections) {
       for (const role of section.roles) {
         role.rehearsalPriority = "low";
@@ -33,8 +33,22 @@ describe("Workspace rehearsal-priority focus fallback", () => {
     render(<Workspace song={song} />);
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
-    expect(within(priorities).getAllByText(/^verse$/i)).toHaveLength(1);
-    expect(within(priorities).getByText("bridge")).toBeTruthy();
-    expect(within(priorities).getByText("chorus")).toBeTruthy();
+    const buttons = within(priorities).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual(["verse", "chorus"]);
+    expect(within(priorities).queryByText("bridge")).toBeNull();
   });
 });
+
+/**
+ * Build a Late Night Set with verse and chorus so unmatched bridge labels can
+ * be dropped while still proving first-occurrence order for real sections.
+ */
+function createLateNightSetWithChorus(): RehearsalSong {
+  const song = createDemoRehearsalSong();
+  const chorus = structuredClone(song.sections[0]!);
+  chorus.id = "chorus-1";
+  chorus.label = "chorus";
+  chorus.timeRange = { start: 30, end: 50 };
+  song.sections = [song.sections[0]!, chorus];
+  return song;
+}

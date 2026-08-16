@@ -8,6 +8,7 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -28,6 +29,7 @@ describe("Workspace", () => {
       configurable: true,
       value: originalRevokeObjectUrl
     });
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
   it("updates practice progress immutably through onSongUpdate", () => {
@@ -409,7 +411,29 @@ describe("Workspace", () => {
     expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
   });
 
-  it("does not focus a section when the fallback label has no matching roadmap card", () => {
+  it("omits unmatched focus labels so they cannot clear a real section", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["verse", "bridge"]
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+    expect(within(priorities).queryByRole("button", { name: "Show bridge on the roadmap" })).toBeNull();
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("falls back to the first valid section when unmatched focus labels are the only evidence", () => {
     setNavigatorLanguage("en-US");
     const song = createLateNightSetWithRepeatedVerse();
     for (const section of song.sections) {
@@ -425,10 +449,9 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
-    fireEvent.click(within(priorities).getByRole("button", { name: "Show bridge on the roadmap" }));
-
-    expect(screen.getByTestId("section-roadmap-verse-1")).not.toHaveAttribute("data-focused-section", "true");
-    expect(screen.getByTestId("section-roadmap-chorus-1")).not.toHaveAttribute("data-focused-section", "true");
+    expect(within(priorities).queryByRole("button", { name: "Show bridge on the roadmap" })).toBeNull();
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
   });
 
   it("falls back to the first section label when every role is low and focus sections are empty", () => {
@@ -451,6 +474,50 @@ describe("Workspace", () => {
     expect(priorities.textContent).toContain("verse");
     expect(priorities.textContent).not.toContain("chorus");
     expect(priorities.textContent).not.toContain("Lock in first");
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show verse on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("skips a none first-section label when falling back to the roadmap entrance", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        role.rehearsalPriority = "low";
+      }
+    }
+    song.sections[0] = { ...song.sections[0]!, label: "none" };
+    song.sections[1] = { ...song.sections[1]!, label: "NONE" };
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    expect(within(priorities).queryByRole("button", { name: "Show none on the roadmap" })).toBeNull();
+    fireEvent.click(within(priorities).getByRole("button", { name: "Show chorus on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-chorus-1")).toHaveAttribute("data-focused-section", "true");
+  });
+
+  it("scrolls the named section into view when a lock-in pair is activated", () => {
+    setNavigatorLanguage("en-US");
+    const song = createLateNightSetWithRepeatedVerse();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+
+    const priorities = screen.getByRole("region", { name: "Rehearsal Priorities" });
+    fireEvent.click(
+      within(priorities).getByRole("button", { name: "Show Lead Vocal in chorus on the roadmap" })
+    );
+
+    const chorusCard = screen.getByTestId("section-roadmap-chorus-1");
+    expect(chorusCard).toHaveAttribute("data-focused-section", "true");
+    expect(chorusCard).toHaveAttribute("aria-current", "true");
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 });
 

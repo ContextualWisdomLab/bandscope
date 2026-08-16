@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SectionRoadmap } from "./SectionRoadmap";
 
 const originalLanguage = window.navigator.language;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(window.navigator, "language", {
@@ -16,6 +17,7 @@ describe("SectionRoadmap", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
     vi.restoreAllMocks();
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
   it("localizes roadmap controls and provenance badges", () => {
@@ -50,10 +52,15 @@ describe("SectionRoadmap", () => {
 
   it("marks the focused section for the lock-in handoff", () => {
     const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
     render(<SectionRoadmap song={song} activeRole={null} focusedSectionId="verse-1" />);
 
-    expect(screen.getByTestId("section-roadmap-verse-1")).toHaveAttribute("data-focused-section", "true");
+    const focusedCard = screen.getByTestId("section-roadmap-verse-1");
+    expect(focusedCard).toHaveAttribute("data-focused-section", "true");
+    expect(focusedCard).toHaveAttribute("aria-current", "true");
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
   it("does not update when the trimmed chord is unchanged", () => {
