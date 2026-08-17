@@ -152,6 +152,26 @@ def read_pcm_wav(path: Path) -> tuple[NDArray[np.float32], int]:
     return samples, int(sample_rate)
 
 
+def read_verified_fixture_bytes(path: Path, expected_sha256: str) -> bytes:
+    """Read one immutable fixture snapshot and verify its registered digest.
+
+    Args:
+        path: Existing WAV path.
+        expected_sha256: Lowercase hex digest recorded in the case manifest.
+
+    Returns:
+        The exact bytes whose SHA-256 matched ``expected_sha256``.
+
+    Raises:
+        ValueError: If the snapshot digest does not match.
+    """
+    payload = path.read_bytes()
+    actual = hashlib.sha256(payload).hexdigest()
+    if actual != expected_sha256:
+        raise ValueError("Accuracy fixture checksum mismatch")
+    return payload
+
+
 def assert_fixture_checksum(path: Path, expected_sha256: str) -> None:
     """Fail closed when a fixture file does not match its registered digest.
 
@@ -162,6 +182,4 @@ def assert_fixture_checksum(path: Path, expected_sha256: str) -> None:
     Raises:
         ValueError: If the file digest does not match.
     """
-    actual = hashlib.sha256(path.read_bytes()).hexdigest()
-    if actual != expected_sha256:
-        raise ValueError("Accuracy fixture checksum mismatch")
+    read_verified_fixture_bytes(path, expected_sha256)
