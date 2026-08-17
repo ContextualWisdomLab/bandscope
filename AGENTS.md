@@ -2,7 +2,7 @@
 
 ## Project overview
 - BandScope is a local-first desktop app for rehearsal prep: a practical song view with likely harmony by section and by instrument or vocal role, form and groove cues, stems, playable ranges, simplification guidance, transposition or setup cues, part-overlap cues, visible confidence, and rehearsal priorities.
-- After analysis, the song-structure timeline must name tonight's first lock-in and cue that bar. Do not invent playback, isolation, or a parallel MIR product; #828 remains the known-stem owner.
+- After analysis, when mapped sections exist, the song-structure timeline must name tonight's first lock-in and cue the section matching the first export focus label or id; if that focus is missing or unmatched, cue the first mapped section. With no mapped sections, keep the cue unavailable as “No lock-in section yet.” Do not invent playback, isolation, or a parallel MIR product; #828 remains the known-stem owner.
 - Authoritative delivery rules live in `ARCHITECTURE.md`, `docs/plans/`, and the root verification scripts.
 - Brand, tone, UX copy, and prioritization rules live in `docs/brand-story.md` and must be applied to PRDs, TRDs, UI copy, onboarding, empty states, and error messages.
 - App security rules live in `docs/security/app-security.md` and must be applied to file handling, URL intake, subprocesses, IPC, WebView usage, model loading, updates, logging, cache handling, and export behavior.
