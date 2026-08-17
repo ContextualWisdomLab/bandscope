@@ -47,12 +47,13 @@ def _coerce_segment(segment: object) -> tuple[float, float, str] | None:
 
     Args:
         segment: Candidate mapping with ``start_time``, ``end_time``, and
-            ``chord`` keys. Non-mapping values are malformed entries and are
-            skipped without discarding neighboring valid segments.
+            ``chord`` keys. Non-mapping values and blank chord labels are
+            malformed entries and are skipped without discarding neighboring
+            valid segments.
 
     Returns:
         A ``(start, end, chord)`` tuple, or ``None`` if the segment is
-        malformed, non-finite, or has a non-positive span.
+        malformed, non-finite, blank-labeled, or has a non-positive span.
     """
     if not isinstance(segment, Mapping):
         return None
@@ -64,7 +65,7 @@ def _coerce_segment(segment: object) -> tuple[float, float, str] | None:
         return None
     if not isinstance(end_raw, int | float) or isinstance(end_raw, bool):
         return None
-    if not isinstance(chord_raw, str):
+    if not isinstance(chord_raw, str) or not chord_raw.strip():
         return None
     start = float(start_raw)
     end = float(end_raw)
@@ -138,7 +139,8 @@ def summarize_section_harmony(
         chord_segments: Chord segments shaped like
             ``{"start_time": float, "end_time": float, "chord": str, ...}``
             (e.g. ``TrackedChord`` from the chord recognizer). Malformed,
-            non-finite, and non-positive-span entries are skipped.
+            blank-labeled, non-finite, and non-positive-span entries are
+            skipped.
         boundaries: Section windows as ``(start, end)`` pairs in seconds.
             Windows must be finite and have ``end > start``; invalid windows
             are skipped.
