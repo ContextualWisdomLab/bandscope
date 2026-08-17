@@ -19,7 +19,7 @@ describe("RehearsalCallout", () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
-  it("stays visible when no handler is wired", () => {
+  it("marks an unwired practice action unavailable", () => {
     render(
       <RehearsalCallout
         title="Confirm the pickup"
@@ -27,7 +27,8 @@ describe("RehearsalCallout", () => {
         actionLabel="Hear the pickup"
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: "Hear the pickup" }));
+
     expect(screen.getByText("Confirm the pickup")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hear the pickup" })).toBeDisabled();
   });
 });
