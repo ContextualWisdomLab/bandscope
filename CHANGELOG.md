@@ -9,7 +9,7 @@
 
 ### Fixed
 
-- Disable persisted GitHub checkout credentials in the `security-audit` workflow before dependency installation and audit execution.
+- Disable persisted GitHub checkout credentials before dependency lifecycle execution in the `security-audit`, `release`, and `bandit` workflows.
 
 ## [0.1.3] - 2026-04-29
 
@@ -53,7 +53,7 @@
 - Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
 - Issue #40: Enforced 100% Python docstring and test coverage
 - Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Implemented secure local audio intake and project bootstrap
+- Issue #33: Engineered section, form, and cue anchor extraction pipeline
 - Issue #35: Engineered section, form, and cue anchor extraction pipeline
 - Issue #34: Implemented role extraction targets and part graph
 - Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
