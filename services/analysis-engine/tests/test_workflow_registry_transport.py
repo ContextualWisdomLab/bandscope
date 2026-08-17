@@ -3,17 +3,53 @@
 from __future__ import annotations
 
 import urllib.request
+from dataclasses import dataclass
 
 import pytest
 from conftest import load_module
 
 
-def test_registry_client_rejects_non_https_request_target(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A dynamic request target must never reach urllib's scheme-switching opener."""
-    audit = load_module(
+@dataclass
+class _FakeResponse:
+    """Minimal bounded HTTP response used by transport tests."""
+
+    status: int
+    body: bytes = b"{}"
+
+    def read(self) -> bytes:
+        """Return the deterministic response payload."""
+        return self.body
+
+
+class _FakeConnection:
+    """Minimal HTTPS connection fixture that never touches the network."""
+
+    response = _FakeResponse(200)
+    requests: list[tuple[str, str, dict[str, str]]] = []
+
+    def __init__(self, *_args, **_kwargs) -> None:
+        self.closed = False
+
+    def request(self, method: str, target: str, *, headers: dict[str, str]) -> None:
+        type(self).requests.append((method, target, headers))
+
+    def getresponse(self) -> _FakeResponse:
+        return type(self).response
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _load_audit():
+    return load_module(
         "scripts/checks/audit_workflow_registry.py",
         "audit_workflow_registry_transport_test",
     )
+
+
+def test_registry_client_rejects_non_https_request_target(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A dynamic request target must never reach urllib's scheme-switching opener."""
+    audit = _load_audit()
     client = audit.GitHubRegistryClient(api_url="https://api.github.com")
     transport_called = False
 
@@ -28,3 +64,51 @@ def test_registry_client_rejects_non_https_request_target(monkeypatch: pytest.Mo
         client._get_json("file:///etc/passwd")
 
     assert transport_called is False
+
+
+def test_registry_client_rejects_cross_origin_target(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A request cannot leave the configured GitHub API origin."""
+    audit = _load_audit()
+    monkeypatch.setattr(audit.http.client, "HTTPSConnection", _FakeConnection)
+    client = audit.GitHubRegistryClient(api_url="https://api.github.com")
+    _FakeConnection.requests.clear()
+
+    with pytest.raises(audit.AuditError, match="request target must stay on the configured HTTPS API origin"):
+        client._get_json("https://example.invalid/repos/ContextualWisdomLab/bandscope")
+
+    assert _FakeConnection.requests == []
+
+
+@pytest.mark.parametrize("status", [403, 404, 500, 503])
+def test_registry_client_fails_closed_on_api_error_status(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+) -> None:
+    """Permission loss and transient API failures never become clean inventory evidence."""
+    audit = _load_audit()
+    monkeypatch.setattr(audit.http.client, "HTTPSConnection", _FakeConnection)
+    _FakeConnection.response = _FakeResponse(status)
+    _FakeConnection.requests.clear()
+    client = audit.GitHubRegistryClient(api_url="https://api.github.com")
+
+    with pytest.raises(audit.AuditError, match=rf"unexpected HTTP {status}"):
+        client._get_json("https://api.github.com/repos/ContextualWisdomLab/bandscope/actions/workflows")
+
+    assert _FakeConnection.requests[0][0] == "GET"
+
+
+def test_registry_client_preserves_ghe_api_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A GitHub Enterprise API prefix is retained and path escape is rejected."""
+    audit = _load_audit()
+    monkeypatch.setattr(audit.http.client, "HTTPSConnection", _FakeConnection)
+    _FakeConnection.response = _FakeResponse(200, b'{"ok": true}')
+    _FakeConnection.requests.clear()
+    client = audit.GitHubRegistryClient(api_url="https://github.example/api/v3")
+
+    payload, status = client._get_json("https://github.example/api/v3/repos/owner/repo")
+
+    assert status == 200
+    assert payload == {"ok": True}
+    assert _FakeConnection.requests[0][1] == "/api/v3/repos/owner/repo"
+    with pytest.raises(audit.AuditError, match="request target must stay on the configured HTTPS API origin"):
+        client._get_json("https://github.example/repos/owner/repo")
