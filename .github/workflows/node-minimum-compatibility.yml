@@ -11,6 +11,9 @@ permissions:
   contents: read
 
 env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
   EXPECTED_NPM_VERSION: "10.9.8"
 
 jobs:
