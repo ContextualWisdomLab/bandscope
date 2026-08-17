@@ -19,11 +19,21 @@ export function configureScorePdfWorker(): void {
  * Start parsing validated in-memory score PDF bytes with pdf.js.
  *
  * Only caller-provided bytes are accepted (validated-resource-only rule);
- * this helper never fetches arbitrary URLs. The bytes are copied before they
- * are handed to pdf.js because pdf.js transfers the underlying buffer to its
+ * this helper never supplies a URL. The bytes are copied before they are
+ * handed to pdf.js because pdf.js transfers the underlying buffer to its
  * worker, which would otherwise detach the caller's copy and break retries.
+ *
+ * XFA rendering is explicitly disabled even though pdf.js 6.2.108 defaults it
+ * to `false`, and worker-side resource fetching is explicitly disabled. These
+ * settings make the parser boundary fail closed against XML-form activation
+ * and remote helper-resource acquisition instead of relying on upstream
+ * defaults.
  */
 export function loadScorePdf(data: Uint8Array): PDFDocumentLoadingTask {
   configureScorePdfWorker();
-  return getDocument({ data: new Uint8Array(data) });
+  return getDocument({
+    data: new Uint8Array(data),
+    enableXfa: false,
+    useWorkerFetch: false
+  });
 }
