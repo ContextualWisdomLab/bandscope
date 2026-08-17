@@ -28,9 +28,30 @@ jobs:
       - name: Bootstrap exact repository npm generator
         shell: bash
         run: |
-          cd "$RUNNER_TEMP"
-          npm install --global "npm@$EXPECTED_NPM_VERSION" --ignore-scripts --no-audit --no-fund
-          test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+          mkdir -p "$RUNNER_TEMP/corepack-bin"
+          corepack enable npm --install-directory "$RUNNER_TEMP/corepack-bin"
+          corepack install
+          echo "$RUNNER_TEMP/corepack-bin" >> "$GITHUB_PATH"
+          test "$(PATH="$RUNNER_TEMP/corepack-bin:$PATH" npm --version)" = "$EXPECTED_NPM_VERSION"
+      - name: Generate exact lockfile provenance candidate
+        id: npm_lock
+        shell: bash
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          if git diff --quiet -- package-lock.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload lockfile drift evidence
+        if: steps.npm_lock.outputs.changed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: node-minimum-package-lock-candidate
+          path: package-lock.json
+          retention-days: 1
+      - name: Verify committed lock matches exact generator
+        run: git diff --exit-code -- package-lock.json
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
