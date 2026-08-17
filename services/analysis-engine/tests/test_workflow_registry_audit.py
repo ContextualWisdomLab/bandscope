@@ -58,7 +58,7 @@ def test_present_bootstrap_name_is_not_disabled_by_name(audit_module) -> None:
             "state": "active",
             "classification": "present",
             "reason": "active registry path exists at the bound tree",
-        }
+        },
     ]
 
 
@@ -81,7 +81,7 @@ def test_inactive_missing_workflow_remains_disabled(audit_module) -> None:
                 13,
                 ".github/workflows/finalize-old-slice.yml",
                 state="disabled_manually",
-            )
+            ),
         ],
         set(),
     )
