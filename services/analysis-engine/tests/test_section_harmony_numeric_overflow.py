@@ -1,7 +1,5 @@
 """Fail-isolated regressions for unrepresentable section-harmony timing."""
 
-import pytest
-
 from bandscope_analysis.chords.section_harmony import summarize_section_harmony
 
 
@@ -18,7 +16,7 @@ def test_overflowing_segment_timing_is_skipped_without_erasing_neighboring_harmo
     result = summarize_section_harmony(segments, [(0.0, 2.0)])
 
     assert result[0]["main_chord"] == "G"
-    assert result[0]["chords"] == [{"chord": "G", "duration": pytest.approx(2.0)}]
+    assert result[0]["chords"] == [{"chord": "G", "duration": 2.0}]
     assert result[0]["chord_changes"] == 0
 
 
