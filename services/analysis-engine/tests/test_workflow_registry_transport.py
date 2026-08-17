@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import urllib.request
+
 import pytest
 from conftest import load_module
 
@@ -20,7 +22,7 @@ def test_registry_client_rejects_non_https_request_target(monkeypatch: pytest.Mo
         transport_called = True
         raise AssertionError("unsafe dynamic target reached urllib.request.urlopen")
 
-    monkeypatch.setattr(audit.urllib.request, "urlopen", forbidden_urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", forbidden_urlopen)
 
     with pytest.raises(audit.AuditError, match="request target must stay on the configured HTTPS API origin"):
         client._get_json("file:///etc/passwd")
