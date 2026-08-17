@@ -473,6 +473,10 @@ export function App() {
   const handleStartOverAfterError = () => {
     setJobError(null);
     setJobStatus(null);
+    setSelectedBootstrap(null);
+    setActiveAnalysisBootstrap(null);
+    setSelectionError(null);
+    setSelectionErrorSource(null);
   };
 
   /** Documented. */
