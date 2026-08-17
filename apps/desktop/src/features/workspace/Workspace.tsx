@@ -288,6 +288,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const loopedSection =
     song.sections.find((section) => section.id === loopedSectionId) ?? null;
 
+  /** Arm a rehearsal loop and move focus to the matching section roadmap card. */
   const armSectionLoop = (sectionId: string): void => {
     setLoopedSectionId(sectionId);
     focusWorkspaceSection(sectionId);
