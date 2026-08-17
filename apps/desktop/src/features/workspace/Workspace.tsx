@@ -81,8 +81,11 @@ function focusWorkspaceRolesCard(): void {
   if (!(node instanceof HTMLElement)) {
     return;
   }
+  const reduceMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (typeof node.scrollIntoView === "function") {
-    node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    node.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest" });
   }
   if (typeof node.focus === "function") {
     node.focus();
