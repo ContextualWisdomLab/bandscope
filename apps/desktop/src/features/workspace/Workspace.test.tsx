@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -82,7 +82,7 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
+    expect(within(screen.getByTestId("song-structure-grid")).getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {
