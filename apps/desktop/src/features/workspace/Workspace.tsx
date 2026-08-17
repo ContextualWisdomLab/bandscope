@@ -188,7 +188,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleRangeLow = nonBlankText(activeRoleDetails?.range.lowestNote);
   const roleRangeHigh = nonBlankText(activeRoleDetails?.range.highestNote);
   const roleCue = nonBlankText(activeRoleDetails?.cue.value);
-  const canOpenTonightNotes = Boolean(firstNote || (roleRangeLow && roleRangeHigh) || roleCue);
+  const canOpenTonightNotes = Boolean(firstNote || (roleRangeLow && roleRangeHigh));
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -290,9 +290,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           low: roleRangeLow,
           high: roleRangeHigh
         })
-      : roleCue
-        ? fillCopy(t("workspaceOpenCueArmed"), { role: roleName, cue: roleCue })
-        : t("workspaceOpenNotesUnavailable");
+      : t("workspaceOpenNotesUnavailable");
   const grooveEmptyMessage = firstNote
     ? fillCopy(t("workspaceGrooveMapReady"), { count: String(activeRoleDetails?.transcription?.length ?? 0) })
     : roleRangeLow && roleRangeHigh
