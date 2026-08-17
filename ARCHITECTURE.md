@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-17
 
 ## Brand source
 
@@ -68,6 +68,7 @@ Last updated: 2026-03-11
 - BandScope is not only a shell around chord labels, stems, and ranges.
 - The technical scope includes rehearsal-facing outputs for harmony, section roadmap, groove cues, role entry and dropout cues, simplification guidance, transposition or setup guidance, confidence flags, and rehearsal priority.
 - These outputs must stay aligned with `docs/brand-story.md` rather than drifting back to a song-summary-only analyzer.
+- Ready-workspace timeline chips and the role-strip loop control must arm tonight's first section window and focus the matching Section Roadmap card. Isolation playback stays out of this lane.
 
 ## Analysis target model
 
@@ -127,4 +128,4 @@ Last updated: 2026-03-11
 - Security docs and checks are part of the default quickcheck path so design drift is caught early.
 - Supply-chain docs, workflow pinning, and lockfile verification are part of the default quickcheck path so dependency drift is caught early.
 - Quickcheck and CI are expected to verify dependency review, audit, supplemental inventory, and SBOM baseline presence as part of bootstrap.
-- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path.
+- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path so dependency drift is caught early.
