@@ -87,7 +87,10 @@ export function ErrorState({ error, onChooseLocalAudio, onStartOver }: ErrorStat
         <div className="mt-8 flex w-full max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
           <Button
             type="button"
-            onClick={() => onChooseLocalAudio?.()}
+            onClick={() => {
+              onStartOver?.();
+              onChooseLocalAudio?.();
+            }}
             className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
             aria-label={t("workspaceErrorChooseAnother")}
           >
