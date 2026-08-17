@@ -72,7 +72,14 @@ function focusWorkspaceSection(sectionId: string): void {
   if (!(node instanceof HTMLElement)) {
     return;
   }
-  node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  const prefersReducedMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  node.scrollIntoView({
+    behavior: prefersReducedMotion ? "auto" : "smooth",
+    block: "nearest",
+    inline: "center"
+  });
   node.focus();
 }
 
