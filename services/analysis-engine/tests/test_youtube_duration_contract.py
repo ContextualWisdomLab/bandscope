@@ -9,16 +9,16 @@ import pytest
 from bandscope_analysis.youtube import download_youtube_audio
 
 
-class _ValueErrorFloat(float):
-    """Numeric metadata whose explicit float conversion is malformed."""
+class _ValueErrorDuration:
+    """Metadata whose explicit float conversion is malformed."""
 
     def __float__(self) -> float:
         """Reject conversion with the malformed-value failure shape."""
         raise ValueError("malformed duration")
 
 
-class _OverflowFloat(float):
-    """Numeric metadata whose explicit float conversion overflows."""
+class _OverflowDuration:
+    """Metadata whose explicit float conversion overflows."""
 
     def __float__(self) -> float:
         """Reject conversion with the overflow failure shape."""
@@ -34,8 +34,8 @@ class _OverflowFloat(float):
         float("nan"),
         float("inf"),
         "60",
-        _ValueErrorFloat(1.0),
-        _OverflowFloat(1.0),
+        _ValueErrorDuration(),
+        _OverflowDuration(),
     ],
 )
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
