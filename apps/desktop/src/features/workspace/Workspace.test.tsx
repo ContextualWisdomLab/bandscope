@@ -305,12 +305,12 @@ describe("Workspace", () => {
     expect(screen.getByRole("button", { name: "Isolation is not ready. Loop tonight's section on the map." })).toBeTruthy();
   });
 
-  it("localizes the first map loop action", () => {
+  it("localizes the first map loop action without broken Korean particles", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByRole("button", { name: "verse을 0:10부터 0:30까지 루프" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "verse 구간을 0:10부터 0:30까지 루프" })).toBeTruthy();
   });
 });
