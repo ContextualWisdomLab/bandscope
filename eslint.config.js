@@ -42,7 +42,7 @@ export default tseslint.config(
           contexts: [
             "ExportNamedDeclaration > TSTypeAliasDeclaration",
             "ExportNamedDeclaration > TSInterfaceDeclaration",
-            "ExportNamedDeclaration[declaration.type=\"VariableDeclaration\"]",
+            "ExportNamedDeclaration > VariableDeclaration",
             "ExportNamedDeclaration > FunctionDeclaration"
           ]
         }
