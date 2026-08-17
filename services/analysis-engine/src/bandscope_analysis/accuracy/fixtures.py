@@ -21,10 +21,10 @@ _CLICK_DECAY = 80.0
 
 
 def _fixture_sample_count(duration_seconds: float, sample_rate: int) -> int:
-    """Convert finite fixture timing evidence to a finite integer sample count."""
+    """Convert fixture timing evidence to at least one finite integer sample."""
     scaled_sample_count = duration_seconds * sample_rate
-    if not np.isfinite(scaled_sample_count):
-        raise ValueError("fixture sample count must be finite")
+    if not np.isfinite(scaled_sample_count) or scaled_sample_count < 1:
+        raise ValueError("fixture sample count must be finite and at least one sample")
     return int(scaled_sample_count)
 
 
@@ -43,7 +43,7 @@ def render_c_major_triad(
 
     Raises:
         ValueError: If duration or sample rate is Boolean, non-finite, or not positive,
-            or if their derived sample count is non-finite.
+            or if their derived sample count is non-finite or below one sample.
     """
     if (
         isinstance(duration_seconds, bool)
@@ -81,7 +81,8 @@ def render_click_track(
 
     Raises:
         ValueError: If tempo, duration, or sample rate is Boolean, non-finite,
-            or not positive, or if derived sample-count/beat timing is non-finite.
+            or not positive, if the derived sample count is non-finite or below
+            one sample, or if the derived beat interval is non-finite.
     """
     if isinstance(bpm, bool) or not np.isfinite(bpm) or bpm <= 0:
         raise ValueError("bpm must be positive, finite, and non-Boolean")
