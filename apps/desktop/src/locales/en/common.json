@@ -47,6 +47,7 @@
   "workspaceHarmonyExplainLabel": "Why it works",
   "workspaceHarmonyExplainFallback": "The role-specific harmonic reason will appear here after the room confirms it.",
   "workspaceTranspositionLabel": "Transpose / simplify",
+  "workspaceNoRoleTransposition": "No role details are available yet. Re-run analysis or open a project with detected parts.",
   "workspaceStemsLabel": "Stems",
   "workspaceRehearsalPrioritiesLabel": "Rehearsal Priorities",
   "workspaceRolesHarmonyLabel": "Roles & Harmony",
