@@ -90,15 +90,32 @@ def test_inactive_missing_workflow_remains_disabled(audit_module) -> None:
     assert records[0]["reason"] == "registry state is not active"
 
 
-def test_github_dynamic_identity_is_explicitly_separated(audit_module) -> None:
-    """A GitHub-owned dynamic identity is not treated as a repository orphan."""
+def test_github_dynamic_identity_matches_live_registry_shape(audit_module) -> None:
+    """GitHub dynamic identities are recognized from the API path without a source field."""
     records = audit_module.classify_workflows(
-        [_workflow(14, "dynamic/security-scan", source="github")],
+        [
+            _workflow(
+                14,
+                "dynamic/agents/openai-code-agent",
+                name="OpenAI Codex",
+            )
+        ],
         set(),
     )
 
     assert records[0]["classification"] == "github_dynamic"
-    assert records[0]["reason"] == "workflow source is GitHub-managed rather than repository-backed"
+    assert records[0]["reason"] == "workflow path identifies a GitHub-managed dynamic identity"
+
+
+def test_unrecognized_active_non_repository_path_fails_closed(audit_module) -> None:
+    """Only the observed dynamic namespace may bypass repository-path classification."""
+    records = audit_module.classify_workflows(
+        [_workflow(141, "external/workflows/not-repository-backed")],
+        set(),
+    )
+
+    assert records[0]["classification"] == "unresolved"
+    assert records[0]["reason"] == "active registry path is not repository workflow YAML"
 
 
 def test_malformed_workflow_fails_closed_as_unresolved(audit_module) -> None:
