@@ -35,7 +35,7 @@ describe("WorkspaceStates", () => {
     expect(screen.getByRole("heading", { name: "Ready to Analyze" })).toBeTruthy();
   });
 
-  it("offers choose-another-file and start-over after a failed analysis", () => {
+  it("clears failed-analysis state before choosing another file", () => {
     const onChooseLocalAudio = vi.fn();
     const onStartOver = vi.fn();
     render(
@@ -48,9 +48,12 @@ describe("WorkspaceStates", () => {
 
     expect(screen.getByText("Decoder rejected the file")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Choose another file" }));
-    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
-    expect(onChooseLocalAudio).toHaveBeenCalledTimes(1);
+
     expect(onStartOver).toHaveBeenCalledTimes(1);
+    expect(onChooseLocalAudio).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
+    expect(onStartOver).toHaveBeenCalledTimes(2);
   });
 
   it("renders a failed analysis card without detail copy", () => {
