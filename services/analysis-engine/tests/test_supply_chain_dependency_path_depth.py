@@ -15,8 +15,7 @@ def test_dependency_path_handles_graph_deeper_than_python_recursion_limit() -> N
     )
     edge_count = sys.getrecursionlimit() + 50
     package_dependencies = {
-        f"node-{index} 1.0.0": [f"node-{index + 1} 1.0.0"]
-        for index in range(edge_count)
+        f"node-{index} 1.0.0": [f"node-{index + 1} 1.0.0"] for index in range(edge_count)
     }
     package_dependencies[f"node-{edge_count} 1.0.0"] = []
 
