@@ -55,8 +55,11 @@ stem quality, or private-corpus readiness.
   non-Boolean duration, BPM, and sample-rate evidence. In Python, `True` would
   otherwise act as numeric `1`, which could create a one-second fixture, a
   one-BPM click contract, or a one-Hz WAV while still looking type-compatible at
-  runtime. Those values now fail closed before allocation, loop construction,
-  or file serialization.
+  runtime. Derived fixture timing must also remain representable: the computed
+  sample count must be finite and at least one sample, and the click-track beat
+  interval must be finite. Inputs that overflow those derived quantities or
+  quantize to a zero-sample fixture fail closed before allocation, loop
+  construction, or file serialization.
 - Checksum mismatch fails closed on both file evaluators. Do not score a
   tampered file as a pass.
 - Machine-readable case reports are accepted only when the registered
@@ -111,11 +114,12 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   non-Boolean decoded sample-rate evidence, overlap-safe chord duration, finite
   non-Boolean annotation/estimate timing, strictly increasing estimate
   intervals, finite non-Boolean tempo metric inputs, finite positive non-Boolean
-  fixture duration/BPM/sample-rate inputs, strict SHA-256 syntax, finite-only
-  report metric values including overflow rejection, exact non-empty
-  product-version provenance, bounded fixture durations, and no copyrighted
-  commercial recordings. Fixture paths are pytest temp files; reports store
-  SHA-256 and labels, not waveform bytes.
+  fixture duration/BPM/sample-rate inputs, finite derived sample-count and beat-
+  interval admission, strict SHA-256 syntax, finite-only report metric values
+  including overflow rejection, exact non-empty product-version provenance,
+  bounded fixture durations, and no copyrighted commercial recordings. Fixture
+  paths are pytest temp files; reports store SHA-256 and labels, not waveform
+  bytes.
 - Test points: deterministic digest, C major recall after file decode,
   decoded-PCM empty/non-floating/non-finite/non-mono rejection and invalid
   sample-rate rejection, overlapping matching intervals do not double-count
@@ -123,6 +127,7 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   rejection, empty/reversed estimate interval rejection, silence-on-disk vs
   in-memory triad, 120 BPM Acc1, non-finite and Boolean tempo estimate / truth /
   tolerance rejection, non-finite and Boolean fixture generation/WAV sample-rate
-  rejection, checksum mismatch through both file evaluators,
+  rejection, derived sample-count overflow and zero-sample rejection, beat-
+  interval overflow rejection, checksum mismatch through both file evaluators,
   malformed/non-hex manifest provenance, NaN/infinity/overflow report rejection,
   missing/empty product `VERSION` rejection, and silence must not pass as C major.
