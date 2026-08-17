@@ -279,4 +279,32 @@ describe("Workspace", () => {
     expect(document.getElementById("workspace-surface-transpose")).toHaveFocus();
     expect(screen.getByText(/Transpose \/ simplify/i)).toBeTruthy();
   });
+
+  it("resets each new transpose request to the first role without pinning later role choices", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const seedRole = song.sections[0]!.roles[0]!;
+    song.sections[0]!.roles = [
+      { ...seedRole, id: "first-role", name: "First Role" },
+      { ...seedRole, id: "second-role", name: "Second Role" }
+    ];
+
+    const { rerender } = render(
+      <Workspace song={song} requestedSurface="roles" requestedSurfaceRequestId={1} />
+    );
+    const firstRole = screen.getByRole("tab", { name: "First Role" });
+    const secondRole = screen.getByRole("tab", { name: "Second Role" });
+
+    fireEvent.click(secondRole);
+    expect(secondRole).toHaveAttribute("data-active", "");
+
+    rerender(<Workspace song={song} requestedSurface="transpose" requestedSurfaceRequestId={2} />);
+    expect(firstRole).toHaveAttribute("data-active", "");
+    expect(document.getElementById("workspace-surface-transpose")).toHaveFocus();
+
+    fireEvent.click(secondRole);
+    expect(secondRole).toHaveAttribute("data-active", "");
+    rerender(<Workspace song={song} requestedSurface="transpose" requestedSurfaceRequestId={2} />);
+    expect(secondRole).toHaveAttribute("data-active", "");
+  });
 });
