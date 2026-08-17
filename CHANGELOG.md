@@ -15,6 +15,7 @@
 
 - Reject non-finite chord timestamps and non-finite or non-positive section windows before harmony aggregation so malformed timing cannot emit `NaN`/infinite durations or invalid section ranges.
 - Skip malformed non-mapping chord entries independently so one bad analysis record cannot discard valid neighboring section-harmony evidence.
+- Skip whitespace-only chord labels independently so malformed label evidence cannot become a buyer-visible harmony entry or erase valid neighboring chords.
 
 ## [0.1.3] - 2026-04-29
 
