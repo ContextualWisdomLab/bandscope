@@ -79,6 +79,13 @@ def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
     for fragment in required_fragments:
         assert fragment in body, f"minimum-version job is missing: {fragment}"
 
+    setup_node = body.split("- uses: actions/setup-node@", maxsplit=1)[1].split(
+        "- name: Bootstrap exact repository npm generator", maxsplit=1
+    )[0]
+    assert "cache: npm" not in setup_node, (
+        "setup-node must not invoke bundled npm cache discovery before npm 10.9.8 is bootstrapped"
+    )
+
 
 def test_repository_no_longer_advertises_node_22_13_floor() -> None:
     """Canonical runtime/build documentation must not retain the superseded 22.13 floor."""
