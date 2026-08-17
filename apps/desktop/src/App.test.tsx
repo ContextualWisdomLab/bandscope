@@ -301,7 +301,7 @@ describe("App", () => {
     expect(screen.getByText(/Roles & Harmony/i)).toBeTruthy();
     expect(screen.getByText(/^Stems$/i)).toBeTruthy();
     expect(screen.getByText(/Rehearsal Priorities/i)).toBeTruthy();
-    expect(screen.getByText(/Export Cue Sheet/i)).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /download tonight's cue sheet/i }).length).toBeGreaterThan(0);
   });
 
   it("renders a rehearsal song structure timeline from real section ranges", async () => {
