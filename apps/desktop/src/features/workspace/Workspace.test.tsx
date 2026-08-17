@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -8,6 +8,7 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -28,11 +29,11 @@ describe("Workspace", () => {
       configurable: true,
       value: originalRevokeObjectUrl
     });
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
   it("updates practice progress immutably through onSongUpdate", () => {
     const song = createDemoRehearsalSong();
-    // Default mock setup puts "bass-guitar" as the role ID in index 0
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
       id: "bass-guitar",
@@ -42,32 +43,22 @@ describe("Workspace", () => {
     const onSongUpdate = vi.fn();
 
     render(<Workspace song={song} onSongUpdate={onSongUpdate} />);
-
-    // Select the Bass Guitar role to render PracticeProgress
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
-
     const increaseBtn = screen.getByRole("button", { name: "Increase progress" });
     fireEvent.click(increaseBtn);
 
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
     const updatedSong = onSongUpdate.mock.calls[0]?.[0] as RehearsalSong;
-
-    // Ensure immutable update logic: reference equality of untouched sections
     expect(updatedSong).not.toBe(song);
     expect(updatedSong.sections).not.toBe(song.sections);
-
-    // Ensure the specific role progress updated
     expect(updatedSong.sections[0]!.roles[0]!.practiceProgress).toBe(60);
   });
 
   it("keeps the song-structure grid valid when a project has no sections", () => {
     const song = createDemoRehearsalSong();
     song.sections = [];
-
     render(<Workspace song={song} />);
-
     const grid = screen.getByTestId("song-structure-grid");
-
     expect(grid.style.gridTemplateColumns).not.toContain("repeat(0");
     expect(grid.style.gridTemplateColumns).toContain("repeat(1");
   });
@@ -75,27 +66,17 @@ describe("Workspace", () => {
   it("falls back to safe timeline text for malformed section times", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
-    song.sections[0].timeRange = {
-      start: Number.NaN,
-      end: Number.POSITIVE_INFINITY
-    };
-
+    song.sections[0].timeRange = { start: Number.NaN, end: Number.POSITIVE_INFINITY };
     render(<Workspace song={song} />);
-
-    expect(screen.getAllByText(/verse · 0:00–0:00/i).length).toBeGreaterThan(0);
+    const timelineRegion = screen.getByRole("region", { name: /scrollable song structure timeline/i });
+    expect(within(timelineRegion).getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {
     const song = createDemoRehearsalSong();
-    song.sections[0]!.roles[0] = {
-      ...song.sections[0]!.roles[0]!,
-      id: "low-end",
-      name: "Bass Guitar"
-    };
-
+    song.sections[0]!.roles[0] = { ...song.sections[0]!.roles[0]!, id: "low-end", name: "Bass Guitar" };
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
-
     const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(false);
     expect(transcribeButton.title).toBe("Transcribe part");
@@ -111,10 +92,8 @@ describe("Workspace", () => {
         { pitch: "G2", onset: 0.9, offset: 1.25, velocity: 0.68 }
       ]
     };
-
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
-
     const grooveMap = screen.getByRole("region", { name: /bass transcription groove map/i });
     expect(grooveMap.className).toContain("bg-slate-950");
     expect(screen.getByText("E2")).toBeTruthy();
@@ -125,15 +104,11 @@ describe("Workspace", () => {
   it("renders collaboration summaries and role-specific rehearsal planning details", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
-
     render(<Workspace song={song} />);
-
     expect(screen.getByText("Collaboration")).toBeTruthy();
     expect(screen.getByText(/2 Assignments/i)).toBeTruthy();
     expect(screen.getByText(/Keep assignments local for now/i)).toBeTruthy();
-
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
-
     expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
     expect(screen.getByText(/whole step lower/i)).toBeTruthy();
     expect(screen.getByText(/Lock the bass entrance against the pickup/i)).toBeTruthy();
@@ -143,24 +118,13 @@ describe("Workspace", () => {
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
-    song.sections[0]!.roles[0] = {
-      ...song.sections[0]!.roles[0]!,
-      harmonicExplanation: "   ",
-      transpositionPlan: ""
-    };
-    song.collaboration = {
-      syncMode: "local_only",
-      syncNote: "Local-only draft"
-    } as RehearsalSong["collaboration"];
-
+    song.sections[0]!.roles[0] = { ...song.sections[0]!.roles[0]!, harmonicExplanation: "   ", transpositionPlan: "" };
+    song.collaboration = { syncMode: "local_only", syncNote: "Local-only draft" } as RehearsalSong["collaboration"];
     render(<Workspace song={song} />);
-
     expect(screen.getByText(/0 Assignments/i)).toBeTruthy();
     expect(screen.getByText(/0 Comments/i)).toBeTruthy();
     expect(screen.getByText(/0 Approvals/i)).toBeTruthy();
-
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
-
     expect(screen.getByText("vi pedal anchor")).toBeTruthy();
     expect(screen.getAllByText("Stay on roots if the chorus entrance gets muddy.").length).toBeGreaterThan(0);
   });
@@ -173,28 +137,15 @@ describe("Workspace", () => {
       projectRoot: "/tmp/bandscope/projects/project-1",
       cacheRoot: "/tmp/bandscope/cache/project-1",
       tempRoot: "/tmp/bandscope/temp/project-1",
-      source: {
-        sourcePath: "/Users/test/Music/late-night-set.wav",
-        fileName: "late-night-set.wav",
-        extension: "wav",
-        fileSizeBytes: 1_024_000
-      }
+      source: { sourcePath: "/Users/test/Music/late-night-set.wav", fileName: "late-night-set.wav", extension: "wav", fileSizeBytes: 1_024_000 }
     };
     const createObjectUrl = vi.fn(() => "blob:handoff");
     const revokeObjectUrl = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    Object.defineProperty(URL, "createObjectURL", {
-      configurable: true,
-      value: createObjectUrl
-    });
-    Object.defineProperty(URL, "revokeObjectURL", {
-      configurable: true,
-      value: revokeObjectUrl
-    });
-
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
     render(<Workspace song={song} sourceBootstrap={sourceBootstrap} />);
     fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
-
     const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
     const payload = JSON.parse(await blob.text());
     expect(payload.artifactKind).toBe("bandscope.metadata-handoff");
@@ -206,24 +157,14 @@ describe("Workspace", () => {
 
   it("exports metadata-only handoff when source bootstrap is invalid", async () => {
     const song = createDemoRehearsalSong();
-    const invalidSourceBootstrap = {
-      projectId: "project-1"
-    } as ProjectBootstrapSummary;
+    const invalidSourceBootstrap = { projectId: "project-1" } as ProjectBootstrapSummary;
     const createObjectUrl = vi.fn(() => "blob:handoff");
     const revokeObjectUrl = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    Object.defineProperty(URL, "createObjectURL", {
-      configurable: true,
-      value: createObjectUrl
-    });
-    Object.defineProperty(URL, "revokeObjectURL", {
-      configurable: true,
-      value: revokeObjectUrl
-    });
-
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
     render(<Workspace song={song} sourceBootstrap={invalidSourceBootstrap} />);
     fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
-
     const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
     const payload = JSON.parse(await blob.text());
     expect(payload.artifactKind).toBe("bandscope.metadata-handoff");
@@ -234,20 +175,14 @@ describe("Workspace", () => {
 
   it("validates source bootstrap before generating metadata handoff", () => {
     const song = createDemoRehearsalSong();
-    const invalidSourceBootstrap = {
-      projectId: "project-1"
-    } as ProjectBootstrapSummary;
-
-    expect(() => {
-      generateMetadataHandoffJson(song, { sourceBootstrap: invalidSourceBootstrap });
-    }).toThrow("sourceMode");
+    const invalidSourceBootstrap = { projectId: "project-1" } as ProjectBootstrapSummary;
+    expect(() => { generateMetadataHandoffJson(song, { sourceBootstrap: invalidSourceBootstrap }); }).toThrow("sourceMode");
   });
 
   it("localizes empty and loading state titles", () => {
     setNavigatorLanguage("ko-KR");
     render(<EmptyState />);
     render(<LoadingState />);
-
     expect(screen.getByRole("heading", { name: "분석 준비 완료" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "오디오 분석 중" })).toBeTruthy();
   });
@@ -255,13 +190,8 @@ describe("Workspace", () => {
   it("localizes workspace navigation and rehearsal labels", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
-    song.exportSummary = {
-      ...song.exportSummary,
-      headline: ""
-    };
-
+    song.exportSummary = { ...song.exportSummary, headline: "" };
     render(<Workspace song={song} />);
-
     expect(screen.getByText("오늘의 합주 지도")).toBeTruthy();
     expect(screen.getByText("합주 작업 공간")).toBeTruthy();
     expect(screen.getByText("곡 타임라인")).toBeTruthy();
@@ -269,5 +199,49 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("loops tonight's first section from the timeline and focuses the roadmap card", () => {
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Loop verse from 0:10 to 0:30" }));
+    expect(screen.getByText("Tonight's loop is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
+    expect(document.activeElement?.id).toBe("workspace-section-verse-1");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("routes a selected map loop into the Section Roadmap count-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections.push({ ...song.sections[0]!, id: "chorus-1", label: "chorus", timeRange: { start: 30, end: 50 } });
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Loop chorus from 0:30 to 0:50" }));
+    expect(screen.getByRole("button", { name: "Count in chorus from 0:30 to 0:50 at tonight's tempo" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Count in verse from 0:10 to 0:30 at tonight's tempo" })).toBeNull();
+  });
+
+  it("names the first loop from the selected role strip instead of coming soon", () => {
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    const loopButton = screen.getByRole("button", { name: "Loop verse from 0:10 to 0:30 on tonight's map" });
+    expect(loopButton).toBeTruthy();
+    expect((loopButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(loopButton);
+    expect(screen.getByText("Tonight's loop is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
+    expect(document.activeElement?.id).toBe("workspace-section-verse-1");
+    expect(screen.getByRole("button", { name: "Isolation is not ready. Loop tonight's section on the map." })).toBeTruthy();
+  });
+
+  it("localizes the first map loop action", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    render(<Workspace song={song} />);
+    expect(screen.getByRole("button", { name: "verse을 0:10부터 0:30까지 루프" })).toBeTruthy();
   });
 });
