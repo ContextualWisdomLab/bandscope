@@ -152,6 +152,7 @@
   "stemLabTitle": "스템 랩",
   "stemLabSubtitle": "이 레인은 오늘 분리해서 들을 파트입니다. 로컬 스템 오디오는 아직 붙어 있지 않으니, 음역과 구간 큐를 귀로 먼저 잠그세요.",
   "stemLabEmptyNextAction": "로컬 오디오를 고르고 분석을 시작하세요. 곡이 역할로 나뉘면 스템 레인이 여기에 나타납니다.",
+  "stemLabNoRolesDetected": "역할 레인이 감지되지 않았습니다. 분석 결과를 확인한 뒤 합주 전에 빠진 파트를 귀로 확인하세요.",
   "stemLabLaneListLabel": "분리할 파트",
   "stemLabRoleTypeInstrument": "악기",
   "stemLabRoleTypeVocal": "보컬",
