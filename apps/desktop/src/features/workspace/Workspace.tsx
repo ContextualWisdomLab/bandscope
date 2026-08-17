@@ -8,7 +8,7 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
-import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4 } from "lucide-react";
+import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4, Users } from "lucide-react";
 
 interface WorkspaceProps {
   song: RehearsalSong;
@@ -67,6 +67,25 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
     return parseProjectBootstrapSummary(value);
   } catch {
     return null;
+  }
+}
+
+/** Substitute the player-facing role name into a copy template. */
+function fillRoleCopy(template: string, roleName: string): string {
+  return template.replaceAll("{role}", roleName);
+}
+
+/** Scroll the roles board into view after the player starts a part. */
+function focusWorkspaceRolesCard(): void {
+  const node = document.getElementById("workspace-roles-card");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  if (typeof node.scrollIntoView === "function") {
+    node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  if (typeof node.focus === "function") {
+    node.focus();
   }
 }
 
@@ -150,6 +169,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
+  const firstRole = allRoles[0];
+  const firstRoleName = firstRole?.name.trim() || t("workspacePickPartFallback");
+
+  /** Start tonight's part view on the first extracted role. */
+  const handlePickFirstPart = () => {
+    if (!firstRole) {
+      return;
+    }
+    setActiveRole(firstRole.id);
+    focusWorkspaceRolesCard();
+  };
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -314,7 +344,24 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </div>
                 </div>
               ) : (
-                <p className="mt-2 text-sm leading-6 text-slate-300">{t("workspaceCollaborationEmpty")}</p>
+                <div className="mt-2 space-y-3">
+                  <p className="text-sm leading-6 text-slate-300">
+                    {fillRoleCopy(t("workspaceCollaborationEmpty"), firstRoleName)}
+                  </p>
+                  {firstRole ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePickFirstPart}
+                      className="min-h-10 border-emerald-300/30 bg-emerald-300/10 font-semibold text-emerald-50 hover:bg-emerald-300/20 hover:text-white"
+                      aria-label={fillRoleCopy(t("workspaceCollaborationPickPart"), firstRoleName)}
+                    >
+                      <Users className="mr-2 size-4 text-emerald-200" aria-hidden="true" />
+                      {fillRoleCopy(t("workspaceCollaborationPickPart"), firstRoleName)}
+                    </Button>
+                  ) : null}
+                </div>
               )}
             </section>
 
@@ -333,11 +380,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <SongStructure sections={song.sections} t={t} />
 
-          <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <section
+            id="workspace-roles-card"
+            tabIndex={-1}
+            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-300">{t("workspaceRolesHarmonyLabel")}</p>
-                <p className="mt-1 text-sm text-slate-400">Filter the board by player or vocal role without losing the full form context.</p>
+                <p className="mt-1 text-sm text-slate-400">{t("workspaceRolesHarmonyHint")}</p>
               </div>
               <RoleSwitcher
                 roles={allRoles}
@@ -345,6 +396,28 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 onRoleChange={setActiveRole}
                 />
             </div>
+
+            {!activeRole && firstRole ? (
+              <div
+                data-testid="workspace-pick-part-callout"
+                className="mb-4 rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
+              >
+                <p className="text-sm leading-6 text-slate-200">
+                  {fillRoleCopy(t("workspacePickPartHint"), firstRoleName)}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePickFirstPart}
+                  className="mt-3 min-h-10 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white"
+                  aria-label={fillRoleCopy(t("workspacePickPartAction"), firstRoleName)}
+                >
+                  <Users className="mr-2 size-4 text-cyan-200" aria-hidden="true" />
+                  {fillRoleCopy(t("workspacePickPartAction"), firstRoleName)}
+                </Button>
+              </div>
+            ) : null}
 
             {activeRole && (
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
