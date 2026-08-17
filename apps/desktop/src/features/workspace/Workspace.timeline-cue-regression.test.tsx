@@ -9,6 +9,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   if (originalLanguageDescriptor) {
     Object.defineProperty(window.navigator, "language", originalLanguageDescriptor);
+  } else {
+    Reflect.deleteProperty(window.navigator, "language");
   }
 });
 
