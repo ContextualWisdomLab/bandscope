@@ -148,21 +148,24 @@ def classify_windows_job_path_authority(path: str) -> str | None:
     """Return the lexical job-path rejection class, or ``None`` if lookup may proceed.
 
     Classification is purely lexical and must not call ``os.lstat`` or ``os.open``.
-    Console handles are reported separately from naming-a-file reserved names.
+    Console handles, including trailing-colon forms such as ``CONOUT$:``, are
+    reported before the NTFS alternate-stream colon test. Reserved filenames
+    and the legacy ``CLOCK$`` device follow the same order so a Win32 device
+    suffix cannot be mislabeled as a named stream.
     """
     drive, drive_tail = ntpath.splitdrive(path)
     if path.replace("/", "\\").startswith("\\\\"):
         return WINDOWS_JOB_PATH_UNC_OR_DEVICE_NAMESPACE
     if drive and not drive_tail.startswith(("\\", "/")):
         return WINDOWS_JOB_PATH_DRIVE_RELATIVE
-    if _uses_windows_alternate_stream(path):
-        return WINDOWS_JOB_PATH_ALTERNATE_STREAM
     if _uses_windows_console_handle(path):
         return WINDOWS_JOB_PATH_CONSOLE_HANDLE
     if _uses_windows_legacy_device_alias(path):
         return WINDOWS_JOB_PATH_LEGACY_DEVICE
     if _uses_windows_reserved_filename(path):
         return WINDOWS_JOB_PATH_RESERVED_FILENAME
+    if _uses_windows_alternate_stream(path):
+        return WINDOWS_JOB_PATH_ALTERNATE_STREAM
     return None
 
 
@@ -171,11 +174,11 @@ def _read_bounded_job_file(path: str) -> bytes:
 
     UNC/network shapes, device namespaces, drive-relative Win32 paths, NTFS
     alternate-stream syntax, naming-a-file reserved filenames, console handles
-    (``CONIN$`` / ``CONOUT$``), and the legacy ``CLOCK$`` device are rejected
-    lexically before any filesystem lookup. Slash translation is applied before
-    the UNC/device-namespace prefix test so mixed-separator forms such as
-    ``/\\server\\share`` or ``/\\.\\pipe\\...`` cannot reach ``lstat`` or
-    ``open``. Drive-relative forms such as
+    (``CONIN$`` / ``CONOUT$``, including ``CONOUT$:``), and the legacy ``CLOCK$``
+    device are rejected lexically before any filesystem lookup. Slash
+    translation is applied before the UNC/device-namespace prefix test so
+    mixed-separator forms such as ``/\\\\server\\\\share`` or ``/\\\\.\\\\pipe\\\\...``
+    cannot reach ``lstat`` or ``open``. Drive-relative forms such as
     ``C:job.json`` are authority-bearing: Win32 resolves them through a per-drive
     current directory rather than from the drive root. The remaining path is
     inspected with ``lstat`` before opening so known directories, FIFOs, devices,
