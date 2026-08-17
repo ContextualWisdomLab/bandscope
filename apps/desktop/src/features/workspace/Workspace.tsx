@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, memo, type MouseEvent } from "react";
+import { useState, useMemo, useEffect, useRef, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -16,6 +16,7 @@ interface WorkspaceProps {
   sourceBootstrap?: ProjectBootstrapSummary | null;
   onSongUpdate?: (song: RehearsalSong) => void;
   requestedSurface?: WorkspaceReadySurface | null;
+  requestedSurfaceRequestId?: number;
 }
 
 /** Documented. */
@@ -123,9 +124,16 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
   );
 });
 
-/** Documented. */
-export function Workspace({ song, sourceBootstrap = null, onSongUpdate, requestedSurface = null }: WorkspaceProps) {
+/** Renders a song's rehearsal workspace and executes requested in-page navigation without overwriting later role choices. */
+export function Workspace({
+  song,
+  sourceBootstrap = null,
+  onSongUpdate,
+  requestedSurface = null,
+  requestedSurfaceRequestId = 0
+}: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const completedSurfaceRequestRef = useRef<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -246,8 +254,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate, requeste
     if (!requestedSurface) {
       return;
     }
-    if (requestedSurface === "transpose" && !activeRole && allRoles[0]) {
-      setActiveRole(allRoles[0].id);
+    const requestKey = `${requestedSurface}:${requestedSurfaceRequestId}`;
+    if (completedSurfaceRequestRef.current === requestKey) {
+      return;
+    }
+    const firstRole = allRoles[0];
+    if (requestedSurface === "transpose" && firstRole && activeRole !== firstRole.id) {
+      setActiveRole(firstRole.id);
       return;
     }
     const target = document.getElementById(WORKSPACE_SURFACE_IDS[requestedSurface]);
@@ -258,7 +271,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate, requeste
       target.scrollIntoView({ block: "start" });
     }
     target.focus();
-  }, [activeRole, allRoles, requestedSurface]);
+    completedSurfaceRequestRef.current = requestKey;
+  }, [activeRole, allRoles, requestedSurface, requestedSurfaceRequestId]);
 
   return (
     <div className="animate-in space-y-6 fade-in slide-in-from-bottom-4 duration-700 ease-out fill-mode-both">
