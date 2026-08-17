@@ -1,11 +1,11 @@
 /** Ready-workspace regions the sidebar can open after analysis. */
 export type WorkspaceReadySurface = "export" | "sections" | "roles" | "cues" | "transpose";
 
-/** Source-bar target for the Import nav item. */
-export const SOURCE_CONTROLS_FOCUS_ID = "source-controls-choose-audio";
+export /** Source-bar target for the Import nav item. */
+const SOURCE_CONTROLS_FOCUS_ID = "source-controls-choose-audio";
 
-/** Focusable ready-workspace regions. */
-export const WORKSPACE_SURFACE_IDS = {
+export /** Focusable ready-workspace regions. */
+const WORKSPACE_SURFACE_IDS = {
   export: "workspace-surface-export",
   sections: "workspace-surface-sections",
   roles: "workspace-surface-roles",
