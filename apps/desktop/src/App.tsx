@@ -465,6 +465,17 @@ export function App() {
   };
 
   /** Documented. */
+  const handleFocusYoutubeUrl = () => {
+    youtubeInputRef.current?.focus();
+  };
+
+  /** Documented. */
+  const handleStartOverAfterError = () => {
+    setJobError(null);
+    setJobStatus(null);
+  };
+
+  /** Documented. */
   const handleClearYoutubeUrl = () => {
     youtubeInputRef.current?.focus();
     setYoutubeUrl("");
@@ -506,7 +517,15 @@ export function App() {
   /** Documented. */
   const renderWorkspaceState = () => {
     if (jobError) {
-      return <ErrorState error={jobError} />;
+      return (
+        <ErrorState
+          error={jobError}
+          onChooseLocalAudio={() => {
+            void handleChooseLocalAudio();
+          }}
+          onStartOver={handleStartOverAfterError}
+        />
+      );
     }
     if (analysisInFlight || isStarting) {
       return <LoadingState />;
@@ -514,7 +533,14 @@ export function App() {
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
-    return <EmptyState />;
+    return (
+      <EmptyState
+        onChooseLocalAudio={() => {
+          void handleChooseLocalAudio();
+        }}
+        onFocusYoutube={handleFocusYoutubeUrl}
+      />
+    );
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
