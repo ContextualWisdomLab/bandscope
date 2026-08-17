@@ -361,8 +361,6 @@ describe("App", () => {
 
   it("short-circuits confidence evaluation when encountering a low confidence section", async () => {
     const loadedProject = succeededResult().result; // medium is first
-    // Add low and high sections. High shouldn't matter since low is lowest.
-    // And low will trigger the early break in the loop.
     loadedProject.sections.push(
       {
         ...loadedProject.sections[0],
@@ -775,6 +773,9 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
     act(() => {
@@ -807,6 +808,9 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
     act(() => {
@@ -1185,9 +1189,6 @@ describe("App", () => {
     const input = screen.getByPlaceholderText(/YouTube URL.../i);
     fireEvent.change(input, { target: { value: "   " } });
     const button = screen.getByRole("button", { name: /Import YouTube/i });
-    // Button is disabled if youtubeUrl is empty, but we simulate enabling it for coverage
-    // or we can test that the error is set when it somehow triggers, but actually it's disabled.
-    // Wait, the button is disabled if `!youtubeUrl`. `youtubeUrl` is "   ", so button is NOT disabled!
     fireEvent.click(button);
 
     await waitFor(() => {
@@ -1234,7 +1235,7 @@ describe("App", () => {
 
   it("rejects downgraded YouTube URL intake before invoking the bridge", async () => {
     render(<App />);
-    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    const input = screen.getByPlaceholderText(/YouTube URL/i);
     fireEvent.change(input, { target: { value: "http://youtube.com/watch?v=abc123DEF45" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
@@ -1247,7 +1248,7 @@ describe("App", () => {
 
   it("rejects duplicate YouTube video parameters even when one is blank", async () => {
     render(<App />);
-    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    const input = screen.getByRole("textbox", { name: /YouTube URL/i });
     fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45&v=" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
@@ -1257,7 +1258,6 @@ describe("App", () => {
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });
-
 
   it("loads a project and updates the UI", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
@@ -1288,7 +1288,6 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
 
-    // Should not show error, should remain in empty state
     await waitFor(() => {
       expect(mockLoadProject).toHaveBeenCalledTimes(1);
     });
@@ -1353,15 +1352,12 @@ describe("App", () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
 
-    // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockResolvedValueOnce(undefined);
-
-    // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
@@ -1373,15 +1369,12 @@ describe("App", () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
 
-    // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce(new Error("Permission denied"));
-
-    // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
@@ -1393,15 +1386,12 @@ describe("App", () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
 
-    // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce(new Error("User cancelled"));
-
-    // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
@@ -1416,15 +1406,12 @@ describe("App", () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
 
-    // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce("Disk full");
-
-    // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
@@ -1462,15 +1449,12 @@ describe("App", () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
 
-    // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce("User cancelled");
-
-    // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
@@ -1485,19 +1469,14 @@ describe("App", () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
 
-    // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
-    // Mock prompt to simulate user entering a new chord
     const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Dbmaj7");
-
-    // Click on the chord to edit it (assuming SectionRoadmap renders it and allows click to edit)
     fireEvent.click(screen.getAllByText("C#m7", { selector: 'button' })[0]);
 
-    // Wait for the UI to update with the new chord (which verifies handleSongUpdate was called and state updated)
     await waitFor(() => {
       expect(screen.getAllByText("Dbmaj7").length).toBeGreaterThan(0);
     });
@@ -1546,7 +1525,6 @@ describe("App", () => {
     });
   });
 
-
   it("renders Settings and Help as focusable aria-disabled controls", () => {
     render(<App />);
     const settingsButton = screen.getByRole("button", { name: "Settings coming soon" });
@@ -1583,8 +1561,6 @@ describe("App", () => {
     fireEvent.click(scoreButton);
 
     expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
-    // Projects opened from a .bscope file have no live workspace, so score
-    // storage is gated behind the active-project notice.
     expect(screen.getByText(/Scores attach to the active analysis project/i)).toBeInTheDocument();
     expect(screen.queryByText(/Song Timeline/i)).toBeNull();
   });
@@ -1598,9 +1574,6 @@ describe("App", () => {
       expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
     });
 
-    // The compact nav is a separate rendered bar (shown on small viewports) with
-    // its own set of buttons; exercise it directly so the mobile navigation path
-    // is covered, not just the sidebar one.
     const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
     const compactScoreButton = within(compactNav).getByRole("button", { name: /Score compact view/i });
     expect(compactScoreButton).toBeEnabled();
