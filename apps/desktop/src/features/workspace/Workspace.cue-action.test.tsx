@@ -41,17 +41,17 @@ it("names a cue-only groove-map action instead of presenting an enabled unavaila
   fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
   const cueButton = screen.getByRole("button", {
-    name: "Open Bass Guitar cue Hold through the pickup before the downbeat. on tonight's groove map"
+    name: "Open Bass Guitar cue Hold through the pickup before the downbeat on tonight's groove map"
   });
   expect(cueButton.textContent).toBe(
-    "See Bass Guitar cue · Hold through the pickup before the downbeat."
+    "See Bass Guitar cue · Hold through the pickup before the downbeat"
   );
 
   fireEvent.click(cueButton);
 
   expect(
     screen.getByText(
-      "Tonight's Bass Guitar cue is Hold through the pickup before the downbeat.. Count in on the groove map."
+      "Tonight's Bass Guitar cue is Hold through the pickup before the downbeat. Count in on the groove map."
     )
   ).toBeTruthy();
   expect(document.activeElement?.id).toBe("workspace-groove-map");
