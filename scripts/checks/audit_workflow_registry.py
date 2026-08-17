@@ -56,6 +56,11 @@ def _repository_workflow_path(path: str) -> bool:
     return path.startswith(".github/workflows/") and path.endswith((".yml", ".yaml"))
 
 
+def _github_dynamic_workflow_path(path: str) -> bool:
+    """Return whether GitHub's registry path identifies a platform-managed workflow."""
+    return path.startswith("dynamic/")
+
+
 def classify_workflows(
     workflows: list[dict[str, Any]],
     tree_paths: set[str],
@@ -64,7 +69,9 @@ def classify_workflows(
 
     Workflow names are intentionally ignored for lifecycle classification: a legitimate
     live workflow may contain words such as ``bootstrap`` or ``finalize``. Duplicate ids
-    and malformed objects fail closed as ``unresolved``.
+    and malformed objects fail closed as ``unresolved``. GitHub's live Actions registry
+    exposes platform-managed workflows under ``dynamic/`` paths without a separate
+    ``source`` field, so that observed namespace is handled explicitly.
     """
     workflow_ids = [workflow.get("id") for workflow in workflows]
     duplicate_ids = {
@@ -97,12 +104,12 @@ def classify_workflows(
         if workflow_id in duplicate_ids:
             classification = "unresolved"
             reason = "duplicate workflow id in registry snapshot"
-        elif source == "github":
-            classification = "github_dynamic"
-            reason = "workflow source is GitHub-managed rather than repository-backed"
         elif state != "active":
             classification = "disabled"
             reason = "registry state is not active"
+        elif source == "github" or _github_dynamic_workflow_path(path):
+            classification = "github_dynamic"
+            reason = "workflow path identifies a GitHub-managed dynamic identity"
         elif not _repository_workflow_path(path):
             classification = "unresolved"
             reason = "active registry path is not repository workflow YAML"
