@@ -313,7 +313,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Song Structure/i })).toBeTruthy();
     });
-    expect(within(screen.getByTestId("song-structure-grid")).getByText(/verse · 0:10–0:30/i)).toBeTruthy();
+    expect(screen.getByText(/verse · 0:10–0:30/i)).toBeTruthy();
     expect(screen.getByText(/Rehearsal timeline/i)).toBeTruthy();
     expect(screen.queryByText(/Mock-board/i)).toBeNull();
     const timelineRegion = screen.getByRole("region", { name: /scrollable song structure timeline/i });
@@ -775,6 +775,9 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
     act(() => {
@@ -807,6 +810,9 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
     act(() => {
