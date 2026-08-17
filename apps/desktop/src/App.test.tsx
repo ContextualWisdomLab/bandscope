@@ -1016,7 +1016,7 @@ describe("App", () => {
     });
     expect(screen.queryByText(/analysis could not start/i)).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByRole("button", { name: /start analysis/i }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: /start analysis/i })).toHaveAttribute("aria-disabled", "true");
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
