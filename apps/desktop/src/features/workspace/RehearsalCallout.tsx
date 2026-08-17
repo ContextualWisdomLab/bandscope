@@ -25,6 +25,7 @@ export function RehearsalCallout({ title, body, actionLabel, onAction }: Rehears
       </div>
       <Button
         type="button"
+        disabled={!onAction}
         onClick={() => onAction?.()}
         className="min-h-11 self-start bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950"
       >
