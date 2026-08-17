@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `AGENTS.md` is the canonical agent operating guide — read and follow it before making changes. It defines the security workflow (`Security Notes`), supply-chain workflow, cross-platform build rules, GitHub bootstrap rules, code style, and safety guardrails. This file complements it with commands and architecture; when in doubt, `AGENTS.md` and the docs it references win.
 
+After analysis, export, stems, and rehearsal-priority cards must name a next action. Do not leave those ready-state surfaces as dead-end descriptions.
+
 Agent execution and delegation rules live in `docs/agents/README.md`. PR canonicalization rules live in `docs/workflow/pr-continuity.md`.
 
 ## Common commands

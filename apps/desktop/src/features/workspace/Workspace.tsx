@@ -70,6 +70,30 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
   }
 }
 
+/** Return the first rehearsal-priority section the player should open. */
+function firstFocusSection(song: RehearsalSong): RehearsalSong["sections"][number] | undefined {
+  const requested = song.exportSummary?.focusSections?.[0]?.trim();
+  if (requested) {
+    const match = song.sections.find(
+      (section) => section.label === requested || section.id === requested
+    );
+    if (match) {
+      return match;
+    }
+  }
+  return song.sections[0];
+}
+
+/** Scroll and focus the matching section card on the rehearsal roadmap. */
+function focusWorkspaceSection(sectionId: string): void {
+  const node = document.getElementById(`workspace-section-${sectionId}`);
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  node.focus();
+}
+
 /** Documented. */
 const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
   return (
@@ -212,6 +236,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const focusSection = firstFocusSection(song);
+  const focusLabel = focusSection?.label ?? t("workspaceFocusFallback");
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -255,34 +281,40 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               {song.exportSummary?.headline || t("workspaceRehearsalFallback")}
             </CardDescription>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div id="workspace-export-actions" className="flex flex-col items-stretch gap-2 sm:items-end">
+            <p className="max-w-sm text-xs font-medium leading-5 text-slate-400 sm:text-right">{t("workspaceExportNextHint")}</p>
+            <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportCueSheet}
                 className="min-h-10 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] hover:bg-cyan-300/20 hover:text-white"
+              aria-label={t("workspaceExportCueSheet")}
             >
                 <Download className="mr-2 size-4 text-cyan-200" aria-hidden="true" />
-              Export Cue Sheet (CSV)
+              {t("workspaceExportCueSheet")}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportChart}
                 className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 shadow-sm hover:bg-white/10 hover:text-white"
+              aria-label={t("workspaceExportChart")}
             >
                 <Download className="mr-2 size-4 text-slate-300" aria-hidden="true" />
-              Export Chart (JSON)
+              {t("workspaceExportChart")}
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportHandoff}
               className="min-h-10 border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 shadow-sm hover:bg-teal-300/20 hover:text-white"
+              aria-label={t("workspaceExportHandoff")}
             >
               <Download className="mr-2 size-4 text-teal-200" aria-hidden="true" />
-              Export Handoff (JSON)
+              {t("workspaceExportHandoff")}
             </Button>
+            </div>
           </div>
           </div>
         </CardHeader>
@@ -318,16 +350,42 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               )}
             </section>
 
-            <section className="rounded-2xl border border-violet-300/20 bg-violet-300/[0.06] p-4">
+            <section id="workspace-stems-card" className="rounded-2xl border border-violet-300/20 bg-violet-300/[0.06] p-4">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-violet-200">{t("workspaceStemsLabel")}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Stem lanes will appear when separation results are available.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{t("workspaceStemsNextHint")}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleExportCueSheet}
+                className="mt-3 min-h-10 border-violet-300/30 bg-violet-300/10 font-semibold text-violet-50 hover:bg-violet-300/20 hover:text-white"
+                aria-label={t("workspaceStemsDownloadCueSheet")}
+              >
+                <Download className="mr-2 size-4 text-violet-200" aria-hidden="true" />
+                {t("workspaceStemsDownloadCueSheet")}
+              </Button>
             </section>
 
-            <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
+            <section id="workspace-priority-card" className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
+                {t("workspacePrioritiesNextHint").replace("{section}", focusLabel)}
               </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!focusSection}
+                onClick={() => {
+                  if (focusSection) {
+                    focusWorkspaceSection(focusSection.id);
+                  }
+                }}
+                className="mt-3 min-h-10 border-amber-300/30 bg-amber-300/10 font-semibold text-amber-50 hover:bg-amber-300/20 hover:text-white"
+                aria-label={t("workspacePrioritiesOpenSection")}
+              >
+                {t("workspacePrioritiesOpenSection")}
+              </Button>
             </section>
           </div>
 
