@@ -83,6 +83,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Keep UI and analysis engine decoupled through shared contracts.
 - Prefer minimal, test-first changes for production code.
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
+- After a part is selected, the transcribe control must open tonight's first notes or range on the groove map. Do not leave `Transcribe` as a no-op or "coming soon", and do not invent a new MIR extractor.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
 

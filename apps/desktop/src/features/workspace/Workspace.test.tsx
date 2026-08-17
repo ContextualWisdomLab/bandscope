@@ -8,6 +8,7 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -28,6 +29,7 @@ describe("Workspace", () => {
       configurable: true,
       value: originalRevokeObjectUrl
     });
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
   it("updates practice progress immutably through onSongUpdate", () => {
@@ -96,9 +98,11 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
-    expect(transcribeButton.disabled).toBe(false);
-    expect(transcribeButton.title).toBe("Transcribe part");
+    const notesButton = screen.getByRole("button", {
+      name: "Open Bass Guitar range C#2 to E3 on tonight's groove map"
+    }) as HTMLButtonElement;
+    expect(notesButton.disabled).toBe(false);
+    expect(notesButton.textContent).toBe("See Bass Guitar range · C#2–E3");
   });
 
   it("renders bass transcription in the dark rehearsal cockpit system", () => {
@@ -115,7 +119,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const grooveMap = screen.getByRole("region", { name: /bass transcription groove map/i });
+    const grooveMap = screen.getByRole("region", { name: /bass guitar notes on tonight's groove map/i });
     expect(grooveMap.className).toContain("bg-slate-950");
     expect(screen.getByText("E2")).toBeTruthy();
     expect(screen.getByText("G2")).toBeTruthy();
@@ -269,5 +273,60 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("opens tonight's first notes on the groove map from the selected part", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      transcription: [
+        { pitch: "G2", onset: 0.9, offset: 1.25, velocity: 0.68 },
+        { pitch: "E2", onset: 0, offset: 0.75, velocity: 0.74 }
+      ]
+    };
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Bass Guitar notes starting at E2 from 0:00 on tonight's groove map"
+      })
+    );
+
+    expect(
+      screen.getByText("Tonight's first Bass Guitar notes are E2 from 0:00. Count in on the groove map.")
+    ).toBeTruthy();
+    expect(document.activeElement?.id).toBe("workspace-groove-map");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("names the selected part's range when no note map exists yet", () => {
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Lead Vocal range G#3 to C#5 on tonight's groove map"
+      })
+    );
+
+    expect(screen.getByText("Tonight's Lead Vocal range is G#3–C#5. Count in on the groove map.")).toBeTruthy();
+    expect(screen.getByText(/No note map yet for Lead Vocal/)).toBeTruthy();
+    expect(document.activeElement?.id).toBe("workspace-groove-map");
+  });
+
+  it("localizes the first-notes action", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByRole("button", { name: "오늘 그루브 맵에서 Bass Guitar 음역 C#2–E3 열기" })).toBeTruthy();
   });
 });
