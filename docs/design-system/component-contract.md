@@ -30,7 +30,7 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 | Status Pill | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-283 | `apps/desktop/src/features/workspace/Workspace.tsx` | Design pattern only. Current code uses `formatStatusLabel(status)` inside local badge-like markup. |
 | Role Switcher | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-337 | `apps/desktop/src/features/workspace/RoleSwitcher.tsx` | Use `roles`, `activeRole`, and `onRoleChange`; `null` means all roles. |
 | Section Roadmap Card | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-402 | `apps/desktop/src/features/workspace/SectionRoadmap.tsx` | Use `song`, `activeRole`, and optional `onSongUpdate`; avoid rebuilding its internal card layout. |
-| Song Structure Timeline | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-457 | `apps/desktop/src/features/workspace/Workspace.tsx` | Feature-local `SongStructure({ sections, t })` memo component; not exported. |
+| Song Structure Timeline | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-457 | `apps/desktop/src/features/workspace/Workspace.tsx` | Feature-local `SongStructure({ sections, t, focusSection, cuedSectionId, onCueFocus })`; `id="workspace-timeline-{section.id}"` is the cue target for tonight's first lock-in. Cueing highlights the bar and does not start playback. |
 | Groove Map | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-526 | `apps/desktop/src/features/workspace/GrooveMap.tsx` | Use `notes?: TranscriptionNote[]` and `isLoading?: boolean`; preserve scrollable region semantics and note labels. |
 | Source Control Stack | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-655 | `apps/desktop/src/App.tsx` | Feature-local source controls for local audio, YouTube URL import, project actions, and Start Analysis; keep before metrics at 375px. |
 | Export Action Group | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-731 | `apps/desktop/src/features/workspace/Workspace.tsx` | Feature-local export buttons call `handleExportCueSheet`, `handleExportChart`, and `handleExportHandoff`. |
@@ -92,7 +92,7 @@ These Figma patterns are valid visual guidance but are not yet extracted as stan
 | Navigation Item | `apps/desktop/src/App.tsx` shell navigation | Extract when navigation appears outside the app shell. |
 | Metric Card | `apps/desktop/src/App.tsx` `MetricCard` | Extract when metrics move into feature pages or dashboards. |
 | Status Pill | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when assignment/comment/approval status UI is reused. |
-| Song Structure Timeline | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when timeline editing or playback controls are added. |
+| Song Structure Timeline | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when timeline editing or audio playback controls are added beyond tonight's first-lock-in cue. |
 | Export Action Group | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when export controls are reused outside the workspace header. |
 
 ## PR Review Rules

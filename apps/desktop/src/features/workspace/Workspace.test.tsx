@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -82,7 +82,7 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
+    expect(within(screen.getByTestId("song-structure-grid")).getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {
@@ -269,5 +269,80 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "곡 타임라인에서 verse 큐, 0:10부터 0:30까지" })).toBeTruthy();
+  });
+
+  it("cues tonight's first lock-in on the song-structure timeline", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    const focus = vi.fn();
+    const originalGetElementById = document.getElementById.bind(document);
+    vi.spyOn(document, "getElementById").mockImplementation((id: string) => {
+      const node = originalGetElementById(id);
+      if (node && id === "workspace-timeline-verse-1") {
+        Object.defineProperty(node, "scrollIntoView", { configurable: true, value: scrollIntoView });
+        Object.defineProperty(node, "focus", { configurable: true, value: focus });
+      }
+      return node;
+    });
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText("Tonight's first lock-in is verse · 0:10–0:30.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cue verse on the song timeline from 0:10 to 0:30" }));
+
+    expect(screen.getByText("Tonight's first lock-in is cued at verse · 0:10–0:30. Count in from that mark.")).toBeTruthy();
+    expect(document.getElementById("workspace-timeline-verse-1")?.getAttribute("aria-current")).toBe("true");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the first mapped section when focus labels do not match", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["missing-bridge"]
+    };
+    song.sections[0] = {
+      ...song.sections[0]!,
+      id: "intro-1",
+      label: "intro",
+      timeRange: { start: 0, end: 8 }
+    };
+
+    render(<Workspace song={song} />);
+
+    const bar = document.getElementById("workspace-timeline-intro-1");
+    const scrollIntoView = vi.fn();
+    expect(bar).toBeTruthy();
+    Object.defineProperty(bar!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cue intro on the song timeline from 0:00 to 0:08" }));
+
+    expect(screen.getByText("Tonight's first lock-in is cued at intro · 0:00–0:08. Count in from that mark.")).toBeTruthy();
+    expect(document.getElementById("workspace-timeline-intro-1")?.getAttribute("aria-current")).toBe("true");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the timeline cue closed when no sections are mapped", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    const locked = screen.getByRole("button", { name: "No lock-in section yet" });
+    expect(locked.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(locked);
+    expect(screen.queryByText(/Count in from that mark/i)).toBeNull();
   });
 });

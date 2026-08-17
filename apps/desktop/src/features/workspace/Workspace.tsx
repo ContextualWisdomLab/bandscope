@@ -57,6 +57,39 @@ function nonBlankText(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/** Fill rehearsal copy with named placeholders. */
+function fillCopy(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, value),
+    template
+  );
+}
+
+/** Return tonight's first lock-in section from export focus, then the first mapped section. */
+function firstFocusSection(song: RehearsalSong): RehearsalSong["sections"][number] | undefined {
+  const requested = song.exportSummary?.focusSections?.[0]?.trim();
+  if (requested) {
+    const match = song.sections.find(
+      (section) => section.label === requested || section.id === requested
+    );
+    if (match) {
+      return match;
+    }
+  }
+
+  return song.sections[0];
+}
+
+/** Scroll and focus the matching bar on the song-structure timeline. */
+function focusTimelineSection(sectionId: string): void {
+  const node = document.getElementById(`workspace-timeline-${sectionId}`);
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  node.focus();
+}
+
 /** Documented. */
 function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): ProjectBootstrapSummary | null {
   if (!value) {
@@ -71,12 +104,74 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 }
 
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({
+  sections,
+  t,
+  focusSection,
+  cuedSectionId,
+  onCueFocus
+}: {
+  sections: RehearsalSong["sections"];
+  t: Translator;
+  focusSection?: RehearsalSong["sections"][number];
+  cuedSectionId: string | null;
+  onCueFocus: () => void;
+}) {
+  const focusCopyValues = focusSection
+    ? {
+        label: focusSection.label,
+        start: formatTimelineTime(focusSection.timeRange.start),
+        end: formatTimelineTime(focusSection.timeRange.end)
+      }
+    : null;
+  const cueActionLabel = focusCopyValues
+    ? fillCopy(t("workspaceCueTimelineAction"), focusCopyValues)
+    : t("workspaceCueTimelineUnavailable");
+  const cueAriaLabel = focusCopyValues
+    ? fillCopy(t("workspaceCueTimelineAria"), focusCopyValues)
+    : t("workspaceCueTimelineUnavailable");
+  const cueSummary = focusCopyValues
+    ? fillCopy(t("workspaceCueTimelineSummary"), focusCopyValues)
+    : t("workspaceCueTimelineUnavailable");
+  const cuedSection = sections.find((section) => section.id === cuedSectionId) ?? null;
+  const cueStatus = focusCopyValues
+    ? fillCopy(t("workspaceCueTimelineArmed"), focusCopyValues)
+    : t("workspaceCueTimelineUnavailable");
+
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-black uppercase tracking-[0.24em] text-slate-200">{t("workspaceSongStructureLabel")}</h3>
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{t("workspaceRehearsalTimelineLabel")}</span>
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-black uppercase tracking-[0.24em] text-slate-200">{t("workspaceSongStructureLabel")}</h3>
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{t("workspaceRehearsalTimelineLabel")}</span>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{cueSummary}</p>
+        </div>
+        {focusSection ? (
+          <Button
+            type="button"
+            title={cueAriaLabel}
+            aria-label={cueAriaLabel}
+            onClick={onCueFocus}
+            variant="outline"
+            className="min-h-11 shrink-0 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white"
+          >
+            {cueActionLabel}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            aria-disabled={true}
+            aria-label={t("workspaceCueTimelineUnavailable")}
+            title={t("workspaceCueTimelineUnavailable")}
+            onClick={preventUnavailableAction}
+            variant="outline"
+            className="min-h-11 shrink-0 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
+          >
+            {t("workspaceCueTimelineUnavailable")}
+          </Button>
+        )}
       </div>
 
       <div
@@ -90,14 +185,27 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
-              <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
-              </p>
-              <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
-            </div>
-          ))}
+          {sections.map((section) => {
+            const isCued = section.id === cuedSectionId;
+            return (
+              <div
+                key={section.id}
+                id={`workspace-timeline-${section.id}`}
+                tabIndex={isCued ? 0 : undefined}
+                aria-current={isCued ? "true" : undefined}
+                className={
+                  isCued
+                    ? "border-r border-amber-300/40 bg-amber-300/[0.14] px-3 py-3 last:border-r-0 outline-none focus-visible:ring-2 focus-visible:ring-amber-200"
+                    : "border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0"
+                }
+              >
+                <p className="text-sm font-black text-white">
+                  {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
+              </div>
+            );
+          })}
         </div>
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
@@ -113,6 +221,11 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           <div className="absolute inset-x-3 top-1/2 h-px bg-cyan-200/20" />
         </div>
       </div>
+      {cuedSection ? (
+        <p className="mt-3 text-sm font-semibold text-cyan-100" role="status" aria-live="polite">
+          {cueStatus}
+        </p>
+      ) : null}
     </section>
   );
 });
@@ -120,6 +233,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [cuedTimelineSectionId, setCuedTimelineSectionId] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -212,6 +326,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const focusSection = firstFocusSection(song);
+
+  /** Cue tonight's first lock-in on the song-structure timeline without inventing playback. */
+  const cueTonightFocus = (): void => {
+    if (!focusSection) {
+      return;
+    }
+    setCuedTimelineSectionId(focusSection.id);
+    focusTimelineSection(focusSection.id);
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -331,7 +455,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure
+            sections={song.sections}
+            t={t}
+            focusSection={focusSection}
+            cuedSectionId={cuedTimelineSectionId}
+            onCueFocus={cueTonightFocus}
+          />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
