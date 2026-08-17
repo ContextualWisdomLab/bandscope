@@ -123,7 +123,9 @@ def test_duplicate_workflow_id_fails_closed(audit_module) -> None:
     )
 
     assert {record["classification"] for record in records} == {"unresolved"}
-    assert all(record["reason"] == "duplicate workflow id in registry snapshot" for record in records)
+    assert all(
+        record["reason"] == "duplicate workflow id in registry snapshot" for record in records
+    )
 
 
 def test_collect_paginated_workflows_requires_complete_receipts(audit_module) -> None:
@@ -200,7 +202,6 @@ class _FakeClient:
     ref_shas: list[str]
     workflows: list[dict[str, Any]]
     tree_paths: set[str]
-    truncated: bool = False
 
     def fetch_ref_sha(self, _repository: str, _branch: str) -> str:
         return self.ref_shas.pop(0)
@@ -209,8 +210,6 @@ class _FakeClient:
         return self.workflows, [{"page": 1, "status": 200, "item_count": len(self.workflows)}]
 
     def fetch_tree_paths(self, _repository: str, _sha: str):
-        if self.truncated:
-            raise audit_module.AuditError("recursive tree response was truncated")  # pragma: no cover
         return self.tree_paths
 
 
