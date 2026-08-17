@@ -51,20 +51,21 @@ def test_jsdom_30_is_adopted_in_manifest_and_lock() -> None:
     assert package_lock["packages"]["node_modules/jsdom"]["version"] == "30.0.1"
 
 
-def test_build_baseline_runs_the_complete_suite_on_exact_node_floor() -> None:
-    """A dedicated build job must exercise the real toolchain on Node 22.22.2."""
-    workflow = (ROOT / ".github/workflows/build-baseline.yml").read_text(encoding="utf-8")
+def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
+    """Exercise the exact Node floor after bootstrapping the canonical npm generator."""
+    workflow = (ROOT / ".github/workflows/node-minimum-compatibility.yml").read_text(encoding="utf-8")
 
     match = re.search(
         r"(?ms)^  node-minimum-compatibility:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|\Z)",
         workflow,
     )
-    assert match is not None, "build-baseline must define node-minimum-compatibility"
+    assert match is not None, "minimum-version workflow must define node-minimum-compatibility"
     body = match.group("body")
 
     required_fragments = (
         "node-version: 22.22.2",
         f'EXPECTED_NPM_VERSION: "{EXPECTED_NPM_VERSION}"',
+        'npm install --global "npm@$EXPECTED_NPM_VERSION" --ignore-scripts --no-audit --no-fund',
         'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"',
         "npm ci",
         "npm run lint",
