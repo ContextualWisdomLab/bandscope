@@ -18,7 +18,7 @@ def test_active_off_default_workflow_fails_closed_without_branch_provenance() ->
                 "name": "node-minimum-compatibility",
                 "path": ".github/workflows/node-minimum-compatibility.yml",
                 "state": "active",
-            }
+            },
         ],
         {".github/workflows/ci.yml"},
     )
