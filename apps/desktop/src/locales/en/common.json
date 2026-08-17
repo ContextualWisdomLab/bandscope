@@ -152,6 +152,7 @@
   "stemLabTitle": "Stem Lab",
   "stemLabSubtitle": "These lanes are the parts to isolate. Local stem audio is not attached yet, so lock the range and section cues by ear.",
   "stemLabEmptyNextAction": "Choose a local audio file and start analysis. Stem lanes appear after the song is split into roles.",
+  "stemLabNoRolesDetected": "No role lanes were detected. Review the analysis result, then verify the missing parts by ear before rehearsal.",
   "stemLabLaneListLabel": "Parts to isolate",
   "stemLabRoleTypeInstrument": "Instrument",
   "stemLabRoleTypeVocal": "Vocal",
