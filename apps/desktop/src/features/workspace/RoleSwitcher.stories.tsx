@@ -18,6 +18,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const AllRoles: Story = {
+  args: { roles, activeRole: null, onRoleChange: () => undefined },
   render: function AllRolesStory() {
     const [activeRole, setActiveRole] = useState<string | null>(null);
     return <RoleSwitcher roles={roles} activeRole={activeRole} onRoleChange={setActiveRole} />;
