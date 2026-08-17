@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- Raised the JavaScript security floors that were failing `trivy-fs` and `security-audit`: `pdfjs-dist` 6.2.108, `nanoid` 3.3.18, and `undici` 7.29.0. Score PDF loading still uses copied in-memory bytes and now also disables XFA rendering and worker-side helper fetches.
-
 ### Added
 
 - Sidebar Import, Export, Sections, Roles, Cues, and Transpose now open the matching rehearsal surface instead of saying coming soon. Stem Lab stays unavailable until that lane exists. Disabled items tell the player to analyze or open a project first.
