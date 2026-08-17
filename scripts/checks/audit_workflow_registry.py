@@ -1,23 +1,20 @@
 """Audit GitHub Actions registry identities against one exact repository tree.
 
-The GitHub Actions workflow registry has an independent lifecycle from workflow YAML.
-Deleting a workflow file therefore does not prove that GitHub stopped advertising the
-workflow identity.  This module provides a read-only, fail-closed audit that binds the
-registry snapshot to one immutable default-branch tree before classifying identities.
-
-The auditor never disables workflows.  Its JSON output is evidence for a separately
-authorized operator/control-plane action.
+GitHub keeps workflow registry identities independently from workflow YAML. Deleting a
+workflow file therefore does not prove that GitHub stopped advertising the identity.
+This module provides a read-only, fail-closed audit bound to one immutable default-
+branch tree. It never disables workflows; its JSON output is evidence for a separately
+authorized operator or control-plane action.
 """
 
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import sys
-import urllib.error
 import urllib.parse
-import urllib.request
 from collections import Counter
 from datetime import UTC, datetime
 from typing import Any, Callable
@@ -48,7 +45,7 @@ def _require_nonempty_string(value: object) -> str | None:
 
 
 def _valid_workflow_id(value: object) -> bool:
-    """Return whether *value* is an integer workflow id rather than a boolean."""
+    """Return whether *value* is a positive integer workflow id, excluding booleans."""
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
@@ -61,11 +58,11 @@ def classify_workflows(
     workflows: list[dict[str, Any]],
     tree_paths: set[str],
 ) -> list[dict[str, Any]]:
-    """Classify registry entries using only exact-tree path evidence.
+    """Classify registry entries using only exact-tree path and registry-state evidence.
 
-    Workflow names are intentionally ignored for lifecycle classification: a live
-    workflow is allowed to contain words such as ``bootstrap`` or ``finalize``.
-    Duplicate ids and malformed objects fail closed as ``unresolved``.
+    Workflow names are intentionally ignored for lifecycle classification: a legitimate
+    live workflow may contain words such as ``bootstrap`` or ``finalize``. Duplicate ids
+    and malformed objects fail closed as ``unresolved``.
     """
     workflow_ids = [workflow.get("id") for workflow in workflows]
     duplicate_ids = {
@@ -133,11 +130,7 @@ def collect_paginated_workflows(
     *,
     per_page: int = DEFAULT_PER_PAGE,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Collect the complete workflow registry with explicit page receipts.
-
-    ``fetch_page`` returns the decoded GitHub payload plus a receipt.  The total must
-    remain stable during pagination and the collected count must exactly match it.
-    """
+    """Collect the complete registry while retaining a successful receipt for each page."""
     if not isinstance(per_page, int) or isinstance(per_page, bool) or not 1 <= per_page <= 100:
         raise AuditError("per_page must be an integer from 1 through 100")
 
@@ -149,7 +142,6 @@ def collect_paginated_workflows(
         payload, receipt = fetch_page(page, per_page)
         total_count = payload.get("total_count")
         page_workflows = payload.get("workflows")
-
         if (
             not isinstance(total_count, int)
             or isinstance(total_count, bool)
@@ -158,6 +150,7 @@ def collect_paginated_workflows(
             or not all(isinstance(item, dict) for item in page_workflows)
         ):
             raise AuditError("workflow page has malformed total_count or workflows")
+
         if expected_total is None:
             expected_total = total_count
         elif total_count != expected_total:
@@ -170,7 +163,6 @@ def collect_paginated_workflows(
 
         workflows.extend(page_workflows)
         receipts.append(dict(receipt))
-
         if len(workflows) == expected_total:
             return workflows, receipts
         if len(workflows) > expected_total:
@@ -182,7 +174,7 @@ def collect_paginated_workflows(
 
 
 class GitHubRegistryClient:
-    """Minimal read-only GitHub REST client for workflow-registry evidence."""
+    """Minimal read-only GitHub REST client with a fixed HTTPS transport origin."""
 
     def __init__(
         self,
@@ -193,16 +185,54 @@ class GitHubRegistryClient:
     ) -> None:
         """Create a client without ever logging or returning the bearer token."""
         parsed = urllib.parse.urlparse(api_url)
-        if parsed.scheme != "https" or not parsed.netloc:
-            raise AuditError("api_url must be an absolute HTTPS URL")
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise AuditError("api_url must be an absolute HTTPS URL without credentials/query/fragment")
         if timeout_seconds <= 0:
             raise AuditError("timeout_seconds must be positive")
+
         self._api_url = api_url.rstrip("/")
+        self._host = parsed.hostname
+        self._port = parsed.port
+        self._base_path = parsed.path.rstrip("/")
         self._token = token
         self._timeout_seconds = timeout_seconds
 
+    def _request_target(self, url: str) -> str:
+        """Return a path/query only when *url* remains on the configured HTTPS origin."""
+        parsed = urllib.parse.urlparse(url)
+        configured_port = self._port or 443
+        candidate_port = parsed.port or 443 if parsed.scheme == "https" else None
+        path_matches_base = (
+            not self._base_path
+            or parsed.path == self._base_path
+            or parsed.path.startswith(f"{self._base_path}/")
+        )
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != self._host
+            or candidate_port != configured_port
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.fragment
+            or not path_matches_base
+        ):
+            raise AuditError("request target must stay on the configured HTTPS API origin")
+
+        target = parsed.path or "/"
+        if parsed.query:
+            target = f"{target}?{parsed.query}"
+        return target
+
     def _get_json(self, url: str) -> tuple[dict[str, Any], int]:
-        """Fetch one JSON object and convert transport failures into bounded errors."""
+        """Fetch one JSON object without a scheme-switching URL opener or redirects."""
+        target = self._request_target(url)
         headers = {
             "Accept": "application/vnd.github+json",
             "User-Agent": "bandscope-workflow-registry-audit/1",
@@ -210,15 +240,21 @@ class GitHubRegistryClient:
         }
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
-        request = urllib.request.Request(url, headers=headers, method="GET")
+
+        connection = http.client.HTTPSConnection(
+            self._host,
+            port=self._port,
+            timeout=self._timeout_seconds,
+        )
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
-                status = int(response.status)
-                body = response.read()
-        except urllib.error.HTTPError as error:
-            raise AuditError(f"GitHub API request failed with HTTP {error.code}") from error
-        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            connection.request("GET", target, headers=headers)
+            response = connection.getresponse()
+            status = int(response.status)
+            body = response.read()
+        except (http.client.HTTPException, TimeoutError, OSError) as error:
             raise AuditError("GitHub API request failed before complete evidence was received") from error
+        finally:
+            connection.close()
 
         if status != 200:
             raise AuditError(f"GitHub API request returned unexpected HTTP {status}")
@@ -364,17 +400,16 @@ def main(argv: list[str] | None = None) -> int:
     """Emit exact JSON evidence; return nonzero for orphans, unresolved data, or audit failure."""
     args = _build_parser().parse_args(argv)
     if not args.repository:
-        print("workflow registry audit failed: --repository or GITHUB_REPOSITORY is required", file=sys.stderr)
+        print(
+            "workflow registry audit failed: --repository or GITHUB_REPOSITORY is required",
+            file=sys.stderr,
+        )
         return 2
 
     token = os.environ.get(args.token_env) if args.token_env else None
     try:
         client = GitHubRegistryClient(api_url=args.api_url, token=token)
-        report = audit_repository(
-            client,
-            repository=args.repository,
-            branch=args.branch,
-        )
+        report = audit_repository(client, repository=args.repository, branch=args.branch)
     except AuditError as error:
         print(f"workflow registry audit failed: {error}", file=sys.stderr)
         return 2
