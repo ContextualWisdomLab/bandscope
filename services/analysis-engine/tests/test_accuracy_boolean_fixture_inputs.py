@@ -1,4 +1,4 @@
-"""Boolean evidence guards for deterministic real-audio fixtures."""
+"""Boolean and overflow guards for deterministic real-audio fixtures."""
 
 from __future__ import annotations
 
@@ -46,6 +46,21 @@ def test_click_fixture_rejects_boolean_numeric_evidence(
     kwargs = {keyword: cast(Any, value)}
     with pytest.raises(ValueError, match=message):
         render_click_track(**kwargs)
+
+
+@pytest.mark.parametrize("factory", [render_c_major_triad, render_click_track])
+def test_fixture_rejects_nonfinite_scaled_sample_count(factory: Any) -> None:
+    """Finite inputs whose product overflows must fail before allocation authority."""
+    with pytest.raises(ValueError, match="sample count"):
+        factory(duration_seconds=1e308)
+
+
+def test_click_fixture_rejects_tempo_whose_beat_interval_overflows() -> None:
+    """A finite positive tempo must not become infinite loop timing authority."""
+    smallest_positive = np.nextafter(0.0, 1.0)
+
+    with pytest.raises(ValueError, match="bpm"):
+        render_click_track(bpm=smallest_positive, duration_seconds=1.0)
 
 
 def test_wav_writer_rejects_boolean_sample_rate(tmp_path: Path) -> None:
