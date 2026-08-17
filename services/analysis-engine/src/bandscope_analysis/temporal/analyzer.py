@@ -33,6 +33,15 @@ KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
     (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
     (FutureWarning, r".*Numba.*", r".*numba.*"),
 )
+_SAFE_TEMPORAL_FAILURE_MESSAGES = frozenset(
+    {
+        "Audio file is too large for temporal analysis",
+        "Audio input violates the audio resource policy.",
+        "Expected numpy array from librosa.load",
+    }
+)
+_MISSING_AUDIO_MESSAGE = "Audio source is unavailable for temporal analysis."
+_GENERIC_TEMPORAL_FAILURE_MESSAGE = "Temporal analysis failed."
 # ponytail: assumes 4/4; upgrade to meter estimation or a madmom DBN if other meters matter.
 BEATS_PER_BAR = 4
 
@@ -65,6 +74,14 @@ def _estimate_downbeats(
     return [float(bt) for i, bt in enumerate(beat_times) if (i - best_phase) % beats_per_bar == 0]
 
 
+def _safe_temporal_failure_message(error: Exception) -> str:
+    """Return an allowlisted diagnostic without relaying decoder payload text."""
+    message = str(error)
+    if message in _SAFE_TEMPORAL_FAILURE_MESSAGES:
+        return message
+    return _GENERIC_TEMPORAL_FAILURE_MESSAGE
+
+
 class TemporalAnalyzer:
     """Analyze bounded temporal features (BPM and beat grids) from local audio."""
 
@@ -95,9 +112,9 @@ class TemporalAnalyzer:
         path = Path(audio_path)
         path_str = str(path)
         if not path.exists() or not path.is_file():
-            raise FileNotFoundError(f"Audio file not found: {path_str}")
+            raise FileNotFoundError(_MISSING_AUDIO_MESSAGE)
 
-        logger.info(f"Loading and decoding audio: {path_str}")
+        logger.info("Loading and decoding bounded local audio.")
 
         try:
             with path.open("rb") as fileobj:
@@ -161,6 +178,6 @@ class TemporalAnalyzer:
                 "audio_path": path_str,
             }
 
-        except Exception as e:
-            logger.error(f"Failed to analyze audio {path_str}: {e}")
-            raise ValueError(f"Temporal analysis failed: {e}") from e
+        except Exception as error:
+            logger.error("Temporal analysis failed (%s).", type(error).__name__)
+            raise ValueError(_safe_temporal_failure_message(error)) from error
