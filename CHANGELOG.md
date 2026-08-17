@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Reject fixture timings whose derived sample count overflows or quantizes below one sample, and reject finite BPM inputs whose derived beat interval becomes non-finite, before they can drive real-audio accuracy allocation or loop authority.
 - Reject malformed decoded-PCM accuracy evidence before chord recognition: the C-major acceptance buffer must be a non-empty, finite, floating-point, one-dimensional mono array and sample rates must be finite, positive, and non-Boolean.
 - Reject accuracy-report metric integers whose conversion overflows floating-point evidence instead of letting an `OverflowError` escape the manifest validation boundary.
 - Reject Boolean fixture duration, tempo, and sample-rate inputs so Python `True`/`False` values cannot become numeric real-audio acceptance authority or a 1 Hz WAV contract.
