@@ -44,6 +44,7 @@ Because of that, dependency review, security audit, SBOM generation, and supply-
 - dependency graph or dependency submission coverage must stay enabled wherever GitHub supports it for the repository state
 - GitHub dependency review must gate PRs into `develop` and `main`
 - GitHub Actions workflows that affect the supply chain must stay SHA pinned and least-privilege
+- dependency-install and audit jobs must disable persisted checkout credentials before untrusted dependency lifecycle code can execute
 - third-party actions require source-trust review, maintenance review, permission review, and commit-SHA pinning before admission
 
 ## New dependency admission rule
