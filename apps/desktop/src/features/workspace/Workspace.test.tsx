@@ -280,6 +280,19 @@ describe("Workspace", () => {
     expect(screen.getByText(/Transpose \/ simplify/i)).toBeTruthy();
   });
 
+  it("keeps transpose navigation recoverable when analysis returns no roles", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    for (const section of song.sections) {
+      section.roles = [];
+    }
+
+    render(<Workspace song={song} requestedSurface="transpose" requestedSurfaceRequestId={1} />);
+
+    expect(document.getElementById("workspace-surface-transpose")).toHaveFocus();
+    expect(screen.getByText(/No role details are available yet/i)).toBeTruthy();
+  });
+
   it("resets each new transpose request to the first role without pinning later role choices", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
