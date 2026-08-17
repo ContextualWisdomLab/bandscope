@@ -72,6 +72,18 @@ def test_click_fixture_rejects_tempo_whose_beat_interval_overflows() -> None:
         render_click_track(bpm=smallest_positive, duration_seconds=1.0)
 
 
+def test_click_fixture_rejects_tempo_shorter_than_one_sample() -> None:
+    """A click cadence faster than one sample must not alias acceptance evidence."""
+    with pytest.raises(ValueError, match="beat interval"):
+        render_click_track(bpm=6_001.0, duration_seconds=0.02, sample_rate=100)
+
+
+def test_click_fixture_rejects_sample_rate_too_low_for_one_click_sample() -> None:
+    """A click fixture must contain at least one sample of click evidence."""
+    with pytest.raises(ValueError, match="click length"):
+        render_click_track(bpm=60.0, duration_seconds=0.1, sample_rate=99)
+
+
 def test_wav_writer_rejects_boolean_sample_rate(tmp_path: Path) -> None:
     """A Boolean sample rate must not be serialized as a 1 Hz WAV contract."""
     with pytest.raises(ValueError, match="sample_rate"):
