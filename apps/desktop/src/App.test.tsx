@@ -299,7 +299,7 @@ describe("App", () => {
       expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
     });
     expect(screen.getByText(/Roles & Harmony/i)).toBeTruthy();
-    expect(screen.getByText(/Stems/i)).toBeTruthy();
+    expect(screen.getByText(/^Stems$/i)).toBeTruthy();
     expect(screen.getByText(/Rehearsal Priorities/i)).toBeTruthy();
     expect(screen.getByText(/Export Cue Sheet/i)).toBeTruthy();
   });
@@ -923,7 +923,7 @@ describe("App", () => {
       fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
       await waitFor(() => expect(screen.getByText(/next-song\.wav/i)).toBeTruthy());
 
-      fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+      fireEvent.click(screen.getByRole("button", { name: /share a handoff file/i }));
       const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
       const payload = JSON.parse(await blob.text());
 
