@@ -44,7 +44,9 @@ import {
   startAnalysisJob
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
+import { isNavigableView, resolveCurrentView, type RehearsalView } from "./lib/rehearsalViews";
 import { ScoreView } from "./features/score/ScoreView";
+import { StemLab } from "./features/stems/StemLab";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
@@ -58,15 +60,13 @@ const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:User
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
-type RehearsalView = "workspace" | "score";
-
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
   { labelKey: "navImport", icon: Upload, view: null },
   { labelKey: "navExport", icon: Save, view: null },
   { labelKey: "navSections", icon: ListMusic, view: null },
   { labelKey: "navRoles", icon: Users, view: null },
-  { labelKey: "navStemLab", icon: AudioWaveform, view: null },
+  { labelKey: "navStemLab", icon: AudioWaveform, view: "stems" },
   { labelKey: "navCues", icon: Sparkles, view: null },
   { labelKey: "navTranspose", icon: SlidersHorizontal, view: null },
   { labelKey: "navScore", icon: FileMusic, view: "score" }
@@ -517,11 +517,35 @@ export function App() {
     return <EmptyState />;
   };
 
-  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  const currentView: RehearsalView = resolveCurrentView(activeView, jobResult !== null);
+
+  /** Render the selected rehearsal destination without inventing unavailable audio. */
+  const renderActiveRehearsalView = () => {
+    switch (currentView) {
+      case "score":
+        return jobResult ? (
+          <ScoreView
+            song={jobResult}
+            projectId={jobResultBootstrap?.projectId ?? null}
+            onSongUpdate={handleSongUpdate}
+          />
+        ) : (
+          renderWorkspaceState()
+        );
+      case "stems":
+        return <StemLab song={jobResult} />;
+      case "workspace":
+        return renderWorkspaceState();
+      default: {
+        const _exhaustive: never = currentView;
+        return _exhaustive;
+      }
+    }
+  };
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
-    const enabled = item.view === "workspace" || (item.view === "score" && jobResult !== null);
+    const enabled = isNavigableView(item.view, jobResult !== null);
     return {
       label: t(item.labelKey),
       enabled,
@@ -842,15 +866,7 @@ export function App() {
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-            {currentView === "score" && jobResult ? (
-              <ScoreView
-                song={jobResult}
-                projectId={jobResultBootstrap?.projectId ?? null}
-                onSongUpdate={handleSongUpdate}
-              />
-            ) : (
-              renderWorkspaceState()
-            )}
+            {renderActiveRehearsalView()}
           </section>
         </main>
       </div>

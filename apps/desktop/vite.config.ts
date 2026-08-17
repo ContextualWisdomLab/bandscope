@@ -25,7 +25,10 @@ export default defineConfig({
         "src/i18n/index.ts",
         "src/features/score/ScoreViewer.tsx",
         "src/features/score/ScoreView.tsx",
-        "src/features/score/scoreStorage.ts"
+        "src/features/score/scoreStorage.ts",
+        "src/features/stems/StemLab.tsx",
+        "src/features/stems/stemLanes.ts",
+        "src/lib/rehearsalViews.ts"
       ],
       thresholds: {
         lines: 90,

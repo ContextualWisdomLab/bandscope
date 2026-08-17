@@ -14,6 +14,7 @@ It is technically defined as a rehearsal-analysis product, not a single-output c
 - role ranges, overlap warnings, and simplification guidance
 - transposition, capo, tuning, or setup cues where relevant
 - role-specific confidence and rehearsal priority
+- Stem Lab isolation lanes that name the parts to lock first, without inventing playable stem files
 
 ## Shared domain contracts
 
