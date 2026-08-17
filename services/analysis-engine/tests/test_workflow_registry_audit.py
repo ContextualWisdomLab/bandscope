@@ -118,6 +118,23 @@ def test_unrecognized_active_non_repository_path_fails_closed(audit_module) -> N
     assert records[0]["reason"] == "active registry path is not repository workflow YAML"
 
 
+def test_source_field_cannot_override_repository_path_evidence(audit_module) -> None:
+    """Untrusted metadata must not turn an absent repository workflow into GitHub-owned evidence."""
+    records = audit_module.classify_workflows(
+        [
+            _workflow(
+                142,
+                ".github/workflows/deleted-repair.yml",
+                source="github",
+            )
+        ],
+        set(),
+    )
+
+    assert records[0]["classification"] == "orphaned_deleted"
+    assert records[0]["reason"] == "active registry path is absent from the bound tree"
+
+
 def test_malformed_workflow_fails_closed_as_unresolved(audit_module) -> None:
     """Incomplete registry objects remain unresolved rather than being guessed."""
     records = audit_module.classify_workflows(
