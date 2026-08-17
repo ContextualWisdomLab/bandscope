@@ -10,14 +10,16 @@ authorized operator or control-plane action.
 from __future__ import annotations
 
 import argparse
-import http.client
 import json
 import os
+import ssl
 import sys
 import urllib.parse
 from collections import Counter
 from datetime import UTC, datetime
 from typing import Any, Callable
+
+import urllib3
 
 DEFAULT_API_URL = "https://api.github.com"
 DEFAULT_BRANCH = "develop"
@@ -174,7 +176,7 @@ def collect_paginated_workflows(
 
 
 class GitHubRegistryClient:
-    """Minimal read-only GitHub REST client with a fixed HTTPS transport origin."""
+    """Minimal read-only GitHub REST client with a fixed verified HTTPS origin."""
 
     def __init__(
         self,
@@ -185,6 +187,10 @@ class GitHubRegistryClient:
     ) -> None:
         """Create a client without ever logging or returning the bearer token."""
         parsed = urllib.parse.urlparse(api_url)
+        try:
+            parsed_port = parsed.port
+        except ValueError as error:
+            raise AuditError("api_url contains an invalid port") from error
         if (
             parsed.scheme != "https"
             or not parsed.hostname
@@ -199,7 +205,7 @@ class GitHubRegistryClient:
 
         self._api_url = api_url.rstrip("/")
         self._host = parsed.hostname
-        self._port = parsed.port
+        self._port = parsed_port
         self._base_path = parsed.path.rstrip("/")
         self._token = token
         self._timeout_seconds = timeout_seconds
@@ -207,8 +213,11 @@ class GitHubRegistryClient:
     def _request_target(self, url: str) -> str:
         """Return a path/query only when *url* remains on the configured HTTPS origin."""
         parsed = urllib.parse.urlparse(url)
+        try:
+            candidate_port = parsed.port or 443 if parsed.scheme == "https" else None
+        except ValueError as error:
+            raise AuditError("request target contains an invalid port") from error
         configured_port = self._port or 443
-        candidate_port = parsed.port or 443 if parsed.scheme == "https" else None
         path_matches_base = (
             not self._base_path
             or parsed.path == self._base_path
@@ -231,7 +240,7 @@ class GitHubRegistryClient:
         return target
 
     def _get_json(self, url: str) -> tuple[dict[str, Any], int]:
-        """Fetch one JSON object without a scheme-switching URL opener or redirects."""
+        """Fetch one JSON object through a verified fixed-origin pool with redirects off."""
         target = self._request_target(url)
         headers = {
             "Accept": "application/vnd.github+json",
@@ -241,20 +250,27 @@ class GitHubRegistryClient:
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
 
-        connection = http.client.HTTPSConnection(
+        pool = urllib3.HTTPSConnectionPool(
             self._host,
             port=self._port,
-            timeout=self._timeout_seconds,
+            cert_reqs=ssl.CERT_REQUIRED,
+            assert_hostname=self._host,
         )
         try:
-            connection.request("GET", target, headers=headers)
-            response = connection.getresponse()
+            response = pool.request(
+                "GET",
+                target,
+                headers=headers,
+                redirect=False,
+                retries=False,
+                timeout=urllib3.Timeout(total=self._timeout_seconds),
+            )
             status = int(response.status)
-            body = response.read()
-        except (http.client.HTTPException, TimeoutError, OSError) as error:
+            body = bytes(response.data)
+        except (urllib3.exceptions.HTTPError, TimeoutError, OSError) as error:
             raise AuditError("GitHub API request failed before complete evidence was received") from error
         finally:
-            connection.close()
+            pool.close()
 
         if status != 200:
             raise AuditError(f"GitHub API request returned unexpected HTTP {status}")
