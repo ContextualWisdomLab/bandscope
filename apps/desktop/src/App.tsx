@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
   AudioWaveform,
   CircleHelp,
@@ -276,6 +276,7 @@ export function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const [requestedSurface, setRequestedSurface] = useState<NavSurface | null>(null);
+  const [requestedSurfaceRequestId, setRequestedSurfaceRequestId] = useState(0);
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -524,7 +525,15 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} requestedSurface={requestedSurface === "import" ? null : requestedSurface} />;
+      return (
+        <Workspace
+          song={jobResult}
+          sourceBootstrap={jobResultBootstrap}
+          onSongUpdate={handleSongUpdate}
+          requestedSurface={requestedSurface === "import" ? null : requestedSurface}
+          requestedSurfaceRequestId={requestedSurfaceRequestId}
+        />
+      );
     }
     return <EmptyState />;
   };
@@ -576,6 +585,9 @@ export function App() {
       return;
     }
     setRequestedSurface(item.surface);
+    if (item.surface !== null) {
+      setRequestedSurfaceRequestId((current) => current + 1);
+    }
   };
 
   return (
@@ -607,26 +619,34 @@ export function App() {
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
               const { icon: Icon } = item;
+              const descriptionId = enabled ? undefined : `primary-${item.labelKey}-disabled-description`;
 
               return (
-                <button
-                  key={item.labelKey}
-                  type="button"
-                  aria-current={active ? "page" : undefined}
-                  aria-disabled={enabled ? undefined : true}
-                  title={title}
-                  onClick={enabled ? () => handleNavSelect(item) : blockInactiveNavActivation}
-                  className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                    active
-                      ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
-                      : enabled
-                        ? "text-slate-200 hover:bg-white/5"
-                        : "cursor-not-allowed text-slate-500 opacity-70"
-                  }`}
-                >
-                  <Icon className="size-5" aria-hidden="true" />
-                  {label}
-                </button>
+                <Fragment key={item.labelKey}>
+                  <button
+                    type="button"
+                    aria-current={active ? "page" : undefined}
+                    aria-disabled={enabled ? undefined : true}
+                    aria-describedby={descriptionId}
+                    title={title}
+                    onClick={enabled ? () => handleNavSelect(item) : blockInactiveNavActivation}
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                      active
+                        ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
+                        : enabled
+                          ? "text-slate-200 hover:bg-white/5"
+                          : "cursor-not-allowed text-slate-500 opacity-70"
+                    }`}
+                  >
+                    <Icon className="size-5" aria-hidden="true" />
+                    {label}
+                  </button>
+                  {descriptionId ? (
+                    <span id={descriptionId} className="sr-only">
+                      {title}
+                    </span>
+                  ) : null}
+                </Fragment>
               );
             })}
           </nav>
@@ -683,27 +703,35 @@ export function App() {
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
               const { icon: Icon } = item;
+              const descriptionId = enabled ? undefined : `compact-${item.labelKey}-disabled-description`;
 
               return (
-                <button
-                  key={item.labelKey}
-                  type="button"
-                  aria-current={active ? "page" : undefined}
-                  aria-label={`${label} ${t("compactViewSuffix")}`}
-                  aria-disabled={enabled ? undefined : true}
-                  title={title}
-                  onClick={enabled ? () => handleNavSelect(item) : blockInactiveNavActivation}
-                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                    active
-                      ? "bg-blue-600/70 text-white"
-                      : enabled
-                        ? "text-slate-200 hover:bg-white/5"
-                        : "cursor-not-allowed text-slate-500 opacity-70"
-                  }`}
-                >
-                  <Icon className="size-4" aria-hidden="true" />
-                  {label}
-                </button>
+                <Fragment key={item.labelKey}>
+                  <button
+                    type="button"
+                    aria-current={active ? "page" : undefined}
+                    aria-label={`${label} ${t("compactViewSuffix")}`}
+                    aria-disabled={enabled ? undefined : true}
+                    aria-describedby={descriptionId}
+                    title={title}
+                    onClick={enabled ? () => handleNavSelect(item) : blockInactiveNavActivation}
+                    className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                      active
+                        ? "bg-blue-600/70 text-white"
+                        : enabled
+                          ? "text-slate-200 hover:bg-white/5"
+                          : "cursor-not-allowed text-slate-500 opacity-70"
+                    }`}
+                  >
+                    <Icon className="size-4" aria-hidden="true" />
+                    {label}
+                  </button>
+                  {descriptionId ? (
+                    <span id={descriptionId} className="sr-only">
+                      {title}
+                    </span>
+                  ) : null}
+                </Fragment>
               );
             })}
           </nav>
