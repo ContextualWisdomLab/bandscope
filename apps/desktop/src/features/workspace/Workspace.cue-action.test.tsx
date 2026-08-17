@@ -19,7 +19,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("names a cue-only groove-map action instead of presenting an enabled unavailable button", () => {
+it("keeps cue-only roles off the first-notes action until notes or a range exist", () => {
   setNavigatorLanguage("en-US");
   const song = createDemoRehearsalSong();
   song.sections[0]!.roles[0] = {
@@ -40,20 +40,14 @@ it("names a cue-only groove-map action instead of presenting an enabled unavaila
   render(<Workspace song={song} />);
   fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-  const cueButton = screen.getByRole("button", {
-    name: "Open Bass Guitar cue Hold through the pickup before the downbeat on tonight's groove map"
+  const unavailableButton = screen.getByRole("button", {
+    name: "No notes are ready yet. Stay on tonight's map."
   });
-  expect(cueButton.textContent).toBe(
-    "See Bass Guitar cue · Hold through the pickup before the downbeat"
-  );
+  expect(unavailableButton.getAttribute("aria-disabled")).toBe("true");
 
-  fireEvent.click(cueButton);
+  fireEvent.click(unavailableButton);
 
-  expect(
-    screen.getByText(
-      "Tonight's Bass Guitar cue is Hold through the pickup before the downbeat. Count in on the groove map."
-    )
-  ).toBeTruthy();
-  expect(document.activeElement?.id).toBe("workspace-groove-map");
-  expect(scrollIntoView).toHaveBeenCalled();
+  expect(screen.queryByText(/Tonight's Bass Guitar cue is/)).toBeNull();
+  expect(document.activeElement?.id).not.toBe("workspace-groove-map");
+  expect(scrollIntoView).not.toHaveBeenCalled();
 });
