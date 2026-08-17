@@ -15,6 +15,8 @@ def test_cloud_agent_install_uses_pinned_locked_dependency_bootstrap() -> None:
     install = environment["install"]
 
     assert "https://astral.sh/uv/0.8.6/install.sh" in install
+    assert "--proto '=https'" in install
+    assert "--tlsv1.2" in install
     assert 'UV_UNMANAGED_INSTALL="$HOME/.local/bin"' in install
     assert "npm ci" in install
     assert "npm install" not in install
