@@ -270,4 +270,13 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("focuses the requested rehearsal surface and opens transpose help on the first role", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    render(<Workspace song={song} requestedSurface="transpose" />);
+
+    expect(document.getElementById("workspace-surface-transpose")).toHaveFocus();
+    expect(screen.getByText(/Transpose \/ simplify/i)).toBeTruthy();
+  });
 });

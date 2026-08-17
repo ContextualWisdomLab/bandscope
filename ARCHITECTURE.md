@@ -68,6 +68,7 @@ Last updated: 2026-03-11
 - BandScope is not only a shell around chord labels, stems, and ranges.
 - The technical scope includes rehearsal-facing outputs for harmony, section roadmap, groove cues, role entry and dropout cues, simplification guidance, transposition or setup guidance, confidence flags, and rehearsal priority.
 - These outputs must stay aligned with `docs/brand-story.md` rather than drifting back to a song-summary-only analyzer.
+- The desktop sidebar must jump to existing workspace surfaces (import, export, sections, roles, cues, transpose). Disabled items name the next action. Stem Lab remains unavailable until that product lane exists.
 
 ## Analysis target model
 

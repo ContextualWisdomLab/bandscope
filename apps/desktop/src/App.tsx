@@ -46,6 +46,7 @@ import {
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
+import { SOURCE_CONTROLS_FOCUS_ID, type WorkspaceReadySurface } from "./features/workspace/workspaceNav";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,18 +60,28 @@ const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
 type RehearsalView = "workspace" | "score";
+type NavSurface = "import" | WorkspaceReadySurface;
+
+const NAV_SURFACE_TITLE_KEYS = {
+  import: "navImportNextAction",
+  export: "navExportNextAction",
+  sections: "navSectionsNextAction",
+  roles: "navRolesNextAction",
+  cues: "navCuesNextAction",
+  transpose: "navTransposeNextAction"
+} as const satisfies Record<NavSurface, TranslationKey>;
 
 const NAV_ITEMS = [
-  { labelKey: "navWorkspace", icon: Home, view: "workspace" },
-  { labelKey: "navImport", icon: Upload, view: null },
-  { labelKey: "navExport", icon: Save, view: null },
-  { labelKey: "navSections", icon: ListMusic, view: null },
-  { labelKey: "navRoles", icon: Users, view: null },
-  { labelKey: "navStemLab", icon: AudioWaveform, view: null },
-  { labelKey: "navCues", icon: Sparkles, view: null },
-  { labelKey: "navTranspose", icon: SlidersHorizontal, view: null },
-  { labelKey: "navScore", icon: FileMusic, view: "score" }
-] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; view: RehearsalView | null }[];
+  { labelKey: "navWorkspace", icon: Home, view: "workspace" as const, surface: null },
+  { labelKey: "navImport", icon: Upload, view: "workspace" as const, surface: "import" as const },
+  { labelKey: "navExport", icon: Save, view: "workspace" as const, surface: "export" as const },
+  { labelKey: "navSections", icon: ListMusic, view: "workspace" as const, surface: "sections" as const },
+  { labelKey: "navRoles", icon: Users, view: "workspace" as const, surface: "roles" as const },
+  { labelKey: "navStemLab", icon: AudioWaveform, view: null, surface: null },
+  { labelKey: "navCues", icon: Sparkles, view: "workspace" as const, surface: "cues" as const },
+  { labelKey: "navTranspose", icon: SlidersHorizontal, view: "workspace" as const, surface: "transpose" as const },
+  { labelKey: "navScore", icon: FileMusic, view: "score" as const, surface: null }
+] as const satisfies readonly { labelKey: TranslationKey; icon: LucideIcon; view: RehearsalView | null; surface: NavSurface | null }[];
 
 const BRAND_BAR_HEIGHTS = ["h-3", "h-5", "h-7", "h-4", "h-6"] as const;
 
@@ -264,6 +275,7 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
+  const [requestedSurface, setRequestedSurface] = useState<NavSurface | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -512,7 +524,7 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
+      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} requestedSurface={requestedSurface === "import" ? null : requestedSurface} />;
     }
     return <EmptyState />;
   };
@@ -521,18 +533,49 @@ export function App() {
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
-    const enabled = item.view === "workspace" || (item.view === "score" && jobResult !== null);
+    const enabled =
+      item.view === "workspace"
+        ? item.surface === null || item.surface === "import" || jobResult !== null
+        : item.view === "score" && jobResult !== null;
+    const active =
+      enabled &&
+      (item.view === "score"
+        ? currentView === "score"
+        : currentView === "workspace" &&
+          (item.surface === null ? requestedSurface === null : requestedSurface === item.surface));
+    const title = enabled
+      ? item.surface
+        ? t(NAV_SURFACE_TITLE_KEYS[item.surface])
+        : undefined
+      : item.view === "score"
+        ? t("scoreNavDisabledHint")
+        : item.surface
+          ? t("navNeedsAnalysisHint")
+          : t("comingSoon");
     return {
       label: t(item.labelKey),
       enabled,
-      active: enabled && item.view === currentView,
-      title: enabled ? undefined : item.view === "score" ? t("scoreNavDisabledHint") : t("comingSoon")
+      active,
+      title
     };
   };
 
-  /** Switch the main content to the clicked rehearsal view. */
-  const handleNavSelect = (view: RehearsalView) => {
-    setActiveView(view);
+  /** Open an existing rehearsal surface or stay on the coming-soon items. */
+  const handleNavSelect = (item: (typeof NAV_ITEMS)[number]) => {
+    if (item.view === "score") {
+      setActiveView("score");
+      setRequestedSurface(null);
+      return;
+    }
+    setActiveView("workspace");
+    if (item.surface === "import") {
+      setRequestedSurface("import");
+      window.setTimeout(() => {
+        document.getElementById(SOURCE_CONTROLS_FOCUS_ID)?.focus();
+      }, 0);
+      return;
+    }
+    setRequestedSurface(item.surface);
   };
 
   return (
@@ -563,7 +606,7 @@ export function App() {
           <nav aria-label={t("primaryRehearsalViewsAriaLabel")} className="space-y-2">
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
-              const { icon: Icon, view } = item;
+              const { icon: Icon } = item;
 
               return (
                 <button
@@ -572,7 +615,7 @@ export function App() {
                   aria-current={active ? "page" : undefined}
                   aria-disabled={enabled ? undefined : true}
                   title={title}
-                  onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
+                  onClick={enabled ? () => handleNavSelect(item) : blockInactiveNavActivation}
                   className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                     active
                       ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
@@ -639,7 +682,7 @@ export function App() {
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
-              const { icon: Icon, view } = item;
+              const { icon: Icon } = item;
 
               return (
                 <button
@@ -649,7 +692,7 @@ export function App() {
                   aria-label={`${label} ${t("compactViewSuffix")}`}
                   aria-disabled={enabled ? undefined : true}
                   title={title}
-                  onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
+                  onClick={enabled ? () => handleNavSelect(item) : blockInactiveNavActivation}
                   className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                     active
                       ? "bg-blue-600/70 text-white"
@@ -681,6 +724,7 @@ export function App() {
 
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
+                  id={SOURCE_CONTROLS_FOCUS_ID}
                   onClick={handleChooseLocalAudio}
                   disabled={analysisInFlight || isStarting || isImporting}
                   variant="secondary"
