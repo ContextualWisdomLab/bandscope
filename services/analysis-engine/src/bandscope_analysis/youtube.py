@@ -146,7 +146,7 @@ def _reject_invalid_or_oversize_duration(info: dict[str, Any]) -> Dict[str, Any]
     duration = info.get("duration")
     if duration is None:
         return None
-    if isinstance(duration, bool) or not isinstance(duration, int | float):
+    if type(duration) not in (int, float):
         return _download_error_result()
     try:
         duration_seconds = float(duration)
