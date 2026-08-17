@@ -163,6 +163,13 @@ export function Workspace({
     if (!activeRole) return undefined;
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
+
+  useEffect(() => {
+    if (activeRole && !roleMap.has(activeRole)) {
+      setActiveRole(allRoles[0]?.id ?? null);
+    }
+  }, [activeRole, allRoles, roleMap]);
+
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
 
   /** Handle the practice progress change internally by immutably updating the song state. */
@@ -407,10 +414,10 @@ export function Workspace({
               </div>
             )}
 
-            {activeRole && (
+            {activeRoleDetails && (
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
-                <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails.name}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -458,7 +465,7 @@ export function Workspace({
                     <Button
                       type="button"
                       aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
+                      title={`${activeRoleDetails.name} transcription is coming soon. Bass is ready first.`}
                       onClick={preventUnavailableAction}
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
@@ -540,8 +547,8 @@ export function Workspace({
                     </div>
                   </div>
                 )}
-                <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
-                <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
+                <PracticeProgress progress={activeRoleDetails.practiceProgress} onChange={handlePracticeProgressChange} />
+                <GrooveMap notes={activeRoleDetails.transcription} isLoading={false} />
               </div>
             )}
 
