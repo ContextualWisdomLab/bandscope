@@ -9,20 +9,8 @@ import pytest
 from bandscope_analysis.youtube import download_youtube_audio
 
 
-class _ValueErrorDuration:
-    """Metadata whose explicit float conversion is malformed."""
-
-    def __float__(self) -> float:
-        """Reject conversion with the malformed-value failure shape."""
-        raise ValueError("malformed duration")
-
-
-class _OverflowDuration:
-    """Metadata whose explicit float conversion overflows."""
-
-    def __float__(self) -> float:
-        """Reject conversion with the overflow failure shape."""
-        raise OverflowError("duration overflow")
+class _NonCanonicalFloat(float):
+    """Numeric subtype that must not cross the untrusted metadata boundary."""
 
 
 @pytest.mark.parametrize(
@@ -34,8 +22,8 @@ class _OverflowDuration:
         float("nan"),
         float("inf"),
         "60",
-        _ValueErrorDuration(),
-        _OverflowDuration(),
+        object(),
+        _NonCanonicalFloat(60.0),
     ],
 )
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
