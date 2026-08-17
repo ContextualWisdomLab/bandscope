@@ -110,7 +110,8 @@ def _normalized_win32_device_token(component: str) -> str:
 
 def _path_device_tokens(path: str) -> list[str]:
     """Return normalized device tokens for every path component."""
-    return [_normalized_win32_device_token(component) for component in path.replace("\\", "/").split("/")]
+    components = path.replace("\\", "/").split("/")
+    return [_normalized_win32_device_token(component) for component in components]
 
 
 def _uses_windows_reserved_filename(path: str) -> bool:
