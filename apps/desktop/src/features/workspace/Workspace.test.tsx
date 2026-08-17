@@ -314,10 +314,19 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
+    const card = document.getElementById("workspace-section-intro-1");
+    const scrollIntoView = vi.fn();
+    expect(card).toBeTruthy();
+    Object.defineProperty(card!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
     fireEvent.click(screen.getByRole("button", { name: "Open intro on the section roadmap from 0:00 to 0:08" }));
 
     expect(screen.getByText("Tonight's first lock-in is intro · 0:00–0:08. Count in on that card.")).toBeTruthy();
     expect(document.getElementById("workspace-section-intro-1")).toBeTruthy();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the priorities action closed when no sections are mapped", () => {
