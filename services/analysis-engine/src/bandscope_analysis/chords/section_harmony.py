@@ -142,8 +142,8 @@ def summarize_section_harmony(
             blank-labeled, non-finite, and non-positive-span entries are
             skipped.
         boundaries: Section windows as ``(start, end)`` pairs in seconds.
-            Windows must be finite and have ``end > start``; invalid windows
-            are skipped.
+            Windows must use finite, non-Boolean endpoints and have
+            ``end > start``; invalid windows are skipped.
 
     Returns:
         One :class:`SectionHarmony` per valid boundary, in boundary order.
@@ -161,9 +161,16 @@ def summarize_section_harmony(
         summaries: list[SectionHarmony] = []
         for boundary in boundaries:
             try:
-                section_start = float(boundary[0])
-                section_end = float(boundary[1])
-            except (IndexError, TypeError, ValueError):
+                section_start_raw = boundary[0]
+                section_end_raw = boundary[1]
+            except (IndexError, TypeError):
+                continue
+            if isinstance(section_start_raw, bool) or isinstance(section_end_raw, bool):
+                continue
+            try:
+                section_start = float(section_start_raw)
+                section_end = float(section_end_raw)
+            except (TypeError, ValueError):
                 continue
             if (
                 not math.isfinite(section_start)
