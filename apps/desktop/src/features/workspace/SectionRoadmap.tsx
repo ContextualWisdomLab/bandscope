@@ -2,6 +2,7 @@ import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { OverlapWarningList } from "./OverlapWarningList";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -196,16 +197,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           </div>
                         )}
 
-                        {role.overlapWarnings.length > 0 && (
-                          <div className="mt-2 space-y-1.5">
-                            {role.overlapWarnings.map((warning, wIdx) => (
-                              <div key={wIdx} className="flex items-start gap-2 rounded-md border border-rose-300/20 bg-rose-300/[0.08] p-2 text-xs font-medium text-rose-100">
-                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                                <span className="leading-snug">{warning}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        <OverlapWarningList warnings={role.overlapWarnings} />
                       </div>
                     </div>
                   </div>

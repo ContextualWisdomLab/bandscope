@@ -16,15 +16,15 @@ export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
   switch (level) {
     case "low":
       label = t("confidenceLevelLow");
-      colorClass = "bg-rose-100 text-rose-700 hover:bg-rose-100 border-rose-200";
+      colorClass = "border-[color:var(--bandscope-confidence-low-border)] bg-[var(--bandscope-confidence-low-bg)] text-[color:var(--bandscope-confidence-low-fg)] hover:bg-[var(--bandscope-confidence-low-bg)]";
       break;
     case "medium":
       label = t("confidenceLevelMedium");
-      colorClass = "bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200";
+      colorClass = "border-[color:var(--bandscope-confidence-medium-border)] bg-[var(--bandscope-confidence-medium-bg)] text-[color:var(--bandscope-confidence-medium-fg)] hover:bg-[var(--bandscope-confidence-medium-bg)]";
       break;
     case "high":
       label = t("confidenceLevelHigh");
-      colorClass = "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200";
+      colorClass = "border-[color:var(--bandscope-confidence-high-border)] bg-[var(--bandscope-confidence-high-bg)] text-[color:var(--bandscope-confidence-high-fg)] hover:bg-[var(--bandscope-confidence-high-bg)]";
       break;
   }
 

@@ -70,7 +70,7 @@ describe("RangesFeature", () => {
 
   it("renders overlap warnings", () => {
     render(<RangesFeature title="Ranges" song={mockSong} />);
-    expect(screen.getByText("⚠️ Clashing notes with Role 2")).toBeInTheDocument();
+    expect(screen.getByText("Clashing notes with Role 2")).toBeInTheDocument();
   });
 
   it("renders transcription count when transcription exists", () => {

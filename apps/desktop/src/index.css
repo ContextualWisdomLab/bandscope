@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/geist";
+@import "./styles/workspace-tokens.css";
 
 /* stylelint-disable-next-line scss/at-rule-no-unknown -- Tailwind v4 directive is compiled by the Vite plugin. */
 @custom-variant dark (&:is(.dark *));

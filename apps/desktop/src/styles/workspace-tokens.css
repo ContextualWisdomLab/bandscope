@@ -1,0 +1,21 @@
+/* Workspace tokens mapped from Figma 19-239 Confidence Badge and page 31. */
+:root {
+  --bandscope-confidence-low-bg: rgb(255 228 230);
+  --bandscope-confidence-low-fg: rgb(190 18 60);
+  --bandscope-confidence-low-border: rgb(254 205 211);
+  --bandscope-confidence-medium-bg: rgb(254 243 199);
+  --bandscope-confidence-medium-fg: rgb(180 83 9);
+  --bandscope-confidence-medium-border: rgb(253 230 138);
+  --bandscope-confidence-high-bg: rgb(209 250 229);
+  --bandscope-confidence-high-fg: rgb(4 120 87);
+  --bandscope-confidence-high-border: rgb(167 243 208);
+  --bandscope-overlap-bg: rgb(251 113 133 / 0.08);
+  --bandscope-overlap-border: rgb(253 164 175 / 0.2);
+  --bandscope-overlap-fg: rgb(255 228 230);
+  --bandscope-callout-bg: rgb(34 211 238 / 0.08);
+  --bandscope-callout-border: rgb(34 211 238 / 0.25);
+  --bandscope-callout-fg: rgb(207 250 254);
+  --bandscope-practice-track: rgb(15 23 42 / 0.5);
+  --bandscope-practice-fill-from: rgb(99 102 241);
+  --bandscope-practice-fill-to: rgb(34 211 238);
+}
