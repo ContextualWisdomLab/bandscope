@@ -65,13 +65,14 @@ def classify_workflows(
     workflows: list[dict[str, Any]],
     tree_paths: set[str],
 ) -> list[dict[str, Any]]:
-    """Classify registry entries using only exact-tree path and registry-state evidence.
+    """Classify registry entries using exact-tree path and registry-state evidence.
 
     Workflow names are intentionally ignored for lifecycle classification: a legitimate
     live workflow may contain words such as ``bootstrap`` or ``finalize``. Duplicate ids
     and malformed objects fail closed as ``unresolved``. GitHub's live Actions registry
-    exposes platform-managed workflows under ``dynamic/`` paths without a separate
-    ``source`` field, so that observed namespace is handled explicitly.
+    exposes platform-managed workflows under ``dynamic/`` paths, so that observed path
+    namespace is the only dynamic-ownership discriminator accepted here; untrusted
+    auxiliary fields cannot override repository path evidence.
     """
     workflow_ids = [workflow.get("id") for workflow in workflows]
     duplicate_ids = {
@@ -86,7 +87,6 @@ def classify_workflows(
         name = _require_nonempty_string(workflow.get("name"))
         path = _require_nonempty_string(workflow.get("path"))
         state = _require_nonempty_string(workflow.get("state"))
-        source = _require_nonempty_string(workflow.get("source"))
 
         if not _valid_workflow_id(workflow_id) or name is None or path is None or state is None:
             records.append(
@@ -107,7 +107,7 @@ def classify_workflows(
         elif state != "active":
             classification = "disabled"
             reason = "registry state is not active"
-        elif source == "github" or _github_dynamic_workflow_path(path):
+        elif _github_dynamic_workflow_path(path):
             classification = "github_dynamic"
             reason = "workflow path identifies a GitHub-managed dynamic identity"
         elif not _repository_workflow_path(path):
