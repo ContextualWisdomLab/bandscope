@@ -82,7 +82,9 @@ def render_click_track(
     Raises:
         ValueError: If tempo, duration, or sample rate is Boolean, non-finite,
             or not positive, if the derived sample count is non-finite or below
-            one sample, or if the derived beat interval is non-finite.
+            one sample, if the derived beat interval is non-finite or shorter
+            than one sample, or if the click pulse itself is shorter than one
+            sample at the requested rate.
     """
     if isinstance(bpm, bool) or not np.isfinite(bpm) or bpm <= 0:
         raise ValueError("bpm must be positive, finite, and non-Boolean")
@@ -99,23 +101,29 @@ def render_click_track(
     audio = np.zeros(sample_count, dtype=np.float32)
     with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
         interval_seconds = float(np.divide(60.0, bpm))
+        interval_samples = float(np.multiply(interval_seconds, sample_rate))
     if not np.isfinite(interval_seconds):
         raise ValueError("bpm must produce a finite beat interval")
-    click_length = int(_CLICK_DURATION_SECONDS * sample_rate)
-    if click_length > 0:
-        click_times = np.arange(click_length, dtype=np.float32) / np.float32(sample_rate)
-        click = (
-            np.sin(2 * np.pi * np.float32(_CLICK_FREQUENCY_HZ) * click_times)
-            * np.exp(-click_times * np.float32(_CLICK_DECAY))
-        ).astype(np.float32)
-        beat_time = 0.0
-        while True:
-            start = int(beat_time * sample_rate)
-            if start >= sample_count:
-                break
-            end = min(sample_count, start + click_length)
-            audio[start:end] += click[: end - start]
-            beat_time += interval_seconds
+    if not np.isfinite(interval_samples) or interval_samples < 1:
+        raise ValueError("beat interval must be finite and at least one sample")
+
+    click_sample_count = _CLICK_DURATION_SECONDS * sample_rate
+    if not np.isfinite(click_sample_count) or click_sample_count < 1:
+        raise ValueError("click length must be finite and at least one sample")
+    click_length = int(click_sample_count)
+    click_times = np.arange(click_length, dtype=np.float32) / np.float32(sample_rate)
+    click = (
+        np.sin(2 * np.pi * np.float32(_CLICK_FREQUENCY_HZ) * click_times)
+        * np.exp(-click_times * np.float32(_CLICK_DECAY))
+    ).astype(np.float32)
+    beat_time = 0.0
+    while True:
+        start = int(beat_time * sample_rate)
+        if start >= sample_count:
+            break
+        end = min(sample_count, start + click_length)
+        audio[start:end] += click[: end - start]
+        beat_time += interval_seconds
 
     peak = float(np.max(np.abs(audio)))
     if peak > 0:
