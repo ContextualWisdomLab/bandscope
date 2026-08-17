@@ -8,6 +8,7 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -28,6 +29,7 @@ describe("Workspace", () => {
       configurable: true,
       value: originalRevokeObjectUrl
     });
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
   it("updates practice progress immutably through onSongUpdate", () => {
@@ -269,5 +271,46 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("loops tonight's first section from the timeline and focuses the roadmap card", () => {
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Loop verse from 0:10 to 0:30" }));
+
+    expect(screen.getByText("Tonight's loop is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
+    expect(document.activeElement?.id).toBe("workspace-section-verse-1");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("names the first loop from the selected role strip instead of coming soon", () => {
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const loopButton = screen.getByRole("button", { name: "Loop verse from 0:10 to 0:30 on tonight's map" });
+    expect(loopButton).toBeTruthy();
+    expect((loopButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(loopButton);
+
+    expect(screen.getByText("Tonight's loop is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
+    expect(document.activeElement?.id).toBe("workspace-section-verse-1");
+    expect(screen.getByRole("button", { name: "Isolation is not ready. Loop tonight's section on the map." })).toBeTruthy();
+  });
+
+  it("localizes the first map loop action", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByRole("button", { name: "verse을 0:10부터 0:30까지 루프" })).toBeTruthy();
   });
 });
