@@ -12,6 +12,7 @@ vi.mock("./features/score/pdfjs", () => ({
 
 const mockLoadProject = vi.fn();
 const mockSelectLocalAudioSource = vi.fn();
+const mockStartAnalysisJob = vi.fn();
 
 vi.mock("./lib/analysis", async (importActual) => {
   const actual = await importActual<typeof import("./lib/analysis")>();
@@ -19,7 +20,8 @@ vi.mock("./lib/analysis", async (importActual) => {
   return {
     ...actual,
     loadProject: () => mockLoadProject(),
-    selectLocalAudioSource: () => mockSelectLocalAudioSource()
+    selectLocalAudioSource: () => mockSelectLocalAudioSource(),
+    startAnalysisJob: (request: unknown) => mockStartAnalysisJob(request)
   };
 });
 
@@ -27,6 +29,7 @@ describe("App workspace recovery actions", () => {
   beforeEach(() => {
     mockLoadProject.mockReset();
     mockSelectLocalAudioSource.mockReset();
+    mockStartAnalysisJob.mockReset();
   });
 
   it("focuses the existing YouTube field from the empty workspace card", () => {
@@ -49,6 +52,46 @@ describe("App workspace recovery actions", () => {
 
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
     expect(screen.getByRole("heading", { name: "Ready to Analyze" })).toBeTruthy();
+  });
+
+  it("clears a failed analysis source selection when starting over", async () => {
+    mockSelectLocalAudioSource.mockResolvedValueOnce({
+      ok: true,
+      bootstrap: {
+        projectId: "proj-recovery",
+        source: {
+          sourceKind: "local-audio",
+          sourceMode: "reference",
+          fileName: "recovery-take.wav",
+          format: "wav"
+        }
+      }
+    });
+    mockStartAnalysisJob.mockResolvedValueOnce({
+      jobId: "job-recovery",
+      state: "failed",
+      requestedAt: "2026-08-17T00:00:00.000Z",
+      updatedAt: "2026-08-17T00:00:01.000Z",
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis failed"
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose a local audio file" }));
+    await waitFor(() => expect(screen.getByTitle("recovery-take.wav")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Analysis" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Analysis failed"));
+    expect(screen.getByTitle("recovery-take.wav")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.queryByTitle("recovery-take.wav")).toBeNull();
+    expect(screen.getByRole("button", { name: "Start Analysis" })).toBeDisabled();
+    expect(mockStartAnalysisJob).toHaveBeenCalledTimes(1);
   });
 
   it("clears a failed workspace before accepting another local audio file", async () => {
