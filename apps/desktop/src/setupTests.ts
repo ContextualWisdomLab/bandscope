@@ -17,3 +17,10 @@ if (typeof window !== "undefined" && !window.matchMedia) {
     dispatchEvent: vi.fn(),
   }));
 }
+
+// jsdom also omits the browser scrolling API. Keep the test environment at
+// the same DOM capability boundary as supported desktop WebViews so focus
+// interactions exercise application behavior instead of throwing in jsdom.
+if (typeof HTMLElement !== "undefined" && !HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+}
