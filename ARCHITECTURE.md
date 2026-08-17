@@ -82,6 +82,7 @@ Last updated: 2026-03-11
   - likely harmony by section and by role
   - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
   - groove and timing cues relevant to locking the band together
+  - a Section Roadmap count-in on tonight's first or looped section at the analyzed tempo
   - playable ranges and density or overlap warnings
   - simplification, transposition, capo, tuning, or setup cues where applicable
   - role-specific rehearsal priorities and confidence flags

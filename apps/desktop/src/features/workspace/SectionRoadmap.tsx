@@ -1,23 +1,120 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertCircle, CheckCircle2, Music2, Wand2, Lightbulb, Info } from "lucide-react";
 
+const COUNT_IN_BEATS = 4;
+
 interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
   onSongUpdate?: (song: RehearsalSong) => void;
+  loopedSectionId?: string | null;
+}
+
+/** Format a timeline instant as m:ss for rehearsal cards. */
+function formatTimelineTime(totalSeconds: number): string {
+  const safeSeconds = Number.isFinite(totalSeconds) && totalSeconds >= 0 ? totalSeconds : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = Math.floor(safeSeconds % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+/** Fill count-in copy with a section label and its start–end window. */
+function countInCopy(
+  template: string,
+  section: RehearsalSong["sections"][number]
+): string {
+  return template
+    .replace("{label}", section.label)
+    .replace("{start}", formatTimelineTime(section.timeRange.start))
+    .replace("{end}", formatTimelineTime(section.timeRange.end));
+}
+
+/** Return milliseconds per beat when the analyzed tempo can drive a count-in. */
+function countInBeatMs(tempo: number | undefined): number | null {
+  if (typeof tempo !== "number" || !Number.isFinite(tempo) || tempo <= 0) {
+    return null;
+  }
+
+  return 60_000 / tempo;
+}
+
+/** Return the first section this player should count in tonight. */
+function firstCountInSection(
+  song: RehearsalSong,
+  activeRole: string | null,
+  loopedSectionId: string | null
+): RehearsalSong["sections"][number] | undefined {
+  if (loopedSectionId) {
+    const looped = song.sections.find((section) => section.id === loopedSectionId);
+    if (looped) {
+      return looped;
+    }
+  }
+
+  if (activeRole) {
+    const forRole = song.sections.find((section) =>
+      section.roles.some((role) => role.id === activeRole)
+    );
+    if (forRole) {
+      return forRole;
+    }
+  }
+
+  return song.sections[0];
 }
 
 /** Documented. */
-export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
+export function SectionRoadmap({
+  song,
+  activeRole,
+  onSongUpdate,
+  loopedSectionId = null
+}: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const countInSection = firstCountInSection(song, activeRole, loopedSectionId);
+  const beatMs = countInBeatMs(song.tempo);
+  const [countInPhase, setCountInPhase] = useState<"idle" | "counting" | "ready">("idle");
+  const [countInBeat, setCountInBeat] = useState(0);
+
+  useEffect(() => {
+    setCountInPhase("idle");
+    setCountInBeat(0);
+  }, [countInSection?.id]);
+
+  useEffect(() => {
+    if (countInPhase !== "counting") {
+      return;
+    }
+
+    if (beatMs === null) {
+      setCountInPhase("idle");
+      setCountInBeat(0);
+      return;
+    }
+
+    if (countInBeat >= COUNT_IN_BEATS) {
+      const readyTimer = window.setTimeout(() => {
+        setCountInPhase("ready");
+      }, beatMs);
+      return () => window.clearTimeout(readyTimer);
+    }
+
+    const nextTimer = window.setTimeout(() => {
+      setCountInBeat((current) => current + 1);
+    }, beatMs);
+    return () => window.clearTimeout(nextTimer);
+  }, [beatMs, countInBeat, countInPhase]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -87,6 +184,16 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
     return <CheckCircle2 className="size-4 text-emerald-200" aria-hidden="true" />;
   };
 
+  /** Start a four-beat count-in on tonight's section at the analyzed tempo. */
+  const startCountIn = (): void => {
+    if (!countInSection || beatMs === null) {
+      return;
+    }
+
+    setCountInPhase("counting");
+    setCountInBeat(1);
+  };
+
   return (
     <div className="mt-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -106,8 +213,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         {song.sections.map((section) => (
           <Card
             key={section.id}
-            className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
-              section.confidence.level === "low" ? "border-rose-300/30 bg-rose-950/30" : "border-white/10 bg-slate-950/80"
+            id={`workspace-section-${section.id}`}
+            tabIndex={-1}
+            className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+              countInSection?.id === section.id
+                ? "border-cyan-300/50 bg-cyan-950/40 ring-2 ring-cyan-300/70"
+                : section.confidence.level === "low"
+                  ? "border-rose-300/30 bg-rose-950/30"
+                  : "border-white/10 bg-slate-950/80"
             }`}
           >
             <CardHeader className="border-b border-white/10 bg-white/[0.04] p-5 pb-4">
@@ -119,6 +232,47 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
+              {countInSection?.id === section.id ? (
+                <div className="mt-3 space-y-2">
+                  <Button
+                    type="button"
+                    disabled={beatMs === null || countInPhase === "counting"}
+                    aria-label={
+                      beatMs === null
+                        ? t("workspaceCountInNeedsTempo")
+                        : countInCopy(t("workspaceCountInAria"), section)
+                    }
+                    title={
+                      beatMs === null
+                        ? t("workspaceCountInNeedsTempo")
+                        : countInCopy(t("workspaceCountInAria"), section)
+                    }
+                    onClick={startCountIn}
+                    variant="outline"
+                    className="min-h-11 w-full border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-400"
+                  >
+                    {countInCopy(t("workspaceCountInAction"), section)}
+                  </Button>
+                  {countInPhase === "counting" ? (
+                    <p
+                      className="text-sm font-semibold text-cyan-100"
+                      role="status"
+                      aria-live="polite"
+                      aria-label={t("workspaceCountInBeatAria").replace("{beat}", String(countInBeat))}
+                      data-testid="workspace-count-in-beat"
+                    >
+                      {t("workspaceCountInCounting")
+                        .replace("{label}", section.label)
+                        .replace("{beat}", String(countInBeat))}
+                    </p>
+                  ) : null}
+                  {countInPhase === "ready" ? (
+                    <p className="text-sm font-semibold text-cyan-100" role="status" aria-live="polite">
+                      {countInCopy(t("workspaceCountInReady"), section)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">

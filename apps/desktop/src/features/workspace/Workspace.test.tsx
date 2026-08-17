@@ -82,7 +82,7 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
+    expect(screen.getAllByText(/verse · 0:00–0:00/i).length).toBeGreaterThan(0);
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {

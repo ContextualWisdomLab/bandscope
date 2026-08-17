@@ -47,7 +47,7 @@ uv run --project services/analysis-engine pytest --cov=src/bandscope_analysis --
 
 ## Architecture
 
-BandScope is a local-first desktop app for rehearsal prep: it turns a song into likely harmony by section and role, a section roadmap, groove cues, stems, playable ranges, simplification/transposition cues, confidence flags, and rehearsal priorities. `ARCHITECTURE.md` is the authoritative reference; the analysis target is a `song -> section -> role` hierarchy, never a single song-wide chord track.
+BandScope is a local-first desktop app for rehearsal prep: it turns a song into likely harmony by section and role, a section roadmap, groove cues, stems, playable ranges, simplification/transposition cues, confidence flags, and rehearsal priorities. After analysis, the Section Roadmap card counts in tonight's first (or looped) section at the analyzed tempo so the room can start the first pass. `ARCHITECTURE.md` is the authoritative reference; the analysis target is a `song -> section -> role` hierarchy, never a single song-wide chord track.
 
 Three layers, decoupled through shared contracts:
 
