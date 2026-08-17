@@ -134,8 +134,15 @@ const SongStructure = memo(function SongStructure({
     ? fillCopy(t("workspaceCueTimelineSummary"), focusCopyValues)
     : t("workspaceCueTimelineUnavailable");
   const cuedSection = sections.find((section) => section.id === cuedSectionId) ?? null;
-  const cueStatus = focusCopyValues
-    ? fillCopy(t("workspaceCueTimelineArmed"), focusCopyValues)
+  const cuedCopyValues = cuedSection
+    ? {
+        label: cuedSection.label,
+        start: formatTimelineTime(cuedSection.timeRange.start),
+        end: formatTimelineTime(cuedSection.timeRange.end)
+      }
+    : null;
+  const cueStatus = cuedCopyValues
+    ? fillCopy(t("workspaceCueTimelineArmed"), cuedCopyValues)
     : t("workspaceCueTimelineUnavailable");
 
   return (
@@ -191,7 +198,7 @@ const SongStructure = memo(function SongStructure({
               <div
                 key={section.id}
                 id={`workspace-timeline-${section.id}`}
-                tabIndex={isCued ? 0 : undefined}
+                tabIndex={0}
                 aria-current={isCued ? "true" : undefined}
                 className={
                   isCued
@@ -230,7 +237,7 @@ const SongStructure = memo(function SongStructure({
   );
 });
 
-/** Documented. */
+/** Render the rehearsal workspace, including role planning and a focusable song-structure cue timeline. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [cuedTimelineSectionId, setCuedTimelineSectionId] = useState<string | null>(null);
