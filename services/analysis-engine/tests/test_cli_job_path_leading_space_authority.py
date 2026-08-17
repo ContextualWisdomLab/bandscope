@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bandscope_analysis import cli
+from bandscope_analysis import cli  # type: ignore[attr-defined, unused-ignore, import-untyped]
 
 
 @pytest.mark.parametrize(
@@ -22,7 +22,7 @@ def test_leading_space_reserved_alias_is_rejected_before_filesystem_lookup(
 ) -> None:
     """Win32-normalized device aliases must not acquire filesystem authority."""
 
-    def forbidden_lstat(_path: str) -> object:
+    def forbidden_lstat(*_args: object, **_kwargs: object) -> object:
         raise AssertionError("reserved Win32 alias reached filesystem metadata lookup")
 
     monkeypatch.setattr(cli.os, "lstat", forbidden_lstat)

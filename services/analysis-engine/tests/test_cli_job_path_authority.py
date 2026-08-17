@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bandscope_analysis import cli
+from bandscope_analysis import cli  # type: ignore[attr-defined, unused-ignore, import-untyped]
 
 
 @pytest.mark.parametrize(
@@ -26,7 +26,7 @@ def test_remote_or_device_job_paths_fail_before_filesystem_lookup(
 ) -> None:
     """UNC/device namespace input must not reach metadata or open system calls."""
 
-    def forbidden_lstat(_path: str) -> object:
+    def forbidden_lstat(*_args: object, **_kwargs: object) -> object:
         """Fail if lexical rejection happens after a filesystem lookup."""
         raise AssertionError("unsafe job path reached os.lstat")
 
@@ -79,7 +79,7 @@ def test_windows_alternate_stream_job_paths_fail_before_filesystem_lookup(
 ) -> None:
     """NTFS alternate-stream syntax must stay outside the regular-file job namespace."""
 
-    def forbidden_lstat(_path: str) -> object:
+    def forbidden_lstat(*_args: object, **_kwargs: object) -> object:
         """Fail if alternate-stream syntax reaches the filesystem boundary."""
         raise AssertionError("alternate stream job path reached os.lstat")
 
@@ -117,7 +117,7 @@ def test_windows_device_aliases_fail_before_filesystem_lookup(
 ) -> None:
     """Reserved Win32 device aliases must be rejected before path lookup."""
 
-    def forbidden_lstat(_path: str) -> object:
+    def forbidden_lstat(*_args: object, **_kwargs: object) -> object:
         """Fail if a reserved device alias reaches the filesystem boundary."""
         raise AssertionError("Windows device alias reached os.lstat")
 
