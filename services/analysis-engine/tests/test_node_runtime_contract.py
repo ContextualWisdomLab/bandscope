@@ -64,6 +64,7 @@ def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
 
     required_fragments = (
         "node-version: 22.22.2",
+        "package-manager-cache: false",
         f'EXPECTED_NPM_VERSION: "{EXPECTED_NPM_VERSION}"',
         'npm install --global "npm@$EXPECTED_NPM_VERSION" --ignore-scripts --no-audit --no-fund',
         'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"',
