@@ -37,6 +37,7 @@
   "workspaceTempoLabel": "Tempo",
   "workspaceSongStructureLabel": "Song Structure",
   "workspaceRehearsalTimelineLabel": "Rehearsal timeline",
+  "workspaceSongStructureTimelineRegionAria": "Scrollable song structure timeline",
   "workspaceSongTimelineLabel": "Song Timeline",
   "workspaceCollaborationLabel": "Collaboration",
   "workspaceCollaborationEmpty": "Assignments, comments, and approvals will show up here as the room aligns.",
