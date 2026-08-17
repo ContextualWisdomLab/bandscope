@@ -11,10 +11,11 @@ interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
   onSongUpdate?: (song: RehearsalSong) => void;
+  focusedSectionId?: string | null;
 }
 
 /** Documented. */
-export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
+export function SectionRoadmap({ song, activeRole, onSongUpdate, focusedSectionId = null }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
@@ -106,8 +107,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         {song.sections.map((section) => (
           <Card
             key={section.id}
-            className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
-              section.confidence.level === "low" ? "border-rose-300/30 bg-rose-950/30" : "border-white/10 bg-slate-950/80"
+            id={`workspace-section-${section.id}`}
+            tabIndex={-1}
+            className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+              focusedSectionId === section.id
+                ? "border-amber-300/50 bg-amber-950/40 ring-2 ring-amber-300/70"
+                : section.confidence.level === "low"
+                  ? "border-rose-300/30 bg-rose-950/30"
+                  : "border-white/10 bg-slate-950/80"
             }`}
           >
             <CardHeader className="border-b border-white/10 bg-white/[0.04] p-5 pb-4">

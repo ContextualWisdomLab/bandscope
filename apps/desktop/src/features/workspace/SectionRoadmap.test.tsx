@@ -60,4 +60,15 @@ describe("SectionRoadmap", () => {
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
+
+  it("exposes focus targets for tonight's first lock-in section", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} focusedSectionId="verse-1" />);
+
+    const card = document.getElementById("workspace-section-verse-1");
+    expect(card).toBeTruthy();
+    expect(card?.className).toContain("ring-amber-300/70");
+  });
 });

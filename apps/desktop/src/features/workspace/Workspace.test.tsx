@@ -269,5 +269,71 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "구간 흐름에서 verse 열기, 0:10부터 0:30까지" })).toBeTruthy();
+  });
+
+  it("opens tonight's first lock-in section on the roadmap", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    const focus = vi.fn();
+    const originalGetElementById = document.getElementById.bind(document);
+    vi.spyOn(document, "getElementById").mockImplementation((id: string) => {
+      const node = originalGetElementById(id);
+      if (node && id === "workspace-section-verse-1") {
+        Object.defineProperty(node, "scrollIntoView", { configurable: true, value: scrollIntoView });
+        Object.defineProperty(node, "focus", { configurable: true, value: focus });
+      }
+      return node;
+    });
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText("Tonight's first lock-in is verse · 0:10–0:30.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Open verse on the section roadmap from 0:10 to 0:30" }));
+
+    expect(screen.getByText("Tonight's first lock-in is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
+    expect(document.getElementById("workspace-section-verse-1")).toBeTruthy();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the first mapped section when focus labels do not match", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["missing-bridge"]
+    };
+    song.sections[0] = {
+      ...song.sections[0]!,
+      id: "intro-1",
+      label: "intro",
+      timeRange: { start: 0, end: 8 }
+    };
+
+    render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open intro on the section roadmap from 0:00 to 0:08" }));
+
+    expect(screen.getByText("Tonight's first lock-in is intro · 0:00–0:08. Count in on that card.")).toBeTruthy();
+    expect(document.getElementById("workspace-section-intro-1")).toBeTruthy();
+  });
+
+  it("keeps the priorities action closed when no sections are mapped", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    const locked = screen.getByRole("button", { name: "No lock-in section yet" });
+    expect(locked.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(locked);
+    expect(screen.queryByText(/Count in on that card/i)).toBeNull();
   });
 });

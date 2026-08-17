@@ -57,6 +57,39 @@ function nonBlankText(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/** Fill rehearsal copy with named placeholders. */
+function fillCopy(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, value),
+    template
+  );
+}
+
+/** Return tonight's first lock-in section from export focus, then the first mapped section. */
+function firstFocusSection(song: RehearsalSong): RehearsalSong["sections"][number] | undefined {
+  const requested = song.exportSummary?.focusSections?.[0]?.trim();
+  if (requested) {
+    const match = song.sections.find(
+      (section) => section.label === requested || section.id === requested
+    );
+    if (match) {
+      return match;
+    }
+  }
+
+  return song.sections[0];
+}
+
+/** Scroll and focus the matching section card on the rehearsal roadmap. */
+function focusWorkspaceSection(sectionId: string): void {
+  const node = document.getElementById(`workspace-section-${sectionId}`);
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  node.focus();
+}
+
 /** Documented. */
 function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): ProjectBootstrapSummary | null {
   if (!value) {
@@ -120,6 +153,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [openedFocusSectionId, setOpenedFocusSectionId] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -212,6 +246,37 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const focusSection = firstFocusSection(song);
+  const openedFocusSection =
+    song.sections.find((section) => section.id === openedFocusSectionId) ?? null;
+  const focusCopyValues = focusSection
+    ? {
+        label: focusSection.label,
+        start: formatTimelineTime(focusSection.timeRange.start),
+        end: formatTimelineTime(focusSection.timeRange.end)
+      }
+    : null;
+  const focusActionLabel = focusCopyValues
+    ? fillCopy(t("workspaceOpenFocusAction"), focusCopyValues)
+    : t("workspaceOpenFocusUnavailable");
+  const focusAriaLabel = focusCopyValues
+    ? fillCopy(t("workspaceOpenFocusAria"), focusCopyValues)
+    : t("workspaceOpenFocusUnavailable");
+  const focusSummary = focusCopyValues
+    ? fillCopy(t("workspaceOpenFocusSummary"), focusCopyValues)
+    : t("workspaceOpenFocusUnavailable");
+  const focusStatus = focusCopyValues
+    ? fillCopy(t("workspaceOpenFocusArmed"), focusCopyValues)
+    : t("workspaceOpenFocusUnavailable");
+
+  /** Open tonight's first lock-in on the section roadmap without inventing playback. */
+  const openTonightFocus = (): void => {
+    if (!focusSection) {
+      return;
+    }
+    setOpenedFocusSectionId(focusSection.id);
+    focusWorkspaceSection(focusSection.id);
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -325,9 +390,36 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
             <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
-              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{focusSummary}</p>
+              {focusSection ? (
+                <Button
+                  type="button"
+                  title={focusAriaLabel}
+                  aria-label={focusAriaLabel}
+                  onClick={openTonightFocus}
+                  variant="outline"
+                  className="mt-3 min-h-11 border-amber-300/30 bg-amber-300/10 font-semibold text-amber-50 hover:bg-amber-300/20 hover:text-white"
+                >
+                  {focusActionLabel}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  aria-disabled={true}
+                  aria-label={t("workspaceOpenFocusUnavailable")}
+                  title={t("workspaceOpenFocusUnavailable")}
+                  onClick={preventUnavailableAction}
+                  variant="outline"
+                  className="mt-3 min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
+                >
+                  {t("workspaceOpenFocusUnavailable")}
+                </Button>
+              )}
+              {openedFocusSection ? (
+                <p className="mt-3 text-sm font-semibold text-amber-100" role="status" aria-live="polite">
+                  {focusStatus}
+                </p>
+              ) : null}
             </section>
           </div>
 
@@ -484,6 +576,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             song={song}
             activeRole={activeRole}
             onSongUpdate={onSongUpdate}
+            focusedSectionId={openedFocusSectionId}
           />
           </section>
         </CardContent>

@@ -85,6 +85,7 @@ Last updated: 2026-03-11
   - playable ranges and density or overlap warnings
   - simplification, transposition, capo, tuning, or setup cues where applicable
   - role-specific rehearsal priorities and confidence flags
+  - a workspace priorities card that opens tonight's first lock-in section on the Section Roadmap
   - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
 
 ## Confidence, edits, and provenance
