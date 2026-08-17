@@ -393,6 +393,20 @@ export function Workspace({
                 />
             </div>
 
+            {allRoles.length === 0 && (
+              <div
+                id={WORKSPACE_SURFACE_IDS.transpose}
+                tabIndex={-1}
+                className="mb-4 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <div className="flex items-center gap-2 text-indigo-100">
+                  <ClipboardList className="size-4" aria-hidden="true" />
+                  <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-200">{t("workspaceNoRoleTransposition")}</p>
+              </div>
+            )}
+
             {activeRole && (
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
