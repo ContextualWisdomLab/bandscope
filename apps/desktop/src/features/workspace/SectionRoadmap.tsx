@@ -14,7 +14,7 @@ interface SectionRoadmapProps {
   focusedSectionId?: string | null;
 }
 
-/** Documented. */
+/** Render the rehearsal section roadmap and highlight the card identified by `focusedSectionId` when provided. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate, focusedSectionId = null }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
