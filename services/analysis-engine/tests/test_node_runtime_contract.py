@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_NODE_ENGINE = ">=22.22.2 <23"
 EXPECTED_NODE_FLOOR = (22, 22, 2)
-EXPECTED_NPM_VERSION = "10.9.7"
+EXPECTED_NPM_VERSION = "10.9.8"
 EXPECTED_JSDOM_RANGE = "^30.0.1"
 
 
