@@ -53,7 +53,8 @@ def _coerce_segment(segment: object) -> tuple[float, float, str] | None:
 
     Returns:
         A ``(start, end, chord)`` tuple, or ``None`` if the segment is
-        malformed, non-finite, blank-labeled, or has a non-positive span.
+        malformed, non-finite, unrepresentable, blank-labeled, or has a
+        non-positive span.
     """
     if not isinstance(segment, Mapping):
         return None
@@ -67,8 +68,11 @@ def _coerce_segment(segment: object) -> tuple[float, float, str] | None:
         return None
     if not isinstance(chord_raw, str) or not chord_raw.strip():
         return None
-    start = float(start_raw)
-    end = float(end_raw)
+    try:
+        start = float(start_raw)
+        end = float(end_raw)
+    except OverflowError:
+        return None
     if not math.isfinite(start) or not math.isfinite(end) or end <= start:
         return None
     return (start, end, chord_raw)
@@ -139,11 +143,11 @@ def summarize_section_harmony(
         chord_segments: Chord segments shaped like
             ``{"start_time": float, "end_time": float, "chord": str, ...}``
             (e.g. ``TrackedChord`` from the chord recognizer). Malformed,
-            blank-labeled, non-finite, and non-positive-span entries are
-            skipped.
+            blank-labeled, non-finite, unrepresentable, and non-positive-span
+            entries are skipped.
         boundaries: Section windows as ``(start, end)`` pairs in seconds.
-            Windows must use finite, non-Boolean endpoints and have
-            ``end > start``; invalid windows are skipped.
+            Windows must use finite, representable, non-Boolean endpoints and
+            have ``end > start``; invalid windows are skipped.
 
     Returns:
         One :class:`SectionHarmony` per valid boundary, in boundary order.
@@ -170,7 +174,7 @@ def summarize_section_harmony(
             try:
                 section_start = float(section_start_raw)
                 section_end = float(section_end_raw)
-            except (TypeError, ValueError):
+            except (OverflowError, TypeError, ValueError):
                 continue
             if (
                 not math.isfinite(section_start)
