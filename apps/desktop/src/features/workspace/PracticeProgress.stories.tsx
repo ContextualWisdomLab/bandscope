@@ -16,6 +16,7 @@ export const Empty: Story = {
 };
 
 export const Midway: Story = {
+  args: { progress: 40, onChange: () => undefined },
   render: function MidwayStory() {
     const [progress, setProgress] = useState(40);
     return <PracticeProgress progress={progress} onChange={setProgress} />;
