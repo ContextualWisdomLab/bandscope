@@ -10,6 +10,8 @@ Security Notes:
       the post-download check runs.
     - Announced duration must be a finite positive non-Boolean number when
       present; malformed known-duration metadata fails closed before download.
+      Download-result duration is revalidated before success so changed
+      metadata cannot bypass the same 15-minute admission boundary.
     - Announced ``filesize`` / ``filesize_approx`` values over the policy
       ceiling reject the import before ``download=True``.
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
@@ -137,7 +139,7 @@ def _reject_invalid_or_oversize_duration(info: dict[str, Any]) -> Dict[str, Any]
     """Validate announced duration before authorizing download work.
 
     Args:
-        info: Metadata dictionary from ``extract_info(..., download=False)``.
+        info: Metadata dictionary from yt-dlp extraction.
 
     Returns:
         A payload-safe failure for malformed/over-budget known duration, or
@@ -386,7 +388,6 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             if info is None:
                 raise Exception("Failed to extract info")
             actual_filepath = ydl.prepare_filename(info)
-
             actual_filepath = _find_downloaded_file(actual_filepath)
 
             if actual_filepath is None:
@@ -397,6 +398,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                         "message": "Downloaded file could not be found.",
                     },
                 }
+
+            duration_rejection = _reject_invalid_or_oversize_duration(info)
+            if duration_rejection is not None:
+                _remove_owned_file(actual_filepath, out_dir)
+                return duration_rejection
 
             try:
                 DEFAULT_AUDIO_RESOURCE_POLICY.validate_encoded_file_bytes(
