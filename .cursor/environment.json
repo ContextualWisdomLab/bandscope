@@ -1,0 +1,12 @@
+{
+  "name": "BandScope",
+  "install": "curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH=\"$HOME/.local/bin:$PATH\" && npm install && uv sync --project services/analysis-engine --group dev",
+  "ports": [{ "name": "desktop-dev", "port": 5173 }],
+  "terminals": [
+    {
+      "name": "desktop-dev",
+      "command": "npm run dev --workspace @bandscope/desktop",
+      "description": "Vite dev server for the BandScope desktop app (browser fallback mode) at http://localhost:5173/"
+    }
+  ]
+}
