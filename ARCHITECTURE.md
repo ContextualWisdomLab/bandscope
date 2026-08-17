@@ -85,7 +85,7 @@ Last updated: 2026-03-11
   - playable ranges and density or overlap warnings
   - simplification, transposition, capo, tuning, or setup cues where applicable
   - role-specific rehearsal priorities and confidence flags
-  - a song-structure timeline that cues tonight's first lock-in bar so the band can count in from that mark
+  - a song-structure timeline that, when sections are mapped, cues the first export-focus label/id match or falls back to the first mapped section; without mapped sections it keeps the cue unavailable as “No lock-in section yet.”
   - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
 
 ## Confidence, edits, and provenance
