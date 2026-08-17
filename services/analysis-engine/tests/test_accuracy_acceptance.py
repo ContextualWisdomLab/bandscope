@@ -180,11 +180,10 @@ def test_render_helpers_reject_non_finite_inputs() -> None:
         render_click_track(duration_seconds=np.inf)
 
 
-def test_click_track_with_zero_length_click_stays_silent() -> None:
-    """A 1 Hz sample rate makes the click window empty and leaves silence."""
-    audio = render_click_track(bpm=60.0, duration_seconds=1.0, sample_rate=1)
-    assert audio.shape == (1,)
-    assert float(audio[0]) == 0.0
+def test_click_track_rejects_zero_length_click_evidence() -> None:
+    """A sample rate that cannot represent one click sample must fail closed."""
+    with pytest.raises(ValueError, match="click length"):
+        render_click_track(bpm=60.0, duration_seconds=1.0, sample_rate=1)
 
 
 def test_duration_weighted_recall_covers_overlap_and_misses() -> None:
