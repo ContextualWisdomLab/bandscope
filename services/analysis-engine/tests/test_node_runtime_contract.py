@@ -88,8 +88,9 @@ def test_repository_no_longer_advertises_node_22_13_floor() -> None:
         "README.md",
         "CONTRIBUTING.md",
         "CLAUDE.md",
-        "docs/TEST_STRATEGY.md",
-        "docs/OPERABILITY.md",
+        "docs/engineering/harness-engineering.md",
+        "docs/security/cross-platform-build-policy.md",
+        "docs/operations/deploy-runbook.md",
     )
 
     stale = [
