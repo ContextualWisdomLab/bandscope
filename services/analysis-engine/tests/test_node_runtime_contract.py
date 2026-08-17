@@ -48,7 +48,7 @@ def test_jsdom_30_is_adopted_in_manifest_and_lock() -> None:
 
     assert desktop["devDependencies"]["jsdom"] == EXPECTED_JSDOM_RANGE
     assert package_lock["packages"]["apps/desktop"]["devDependencies"]["jsdom"] == EXPECTED_JSDOM_RANGE
-    assert package_lock["packages"]["node_modules/jsdom"]["version"] == "30.0.1"
+    assert package_lock["packages"]["apps/desktop/node_modules/jsdom"]["version"] == "30.0.1"
 
 
 def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
