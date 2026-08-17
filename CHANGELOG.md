@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Reject click-track accuracy fixtures whose beat interval or click pulse cannot be represented by at least one sample, preventing aliased or all-zero tempo evidence from entering acceptance runs.
 - Reject fixture timings whose derived sample count overflows or quantizes below one sample, and reject finite BPM inputs whose derived beat interval becomes non-finite, before they can drive real-audio accuracy allocation or loop authority.
 - Reject malformed decoded-PCM accuracy evidence before chord recognition: the C-major acceptance buffer must be a non-empty, finite, floating-point, one-dimensional mono array and sample rates must be finite, positive, and non-Boolean.
 - Reject accuracy-report metric integers whose conversion overflows floating-point evidence instead of letting an `OverflowError` escape the manifest validation boundary.
@@ -77,9 +78,3 @@
 - Issue #26: Finalized roadmap and prepared application for initial release
 
 ## [0.1.4] - 2026-05-15
-
-### 추가됨 (Added)
-
-- `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
-- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
-- 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
