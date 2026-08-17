@@ -93,7 +93,9 @@ def test_registry_client_fails_closed_on_api_error_status(
     client = audit.GitHubRegistryClient(api_url="https://api.github.com")
 
     with pytest.raises(audit.AuditError, match=rf"unexpected HTTP {status}"):
-        client._get_json("https://api.github.com/repos/ContextualWisdomLab/bandscope/actions/workflows")
+        client._get_json(
+            "https://api.github.com/repos/ContextualWisdomLab/bandscope/actions/workflows"
+        )
 
     method, _target, options = _FakePool.requests[0]
     assert method == "GET"
