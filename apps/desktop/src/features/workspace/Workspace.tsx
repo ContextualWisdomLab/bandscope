@@ -184,7 +184,22 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     if (!activeRole) return undefined;
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
-  const firstNote = firstTranscriptionNote(activeRoleDetails?.transcription);
+  const activeRoleTranscription = useMemo(() => {
+    if (!activeRole) return undefined;
+    const notes: TranscriptionNote[] = [];
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        if (role.id !== activeRole || !role.transcription) continue;
+        for (const note of role.transcription) {
+          notes.push(note);
+        }
+      }
+    }
+    if (notes.length === 0) return undefined;
+    notes.sort((left, right) => left.onset - right.onset);
+    return notes;
+  }, [activeRole, song.sections]);
+  const firstNote = firstTranscriptionNote(activeRoleTranscription);
   const roleRangeLow = nonBlankText(activeRoleDetails?.range.lowestNote);
   const roleRangeHigh = nonBlankText(activeRoleDetails?.range.highestNote);
   const roleCue = nonBlankText(activeRoleDetails?.cue.value);
@@ -292,7 +307,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         })
       : t("workspaceOpenNotesUnavailable");
   const grooveEmptyMessage = firstNote
-    ? fillCopy(t("workspaceGrooveMapReady"), { count: String(activeRoleDetails?.transcription?.length ?? 0) })
+    ? fillCopy(t("workspaceGrooveMapReady"), { count: String(activeRoleTranscription?.length ?? 0) })
     : roleRangeLow && roleRangeHigh
       ? fillCopy(t("workspaceGrooveMapRangeEmpty"), {
           role: roleName,
@@ -437,7 +452,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           </div>
 
           <SongStructure sections={song.sections} t={t} />
-
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -590,7 +604,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </p>
                 ) : null}
                 <GrooveMap
-                  notes={activeRoleDetails?.transcription}
+                  notes={activeRoleTranscription}
                   isLoading={false}
                   regionLabel={grooveRegionLabel}
                   emptyMessage={grooveEmptyMessage}
