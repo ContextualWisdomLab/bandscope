@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import urllib.request
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 from conftest import load_module
@@ -14,26 +15,20 @@ class _FakeResponse:
     """Minimal bounded HTTP response used by transport tests."""
 
     status: int
-    body: bytes = b"{}"
-
-    def read(self) -> bytes:
-        """Return the deterministic response payload."""
-        return self.body
+    data: bytes = b"{}"
 
 
-class _FakeConnection:
-    """Minimal HTTPS connection fixture that never touches the network."""
+class _FakePool:
+    """Minimal fixed-origin HTTPS pool fixture that never touches the network."""
 
     response = _FakeResponse(200)
-    requests: list[tuple[str, str, dict[str, str]]] = []
+    requests: list[tuple[str, str, dict[str, Any]]] = []
 
     def __init__(self, *_args, **_kwargs) -> None:
         self.closed = False
 
-    def request(self, method: str, target: str, *, headers: dict[str, str]) -> None:
-        type(self).requests.append((method, target, headers))
-
-    def getresponse(self) -> _FakeResponse:
+    def request(self, method: str, target: str, **kwargs: Any) -> _FakeResponse:
+        type(self).requests.append((method, target, kwargs))
         return type(self).response
 
     def close(self) -> None:
@@ -69,14 +64,14 @@ def test_registry_client_rejects_non_https_request_target(monkeypatch: pytest.Mo
 def test_registry_client_rejects_cross_origin_target(monkeypatch: pytest.MonkeyPatch) -> None:
     """A request cannot leave the configured GitHub API origin."""
     audit = _load_audit()
-    monkeypatch.setattr(audit.http.client, "HTTPSConnection", _FakeConnection)
+    monkeypatch.setattr(audit.urllib3, "HTTPSConnectionPool", _FakePool)
     client = audit.GitHubRegistryClient(api_url="https://api.github.com")
-    _FakeConnection.requests.clear()
+    _FakePool.requests.clear()
 
     with pytest.raises(audit.AuditError, match="request target must stay on the configured HTTPS API origin"):
         client._get_json("https://example.invalid/repos/ContextualWisdomLab/bandscope")
 
-    assert _FakeConnection.requests == []
+    assert _FakePool.requests == []
 
 
 @pytest.mark.parametrize("status", [403, 404, 500, 503])
@@ -86,29 +81,33 @@ def test_registry_client_fails_closed_on_api_error_status(
 ) -> None:
     """Permission loss and transient API failures never become clean inventory evidence."""
     audit = _load_audit()
-    monkeypatch.setattr(audit.http.client, "HTTPSConnection", _FakeConnection)
-    _FakeConnection.response = _FakeResponse(status)
-    _FakeConnection.requests.clear()
+    monkeypatch.setattr(audit.urllib3, "HTTPSConnectionPool", _FakePool)
+    _FakePool.response = _FakeResponse(status)
+    _FakePool.requests.clear()
     client = audit.GitHubRegistryClient(api_url="https://api.github.com")
 
     with pytest.raises(audit.AuditError, match=rf"unexpected HTTP {status}"):
         client._get_json("https://api.github.com/repos/ContextualWisdomLab/bandscope/actions/workflows")
 
-    assert _FakeConnection.requests[0][0] == "GET"
+    method, _target, options = _FakePool.requests[0]
+    assert method == "GET"
+    assert options["redirect"] is False
+    assert options["retries"] is False
 
 
 def test_registry_client_preserves_ghe_api_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
     """A GitHub Enterprise API prefix is retained and path escape is rejected."""
     audit = _load_audit()
-    monkeypatch.setattr(audit.http.client, "HTTPSConnection", _FakeConnection)
-    _FakeConnection.response = _FakeResponse(200, b'{"ok": true}')
-    _FakeConnection.requests.clear()
+    monkeypatch.setattr(audit.urllib3, "HTTPSConnectionPool", _FakePool)
+    _FakePool.response = _FakeResponse(200, b'{"ok": true}')
+    _FakePool.requests.clear()
     client = audit.GitHubRegistryClient(api_url="https://github.example/api/v3")
 
     payload, status = client._get_json("https://github.example/api/v3/repos/owner/repo")
 
     assert status == 200
     assert payload == {"ok": True}
-    assert _FakeConnection.requests[0][1] == "/api/v3/repos/owner/repo"
+    assert _FakePool.requests[0][1] == "/api/v3/repos/owner/repo"
+    assert _FakePool.requests[0][2]["redirect"] is False
     with pytest.raises(audit.AuditError, match="request target must stay on the configured HTTPS API origin"):
         client._get_json("https://github.example/repos/owner/repo")
