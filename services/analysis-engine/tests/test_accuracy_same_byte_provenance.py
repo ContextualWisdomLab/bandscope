@@ -10,6 +10,7 @@ import pytest
 from bandscope_analysis.accuracy import (
     DEFAULT_CLICK_BPM,
     DEFAULT_SAMPLE_RATE,
+    assert_fixture_checksum,
     evaluate_c_major_file,
     evaluate_click_tempo_file,
     render_c_major_triad,
@@ -36,6 +37,14 @@ def _replace_after_first_read(
         return payload
 
     monkeypatch.setattr(Path, "read_bytes", read_bytes)
+
+
+def test_assert_fixture_checksum_accepts_matching_snapshot(tmp_path: Path) -> None:
+    """The compatibility checksum boundary must remain directly executable."""
+    target = tmp_path / "matching.wav"
+    digest = write_pcm_wav(target, render_c_major_triad(), DEFAULT_SAMPLE_RATE)
+
+    assert_fixture_checksum(target, digest)
 
 
 def test_c_major_file_scores_the_bytes_that_satisfied_checksum(
