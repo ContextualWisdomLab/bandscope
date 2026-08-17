@@ -63,8 +63,10 @@ export function stemLanePriorityLabel(
  * It does not invent playable stem files. When analysis has roles, each lane
  * tells the player the range, sections, and clashes to lock before rehearsal.
  * Invalid or incomplete range evidence is replaced by an explicit ear-check
- * action rather than presented as a playable range. When analysis has not run,
- * the empty copy tells the player to choose local audio next.
+ * action rather than presented as a playable range. Before analysis, the empty
+ * copy tells the player to choose local audio next; an analyzed song with no
+ * detected roles instead reports that result without sending the player back
+ * to the import step.
  */
 export function StemLab({ song }: StemLabProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
@@ -87,9 +89,13 @@ export function StemLab({ song }: StemLabProps) {
         </div>
       </div>
 
-      {lanes.length === 0 ? (
+      {song === null ? (
         <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-200">
           {t("stemLabEmptyNextAction")}
+        </p>
+      ) : lanes.length === 0 ? (
+        <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-200">
+          {t("stemLabNoRolesDetected")}
         </p>
       ) : (
         <ul className="grid gap-3" aria-label={t("stemLabLaneListLabel")}>
