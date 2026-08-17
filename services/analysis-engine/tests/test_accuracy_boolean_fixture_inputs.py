@@ -1,4 +1,4 @@
-"""Boolean and overflow guards for deterministic real-audio fixtures."""
+"""Boolean and derived-arithmetic guards for deterministic real-audio fixtures."""
 
 from __future__ import annotations
 
@@ -53,6 +53,15 @@ def test_fixture_rejects_nonfinite_scaled_sample_count(factory: Any) -> None:
     """Finite inputs whose product overflows must fail before allocation authority."""
     with pytest.raises(ValueError, match="sample count"):
         factory(duration_seconds=1e308)
+
+
+@pytest.mark.parametrize("factory", [render_c_major_triad, render_click_track])
+def test_fixture_rejects_duration_shorter_than_one_sample(factory: Any) -> None:
+    """Positive durations that quantize to zero samples must fail as evidence."""
+    sub_sample_duration = np.nextafter(0.0, 1.0)
+
+    with pytest.raises(ValueError, match="sample count"):
+        factory(duration_seconds=sub_sample_duration)
 
 
 def test_click_fixture_rejects_tempo_whose_beat_interval_overflows() -> None:
