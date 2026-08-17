@@ -82,7 +82,7 @@ describe("App workspace recovery actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Choose a local audio file" }));
     await waitFor(() => expect(screen.getByTitle("recovery-take.wav")).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: "Start Analysis" }));
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Analysis failed"));
     expect(screen.getByTitle("recovery-take.wav")).toBeTruthy();
 
@@ -90,7 +90,7 @@ describe("App workspace recovery actions", () => {
 
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
     expect(screen.queryByTitle("recovery-take.wav")).toBeNull();
-    expect(screen.getByRole("button", { name: "Start Analysis" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /start analysis/i })).toBeDisabled();
     expect(mockStartAnalysisJob).toHaveBeenCalledTimes(1);
   });
 
