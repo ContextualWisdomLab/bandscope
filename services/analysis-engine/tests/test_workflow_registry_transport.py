@@ -55,7 +55,10 @@ def test_registry_client_rejects_non_https_request_target(monkeypatch: pytest.Mo
 
     monkeypatch.setattr(urllib.request, "urlopen", forbidden_urlopen)
 
-    with pytest.raises(audit.AuditError, match="request target must stay on the configured HTTPS API origin"):
+    with pytest.raises(
+        audit.AuditError,
+        match="request target must stay on the configured HTTPS API origin",
+    ):
         client._get_json("file:///etc/passwd")
 
     assert transport_called is False
@@ -68,7 +71,10 @@ def test_registry_client_rejects_cross_origin_target(monkeypatch: pytest.MonkeyP
     client = audit.GitHubRegistryClient(api_url="https://api.github.com")
     _FakePool.requests.clear()
 
-    with pytest.raises(audit.AuditError, match="request target must stay on the configured HTTPS API origin"):
+    with pytest.raises(
+        audit.AuditError,
+        match="request target must stay on the configured HTTPS API origin",
+    ):
         client._get_json("https://example.invalid/repos/ContextualWisdomLab/bandscope")
 
     assert _FakePool.requests == []
@@ -109,5 +115,8 @@ def test_registry_client_preserves_ghe_api_prefix(monkeypatch: pytest.MonkeyPatc
     assert payload == {"ok": True}
     assert _FakePool.requests[0][1] == "/api/v3/repos/owner/repo"
     assert _FakePool.requests[0][2]["redirect"] is False
-    with pytest.raises(audit.AuditError, match="request target must stay on the configured HTTPS API origin"):
+    with pytest.raises(
+        audit.AuditError,
+        match="request target must stay on the configured HTTPS API origin",
+    ):
         client._get_json("https://github.example/repos/owner/repo")
