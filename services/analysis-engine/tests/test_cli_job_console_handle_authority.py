@@ -81,3 +81,21 @@ def test_con_remains_a_naming_a_file_reserved_filename(monkeypatch: pytest.Monke
     assert cli.classify_windows_job_path_authority("CON") == cli.WINDOWS_JOB_PATH_RESERVED_FILENAME
     with pytest.raises(OSError, match="local regular-file namespace"):
         cli._read_bounded_job_file("CON")
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("CON", True),
+        ("PRN", True),
+        ("CONIN$", True),
+        ("CONOUT$:", True),
+        ("CLOCK$", True),
+        (r"jobs\CLOCK$.txt", True),
+        ("job.json", False),
+        (r"C:\jobs\ready.json", False),
+    ],
+)
+def test_device_alias_union_covers_reserved_console_and_legacy(path: str, expected: bool) -> None:
+    """The union helper stays true for every Win32 device class and false for regular files."""
+    assert cli._uses_windows_device_alias(path) is expected
