@@ -1,7 +1,7 @@
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Music, AlertCircle, Upload, Youtube } from "lucide-react";
+import { Loader2, Music, AlertCircle, Upload, Link2 } from "lucide-react";
 
 /** Next-action handlers for the empty rehearsal workspace. */
 export interface EmptyStateProps {
@@ -37,7 +37,7 @@ export function EmptyState({ onChooseLocalAudio, onFocusYoutube }: EmptyStatePro
             className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
             aria-label={t("workspaceEmptyPasteYoutube")}
           >
-            <Youtube className="mr-2 size-4" aria-hidden="true" />
+            <Link2 className="mr-2 size-4" aria-hidden="true" />
             {t("workspaceEmptyPasteYoutube")}
           </Button>
         </div>
