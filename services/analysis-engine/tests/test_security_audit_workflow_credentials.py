@@ -3,9 +3,7 @@
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-CHECKOUT_MARKER = (
-    "- uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0"
-)
+CHECKOUT_MARKER = "- uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0"
 DEPENDENCY_LIFECYCLE_WORKFLOWS = (
     ".github/workflows/security-audit.yml",
     ".github/workflows/release.yml",
