@@ -10,7 +10,7 @@ Agent execution and delegation rules live in `docs/agents/README.md`. PR canonic
 
 ## Common commands
 
-Setup (Node >=22.13 <23, Python >=3.12 via `uv`, Rust stable only for the Tauri shell):
+Setup (Node >=22.22.2 <23, Python >=3.12 via `uv`, Rust stable only for the Tauri shell):
 
 ```bash
 npm install
