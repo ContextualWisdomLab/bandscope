@@ -6,11 +6,22 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertCircle, CheckCircle2, Music2, Wand2, Lightbulb, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
   onSongUpdate?: (song: RehearsalSong) => void;
+}
+
+/** Documented. */
+function formatTimelineTime(totalSeconds: number): string {
+  const safeSeconds = Number.isFinite(totalSeconds) && totalSeconds >= 0 ? totalSeconds : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = Math.floor(safeSeconds % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${minutes}:${seconds}`;
 }
 
 /** Documented. */
@@ -103,10 +114,17 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         tabIndex={0}
         aria-labelledby={sectionRoadmapTitleId}
       >
-        {song.sections.map((section) => (
+        {song.sections.map((section) => {
+          const window = `${formatTimelineTime(section.timeRange.start)}–${formatTimelineTime(section.timeRange.end)}`;
+          const practiceLabel = t("workspacePracticeWindowAction")
+            .replaceAll("{section}", section.label)
+            .replaceAll("{window}", window);
+          return (
           <Card
             key={section.id}
-            className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
+            id={`workspace-section-${section.id}`}
+            tabIndex={-1}
+            className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
               section.confidence.level === "low" ? "border-rose-300/30 bg-rose-950/30" : "border-white/10 bg-slate-950/80"
             }`}
           >
@@ -119,6 +137,22 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">{window}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 min-h-10 w-full border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white"
+                aria-label={practiceLabel}
+                onClick={() => {
+                  const node = document.getElementById(`workspace-section-${section.id}`);
+                  if (node instanceof HTMLElement && typeof node.focus === "function") {
+                    node.focus();
+                  }
+                }}
+              >
+                {practiceLabel}
+              </Button>
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">
@@ -212,7 +246,8 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
               ))}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

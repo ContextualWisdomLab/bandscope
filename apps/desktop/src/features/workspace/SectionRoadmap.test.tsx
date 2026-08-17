@@ -60,4 +60,16 @@ describe("SectionRoadmap", () => {
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
+
+  it("names a focusable practice window on each section card", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const card = document.getElementById("workspace-section-verse-1");
+    expect(card).toBeTruthy();
+    expect(card?.getAttribute("tabindex")).toBe("-1");
+    expect(screen.getByRole("button", { name: "Practice verse 0:10–0:30" })).toBeTruthy();
+  });
 });

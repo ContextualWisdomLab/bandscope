@@ -270,4 +270,63 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's practice window after a part is selected", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByText(/Open verse 0:10–0:30 at 120 BPM and lock the entrance first/i)).toBeTruthy();
+    const loopButton = screen.getByRole("button", { name: "Loop verse 0:10–0:30 · 120 BPM" });
+    expect((loopButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(loopButton);
+
+    const card = document.getElementById("workspace-section-verse-1");
+    expect(card).toBeTruthy();
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(document.activeElement).toBe(card);
+  });
+
+  it("opens the named practice window from the song-structure timeline", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open verse 0:10–0:30" }));
+
+    expect(document.activeElement).toBe(document.getElementById("workspace-section-verse-1"));
+  });
+
+  it("disables the loop action when no section can be opened", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.queryByRole("button", { name: /Loop /i })).toBeNull();
+    expect(screen.getByTestId("song-structure-grid")).toBeTruthy();
+  });
+
+  it("localizes the practice-window next action", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByRole("button", { name: "verse 0:10–0:30 · 120 BPM 반복" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "verse 0:10–0:30 연습" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "verse 0:10–0:30 열기" })).toBeTruthy();
+  });
 });

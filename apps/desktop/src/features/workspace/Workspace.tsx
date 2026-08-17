@@ -8,7 +8,7 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
-import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4 } from "lucide-react";
+import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4, Repeat } from "lucide-react";
 
 interface WorkspaceProps {
   song: RehearsalSong;
@@ -70,8 +70,63 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
   }
 }
 
+/** Return the first rehearsal-priority section the player should open. */
+function firstFocusSection(song: RehearsalSong): RehearsalSong["sections"][number] | undefined {
+  const requested = song.exportSummary?.focusSections?.[0]?.trim();
+  if (requested) {
+    const match = song.sections.find(
+      (section) => section.label === requested || section.id === requested
+    );
+    if (match) {
+      return match;
+    }
+  }
+  return song.sections[0];
+}
+
+/** Format a section's practice window as mm:ss–mm:ss. */
+function formatPracticeWindow(section: RehearsalSong["sections"][number]): string {
+  return `${formatTimelineTime(section.timeRange.start)}–${formatTimelineTime(section.timeRange.end)}`;
+}
+
+/** Fill rehearsal copy that names a section and its practice window. */
+function fillPracticeWindowCopy(
+  template: string,
+  sectionLabel: string,
+  window: string,
+  tempo?: number
+): string {
+  let text = template.replaceAll("{section}", sectionLabel).replaceAll("{window}", window);
+  if (tempo !== undefined) {
+    text = text.replaceAll("{tempo}", String(tempo));
+  }
+  return text;
+}
+
+/** Scroll and focus the matching section card on the rehearsal roadmap. */
+function focusWorkspaceSection(sectionId: string): void {
+  const node = document.getElementById(`workspace-section-${sectionId}`);
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  if (typeof node.scrollIntoView === "function") {
+    node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }
+  if (typeof node.focus === "function") {
+    node.focus();
+  }
+}
+
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({
+  sections,
+  t,
+  onOpenSection
+}: {
+  sections: RehearsalSong["sections"];
+  t: Translator;
+  onOpenSection: (sectionId: string) => void;
+}) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -90,14 +145,23 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
+          {sections.map((section) => {
+            const window = formatPracticeWindow(section);
+            return (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => onOpenSection(section.id)}
+              className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 text-left last:border-r-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300"
+              aria-label={fillPracticeWindowCopy(t("workspaceTimelineOpenSection"), section.label, window)}
+            >
               <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                {section.label} · {window}
               </p>
               <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
-            </div>
-          ))}
+            </button>
+            );
+          })}
         </div>
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
@@ -150,6 +214,33 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
+  const focusSection = firstFocusSection(song);
+  const focusWindow = focusSection ? formatPracticeWindow(focusSection) : "";
+  const loopActionLabel = focusSection
+    ? song.tempo
+      ? fillPracticeWindowCopy(
+          t("workspaceLoopSectionActionWithTempo"),
+          focusSection.label,
+          focusWindow,
+          song.tempo
+        )
+      : fillPracticeWindowCopy(t("workspaceLoopSectionAction"), focusSection.label, focusWindow)
+    : t("workspaceLoopSectionDisabled");
+  const loopHint = focusSection
+    ? song.tempo
+      ? fillPracticeWindowCopy(
+          t("workspaceLoopSectionHintWithTempo"),
+          focusSection.label,
+          focusWindow,
+          song.tempo
+        )
+      : fillPracticeWindowCopy(t("workspaceLoopSectionHint"), focusSection.label, focusWindow)
+    : t("workspaceLoopSectionDisabled");
+
+  /** Open tonight's named practice window on the section roadmap. */
+  const handleOpenPracticeWindow = (sectionId: string) => {
+    focusWorkspaceSection(sectionId);
+  };
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -331,7 +422,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure sections={song.sections} t={t} onOpenSection={handleOpenPracticeWindow} />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -350,6 +441,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-300">{loopHint}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -364,14 +456,19 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </Button>
                   <Button
                     type="button"
-                    aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
-                    onClick={preventUnavailableAction}
+                    disabled={!focusSection}
+                    aria-label={loopActionLabel}
+                    title={loopHint}
+                    onClick={() => {
+                      if (focusSection) {
+                        handleOpenPracticeWindow(focusSection.id);
+                      }
+                    }}
                     variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
+                    className="min-h-11 border-emerald-300/30 bg-emerald-300/10 font-semibold text-emerald-50 hover:bg-emerald-300/20 hover:text-white"
                   >
-                    Loop section
+                    <Repeat className="mr-2 size-4 text-emerald-200" aria-hidden="true" />
+                    {loopActionLabel}
                   </Button>
                   <Button
                     type="button"

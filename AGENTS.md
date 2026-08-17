@@ -83,6 +83,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Keep UI and analysis engine decoupled through shared contracts.
 - Prefer minimal, test-first changes for production code.
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
+- After a part is selected, Loop must name tonight's practice window (section + time, tempo when known) and open that section. Do not leave Loop as coming soon while Play stem stays unavailable.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
 
