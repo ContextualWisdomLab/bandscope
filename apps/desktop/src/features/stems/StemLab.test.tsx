@@ -48,6 +48,17 @@ describe("StemLab", () => {
     expect(screen.queryByRole("button", { name: /play stem/i })).toBeNull();
   });
 
+  it("does not send an already analyzed song back to the import step when no roles were detected", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = song.sections.map((section) => ({ ...section, roles: [] }));
+
+    render(<StemLab song={song} />);
+
+    expect(screen.getByText(/No role lanes were detected/i)).toBeTruthy();
+    expect(screen.queryByText(/Choose a local audio file and start analysis/i)).toBeNull();
+  });
+
   it("lists isolation lanes from a real demo analysis without fake play controls", () => {
     setNavigatorLanguage("en-US");
     render(<StemLab song={createDemoRehearsalSong()} />);
