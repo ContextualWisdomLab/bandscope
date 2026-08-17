@@ -148,10 +148,7 @@ def _reject_invalid_or_oversize_duration(info: dict[str, Any]) -> Dict[str, Any]
         return None
     if type(duration) not in (int, float):
         return _download_error_result()
-    try:
-        duration_seconds = float(duration)
-    except (OverflowError, ValueError):
-        return _download_error_result()
+    duration_seconds = float(duration)
     if not math.isfinite(duration_seconds) or duration_seconds <= 0.0:
         return _download_error_result()
     if duration_seconds > DEFAULT_MAX_DURATION_SECONDS:
