@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 CHECKOUT_MARKER = (
@@ -28,15 +26,13 @@ def _checkout_step(workflow_text: str) -> str:
     return checkout_tail[:next_step_offset]
 
 
-@pytest.mark.parametrize("workflow_path", DEPENDENCY_LIFECYCLE_WORKFLOWS)
-def test_dependency_workflow_checkout_does_not_persist_github_credentials(
-    workflow_path: str,
-) -> None:
+def test_dependency_workflow_checkout_does_not_persist_github_credentials() -> None:
     """Dependency lifecycle code must not inherit persisted checkout credentials."""
-    workflow_text = (REPOSITORY_ROOT / workflow_path).read_text(encoding="utf-8")
-    checkout_step = _checkout_step(workflow_text)
+    for workflow_path in DEPENDENCY_LIFECYCLE_WORKFLOWS:
+        workflow_text = (REPOSITORY_ROOT / workflow_path).read_text(encoding="utf-8")
+        checkout_step = _checkout_step(workflow_text)
 
-    assert "persist-credentials: false" in checkout_step
+        assert "persist-credentials: false" in checkout_step, workflow_path
 
 
 def test_checkout_step_does_not_accept_credentials_from_a_later_step() -> None:
