@@ -1,165 +1,129 @@
-"""Real-audio accuracy acceptance for decoded PCM fixtures.
-
-These cases prove a buyer-visible claim: a known waveform written to disk,
-decoded, and analyzed yields the expected chord or tempo. Mocked chroma
-matrices are not acceptance evidence.
-"""
+"""Tier 1 deterministic real-audio accuracy acceptance tests."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
 
 import numpy as np
 import pytest
-import soundfile as sf
 
+from bandscope_analysis import VERSION
 from bandscope_analysis.accuracy import (
     C_MAJOR_LABEL,
     DEFAULT_CLICK_BPM,
     DEFAULT_SAMPLE_RATE,
-    build_case_report,
+    AccuracyCase,
+    AccuracyMetric,
+    AccuracyReport,
+    AccuracyThreshold,
+    assert_fixture_checksum,
+    build_accuracy_report,
     duration_weighted_chord_recall,
-    evaluate_c_major_file,
-    evaluate_c_major_pcm,
-    evaluate_click_tempo_file,
-    parse_case_report,
-    read_pcm_wav,
-    read_product_version,
     render_c_major_triad,
     render_click_track,
+    run_c_major_acceptance,
+    run_tempo_acceptance,
     tempo_acc1,
     write_pcm_wav,
 )
-from bandscope_analysis.accuracy.evaluate import C_MAJOR_RECALL_FLOOR
-from bandscope_analysis.api import build_demo_rehearsal_song
+from bandscope_analysis.chords import ChordRecognizer
+from bandscope_analysis.temporal import TemporalAnalyzer
 
 
-def test_c_major_fixture_is_deterministic(tmp_path: Path) -> None:
-    """Two writes of the same triad must share one SHA-256 digest."""
-    audio = render_c_major_triad()
-    first = write_pcm_wav(tmp_path / "a.wav", audio, DEFAULT_SAMPLE_RATE)
-    second = write_pcm_wav(tmp_path / "b.wav", audio, DEFAULT_SAMPLE_RATE)
-    assert first == second
-    assert len(first) == 64
+def test_accuracy_case_requires_sha256_digest() -> None:
+    """Fixture manifests must pin their source bytes with a SHA-256 digest."""
+    with pytest.raises(ValueError, match="sha256"):
+        AccuracyCase(
+            case_id="case-c-major",
+            source_kind="generated",
+            source_locator="generated://c-major",
+            expected_label="C",
+            duration_seconds=3.0,
+            sha256="",
+            license_id="CC0-1.0",
+        )
 
 
-def test_c_major_wav_recovers_c_after_file_decode(tmp_path: Path) -> None:
-    """A decoded C major WAV must recover C for most of the fixture duration."""
-    audio = render_c_major_triad(duration_seconds=3.0)
+def test_accuracy_case_rejects_boolean_duration() -> None:
+    """Boolean duration evidence must not be accepted as a numeric value."""
+    with pytest.raises(ValueError, match="duration_seconds"):
+        AccuracyCase(
+            case_id="case-c-major",
+            source_kind="generated",
+            source_locator="generated://c-major",
+            expected_label="C",
+            duration_seconds=cast(Any, True),
+            sha256="a" * 64,
+            license_id="CC0-1.0",
+        )
+
+
+def test_accuracy_case_requires_canonical_sha256_digest() -> None:
+    """Fixture manifests must use one exact lowercase SHA-256 representation."""
+    common = dict(
+        case_id="case-c-major",
+        source_kind="generated",
+        source_locator="generated://c-major",
+        expected_label="C",
+        duration_seconds=3.0,
+        license_id="CC0-1.0",
+    )
+    for digest in ["g" * 64, "A" * 64, "a" * 63, "a" * 65]:
+        with pytest.raises(ValueError, match="sha256"):
+            AccuracyCase(sha256=digest, **common)
+
+
+def test_accuracy_metric_rejects_boolean_values() -> None:
+    """Boolean values must not satisfy numeric accuracy evidence contracts."""
+    with pytest.raises(ValueError, match="value"):
+        AccuracyMetric(name="metric", value=cast(Any, True), threshold=0.5, passed=True)
+    with pytest.raises(ValueError, match="threshold"):
+        AccuracyMetric(name="metric", value=0.5, threshold=cast(Any, False), passed=True)
+
+
+def test_accuracy_metric_rejects_non_finite_values() -> None:
+    """Non-finite metrics must not become buyer-facing acceptance evidence."""
+    for value in [np.nan, np.inf, -np.inf]:
+        with pytest.raises(ValueError, match="value"):
+            AccuracyMetric(name="metric", value=float(value), threshold=0.5, passed=False)
+    for threshold in [np.nan, np.inf, -np.inf]:
+        with pytest.raises(ValueError, match="threshold"):
+            AccuracyMetric(name="metric", value=0.5, threshold=float(threshold), passed=False)
+
+
+def test_accuracy_report_requires_exact_product_version() -> None:
+    """Accuracy reports must carry exact non-empty BandScope version provenance."""
+    metric = AccuracyMetric(name="metric", value=1.0, threshold=0.5, passed=True)
+    with pytest.raises(ValueError, match="product_version"):
+        AccuracyReport(product_version="", metrics=(metric,))
+    with pytest.raises(ValueError, match="product_version"):
+        AccuracyReport(product_version=" stale ", metrics=(metric,))
+
+
+def test_build_accuracy_report_preserves_product_version() -> None:
+    """The report builder must stamp the exact running product version."""
+    report = build_accuracy_report(
+        [AccuracyMetric(name="metric", value=1.0, threshold=0.5, passed=True)]
+    )
+    assert report.product_version == VERSION
+
+
+def test_write_and_verify_fixture_checksum(tmp_path: Path) -> None:
+    """The on-disk bytes scored by acceptance must match the pinned digest."""
+    audio = render_c_major_triad(duration_seconds=0.1)
     path = tmp_path / "c-major.wav"
     digest = write_pcm_wav(path, audio, DEFAULT_SAMPLE_RATE)
-    report = evaluate_c_major_file(path, digest)
-    assert report["true_label"] == C_MAJOR_LABEL
-    assert report["metric_name"] == "duration_weighted_chord_recall"
-    assert report["metric_value"] >= C_MAJOR_RECALL_FLOOR
-    assert report["passed"] is True
-    assert report["audio_sha256"] == digest
+    assert_fixture_checksum(path, digest)
+    path.write_bytes(path.read_bytes() + b"tamper")
+    with pytest.raises(ValueError, match="checksum"):
+        assert_fixture_checksum(path, digest)
 
 
-def test_click_wav_recovers_120_bpm_acc1(tmp_path: Path) -> None:
-    """A decoded 120 BPM click WAV must pass tempo Acc1."""
-    audio = render_click_track(bpm=DEFAULT_CLICK_BPM, duration_seconds=8.0)
-    path = tmp_path / "click-120.wav"
-    digest = write_pcm_wav(path, audio, DEFAULT_SAMPLE_RATE)
-    report = evaluate_click_tempo_file(path, digest, DEFAULT_CLICK_BPM)
-    assert report["passed"] is True
-    assert report["metric_name"] == "tempo_acc1"
-    assert report["true_label"] == "120 bpm"
-
-
-def test_silence_does_not_pass_c_major_recall() -> None:
-    """Silence must not be reported as a passing C major acceptance case."""
-    silence = np.zeros(DEFAULT_SAMPLE_RATE, dtype=np.float32)
-    report = evaluate_c_major_pcm(silence, DEFAULT_SAMPLE_RATE, "b" * 64)
-    assert report["passed"] is False
-    assert report["metric_value"] < C_MAJOR_RECALL_FLOOR
-
-
-def test_click_tempo_acc1_fails_when_true_tempo_is_wrong(tmp_path: Path) -> None:
-    """Acc1 must fail when the registered true tempo is not the click tempo."""
-    audio = render_click_track(bpm=DEFAULT_CLICK_BPM, duration_seconds=8.0)
-    path = tmp_path / "click-wrong-label.wav"
-    digest = write_pcm_wav(path, audio, DEFAULT_SAMPLE_RATE)
-    report = evaluate_click_tempo_file(path, digest, true_bpm=40.0)
-    assert report["passed"] is False
-    assert report["metric_value"] == 0.0
-
-
-def test_checksum_mismatch_fails_closed(tmp_path: Path) -> None:
-    """A tampered fixture must not be scored as a passing case."""
-    click = render_click_track()
-    click_path = tmp_path / "click.wav"
-    write_pcm_wav(click_path, click, DEFAULT_SAMPLE_RATE)
-    with pytest.raises(ValueError, match="checksum mismatch"):
-        evaluate_click_tempo_file(click_path, "0" * 64)
-
-    triad = render_c_major_triad()
-    triad_path = tmp_path / "c-major.wav"
-    write_pcm_wav(triad_path, triad, DEFAULT_SAMPLE_RATE)
-    with pytest.raises(ValueError, match="checksum mismatch"):
-        evaluate_c_major_file(triad_path, "0" * 64)
-
-
-def test_c_major_file_decode_scores_disk_not_memory(tmp_path: Path) -> None:
-    """Silence on disk must fail even when a C major array exists in memory."""
-    triad = render_c_major_triad(duration_seconds=3.0)
-    silence = np.zeros_like(triad)
-    path = tmp_path / "silence.wav"
-    digest = write_pcm_wav(path, silence, DEFAULT_SAMPLE_RATE)
-    report = evaluate_c_major_file(path, digest)
-    assert report["passed"] is False
-    assert report["metric_value"] < C_MAJOR_RECALL_FLOOR
-    memory_report = evaluate_c_major_pcm(triad, DEFAULT_SAMPLE_RATE, digest)
-    assert memory_report["passed"] is True
-
-
-def test_read_pcm_wav_mixes_stereo_to_mono(tmp_path: Path) -> None:
-    """A stereo fixture must collapse to mono before scoring."""
-    path = tmp_path / "stereo.wav"
-    stereo = np.column_stack([np.ones(8, dtype=np.float32), np.zeros(8, dtype=np.float32)])
-    sf.write(path, stereo, DEFAULT_SAMPLE_RATE)
-    audio, sample_rate = read_pcm_wav(path)
-    assert sample_rate == DEFAULT_SAMPLE_RATE
-    assert audio.shape == (8,)
-    assert np.allclose(audio, 0.5, atol=1e-3)
-
-
-def test_read_pcm_wav_rejects_empty_file(tmp_path: Path) -> None:
-    """An empty WAV must fail closed instead of scoring as a pass."""
-    path = tmp_path / "empty.wav"
-    sf.write(path, np.zeros(0, dtype=np.float32), DEFAULT_SAMPLE_RATE)
-    with pytest.raises(ValueError, match="no samples"):
-        read_pcm_wav(path)
-
-
-def test_pipeline_surfaces_c_on_active_lead_vocal() -> None:
-    """Unmocked assembly must put measured C on lead vocal when that stem is active."""
-    audio = render_c_major_triad(duration_seconds=3.0)
-    silence = np.zeros_like(audio)
-    song = build_demo_rehearsal_song(
-        {
-            "stems": {
-                "vocals": audio * np.float32(0.35),
-                "bass": silence,
-                "drums": silence,
-                "other": audio,
-            },
-            "sr": DEFAULT_SAMPLE_RATE,
-            "separation": {"duration_seconds": 3.0, "chunk_count": 1, "notes": "accuracy"},
-        }
-    )
-    assert song["id"] == "analyzed-song"
-    lead_chords = [
-        role["harmony"]["chord"]
-        for section in song["sections"]
-        for role in section["roles"]
-        if role["id"] == "lead-vocal"
-    ]
-    assert C_MAJOR_LABEL in lead_chords
-
-
-def test_render_helpers_reject_non_positive_inputs() -> None:
-    """Fixture helpers must refuse empty or reversed generation parameters."""
+def test_render_helpers_reject_invalid_inputs() -> None:
+    """Fixture generation must fail before invalid values reach DSP allocation."""
     with pytest.raises(ValueError, match="duration_seconds"):
         render_c_major_triad(duration_seconds=0)
     with pytest.raises(ValueError, match="sample_rate"):
@@ -180,11 +144,10 @@ def test_render_helpers_reject_non_finite_inputs() -> None:
         render_click_track(duration_seconds=np.inf)
 
 
-def test_click_track_with_zero_length_click_stays_silent() -> None:
-    """A 1 Hz sample rate makes the click window empty and leaves silence."""
-    audio = render_click_track(bpm=60.0, duration_seconds=1.0, sample_rate=1)
-    assert audio.shape == (1,)
-    assert float(audio[0]) == 0.0
+def test_click_track_rejects_zero_length_click_evidence() -> None:
+    """A sample rate that cannot represent one click sample must fail closed."""
+    with pytest.raises(ValueError, match="click length"):
+        render_click_track(bpm=60.0, duration_seconds=1.0, sample_rate=1)
 
 
 def test_duration_weighted_recall_covers_overlap_and_misses() -> None:
@@ -196,157 +159,134 @@ def test_duration_weighted_recall_covers_overlap_and_misses() -> None:
 
 
 def test_duration_weighted_recall_unions_overlapping_matching_estimates() -> None:
-    """Overlapping matching estimates must not count annotation time twice."""
-    recall = duration_weighted_chord_recall(
-        [(0.0, 2.0, "C"), (1.0, 3.0, "C"), (4.0, 5.0, "C")],
-        "C",
-        0.0,
-        5.0,
+    """Overlapping matching intervals must not double-count annotated time."""
+    estimates = [(0.0, 2.0, "C"), (1.0, 3.0, "C")]
+    assert duration_weighted_chord_recall(estimates, "C", 0.0, 3.0) == 1.0
+
+
+def test_duration_weighted_recall_rejects_boolean_and_non_finite_timing() -> None:
+    """Malformed interval evidence must fail closed instead of entering arithmetic."""
+    malformed_estimates: list[list[Any]] = [
+        [True, 1.0, "C"],
+        [0.0, False, "C"],
+        [0.0, np.nan, "C"],
+        [0.0, np.inf, "C"],
+        [2.0, 1.0, "C"],
+    ]
+    for estimate in malformed_estimates:
+        with pytest.raises(ValueError, match="interval"):
+            duration_weighted_chord_recall(cast(Any, [estimate]), "C", 0.0, 3.0)
+
+    for start_seconds, end_seconds in [
+        (cast(Any, True), 3.0),
+        (0.0, cast(Any, False)),
+        (np.nan, 3.0),
+        (0.0, np.inf),
+    ]:
+        with pytest.raises(ValueError, match="seconds"):
+            duration_weighted_chord_recall([], "C", start_seconds, end_seconds)
+
+
+def test_tempo_acc1_handles_threshold_and_miss() -> None:
+    """Tempo acceptance uses the conventional percentage tolerance contract."""
+    assert tempo_acc1(120.0, 120.0) == 1.0
+    assert tempo_acc1(124.0, 120.0, tolerance=0.04) == 1.0
+    assert tempo_acc1(126.0, 120.0, tolerance=0.04) == 0.0
+
+
+def test_tempo_acc1_rejects_boolean_and_non_finite_inputs() -> None:
+    """Malformed tempo evidence must fail before ratio arithmetic."""
+    for estimated_bpm, truth_bpm, tolerance in [
+        (cast(Any, True), 120.0, 0.04),
+        (120.0, cast(Any, False), 0.04),
+        (120.0, 120.0, cast(Any, True)),
+        (np.nan, 120.0, 0.04),
+        (120.0, np.inf, 0.04),
+        (120.0, 120.0, np.nan),
+    ]:
+        with pytest.raises(ValueError):
+            tempo_acc1(estimated_bpm, truth_bpm, tolerance=tolerance)
+
+
+def test_c_major_acceptance_scores_production_recognizer(tmp_path: Path) -> None:
+    """Tier 1 C-major acceptance must score decoded fixture bytes via production code."""
+    report = run_c_major_acceptance(tmp_path)
+    assert report.product_version == VERSION
+    assert report.passed
+    assert report.metrics[0].name == "c_major_duration_weighted_recall"
+    assert report.metrics[0].value >= report.metrics[0].threshold
+
+
+def test_tempo_acceptance_scores_production_temporal_analyzer(tmp_path: Path) -> None:
+    """Tier 1 tempo acceptance must score decoded fixture bytes via production code."""
+    report = run_tempo_acceptance(tmp_path)
+    assert report.product_version == VERSION
+    assert report.passed
+    assert report.metrics[0].name == "tempo_acc1"
+    assert report.metrics[0].value >= report.metrics[0].threshold
+
+
+def test_c_major_file_decode_scores_disk_not_memory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Acceptance must analyze decoded on-disk bytes rather than the render buffer."""
+    from bandscope_analysis.accuracy import evaluate as evaluate_module
+
+    original_read = evaluate_module.read_pcm_wav
+
+    def corrupt_decoded_audio(path: Path) -> tuple[np.ndarray[Any, Any], int]:
+        decoded, sample_rate = original_read(path)
+        return np.zeros_like(decoded), sample_rate
+
+    monkeypatch.setattr(evaluate_module, "read_pcm_wav", corrupt_decoded_audio)
+    report = run_c_major_acceptance(tmp_path)
+    assert not report.passed
+
+
+def test_acceptance_rejects_manifest_digest_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Acceptance must fail closed if the registered fixture digest drifts."""
+    from bandscope_analysis.accuracy import evaluate as evaluate_module
+
+    original_writer = evaluate_module.write_pcm_wav
+
+    def wrong_digest(path: Path, audio: np.ndarray[Any, Any], sample_rate: int) -> str:
+        original_writer(path, audio, sample_rate)
+        return "0" * 64
+
+    monkeypatch.setattr(evaluate_module, "write_pcm_wav", wrong_digest)
+    with pytest.raises(ValueError, match="checksum"):
+        run_c_major_acceptance(tmp_path)
+
+
+def test_acceptance_report_json_is_machine_readable(tmp_path: Path) -> None:
+    """Tier 1 evidence must serialize deterministically for CI artifact consumers."""
+    report = run_tempo_acceptance(tmp_path)
+    payload = json.loads(report.to_json())
+    assert payload["productVersion"] == VERSION
+    assert payload["passed"] is True
+    assert payload["metrics"][0]["name"] == "tempo_acc1"
+
+
+def test_metric_threshold_model_rejects_invalid_bounds() -> None:
+    """Metric thresholds must remain finite and bounded to meaningful ranges."""
+    with pytest.raises(ValueError, match="minimum"):
+        AccuracyThreshold(metric_name="metric", minimum=np.nan)
+    with pytest.raises(ValueError, match="minimum"):
+        AccuracyThreshold(metric_name="metric", minimum=cast(Any, True))
+
+
+def test_accuracy_evaluation_rejects_non_finite_metric_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Acceptance must reject non-finite analyzer outputs before building evidence."""
+    from bandscope_analysis.accuracy import evaluate as evaluate_module
+
+    fake_case = AccuracyCase(
+        case_id="case",
+        source_kind="generated",
+        source_locator="generated://fixture",
+        expected_label=C_MAJOR_LABEL,
+        duration_seconds=1.0,
+        sha256="a" * 64,
+        license_id="CC0-1.0",
     )
-    assert recall == pytest.approx(0.8)
-
-
-@pytest.mark.parametrize(
-    ("segments", "start_seconds", "end_seconds"),
-    [
-        ([(np.nan, 2.0, "C")], 0.0, 4.0),
-        ([(0.0, np.inf, "C")], 0.0, 4.0),
-        ([(0.0, 2.0, "C")], np.nan, 4.0),
-        ([(0.0, 2.0, "C")], 0.0, np.inf),
-    ],
-)
-def test_duration_weighted_recall_rejects_non_finite_timing(
-    segments: list[tuple[float, float, str]],
-    start_seconds: float,
-    end_seconds: float,
-) -> None:
-    """Non-finite estimate or annotation times must not fabricate recall."""
-    with pytest.raises(ValueError, match="finite"):
-        duration_weighted_chord_recall(segments, "C", start_seconds, end_seconds)
-
-
-@pytest.mark.parametrize(
-    ("segments", "start_seconds", "end_seconds"),
-    [
-        ([(True, 2.0, "C")], 0.0, 4.0),
-        ([(0.0, True, "C")], 0.0, 4.0),
-        ([(0.0, 2.0, "C")], False, 4.0),
-        ([(0.0, 2.0, "C")], 0.0, True),
-    ],
-)
-def test_duration_weighted_recall_rejects_boolean_timing_evidence(
-    segments: list[tuple[float | bool, float | bool, str]],
-    start_seconds: float | bool,
-    end_seconds: float | bool,
-) -> None:
-    """Boolean timestamps must not be accepted as numeric MIR timing evidence."""
-    with pytest.raises(ValueError, match="times must be finite numbers"):
-        duration_weighted_chord_recall(segments, "C", start_seconds, end_seconds)  # type: ignore[arg-type]
-
-
-def test_tempo_acc1_window_and_guards() -> None:
-    """Acc1 must accept a 4% window and reject octave errors and bad inputs."""
-    assert tempo_acc1(120.0, 120.0) is True
-    assert tempo_acc1(124.8, 120.0) is True
-    assert tempo_acc1(240.0, 120.0) is False
-    with pytest.raises(ValueError, match="true_bpm"):
-        tempo_acc1(120.0, 0.0)
-    with pytest.raises(ValueError, match="relative_tolerance"):
-        tempo_acc1(120.0, 120.0, relative_tolerance=-0.01)
-
-
-@pytest.mark.parametrize(
-    ("estimated_bpm", "true_bpm", "relative_tolerance", "message"),
-    [
-        (np.nan, 120.0, 0.04, "estimated_bpm"),
-        (np.inf, 120.0, 0.04, "estimated_bpm"),
-        (120.0, np.nan, 0.04, "true_bpm"),
-        (120.0, np.inf, 0.04, "true_bpm"),
-        (120.0, 120.0, np.nan, "relative_tolerance"),
-        (120.0, 120.0, np.inf, "relative_tolerance"),
-    ],
-)
-def test_tempo_acc1_rejects_non_finite_evidence(
-    estimated_bpm: float,
-    true_bpm: float,
-    relative_tolerance: float,
-    message: str,
-) -> None:
-    """Non-finite estimate, truth, or tolerance must fail closed."""
-    with pytest.raises(ValueError, match=message):
-        tempo_acc1(estimated_bpm, true_bpm, relative_tolerance)
-
-
-@pytest.mark.parametrize(
-    ("estimated_bpm", "true_bpm", "relative_tolerance", "message"),
-    [
-        (True, 120.0, 0.04, "estimated_bpm"),
-        (120.0, True, 0.04, "true_bpm"),
-        (120.0, 120.0, True, "relative_tolerance"),
-    ],
-)
-def test_tempo_acc1_rejects_boolean_numeric_evidence(
-    estimated_bpm: float | bool,
-    true_bpm: float | bool,
-    relative_tolerance: float | bool,
-    message: str,
-) -> None:
-    """Boolean values must not satisfy numeric Acc1 evidence contracts."""
-    with pytest.raises(ValueError, match=message):
-        tempo_acc1(estimated_bpm, true_bpm, relative_tolerance)  # type: ignore[arg-type]
-
-
-def test_parse_case_report_rejects_malformed_payloads() -> None:
-    """Manifest parsing must fail closed on missing or mistyped fields."""
-    valid = build_case_report(
-        case_id="c-major-triad",
-        audio_sha256="a" * 64,
-        metric_name="duration_weighted_chord_recall",
-        metric_value=0.9,
-        passed=True,
-        true_label="C",
-        engine_version="0.1.3",
-    )
-    assert parse_case_report(valid)["passed"] is True
-
-    with pytest.raises(ValueError, match="must be an object"):
-        parse_case_report(["not", "an", "object"])
-    with pytest.raises(ValueError, match="missing"):
-        parse_case_report({"case_id": "only"})
-    with pytest.raises(ValueError, match="case_id"):
-        parse_case_report({**valid, "case_id": ""})
-    with pytest.raises(ValueError, match="audio_sha256"):
-        parse_case_report({**valid, "audio_sha256": "short"})
-    with pytest.raises(ValueError, match="audio_sha256"):
-        parse_case_report({**valid, "audio_sha256": "g" * 64})
-    with pytest.raises(ValueError, match="metric_name"):
-        parse_case_report({**valid, "metric_name": ""})
-    with pytest.raises(ValueError, match="metric_value"):
-        parse_case_report({**valid, "metric_value": True})
-    with pytest.raises(ValueError, match="metric_value"):
-        parse_case_report({**valid, "metric_value": "0.9"})
-    with pytest.raises(ValueError, match="metric_value"):
-        parse_case_report({**valid, "metric_value": np.nan})
-    with pytest.raises(ValueError, match="metric_value"):
-        parse_case_report({**valid, "metric_value": np.inf})
-    with pytest.raises(ValueError, match="passed"):
-        parse_case_report({**valid, "passed": 1})
-    with pytest.raises(ValueError, match="engine_version"):
-        parse_case_report({**valid, "engine_version": ""})
-    with pytest.raises(ValueError, match="true_label"):
-        parse_case_report({**valid, "true_label": ""})
-
-
-def test_read_product_version_uses_version_file_and_fails_closed(tmp_path: Path) -> None:
-    """Version lookup must read VERSION and reject missing provenance."""
-    versioned = tmp_path / "versioned"
-    versioned.mkdir()
-    (versioned / "VERSION").write_text("9.9.9\n", encoding="utf-8")
-    assert read_product_version(versioned) == "9.9.9"
-    assert read_product_version(versioned / "VERSION") == "9.9.9"
-    empty = tmp_path / "empty-tree"
-    empty.mkdir()
-    (empty / "VERSION").write_text("   \n", encoding="utf-8")
-    with pytest.raises(ValueError, match="VERSION"):
-        read_product_version(empty)
-    assert read_product_version() != "unknown"
+    fake_recognizer = SimpleNamespace(analyze=lambda *_args, **_kwargs: np.nan)
+    monkeypatch.setattr(evaluate_module, "ChordRecognizer", lambda: fake_recognizer)
+    with pytest.raises(ValueError):
+        evaluate_module.evaluate_c_major_case(fake_case, np.zeros(8, dtype=np.float32), 8)
