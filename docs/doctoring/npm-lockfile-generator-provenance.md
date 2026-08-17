@@ -11,7 +11,7 @@ The npm version is intentionally not repeated under `engines`. npm serializes `e
 
 Primary CI does **not** regenerate or update `package-lock.json`. It uses Node `22.22.3`, verifies npm `10.9.8`, and validates the committed lock with `npm ci --ignore-scripts --no-audit --no-fund`. The gate then rejects any manifest or lockfile working-tree change. The normal verification job performs the repository's reviewed `npm ci` installation before lint, typecheck, tests, build, and security checks.
 
-The Node runtime support decision remains separate. This change does not raise the public `>=22.13 <23` Node range; a coordinated Node-floor migration is tracked independently.
+The coordinated jsdom 30 migration raises BandScope's Node 22 runtime floor to `>=22.22.2 <23`. This runtime floor and the npm generator identity remain separate contracts: upstream Node `v22.22.2` bundles npm `10.9.7`, while BandScope's reviewed lock generator remains npm `10.9.8`. The exact-minimum compatibility lane therefore installs Node `22.22.2` without npm-cache discovery, explicitly bootstraps npm `10.9.8` before repository dependency consumption, verifies that generator identity, and only then runs the frozen install and full product verification. This preserves the exact runtime floor without weakening lockfile provenance.
 
 ## Why generator provenance still matters
 
@@ -34,6 +34,14 @@ flowchart LR
     S --> C[normal npm ci and repository checks]
 ```
 
+## Minimum-runtime verification
+
+jsdom `30.0.1` declares Node `^22.22.2 || ^24.15.0 || >=26.0.0`. BandScope intentionally remains on the Node 22 line for this migration, so its supported interval is `>=22.22.2 <23`. The dedicated `.github/workflows/node-minimum-compatibility.yml` lane exists to prove the exact lower boundary rather than inferring compatibility from a newer CI patch release.
+
+The first exact-minimum run exposed an ordering defect: `actions/setup-node` with npm caching enabled executes `npm config get cache` during setup. On Node `22.22.2`, that command runs the bundled npm `10.9.7` inside the checked-out BandScope tree, where `devEngines.packageManager` correctly rejects any npm other than `10.9.8`. The repaired lane therefore does not enable setup-node's npm cache before bootstrap. It installs the approved npm in runner-owned temporary context, verifies `10.9.8`, and only then allows npm to consume repository state.
+
+This is not a relaxation of `devEngines`; the failure demonstrated that the gate was working as intended. The correction moves tool bootstrap ahead of the first repository-scoped npm invocation while preserving read-only checkout credentials, exact action pins, frozen dependency consumption, and the full lint/typecheck/test/build/Storybook/Tauri acceptance surface.
+
 ## Security and operational boundary
 
 - CI lock validation must not run `npm install`, `npm update`, `npx`, or another mutable dependency-resolution command.
@@ -41,6 +49,7 @@ flowchart LR
 - Platform-specific root `@esbuild/*` lock records must retain their expected `peer: true` metadata. Missing markers are treated as generator drift, not as an acceptable side effect of an unrelated dependency update.
 - The lock-validation job disables dependency lifecycle scripts. The normal clean install retains the repository's reviewed execution behavior.
 - The exact npm version check occurs before either frozen install; a different bundled or globally installed npm cannot provide acceptance evidence.
+- The exact-minimum Node lane must not invoke repository-scoped npm cache discovery before npm `10.9.8` is bootstrapped.
 - Registry-resolved package records require SRI evidence in the committed lock.
 - Install-shaping flags that affect the dependency tree, such as `legacy-peer-deps` or `install-links`, must be committed in project configuration and applied consistently to generation and `npm ci`.
 - The root `package-lock.json` remains the sole npm workspace lock. Nested workspace locks are prohibited.
@@ -60,6 +69,8 @@ flowchart LR
 7. SRI evidence for every public npm-registry artifact in the root lock; and
 8. preservation of `peer: true` on every root `node_modules/@esbuild/*` platform record.
 
+`services/analysis-engine/tests/test_node_runtime_contract.py` separately verifies the `>=22.22.2 <23` runtime interval, jsdom `30.0.1` manifest/lock alignment, the exact-minimum workflow, npm-before-cache bootstrap ordering, the full compatibility acceptance surface, and absence of the superseded Node floor from canonical runtime/build documentation.
+
 The exact PDF.js and Undici baseline is covered separately by `test_high_security_dependency_baseline.py` and the desktop PDF loader tests.
 
 A dependency update is mergeable only after the updated manifest and complete generated lock are reviewed together and the exact current head passes frozen lock validation, normal install, lint, strict typecheck, measured tests, production build, Rust/Tauri checks, security/supply-chain gates, current review, independent approval, and branch protection without bypass.
@@ -67,6 +78,8 @@ A dependency update is mergeable only after the updated manifest and complete ge
 ## Claim boundary
 
 CI proves that the committed manifest and lock can be consumed as a frozen pair by the approved toolchain, that public-registry lock entries carry integrity evidence, and that the known generator-sensitive `@esbuild/*` peer markers remain present. It does **not** claim that resolving mutable manifest ranges again at a later time will reproduce byte-identical lock metadata. When a dependency update is needed, npm `10.9.8` remains the approved generator and its entire resulting lock diff is review evidence.
+
+The Node-minimum lane proves only the repository's selected Node 22 lower boundary with the approved npm generator and current product checks. It does not broaden BandScope support to Node 24 or 26 merely because upstream jsdom supports those lines.
 
 ## Incident response and rollback
 
@@ -78,7 +91,13 @@ When an update produces unexpected lock churn:
 4. regenerate the complete lock in a dedicated update branch using the reviewed npm version, then review the full diff before relying on it; and
 5. if rollback is necessary, restore the prior manifest and complete lock together, then rerun the entire exact-head gate.
 
+For an exact-minimum runtime failure, preserve the setup-node environment detail, bundled npm identity, first npm invocation, bootstrap command, and exact workflow job log. Do not weaken `devEngines` to accommodate a bundled npm mismatch; repair ordering so the approved generator is authoritative before repository-scoped npm commands execute.
+
 ## References
+
+jsdom contributors. (2026). *jsdom 30.0.1 package manifest* [Source code]. GitHub. https://github.com/jsdom/jsdom/blob/v30.0.1/package.json
+
+Node.js contributors. (2026). *Node.js v22.22.2 bundled npm package manifest* [Source code]. GitHub. https://github.com/nodejs/node/blob/v22.22.2/deps/npm/package.json
 
 npm, Inc. (2026). *npm ci*. npm Docs. https://docs.npmjs.com/cli/v11/commands/npm-ci/
 
