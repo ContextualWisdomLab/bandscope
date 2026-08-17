@@ -98,6 +98,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
+- Do not invent a parallel MIR product. #828 owns the #770 known-stem slice. Tempo Acc2 alone cannot accept rehearsal tempo; cite Schreiber, Urbano, & Müller (2020) for Acc1/Acc2, not Raffel (2014).
 
 ## Safety
 - Do not add network-dependent runtime paths for local analysis.

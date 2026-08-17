@@ -119,7 +119,7 @@ Last updated: 2026-08-10
   ephemeral storage.
 - The finished master proves candidate identity. YouTube-to-master and master-to-vocal global lags
   are composed once before separation; predicted stems are never realigned. Quality requires
-  duration/identity checks, zero-mean SI-SDR improvement over the downloaded mixture, and correct
+  duration/identity checks, zero-mean SI-SDR improvement over the downloaded mixture. SI-SDR remains the primary separation score (Le Roux et al., 2019). This branch does not accept tempo Acc2 alone, and correct
   vocal-stem assignment margin.
 - Deterministic metric/integrity/security contracts run in ordinary CI. Live network/model execution
   is explicit opt-in and cannot be scheduled or made release-blocking until authorization and

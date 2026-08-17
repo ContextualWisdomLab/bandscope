@@ -33,14 +33,25 @@ substitute for tier 1 or proof that tier 2 redistribution rights exist.
 
 | Domain | Required metrics | Interpretation boundary | Current status |
 |---|---|---|---|
-| Source separation | Per-stem SI-SDR/SDR equivalent, improvement over mixture, semantic assignment, mixture consistency, finite output | Energy-ratio metrics do not establish perceptual quality; human listening protocol required for such claims. | Vocal SI-SDRi and assignment implemented on active branch; no passing live score |
-| Harmony | Segment chord symbol recall, duration-weighted WCSR, root/major-minor/seventh mappings, no-chord, boundary error | Vocabulary and time alignment must be reported; one opaque aggregate is insufficient. | Planned |
-| Beat/tempo | Beat precision/recall/F, continuity-aware metrics, tempo Acc1 and Acc2 | Half/double tempo must remain visible; confidence needs calibration. | Planned |
+| Source separation | Le Roux et al. (2019) zero-mean SI-SDR is the primary score; BSSEval-style SDR is supporting only. Report improvement over mixture, semantic assignment, mixture consistency, and finite output. | Energy-ratio metrics do not establish perceptual quality; human listening protocol required for such claims. Acc2-style octave hiding is not a separation metric. | Vocal SI-SDRi and assignment implemented on active branch; no passing live score |
+| Harmony | Odekerken et al. (2021) / MIREX duration-weighted WCSR plus segment chord-symbol recall, root/major-minor/seventh mappings, no-chord, and boundary error | Vocabulary and time alignment must be reported; one opaque aggregate is insufficient. | Planned |
+| Beat | Precision/recall/F-measure at the Chiu et al. (2025) ±70 ms tolerance, plus continuity-aware metrics when available | Do not widen the 70 ms window after a failure. Raffel et al. (2014) MIR_EVAL supplies beat P/R/F, not tempo Acc1/Acc2. | Planned |
+| Tempo | Schreiber, Urbano, & Müller (2020) Acc1 **and** Acc2 | Acc2 alone is forbidden for rehearsal tempo acceptance because octave error hides the count a band will actually play. Raffel et al. (2014) does not define Acc1/Acc2. | Planned |
 | Structure | Boundary P/R/F at strict/relaxed windows, segment-label agreement, order/repetition/pickup preservation | A correct label with materially wrong boundary remains an error. | Planned |
 | Range | Note/semitone endpoint error and exact out-of-range classification | Stem/role identity and octave policy must be registered. | Planned |
 | Rehearsal cues | Entry/dropout/stop/pickup event P/R and timing error | Event tolerance must reflect rehearsal use, not be widened after failure. | Planned |
 | Role overlap | Activity interval IoU or registered equivalent | Aggregate overlap must not hide severe role-specific misses. | Planned |
 | Confidence | Reliability/calibration curve and Brier-style score where probabilistic | Confidence text without probabilistic semantics is not scored as calibrated. | Planned |
+
+
+
+## Metric authority (rehearsal claim rules)
+
+- Le Roux et al. (2019) SI-SDR is the primary source-separation score for this sentinel.
+- Odekerken et al. (2021) and MIREX define duration-weighted WCSR for harmony.
+- Chiu et al. (2025) keep beat F-measure at ±70 ms.
+- Schreiber, Urbano, & Müller (2020) define tempo Acc1 and Acc2; Acc2 alone is forbidden for rehearsal.
+- Raffel et al. (2014) MIR_EVAL does not define Acc1 or Acc2 and must not be cited as their source.
 
 ## Regression and uncertainty policy
 
@@ -135,7 +146,10 @@ not the current head; live success therefore remains absent.
 - Raffel, C., McFee, B., Humphrey, E. J., Salamon, J., Nieto, O., Liang, D., & Ellis, D. P. W.
   (2014). MIR_EVAL: A transparent implementation of common MIR metrics. In *Proceedings of the
   15th International Society for Music Information Retrieval Conference* (pp. 367–372).
-- Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
+- Chiu, C.-Y., Su, A. W.-Y., & Yang, Y.-H. (2025). Cross-modal approaches to beat tracking: A
+  case study on Chopin Mazurkas. *Transactions of the International Society for Music
+  Information Retrieval, 8*(1), 55–69. https://doi.org/10.5334/tismir.238
+- Schreiber, H., Urbano, J., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   *Transactions of the International Society for Music Information Retrieval, 3*(1), 111–125.
   https://doi.org/10.5334/tismir.43
 - Stöter, F.-R., Liutkus, A., & Ito, N. (2018). The 2018 signal separation evaluation campaign.
