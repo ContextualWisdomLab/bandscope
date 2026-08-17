@@ -20,6 +20,14 @@ _CLICK_DURATION_SECONDS = 0.01
 _CLICK_DECAY = 80.0
 
 
+def _fixture_sample_count(duration_seconds: float, sample_rate: int) -> int:
+    """Convert finite fixture timing evidence to a finite integer sample count."""
+    scaled_sample_count = duration_seconds * sample_rate
+    if not np.isfinite(scaled_sample_count):
+        raise ValueError("fixture sample count must be finite")
+    return int(scaled_sample_count)
+
+
 def render_c_major_triad(
     duration_seconds: float = 3.0,
     sample_rate: int = DEFAULT_SAMPLE_RATE,
@@ -34,7 +42,8 @@ def render_c_major_triad(
         Mono float32 samples in ``[-1, 1]``.
 
     Raises:
-        ValueError: If duration or sample rate is Boolean, non-finite, or not positive.
+        ValueError: If duration or sample rate is Boolean, non-finite, or not positive,
+            or if their derived sample count is non-finite.
     """
     if (
         isinstance(duration_seconds, bool)
@@ -45,7 +54,7 @@ def render_c_major_triad(
     if isinstance(sample_rate, bool) or not np.isfinite(sample_rate) or sample_rate <= 0:
         raise ValueError("sample_rate must be a finite positive non-Boolean number")
 
-    sample_count = int(duration_seconds * sample_rate)
+    sample_count = _fixture_sample_count(duration_seconds, sample_rate)
     times = np.arange(sample_count, dtype=np.float32) / np.float32(sample_rate)
     mix = (
         np.sin(2 * np.pi * np.float32(C4_HZ) * times)
@@ -72,7 +81,7 @@ def render_click_track(
 
     Raises:
         ValueError: If tempo, duration, or sample rate is Boolean, non-finite,
-            or not positive.
+            or not positive, or if derived sample-count/beat timing is non-finite.
     """
     if isinstance(bpm, bool) or not np.isfinite(bpm) or bpm <= 0:
         raise ValueError("bpm must be positive, finite, and non-Boolean")
@@ -85,9 +94,12 @@ def render_click_track(
     if isinstance(sample_rate, bool) or not np.isfinite(sample_rate) or sample_rate <= 0:
         raise ValueError("sample_rate must be a finite positive non-Boolean number")
 
-    sample_count = int(duration_seconds * sample_rate)
+    sample_count = _fixture_sample_count(duration_seconds, sample_rate)
     audio = np.zeros(sample_count, dtype=np.float32)
-    interval_seconds = 60.0 / bpm
+    with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
+        interval_seconds = float(np.divide(60.0, bpm))
+    if not np.isfinite(interval_seconds):
+        raise ValueError("bpm must produce a finite beat interval")
     click_length = int(_CLICK_DURATION_SECONDS * sample_rate)
     if click_length > 0:
         click_times = np.arange(click_length, dtype=np.float32) / np.float32(sample_rate)
