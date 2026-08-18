@@ -12,12 +12,13 @@ Security Notes:
   network access, or shell execution.
 - Bounded: work is O(len(chord_segments) * len(boundaries)) with no
   recursion or unbounded allocation.
-- Safe failure: malformed segments are skipped and empty inputs produce
-  empty (per-section) summaries; no exceptions escape the public API.
+- Safe failure: malformed or non-finite timing is skipped and empty inputs
+  produce empty (per-section) summaries; no exceptions escape the public API.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from typing import TypedDict
 
@@ -41,16 +42,23 @@ class SectionHarmony(TypedDict):
     chord_changes: int
 
 
-def _coerce_segment(segment: Mapping[str, object]) -> tuple[float, float, str] | None:
-    """Extract (start, end, chord) from a chord segment mapping.
+def _coerce_segment(segment: object) -> tuple[float, float, str] | None:
+    """Extract ``(start, end, chord)`` from a possible chord-segment mapping.
 
     Args:
-        segment: Mapping with ``start_time``, ``end_time``, and ``chord`` keys.
+        segment: Candidate mapping with ``start_time``, ``end_time``, and
+            ``chord`` keys. Non-mapping values and blank chord labels are
+            malformed entries and are skipped without discarding neighboring
+            valid segments.
 
     Returns:
         A ``(start, end, chord)`` tuple, or ``None`` if the segment is
-        malformed (missing keys, non-numeric times, or non-positive span).
+        malformed, non-finite, unrepresentable, blank-labeled, or has a
+        non-positive span.
     """
+    if not isinstance(segment, Mapping):
+        return None
+
     start_raw = segment.get("start_time")
     end_raw = segment.get("end_time")
     chord_raw = segment.get("chord")
@@ -58,11 +66,14 @@ def _coerce_segment(segment: Mapping[str, object]) -> tuple[float, float, str] |
         return None
     if not isinstance(end_raw, int | float) or isinstance(end_raw, bool):
         return None
-    if not isinstance(chord_raw, str):
+    if not isinstance(chord_raw, str) or not chord_raw.strip():
         return None
-    start = float(start_raw)
-    end = float(end_raw)
-    if end <= start:
+    try:
+        start = float(start_raw)
+        end = float(end_raw)
+    except OverflowError:
+        return None
+    if not math.isfinite(start) or not math.isfinite(end) or end <= start:
         return None
     return (start, end, chord_raw)
 
@@ -76,22 +87,25 @@ def _summarize_one_section(
 
     Args:
         segments: Validated ``(start, end, chord)`` tuples in input order.
-        section_start: Section window start time in seconds.
-        section_end: Section window end time in seconds.
+        section_start: Finite section window start time in seconds.
+        section_end: Finite section window end time in seconds.
 
     Returns:
         A :class:`SectionHarmony` for the window. Segments contribute only
         the portion of their duration that overlaps the window.
     """
     durations: dict[str, float] = {}
-    overlapping_chords: list[str] = []
+    chord_changes = 0
+    previous_chord: str | None = None
 
     for seg_start, seg_end, chord in segments:
         overlap = min(seg_end, section_end) - max(seg_start, section_start)
         if overlap <= 0.0:
             continue
         durations[chord] = durations.get(chord, 0.0) + overlap
-        overlapping_chords.append(chord)
+        if previous_chord is not None and chord != previous_chord:
+            chord_changes += 1
+        previous_chord = chord
 
     chords: list[ChordDuration] = [
         {"chord": chord, "duration": duration}
@@ -103,12 +117,6 @@ def _summarize_one_section(
         if entry["chord"] != _NO_CHORD_LABEL:
             main_chord = entry["chord"]
             break
-
-    chord_changes = sum(
-        1
-        for previous, current in zip(overlapping_chords, overlapping_chords[1:], strict=False)
-        if previous != current
-    )
 
     return {
         "start_time": section_start,
@@ -134,13 +142,16 @@ def summarize_section_harmony(
     Args:
         chord_segments: Chord segments shaped like
             ``{"start_time": float, "end_time": float, "chord": str, ...}``
-            (e.g. ``TrackedChord`` from the chord recognizer). Malformed
+            (e.g. ``TrackedChord`` from the chord recognizer). Malformed,
+            blank-labeled, non-finite, unrepresentable, and non-positive-span
             entries are skipped.
         boundaries: Section windows as ``(start, end)`` pairs in seconds.
+            Windows must use finite, representable, non-Boolean endpoints and
+            have ``end > start``; invalid windows are skipped.
 
     Returns:
-        One :class:`SectionHarmony` per boundary, in boundary order. Empty
-        ``boundaries`` yields ``[]``; empty or fully malformed
+        One :class:`SectionHarmony` per valid boundary, in boundary order.
+        Empty ``boundaries`` yields ``[]``; empty or fully malformed
         ``chord_segments`` yields per-section empty summaries with
         ``main_chord == ""``. Never raises.
     """
@@ -154,9 +165,22 @@ def summarize_section_harmony(
         summaries: list[SectionHarmony] = []
         for boundary in boundaries:
             try:
-                section_start = float(boundary[0])
-                section_end = float(boundary[1])
-            except (IndexError, TypeError, ValueError):
+                section_start_raw = boundary[0]
+                section_end_raw = boundary[1]
+            except (IndexError, TypeError):
+                continue
+            if isinstance(section_start_raw, bool) or isinstance(section_end_raw, bool):
+                continue
+            try:
+                section_start = float(section_start_raw)
+                section_end = float(section_end_raw)
+            except (OverflowError, TypeError, ValueError):
+                continue
+            if (
+                not math.isfinite(section_start)
+                or not math.isfinite(section_end)
+                or section_end <= section_start
+            ):
                 continue
             summaries.append(_summarize_one_section(segments, section_start, section_end))
         return summaries
