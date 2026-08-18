@@ -36,13 +36,15 @@ stem quality, or private-corpus readiness.
   clipping, and each estimate interval must have a strictly increasing
   start/end pair; Boolean, NaN, infinite, empty, or reversed timing is invalid
   acceptance evidence and fails closed instead of being silently ignored or
-  allowed to fabricate covered duration. The decoded C-major evaluator also
-  requires a non-empty, one-dimensional, finite floating-point mono PCM array
-  and a finite positive non-Boolean sample rate before the production recognizer
-  runs. Empty arrays, integer arrays, NaN/infinite samples, malformed
-  multichannel buffers, or invalid rate evidence are rejected rather than
-  coerced or reinterpreted as acceptance input. The metric family is WCSR/CSR
-  (Odekerken et al., 2021; Raffel et al., 2014).
+  allowed to fabricate covered duration. File-backed WAV evaluation accepts an
+  ordinary mono or multichannel WAV and deterministically downmixes decoded
+  multichannel samples to mono before the production recognizer runs. The direct
+  `evaluate_c_major_pcm` boundary is narrower: callers must provide a non-empty,
+  one-dimensional, finite floating-point mono PCM array and a finite positive
+  non-Boolean sample rate. Unresolved multichannel arrays passed directly,
+  integer arrays, NaN/infinite samples, or invalid rate evidence are rejected
+  rather than coerced at that direct evaluator boundary. The metric family is
+  WCSR/CSR (Odekerken et al., 2021; Raffel et al., 2014).
 - `click-120-bpm`: eight seconds of 120 BPM clicks decoded by
   `TemporalAnalyzer`. Pass when estimated tempo satisfies Acc1 at 4%
   (Schreiber & Müller, 2020). Acc1 does not credit half-time or double-time.
@@ -111,24 +113,26 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   definitions, true labels, metric definitions, registered floors, and the
   repository product `VERSION`.
 - Mitigations: no network, no shell, checksum fail-closed before C-major
-  decode and before tempo scoring, non-empty finite floating-point
-  one-dimensional mono PCM admission before C-major recognition, finite positive
-  non-Boolean decoded sample-rate evidence, overlap-safe chord duration, finite
-  non-Boolean annotation/estimate timing, strictly increasing estimate
-  intervals, finite non-Boolean tempo metric inputs, finite positive non-Boolean
-  fixture duration/BPM/sample-rate inputs, finite derived fixture sample count,
-  beat interval, and click-pulse width with a one-sample minimum, strict SHA-256
-  syntax, finite-only report metric values including overflow rejection, exact
-  non-empty product-version provenance, bounded fixture durations, and no
-  copyrighted commercial recordings. Fixture paths are pytest temp files;
-  reports store SHA-256 and labels, not waveform bytes.
-- Test points: deterministic digest, C major recall after file decode,
-  decoded-PCM empty/non-floating/non-finite/non-mono rejection and invalid
-  sample-rate rejection, overlapping matching intervals do not double-count
-  annotation duration, non-finite and Boolean chord annotation/estimate timing
-  rejection, empty/reversed estimate interval rejection, silence-on-disk vs
-  in-memory triad, 120 BPM Acc1, non-finite and Boolean tempo estimate / truth /
-  tolerance rejection, non-finite and Boolean fixture generation/WAV sample-rate
+  decode and before tempo scoring, deterministic file-decoder downmix for
+  ordinary multichannel WAV input, non-empty finite floating-point
+  one-dimensional mono PCM admission at the direct C-major evaluator boundary,
+  finite positive non-Boolean decoded sample-rate evidence, overlap-safe chord
+  duration, finite non-Boolean annotation/estimate timing, strictly increasing
+  estimate intervals, finite non-Boolean tempo metric inputs, finite positive
+  non-Boolean fixture duration/BPM/sample-rate inputs, finite derived fixture
+  sample count, beat interval, and click-pulse width with a one-sample minimum,
+  strict SHA-256 syntax, finite-only report metric values including overflow
+  rejection, exact non-empty product-version provenance, bounded fixture
+  durations, and no copyrighted commercial recordings. Fixture paths are pytest
+  temp files; reports store SHA-256 and labels, not waveform bytes.
+- Test points: deterministic digest, C major recall after file decode, ordinary
+  stereo WAV downmix at the file-decoder boundary, direct decoded-PCM
+  empty/non-floating/non-finite/non-mono rejection and invalid sample-rate
+  rejection, overlapping matching intervals do not double-count annotation
+  duration, non-finite and Boolean chord annotation/estimate timing rejection,
+  empty/reversed estimate interval rejection, silence-on-disk vs in-memory
+  triad, 120 BPM Acc1, non-finite and Boolean tempo estimate / truth / tolerance
+  rejection, non-finite and Boolean fixture generation/WAV sample-rate
   rejection, derived sample-count overflow and zero-sample rejection, beat-
   interval overflow and sub-one-sample rejection, sub-one-sample click-pulse
   rejection, checksum mismatch through both file evaluators, malformed/non-hex
