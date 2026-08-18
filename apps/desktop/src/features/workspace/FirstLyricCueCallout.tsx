@@ -11,6 +11,14 @@ export interface FirstLyricCueCalloutProps {
 
 type LyricCueCopyValues = Readonly<Record<"role" | "section" | "start" | "lyric", string>>;
 
+type HeardLyricCue = Readonly<{
+  songId: string;
+  sectionId: string;
+  roleId: string;
+  startSeconds: number;
+  lyric: string;
+}>;
+
 /** Interpolate lyric-cue placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatLyricCueCopy(template: string, values: LyricCueCopyValues): string {
   return template.replace(/\{(role|section|start|lyric)\}/g, (placeholder) => {
@@ -23,7 +31,7 @@ function formatLyricCueCopy(template: string, values: LyricCueCopyValues): strin
 export function FirstLyricCueCallout({ song }: FirstLyricCueCalloutProps) {
   const t = createTranslator(detectPreferredLocale());
   const cue = resolveFirstLyricCue(song);
-  const [heard, setHeard] = useState(false);
+  const [heardCue, setHeardCue] = useState<HeardLyricCue | null>(null);
 
   if (!cue) {
     return (
@@ -38,6 +46,12 @@ export function FirstLyricCueCallout({ song }: FirstLyricCueCalloutProps) {
     );
   }
 
+  const heard =
+    heardCue?.songId === song.id &&
+    heardCue.sectionId === cue.section.id &&
+    heardCue.roleId === cue.role.id &&
+    heardCue.startSeconds === cue.startSeconds &&
+    heardCue.lyric === cue.lyric;
   const start = formatLyricCueTime(cue.startSeconds);
   const copyValues: LyricCueCopyValues = {
     role: cue.role.name,
@@ -61,7 +75,13 @@ export function FirstLyricCueCallout({ song }: FirstLyricCueCalloutProps) {
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-violet-400 to-cyan-400 font-black text-slate-950"
         onClick={() => {
-          setHeard(true);
+          setHeardCue({
+            songId: song.id,
+            sectionId: cue.section.id,
+            roleId: cue.role.id,
+            startSeconds: cue.startSeconds,
+            lyric: cue.lyric
+          });
           const target = document.getElementById(`song-structure-section-${cue.section.id}`);
           target?.scrollIntoView?.({
             block: "nearest",
