@@ -34,15 +34,15 @@ export function ConfidenceBadge({ level, size = "compact" }: ConfidenceBadgeProp
       break;
   }
 
-  const sizeClass =
+  const heightClass =
     size === "default"
-      ? "h-[var(--bandscope-confidence-default-height)] px-2 py-0 text-xs"
-      : "h-[var(--bandscope-confidence-compact-height)] px-1.5 py-0 text-[0.65rem]";
+      ? "h-[var(--bandscope-confidence-default-height)]"
+      : "h-[var(--bandscope-confidence-compact-height)]";
 
   return (
     <Badge
       variant="outline"
-      className={`${sizeClass} font-bold uppercase tracking-wider ${colorClass}`}
+      className={`${heightClass} px-1.5 py-0 text-[0.65rem] font-bold uppercase tracking-wider ${colorClass}`}
       title={label}
     >
       {label}
