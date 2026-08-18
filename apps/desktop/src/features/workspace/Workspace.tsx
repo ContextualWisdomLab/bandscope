@@ -58,6 +58,11 @@ function nonBlankText(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/** Remove terminal sentence punctuation before embedding a cue in a larger sentence. */
+function sentenceFragment(value: string): string {
+  return value.replace(/[.!?。！？]+$/u, "").trimEnd();
+}
+
 /** Fill rehearsal copy with named placeholders. */
 function fillCopy(template: string, values: Record<string, string>): string {
   return Object.entries(values).reduce(
@@ -214,6 +219,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleRangeLow = nonBlankText(activeRoleDetails?.range.lowestNote);
   const roleRangeHigh = nonBlankText(activeRoleDetails?.range.highestNote);
   const setupCue = roleSetupCue(activeRoleDetails);
+  const setupSentenceCue = setupCue ? sentenceFragment(setupCue) : "";
   const canArmTonightSetup = Boolean(setupCue);
 
   /** Handle the practice progress change internally by immutably updating the song state. */
@@ -300,16 +306,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           role: roleName,
           pitch: firstNote.pitch,
           start: formatTimelineTime(firstNote.onset),
-          setup: setupCue
+          setup: setupSentenceCue
         })
       : roleRangeLow && roleRangeHigh
         ? fillCopy(t("workspaceSetupAriaWithRange"), {
             role: roleName,
             low: roleRangeLow,
             high: roleRangeHigh,
-            setup: setupCue
+            setup: setupSentenceCue
           })
-        : fillCopy(t("workspaceSetupAria"), { role: roleName, setup: setupCue });
+        : fillCopy(t("workspaceSetupAria"), { role: roleName, setup: setupSentenceCue });
   const setupStatus = !setupCue
     ? t("workspaceSetupUnavailable")
     : firstNote
@@ -317,16 +323,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           role: roleName,
           pitch: firstNote.pitch,
           start: formatTimelineTime(firstNote.onset),
-          setup: setupCue
+          setup: setupSentenceCue
         })
       : roleRangeLow && roleRangeHigh
         ? fillCopy(t("workspaceSetupArmedWithRange"), {
             role: roleName,
             low: roleRangeLow,
             high: roleRangeHigh,
-            setup: setupCue
+            setup: setupSentenceCue
           })
-        : fillCopy(t("workspaceSetupArmed"), { role: roleName, setup: setupCue });
+        : fillCopy(t("workspaceSetupArmed"), { role: roleName, setup: setupSentenceCue });
 
   /** Arm tonight's setup and move focus to the setup card. */
   const armTonightSetup = (): void => {
@@ -565,6 +571,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     <p className="mt-2 text-sm leading-6 text-slate-200">
                       {setupCue ?? roleTranspositionPlan}
                     </p>
+                    {roleTranspositionPlan && roleTranspositionPlan !== setupCue ? (
+                      <p className="mt-2 text-sm leading-6 text-slate-300">{roleTranspositionPlan}</p>
+                    ) : null}
                   </div>
                 </div>
                 {song.collaboration && (
