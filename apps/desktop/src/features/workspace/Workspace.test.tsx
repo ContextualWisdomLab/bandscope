@@ -283,7 +283,23 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Loop verse from 0:10 to 0:30" }));
 
     expect(screen.getByText("Tonight's loop is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
-    expect(document.activeElement?.id).toBe("workspace-section-verse-1");
+    expect(document.activeElement?.id).toBe("workspace-section-card-0");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("focuses the selected renderer position even when analysis section ids are duplicated", () => {
+    const song = createDemoRehearsalSong();
+    const firstSectionId = song.sections[0]!.id;
+    song.sections[1]!.id = firstSectionId;
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+
+    const loopButtons = screen.getAllByRole("button", { name: /Loop .* from .* to .*/ });
+    fireEvent.click(loopButtons[1]!);
+
+    expect(document.activeElement?.id).toBe("workspace-section-card-1");
     expect(scrollIntoView).toHaveBeenCalled();
   });
 
@@ -301,7 +317,7 @@ describe("Workspace", () => {
     fireEvent.click(loopButton);
 
     expect(screen.getByText("Tonight's loop is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
-    expect(document.activeElement?.id).toBe("workspace-section-verse-1");
+    expect(document.activeElement?.id).toBe("workspace-section-card-0");
     expect(screen.getByRole("button", { name: "Isolation is not ready. Loop tonight's section on the map." })).toBeTruthy();
   });
 
