@@ -15,7 +15,7 @@ describe("FirstLyricCueCallout", () => {
     expect(screen.getByText(/Start on Lead Vocal in the verse at “city lights” \(0:10\)/)).toBeTruthy();
   });
 
-  it("shows fresh guidance when the first lyric cue changes", () => {
+  it("shows fresh guidance when the first lyric cue changes or returns later", () => {
     const initialSong = createDemoRehearsalSong();
     const { rerender } = render(<FirstLyricCueCallout song={initialSong} />);
 
@@ -30,8 +30,10 @@ describe("FirstLyricCueCallout", () => {
     replacementSong.id = "demo-song-replacement";
     replacementSong.sections[0]!.roles[2]!.cue.value = "hold on";
     rerender(<FirstLyricCueCallout song={replacementSong} />);
-
     expect(screen.getByText("Lead Vocal enters the verse on “hold on” at 0:10.")).toBeTruthy();
+
+    rerender(<FirstLyricCueCallout song={initialSong} />);
+    expect(screen.getByText("Lead Vocal enters the verse on “city lights” at 0:10.")).toBeTruthy();
   });
 
   it("keeps placeholder-looking rehearsal data literal", () => {
