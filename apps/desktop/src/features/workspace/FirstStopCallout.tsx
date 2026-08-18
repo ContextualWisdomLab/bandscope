@@ -92,7 +92,16 @@ export function FirstStopCallout({
   );
   const body = formatStopCopy(t(hasRole ? "firstStopBody" : "firstStopBodyBand"), copyValues);
   const armed = formatStopCopy(t(hasRole ? "firstStopArmed" : "firstStopArmedBand"), copyValues);
-  const canExecuteAction = actionMode === "workspace-scroll" || onHearStop !== undefined;
+  const canExecuteAction = actionMode === "workspace-scroll" || typeof onHearStop === "function";
+  const markStopActionComplete = () => {
+    setHeardStop({
+      songId: song.id,
+      sectionId: stop.section.id,
+      sectionIndex: stopSectionIndex,
+      holdingRoleId: stop.holdingRole?.id ?? null,
+      atSeconds: stop.atSeconds
+    });
+  };
 
   return (
     <aside
@@ -107,23 +116,24 @@ export function FirstStopCallout({
           type="button"
           className="mt-3 min-h-11 bg-gradient-to-r from-rose-300 to-amber-300 font-black text-slate-950"
           onClick={() => {
-            setHeardStop({
-              songId: song.id,
-              sectionId: stop.section.id,
-              sectionIndex: stopSectionIndex,
-              holdingRoleId: stop.holdingRole?.id ?? null,
-              atSeconds: stop.atSeconds
-            });
             if (actionMode === "callback-only") {
-              onHearStop?.(stop.atSeconds);
+              if (typeof onHearStop !== "function") {
+                return;
+              }
+              onHearStop(stop.atSeconds);
+              markStopActionComplete();
               return;
             }
             const grid = document.querySelector('[data-testid="song-structure-grid"]');
             const target = stopSectionIndex >= 0 ? grid?.children.item(stopSectionIndex) : null;
-            target?.scrollIntoView?.({
+            if (typeof target?.scrollIntoView !== "function") {
+              return;
+            }
+            target.scrollIntoView({
               block: "nearest",
               behavior: preferredStopScrollBehavior()
             });
+            markStopActionComplete();
           }}
         >
           {actionLabel}
