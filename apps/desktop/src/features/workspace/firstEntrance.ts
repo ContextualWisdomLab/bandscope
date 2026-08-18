@@ -25,7 +25,7 @@ export function resolveFirstEntrance(song: RehearsalSong): FirstEntrance | null 
     .filter((section) => Number.isFinite(section.timeRange.start) && section.timeRange.start >= 0)
     .map((section) => {
       const activeRoleIds = new Set(
-        section.partGraph.filter((node) => node.is_active).map((node) => node.role_id)
+        section.partGraph.filter((node) => node.is_active === true).map((node) => node.role_id)
       );
       return {
         section,
