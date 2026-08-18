@@ -2,12 +2,15 @@ import type { ConfidenceLevel } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Badge } from "@/components/ui/badge";
 
+export type ConfidenceBadgeSize = "compact" | "default";
+
 interface ConfidenceBadgeProps {
   level: ConfidenceLevel;
+  size?: ConfidenceBadgeSize;
 }
 
-/** Render a localized confidence state with the rehearsal workspace confidence tokens. */
-export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
+/** Render a localized confidence state using the Figma-backed workspace confidence variants. */
+export function ConfidenceBadge({ level, size = "compact" }: ConfidenceBadgeProps) {
   const t = createTranslator(detectPreferredLocale());
 
   let label = "";
@@ -31,10 +34,15 @@ export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
       break;
   }
 
+  const sizeClass =
+    size === "default"
+      ? "h-[var(--bandscope-confidence-default-height)] px-2 py-0 text-xs"
+      : "h-[var(--bandscope-confidence-compact-height)] px-1.5 py-0 text-[0.65rem]";
+
   return (
     <Badge
       variant="outline"
-      className={`px-1.5 py-0 h-5 text-[0.65rem] font-bold uppercase tracking-wider ${colorClass}`}
+      className={`${sizeClass} font-bold uppercase tracking-wider ${colorClass}`}
       title={label}
     >
       {label}
