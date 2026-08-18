@@ -30,6 +30,14 @@ function formatEntranceCopy(template: string, values: EntranceCopyValues): strin
   });
 }
 
+/** Use immediate scrolling when the operating system requests reduced motion. */
+function preferredEntranceScrollBehavior(): ScrollBehavior {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
+}
+
 /** Name tonight's first entrance and offer only an action that the current surface can execute. */
 export function FirstEntranceCallout({
   song,
@@ -116,7 +124,7 @@ export function FirstEntranceCallout({
             const target = entranceSectionIndex >= 0 ? grid?.children.item(entranceSectionIndex) : null;
             target?.scrollIntoView?.({
               block: "nearest",
-              behavior: "smooth"
+              behavior: preferredEntranceScrollBehavior()
             });
           }}
         >
