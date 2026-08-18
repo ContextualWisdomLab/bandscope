@@ -25,12 +25,21 @@ export function resolveFirstEntrance(song: RehearsalSong): FirstEntrance | null 
     .filter((section) => Number.isFinite(section.timeRange.start) && section.timeRange.start >= 0)
     .map((section) => {
       const activeRoleIds = new Set(
-        section.partGraph.filter((node) => node.is_active === true).map((node) => node.role_id)
+        section.partGraph
+          .filter(
+            (node) =>
+              node.is_active === true &&
+              typeof node.role_id === "string" &&
+              node.role_id.trim().length > 0
+          )
+          .map((node) => node.role_id)
       );
       return {
         section,
         roles: section.roles.filter(
           (role) =>
+            typeof role.id === "string" &&
+            role.id.trim().length > 0 &&
             activeRoleIds.has(role.id) &&
             Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
         )
