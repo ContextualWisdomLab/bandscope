@@ -43,4 +43,32 @@ describe("resolveFirstStopHandoff runtime role identity", () => {
     expect(() => resolveFirstStopHandoff(song)).not.toThrow();
     expect(resolveFirstStopHandoff(song)?.holdingRole?.id).toBe("safe-vocal");
   });
+
+  it("does not surface a malformed runtime role name as the holding part", () => {
+    const song = createDemoRehearsalSong();
+    const section = structuredClone(song.sections[0]!);
+    section.id = "stop-1";
+    section.label = "stop";
+    section.timeRange = { start: 18, end: 19 };
+    section.roles = [
+      {
+        ...section.roles[0]!,
+        id: "malformed-name",
+        name: { unsafe: "object" } as unknown as string,
+        rehearsalPriority: "high"
+      }
+    ];
+    section.partGraph = [
+      {
+        role_id: "malformed-name",
+        is_active: true,
+        handoff_to: [],
+        handoff_from: []
+      }
+    ];
+    song.sections = [section];
+
+    expect(() => resolveFirstStopHandoff(song)).not.toThrow();
+    expect(resolveFirstStopHandoff(song)?.holdingRole).toBeNull();
+  });
 });
