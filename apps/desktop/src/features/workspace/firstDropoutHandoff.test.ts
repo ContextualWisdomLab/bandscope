@@ -142,6 +142,34 @@ describe("resolveFirstDropoutHandoff", () => {
     expect(resolveFirstDropoutHandoff(song)).toBeNull();
   });
 
+  it("fails closed when a section contains duplicate role identities", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    const duplicateLead = structuredClone(
+      verse.roles.find((role) => role.id === "lead-vocal")!
+    );
+    duplicateLead.name = "Shadow Lead";
+    verse.roles = [...verse.roles, duplicateLead];
+
+    expect(resolveFirstDropoutHandoff(song)).toBeNull();
+  });
+
+  it("fails closed when a section contains duplicate graph-node identities", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    verse.partGraph = [
+      ...verse.partGraph,
+      {
+        role_id: "lead-vocal",
+        is_active: false,
+        handoff_to: [],
+        handoff_from: []
+      }
+    ];
+
+    expect(resolveFirstDropoutHandoff(song)).toBeNull();
+  });
+
   it("accepts a reciprocal receiver that is inactive until the next section", () => {
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
