@@ -20,9 +20,13 @@ export function formatPickupTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
-/** Return true when the role carries a ranked rehearsal priority. */
+/** Return true when the role has a safe runtime identity and ranked rehearsal priority. */
 function hasRankedPriority(role: RehearsalRole): boolean {
-  return Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority);
+  return (
+    typeof role.id === "string" &&
+    role.id.trim().length > 0 &&
+    Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
+  );
 }
 
 /** Require an active outgoing graph node to authorize a handoff source. */
