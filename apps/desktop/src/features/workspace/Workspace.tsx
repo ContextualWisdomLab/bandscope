@@ -91,8 +91,8 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} id={`song-structure-section-${section.id}`} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
+          {sections.map((section, sectionIndex) => (
+            <div key={`${section.id}-${sectionIndex}`} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
               <p className="text-sm font-black text-white">
                 {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
               </p>
