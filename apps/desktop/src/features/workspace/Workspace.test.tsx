@@ -330,7 +330,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     const setupButton = screen.getByRole("button", { name: "No setup cue yet. Stay on tonight's map." });
-    expect(setupButton.getAttribute("aria-disabled")).toBe("true");
+    expect(setupButton).toBeDisabled();
     fireEvent.click(setupButton);
     expect(screen.queryByRole("status")).toBeNull();
   });
