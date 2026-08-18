@@ -81,13 +81,21 @@ function firstTranscriptionNote(notes: RehearsalRole["transcription"]): Transcri
   return earliest;
 }
 
+/** Use immediate scrolling when the operating system requests reduced motion. */
+function preferredGrooveScrollBehavior(): ScrollBehavior {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
+}
+
 /** Scroll and focus the groove map that already holds tonight's notes. */
 function focusGrooveMap(): void {
   const node = document.getElementById("workspace-groove-map");
   if (!(node instanceof HTMLElement)) {
     return;
   }
-  node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  node.scrollIntoView({ behavior: preferredGrooveScrollBehavior(), block: "nearest" });
   node.focus();
 }
 
