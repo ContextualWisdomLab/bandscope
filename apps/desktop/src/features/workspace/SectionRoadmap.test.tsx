@@ -48,6 +48,21 @@ describe("SectionRoadmap", () => {
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps placeholder-looking rehearsal data literal in chord-edit labels", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    song.sections[0]!.roles[0]!.name = "{sectionLabel}";
+
+    render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Edit chord for {sectionLabel} in verse, current C#m7"
+      })
+    ).toBeTruthy();
+  });
+
   it("does not update when the trimmed chord is unchanged", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
