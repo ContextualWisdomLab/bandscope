@@ -60,6 +60,27 @@ describe("Workspace review regressions", () => {
     expect(setupButton).toBeEnabled();
   });
 
+  it("keeps placeholder-looking role names literal in setup copy", () => {
+    const song = createDemoRehearsalSong();
+    const roleId = song.sections[0]!.roles[0]!.id;
+    replaceRole(song, roleId, (role) => ({
+      ...role,
+      name: "{low}",
+      setupNote: "Tune down a whole step.",
+      transcription: undefined,
+      range: {
+        ...role.range,
+        lowestNote: "C#2",
+        highestNote: "E3"
+      }
+    }));
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "{low}" }));
+
+    expect(screen.getByRole("button", { name: "Set up {low} · then start in C#2–E3" })).toBeEnabled();
+  });
+
   it("natively disables setup when a cue has neither an entrance nor a playable range", () => {
     const song = createDemoRehearsalSong();
     const roleId = song.sections[0]!.roles[0]!.id;
