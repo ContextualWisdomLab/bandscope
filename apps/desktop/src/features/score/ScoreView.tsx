@@ -198,7 +198,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                       aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
                       aria-current={selected?.id === attachment.id ? "true" : undefined}
                       aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
-                      title={!projectId ? t("scoreNavDisabledHint") : undefined}
+                      title={
+                        !projectId
+                          ? t("scoreNavDisabledHint")
+                          : `${t("scoreOpen")}: ${attachment.fileName}`
+                      }
                       className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                     >
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
