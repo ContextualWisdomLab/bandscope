@@ -26,7 +26,7 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 | Console Panel | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=18-632 | `apps/desktop/src/components/ui/card.tsx` | Use `Card`, `CardHeader`, `CardTitle`, and `CardContent`; `size="sm"` is the compact state. |
 | BandScope Mark | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-163 | `apps/desktop/src/App.tsx` | Feature-local `BandScopeMark()` currently has no props; Figma size variants are visual guidance only. |
 | Metric Card | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-216 | `apps/desktop/src/App.tsx` | Feature-local `MetricCard({ icon, label, value, detail, accent? })`. Metrics follow source controls on mobile. |
-| Confidence Badge | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-239 | `apps/desktop/src/features/workspace/ConfidenceBadge.tsx` | Use `level: ConfidenceLevel`; no `score` or `label` prop exists in current code. |
+| Confidence Badge | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-239 | `apps/desktop/src/features/workspace/ConfidenceBadge.tsx` | Use `level: ConfidenceLevel` plus optional `size="compact" | "default"`; the compact size remains the backward-compatible default. No `score` or `label` prop exists. |
 | Overlap Warning List | extracted from Section Roadmap + Ranges | `apps/desktop/src/features/workspace/OverlapWarningList.tsx` | Shared clash list for Roadmap and Ranges; pass `warnings: string[]`. |
 | Rehearsal Callout | workspace next-action pattern | `apps/desktop/src/features/workspace/RehearsalCallout.tsx` | First practice action after analysis; keep a visible button. |
 | Status Pill | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-283 | `apps/desktop/src/features/workspace/Workspace.tsx` | Design pattern only. Current code uses `formatStatusLabel(status)` inside local badge-like markup. |
@@ -59,8 +59,11 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 ### Badge And Confidence
 
 - Use `Badge` for general metadata and `ConfidenceBadge` for confidence status.
+- Figma node `19:239` has six variants: `Level=Low|Medium|High` crossed with `Size=Compact|Default`.
 - Use `ConfidenceBadge` with `level` from shared types only: `low`, `medium`, `high`.
-- Do not pass `score` or `label` to `ConfidenceBadge`; those props do not exist in the current runtime component.
+- Omit `size` to preserve the existing compact rendering; pass `size="default"` when the 26 px Figma state is required. Compact and default heights are workspace tokens corresponding to the 22 px and 26 px Figma variants at the default root font size.
+- Do not pass `score` or `label` to `ConfidenceBadge`; those props do not exist in the runtime component.
+- Storybook must retain both size states for every confidence level so design review can compare the complete Figma variant matrix.
 - Keep badges short enough to avoid wrapping inside dense cards.
 
 ### Tabs
