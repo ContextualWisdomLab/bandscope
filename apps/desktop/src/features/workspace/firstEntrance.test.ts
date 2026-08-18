@@ -90,17 +90,25 @@ describe("resolveFirstEntrance", () => {
             id: `role-${index}`,
             rehearsalPriority: priority
           }));
+          const partGraph = roles.map((role) => ({
+            role_id: role.id,
+            is_active: true,
+            handoff_to: [],
+            handoff_from: []
+          }));
           const firstSection = {
             ...originalSection,
             id: "first-generated-section",
             timeRange: { start: firstStart, end: firstStart + 1 },
-            roles
+            roles,
+            partGraph
           };
           const secondSection = {
             ...originalSection,
             id: "second-generated-section",
             timeRange: { start: secondStart, end: secondStart + 1 },
-            roles
+            roles,
+            partGraph
           };
           song.sections = [firstSection, secondSection];
 
