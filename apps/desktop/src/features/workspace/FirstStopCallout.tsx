@@ -93,6 +93,7 @@ export function FirstStopCallout({
   const body = formatStopCopy(t(hasRole ? "firstStopBody" : "firstStopBodyBand"), copyValues);
   const armed = formatStopCopy(t(hasRole ? "firstStopArmed" : "firstStopArmedBand"), copyValues);
   const canExecuteAction = actionMode === "workspace-scroll" || typeof onHearStop === "function";
+  /** Record completion only after the owning surface has executed the selected stop action. */
   const markStopActionComplete = () => {
     setHeardStop({
       songId: song.id,
