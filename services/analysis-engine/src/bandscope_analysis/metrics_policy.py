@@ -11,9 +11,11 @@ from collections.abc import Iterable
 
 PRIMARY_SEPARATION_METRIC = "si_sdr"
 PRIMARY_HARMONY_METRIC = "wcsr"
+PRIMARY_BEAT_METRIC = "f_measure"
+REQUIRED_TEMPO_METRICS = ("acc1", "acc2")
 REHEARSAL_ONSET_TOLERANCE_SECONDS = 0.070
 RAFFEL_MIR_EVAL_TEMPO_METRICS = frozenset({"p_score", "alotc"})
-MIREX_TEMPO_METRICS = frozenset({"acc1", "acc2"})
+MIREX_TEMPO_METRICS = frozenset(REQUIRED_TEMPO_METRICS)
 FORBIDDEN_SOLO_REHEARSAL_METRICS = frozenset({"acc2"})
 
 
@@ -41,6 +43,11 @@ def rehearsal_onset_tolerance_seconds() -> float:
     return REHEARSAL_ONSET_TOLERANCE_SECONDS
 
 
+def required_tempo_metrics() -> tuple[str, str]:
+    """Return the Schreiber, Urbano, and Müller (2020) Acc1+Acc2 pair."""
+    return REQUIRED_TEMPO_METRICS
+
+
 def validate_rehearsal_metric_set(metrics: Iterable[str]) -> tuple[str, ...]:
     """Admit a rehearsal metric set or raise ``ValueError``.
 
@@ -58,6 +65,20 @@ def validate_rehearsal_metric_set(metrics: Iterable[str]) -> tuple[str, ...]:
     return normalized
 
 
+def validate_tempo_metric_set(metrics: Iterable[str]) -> tuple[str, ...]:
+    """Admit a tempo set only when Acc1 and Acc2 are both present.
+
+    Raffel et al. (2014) P-score/ALOTC cannot stand in for Acc1/Acc2.
+    """
+    admitted = validate_rehearsal_metric_set(metrics)
+    unique = frozenset(admitted)
+    if unique & RAFFEL_MIR_EVAL_TEMPO_METRICS and not unique >= frozenset(REQUIRED_TEMPO_METRICS):
+        raise ValueError("Raffel 2014 does not define Acc1 or Acc2")
+    if not unique >= frozenset(REQUIRED_TEMPO_METRICS):
+        raise ValueError("tempo acceptance requires Acc1 and Acc2")
+    return admitted
+
+
 def primary_metric_for_domain(domain: str) -> str:
     """Return the primary admitted metric for a registered accuracy domain."""
     key = normalize_metric_name(domain)
@@ -65,4 +86,8 @@ def primary_metric_for_domain(domain: str) -> str:
         return PRIMARY_SEPARATION_METRIC
     if key in {"harmony", "chords", "chord"}:
         return PRIMARY_HARMONY_METRIC
+    if key in {"beat", "onset", "onsets"}:
+        return PRIMARY_BEAT_METRIC
+    if key == "tempo":
+        raise ValueError("tempo requires Acc1 and Acc2; Acc2 alone is forbidden")
     raise ValueError(f"no primary rehearsal metric is registered for {domain!r}")

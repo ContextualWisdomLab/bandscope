@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Lock rehearsal metric authority: Le Roux SI-SDR primary, Odekerken/MIREX WCSR, Chiu 2025 ±70 ms beat F-measure, Schreiber/Urbano/Müller Acc1+Acc2 with Acc2-alone forbidden, and Raffel 2014 not cited as an Acc1/Acc2 source.
+- Lock rehearsal metric authority: Le Roux SI-SDR primary, Odekerken/MIREX WCSR, Chiu 2025 ±70 ms beat F-measure, Schreiber/Urbano/Müller Acc1+Acc2 with Acc2-alone forbidden, and Raffel 2014 not cited as an Acc1/Acc2 source. Tempo has no single primary metric; beat/onset admits F-measure only inside the 70 ms window.
 
 ### Added
 

@@ -5,13 +5,16 @@ from __future__ import annotations
 import pytest
 
 from bandscope_analysis.metrics_policy import (
+    PRIMARY_BEAT_METRIC,
     PRIMARY_HARMONY_METRIC,
     PRIMARY_SEPARATION_METRIC,
     is_mirex_tempo_accuracy,
     is_raffel_tempo_metric,
     primary_metric_for_domain,
     rehearsal_onset_tolerance_seconds,
+    required_tempo_metrics,
     validate_rehearsal_metric_set,
+    validate_tempo_metric_set,
 )
 
 
@@ -66,6 +69,38 @@ def test_odekerken_wcsr_is_primary_harmony_metric() -> None:
     assert PRIMARY_HARMONY_METRIC == "wcsr"
     assert primary_metric_for_domain("chords") == "wcsr"
     assert primary_metric_for_domain("chord") == "wcsr"
+
+
+def test_chiu_f_measure_is_primary_beat_metric() -> None:
+    """Beat/onset gates use F-measure inside the Chiu ±70 ms window."""
+    assert primary_metric_for_domain("beat") == PRIMARY_BEAT_METRIC
+    assert PRIMARY_BEAT_METRIC == "f_measure"
+    assert primary_metric_for_domain("onset") == "f_measure"
+    assert primary_metric_for_domain("onsets") == "f_measure"
+
+
+def test_tempo_has_no_single_primary_metric() -> None:
+    """Tempo cannot collapse to Acc2 or any other single score."""
+    with pytest.raises(ValueError, match="tempo requires Acc1 and Acc2"):
+        primary_metric_for_domain("tempo")
+    assert required_tempo_metrics() == ("acc1", "acc2")
+
+
+def test_tempo_set_requires_acc1_and_acc2() -> None:
+    """Schreiber/Urbano/Müller tempo admission is the Acc1+Acc2 pair."""
+    assert validate_tempo_metric_set(["acc1", "acc2"]) == ("acc1", "acc2")
+    with pytest.raises(ValueError, match="tempo acceptance requires Acc1 and Acc2"):
+        validate_tempo_metric_set(["acc1"])
+    with pytest.raises(ValueError, match="Acc2 alone is forbidden"):
+        validate_tempo_metric_set(["acc2"])
+
+
+def test_raffel_scores_cannot_replace_acc1_acc2() -> None:
+    """Raffel P-score/ALOTC are not a rehearsal tempo pair."""
+    with pytest.raises(ValueError, match="Raffel 2014 does not define Acc1 or Acc2"):
+        validate_tempo_metric_set(["p-score"])
+    with pytest.raises(ValueError, match="Raffel 2014 does not define Acc1 or Acc2"):
+        validate_tempo_metric_set(["p_score", "alotc"])
 
 
 def test_unknown_domain_has_no_invented_primary_metric() -> None:

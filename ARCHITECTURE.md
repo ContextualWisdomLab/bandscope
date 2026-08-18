@@ -119,7 +119,11 @@ Last updated: 2026-08-10
   ephemeral storage.
 - The finished master proves candidate identity. YouTube-to-master and master-to-vocal global lags
   are composed once before separation; predicted stems are never realigned. Quality requires
-  duration/identity checks, zero-mean SI-SDR improvement over the downloaded mixture. SI-SDR remains the primary separation score (Le Roux et al., 2019). This branch does not accept tempo Acc2 alone, and correct
+  duration/identity checks, zero-mean SI-SDR improvement over the downloaded mixture. SI-SDR remains
+  the primary separation score (Le Roux et al., 2019). Harmony uses Odekerken/MIREX WCSR. Beat/onset
+  F-measure stays inside Chiu et al. (2025) ±70 ms. Tempo requires Schreiber, Urbano, & Müller
+  (2020) Acc1 and Acc2 together; Acc2 alone is forbidden, and Raffel (2014) is not an Acc1/Acc2
+  source. This branch also requires correct
   vocal-stem assignment margin.
 - Deterministic metric/integrity/security contracts run in ordinary CI. Live network/model execution
   is explicit opt-in and cannot be scheduled or made release-blocking until authorization and
