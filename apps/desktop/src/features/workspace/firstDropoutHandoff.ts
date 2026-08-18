@@ -25,18 +25,7 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   return Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority);
 }
 
-/** Find the first role with this id anywhere in the song. */
-function findRoleById(song: RehearsalSong, roleId: string): RehearsalRole | null {
-  for (const section of song.sections) {
-    const role = section.roles.find((candidate) => candidate.id === roleId);
-    if (role) {
-      return role;
-    }
-  }
-  return null;
-}
-
-/** Return the first validated dropout the room should hear, or null when no safe candidate remains. */
+/** Return the first validated section-local dropout, or null when no safe candidate remains. */
 export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHandoff | null {
   const sections = song.sections
     .filter(
@@ -65,7 +54,7 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
 
       const targets = node.handoff_to
         .filter((roleId): roleId is string => typeof roleId === "string" && roleId.trim().length > 0)
-        .map((roleId) => findRoleById(song, roleId))
+        .map((roleId) => rolesInSection.get(roleId) ?? null)
         .filter(
           (role): role is RehearsalRole =>
             role !== null && hasRankedPriority(role) && role.id !== fromRole.id
