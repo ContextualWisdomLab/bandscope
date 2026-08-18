@@ -19,25 +19,29 @@ export function formatEntranceTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
-/** Return the first section/role the room should hear, or null when the map is empty. */
+/** Return the first validated section/role the room should hear, or null when no safe candidate remains. */
 export function resolveFirstEntrance(song: RehearsalSong): FirstEntrance | null {
-  const section = [...song.sections]
-    .filter((candidate) => candidate.roles.length > 0)
-    .sort((left, right) => left.timeRange.start - right.timeRange.start)[0];
-  if (!section) {
+  const candidate = song.sections
+    .filter((section) => Number.isFinite(section.timeRange.start) && section.timeRange.start >= 0)
+    .map((section) => ({
+      section,
+      roles: section.roles.filter((role) =>
+        Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
+      )
+    }))
+    .filter(({ roles }) => roles.length > 0)
+    .sort((left, right) => left.section.timeRange.start - right.section.timeRange.start)[0];
+  if (!candidate) {
     return null;
   }
 
-  const role = [...section.roles].sort(
+  const role = [...candidate.roles].sort(
     (left, right) => PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority]
-  )[0];
-  if (!role) {
-    return null;
-  }
+  )[0]!;
 
   return {
-    section,
+    section: candidate.section,
     role,
-    startSeconds: section.timeRange.start
+    startSeconds: candidate.section.timeRange.start
   };
 }
