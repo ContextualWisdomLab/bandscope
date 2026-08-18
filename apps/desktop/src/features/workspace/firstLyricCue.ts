@@ -38,6 +38,8 @@ export function resolveFirstLyricCue(song: RehearsalSong): FirstLyricCue | null 
   for (const section of sections) {
     const lyricRoles = section.roles.filter(
       (role) =>
+        typeof role.id === "string" &&
+        role.id.trim().length > 0 &&
         Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority) &&
         lyricText(role) !== null
     );
