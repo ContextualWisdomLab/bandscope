@@ -72,6 +72,17 @@ describe("Workspace", () => {
     expect(grid.style.gridTemplateColumns).toContain("repeat(1");
   });
 
+  it("keeps analysis section ids out of song-structure DOM authority", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.id = "analysis section / duplicate";
+
+    render(<Workspace song={song} />);
+
+    const firstRenderedSection = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(firstRenderedSection).toBeTruthy();
+    expect(firstRenderedSection?.hasAttribute("id")).toBe(false);
+  });
+
   it("falls back to safe timeline text for malformed section times", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -271,19 +282,14 @@ describe("Workspace", () => {
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
 
-  it("names tonight's first lyric cue so the singer can hear it", () => {
+  it("names tonight's first lyric cue as workspace navigation", () => {
     render(<Workspace song={createDemoRehearsalSong()} />);
 
-    expect(
-      screen.getByRole("button", {
-        name: "Hear Lead Vocal enter on “city lights” in the verse at 0:10"
-      })
-    ).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Hear Lead Vocal enter on “city lights” in the verse at 0:10"
-      })
-    );
+    const action = screen.getByRole("button", {
+      name: "Open Lead Vocal lyric cue “city lights” in the verse at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
     expect(screen.getByText(/Start on Lead Vocal in the verse at “city lights” \(0:10\)/)).toBeTruthy();
   });
 });
