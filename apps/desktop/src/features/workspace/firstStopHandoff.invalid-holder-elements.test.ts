@@ -14,18 +14,22 @@ function songWithStop() {
 
 describe("resolveFirstStopHandoff runtime holder elements", () => {
   it("keeps the cut band-wide when runtime roles contain a non-object element", () => {
-    const { song, stop } = songWithStop();
-    stop.roles = [null] as unknown as typeof stop.roles;
+    for (const malformedRole of [null, 42]) {
+      const { song, stop } = songWithStop();
+      stop.roles = [malformedRole] as unknown as typeof stop.roles;
 
-    expect(() => resolveFirstStopHandoff(song)).not.toThrow();
-    expect(resolveFirstStopHandoff(song)?.holdingRole).toBeNull();
+      expect(() => resolveFirstStopHandoff(song)).not.toThrow();
+      expect(resolveFirstStopHandoff(song)?.holdingRole).toBeNull();
+    }
   });
 
   it("keeps the cut band-wide when runtime partGraph contains a non-object element", () => {
-    const { song, stop } = songWithStop();
-    stop.partGraph = [null] as unknown as typeof stop.partGraph;
+    for (const malformedNode of [null, 42]) {
+      const { song, stop } = songWithStop();
+      stop.partGraph = [malformedNode] as unknown as typeof stop.partGraph;
 
-    expect(() => resolveFirstStopHandoff(song)).not.toThrow();
-    expect(resolveFirstStopHandoff(song)?.holdingRole).toBeNull();
+      expect(() => resolveFirstStopHandoff(song)).not.toThrow();
+      expect(resolveFirstStopHandoff(song)?.holdingRole).toBeNull();
+    }
   });
 });
