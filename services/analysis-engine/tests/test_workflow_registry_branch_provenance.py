@@ -1,12 +1,12 @@
-"""Regressions for workflow identities that originate outside protected develop."""
+"""Regressions for workflow identities originating outside protected develop."""
 
 from __future__ import annotations
 
 from conftest import load_module
 
 
-def test_active_off_default_workflow_fails_closed_without_branch_provenance() -> None:
-    """A live workflow absent from develop is not proof that its source was deleted."""
+def test_off_default_workflow_without_branch_provenance_is_unresolved() -> None:
+    """An active workflow absent from develop has unproven branch provenance."""
     audit_module = load_module(
         "scripts/checks/audit_workflow_registry.py",
         "audit_workflow_registry_branch_provenance_test",
