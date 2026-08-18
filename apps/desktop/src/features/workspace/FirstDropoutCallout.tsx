@@ -101,8 +101,8 @@ export function FirstDropoutCallout({
               toRoleId: handoff.toRole.id,
               endSeconds: handoff.endSeconds
             });
-            if (onHearDropout) {
-              onHearDropout(handoff.endSeconds);
+            if (actionMode === "callback-only") {
+              onHearDropout?.(handoff.endSeconds);
               return;
             }
             const grid = document.querySelector('[data-testid="song-structure-grid"]');
