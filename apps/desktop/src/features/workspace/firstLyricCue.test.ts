@@ -75,4 +75,38 @@ describe("resolveFirstLyricCue", () => {
 
     expect(resolveFirstLyricCue(song)?.role.id).toBe("lead-vocal");
   });
+
+  it("skips non-finite section starts and unknown role priorities", () => {
+    const song = createDemoRehearsalSong();
+    const invalidSection = structuredClone(song.sections[0]!);
+    invalidSection.id = "invalid-start";
+    invalidSection.timeRange = { start: Number.NaN, end: 20 };
+
+    const validSection = structuredClone(song.sections[0]!);
+    validSection.id = "valid-chorus";
+    validSection.label = "chorus";
+    validSection.timeRange = { start: 20, end: 50 };
+    const invalidPriorityRole = {
+      ...validSection.roles[2]!,
+      id: "invalid-priority",
+      cue: { kind: "lyric" as const, value: "ignore me" }
+    };
+    (invalidPriorityRole as unknown as { rehearsalPriority: string }).rehearsalPriority = "urgent";
+    validSection.roles = [
+      invalidPriorityRole,
+      {
+        ...validSection.roles[2]!,
+        id: "safe-lead",
+        rehearsalPriority: "high",
+        cue: { kind: "lyric", value: "safe lyric" }
+      }
+    ];
+
+    song.sections = [invalidSection, validSection];
+
+    const cue = resolveFirstLyricCue(song);
+    expect(cue?.section.id).toBe("valid-chorus");
+    expect(cue?.role.id).toBe("safe-lead");
+    expect(cue?.lyric).toBe("safe lyric");
+  });
 });
