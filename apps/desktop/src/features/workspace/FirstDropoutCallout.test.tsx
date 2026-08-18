@@ -34,6 +34,29 @@ describe("FirstDropoutCallout", () => {
     grid.remove();
   });
 
+  it("keeps workspace-scroll authoritative even when a playback callback is also supplied", () => {
+    const { grid, scrollIntoView } = appendSongStructureTarget();
+    const onHearDropout = vi.fn();
+
+    render(
+      <FirstDropoutCallout
+        song={createDemoRehearsalSong()}
+        actionMode="workspace-scroll"
+        onHearDropout={onHearDropout}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Bass Guitar dropout for Lead Vocal at 0:30"
+      })
+    );
+    expect(onHearDropout).not.toHaveBeenCalled();
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+
+    grid.remove();
+  });
+
   it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.id = "analysis section / duplicate";
