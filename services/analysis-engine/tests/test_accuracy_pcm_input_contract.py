@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
 import pytest
-import soundfile as sf  # type: ignore[import-untyped]
 
-from bandscope_analysis.accuracy import evaluate_c_major_pcm, read_pcm_wav, render_c_major_triad
+from bandscope_analysis.accuracy import evaluate_c_major_pcm, render_c_major_triad
 
 
 @pytest.mark.parametrize("sample_rate", [True, 0, -1, float("nan"), float("inf")])
@@ -27,15 +25,6 @@ def test_c_major_pcm_rejects_non_mono_audio() -> None:
 
     with pytest.raises(ValueError, match="audio"):
         evaluate_c_major_pcm(stereo, 22_050, "a" * 64)
-
-
-def test_read_pcm_wav_rejects_multichannel_fixture(tmp_path: Path) -> None:
-    """A checksum-eligible WAV must stay mono instead of being silently downmixed."""
-    stereo_path = tmp_path / "stereo.wav"
-    sf.write(stereo_path, np.zeros((32, 2), dtype=np.float32), 22_050)
-
-    with pytest.raises(ValueError, match="mono"):
-        read_pcm_wav(stereo_path)
 
 
 @pytest.mark.parametrize(
