@@ -15,6 +15,19 @@ describe("FirstLyricCueCallout", () => {
     expect(screen.getByText(/Start on Lead Vocal in the verse at “city lights” \(0:10\)/)).toBeTruthy();
   });
 
+  it("keeps placeholder-looking rehearsal data literal", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[2]!.name = "{section}";
+
+    render(<FirstLyricCueCallout song={song} />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Hear {section} enter on “city lights” in the verse at 0:10"
+      })
+    ).toBeTruthy();
+  });
+
   it("tells the room to stay on the map when no lyric exists", () => {
     const song = createDemoRehearsalSong();
     song.sections = [];
