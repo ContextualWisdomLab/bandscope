@@ -32,7 +32,6 @@ describe("Workspace", () => {
 
   it("updates practice progress immutably through onSongUpdate", () => {
     const song = createDemoRehearsalSong();
-    // Default mock setup puts "bass-guitar" as the role ID in index 0
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
       id: "bass-guitar",
@@ -42,21 +41,13 @@ describe("Workspace", () => {
     const onSongUpdate = vi.fn();
 
     render(<Workspace song={song} onSongUpdate={onSongUpdate} />);
-
-    // Select the Bass Guitar role to render PracticeProgress
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
-
-    const increaseBtn = screen.getByRole("button", { name: "Increase progress" });
-    fireEvent.click(increaseBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Increase progress" }));
 
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
     const updatedSong = onSongUpdate.mock.calls[0]?.[0] as RehearsalSong;
-
-    // Ensure immutable update logic: reference equality of untouched sections
     expect(updatedSong).not.toBe(song);
     expect(updatedSong.sections).not.toBe(song.sections);
-
-    // Ensure the specific role progress updated
     expect(updatedSong.sections[0]!.roles[0]!.practiceProgress).toBe(60);
   });
 
@@ -67,9 +58,19 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const grid = screen.getByTestId("song-structure-grid");
-
     expect(grid.style.gridTemplateColumns).not.toContain("repeat(0");
     expect(grid.style.gridTemplateColumns).toContain("repeat(1");
+  });
+
+  it("keeps analysis section ids out of song-structure DOM authority", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.id = "analysis section / duplicate";
+
+    render(<Workspace song={song} />);
+
+    const firstRenderedSection = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(firstRenderedSection).toBeTruthy();
+    expect(firstRenderedSection?.hasAttribute("id")).toBe(false);
   });
 
   it("falls back to safe timeline text for malformed section times", () => {
@@ -81,7 +82,6 @@ describe("Workspace", () => {
     };
 
     render(<Workspace song={song} />);
-
     expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
@@ -271,19 +271,14 @@ describe("Workspace", () => {
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
 
-  it("names tonight's first dropout so the outgoing part can get out of the way", () => {
+  it("names tonight's first dropout as workspace navigation", () => {
     render(<Workspace song={createDemoRehearsalSong()} />);
 
-    expect(
-      screen.getByRole("button", {
-        name: "Hear Bass Guitar drop out for Lead Vocal at 0:30"
-      })
-    ).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Hear Bass Guitar drop out for Lead Vocal at 0:30"
-      })
-    );
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar dropout for Lead Vocal at 0:30"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
     expect(screen.getByText(/Start the last bar of Bass Guitar before Lead Vocal takes the verse \(0:30\)/)).toBeTruthy();
   });
 });
