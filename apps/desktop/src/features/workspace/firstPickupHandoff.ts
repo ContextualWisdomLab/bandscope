@@ -34,7 +34,7 @@ function hasActiveOutgoingHandoff(
   return section.partGraph.some(
     (candidate) =>
       candidate.role_id === fromRoleId &&
-      candidate.is_active &&
+      candidate.is_active === true &&
       Array.isArray(candidate.handoff_to) &&
       candidate.handoff_to.includes(toRoleId)
   );
@@ -54,7 +54,7 @@ function hasReciprocalHandoff(section: RehearsalSection, fromRoleId: string, toR
 function rankedRolesInSection(section: RehearsalSection, requireActive: boolean): RehearsalRole[] {
   const rolesInSection = new Map(section.roles.map((role) => [role.id, role]));
   const activeIds = new Set(
-    section.partGraph.filter((node) => node.is_active).map((node) => node.role_id)
+    section.partGraph.filter((node) => node.is_active === true).map((node) => node.role_id)
   );
 
   return section.roles.filter((role) => {
@@ -153,7 +153,11 @@ export function resolveFirstPickupHandoff(song: RehearsalSong): FirstPickupHando
     const rolesInSection = new Map(section.roles.map((role) => [role.id, role]));
 
     for (const node of section.partGraph) {
-      if (!node.is_active || !Array.isArray(node.handoff_to) || node.handoff_to.length === 0) {
+      if (
+        node.is_active !== true ||
+        !Array.isArray(node.handoff_to) ||
+        node.handoff_to.length === 0
+      ) {
         continue;
       }
 
