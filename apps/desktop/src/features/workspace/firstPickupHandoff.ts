@@ -25,6 +25,21 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   return Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority);
 }
 
+/** Require an active outgoing graph node to authorize a handoff source. */
+function hasActiveOutgoingHandoff(
+  section: RehearsalSection,
+  fromRoleId: string,
+  toRoleId: string
+): boolean {
+  return section.partGraph.some(
+    (candidate) =>
+      candidate.role_id === fromRoleId &&
+      candidate.is_active &&
+      Array.isArray(candidate.handoff_to) &&
+      candidate.handoff_to.includes(toRoleId)
+  );
+}
+
 /** Require the receiving graph node to corroborate the outgoing edge. */
 function hasReciprocalHandoff(section: RehearsalSection, fromRoleId: string, toRoleId: string): boolean {
   return section.partGraph.some(
@@ -79,6 +94,7 @@ function resolveIncomingPartner(section: RehearsalSection, toRole: RehearsalRole
         role !== null &&
         hasRankedPriority(role) &&
         role.id !== toRole.id &&
+        hasActiveOutgoingHandoff(section, role.id, toRole.id) &&
         hasReciprocalHandoff(section, role.id, toRole.id)
     );
 
