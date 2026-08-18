@@ -2,7 +2,6 @@
 
 from bandscope_analysis.chords.section_harmony import summarize_section_harmony
 
-
 _HUGE_INTEGER = 10**10_000
 
 
