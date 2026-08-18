@@ -30,10 +30,7 @@ describe("ScoreView enabled action tooltips", () => {
 
     render(<ScoreView song={song} projectId="project-1-2" onSongUpdate={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toHaveAttribute(
-      "title",
-      "Open score: opener.pdf"
-    );
+    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toHaveAttribute("title", "Open score: opener.pdf");
     expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toHaveAttribute(
       "title",
       "Remove: opener.pdf"
