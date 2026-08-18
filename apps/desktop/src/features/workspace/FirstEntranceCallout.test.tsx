@@ -1,16 +1,28 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FirstEntranceCallout } from "./FirstEntranceCallout";
 
 describe("FirstEntranceCallout", () => {
-  it("names the first hearable entrance and arms that action", () => {
+  it("names the first hearable entrance, scrolls to its section, and arms that action", () => {
+    const target = document.createElement("div");
+    target.id = "song-structure-section-verse-1";
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+    document.body.appendChild(target);
+
     render(<FirstEntranceCallout song={createDemoRehearsalSong()} />);
 
     const action = screen.getByRole("button", { name: "Hear Bass Guitar enter the verse at 0:10" });
     expect(action).toBeTruthy();
     fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Start on Bass Guitar in the verse at 0:10/)).toBeTruthy();
+
+    target.remove();
   });
 
   it("shows fresh guidance when the song changes", () => {
@@ -24,6 +36,22 @@ describe("FirstEntranceCallout", () => {
     replacementSong.id = "demo-song-replacement";
     rerender(<FirstEntranceCallout song={replacementSong} />);
 
+    expect(screen.getByText(/^Bass Guitar enters the verse at 0:10\./)).toBeTruthy();
+  });
+
+  it("forgets an armed entrance after switching away and back", () => {
+    const firstSong = createDemoRehearsalSong();
+    const secondSong = createDemoRehearsalSong();
+    secondSong.id = "demo-song-second";
+    const { rerender } = render(<FirstEntranceCallout song={firstSong} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hear Bass Guitar enter the verse at 0:10" }));
+    expect(screen.getByText(/Start on Bass Guitar in the verse at 0:10/)).toBeTruthy();
+
+    rerender(<FirstEntranceCallout song={secondSong} />);
+    expect(screen.getByText(/^Bass Guitar enters the verse at 0:10\./)).toBeTruthy();
+
+    rerender(<FirstEntranceCallout song={firstSong} />);
     expect(screen.getByText(/^Bass Guitar enters the verse at 0:10\./)).toBeTruthy();
   });
 
