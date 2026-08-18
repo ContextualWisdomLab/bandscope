@@ -20,6 +20,7 @@ export function formatLyricCueTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+/** Return a trimmed lyric cue only when the role carries non-blank lyric evidence. */
 function lyricText(role: RehearsalRole): string | null {
   if (role.cue.kind !== "lyric") {
     return null;
