@@ -151,6 +151,7 @@
   "increasePracticeProgressLabel": "Increase progress",
   "firstDropoutLabel": "Tonight's first dropout",
   "firstDropoutAction": "Hear {from} drop out for {to} at {end}",
+  "firstDropoutOpenAction": "Open {from} dropout for {to} at {end}",
   "firstDropoutBody": "{from} hands off to {to} at the end of the {section} ({end}).",
   "firstDropoutArmed": "Start the last bar of {from} before {to} takes the {section} ({end}).",
   "firstDropoutUnavailable": "No dropout yet. Stay on tonight's map until a part hands off.",
