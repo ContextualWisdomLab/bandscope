@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
@@ -13,6 +14,11 @@ function replaceRole(song: ReturnType<typeof createDemoRehearsalSong>, roleId: s
 }
 
 describe("Workspace review regressions", () => {
+  it("keeps copy interpolation free of dynamically constructed regular expressions", () => {
+    const source = readFileSync(new URL("./Workspace.tsx", import.meta.url), "utf8");
+    expect(source).not.toContain("new RegExp(");
+  });
+
   it("labels a non-bass groove map by role, keeps keyboard focus visible, and emits one entrance anchor", () => {
     render(
       <GrooveMap
