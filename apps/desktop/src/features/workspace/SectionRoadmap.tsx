@@ -11,11 +11,11 @@ interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
   onSongUpdate?: (song: RehearsalSong) => void;
-  loopedSectionId?: string | null;
+  loopedSectionIndex?: number | null;
 }
 
 /** Documented. */
-export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionId = null }: SectionRoadmapProps) {
+export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIndex = null }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
@@ -104,13 +104,13 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionId
         tabIndex={0}
         aria-labelledby={sectionRoadmapTitleId}
       >
-        {song.sections.map((section) => (
+        {song.sections.map((section, sectionIndex) => (
           <Card
-            key={section.id}
-            id={`workspace-section-${section.id}`}
+            key={`${section.id}-${sectionIndex}`}
+            id={`workspace-section-card-${sectionIndex}`}
             tabIndex={-1}
             className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-              loopedSectionId === section.id
+              loopedSectionIndex === sectionIndex
                 ? "border-cyan-300/50 bg-cyan-950/40 ring-2 ring-cyan-300/70"
                 : section.confidence.level === "low"
                   ? "border-rose-300/30 bg-rose-950/30"
