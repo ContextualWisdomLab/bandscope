@@ -151,6 +151,7 @@
   "increasePracticeProgressLabel": "Increase progress",
   "firstEntranceLabel": "Tonight's first entrance",
   "firstEntranceAction": "Hear {role} enter the {section} at {start}",
+  "firstEntranceOpenAction": "Open {role} entrance in the {section} at {start}",
   "firstEntranceBody": "{role} enters the {section} at {start}. {cue}",
   "firstEntranceArmed": "Start on {role} in the {section} at {start}. {cue}",
   "firstEntranceUnavailable": "No first entrance yet. Stay on tonight's map until a section has a part.",
