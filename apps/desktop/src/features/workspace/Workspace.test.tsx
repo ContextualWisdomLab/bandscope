@@ -120,7 +120,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const grooveMap = screen.getByRole("region", { name: /bass transcription groove map/i });
+    const grooveMap = screen.getByRole("region", { name: /bass guitar transcription groove map/i });
     expect(grooveMap.className).toContain("bg-slate-950");
     expect(screen.getByText("E2")).toBeTruthy();
     expect(screen.getByText("G2")).toBeTruthy();
