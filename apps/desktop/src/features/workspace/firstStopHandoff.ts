@@ -19,6 +19,11 @@ export function formatStopTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+/** Return whether an untrusted runtime value can be inspected as an object. */
+function isRuntimeObject(value: unknown): value is object {
+  return value !== null && typeof value === "object";
+}
+
 /** Return true when the role has a safe runtime identity and ranked rehearsal priority. */
 function hasRankedPriority(role: RehearsalRole): boolean {
   return (
@@ -78,10 +83,14 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
   }
 
   const safeRoleIds = section.roles
-    .filter((role) => typeof role.id === "string" && role.id.trim().length > 0)
+    .filter(
+      (role) => isRuntimeObject(role) && typeof role.id === "string" && role.id.trim().length > 0
+    )
     .map((role) => role.id);
   const safeGraphRoleIds = section.partGraph
-    .filter((node) => typeof node.role_id === "string" && node.role_id.trim().length > 0)
+    .filter(
+      (node) => isRuntimeObject(node) && typeof node.role_id === "string" && node.role_id.trim().length > 0
+    )
     .map((node) => node.role_id);
   const repeatedRoleIds = repeatedIds(safeRoleIds);
   const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
@@ -89,6 +98,7 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
     section.partGraph
       .filter(
         (node) =>
+          isRuntimeObject(node) &&
           node.is_active === true &&
           typeof node.role_id === "string" &&
           node.role_id.trim().length > 0 &&
@@ -99,7 +109,10 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 
   return section.roles.filter(
     (role) =>
-      hasRankedPriority(role) && !repeatedRoleIds.has(role.id) && activeIds.has(role.id)
+      isRuntimeObject(role) &&
+      hasRankedPriority(role) &&
+      !repeatedRoleIds.has(role.id) &&
+      activeIds.has(role.id)
   );
 }
 
