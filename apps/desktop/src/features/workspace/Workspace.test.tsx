@@ -270,4 +270,20 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first lyric cue so the singer can hear it", () => {
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Hear Lead Vocal enter on “city lights” in the verse at 0:10"
+      })
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hear Lead Vocal enter on “city lights” in the verse at 0:10"
+      })
+    );
+    expect(screen.getByText(/Start on Lead Vocal in the verse at “city lights” \(0:10\)/)).toBeTruthy();
+  });
 });

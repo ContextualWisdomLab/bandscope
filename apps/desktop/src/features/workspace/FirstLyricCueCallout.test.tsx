@@ -1,0 +1,26 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { describe, expect, it } from "vitest";
+import { FirstLyricCueCallout } from "./FirstLyricCueCallout";
+
+describe("FirstLyricCueCallout", () => {
+  it("names the first lyric cue and arms that action", () => {
+    render(<FirstLyricCueCallout song={createDemoRehearsalSong()} />);
+
+    const action = screen.getByRole("button", {
+      name: "Hear Lead Vocal enter on “city lights” in the verse at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(screen.getByText(/Start on Lead Vocal in the verse at “city lights” \(0:10\)/)).toBeTruthy();
+  });
+
+  it("tells the room to stay on the map when no lyric exists", () => {
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    render(<FirstLyricCueCallout song={song} />);
+    expect(
+      screen.getByText("No lyric cue yet. Stay on tonight's map until a part has words to hear.")
+    ).toBeTruthy();
+  });
+});

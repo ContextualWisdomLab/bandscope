@@ -148,5 +148,11 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstLyricCueLabel": "Tonight's first lyric cue",
+  "firstLyricCueAction": "Hear {role} enter on “{lyric}” in the {section} at {start}",
+  "firstLyricCueBody": "{role} enters the {section} on “{lyric}” at {start}.",
+  "firstLyricCueArmed": "Start on {role} in the {section} at “{lyric}” ({start}).",
+  "firstLyricCueUnavailable": "No lyric cue yet. Stay on tonight's map until a part has words to hear.",
+  "firstLyricCueNeedsSong": "Analyze tonight's song first, then hear the first lyric cue from this player."
 }
