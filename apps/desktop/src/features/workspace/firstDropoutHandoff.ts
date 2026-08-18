@@ -25,6 +25,16 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   return Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority);
 }
 
+/** Require the receiving graph node to corroborate the outgoing edge. */
+function hasReciprocalHandoff(section: RehearsalSection, fromRoleId: string, toRoleId: string): boolean {
+  return section.partGraph.some(
+    (candidate) =>
+      candidate.role_id === toRoleId &&
+      Array.isArray(candidate.handoff_from) &&
+      candidate.handoff_from.includes(fromRoleId)
+  );
+}
+
 /** Return the first validated section-local dropout, or null when no safe candidate remains. */
 export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHandoff | null {
   const sections = song.sections
@@ -57,7 +67,10 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
         .map((roleId) => rolesInSection.get(roleId) ?? null)
         .filter(
           (role): role is RehearsalRole =>
-            role !== null && hasRankedPriority(role) && role.id !== fromRole.id
+            role !== null &&
+            hasRankedPriority(role) &&
+            role.id !== fromRole.id &&
+            hasReciprocalHandoff(section, fromRole.id, role.id)
         );
 
       if (targets.length === 0) {
