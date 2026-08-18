@@ -6,7 +6,7 @@ import { FirstLyricCueCallout } from "./FirstLyricCueCallout";
 describe("FirstLyricCueCallout", () => {
   it("names the first lyric cue as map navigation, scrolls to its section, and arms that action", () => {
     const target = document.createElement("div");
-    target.id = "song-structure-section-verse-1";
+    target.id = "song-structure-section-0";
     const scrollIntoView = vi.fn();
     Object.defineProperty(target, "scrollIntoView", {
       configurable: true,
