@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PlayerFeature } from "./index";
 
 describe("PlayerFeature", () => {
@@ -11,12 +11,34 @@ describe("PlayerFeature", () => {
     ).toBeTruthy();
   });
 
-  it("names tonight's first lyric cue once a song is loaded", () => {
+  it("keeps the lyric hear action unavailable without a player playback callback", () => {
     render(<PlayerFeature title="Player" song={createDemoRehearsalSong()} />);
+
     expect(
+      screen.queryByRole("button", {
+        name: "Hear Lead Vocal enter on “city lights” in the verse at 0:10"
+      })
+    ).toBeNull();
+    expect(screen.getByText("Lead Vocal enters the verse on “city lights” at 0:10.")).toBeTruthy();
+  });
+
+  it("delegates the lyric hear action to the owning player callback", () => {
+    const onPlayFromSeconds = vi.fn();
+    render(
+      <PlayerFeature
+        title="Player"
+        song={createDemoRehearsalSong()}
+        onPlayFromSeconds={onPlayFromSeconds}
+      />
+    );
+
+    fireEvent.click(
       screen.getByRole("button", {
         name: "Hear Lead Vocal enter on “city lights” in the verse at 0:10"
       })
-    ).toBeTruthy();
+    );
+
+    expect(onPlayFromSeconds).toHaveBeenCalledTimes(1);
+    expect(onPlayFromSeconds).toHaveBeenCalledWith(10);
   });
 });
