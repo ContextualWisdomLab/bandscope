@@ -50,6 +50,7 @@ Last updated: 2026-03-11
 ## Cross-cutting security constraints
 
 - Treat files, URLs, metadata, project files, model artifacts, exports, and remote responses as untrusted.
+- Explicit `--job` file mode is a local regular-file authority boundary: drive-relative, UNC/device, ADS, reserved filenames, console handles, and legacy CLOCK$ fail before filesystem lookup.
 - Keep security-sensitive capabilities narrow and allowlisted rather than generic.
 - Prefer local processing, predictable storage locations, and minimal network use.
 - Split privilege where feasible across UI, analysis workers, subprocesses, model delivery, and updater behavior.
