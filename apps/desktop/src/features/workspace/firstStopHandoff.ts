@@ -73,6 +73,10 @@ function pickHighestPriorityRole(roles: RehearsalRole[]): RehearsalRole | null {
 
 /** Return ranked roles whose unique graph node is explicitly active. */
 function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
+  if (!Array.isArray(section.roles) || !Array.isArray(section.partGraph)) {
+    return [];
+  }
+
   const safeRoleIds = section.roles
     .filter((role) => typeof role.id === "string" && role.id.trim().length > 0)
     .map((role) => role.id);
