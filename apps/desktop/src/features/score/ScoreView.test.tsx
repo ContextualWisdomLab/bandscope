@@ -33,8 +33,7 @@ vi.mock("../../i18n", () => ({
       scoreAttachFailed: "Could not attach the score PDF.",
       scoreReadFailed: "Could not open the score PDF.",
       scoreRemoveFailed: "Could not remove the score PDF.",
-      scoreRequiresProject: "Scores attach to the active analysis project.",
-      scoreNavDisabledHint: "Analyze or open a song first"
+      scoreRequiresProject: "Scores attach to the active analysis project."
     })[key] ?? key,
   detectPreferredLocale: () => "en"
 }));
@@ -102,13 +101,13 @@ describe("ScoreView", () => {
     expect(openBtn).toHaveAttribute("aria-disabled", "true");
     expect(openBtn).toHaveAttribute("aria-describedby");
     expect(openBtn).toHaveClass("aria-disabled:cursor-not-allowed", "aria-disabled:opacity-60");
-    expect(openBtn).toHaveAttribute("title", "Analyze or open a song first");
+    expect(openBtn).toHaveAttribute("title", "scoreNavDisabledHint");
 
     const removeBtn = screen.getByRole("button", { name: "Remove: opener.pdf" });
     expect(removeBtn).toHaveAttribute("aria-disabled", "true");
     expect(removeBtn).toHaveAttribute("aria-describedby");
     expect(removeBtn).toHaveClass("aria-disabled:cursor-not-allowed", "aria-disabled:opacity-60");
-    expect(removeBtn).toHaveAttribute("title", "Analyze or open a song first");
+    expect(removeBtn).toHaveAttribute("title", "scoreNavDisabledHint");
 
     const openClickEvent = createEvent.click(openBtn);
     fireEvent(openBtn, openClickEvent);
