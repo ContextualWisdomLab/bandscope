@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FirstEntranceCallout } from "./FirstEntranceCallout";
 
 describe("FirstEntranceCallout", () => {
-  it("names the first hearable entrance, scrolls to its section, and arms that action", () => {
+  it("names the first entrance as map navigation, scrolls to its section, and arms that action", () => {
     const target = document.createElement("div");
     target.id = "song-structure-section-verse-1";
     const scrollIntoView = vi.fn();
@@ -16,7 +16,7 @@ describe("FirstEntranceCallout", () => {
 
     render(<FirstEntranceCallout song={createDemoRehearsalSong()} />);
 
-    const action = screen.getByRole("button", { name: "Hear Bass Guitar enter the verse at 0:10" });
+    const action = screen.getByRole("button", { name: "Open Bass Guitar entrance in the verse at 0:10" });
     expect(action).toBeTruthy();
     fireEvent.click(action);
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
@@ -29,7 +29,7 @@ describe("FirstEntranceCallout", () => {
     const initialSong = createDemoRehearsalSong();
     const { rerender } = render(<FirstEntranceCallout song={initialSong} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Hear Bass Guitar enter the verse at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar entrance in the verse at 0:10" }));
     expect(screen.getByText(/Start on Bass Guitar in the verse at 0:10/)).toBeTruthy();
 
     const replacementSong = createDemoRehearsalSong();
@@ -45,7 +45,7 @@ describe("FirstEntranceCallout", () => {
     secondSong.id = "demo-song-second";
     const { rerender } = render(<FirstEntranceCallout song={firstSong} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Hear Bass Guitar enter the verse at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar entrance in the verse at 0:10" }));
     expect(screen.getByText(/Start on Bass Guitar in the verse at 0:10/)).toBeTruthy();
 
     rerender(<FirstEntranceCallout song={secondSong} />);
@@ -65,7 +65,7 @@ describe("FirstEntranceCallout", () => {
 
     render(<FirstEntranceCallout song={song} />);
 
-    expect(screen.getByRole("button", { name: "Hear {section} enter the verse at 0:10" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open {section} entrance in the verse at 0:10" })).toBeTruthy();
   });
 
   it("tells the room to stay on the map when no entrance exists", () => {
