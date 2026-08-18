@@ -679,37 +679,34 @@ def test_main_block(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixtu
 
 
 def test_module_execution(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
 ) -> None:
-    """Test the if __name__ == '__main__' block using runpy."""
+    """Test module execution against a real owned output path without network I/O."""
     import runpy
 
     import bandscope_analysis.youtube
 
+    downloaded_path = tmp_path / "abc123DEF45.m4a"
+    downloaded_path.write_bytes(b"test-audio")
     test_args = [
         "youtube.py",
         "--url",
         "https://youtube.com/watch?v=abc123DEF45",
         "--out-dir",
-        "/tmp",
+        str(tmp_path),
     ]
     monkeypatch.setattr(sys, "argv", test_args)
 
-    # Mock yt_dlp so runpy doesn't actually download
+    # Mock only the downloader/network boundary. Real filesystem semantics are
+    # required so the completed-path ownership check remains exercised.
     mock_yt_dlp = MagicMock()
     mock_ydl = MagicMock()
     mock_yt_dlp.YoutubeDL.return_value.__enter__.return_value = mock_ydl
     mock_ydl.extract_info.return_value = {"id": "abc123DEF45"}
-    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_ydl.prepare_filename.return_value = str(downloaded_path)
     monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
-
-    # Mock os to ensure runpy uses our mocked filesystem methods
-    mock_os = MagicMock()
-    # Keep some essential attributes
-    mock_os.path = MagicMock()
-    mock_os.path.exists.return_value = True
-    mock_os.path.getsize.return_value = 10 * 1024 * 1024
-    monkeypatch.setitem(sys.modules, "os", mock_os)
 
     with patch.object(sys, "exit") as mock_exit:
         runpy.run_path(bandscope_analysis.youtube.__file__, run_name="__main__")
