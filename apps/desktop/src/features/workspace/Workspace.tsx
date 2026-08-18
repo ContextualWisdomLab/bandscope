@@ -66,6 +66,29 @@ function fillCopy(template: string, values: Record<string, string>): string {
   );
 }
 
+/** Accept only finite, forward-moving analyzed notes that are safe to rank and render. */
+function isUsableTranscriptionNote(note: unknown): note is TranscriptionNote {
+  if (!note || typeof note !== "object") {
+    return false;
+  }
+
+  const candidate = note as Partial<TranscriptionNote>;
+  return (
+    typeof candidate.pitch === "string" &&
+    nonBlankText(candidate.pitch) !== undefined &&
+    typeof candidate.onset === "number" &&
+    Number.isFinite(candidate.onset) &&
+    candidate.onset >= 0 &&
+    typeof candidate.offset === "number" &&
+    Number.isFinite(candidate.offset) &&
+    candidate.offset > candidate.onset &&
+    typeof candidate.velocity === "number" &&
+    Number.isFinite(candidate.velocity) &&
+    candidate.velocity >= 0 &&
+    candidate.velocity <= 1
+  );
+}
+
 /** Return the earliest analyzed note so tonight starts on the first attack. */
 function firstTranscriptionNote(notes: RehearsalRole["transcription"]): TranscriptionNote | undefined {
   if (!notes || notes.length === 0) {
@@ -197,9 +220,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     const notes: TranscriptionNote[] = [];
     for (const section of song.sections) {
       for (const role of section.roles) {
-        if (role.id !== activeRole || !role.transcription) continue;
+        if (role.id !== activeRole || !Array.isArray(role.transcription)) continue;
         for (const note of role.transcription) {
-          notes.push(note);
+          if (isUsableTranscriptionNote(note)) {
+            notes.push(note);
+          }
         }
       }
     }
