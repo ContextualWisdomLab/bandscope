@@ -16,6 +16,7 @@ type EntranceCopyValues = Readonly<Record<"role" | "section" | "start" | "cue", 
 type HeardEntrance = Readonly<{
   songId: string;
   sectionId: string;
+  sectionIndex: number;
   roleId: string;
   startSeconds: number;
   cue: string;
@@ -37,12 +38,14 @@ export function FirstEntranceCallout({
 }: FirstEntranceCalloutProps) {
   const t = createTranslator(detectPreferredLocale());
   const entrance = resolveFirstEntrance(song);
+  const entranceSectionIndex = entrance ? song.sections.indexOf(entrance.section) : -1;
   const [heardEntrance, setHeardEntrance] = useState<HeardEntrance | null>(null);
 
   useEffect(() => {
     setHeardEntrance(null);
   }, [
     song.id,
+    entranceSectionIndex,
     entrance?.section.id,
     entrance?.role.id,
     entrance?.startSeconds,
@@ -65,6 +68,7 @@ export function FirstEntranceCallout({
   const heard =
     heardEntrance?.songId === song.id &&
     heardEntrance.sectionId === entrance.section.id &&
+    heardEntrance.sectionIndex === entranceSectionIndex &&
     heardEntrance.roleId === entrance.role.id &&
     heardEntrance.startSeconds === entrance.startSeconds &&
     heardEntrance.cue === entrance.role.cue.value;
@@ -99,6 +103,7 @@ export function FirstEntranceCallout({
             setHeardEntrance({
               songId: song.id,
               sectionId: entrance.section.id,
+              sectionIndex: entranceSectionIndex,
               roleId: entrance.role.id,
               startSeconds: entrance.startSeconds,
               cue: entrance.role.cue.value
@@ -107,7 +112,8 @@ export function FirstEntranceCallout({
               onHearEntrance(entrance.startSeconds);
               return;
             }
-            const target = document.getElementById(`song-structure-section-${entrance.section.id}`);
+            const grid = document.querySelector('[data-testid="song-structure-grid"]');
+            const target = entranceSectionIndex >= 0 ? grid?.children.item(entranceSectionIndex) : null;
             target?.scrollIntoView?.({
               block: "nearest",
               behavior: "smooth"
