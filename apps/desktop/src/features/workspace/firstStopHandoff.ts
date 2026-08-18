@@ -38,6 +38,20 @@ function hasBoundedTimeRange(section: RehearsalSection): boolean {
   );
 }
 
+/** Return safe identities that appear more than once in one section-local collection. */
+function repeatedIds(ids: string[]): Set<string> {
+  const seen = new Set<string>();
+  const repeated = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) {
+      repeated.add(id);
+    } else {
+      seen.add(id);
+    }
+  }
+  return repeated;
+}
+
 /** Prefer the highest-priority ranked role, then a stable id order. */
 function pickHighestPriorityRole(roles: RehearsalRole[]): RehearsalRole | null {
   if (roles.length === 0) {
@@ -54,21 +68,32 @@ function pickHighestPriorityRole(roles: RehearsalRole[]): RehearsalRole | null {
   );
 }
 
-/** Return ranked roles whose graph node is explicitly active. */
+/** Return ranked roles whose unique graph node is explicitly active. */
 function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
-  const rolesInSection = new Map(section.roles.map((role) => [role.id, role]));
+  const safeRoleIds = section.roles
+    .filter((role) => typeof role.id === "string" && role.id.trim().length > 0)
+    .map((role) => role.id);
+  const safeGraphRoleIds = section.partGraph
+    .filter((node) => typeof node.role_id === "string" && node.role_id.trim().length > 0)
+    .map((node) => node.role_id);
+  const repeatedRoleIds = repeatedIds(safeRoleIds);
+  const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
   const activeIds = new Set(
     section.partGraph
-      .filter((node) => node.is_active === true && typeof node.role_id === "string" && node.role_id.trim().length > 0)
+      .filter(
+        (node) =>
+          node.is_active === true &&
+          typeof node.role_id === "string" &&
+          node.role_id.trim().length > 0 &&
+          !repeatedGraphRoleIds.has(node.role_id)
+      )
       .map((node) => node.role_id)
   );
 
-  return section.roles.filter((role) => {
-    if (!hasRankedPriority(role) || rolesInSection.get(role.id) !== role) {
-      return false;
-    }
-    return activeIds.has(role.id);
-  });
+  return section.roles.filter(
+    (role) =>
+      hasRankedPriority(role) && !repeatedRoleIds.has(role.id) && activeIds.has(role.id)
+  );
 }
 
 /** Return the first labeled stop, or null when no safe cut remains. */
