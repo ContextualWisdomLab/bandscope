@@ -63,12 +63,10 @@ function sentenceFragment(value: string): string {
   return value.replace(/[.!?。！？]+$/u, "").trimEnd();
 }
 
-/** Fill rehearsal copy with named placeholders. */
+/** Interpolate the trusted placeholder keys in one pass so rehearsal data is never reinterpreted as template syntax. */
 function fillCopy(template: string, values: Record<string, string>): string {
-  return Object.entries(values).reduce(
-    (text, [key, value]) => text.replaceAll(`{${key}}`, value),
-    template
-  );
+  const keyPattern = Object.keys(values).join("|");
+  return template.replace(new RegExp(`\\{(${keyPattern})\\}`, "g"), (_placeholder, key: string) => values[key]!);
 }
 
 /** Return the earliest analyzed note so setup can name the first attack. */
