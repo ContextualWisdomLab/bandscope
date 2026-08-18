@@ -62,14 +62,16 @@ describe("SectionRoadmap", () => {
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
-  it("exposes a focusable id for each rehearsal section card", () => {
+  it("keeps focus target ids renderer-owned for arbitrary analysis section ids", () => {
     const song = createDemoRehearsalSong();
+    song.sections[0].id = " verse 1 ";
 
     render(<SectionRoadmap song={song} activeRole={null} />);
 
-    const card = document.getElementById("workspace-section-verse-1");
+    const card = document.getElementById("workspace-section-card-0");
     expect(card).toBeTruthy();
     expect(card?.getAttribute("tabindex")).toBe("-1");
+    expect(card?.id).not.toContain(song.sections[0].id);
   });
 
   it("names tonight's count-in on the first section card", () => {
@@ -133,17 +135,17 @@ describe("SectionRoadmap", () => {
     expect(screen.queryByText(/Counting in/)).toBeNull();
   });
 
-  it("counts in the looped section when the map already named one", () => {
+  it("counts in the renderer-selected section even when analysis ids collide", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections.push({
       ...song.sections[0]!,
-      id: "chorus-1",
+      id: song.sections[0]!.id,
       label: "chorus",
       timeRange: { start: 30, end: 50 }
     });
 
-    render(<SectionRoadmap song={song} activeRole={null} loopedSectionId="chorus-1" />);
+    render(<SectionRoadmap song={song} activeRole={null} loopedSectionIndex={1} />);
 
     expect(
       screen.getByRole("button", {
