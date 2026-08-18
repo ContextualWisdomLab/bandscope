@@ -14,6 +14,8 @@ Security Notes:
       metadata cannot bypass the same 15-minute admission boundary.
     - Announced ``filesize`` / ``filesize_approx`` values over the policy
       ceiling reject the import before ``download=True``.
+    - The completed download path must resolve beneath this import's ``out_dir``
+      before post-download size checks, cleanup, or success metadata can use it.
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
       download; oversize artifacts are deleted.
     - In-flight abort deletes owned ``tmpfilename`` / ``filename`` siblings
@@ -398,6 +400,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                         "message": "Downloaded file could not be found.",
                     },
                 }
+
+            owned_filepath = _owned_file_path(actual_filepath, out_dir)
+            if owned_filepath is None:
+                return _download_error_result()
+            actual_filepath = owned_filepath
 
             duration_rejection = _reject_invalid_or_oversize_duration(info)
             if duration_rejection is not None:
