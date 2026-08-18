@@ -22,19 +22,25 @@ export function formatLyricCueTime(totalSeconds: number): string {
 
 /** Return a trimmed lyric cue only when the role carries non-blank lyric evidence. */
 function lyricText(role: RehearsalRole): string | null {
-  if (role.cue.kind !== "lyric") {
+  if (role.cue.kind !== "lyric" || typeof role.cue.value !== "string") {
     return null;
   }
   const lyric = role.cue.value.trim();
   return lyric ? lyric : null;
 }
 
-/** Return the first lyric the room should hear, or null when no part has a lyric. */
+/** Return the first validated lyric the room should hear, or null when no safe candidate remains. */
 export function resolveFirstLyricCue(song: RehearsalSong): FirstLyricCue | null {
-  const sections = [...song.sections].sort((left, right) => left.timeRange.start - right.timeRange.start);
+  const sections = song.sections
+    .filter((section) => Number.isFinite(section.timeRange.start) && section.timeRange.start >= 0)
+    .sort((left, right) => left.timeRange.start - right.timeRange.start);
 
   for (const section of sections) {
-    const lyricRoles = section.roles.filter((role) => lyricText(role) !== null);
+    const lyricRoles = section.roles.filter(
+      (role) =>
+        Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority) &&
+        lyricText(role) !== null
+    );
     if (lyricRoles.length === 0) {
       continue;
     }
