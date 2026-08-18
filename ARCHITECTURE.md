@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-18
 
 ## Brand source
 
