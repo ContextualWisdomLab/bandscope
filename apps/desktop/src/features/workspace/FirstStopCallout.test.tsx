@@ -102,6 +102,7 @@ describe("FirstStopCallout", () => {
 
   it("shows fresh guidance when the first stop changes or returns later", () => {
     const initialSong = songWithStop();
+    const { grid } = appendSongStructureTarget();
     const { rerender } = render(<FirstStopCallout song={initialSong} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal stop at 0:18" }));
     expect(screen.getByText(/Hold Lead Vocal's cut at 0:18. Do not play through it./)).toBeTruthy();
@@ -111,6 +112,8 @@ describe("FirstStopCallout", () => {
     nextSong.sections[1]!.timeRange = { start: 24, end: 25 };
     rerender(<FirstStopCallout song={nextSong} />);
     expect(screen.getByText("Lead Vocal cuts the stop at 0:24.")).toBeTruthy();
+
+    grid.remove();
   });
 
   it("keeps an unavailable stop guidance-only", () => {
