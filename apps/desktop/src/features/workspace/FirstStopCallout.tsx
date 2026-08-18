@@ -117,10 +117,7 @@ export function FirstStopCallout({
           className="mt-3 min-h-11 bg-gradient-to-r from-rose-300 to-amber-300 font-black text-slate-950"
           onClick={() => {
             if (actionMode === "callback-only") {
-              if (typeof onHearStop !== "function") {
-                return;
-              }
-              onHearStop(stop.atSeconds);
+              onHearStop!(stop.atSeconds);
               markStopActionComplete();
               return;
             }
