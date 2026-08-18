@@ -15,5 +15,6 @@ export const LockChorusFirst: Story = {
     title: "Lock the chorus bass first",
     body: "Bass and vocal overlap on the hook. Loop the chorus before the room starts.",
     actionLabel: "Loop the chorus",
+    onAction: () => undefined,
   },
 };
