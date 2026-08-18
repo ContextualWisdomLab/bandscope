@@ -39,40 +39,47 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
   URL.revokeObjectURL(url);
 }
 
-/** Return the first section this player should loop tonight. */
-function firstLoopSection(
+/** Return the renderer-owned position of the first section this player should loop tonight. */
+function firstLoopSectionIndex(
   song: RehearsalSong,
   activeRole: string | null
-): RehearsalSong["sections"][number] | undefined {
+): number | undefined {
   if (activeRole) {
-    const forRole = song.sections.find((section) =>
+    const forRoleIndex = song.sections.findIndex((section) =>
       section.roles.some((role) => role.id === activeRole)
     );
-    if (forRole) {
-      return forRole;
+    if (forRoleIndex !== -1) {
+      return forRoleIndex;
     }
   }
 
   const requested = song.exportSummary?.focusSections?.[0]?.trim();
   if (requested) {
-    const match = song.sections.find(
+    const requestedIndex = song.sections.findIndex(
       (section) => section.label === requested || section.id === requested
     );
-    if (match) {
-      return match;
+    if (requestedIndex !== -1) {
+      return requestedIndex;
     }
   }
 
-  return song.sections[0];
+  return song.sections.length > 0 ? 0 : undefined;
 }
 
-/** Scroll and focus the matching section card on the rehearsal roadmap. */
-function focusWorkspaceSection(sectionId: string): void {
-  const node = document.getElementById(`workspace-section-${sectionId}`);
+/** Scroll and focus one renderer-owned section card on the rehearsal roadmap. */
+function focusWorkspaceSection(sectionIndex: number): void {
+  const node = document.getElementById(`workspace-section-card-${sectionIndex}`);
   if (!(node instanceof HTMLElement)) {
     return;
   }
-  node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  const prefersReducedMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  node.scrollIntoView({
+    behavior: prefersReducedMotion ? "auto" : "smooth",
+    block: "nearest",
+    inline: "center"
+  });
   node.focus();
 }
 
@@ -122,13 +129,13 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 const SongStructure = memo(function SongStructure({
   sections,
   t,
-  loopedSectionId,
+  loopedSectionIndex,
   onLoopSection
 }: {
   sections: RehearsalSong["sections"];
   t: Translator;
-  loopedSectionId: string | null;
-  onLoopSection: (sectionId: string) => void;
+  loopedSectionIndex: number | null;
+  onLoopSection: (sectionIndex: number) => void;
 }) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
@@ -141,26 +148,26 @@ const SongStructure = memo(function SongStructure({
         role="region"
         tabIndex={0}
         className="overflow-x-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,35,0.96),rgba(2,6,23,0.98))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-        aria-label="Scrollable song structure timeline"
+        aria-label={t("workspaceSongStructureTimelineRegionAria")}
       >
         <div
           className="grid min-w-[720px]"
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
+          {sections.map((section, sectionIndex) => (
             <div
-              key={section.id}
+              key={`${section.id}-${sectionIndex}`}
               className={`border-r border-white/10 px-3 py-3 last:border-r-0 ${
-                loopedSectionId === section.id ? "bg-cyan-300/15" : "bg-cyan-300/[0.05]"
+                loopedSectionIndex === sectionIndex ? "bg-cyan-300/15" : "bg-cyan-300/[0.05]"
               }`}
             >
               <button
                 type="button"
                 className="w-full rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                 aria-label={loopCopy(t("workspaceLoopTimelineAria"), section)}
-                aria-pressed={loopedSectionId === section.id}
-                onClick={() => onLoopSection(section.id)}
+                aria-pressed={loopedSectionIndex === sectionIndex}
+                onClick={() => onLoopSection(sectionIndex)}
               >
                 <p className="text-sm font-black text-white">
                   {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
@@ -191,7 +198,7 @@ const SongStructure = memo(function SongStructure({
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
-  const [loopedSectionId, setLoopedSectionId] = useState<string | null>(null);
+  const [loopedSectionIndex, setLoopedSectionIndex] = useState<number | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -284,14 +291,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
-  const loopSection = firstLoopSection(song, activeRole);
-  const loopedSection =
-    song.sections.find((section) => section.id === loopedSectionId) ?? null;
+  const loopSectionIndex = firstLoopSectionIndex(song, activeRole);
+  const loopSection = loopSectionIndex === undefined ? undefined : song.sections[loopSectionIndex];
+  const loopedSection = loopedSectionIndex === null ? null : (song.sections[loopedSectionIndex] ?? null);
 
-  /** Arm a rehearsal loop and move focus to the matching section roadmap card. */
-  const armSectionLoop = (sectionId: string): void => {
-    setLoopedSectionId(sectionId);
-    focusWorkspaceSection(sectionId);
+  /** Arm a rehearsal loop and move focus to the matching renderer-owned roadmap card. */
+  const armSectionLoop = (sectionIndex: number): void => {
+    if (!Number.isSafeInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= song.sections.length) {
+      return;
+    }
+    setLoopedSectionIndex(sectionIndex);
+    focusWorkspaceSection(sectionIndex);
   };
 
   /** Documented. */
@@ -415,7 +425,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SongStructure
             sections={song.sections}
             t={t}
-            loopedSectionId={loopedSectionId}
+            loopedSectionIndex={loopedSectionIndex}
             onLoopSection={armSectionLoop}
           />
           {loopedSection ? (
@@ -455,7 +465,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </Button>
                   <Button
                     type="button"
-                    disabled={!loopSection}
+                    disabled={loopSectionIndex === undefined || !loopSection}
                     aria-label={
                       loopSection
                         ? loopCopy(t("workspaceLoopSectionAria"), loopSection)
@@ -467,8 +477,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                         : t("workspaceLoopUnavailable")
                     }
                     onClick={() => {
-                      if (loopSection) {
-                        armSectionLoop(loopSection.id);
+                      if (loopSectionIndex !== undefined && loopSection) {
+                        armSectionLoop(loopSectionIndex);
                       }
                     }}
                     variant="outline"
@@ -589,7 +599,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             song={song}
             activeRole={activeRole}
             onSongUpdate={onSongUpdate}
-            loopedSectionId={loopedSectionId}
+            loopedSectionIndex={loopedSectionIndex}
           />
           </section>
         </CardContent>

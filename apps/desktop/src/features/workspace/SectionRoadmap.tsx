@@ -14,7 +14,7 @@ interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
   onSongUpdate?: (song: RehearsalSong) => void;
-  loopedSectionId?: string | null;
+  loopedSectionIndex?: number | null;
 }
 
 /** Format a timeline instant as m:ss for rehearsal cards. */
@@ -47,42 +47,46 @@ function countInBeatMs(tempo: number | undefined): number | null {
   return 60_000 / tempo;
 }
 
-/** Return the first section this player should count in tonight. */
-function firstCountInSection(
+/** Return the renderer-owned position of the section this player should count in tonight. */
+function firstCountInSectionIndex(
   song: RehearsalSong,
   activeRole: string | null,
-  loopedSectionId: string | null
-): RehearsalSong["sections"][number] | undefined {
-  if (loopedSectionId) {
-    const looped = song.sections.find((section) => section.id === loopedSectionId);
-    if (looped) {
-      return looped;
-    }
+  loopedSectionIndex: number | null
+): number | undefined {
+  if (
+    loopedSectionIndex !== null &&
+    Number.isSafeInteger(loopedSectionIndex) &&
+    loopedSectionIndex >= 0 &&
+    loopedSectionIndex < song.sections.length
+  ) {
+    return loopedSectionIndex;
   }
 
   if (activeRole) {
-    const forRole = song.sections.find((section) =>
+    const forRoleIndex = song.sections.findIndex((section) =>
       section.roles.some((role) => role.id === activeRole)
     );
-    if (forRole) {
-      return forRole;
+    if (forRoleIndex !== -1) {
+      return forRoleIndex;
     }
   }
 
-  return song.sections[0];
+  return song.sections.length > 0 ? 0 : undefined;
 }
 
-/** Documented. */
+/** Render the rehearsal section roadmap and optional tempo-driven count-in. */
 export function SectionRoadmap({
   song,
   activeRole,
   onSongUpdate,
-  loopedSectionId = null
+  loopedSectionIndex = null
 }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
-  const countInSection = firstCountInSection(song, activeRole, loopedSectionId);
+  const countInSectionIndex = firstCountInSectionIndex(song, activeRole, loopedSectionIndex);
+  const countInSection =
+    countInSectionIndex === undefined ? undefined : song.sections[countInSectionIndex];
   const beatMs = countInBeatMs(song.tempo);
   const [countInPhase, setCountInPhase] = useState<"idle" | "counting" | "ready">("idle");
   const [countInBeat, setCountInBeat] = useState(0);
@@ -90,7 +94,7 @@ export function SectionRoadmap({
   useEffect(() => {
     setCountInPhase("idle");
     setCountInBeat(0);
-  }, [countInSection?.id]);
+  }, [countInSectionIndex]);
 
   useEffect(() => {
     if (countInPhase !== "counting") {
@@ -116,7 +120,7 @@ export function SectionRoadmap({
     return () => window.clearTimeout(nextTimer);
   }, [beatMs, countInBeat, countInPhase]);
 
-  /** Documented. */
+  /** Build the localized accessible label for a role's chord-edit control. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
     return t("chordEditAriaLabel")
       .replace("{roleName}", role.name)
@@ -124,7 +128,7 @@ export function SectionRoadmap({
       .replace("{chord}", role.harmony.chord);
   };
 
-  /** Documented. */
+  /** Apply a user-entered chord override to the matching role. */
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;
     const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
@@ -170,14 +174,15 @@ export function SectionRoadmap({
 
     if (changed) onSongUpdate(updatedSong);
   };
-  /** Documented. */
+
+  /** Return the visual treatment for a rehearsal priority. */
   const getPriorityColor = (priority: string) => {
     if (priority === "high") return "border-rose-400 bg-rose-400/[0.08] shadow-[0_0_30px_rgba(251,113,133,0.10)]";
     if (priority === "medium") return "border-amber-300 bg-amber-300/[0.08] shadow-[0_0_30px_rgba(252,211,77,0.08)]";
     return "border-emerald-300 bg-emerald-300/[0.08] shadow-[0_0_30px_rgba(110,231,183,0.08)]";
   };
 
-  /** Documented. */
+  /** Return the icon that communicates rehearsal priority. */
   const getPriorityIcon = (priority: string) => {
     if (priority === "high") return <AlertCircle className="size-4 text-rose-300" aria-hidden="true" />;
     if (priority === "medium") return <Info className="size-4 text-amber-200" aria-hidden="true" />;
@@ -210,13 +215,13 @@ export function SectionRoadmap({
         tabIndex={0}
         aria-labelledby={sectionRoadmapTitleId}
       >
-        {song.sections.map((section) => (
+        {song.sections.map((section, sectionIndex) => (
           <Card
-            key={section.id}
-            id={`workspace-section-${section.id}`}
+            key={`${section.id}-${sectionIndex}`}
+            id={`workspace-section-card-${sectionIndex}`}
             tabIndex={-1}
             className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-              countInSection?.id === section.id
+              countInSectionIndex === sectionIndex
                 ? "border-cyan-300/50 bg-cyan-950/40 ring-2 ring-cyan-300/70"
                 : section.confidence.level === "low"
                   ? "border-rose-300/30 bg-rose-950/30"
@@ -232,7 +237,7 @@ export function SectionRoadmap({
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
-              {countInSection?.id === section.id ? (
+              {countInSectionIndex === sectionIndex ? (
                 <div className="mt-3 space-y-2">
                   <Button
                     type="button"

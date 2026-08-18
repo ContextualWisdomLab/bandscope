@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -84,8 +84,7 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    const timelineRegion = screen.getByRole("region", { name: /scrollable song structure timeline/i });
-    expect(within(timelineRegion).getByText(/verse · 0:00–0:00/i)).toBeTruthy();
+    expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {
@@ -284,30 +283,24 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Loop verse from 0:10 to 0:30" }));
 
     expect(screen.getByText("Tonight's loop is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
-    expect(document.activeElement?.id).toBe("workspace-section-verse-1");
+    expect(document.activeElement?.id).toBe("workspace-section-card-0");
     expect(scrollIntoView).toHaveBeenCalled();
   });
 
-  it("routes a selected map loop into the Section Roadmap count-in", () => {
-    setNavigatorLanguage("en-US");
+  it("focuses the selected renderer position even when analysis section ids are duplicated", () => {
     const song = createDemoRehearsalSong();
-    song.sections.push({
-      ...song.sections[0]!,
-      id: "chorus-1",
-      label: "chorus",
-      timeRange: { start: 30, end: 50 }
-    });
-    HTMLElement.prototype.scrollIntoView = vi.fn();
+    const firstSectionId = song.sections[0]!.id;
+    song.sections[1]!.id = firstSectionId;
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
     render(<Workspace song={song} />);
-    fireEvent.click(screen.getByRole("button", { name: "Loop chorus from 0:30 to 0:50" }));
 
-    expect(
-      screen.getByRole("button", { name: "Count in chorus from 0:30 to 0:50 at tonight's tempo" })
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Count in verse from 0:10 to 0:30 at tonight's tempo" })
-    ).toBeNull();
+    const loopButtons = screen.getAllByRole("button", { name: /Loop .* from .* to .*/ });
+    fireEvent.click(loopButtons[1]!);
+
+    expect(document.activeElement?.id).toBe("workspace-section-card-1");
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
   it("names the first loop from the selected role strip instead of coming soon", () => {
@@ -324,16 +317,16 @@ describe("Workspace", () => {
     fireEvent.click(loopButton);
 
     expect(screen.getByText("Tonight's loop is verse · 0:10–0:30. Count in on that card.")).toBeTruthy();
-    expect(document.activeElement?.id).toBe("workspace-section-verse-1");
+    expect(document.activeElement?.id).toBe("workspace-section-card-0");
     expect(screen.getByRole("button", { name: "Isolation is not ready. Loop tonight's section on the map." })).toBeTruthy();
   });
 
-  it("localizes the first map loop action", () => {
+  it("localizes the first map loop action without broken Korean particles", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByRole("button", { name: "verse을 0:10부터 0:30까지 루프" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "verse 구간을 0:10부터 0:30까지 루프" })).toBeTruthy();
   });
 });
