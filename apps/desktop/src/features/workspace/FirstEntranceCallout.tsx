@@ -9,6 +9,16 @@ export interface FirstEntranceCalloutProps {
   song: RehearsalSong;
 }
 
+type EntranceCopyValues = Readonly<Record<"role" | "section" | "start" | "cue", string>>;
+
+/** Interpolate entrance placeholders once so rehearsal data is never rescanned as template syntax. */
+function formatEntranceCopy(template: string, values: EntranceCopyValues): string {
+  return template.replace(/\{(role|section|start|cue)\}/g, (placeholder) => {
+    const key = placeholder.slice(1, -1) as keyof EntranceCopyValues;
+    return values[key];
+  });
+}
+
 /** Name tonight's first entrance and let the room hear where that part starts. */
 export function FirstEntranceCallout({ song }: FirstEntranceCalloutProps) {
   const t = createTranslator(detectPreferredLocale());
@@ -29,20 +39,15 @@ export function FirstEntranceCallout({ song }: FirstEntranceCalloutProps) {
   }
 
   const start = formatEntranceTime(entrance.startSeconds);
-  const actionLabel = t("firstEntranceAction")
-    .replace("{role}", entrance.role.name)
-    .replace("{section}", entrance.section.label)
-    .replace("{start}", start);
-  const body = t("firstEntranceBody")
-    .replace("{role}", entrance.role.name)
-    .replace("{section}", entrance.section.label)
-    .replace("{start}", start)
-    .replace("{cue}", entrance.role.cue.value);
-  const armed = t("firstEntranceArmed")
-    .replace("{role}", entrance.role.name)
-    .replace("{section}", entrance.section.label)
-    .replace("{start}", start)
-    .replace("{cue}", entrance.role.cue.value);
+  const copyValues: EntranceCopyValues = {
+    role: entrance.role.name,
+    section: entrance.section.label,
+    start,
+    cue: entrance.role.cue.value
+  };
+  const actionLabel = formatEntranceCopy(t("firstEntranceAction"), copyValues);
+  const body = formatEntranceCopy(t("firstEntranceBody"), copyValues);
+  const armed = formatEntranceCopy(t("firstEntranceArmed"), copyValues);
 
   return (
     <aside
