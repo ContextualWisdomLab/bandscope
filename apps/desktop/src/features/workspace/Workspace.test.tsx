@@ -270,4 +270,28 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("keeps analysis section ids out of song-structure DOM authority", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.id = "analysis section / duplicate";
+
+    render(<Workspace song={song} />);
+
+    const firstRenderedSection = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(firstRenderedSection).toBeTruthy();
+    expect(firstRenderedSection?.hasAttribute("id")).toBe(false);
+  });
+
+  it("names tonight's first pickup as workspace navigation", () => {
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    const action = screen.getByRole("button", {
+      name: "Open Lead Vocal pickup from Bass Guitar at 0:30"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(
+      screen.getByText(/Start Lead Vocal's pickup from Bass Guitar before the next downbeat \(0:30\)/)
+    ).toBeTruthy();
+  });
 });

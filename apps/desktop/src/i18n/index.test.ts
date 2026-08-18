@@ -74,5 +74,14 @@ describe("i18n", () => {
         koDictionary.appSubtitle = originalSubtitle;
       }
     });
+
+    it("keeps first-pickup keys in both baseline locales", () => {
+      const tEn = createTranslator("en");
+      const tKo = createTranslator("ko");
+      expect(tEn("firstPickupLabel")).toBe("Tonight's first pickup");
+      expect(tKo("firstPickupLabel")).toBe("오늘 첫 픽업");
+      expect(tEn("firstPickupOpenAction")).toContain("{to}");
+      expect(tKo("firstPickupOpenAction")).toContain("{to}");
+    });
   });
 });

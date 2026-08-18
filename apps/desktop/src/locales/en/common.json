@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstPickupLabel": "Tonight's first pickup",
+  "firstPickupAction": "Hear {to} pick up from {from} at {at}",
+  "firstPickupActionSolo": "Hear {to} pick up at {at}",
+  "firstPickupOpenAction": "Open {to} pickup from {from} at {at}",
+  "firstPickupOpenActionSolo": "Open {to} pickup at {at}",
+  "firstPickupBody": "{to} picks up from {from} at the end of the {section} ({at}).",
+  "firstPickupBodySolo": "{to} picks up the {section} at {at}.",
+  "firstPickupArmed": "Start {to}'s pickup from {from} before the next downbeat ({at}).",
+  "firstPickupArmedSolo": "Start {to}'s pickup into the {section} ({at}).",
+  "firstPickupUnavailable": "No pickup yet. Stay on tonight's map until a part is ready to catch the handoff.",
+  "firstPickupNeedsSong": "Analyze tonight's song first, then hear the first pickup from this player."
 }
