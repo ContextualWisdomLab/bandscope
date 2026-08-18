@@ -51,10 +51,20 @@ describe("resolveFirstDropoutHandoff", () => {
     song.sections = [
       {
         ...verse,
-        partGraph: verse.partGraph.map((node) => ({
-          ...node,
-          handoff_to: []
-        }))
+        partGraph: [
+          {
+            role_id: "bass-guitar",
+            is_active: false,
+            handoff_to: ["lead-vocal"],
+            handoff_from: []
+          },
+          {
+            role_id: "keys-right",
+            is_active: true,
+            handoff_to: [],
+            handoff_from: []
+          }
+        ]
       },
       later
     ];
