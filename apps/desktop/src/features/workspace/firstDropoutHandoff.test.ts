@@ -46,6 +46,12 @@ describe("resolveFirstDropoutHandoff", () => {
         is_active: true,
         handoff_to: ["lead-vocal-chorus"],
         handoff_from: []
+      },
+      {
+        role_id: "lead-vocal-chorus",
+        is_active: false,
+        handoff_to: [],
+        handoff_from: ["bass-guitar-chorus"]
       }
     ];
     song.sections = [
@@ -110,6 +116,12 @@ describe("resolveFirstDropoutHandoff", () => {
         is_active: true,
         handoff_to: ["future-lead"],
         handoff_from: []
+      },
+      {
+        role_id: "future-lead",
+        is_active: false,
+        handoff_to: [],
+        handoff_from: ["chorus-bass"]
       }
     ];
     song.sections = [verse, chorus];
@@ -128,6 +140,18 @@ describe("resolveFirstDropoutHandoff", () => {
     );
 
     expect(resolveFirstDropoutHandoff(song)).toBeNull();
+  });
+
+  it("accepts a reciprocal receiver that is inactive until the next section", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    verse.partGraph = verse.partGraph.map((node) =>
+      node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+    );
+
+    const handoff = resolveFirstDropoutHandoff(song);
+    expect(handoff?.fromRole.id).toBe("bass-guitar");
+    expect(handoff?.toRole.id).toBe("lead-vocal");
   });
 
   it("prefers the higher-priority outgoing part when two handoffs share a section", () => {
@@ -150,6 +174,12 @@ describe("resolveFirstDropoutHandoff", () => {
           is_active: true,
           handoff_to: ["lead-vocal"],
           handoff_from: []
+        },
+        {
+          role_id: "lead-vocal",
+          is_active: false,
+          handoff_to: [],
+          handoff_from: ["keys-right", "bass-guitar"]
         }
       ]
     };
@@ -183,6 +213,12 @@ describe("resolveFirstDropoutHandoff", () => {
         is_active: true,
         handoff_to: ["vocal-bridge"],
         handoff_from: []
+      },
+      {
+        role_id: "vocal-bridge",
+        is_active: false,
+        handoff_to: [],
+        handoff_from: ["keys-bridge"]
       }
     ];
     song.sections = [verse, later];
@@ -254,6 +290,12 @@ describe("resolveFirstDropoutHandoff", () => {
         is_active: true,
         handoff_to: ["safe-lead"],
         handoff_from: []
+      },
+      {
+        role_id: "safe-lead",
+        is_active: false,
+        handoff_to: [],
+        handoff_from: ["safe-bass"]
       }
     ];
 
