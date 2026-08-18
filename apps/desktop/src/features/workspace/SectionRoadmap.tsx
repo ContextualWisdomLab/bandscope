@@ -14,13 +14,13 @@ interface SectionRoadmapProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
-/** Documented. */
+/** Render the section-by-section rehearsal roadmap, optionally filtered to one active role. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
-  /** Documented. */
+  /** Build the localized accessible label for editing one role's chord in a section. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
     return t("chordEditAriaLabel")
       .replace("{roleName}", role.name)
@@ -28,7 +28,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
       .replace("{chord}", role.harmony.chord);
   };
 
-  /** Documented. */
+  /** Persist a non-empty changed chord as a user-owned harmony override for the selected role. */
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;
     const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
@@ -74,14 +74,15 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
     if (changed) onSongUpdate(updatedSong);
   };
-  /** Documented. */
+
+  /** Map rehearsal priority to the roadmap card's visual emphasis tokens. */
   const getPriorityColor = (priority: string) => {
     if (priority === "high") return "border-rose-400 bg-rose-400/[0.08] shadow-[0_0_30px_rgba(251,113,133,0.10)]";
     if (priority === "medium") return "border-amber-300 bg-amber-300/[0.08] shadow-[0_0_30px_rgba(252,211,77,0.08)]";
     return "border-emerald-300 bg-emerald-300/[0.08] shadow-[0_0_30px_rgba(110,231,183,0.08)]";
   };
 
-  /** Documented. */
+  /** Select the decorative status icon that corresponds to a rehearsal priority. */
   const getPriorityIcon = (priority: string) => {
     if (priority === "high") return <AlertCircle className="size-4 text-rose-300" aria-hidden="true" />;
     if (priority === "medium") return <Info className="size-4 text-amber-200" aria-hidden="true" />;
