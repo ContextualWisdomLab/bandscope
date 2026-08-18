@@ -102,3 +102,55 @@ it("opens the earliest transcription for a selected role even when its first sec
   expect(document.activeElement?.id).toBe("workspace-groove-map");
   expect(scrollIntoView).toHaveBeenCalledTimes(1);
 });
+
+it("ignores malformed transcription metadata before choosing tonight's first real note", () => {
+  setNavigatorLanguage("en-US");
+  const song = createDemoRehearsalSong();
+  const firstSection = song.sections[0]!;
+  const bassRole = firstSection.roles[0]!;
+  firstSection.roles[0] = {
+    ...bassRole,
+    range: {
+      lowestNote: "",
+      highestNote: ""
+    },
+    transcription: [
+      {
+        pitch: "",
+        onset: -5,
+        offset: -4,
+        velocity: 2
+      }
+    ]
+  };
+  song.sections.push({
+    ...firstSection,
+    id: "later-valid-bass-entry",
+    label: "chorus",
+    timeRange: {
+      start: 40,
+      end: 60
+    },
+    roles: [
+      {
+        ...bassRole,
+        transcription: [
+          {
+            pitch: "A2",
+            onset: 42,
+            offset: 42.5,
+            velocity: 0.8
+          }
+        ]
+      }
+    ]
+  });
+
+  render(<Workspace song={song} />);
+  fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+  const notesButton = screen.getByRole("button", {
+    name: "Open Bass Guitar notes starting at A2 from 0:42 on tonight's groove map"
+  });
+  expect(notesButton.textContent).toBe("See Bass Guitar notes · A2 from 0:42");
+});
