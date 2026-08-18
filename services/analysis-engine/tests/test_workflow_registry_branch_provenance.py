@@ -11,20 +11,14 @@ def test_off_default_workflow_without_branch_provenance_is_unresolved() -> None:
         "scripts/checks/audit_workflow_registry.py",
         "audit_workflow_registry_branch_provenance_test",
     )
-    records = audit_module.classify_workflows(
-        [
-            {
-                "id": 336046185,
-                "name": "node-minimum-compatibility",
-                "path": ".github/workflows/node-minimum-compatibility.yml",
-                "state": "active",
-            },
-        ],
-        {".github/workflows/ci.yml"},
-    )
+    workflow: dict[str, object] = {"id": 336046185}
+    workflow["name"] = "node-minimum-compatibility"
+    workflow["path"] = ".github/workflows/node-minimum-compatibility.yml"
+    workflow["state"] = "active"
+    records = audit_module.classify_workflows([workflow], {".github/workflows/ci.yml"})
 
-    assert records[0]["classification"] == "unresolved"
-    assert records[0]["reason"] == (
-        "active registry path is absent from the bound default tree; "
-        "branch provenance is unproven"
-    )
+    record = records[0]
+    assert record["classification"] == "unresolved"
+    reason_prefix = "active registry path is absent from the bound default tree; "
+    expected_reason = reason_prefix + "branch provenance is unproven"
+    assert record["reason"] == expected_reason
