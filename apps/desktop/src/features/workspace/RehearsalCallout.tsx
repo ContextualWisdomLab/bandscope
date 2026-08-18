@@ -9,7 +9,7 @@ export interface RehearsalCalloutProps {
   onAction?: () => void;
 }
 
-/** Documented. */
+/** Render a rehearsal next-action callout and disable its button when no action is available. */
 export function RehearsalCallout({ title, body, actionLabel, onAction }: RehearsalCalloutProps) {
   return (
     <aside
