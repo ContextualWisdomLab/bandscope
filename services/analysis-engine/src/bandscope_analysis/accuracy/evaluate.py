@@ -117,7 +117,7 @@ def evaluate_click_tempo_file(
         features = TemporalAnalyzer().analyze(verified_path)
     passed = tempo_acc1(features["bpm"], true_bpm)
     return build_case_report(
-        case_id="click-120-bpm",
+        case_id=f"click-{true_bpm:g}-bpm",
         audio_sha256=expected_sha256,
         metric_name="tempo_acc1",
         metric_value=1.0 if passed else 0.0,
