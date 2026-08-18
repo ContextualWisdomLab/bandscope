@@ -31,7 +31,7 @@ describe("FirstLyricCueCallout", () => {
     replacementSong.sections[0]!.roles[2]!.cue.value = "hold on";
     rerender(<FirstLyricCueCallout song={replacementSong} />);
 
-    expect(screen.getByText(/Tonight's first lyric is Lead Vocal in the verse: “hold on” at 0:10/)).toBeTruthy();
+    expect(screen.getByText("Lead Vocal enters the verse on “hold on” at 0:10.")).toBeTruthy();
   });
 
   it("keeps placeholder-looking rehearsal data literal", () => {
