@@ -55,6 +55,7 @@ def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
     assert "npm ci --ignore-scripts --no-audit --no-fund" in lock_job
     assert "git diff --exit-code -- package.json package-lock.json" in lock_job
     assert "needs: lock-validation" in workflow
+    assert "persist-credentials: false" in lock_job
     assert "npm install " not in lock_job
     assert "npm update " not in lock_job
     assert "npx " not in lock_job
