@@ -63,6 +63,15 @@ describe("FirstStopCallout", () => {
     grid.remove();
   });
 
+  it("does not claim map navigation completed when the rendered section target is missing", () => {
+    render(<FirstStopCallout song={songWithStop()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal stop at 0:18" }));
+
+    expect(screen.getByText("Lead Vocal cuts the stop at 0:18.")).toBeTruthy();
+    expect(screen.queryByText(/Hold Lead Vocal's cut at 0:18. Do not play through it./)).toBeNull();
+  });
+
   it("keeps workspace-scroll authoritative even when a playback callback is also supplied", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
     const onHearStop = vi.fn();
