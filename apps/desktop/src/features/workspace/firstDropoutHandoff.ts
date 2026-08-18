@@ -53,7 +53,11 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
     const rolesInSection = new Map(section.roles.map((role) => [role.id, role]));
 
     for (const node of section.partGraph) {
-      if (!node.is_active || !Array.isArray(node.handoff_to) || node.handoff_to.length === 0) {
+      if (
+        node.is_active !== true ||
+        !Array.isArray(node.handoff_to) ||
+        node.handoff_to.length === 0
+      ) {
         continue;
       }
 
