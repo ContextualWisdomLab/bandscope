@@ -270,4 +270,20 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first dropout so the outgoing part can get out of the way", () => {
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Hear Bass Guitar drop out for Lead Vocal at 0:30"
+      })
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hear Bass Guitar drop out for Lead Vocal at 0:30"
+      })
+    );
+    expect(screen.getByText(/Start the last bar of Bass Guitar before Lead Vocal takes the verse \(0:30\)/)).toBeTruthy();
+  });
 });
