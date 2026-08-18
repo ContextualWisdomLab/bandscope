@@ -1,5 +1,7 @@
 /* Workspace tokens mapped from Figma 19-239 Confidence Badge and page 31. */
 :root {
+  --bandscope-confidence-compact-height: 1.375rem;
+  --bandscope-confidence-default-height: 1.625rem;
   --bandscope-confidence-low-bg: rgb(255 228 230);
   --bandscope-confidence-low-fg: rgb(190 18 60);
   --bandscope-confidence-low-border: rgb(254 205 211);
