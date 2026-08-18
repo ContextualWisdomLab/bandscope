@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   AlertCircle,
@@ -47,6 +47,8 @@ const MAX_ZOOM = 4;
  */
 export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const previousDisabledDescriptionId = useId();
+  const nextDisabledDescriptionId = useId();
   const [status, setStatus] = useState<ScoreViewerStatus>("LOADING");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
@@ -290,11 +292,15 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
+          <span id={previousDisabledDescriptionId} className="sr-only">
+            {t("scoreViewerPrevPageDisabled")}
+          </span>
           <Button
             variant="outline"
             size="icon-lg"
             className="size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             aria-label={t("scoreViewerPrevPage")}
+            aria-describedby={pageNumber <= 1 ? previousDisabledDescriptionId : undefined}
             title={
               pageNumber <= 1
                 ? t("scoreViewerPrevPageDisabled")
@@ -319,6 +325,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             aria-label={t("scoreViewerNextPage")}
+            aria-describedby={pageNumber >= pageCount ? nextDisabledDescriptionId : undefined}
             title={
               pageNumber >= pageCount
                 ? t("scoreViewerNextPageDisabled")
@@ -335,6 +342,9 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           >
             <ChevronRight className="size-6" aria-hidden="true" />
           </Button>
+          <span id={nextDisabledDescriptionId} className="sr-only">
+            {t("scoreViewerNextPageDisabled")}
+          </span>
         </div>
       </CardContent>
     </Card>
