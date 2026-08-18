@@ -27,6 +27,30 @@ describe("FirstLyricCueCallout", () => {
     target.remove();
   });
 
+  it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.id = "analysis section / duplicate";
+    const target = document.createElement("div");
+    target.id = "song-structure-section-0";
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+    document.body.appendChild(target);
+
+    render(<FirstLyricCueCallout song={song} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Lead Vocal lyric cue “city lights” in the verse at 0:10"
+      })
+    );
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+
+    target.remove();
+  });
+
   it("shows fresh guidance when the first lyric cue changes or returns later", () => {
     const initialSong = createDemoRehearsalSong();
     const { rerender } = render(<FirstLyricCueCallout song={initialSong} />);
