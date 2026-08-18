@@ -1,18 +1,30 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FirstDropoutCallout } from "./FirstDropoutCallout";
 
 describe("FirstDropoutCallout", () => {
-  it("names the first dropout and arms that action", () => {
+  it("names the first dropout as map navigation, scrolls to its section, and arms that action", () => {
+    const target = document.createElement("div");
+    target.id = "song-structure-section-verse-1";
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+    document.body.appendChild(target);
+
     render(<FirstDropoutCallout song={createDemoRehearsalSong()} />);
 
     const action = screen.getByRole("button", {
-      name: "Hear Bass Guitar drop out for Lead Vocal at 0:30"
+      name: "Open Bass Guitar dropout for Lead Vocal at 0:30"
     });
     expect(action).toBeTruthy();
     fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Start the last bar of Bass Guitar before Lead Vocal takes the verse \(0:30\)/)).toBeTruthy();
+
+    target.remove();
   });
 
   it("shows fresh guidance when the first dropout changes or returns later", () => {
@@ -21,7 +33,7 @@ describe("FirstDropoutCallout", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Hear Bass Guitar drop out for Lead Vocal at 0:30"
+        name: "Open Bass Guitar dropout for Lead Vocal at 0:30"
       })
     );
     expect(screen.getByText(/Start the last bar of Bass Guitar before Lead Vocal takes the verse \(0:30\)/)).toBeTruthy();
@@ -44,7 +56,7 @@ describe("FirstDropoutCallout", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "Hear {section} drop out for Lead Vocal at 0:30"
+        name: "Open {section} dropout for Lead Vocal at 0:30"
       })
     ).toBeTruthy();
   });
