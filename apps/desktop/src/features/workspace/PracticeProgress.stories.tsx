@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { PracticeProgress } from "./PracticeProgress";
 
+/** Storybook metadata for rehearsal practice-progress controls. */
 const meta = {
   title: "Workspace/PracticeProgress",
   component: PracticeProgress,
@@ -11,14 +11,12 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** Empty rehearsal-progress state at zero percent. */
 export const Empty: Story = {
   args: { progress: 0, onChange: () => undefined },
 };
 
+/** Midway rehearsal-progress state whose Storybook controls remain bound to component props. */
 export const Midway: Story = {
   args: { progress: 40, onChange: () => undefined },
-  render: function MidwayStory() {
-    const [progress, setProgress] = useState(40);
-    return <PracticeProgress progress={progress} onChange={setProgress} />;
-  },
 };

@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { RoleSwitcher } from "./RoleSwitcher";
 
 const roles = [
@@ -8,6 +7,7 @@ const roles = [
   { id: "keys-right", name: "Keys RH" },
 ];
 
+/** Storybook metadata for the rehearsal role-switching tabs. */
 const meta = {
   title: "Workspace/RoleSwitcher",
   component: RoleSwitcher,
@@ -17,10 +17,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** All-roles state with Storybook controls bound directly to the switcher props. */
 export const AllRoles: Story = {
   args: { roles, activeRole: null, onRoleChange: () => undefined },
-  render: function AllRolesStory() {
-    const [activeRole, setActiveRole] = useState<string | null>(null);
-    return <RoleSwitcher roles={roles} activeRole={activeRole} onRoleChange={setActiveRole} />;
-  },
 };
