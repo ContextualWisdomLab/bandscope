@@ -62,15 +62,20 @@ def test_present_bootstrap_name_is_not_disabled_by_name(audit_module) -> None:
     ]
 
 
-def test_active_missing_repository_workflow_is_orphaned(audit_module) -> None:
-    """An active registry identity with no bound-tree source is an orphan."""
+def test_active_missing_repository_workflow_is_unresolved_without_branch_provenance(
+    audit_module,
+) -> None:
+    """Default-tree absence alone cannot prove a repository workflow was deleted."""
     records = audit_module.classify_workflows(
         [_workflow(12, ".github/workflows/finalize-old-slice.yml")],
         {".github/workflows/ci.yml"},
     )
 
-    assert records[0]["classification"] == "orphaned_deleted"
-    assert records[0]["reason"] == "active registry path is absent from the bound tree"
+    assert records[0]["classification"] == "unresolved"
+    assert records[0]["reason"] == (
+        "active registry path is absent from the bound default tree; "
+        "branch provenance is unproven"
+    )
 
 
 def test_inactive_missing_workflow_remains_disabled(audit_module) -> None:
@@ -119,7 +124,7 @@ def test_unrecognized_active_non_repository_path_fails_closed(audit_module) -> N
 
 
 def test_source_field_cannot_override_repository_path_evidence(audit_module) -> None:
-    """Untrusted metadata must not turn an absent repository workflow into GitHub-owned evidence."""
+    """Untrusted metadata cannot prove deletion or GitHub ownership for an absent path."""
     records = audit_module.classify_workflows(
         [
             _workflow(
@@ -131,8 +136,11 @@ def test_source_field_cannot_override_repository_path_evidence(audit_module) -> 
         set(),
     )
 
-    assert records[0]["classification"] == "orphaned_deleted"
-    assert records[0]["reason"] == "active registry path is absent from the bound tree"
+    assert records[0]["classification"] == "unresolved"
+    assert records[0]["reason"] == (
+        "active registry path is absent from the bound default tree; "
+        "branch provenance is unproven"
+    )
 
 
 def test_malformed_workflow_fails_closed_as_unresolved(audit_module) -> None:

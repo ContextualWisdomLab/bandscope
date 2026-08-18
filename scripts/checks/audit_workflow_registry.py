@@ -72,7 +72,9 @@ def classify_workflows(
     and malformed objects fail closed as ``unresolved``. GitHub's live Actions registry
     exposes platform-managed workflows under ``dynamic/`` paths, so that observed path
     namespace is the only dynamic-ownership discriminator accepted here; untrusted
-    auxiliary fields cannot override repository path evidence.
+    auxiliary fields cannot override repository path evidence. An active repository
+    workflow absent from the bound default tree is also unresolved because that absence
+    alone does not prove that no live non-default branch still owns the workflow source.
     """
     workflow_ids = [workflow.get("id") for workflow in workflows]
     duplicate_ids = {
@@ -117,8 +119,11 @@ def classify_workflows(
             classification = "present"
             reason = "active registry path exists at the bound tree"
         else:
-            classification = "orphaned_deleted"
-            reason = "active registry path is absent from the bound tree"
+            classification = "unresolved"
+            reason = (
+                "active registry path is absent from the bound default tree; "
+                "branch provenance is unproven"
+            )
 
         records.append(
             {
