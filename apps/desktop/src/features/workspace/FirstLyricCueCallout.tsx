@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
@@ -38,6 +38,10 @@ export function FirstLyricCueCallout({
   const t = createTranslator(detectPreferredLocale());
   const cue = resolveFirstLyricCue(song);
   const [heardCue, setHeardCue] = useState<HeardLyricCue | null>(null);
+
+  useEffect(() => {
+    setHeardCue(null);
+  }, [song.id, cue?.section.id, cue?.role.id, cue?.startSeconds, cue?.lyric]);
 
   if (!cue) {
     return (
