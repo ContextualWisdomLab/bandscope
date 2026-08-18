@@ -9,10 +9,11 @@ const EMPTY_NOTES: TranscriptionNote[] = [];
 interface GrooveMapProps {
   notes?: TranscriptionNote[];
   isLoading?: boolean;
+  entranceOnset?: number;
 }
 
 /** Documented. */
-function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
+function GrooveMapComponent({ notes, isLoading, entranceOnset }: GrooveMapProps) {
   const renderedNotes = notes ?? EMPTY_NOTES;
 
   // Find max offset to determine timeline width
@@ -55,9 +56,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
   if (renderedNotes.length === 0) {
     return (
-      <div
-        className="mt-4 rounded-lg border border-dashed border-cyan-200/15 bg-slate-950/60 p-6 text-center text-sm text-slate-400"
-      >
+      <div className="mt-4 rounded-lg border border-dashed border-cyan-200/15 bg-slate-950/60 p-6 text-center text-sm text-slate-300">
         No bass line transcription yet. Use it when you want to check the groove before rehearsal.
       </div>
     );
@@ -65,7 +64,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
   return (
     <div
-      className="relative mt-4 overflow-x-auto rounded-lg border border-cyan-200/15 bg-slate-950/80 p-4 shadow-inner shadow-cyan-950/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+      className="relative mt-4 overflow-x-auto rounded-lg border border-cyan-200/15 bg-slate-950/80 p-4 shadow-inner shadow-cyan-950/50"
       role="region"
       tabIndex={0}
       aria-label="Bass transcription groove map"
@@ -95,20 +94,26 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
           const leftPercent = (note.onset / maxTime) * 100;
           const widthPercent = ((note.offset - note.onset) / maxTime) * 100;
           const noteLabel = `${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`;
+          const isEntrance = entranceOnset !== undefined && note.onset === entranceOnset;
 
           return (
             <div
               key={index}
-              className="absolute h-6 rounded bg-gradient-to-r from-teal-300 via-cyan-300 to-violet-300 shadow-[0_0_18px_rgba(94,234,212,0.28)]"
+              id={isEntrance ? "workspace-groove-entrance" : undefined}
+              className={`absolute h-6 rounded shadow-[0_0_18px_rgba(94,234,212,0.28)] ${
+                isEntrance
+                  ? "bg-gradient-to-r from-amber-300 via-orange-300 to-rose-300 ring-2 ring-amber-200"
+                  : "bg-gradient-to-r from-teal-300 via-cyan-300 to-violet-300"
+              }`}
               style={{
                 top: `${pitchIndex * 40 + 8}px`,
                 left: `${leftPercent}%`,
                 width: `${widthPercent}%`
               }}
-              title={noteLabel}
+              title={isEntrance ? `Tonight's entrance · ${noteLabel}` : noteLabel}
             >
               <span className="sr-only">
-                {noteLabel}
+                {isEntrance ? `Tonight's entrance. ${noteLabel}` : noteLabel}
               </span>
             </div>
           );

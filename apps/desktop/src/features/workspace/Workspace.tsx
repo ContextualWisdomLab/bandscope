@@ -40,6 +40,7 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
 }
 
 type Translator = ReturnType<typeof createTranslator>;
+type TranscriptionNote = NonNullable<RehearsalRole["transcription"]>[number];
 
 /** Documented. */
 function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
@@ -55,6 +56,50 @@ function formatStatusLabel(status: string): string {
 function nonBlankText(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+/** Fill rehearsal copy with named placeholders. */
+function fillCopy(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, value),
+    template
+  );
+}
+
+/** Return the earliest analyzed note so setup can name the first attack. */
+function firstTranscriptionNote(notes: RehearsalRole["transcription"]): TranscriptionNote | undefined {
+  if (!notes || notes.length === 0) {
+    return undefined;
+  }
+
+  let earliest = notes[0]!;
+  for (const note of notes) {
+    if (note.onset < earliest.onset) {
+      earliest = note;
+    }
+  }
+  return earliest;
+}
+
+/** Prefer the role's setup cue, then transpose, then simplification. */
+function roleSetupCue(role: RehearsalRole | undefined): string | undefined {
+  return nonBlankText(role?.setupNote) ?? nonBlankText(role?.transpositionPlan) ?? nonBlankText(role?.simplification);
+}
+
+/** Scroll and focus the setup card the player should follow next. */
+function focusRoleSetup(): void {
+  const node = document.getElementById("workspace-role-setup");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  const prefersReducedMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  node.scrollIntoView({
+    behavior: prefersReducedMotion ? "auto" : "smooth",
+    block: "nearest"
+  });
+  node.focus();
 }
 
 /** Documented. */
@@ -120,6 +165,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [armedSetupRoleId, setArmedSetupRoleId] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -149,7 +195,26 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     if (!activeRole) return undefined;
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
-  const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
+  const activeRoleTranscription = useMemo(() => {
+    if (!activeRole) return undefined;
+    const notes: TranscriptionNote[] = [];
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        if (role.id !== activeRole || !role.transcription) continue;
+        for (const note of role.transcription) {
+          notes.push(note);
+        }
+      }
+    }
+    if (notes.length === 0) return undefined;
+    notes.sort((left, right) => left.onset - right.onset);
+    return notes;
+  }, [activeRole, song.sections]);
+  const firstNote = firstTranscriptionNote(activeRoleTranscription);
+  const roleRangeLow = nonBlankText(activeRoleDetails?.range.lowestNote);
+  const roleRangeHigh = nonBlankText(activeRoleDetails?.range.highestNote);
+  const setupCue = roleSetupCue(activeRoleDetails);
+  const canArmTonightSetup = Boolean(setupCue);
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -212,6 +277,71 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const roleName = nonBlankText(activeRoleDetails?.name) ?? t("workspaceThisRole");
+  const setupActionLabel = !setupCue
+    ? t("workspaceSetupUnavailable")
+    : firstNote
+      ? fillCopy(t("workspaceSetupActionWithNote"), {
+          role: roleName,
+          pitch: firstNote.pitch,
+          start: formatTimelineTime(firstNote.onset)
+        })
+      : roleRangeLow && roleRangeHigh
+        ? fillCopy(t("workspaceSetupActionWithRange"), {
+            role: roleName,
+            low: roleRangeLow,
+            high: roleRangeHigh
+          })
+        : fillCopy(t("workspaceSetupAction"), { role: roleName });
+  const setupAriaLabel = !setupCue
+    ? t("workspaceSetupUnavailable")
+    : firstNote
+      ? fillCopy(t("workspaceSetupAriaWithNote"), {
+          role: roleName,
+          pitch: firstNote.pitch,
+          start: formatTimelineTime(firstNote.onset),
+          setup: setupCue
+        })
+      : roleRangeLow && roleRangeHigh
+        ? fillCopy(t("workspaceSetupAriaWithRange"), {
+            role: roleName,
+            low: roleRangeLow,
+            high: roleRangeHigh,
+            setup: setupCue
+          })
+        : fillCopy(t("workspaceSetupAria"), { role: roleName, setup: setupCue });
+  const setupStatus = !setupCue
+    ? t("workspaceSetupUnavailable")
+    : firstNote
+      ? fillCopy(t("workspaceSetupArmedWithNote"), {
+          role: roleName,
+          pitch: firstNote.pitch,
+          start: formatTimelineTime(firstNote.onset),
+          setup: setupCue
+        })
+      : roleRangeLow && roleRangeHigh
+        ? fillCopy(t("workspaceSetupArmedWithRange"), {
+            role: roleName,
+            low: roleRangeLow,
+            high: roleRangeHigh,
+            setup: setupCue
+          })
+        : fillCopy(t("workspaceSetupArmed"), { role: roleName, setup: setupCue });
+
+  /** Arm tonight's setup and move focus to the setup card. */
+  const armTonightSetup = (): void => {
+    if (!activeRole || !canArmTonightSetup) {
+      return;
+    }
+    setArmedSetupRoleId(activeRole);
+    focusRoleSetup();
+  };
+
+  /** Keep the role board and armed setup on the same selected part. */
+  const handleRoleChange = (roleId: string | null): void => {
+    setActiveRole(roleId);
+    setArmedSetupRoleId(null);
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -342,7 +472,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               <RoleSwitcher
                 roles={allRoles}
                 activeRole={activeRole}
-                onRoleChange={setActiveRole}
+                onRoleChange={handleRoleChange}
                 />
             </div>
 
@@ -354,8 +484,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Play stem coming soon"
-                    title="Play stem coming soon"
+                    aria-label={t("workspacePlayStemUnavailable")}
+                    title={t("workspacePlayStemUnavailable")}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
@@ -376,33 +506,36 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Solo / mute others coming soon"
-                    title="Solo / mute others coming soon"
+                    aria-label={t("workspaceSoloUnavailable")}
+                    title={t("workspaceSoloUnavailable")}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
                   >
                     Solo / mute others
                   </Button>
-                  {canTranscribeBass ? (
+                  {canArmTonightSetup ? (
                     <Button
                       type="button"
-                      title="Transcribe part"
+                      title={setupAriaLabel}
+                      aria-label={setupAriaLabel}
+                      onClick={armTonightSetup}
                       variant="outline"
-                      className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
+                      className="min-h-11 border-amber-300/30 bg-amber-300/10 font-semibold text-amber-50 hover:bg-amber-300/20 hover:text-white"
                     >
-                      Transcribe Bass
+                      {setupActionLabel}
                     </Button>
                   ) : (
                     <Button
                       type="button"
                       aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
+                      aria-label={t("workspaceSetupUnavailable")}
+                      title={t("workspaceSetupUnavailable")}
                       onClick={preventUnavailableAction}
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
                     >
-                      Transcribe Bass
+                      {t("workspaceSetupUnavailable")}
                     </Button>
                   )}
                 </div>
@@ -416,13 +549,21 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       {roleHarmonicExplanation}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3">
+                  <div
+                    id="workspace-role-setup"
+                    tabIndex={-1}
+                    className={`rounded-xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${
+                      armedSetupRoleId === activeRole
+                        ? "border border-amber-300/50 bg-amber-300/[0.14] ring-2 ring-amber-300/70"
+                        : "border border-indigo-300/20 bg-indigo-300/[0.08]"
+                    }`}
+                  >
                     <div className="flex items-center gap-2 text-indigo-100">
                       <ClipboardList className="size-4" aria-hidden="true" />
                       <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-200">
-                      {roleTranspositionPlan}
+                      {setupCue ?? roleTranspositionPlan}
                     </p>
                   </div>
                 </div>
@@ -476,7 +617,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </div>
                 )}
                 <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
-                <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
+                {armedSetupRoleId === activeRole ? (
+                  <p className="mt-3 text-sm font-semibold text-amber-100" role="status" aria-live="polite">
+                    {setupStatus}
+                  </p>
+                ) : null}
+                <GrooveMap
+                  notes={activeRoleTranscription ?? activeRoleDetails?.transcription}
+                  isLoading={false}
+                  entranceOnset={armedSetupRoleId === activeRole ? firstNote?.onset : undefined}
+                />
               </div>
             )}
 

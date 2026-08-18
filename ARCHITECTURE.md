@@ -68,6 +68,7 @@ Last updated: 2026-03-11
 - BandScope is not only a shell around chord labels, stems, and ranges.
 - The technical scope includes rehearsal-facing outputs for harmony, section roadmap, groove cues, role entry and dropout cues, simplification guidance, transposition or setup guidance, confidence flags, and rehearsal priority.
 - These outputs must stay aligned with `docs/brand-story.md` rather than drifting back to a song-summary-only analyzer.
+- Ready-workspace role-strip setup must arm tonight's `setupNote` (then transposition / simplification) and name the first analyzed entrance on the groove map. Isolation playback stays out of this lane.
 
 ## Analysis target model
 
