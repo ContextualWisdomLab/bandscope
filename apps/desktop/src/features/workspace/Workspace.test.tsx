@@ -289,14 +289,26 @@ describe("Workspace", () => {
 
   it("focuses the selected renderer position even when analysis section ids are duplicated", () => {
     const song = createDemoRehearsalSong();
-    const firstSectionId = song.sections[0]!.id;
-    song.sections[1]!.id = firstSectionId;
+    const firstSection = song.sections[0]!;
+    song.sections = [
+      firstSection,
+      {
+        ...firstSection,
+        id: firstSection.id,
+        label: "chorus",
+        timeRange: {
+          start: 30,
+          end: 50
+        }
+      }
+    ];
     const scrollIntoView = vi.fn();
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
     render(<Workspace song={song} />);
 
     const loopButtons = screen.getAllByRole("button", { name: /Loop .* from .* to .*/ });
+    expect(loopButtons).toHaveLength(2);
     fireEvent.click(loopButtons[1]!);
 
     expect(document.activeElement?.id).toBe("workspace-section-card-1");
