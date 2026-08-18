@@ -1,4 +1,4 @@
-"""Fail-isolated regressions for unrepresentable boolean section-harmony timing."""
+"""Regression tests for Boolean section-boundary timing authority."""
 
 from __future__ import annotations
 
