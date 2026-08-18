@@ -6,7 +6,7 @@ export interface OverlapWarningListProps {
   warnings: readonly string[];
 }
 
-/** Documented. */
+/** Render localized rehearsal-overlap warnings, or nothing when no warnings exist. */
 export function OverlapWarningList({ warnings }: OverlapWarningListProps) {
   const t = createTranslator(detectPreferredLocale());
   if (warnings.length === 0) {
