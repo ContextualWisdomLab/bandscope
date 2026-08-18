@@ -2,6 +2,7 @@ import type { ConfidenceLevel } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Badge } from "@/components/ui/badge";
 
+/** Supported visual sizes from the Figma confidence-badge component contract. */
 export type ConfidenceBadgeSize = "compact" | "default";
 
 interface ConfidenceBadgeProps {
