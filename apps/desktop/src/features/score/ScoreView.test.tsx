@@ -235,7 +235,9 @@ describe("ScoreView", () => {
       expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:2:opener.pdf");
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
+    const removeButton = screen.getByRole("button", { name: "Remove: opener.pdf" });
+    expect(removeButton).toHaveAttribute("title", "Remove: opener.pdf");
+    fireEvent.click(removeButton);
 
     await waitFor(() => {
       expect(onSongUpdate).toHaveBeenCalledWith({ ...song, scoreAttachments: [] });

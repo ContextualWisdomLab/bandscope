@@ -174,6 +174,8 @@ describe("ScoreViewer", () => {
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     const previousButton = screen.getByRole("button", { name: "Previous page" });
     const nextButton = screen.getByRole("button", { name: "Next page" });
+    expect(previousButton).toHaveAttribute("title", "Previous page");
+    expect(nextButton).toHaveAttribute("title", "Next page");
     expect(previousButton).toBeDisabled();
 
     fireEvent.click(nextButton);
@@ -204,6 +206,8 @@ describe("ScoreViewer", () => {
     const zoomInButton = screen.getByRole("button", { name: "Zoom in" });
     const zoomOutButton = screen.getByRole("button", { name: "Zoom out" });
     const fitWidthButton = screen.getByRole("button", { name: "Fit width" });
+    expect(zoomInButton).toHaveAttribute("title", "Zoom in");
+    expect(zoomOutButton).toHaveAttribute("title", "Zoom out");
     expect(fitWidthButton).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(zoomInButton);
