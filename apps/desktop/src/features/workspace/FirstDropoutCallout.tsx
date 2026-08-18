@@ -16,6 +16,7 @@ type DropoutCopyValues = Readonly<Record<"from" | "to" | "section" | "end", stri
 type HeardDropout = Readonly<{
   songId: string;
   sectionId: string;
+  sectionIndex: number;
   fromRoleId: string;
   toRoleId: string;
   endSeconds: number;
@@ -37,11 +38,12 @@ export function FirstDropoutCallout({
 }: FirstDropoutCalloutProps) {
   const t = createTranslator(detectPreferredLocale());
   const handoff = resolveFirstDropoutHandoff(song);
+  const handoffSectionIndex = handoff ? song.sections.indexOf(handoff.section) : -1;
   const [heardDropout, setHeardDropout] = useState<HeardDropout | null>(null);
 
   useEffect(() => {
     setHeardDropout(null);
-  }, [song.id, handoff?.section.id, handoff?.fromRole.id, handoff?.toRole.id, handoff?.endSeconds]);
+  }, [song.id, handoffSectionIndex, handoff?.section.id, handoff?.fromRole.id, handoff?.toRole.id, handoff?.endSeconds]);
 
   if (!handoff) {
     return (
@@ -59,6 +61,7 @@ export function FirstDropoutCallout({
   const heard =
     heardDropout?.songId === song.id &&
     heardDropout.sectionId === handoff.section.id &&
+    heardDropout.sectionIndex === handoffSectionIndex &&
     heardDropout.fromRoleId === handoff.fromRole.id &&
     heardDropout.toRoleId === handoff.toRole.id &&
     heardDropout.endSeconds === handoff.endSeconds;
@@ -93,6 +96,7 @@ export function FirstDropoutCallout({
             setHeardDropout({
               songId: song.id,
               sectionId: handoff.section.id,
+              sectionIndex: handoffSectionIndex,
               fromRoleId: handoff.fromRole.id,
               toRoleId: handoff.toRole.id,
               endSeconds: handoff.endSeconds
@@ -101,7 +105,8 @@ export function FirstDropoutCallout({
               onHearDropout(handoff.endSeconds);
               return;
             }
-            const target = document.getElementById(`song-structure-section-${handoff.section.id}`);
+            const grid = document.querySelector('[data-testid="song-structure-grid"]');
+            const target = handoffSectionIndex >= 0 ? grid?.children.item(handoffSectionIndex) : null;
             target?.scrollIntoView?.({
               block: "nearest",
               behavior: "smooth"
