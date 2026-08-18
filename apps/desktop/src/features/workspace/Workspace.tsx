@@ -220,7 +220,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleRangeHigh = nonBlankText(activeRoleDetails?.range.highestNote);
   const setupCue = roleSetupCue(activeRoleDetails);
   const setupSentenceCue = setupCue ? sentenceFragment(setupCue) : "";
-  const canArmTonightSetup = Boolean(setupCue);
+  const hasPlayableRange = Boolean(roleRangeLow && roleRangeHigh);
+  const hasStartEvidence = Boolean(firstNote || hasPlayableRange);
+  const canArmTonightSetup = Boolean(setupCue && hasStartEvidence);
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -284,23 +286,24 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
   const roleName = nonBlankText(activeRoleDetails?.name) ?? t("workspaceThisRole");
-  const setupActionLabel = !setupCue
-    ? t("workspaceSetupUnavailable")
+  const setupUnavailableLabel = setupCue && !hasStartEvidence
+    ? t("workspaceSetupStartUnavailable")
+    : t("workspaceSetupUnavailable");
+  const setupActionLabel = !canArmTonightSetup
+    ? setupUnavailableLabel
     : firstNote
       ? fillCopy(t("workspaceSetupActionWithNote"), {
           role: roleName,
           pitch: firstNote.pitch,
           start: formatTimelineTime(firstNote.onset)
         })
-      : roleRangeLow && roleRangeHigh
-        ? fillCopy(t("workspaceSetupActionWithRange"), {
-            role: roleName,
-            low: roleRangeLow,
-            high: roleRangeHigh
-          })
-        : fillCopy(t("workspaceSetupAction"), { role: roleName });
-  const setupAriaLabel = !setupCue
-    ? t("workspaceSetupUnavailable")
+      : fillCopy(t("workspaceSetupActionWithRange"), {
+          role: roleName,
+          low: roleRangeLow!,
+          high: roleRangeHigh!
+        });
+  const setupAriaLabel = !canArmTonightSetup
+    ? setupUnavailableLabel
     : firstNote
       ? fillCopy(t("workspaceSetupAriaWithNote"), {
           role: roleName,
@@ -308,31 +311,25 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           start: formatTimelineTime(firstNote.onset),
           setup: setupSentenceCue
         })
-      : roleRangeLow && roleRangeHigh
-        ? fillCopy(t("workspaceSetupAriaWithRange"), {
-            role: roleName,
-            low: roleRangeLow,
-            high: roleRangeHigh,
-            setup: setupSentenceCue
-          })
-        : fillCopy(t("workspaceSetupAria"), { role: roleName, setup: setupSentenceCue });
-  const setupStatus = !setupCue
-    ? t("workspaceSetupUnavailable")
-    : firstNote
-      ? fillCopy(t("workspaceSetupArmedWithNote"), {
+      : fillCopy(t("workspaceSetupAriaWithRange"), {
           role: roleName,
-          pitch: firstNote.pitch,
-          start: formatTimelineTime(firstNote.onset),
+          low: roleRangeLow!,
+          high: roleRangeHigh!,
           setup: setupSentenceCue
-        })
-      : roleRangeLow && roleRangeHigh
-        ? fillCopy(t("workspaceSetupArmedWithRange"), {
-            role: roleName,
-            low: roleRangeLow,
-            high: roleRangeHigh,
-            setup: setupSentenceCue
-          })
-        : fillCopy(t("workspaceSetupArmed"), { role: roleName, setup: setupSentenceCue });
+        });
+  const setupStatus = firstNote
+    ? fillCopy(t("workspaceSetupArmedWithNote"), {
+        role: roleName,
+        pitch: firstNote.pitch,
+        start: formatTimelineTime(firstNote.onset),
+        setup: setupSentenceCue
+      })
+    : fillCopy(t("workspaceSetupArmedWithRange"), {
+        role: roleName,
+        low: roleRangeLow!,
+        high: roleRangeHigh!,
+        setup: setupSentenceCue
+      });
 
   /** Arm tonight's setup and move focus to the setup card. */
   const armTonightSetup = (): void => {
@@ -534,14 +531,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   ) : (
                     <Button
                       type="button"
-                      aria-disabled={true}
-                      aria-label={t("workspaceSetupUnavailable")}
-                      title={t("workspaceSetupUnavailable")}
-                      onClick={preventUnavailableAction}
+                      disabled
+                      aria-label={setupUnavailableLabel}
+                      title={setupUnavailableLabel}
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
                     >
-                      {t("workspaceSetupUnavailable")}
+                      {setupUnavailableLabel}
                     </Button>
                   )}
                 </div>
@@ -635,6 +631,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   notes={activeRoleTranscription ?? activeRoleDetails?.transcription}
                   isLoading={false}
                   entranceOnset={armedSetupRoleId === activeRole ? firstNote?.onset : undefined}
+                  roleName={roleName}
                 />
               </div>
             )}
