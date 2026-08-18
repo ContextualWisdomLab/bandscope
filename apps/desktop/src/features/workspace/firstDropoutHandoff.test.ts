@@ -310,13 +310,7 @@ describe("resolveFirstDropoutHandoff", () => {
       {
         role_id: "safe-bass",
         is_active: true,
-        handoff_to: ["safe-bass", "   ", "nobody"],
-        handoff_from: []
-      },
-      {
-        role_id: "safe-bass",
-        is_active: true,
-        handoff_to: ["safe-lead"],
+        handoff_to: ["safe-bass", "   ", "nobody", "safe-lead"],
         handoff_from: []
       },
       {
