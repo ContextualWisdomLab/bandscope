@@ -61,6 +61,7 @@
   "workspaceSetupArmedWithNote": "Tonight's {role} setup: {setup}. Start on {pitch} from {start} on the groove map.",
   "workspaceSetupArmedWithRange": "Tonight's {role} setup: {setup}. Start in {low}–{high} on the map.",
   "workspaceSetupUnavailable": "No setup cue yet. Stay on tonight's map.",
+  "workspaceSetupStartUnavailable": "No first entrance or playable range yet. Stay on tonight's map.",
   "workspacePlayStemUnavailable": "Isolation is not ready. Set up tonight's part first.",
   "workspaceSoloUnavailable": "Solo stays off until isolation is honest. Set up tonight's part first.",
   "sectionRoadmapTitle": "Section Roadmap",
