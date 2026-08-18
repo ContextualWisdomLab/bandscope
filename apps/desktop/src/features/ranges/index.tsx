@@ -1,7 +1,7 @@
 import { OverlapWarningList } from "../workspace/OverlapWarningList";
 import type { RehearsalSong } from "@bandscope/shared-types";
 
-/** Documented. */
+/** Render per-role range, overlap, and transcription summaries for the loaded rehearsal song. */
 export function RangesFeature(props: { title: string; song?: RehearsalSong | null }) {
   const { title, song } = props;
 
