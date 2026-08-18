@@ -99,7 +99,13 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 /** Return the first labeled stop, or null when no safe cut remains. */
 export function resolveFirstStopHandoff(song: RehearsalSong): FirstStopHandoff | null {
   const stopSections = song.sections
-    .filter((section) => section.label === "stop" && hasBoundedTimeRange(section))
+    .filter(
+      (section) =>
+        section.label === "stop" &&
+        typeof section.id === "string" &&
+        section.id.trim().length > 0 &&
+        hasBoundedTimeRange(section)
+    )
     .sort((left, right) => {
       if (left.timeRange.start !== right.timeRange.start) {
         return left.timeRange.start - right.timeRange.start;
