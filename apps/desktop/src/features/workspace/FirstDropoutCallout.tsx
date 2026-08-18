@@ -69,7 +69,10 @@ export function FirstDropoutCallout({
     section: handoff.section.label,
     end
   };
-  const actionLabel = formatDropoutCopy(t("firstDropoutAction"), copyValues);
+  const actionLabel = formatDropoutCopy(
+    t(actionMode === "callback-only" ? "firstDropoutAction" : "firstDropoutOpenAction"),
+    copyValues
+  );
   const body = formatDropoutCopy(t("firstDropoutBody"), copyValues);
   const armed = formatDropoutCopy(t("firstDropoutArmed"), copyValues);
   const canExecuteAction = actionMode === "workspace-scroll" || onHearDropout !== undefined;
