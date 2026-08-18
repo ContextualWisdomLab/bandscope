@@ -14,6 +14,16 @@ interface SectionRoadmapProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
+type ChordEditCopyValues = Readonly<Record<"roleName" | "sectionLabel" | "chord", string>>;
+
+/** Interpolate chord-edit placeholders once so rehearsal data is never reinterpreted as template syntax. */
+function formatChordEditLabel(template: string, values: ChordEditCopyValues): string {
+  return template.replace(/\{(roleName|sectionLabel|chord)\}/g, (placeholder) => {
+    const key = placeholder.slice(1, -1) as keyof ChordEditCopyValues;
+    return values[key];
+  });
+}
+
 /** Render the section-by-section rehearsal roadmap, optionally filtered to one active role. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
@@ -22,10 +32,11 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
   /** Build the localized accessible label for editing one role's chord in a section. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
-    return t("chordEditAriaLabel")
-      .replace("{roleName}", role.name)
-      .replace("{sectionLabel}", sectionLabel)
-      .replace("{chord}", role.harmony.chord);
+    return formatChordEditLabel(t("chordEditAriaLabel"), {
+      roleName: role.name,
+      sectionLabel,
+      chord: role.harmony.chord
+    });
   };
 
   /** Persist a non-empty changed chord as a user-owned harmony override for the selected role. */
