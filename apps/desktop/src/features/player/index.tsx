@@ -2,9 +2,14 @@ import type { RehearsalSong } from "@bandscope/shared-types";
 import { FirstLyricCueCallout } from "../workspace/FirstLyricCueCallout";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 
-/** Player surface that names tonight's first lyric cue so the singer can start. */
-export function PlayerFeature(props: { title: string; song?: RehearsalSong | null }) {
-  const { title, song } = props;
+type PlayerFeatureProps = {
+  title: string;
+  song?: RehearsalSong | null;
+  onPlayFromSeconds?: (startSeconds: number) => void;
+};
+
+/** Player surface that names tonight's first lyric cue and delegates playback to the owning player. */
+export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureProps) {
   const t = createTranslator(detectPreferredLocale());
 
   if (!song) {
@@ -19,7 +24,11 @@ export function PlayerFeature(props: { title: string; song?: RehearsalSong | nul
   return (
     <section style={{ padding: "24px" }}>
       <h2>{title}</h2>
-      <FirstLyricCueCallout song={song} />
+      <FirstLyricCueCallout
+        song={song}
+        actionMode="callback-only"
+        onHearLyricCue={onPlayFromSeconds}
+      />
       <div
         style={{
           padding: "16px",
