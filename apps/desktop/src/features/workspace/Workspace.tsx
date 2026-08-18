@@ -4,6 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { FirstStopCallout } from "./FirstStopCallout";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -330,6 +331,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               </p>
             </section>
           </div>
+
+          <FirstStopCallout song={song} />
 
           <SongStructure sections={song.sections} t={t} />
 

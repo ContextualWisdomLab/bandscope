@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstStopLabel": "오늘 첫 스톱",
+  "firstStopAction": "{at}에 {role} 컷 듣기",
+  "firstStopActionBand": "{at} 첫 스톱 듣기",
+  "firstStopOpenAction": "{at} {role} 스톱 위치 열기",
+  "firstStopOpenActionBand": "{at} 첫 스톱 위치 열기",
+  "firstStopBody": "{role}이 {at} {section}에서 컷합니다.",
+  "firstStopBodyBand": "밴드가 {at} {section}에서 컷합니다.",
+  "firstStopArmed": "{at}에서 {role} 컷을 지키세요. 그대로 밀고 가지 마세요.",
+  "firstStopArmedBand": "{at}에서 컷을 지키세요. 그대로 밀고 가지 마세요.",
+  "firstStopUnavailable": "아직 스톱이 없습니다. 컷이 표시될 때까지 오늘 지도에 머무르세요.",
+  "firstStopNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 스톱을 들으세요."
 }

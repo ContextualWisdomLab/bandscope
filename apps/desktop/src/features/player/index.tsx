@@ -1,14 +1,22 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
+import { FirstStopCallout } from "../workspace/FirstStopCallout";
+import { createTranslator, detectPreferredLocale } from "../../i18n";
 
-/** Documented. */
-export function PlayerFeature(props: { title: string; song?: RehearsalSong | null }) {
-  const { title, song } = props;
+type PlayerFeatureProps = {
+  title: string;
+  song?: RehearsalSong | null;
+  onPlayFromSeconds?: (startSeconds: number) => void;
+};
+
+/** Player surface that names tonight's first stop and delegates playback to the owning player. */
+export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureProps) {
+  const t = createTranslator(detectPreferredLocale());
 
   if (!song) {
     return (
       <section style={{ padding: "24px" }}>
         <h2>{title}</h2>
-        <p style={{ color: "#999" }}>No song loaded. Start an analysis to use the player.</p>
+        <p style={{ color: "#999" }}>{t("firstStopNeedsSong")}</p>
       </section>
     );
   }
@@ -16,12 +24,14 @@ export function PlayerFeature(props: { title: string; song?: RehearsalSong | nul
   return (
     <section style={{ padding: "24px" }}>
       <h2>{title}</h2>
+      <FirstStopCallout song={song} actionMode="callback-only" onHearStop={onPlayFromSeconds} />
       <div
         style={{
           padding: "16px",
           backgroundColor: "#fafafa",
           borderRadius: "8px",
           border: "1px solid #e8e8e8",
+          marginTop: "16px"
         }}
       >
         <div style={{ marginBottom: "12px" }}>
@@ -31,16 +41,16 @@ export function PlayerFeature(props: { title: string; song?: RehearsalSong | nul
           </span>
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {song.sections.map((section) => (
+          {song.sections.map((section, sectionIndex) => (
             <span
-              key={section.id}
+              key={`${section.id}-${sectionIndex}`}
               style={{
                 padding: "4px 12px",
                 borderRadius: "16px",
                 backgroundColor: "#fff",
                 border: "1px solid #d9d9d9",
                 fontSize: "0.85em",
-                textTransform: "capitalize",
+                textTransform: "capitalize"
               }}
             >
               {section.label}

@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstStopLabel": "Tonight's first stop",
+  "firstStopAction": "Hear {role} cut at {at}",
+  "firstStopActionBand": "Hear the first stop at {at}",
+  "firstStopOpenAction": "Open {role} stop at {at}",
+  "firstStopOpenActionBand": "Open the first stop at {at}",
+  "firstStopBody": "{role} cuts the {section} at {at}.",
+  "firstStopBodyBand": "The band cuts the {section} at {at}.",
+  "firstStopArmed": "Hold {role}'s cut at {at}. Do not play through it.",
+  "firstStopArmedBand": "Hold the cut at {at}. Do not play through it.",
+  "firstStopUnavailable": "No stop yet. Stay on tonight's map until a cut is marked.",
+  "firstStopNeedsSong": "Analyze tonight's song first, then hear the first stop from this player."
 }
