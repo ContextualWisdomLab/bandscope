@@ -3,16 +3,23 @@ import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it, vi } from "vitest";
 import { FirstDropoutCallout } from "./FirstDropoutCallout";
 
+function appendSongStructureTarget() {
+  const grid = document.createElement("div");
+  grid.dataset.testid = "song-structure-grid";
+  const target = document.createElement("div");
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(target, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView
+  });
+  grid.appendChild(target);
+  document.body.appendChild(grid);
+  return { grid, scrollIntoView };
+}
+
 describe("FirstDropoutCallout", () => {
-  it("names the first dropout as map navigation, scrolls to its section, and arms that action", () => {
-    const target = document.createElement("div");
-    target.id = "song-structure-section-verse-1";
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(target, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView
-    });
-    document.body.appendChild(target);
+  it("names the first dropout as map navigation, scrolls to its rendered section, and arms that action", () => {
+    const { grid, scrollIntoView } = appendSongStructureTarget();
 
     render(<FirstDropoutCallout song={createDemoRehearsalSong()} />);
 
@@ -24,7 +31,24 @@ describe("FirstDropoutCallout", () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Start the last bar of Bass Guitar before Lead Vocal takes the verse \(0:30\)/)).toBeTruthy();
 
-    target.remove();
+    grid.remove();
+  });
+
+  it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.id = "analysis section / duplicate";
+    const { grid, scrollIntoView } = appendSongStructureTarget();
+
+    render(<FirstDropoutCallout song={song} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Bass Guitar dropout for Lead Vocal at 0:30"
+      })
+    );
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+
+    grid.remove();
   });
 
   it("shows fresh guidance when the first dropout changes or returns later", () => {
