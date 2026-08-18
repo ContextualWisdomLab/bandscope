@@ -69,7 +69,10 @@ export function FirstLyricCueCallout({
     start,
     lyric: cue.lyric
   };
-  const actionLabel = formatLyricCueCopy(t("firstLyricCueAction"), copyValues);
+  const actionLabel = formatLyricCueCopy(
+    t(actionMode === "callback-only" ? "firstLyricCueAction" : "firstLyricCueOpenAction"),
+    copyValues
+  );
   const body = formatLyricCueCopy(t("firstLyricCueBody"), copyValues);
   const armed = formatLyricCueCopy(t("firstLyricCueArmed"), copyValues);
   const canExecuteAction = actionMode === "workspace-scroll" || onHearLyricCue !== undefined;
