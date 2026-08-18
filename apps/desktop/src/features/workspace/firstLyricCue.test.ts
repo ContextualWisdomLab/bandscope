@@ -76,7 +76,7 @@ describe("resolveFirstLyricCue", () => {
     expect(resolveFirstLyricCue(song)?.role.id).toBe("lead-vocal");
   });
 
-  it("skips non-finite section starts and unknown role priorities", () => {
+  it("skips non-finite starts, unknown priorities, and malformed lyric values", () => {
     const song = createDemoRehearsalSong();
     const invalidSection = structuredClone(song.sections[0]!);
     invalidSection.id = "invalid-start";
@@ -92,8 +92,16 @@ describe("resolveFirstLyricCue", () => {
       cue: { kind: "lyric" as const, value: "ignore me" }
     };
     (invalidPriorityRole as unknown as { rehearsalPriority: string }).rehearsalPriority = "urgent";
+    const invalidLyricRole = {
+      ...validSection.roles[2]!,
+      id: "invalid-lyric",
+      rehearsalPriority: "medium" as const,
+      cue: { kind: "lyric" as const, value: "placeholder" }
+    };
+    (invalidLyricRole.cue as unknown as { value: unknown }).value = 42;
     validSection.roles = [
       invalidPriorityRole,
+      invalidLyricRole,
       {
         ...validSection.roles[2]!,
         id: "safe-lead",
