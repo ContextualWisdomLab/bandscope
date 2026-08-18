@@ -140,6 +140,17 @@ def test_malformed_segments_are_skipped() -> None:
     assert result[0]["chord_changes"] == 0
 
 
+def test_non_mapping_segment_is_skipped_without_discarding_valid_neighbors() -> None:
+    """A malformed non-mapping entry must not erase adjacent valid harmony evidence."""
+    segments: Any = [None, _segment(0.0, 3.0, "Em")]
+
+    result = summarize_section_harmony(segments, [(0.0, 3.0)])
+
+    assert result[0]["main_chord"] == "Em"
+    assert result[0]["chords"] == [{"chord": "Em", "duration": pytest.approx(3.0)}]
+    assert result[0]["chord_changes"] == 0
+
+
 @pytest.mark.parametrize(
     ("start", "end"),
     [
@@ -214,14 +225,3 @@ def test_ties_break_alphabetically_for_determinism() -> None:
     ]
     assert result[0]["main_chord"] == "C"
     assert result[0]["chord_changes"] == 1
-
-
-def test_non_mapping_segment_is_skipped_without_discarding_valid_neighbors() -> None:
-    """A malformed non-mapping entry must not erase adjacent valid harmony evidence."""
-    segments: Any = [None, _segment(0.0, 3.0, "Em")]
-
-    result = summarize_section_harmony(segments, [(0.0, 3.0)])
-
-    assert result[0]["main_chord"] == "Em"
-    assert result[0]["chords"] == [{"chord": "Em", "duration": pytest.approx(3.0)}]
-    assert result[0]["chord_changes"] == 0

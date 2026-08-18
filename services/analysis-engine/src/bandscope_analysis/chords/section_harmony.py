@@ -42,18 +42,23 @@ class SectionHarmony(TypedDict):
     chord_changes: int
 
 
-def _coerce_segment(segment: Mapping[str, object]) -> tuple[float, float, str] | None:
-    """Extract (start, end, chord) from a chord segment mapping.
+def _coerce_segment(segment: object) -> tuple[float, float, str] | None:
+    """Extract ``(start, end, chord)`` from a possible chord-segment mapping.
 
     Args:
-        segment: Mapping with ``start_time``, ``end_time``, and ``chord`` keys.
+        segment: Candidate mapping with ``start_time``, ``end_time``, and
+            ``chord`` keys. Non-mapping values and blank chord labels are
+            malformed entries and are skipped without discarding neighboring
+            valid segments.
 
     Returns:
         A ``(start, end, chord)`` tuple, or ``None`` if the segment is
-        malformed, non-finite, or has a non-positive span.
+        malformed, non-finite, unrepresentable, blank-labeled, or has a
+        non-positive span.
     """
     if not isinstance(segment, Mapping):
         return None
+
     start_raw = segment.get("start_time")
     end_raw = segment.get("end_time")
     chord_raw = segment.get("chord")
@@ -61,10 +66,13 @@ def _coerce_segment(segment: Mapping[str, object]) -> tuple[float, float, str] |
         return None
     if not isinstance(end_raw, int | float) or isinstance(end_raw, bool):
         return None
-    if not isinstance(chord_raw, str):
+    if not isinstance(chord_raw, str) or not chord_raw.strip():
         return None
-    start = float(start_raw)
-    end = float(end_raw)
+    try:
+        start = float(start_raw)
+        end = float(end_raw)
+    except OverflowError:
+        return None
     if not math.isfinite(start) or not math.isfinite(end) or end <= start:
         return None
     return (start, end, chord_raw)
@@ -135,10 +143,11 @@ def summarize_section_harmony(
         chord_segments: Chord segments shaped like
             ``{"start_time": float, "end_time": float, "chord": str, ...}``
             (e.g. ``TrackedChord`` from the chord recognizer). Malformed,
-            non-finite, and non-positive-span entries are skipped.
+            blank-labeled, non-finite, unrepresentable, and non-positive-span
+            entries are skipped.
         boundaries: Section windows as ``(start, end)`` pairs in seconds.
-            Windows must be finite and have ``end > start``; invalid windows
-            are skipped.
+            Windows must use finite, representable, non-Boolean endpoints and
+            have ``end > start``; invalid windows are skipped.
 
     Returns:
         One :class:`SectionHarmony` per valid boundary, in boundary order.
@@ -156,12 +165,16 @@ def summarize_section_harmony(
         summaries: list[SectionHarmony] = []
         for boundary in boundaries:
             try:
-                # Python evaluates float(False) -> 0.0 and float(True) -> 1.0
-                if isinstance(boundary[0], bool) or isinstance(boundary[1], bool):
-                    continue
-                section_start = float(boundary[0])
-                section_end = float(boundary[1])
-            except (IndexError, TypeError, ValueError):
+                section_start_raw = boundary[0]
+                section_end_raw = boundary[1]
+            except (IndexError, TypeError):
+                continue
+            if isinstance(section_start_raw, bool) or isinstance(section_end_raw, bool):
+                continue
+            try:
+                section_start = float(section_start_raw)
+                section_end = float(section_end_raw)
+            except (OverflowError, TypeError, ValueError):
                 continue
             if (
                 not math.isfinite(section_start)
