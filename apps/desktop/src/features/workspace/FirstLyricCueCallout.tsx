@@ -16,6 +16,7 @@ type LyricCueCopyValues = Readonly<Record<"role" | "section" | "start" | "lyric"
 type HeardLyricCue = Readonly<{
   songId: string;
   sectionId: string;
+  sectionIndex: number;
   roleId: string;
   startSeconds: number;
   lyric: string;
@@ -37,11 +38,12 @@ export function FirstLyricCueCallout({
 }: FirstLyricCueCalloutProps) {
   const t = createTranslator(detectPreferredLocale());
   const cue = resolveFirstLyricCue(song);
+  const cueSectionIndex = cue ? song.sections.indexOf(cue.section) : -1;
   const [heardCue, setHeardCue] = useState<HeardLyricCue | null>(null);
 
   useEffect(() => {
     setHeardCue(null);
-  }, [song.id, cue?.section.id, cue?.role.id, cue?.startSeconds, cue?.lyric]);
+  }, [song.id, cueSectionIndex, cue?.section.id, cue?.role.id, cue?.startSeconds, cue?.lyric]);
 
   if (!cue) {
     return (
@@ -59,6 +61,7 @@ export function FirstLyricCueCallout({
   const heard =
     heardCue?.songId === song.id &&
     heardCue.sectionId === cue.section.id &&
+    heardCue.sectionIndex === cueSectionIndex &&
     heardCue.roleId === cue.role.id &&
     heardCue.startSeconds === cue.startSeconds &&
     heardCue.lyric === cue.lyric;
@@ -93,6 +96,7 @@ export function FirstLyricCueCallout({
             setHeardCue({
               songId: song.id,
               sectionId: cue.section.id,
+              sectionIndex: cueSectionIndex,
               roleId: cue.role.id,
               startSeconds: cue.startSeconds,
               lyric: cue.lyric
@@ -101,7 +105,9 @@ export function FirstLyricCueCallout({
               onHearLyricCue(cue.startSeconds);
               return;
             }
-            const target = document.getElementById(`song-structure-section-${cue.section.id}`);
+            const target = cueSectionIndex >= 0
+              ? document.getElementById(`song-structure-section-${cueSectionIndex}`)
+              : null;
             target?.scrollIntoView?.({
               block: "nearest",
               behavior: "smooth"
