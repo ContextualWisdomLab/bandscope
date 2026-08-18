@@ -105,9 +105,8 @@ export function FirstLyricCueCallout({
               onHearLyricCue(cue.startSeconds);
               return;
             }
-            const target = cueSectionIndex >= 0
-              ? document.getElementById(`song-structure-section-${cueSectionIndex}`)
-              : null;
+            const grid = document.querySelector('[data-testid="song-structure-grid"]');
+            const target = cueSectionIndex >= 0 ? grid?.children.item(cueSectionIndex) : null;
             target?.scrollIntoView?.({
               block: "nearest",
               behavior: "smooth"
