@@ -11,6 +11,14 @@ export interface FirstEntranceCalloutProps {
 
 type EntranceCopyValues = Readonly<Record<"role" | "section" | "start" | "cue", string>>;
 
+type HeardEntrance = Readonly<{
+  songId: string;
+  sectionId: string;
+  roleId: string;
+  startSeconds: number;
+  cue: string;
+}>;
+
 /** Interpolate entrance placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatEntranceCopy(template: string, values: EntranceCopyValues): string {
   return template.replace(/\{(role|section|start|cue)\}/g, (placeholder) => {
@@ -23,7 +31,7 @@ function formatEntranceCopy(template: string, values: EntranceCopyValues): strin
 export function FirstEntranceCallout({ song }: FirstEntranceCalloutProps) {
   const t = createTranslator(detectPreferredLocale());
   const entrance = resolveFirstEntrance(song);
-  const [heard, setHeard] = useState(false);
+  const [heardEntrance, setHeardEntrance] = useState<HeardEntrance | null>(null);
 
   if (!entrance) {
     return (
@@ -38,6 +46,12 @@ export function FirstEntranceCallout({ song }: FirstEntranceCalloutProps) {
     );
   }
 
+  const heard =
+    heardEntrance?.songId === song.id &&
+    heardEntrance.sectionId === entrance.section.id &&
+    heardEntrance.roleId === entrance.role.id &&
+    heardEntrance.startSeconds === entrance.startSeconds &&
+    heardEntrance.cue === entrance.role.cue.value;
   const start = formatEntranceTime(entrance.startSeconds);
   const copyValues: EntranceCopyValues = {
     role: entrance.role.name,
@@ -61,7 +75,13 @@ export function FirstEntranceCallout({ song }: FirstEntranceCalloutProps) {
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950"
         onClick={() => {
-          setHeard(true);
+          setHeardEntrance({
+            songId: song.id,
+            sectionId: entrance.section.id,
+            roleId: entrance.role.id,
+            startSeconds: entrance.startSeconds,
+            cue: entrance.role.cue.value
+          });
           const target = document.getElementById(`song-structure-section-${entrance.section.id}`);
           target?.scrollIntoView?.({
             block: "nearest",
