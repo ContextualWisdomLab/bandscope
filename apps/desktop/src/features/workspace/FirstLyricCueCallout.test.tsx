@@ -3,16 +3,23 @@ import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it, vi } from "vitest";
 import { FirstLyricCueCallout } from "./FirstLyricCueCallout";
 
+function appendSongStructureTarget() {
+  const grid = document.createElement("div");
+  grid.dataset.testid = "song-structure-grid";
+  const target = document.createElement("div");
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(target, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView
+  });
+  grid.appendChild(target);
+  document.body.appendChild(grid);
+  return { grid, scrollIntoView };
+}
+
 describe("FirstLyricCueCallout", () => {
-  it("names the first lyric cue as map navigation, scrolls to its section, and arms that action", () => {
-    const target = document.createElement("div");
-    target.id = "song-structure-section-0";
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(target, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView
-    });
-    document.body.appendChild(target);
+  it("names the first lyric cue as map navigation, scrolls to its rendered section, and arms that action", () => {
+    const { grid, scrollIntoView } = appendSongStructureTarget();
 
     render(<FirstLyricCueCallout song={createDemoRehearsalSong()} />);
 
@@ -24,20 +31,13 @@ describe("FirstLyricCueCallout", () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Start on Lead Vocal in the verse at “city lights” \(0:10\)/)).toBeTruthy();
 
-    target.remove();
+    grid.remove();
   });
 
   it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.id = "analysis section / duplicate";
-    const target = document.createElement("div");
-    target.id = "song-structure-section-0";
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(target, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView
-    });
-    document.body.appendChild(target);
+    const { grid, scrollIntoView } = appendSongStructureTarget();
 
     render(<FirstLyricCueCallout song={song} />);
 
@@ -48,7 +48,7 @@ describe("FirstLyricCueCallout", () => {
     );
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
 
-    target.remove();
+    grid.remove();
   });
 
   it("shows fresh guidance when the first lyric cue changes or returns later", () => {
