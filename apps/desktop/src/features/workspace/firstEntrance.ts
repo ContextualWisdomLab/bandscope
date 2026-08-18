@@ -2,7 +2,7 @@ import type { RehearsalRole, RehearsalSection, RehearsalSong } from "@bandscope/
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 
-/** Tonight's first entrance: earliest section, then the highest-priority role in that section. */
+/** Tonight's first entrance: earliest section, then the highest-priority active role in that section. */
 export type FirstEntrance = {
   section: RehearsalSection;
   role: RehearsalRole;
@@ -23,12 +23,19 @@ export function formatEntranceTime(totalSeconds: number): string {
 export function resolveFirstEntrance(song: RehearsalSong): FirstEntrance | null {
   const candidate = song.sections
     .filter((section) => Number.isFinite(section.timeRange.start) && section.timeRange.start >= 0)
-    .map((section) => ({
-      section,
-      roles: section.roles.filter((role) =>
-        Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
-      )
-    }))
+    .map((section) => {
+      const activeRoleIds = new Set(
+        section.partGraph.filter((node) => node.is_active).map((node) => node.role_id)
+      );
+      return {
+        section,
+        roles: section.roles.filter(
+          (role) =>
+            activeRoleIds.has(role.id) &&
+            Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
+        )
+      };
+    })
     .filter(({ roles }) => roles.length > 0)
     .sort((left, right) => left.section.timeRange.start - right.section.timeRange.start)[0];
   if (!candidate) {
