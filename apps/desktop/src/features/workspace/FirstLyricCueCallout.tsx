@@ -7,6 +7,8 @@ import { formatLyricCueTime, resolveFirstLyricCue } from "./firstLyricCue";
 /** Props for the first-lyric-cue rehearsal callout. */
 export interface FirstLyricCueCalloutProps {
   song: RehearsalSong;
+  actionMode?: "workspace-scroll" | "callback-only";
+  onHearLyricCue?: (startSeconds: number) => void;
 }
 
 type LyricCueCopyValues = Readonly<Record<"role" | "section" | "start" | "lyric", string>>;
@@ -27,8 +29,12 @@ function formatLyricCueCopy(template: string, values: LyricCueCopyValues): strin
   });
 }
 
-/** Name tonight's first lyric cue and let the singer hear the words they enter on. */
-export function FirstLyricCueCallout({ song }: FirstLyricCueCalloutProps) {
+/** Name tonight's first lyric cue and offer only an action that the current surface can execute. */
+export function FirstLyricCueCallout({
+  song,
+  actionMode = "workspace-scroll",
+  onHearLyricCue
+}: FirstLyricCueCalloutProps) {
   const t = createTranslator(detectPreferredLocale());
   const cue = resolveFirstLyricCue(song);
   const [heardCue, setHeardCue] = useState<HeardLyricCue | null>(null);
@@ -62,6 +68,7 @@ export function FirstLyricCueCallout({ song }: FirstLyricCueCalloutProps) {
   const actionLabel = formatLyricCueCopy(t("firstLyricCueAction"), copyValues);
   const body = formatLyricCueCopy(t("firstLyricCueBody"), copyValues);
   const armed = formatLyricCueCopy(t("firstLyricCueArmed"), copyValues);
+  const canExecuteAction = actionMode === "workspace-scroll" || onHearLyricCue !== undefined;
 
   return (
     <aside
@@ -71,26 +78,32 @@ export function FirstLyricCueCallout({ song }: FirstLyricCueCalloutProps) {
     >
       <p className="text-xs font-black uppercase tracking-[0.24em] text-violet-200">{t("firstLyricCueLabel")}</p>
       <p className="mt-2 text-sm leading-6 text-slate-300">{heard ? armed : body}</p>
-      <Button
-        type="button"
-        className="mt-3 min-h-11 bg-gradient-to-r from-violet-400 to-cyan-400 font-black text-slate-950"
-        onClick={() => {
-          setHeardCue({
-            songId: song.id,
-            sectionId: cue.section.id,
-            roleId: cue.role.id,
-            startSeconds: cue.startSeconds,
-            lyric: cue.lyric
-          });
-          const target = document.getElementById(`song-structure-section-${cue.section.id}`);
-          target?.scrollIntoView?.({
-            block: "nearest",
-            behavior: "smooth"
-          });
-        }}
-      >
-        {actionLabel}
-      </Button>
+      {canExecuteAction ? (
+        <Button
+          type="button"
+          className="mt-3 min-h-11 bg-gradient-to-r from-violet-400 to-cyan-400 font-black text-slate-950"
+          onClick={() => {
+            setHeardCue({
+              songId: song.id,
+              sectionId: cue.section.id,
+              roleId: cue.role.id,
+              startSeconds: cue.startSeconds,
+              lyric: cue.lyric
+            });
+            if (onHearLyricCue) {
+              onHearLyricCue(cue.startSeconds);
+              return;
+            }
+            const target = document.getElementById(`song-structure-section-${cue.section.id}`);
+            target?.scrollIntoView?.({
+              block: "nearest",
+              behavior: "smooth"
+            });
+          }}
+        >
+          {actionLabel}
+        </Button>
+      ) : null}
     </aside>
   );
 }
