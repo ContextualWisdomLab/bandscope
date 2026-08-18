@@ -30,6 +30,14 @@ function formatLyricCueCopy(template: string, values: LyricCueCopyValues): strin
   });
 }
 
+/** Use immediate scrolling when the operating system requests reduced motion. */
+function preferredLyricCueScrollBehavior(): ScrollBehavior {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
+}
+
 /** Name tonight's first lyric cue and offer only an action that the current surface can execute. */
 export function FirstLyricCueCallout({
   song,
@@ -109,7 +117,7 @@ export function FirstLyricCueCallout({
             const target = cueSectionIndex >= 0 ? grid?.children.item(cueSectionIndex) : null;
             target?.scrollIntoView?.({
               block: "nearest",
-              behavior: "smooth"
+              behavior: preferredLyricCueScrollBehavior()
             });
           }}
         >
