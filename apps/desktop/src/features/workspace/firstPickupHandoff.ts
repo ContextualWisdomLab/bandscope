@@ -118,7 +118,7 @@ function resolveLabeledPickupSection(song: RehearsalSong): FirstPickupHandoff | 
     .sort((left, right) => left.timeRange.start - right.timeRange.start);
 
   for (const section of pickupSections) {
-    const toRole = pickHighestPriorityRole(rankedRolesInSection(section, false));
+    const toRole = pickHighestPriorityRole(rankedRolesInSection(section, true));
     if (!toRole) {
       continue;
     }
