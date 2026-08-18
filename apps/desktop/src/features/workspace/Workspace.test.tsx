@@ -298,11 +298,20 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
+    const target = screen.getByTestId("song-structure-grid").children.item(1);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
     const action = screen.getByRole("button", {
       name: "Open Lead Vocal stop at 0:18"
     });
     expect(action).toBeTruthy();
     fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Hold Lead Vocal's cut at 0:18. Do not play through it./)).toBeTruthy();
   });
 });
