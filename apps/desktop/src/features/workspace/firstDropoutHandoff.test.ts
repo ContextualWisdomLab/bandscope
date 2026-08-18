@@ -66,6 +66,50 @@ describe("resolveFirstDropoutHandoff", () => {
     expect(handoff?.endSeconds).toBe(70);
   });
 
+  it("does not resolve a section handoff against a role that exists only in another section", () => {
+    const song = createDemoRehearsalSong();
+    const verse = structuredClone(song.sections[0]!);
+    verse.partGraph = [
+      {
+        role_id: "bass-guitar",
+        is_active: true,
+        handoff_to: ["future-lead"],
+        handoff_from: []
+      }
+    ];
+
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 70 };
+    chorus.roles = [
+      {
+        ...chorus.roles[0]!,
+        id: "chorus-bass",
+        rehearsalPriority: "medium"
+      },
+      {
+        ...chorus.roles[2]!,
+        id: "future-lead",
+        rehearsalPriority: "high"
+      }
+    ];
+    chorus.partGraph = [
+      {
+        role_id: "chorus-bass",
+        is_active: true,
+        handoff_to: ["future-lead"],
+        handoff_from: []
+      }
+    ];
+    song.sections = [verse, chorus];
+
+    const handoff = resolveFirstDropoutHandoff(song);
+    expect(handoff?.section.id).toBe("chorus-1");
+    expect(handoff?.fromRole.id).toBe("chorus-bass");
+    expect(handoff?.toRole.id).toBe("future-lead");
+  });
+
   it("prefers the higher-priority outgoing part when two handoffs share a section", () => {
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
