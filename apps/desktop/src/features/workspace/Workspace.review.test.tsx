@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
@@ -15,7 +16,7 @@ function replaceRole(song: ReturnType<typeof createDemoRehearsalSong>, roleId: s
 
 describe("Workspace review regressions", () => {
   it("keeps copy interpolation free of dynamically constructed regular expressions", () => {
-    const source = readFileSync(new URL("./Workspace.tsx", import.meta.url), "utf8");
+    const source = readFileSync(resolve(process.cwd(), "src/features/workspace/Workspace.tsx"), "utf8");
     expect(source).not.toContain("new RegExp(");
   });
 
@@ -84,7 +85,11 @@ describe("Workspace review regressions", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "{low}" }));
 
-    expect(screen.getByRole("button", { name: "Set up {low} · then start in C#2–E3" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Set up {low}: Tune down a whole step. Then start in C#2–E3 on tonight's map"
+      })
+    ).toBeEnabled();
   });
 
   it("natively disables setup when a cue has neither an entrance nor a playable range", () => {
