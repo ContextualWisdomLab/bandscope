@@ -120,6 +120,16 @@ describe("resolveFirstDropoutHandoff", () => {
     expect(handoff?.toRole.id).toBe("future-lead");
   });
 
+  it("rejects an outgoing handoff that the target node does not corroborate", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    verse.partGraph = verse.partGraph.map((node) =>
+      node.role_id === "lead-vocal" ? { ...node, handoff_from: [] } : node
+    );
+
+    expect(resolveFirstDropoutHandoff(song)).toBeNull();
+  });
+
   it("prefers the higher-priority outgoing part when two handoffs share a section", () => {
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
