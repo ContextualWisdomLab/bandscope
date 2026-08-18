@@ -9,6 +9,16 @@ export interface FirstLyricCueCalloutProps {
   song: RehearsalSong;
 }
 
+type LyricCueCopyValues = Readonly<Record<"role" | "section" | "start" | "lyric", string>>;
+
+/** Interpolate lyric-cue placeholders once so rehearsal data is never rescanned as template syntax. */
+function formatLyricCueCopy(template: string, values: LyricCueCopyValues): string {
+  return template.replace(/\{(role|section|start|lyric)\}/g, (placeholder) => {
+    const key = placeholder.slice(1, -1) as keyof LyricCueCopyValues;
+    return values[key] ?? placeholder;
+  });
+}
+
 /** Name tonight's first lyric cue and let the singer hear the words they enter on. */
 export function FirstLyricCueCallout({ song }: FirstLyricCueCalloutProps) {
   const t = createTranslator(detectPreferredLocale());
@@ -29,21 +39,15 @@ export function FirstLyricCueCallout({ song }: FirstLyricCueCalloutProps) {
   }
 
   const start = formatLyricCueTime(cue.startSeconds);
-  const actionLabel = t("firstLyricCueAction")
-    .replace("{role}", cue.role.name)
-    .replace("{section}", cue.section.label)
-    .replace("{start}", start)
-    .replace("{lyric}", cue.lyric);
-  const body = t("firstLyricCueBody")
-    .replace("{role}", cue.role.name)
-    .replace("{section}", cue.section.label)
-    .replace("{start}", start)
-    .replace("{lyric}", cue.lyric);
-  const armed = t("firstLyricCueArmed")
-    .replace("{role}", cue.role.name)
-    .replace("{section}", cue.section.label)
-    .replace("{start}", start)
-    .replace("{lyric}", cue.lyric);
+  const copyValues: LyricCueCopyValues = {
+    role: cue.role.name,
+    section: cue.section.label,
+    start,
+    lyric: cue.lyric
+  };
+  const actionLabel = formatLyricCueCopy(t("firstLyricCueAction"), copyValues);
+  const body = formatLyricCueCopy(t("firstLyricCueBody"), copyValues);
+  const armed = formatLyricCueCopy(t("firstLyricCueArmed"), copyValues);
 
   return (
     <aside
