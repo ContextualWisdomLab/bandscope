@@ -75,7 +75,10 @@ export function FirstEntranceCallout({
     start,
     cue: entrance.role.cue.value
   };
-  const actionLabel = formatEntranceCopy(t("firstEntranceAction"), copyValues);
+  const actionLabel = formatEntranceCopy(
+    t(actionMode === "callback-only" ? "firstEntranceAction" : "firstEntranceOpenAction"),
+    copyValues
+  );
   const body = formatEntranceCopy(t("firstEntranceBody"), copyValues);
   const armed = formatEntranceCopy(t("firstEntranceArmed"), copyValues);
   const canExecuteAction = actionMode === "workspace-scroll" || onHearEntrance !== undefined;
