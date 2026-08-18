@@ -20,6 +20,11 @@ export function formatDropoutTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+/** Return true when every section-local identity is unambiguous. */
+function hasUniqueIdentities(ids: readonly string[]): boolean {
+  return new Set(ids).size === ids.length;
+}
+
 /** Return true when the role has a safe runtime identity and ranked rehearsal priority. */
 function hasRankedPriority(role: RehearsalRole): boolean {
   return (
@@ -54,6 +59,13 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
   const candidates: FirstDropoutHandoff[] = [];
 
   for (const section of sections) {
+    if (
+      !hasUniqueIdentities(section.roles.map((role) => role.id)) ||
+      !hasUniqueIdentities(section.partGraph.map((node) => node.role_id))
+    ) {
+      continue;
+    }
+
     const rolesInSection = new Map(section.roles.map((role) => [role.id, role]));
 
     for (const node of section.partGraph) {
