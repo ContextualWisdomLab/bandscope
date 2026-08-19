@@ -24,6 +24,17 @@ export function formatIntroTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+/** Compare opaque ids by Unicode code units so tie-breaking never depends on host locale. */
+function compareStableId(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
 /** Return whether an untrusted runtime value can be inspected as an object. */
 function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object";
@@ -90,7 +101,7 @@ function repeatedIds(ids: string[]): Set<string> {
   return repeated;
 }
 
-/** Prefer the highest-priority ranked role, then a stable id order. */
+/** Prefer the highest-priority ranked role, then a locale-independent stable id order. */
 function pickHighestPriorityRole(roles: RehearsalRole[]): RehearsalRole | null {
   if (roles.length === 0) {
     return null;
@@ -101,7 +112,7 @@ function pickHighestPriorityRole(roles: RehearsalRole[]): RehearsalRole | null {
       if (rankDelta !== 0) {
         return rankDelta;
       }
-      return left.id.localeCompare(right.id);
+      return compareStableId(left.id, right.id);
     })[0] ?? null
   );
 }
@@ -165,7 +176,7 @@ export function resolveFirstIntro(song: RehearsalSong): FirstIntro | null {
       if (left.timeRange.start !== right.timeRange.start) {
         return left.timeRange.start - right.timeRange.start;
       }
-      return left.id.localeCompare(right.id);
+      return compareStableId(left.id, right.id);
     });
 
   const section = introSections[0];
