@@ -8,6 +8,28 @@ import pytest
 from conftest import load_module
 
 
+def _supporting_workflow_contracts(version: str) -> dict[str, str]:
+    """Return minimal fixtures for Rust-owning workflows outside ordinary CI."""
+    install = f"rustup toolchain install {version} --profile minimal"
+    return {
+        "release.yml": install,
+        "security-audit.yml": "\n".join(
+            (
+                install,
+                f"cargo +{version} install cargo-audit --locked",
+                f"cargo +{version} audit",
+            )
+        ),
+        "build-baseline.yml": "\n".join(
+            (install,) * 4
+            + tuple(
+                f"rustup target add target-{index} --toolchain {version}"
+                for index in range(4)
+            )
+        ),
+    }
+
+
 def _configure_policy_fixture(
     module: object,
     monkeypatch: pytest.MonkeyPatch,
@@ -26,6 +48,9 @@ def _configure_policy_fixture(
     toolchain_path.write_text(manifest, encoding="utf-8")
     dependabot_path.write_text(dependabot, encoding="utf-8")
     (workflows_path / "ci.yml").write_text(workflow, encoding="utf-8")
+    version = getattr(module, "EXPECTED_TOOLCHAIN")
+    for filename, content in _supporting_workflow_contracts(version).items():
+        (workflows_path / filename).write_text(content, encoding="utf-8")
 
     monkeypatch.setattr(module, "RUST_TOOLCHAIN", toolchain_path)
     monkeypatch.setattr(module, "DEPENDABOT", dependabot_path)
@@ -33,15 +58,14 @@ def _configure_policy_fixture(
 
 
 def _complete_workflow_contract(version: str) -> str:
-    """Return a minimal workflow fixture containing every reviewed compiler token."""
+    """Return a minimal CI fixture containing its two reviewed compiler owners."""
+    install = f"rustup toolchain install {version} --profile minimal"
     return "\n".join(
         (
-            f"rustup toolchain install {version} --profile minimal",
+            install,
+            install,
             f"cargo +{version} check",
             f"cargo +{version} test",
-            f"cargo +{version} install cargo-audit --locked",
-            f"cargo +{version} audit",
-            f"rustup target add x86_64-unknown-linux-gnu --toolchain {version}",
         )
     )
 
@@ -157,7 +181,7 @@ def test_rust_toolchain_policy_fails_closed_on_every_contract_drift(
         "must retain profile = 'minimal'",
         "Dependabot Rust toolchain lane is missing",
         "workflow still contains floating Rust selector",
-        "workflow compiler contract is missing",
+        "ci.yml must contain",
     ):
         assert expected in captured.err
 
