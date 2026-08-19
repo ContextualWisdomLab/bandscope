@@ -117,7 +117,6 @@ def test_unrecognized_active_non_repository_path_fails_closed(audit_module) -> N
         [_workflow(141, "external/workflows/not-repository-backed")],
         set(),
     )
-
     assert records[0]["classification"] == "unresolved"
     assert records[0]["reason"] == "active registry path is not repository workflow YAML"
 
