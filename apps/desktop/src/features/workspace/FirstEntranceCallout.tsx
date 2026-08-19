@@ -71,7 +71,7 @@ export function FirstEntranceCallout({
   const entrance = resolveFirstEntrance(song);
   const entranceSectionIndex =
     entrance && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(entrance.section)
+      ? runtimeSong.sections.findIndex((section) => section === entrance.section)
       : -1;
   const [heardEntrance, setHeardEntrance] = useState<HeardEntrance | null>(null);
 
