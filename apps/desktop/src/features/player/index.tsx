@@ -1,4 +1,9 @@
-import type { RehearsalSong } from "@bandscope/shared-types";
+import {
+  SECTION_FORM_LABELS,
+  type RehearsalSection,
+  type RehearsalSong,
+  type SectionFormLabel
+} from "@bandscope/shared-types";
 import { FirstHandoffCallout } from "../workspace/FirstHandoffCallout";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 
@@ -7,6 +12,38 @@ type PlayerFeatureProps = {
   song?: RehearsalSong | null;
   onPlayFromSeconds?: (startSeconds: number) => void;
 };
+
+/** Return whether one runtime section is safe to summarize in the player. */
+function isPlayerSummarySection(value: unknown): value is RehearsalSection {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const section = value as Partial<RehearsalSection>;
+  return (
+    typeof section.id === "string" &&
+    section.id.trim().length > 0 &&
+    typeof section.label === "string" &&
+    SECTION_FORM_LABELS.includes(section.label as SectionFormLabel)
+  );
+}
+
+/** Return dense, individually valid sections without trusting runtime collection metadata. */
+function playerSummarySections(song: RehearsalSong): RehearsalSection[] {
+  const sections = song.sections as unknown;
+  if (!Array.isArray(sections)) {
+    return [];
+  }
+  const length = Number(sections.length);
+  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
+    return [];
+  }
+  for (let index = 0; index < length; index += 1) {
+    if (!(index in sections)) {
+      return [];
+    }
+  }
+  return sections.filter(isPlayerSummarySection);
+}
 
 /** Player surface that names tonight's first labeled handoff and delegates playback to the owning player. */
 export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureProps) {
@@ -20,6 +57,8 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
       </section>
     );
   }
+
+  const sections = playerSummarySections(song);
 
   return (
     <section style={{ padding: "24px" }}>
@@ -37,11 +76,11 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
         <div style={{ marginBottom: "12px" }}>
           <strong>{song.title}</strong>
           <span style={{ color: "#666", marginLeft: "8px" }}>
-            {song.sections.length} {song.sections.length === 1 ? "section" : "sections"}
+            {sections.length} {sections.length === 1 ? "section" : "sections"}
           </span>
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {song.sections.map((section, sectionIndex) => (
+          {sections.map((section, sectionIndex) => (
             <span
               key={`${section.id}-${sectionIndex}`}
               style={{
