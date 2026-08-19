@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ConfidenceBadge } from "./ConfidenceBadge";
@@ -38,7 +39,7 @@ describe("ConfidenceBadge", () => {
 
   it("keeps confidence colors mapped to the live Figma 19:239 semantic status variables", () => {
     const tokenSource = readFileSync(
-      new URL("../../styles/workspace-tokens.css", import.meta.url),
+      resolve(process.cwd(), "src/styles/workspace-tokens.css"),
       "utf8"
     ).replace(/\s+/g, " ");
 
