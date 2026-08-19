@@ -359,3 +359,47 @@ def test_audit_repository_rejects_same_count_registry_replacement(audit_module) 
             branch="develop",
             observed_at="2026-08-16T00:00:00Z",
         )
+
+
+def test_audit_repository_accepts_reordered_registry_and_emits_final_receipts(audit_module) -> None:
+    """Equivalent registry order is stable and the final complete receipt is reported."""
+
+    class ReorderedRegistryClient:
+        def __init__(self) -> None:
+            self.ref_shas = ["a" * 40, "a" * 40]
+            first = _workflow(22, ".github/workflows/ci.yml", name="CI")
+            second = _workflow(23, ".github/workflows/release.yml", name="Release")
+            self.workflow_snapshots = [
+                (
+                    [first, second],
+                    [{"page": 1, "status": 200, "item_count": 2, "snapshot": "initial"}],
+                ),
+                (
+                    [second, first],
+                    [{"page": 1, "status": 200, "item_count": 2, "snapshot": "final"}],
+                ),
+            ]
+
+        def fetch_ref_sha(self, _repository: str, _branch: str) -> str:
+            return self.ref_shas.pop(0)
+
+        def fetch_workflows(self, _repository: str):
+            return self.workflow_snapshots.pop(0)
+
+        def fetch_tree_paths(self, _repository: str, _sha: str):
+            return {
+                ".github/workflows/ci.yml",
+                ".github/workflows/release.yml",
+            }
+
+    report = audit_module.audit_repository(
+        ReorderedRegistryClient(),
+        repository="ContextualWisdomLab/bandscope",
+        branch="develop",
+        observed_at="2026-08-16T00:00:00Z",
+    )
+
+    assert [record["workflow_id"] for record in report["workflows"]] == [22, 23]
+    assert report["pagination_receipts"] == [
+        {"page": 1, "status": 200, "item_count": 2, "snapshot": "final"}
+    ]
