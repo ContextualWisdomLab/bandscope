@@ -75,6 +75,29 @@ describe("resolveFirstEntrance", () => {
     expect(resolveFirstEntrance(song)).toBeNull();
   });
 
+  it("returns null instead of throwing for malformed nested runtime metadata", () => {
+    const song = createDemoRehearsalSong();
+    const section = structuredClone(song.sections[0]!);
+    const role = section.roles[0]!;
+    const malformedSections: unknown[] = [
+      null,
+      { ...section, id: null },
+      { ...section, label: null },
+      { ...section, timeRange: null },
+      { ...section, roles: null },
+      { ...section, partGraph: null },
+      { ...section, partGraph: [null] },
+      { ...section, roles: [{ ...role, name: null }] },
+      { ...section, roles: [{ ...role, cue: null }] }
+    ];
+
+    for (const malformedSection of malformedSections) {
+      song.sections = [malformedSection as never];
+      expect(() => resolveFirstEntrance(song)).not.toThrow();
+      expect(resolveFirstEntrance(song)).toBeNull();
+    }
+  });
+
   it("keeps earliest-section and priority ordering stable across valid metadata", () => {
     fc.assert(
       fc.property(
