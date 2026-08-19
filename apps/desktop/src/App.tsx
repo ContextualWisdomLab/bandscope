@@ -46,7 +46,12 @@ import {
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
-import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  type WorkspaceFailureKind
+} from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -143,6 +148,23 @@ function safeErrorDetail(error: unknown, fallback: string): string {
   return redacted.length > MAX_ERROR_DETAIL_LENGTH
     ? `${redacted.slice(0, MAX_ERROR_DETAIL_LENGTH - 3)}...`
     : redacted;
+}
+
+/** Map validated engine status to a stable buyer-visible failure category. */
+function workspaceFailureKind(status: AnalysisJobStatus | null): WorkspaceFailureKind {
+  if (status?.state !== "failed") {
+    return "generic";
+  }
+  if (status.progressStage === "decode") {
+    return "decode";
+  }
+  if (status.progressStage === "separate") {
+    return "separate";
+  }
+  if (status.error?.code === "engine_unavailable") {
+    return "engine";
+  }
+  return "generic";
 }
 
 /** Documented. */
@@ -524,6 +546,7 @@ export function App() {
       return (
         <ErrorState
           error={jobError}
+          kind={workspaceFailureKind(jobStatus)}
           onChooseLocalAudio={() => {
             void handleChooseLocalAudio();
           }}
@@ -568,7 +591,7 @@ export function App() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bandscope-bg)] text-slate-100 selection:bg-cyan-300/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
-      <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px]" />
+      <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px" />
 
       <div className="relative flex min-h-screen">
         <aside className="hidden w-64 shrink-0 border-r border-[color:var(--bandscope-border)] bg-[var(--bandscope-surface-strong)] px-5 py-5 shadow-[24px_0_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex lg:flex-col">
