@@ -29,6 +29,23 @@ function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object";
 }
 
+/** Return whether every numeric index is present in a bounded runtime array. */
+function isDenseRuntimeArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+  const length = Number(value.length);
+  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
+    return false;
+  }
+  for (let index = 0; index < length; index += 1) {
+    if (!(index in value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Return true when the role has safe runtime identity/copy and ranked rehearsal priority. */
 function hasRankedPriority(role: RehearsalRole): boolean {
   return (
@@ -91,7 +108,7 @@ function pickHighestPriorityRole(roles: RehearsalRole[]): RehearsalRole | null {
 
 /** Return ranked roles whose unique graph node is explicitly active. */
 function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
-  if (!Array.isArray(section.roles) || !Array.isArray(section.partGraph)) {
+  if (!isDenseRuntimeArray(section.roles) || !isDenseRuntimeArray(section.partGraph)) {
     return [];
   }
 
@@ -131,7 +148,7 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 
 /** Return the first labeled handoff, or null when no safe pass remains. */
 export function resolveFirstLabeledHandoff(song: RehearsalSong): FirstLabeledHandoff | null {
-  if (!Array.isArray(song.sections)) {
+  if (!isDenseRuntimeArray(song.sections)) {
     return null;
   }
 
