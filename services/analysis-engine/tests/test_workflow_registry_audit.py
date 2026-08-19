@@ -108,7 +108,10 @@ def test_github_dynamic_identity_matches_live_registry_shape(audit_module) -> No
     )
 
     assert records[0]["classification"] == "github_dynamic"
-    assert records[0]["reason"] == "workflow path identifies a GitHub-managed dynamic identity"
+    assert (
+        records[0]["reason"]
+        == "workflow path identifies a GitHub-managed dynamic identity"
+    )
 
 
 def test_unrecognized_active_non_repository_path_fails_closed(audit_module) -> None:
