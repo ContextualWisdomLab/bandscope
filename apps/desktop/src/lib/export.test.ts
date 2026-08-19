@@ -73,6 +73,14 @@ describe("export sanitization", () => {
       expect(escapeCsvField(" \x00@cmd")).toBe("' \x00@cmd");
     });
 
+    it("prevents formula injection using full-width spreadsheet operators", () => {
+      expect(escapeCsvField("＝1+2")).toBe("'＝1+2");
+      expect(escapeCsvField("＋SUM(A1)")).toBe("'＋SUM(A1)");
+      expect(escapeCsvField("－100")).toBe("'－100");
+      expect(escapeCsvField("＠cmd")).toBe("'＠cmd");
+      expect(escapeCsvField(" \uFEFF＝1+2")).toBe("' \uFEFF＝1+2");
+    });
+
     it("handles combined scenarios: formula injection with structural characters", () => {
       expect(escapeCsvField("=\n=HYPERLINK(\"http://evil\")")).toBe('"\'=\n=HYPERLINK(""http://evil"")"');
       expect(escapeCsvField('=A1+", trailing"')).toBe('"\'=A1+"", trailing"""');
