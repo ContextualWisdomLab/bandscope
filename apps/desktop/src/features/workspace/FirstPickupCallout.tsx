@@ -102,7 +102,18 @@ export function FirstPickupCallout({
   );
   const body = formatPickupCopy(t(hasFrom ? "firstPickupBody" : "firstPickupBodySolo"), copyValues);
   const armed = formatPickupCopy(t(hasFrom ? "firstPickupArmed" : "firstPickupArmedSolo"), copyValues);
-  const canExecuteAction = actionMode === "workspace-scroll" || onHearPickup !== undefined;
+  const canExecuteAction = actionMode === "workspace-scroll" || typeof onHearPickup === "function";
+  /** Record completion only after the owning surface has executed the selected pickup action. */
+  const markPickupActionComplete = () => {
+    setHeardPickup({
+      songId: song.id,
+      sectionId: pickup.section.id,
+      sectionIndex: pickupSectionIndex,
+      fromRoleId: pickup.fromRole?.id ?? null,
+      toRoleId: pickup.toRole.id,
+      atSeconds: pickup.atSeconds
+    });
+  };
 
   return (
     <aside
@@ -117,24 +128,21 @@ export function FirstPickupCallout({
           type="button"
           className="mt-3 min-h-11 bg-gradient-to-r from-emerald-300 to-cyan-400 font-black text-slate-950"
           onClick={() => {
-            setHeardPickup({
-              songId: song.id,
-              sectionId: pickup.section.id,
-              sectionIndex: pickupSectionIndex,
-              fromRoleId: pickup.fromRole?.id ?? null,
-              toRoleId: pickup.toRole.id,
-              atSeconds: pickup.atSeconds
-            });
             if (actionMode === "callback-only") {
-              onHearPickup?.(pickup.atSeconds);
+              onHearPickup!(pickup.atSeconds);
+              markPickupActionComplete();
               return;
             }
             const grid = document.querySelector('[data-testid="song-structure-grid"]');
             const target = pickupSectionIndex >= 0 ? grid?.children.item(pickupSectionIndex) : null;
-            target?.scrollIntoView?.({
+            if (typeof target?.scrollIntoView !== "function") {
+              return;
+            }
+            target.scrollIntoView({
               block: "nearest",
               behavior: preferredPickupScrollBehavior()
             });
+            markPickupActionComplete();
           }}
         >
           {actionLabel}
