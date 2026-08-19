@@ -9,7 +9,25 @@ function songWithRuntimeSections(sections: unknown): RehearsalSong {
   return song;
 }
 
+function runtimeSong(value: unknown): RehearsalSong {
+  return value as RehearsalSong;
+}
+
 describe("resolveFirstLabeledHandoff runtime section collection", () => {
+  it("fails closed when the runtime song root is null", () => {
+    const song = runtimeSong(null);
+
+    expect(() => resolveFirstLabeledHandoff(song)).not.toThrow();
+    expect(resolveFirstLabeledHandoff(song)).toBeNull();
+  });
+
+  it("fails closed when the runtime song root is primitive", () => {
+    const song = runtimeSong(42);
+
+    expect(() => resolveFirstLabeledHandoff(song)).not.toThrow();
+    expect(resolveFirstLabeledHandoff(song)).toBeNull();
+  });
+
   it("fails closed when the runtime section collection is not an array", () => {
     const song = songWithRuntimeSections(null);
 
