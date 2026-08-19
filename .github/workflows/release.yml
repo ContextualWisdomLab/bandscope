@@ -40,8 +40,8 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust stable
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
