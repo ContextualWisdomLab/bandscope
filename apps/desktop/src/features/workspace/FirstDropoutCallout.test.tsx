@@ -152,15 +152,23 @@ describe("FirstDropoutCallout", () => {
     ).toBeTruthy();
   });
 
-  it("localizes the section form label instead of exposing its raw enum in Korean copy", () => {
+  it("localizes the section form and keeps Korean role interpolation free of unsafe fixed particles", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0]!.name = "베이스 기타";
     song.sections[0]!.roles[2]!.name = "리드 보컬";
+    const { grid } = appendSongStructureTarget();
 
     render(<FirstDropoutCallout song={song} />);
 
-    expect(screen.getByText("베이스 기타가 0:30 벌스 끝에서 리드 보컬에게 넘깁니다.")).toBeTruthy();
-    expect(screen.queryByText(/verse 끝에서/)).toBeNull();
+    expect(screen.getByText("0:30 벌스 끝 파트 인계: 베이스 기타 → 리드 보컬.")).toBeTruthy();
+    expect(screen.queryByText(/verse 끝/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /드롭아웃 위치 열기/ }));
+    expect(
+      screen.getByText("0:30 벌스: 리드 보컬 진입 전에 베이스 기타의 마지막 마디를 시작하세요.")
+    ).toBeTruthy();
+
+    grid.remove();
   });
 });
