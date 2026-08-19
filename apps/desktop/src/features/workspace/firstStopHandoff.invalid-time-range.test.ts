@@ -14,4 +14,20 @@ describe("resolveFirstStopHandoff runtime time range", () => {
     expect(() => resolveFirstStopHandoff(song)).not.toThrow();
     expect(resolveFirstStopHandoff(song)).toBeNull();
   });
+
+  it("skips a zero-length stop window and selects the next valid cut", () => {
+    const song = createDemoRehearsalSong();
+    const zeroLengthStop = structuredClone(song.sections[0]!);
+    zeroLengthStop.id = "stop-zero-length";
+    zeroLengthStop.label = "stop";
+    zeroLengthStop.timeRange = { start: 10, end: 10 };
+
+    const validStop = structuredClone(song.sections[0]!);
+    validStop.id = "stop-valid";
+    validStop.label = "stop";
+    validStop.timeRange = { start: 18, end: 19 };
+    song.sections = [zeroLengthStop, validStop];
+
+    expect(resolveFirstStopHandoff(song)?.section.id).toBe("stop-valid");
+  });
 });
