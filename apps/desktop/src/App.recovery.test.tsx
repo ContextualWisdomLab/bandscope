@@ -84,6 +84,7 @@ describe("App workspace recovery actions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Analysis failed"));
+    expect(screen.getByRole("heading", { name: "Analysis engine unavailable" })).toBeTruthy();
     expect(screen.getByTitle("recovery-take.wav")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Start over" }));
@@ -92,6 +93,46 @@ describe("App workspace recovery actions", () => {
     expect(screen.queryByTitle("recovery-take.wav")).toBeNull();
     expect(screen.getByRole("button", { name: /start analysis/i })).toBeDisabled();
     expect(mockStartAnalysisJob).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["decode", "Couldn’t decode this audio"],
+    ["separate", "Couldn’t separate this track"]
+  ] as const)("names a %s-stage analysis failure before offering recovery", async (progressStage, expectedTitle) => {
+    mockSelectLocalAudioSource.mockResolvedValueOnce({
+      ok: true,
+      bootstrap: {
+        projectId: `proj-${progressStage}`,
+        source: {
+          sourceKind: "local-audio",
+          sourceMode: "reference",
+          fileName: `${progressStage}-take.wav`,
+          format: "wav"
+        }
+      }
+    });
+    mockStartAnalysisJob.mockResolvedValueOnce({
+      jobId: `job-${progressStage}`,
+      state: "failed",
+      requestedAt: "2026-08-17T00:00:00.000Z",
+      updatedAt: "2026-08-17T00:00:01.000Z",
+      progressStage,
+      error: {
+        code: "engine_unavailable",
+        message: `Safe ${progressStage} failure detail`
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose a local audio file" }));
+    await waitFor(() => expect(screen.getByTitle(`${progressStage}-take.wav`)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: expectedTitle })).toBeTruthy());
+    expect(screen.getByRole("alert")).toHaveTextContent(`Safe ${progressStage} failure detail`);
+    expect(screen.getByRole("button", { name: "Choose another file" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start over" })).toBeTruthy();
   });
 
   it("clears a failed workspace before accepting another local audio file", async () => {
