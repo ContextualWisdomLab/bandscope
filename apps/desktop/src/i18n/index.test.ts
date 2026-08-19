@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -73,6 +73,17 @@ describe("i18n", () => {
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }
+    });
+  });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes a bridge label for Korean rehearsal copy", () => {
+      expect(translateSectionFormLabel("ko", "bridge")).toBe("브리지");
+      expect(translateSectionFormLabel("en", "bridge")).toBe("bridge");
+    });
+
+    it("preserves unlabeled form values as data", () => {
+      expect(translateSectionFormLabel("ko", "verse")).toBe("verse");
     });
   });
 });

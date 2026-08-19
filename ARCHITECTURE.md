@@ -5,6 +5,7 @@ Last updated: 2026-03-11
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
+- Workspace and player copy for tonight's first labeled bridge must name the holding part when corroborated, the labeled turn, and the time so the next action is obvious.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
 ## Security source

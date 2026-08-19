@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstBridgeLabel": "Tonight's first bridge",
+  "firstBridgeAction": "Hear {role} turn at {at}",
+  "firstBridgeActionBand": "Hear the first bridge at {at}",
+  "firstBridgeOpenAction": "Open {role} bridge at {at}",
+  "firstBridgeOpenActionBand": "Open the first bridge at {at}",
+  "firstBridgeBody": "{role} takes the {section} at {at}.",
+  "firstBridgeBodyBand": "The band takes the {section} at {at}.",
+  "firstBridgeArmed": "Catch {role}'s turn at {at}. Play the next line.",
+  "firstBridgeArmedBand": "Catch the turn at {at}. Play the next line.",
+  "firstBridgeUnavailable": "No bridge yet. Stay on tonight's map until the turn is labeled.",
+  "firstBridgeNeedsSong": "Analyze tonight's song first, then hear the first bridge from this player."
 }

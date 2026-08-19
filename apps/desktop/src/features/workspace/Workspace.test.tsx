@@ -270,4 +270,44 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first labeled bridge as the next map action", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    const bridge = structuredClone(verse);
+    bridge.id = "bridge-1";
+    bridge.label = "bridge";
+    bridge.timeRange = { start: 64, end: 80 };
+    bridge.roles = [
+      {
+        ...verse.roles[2]!,
+        id: "lead-vocal",
+        name: "Lead Vocal",
+        rehearsalPriority: "high"
+      }
+    ];
+    bridge.partGraph = [
+      {
+        role_id: "lead-vocal",
+        is_active: true,
+        handoff_to: [],
+        handoff_from: []
+      }
+    ];
+    song.sections = [verse, bridge];
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByRole("button", { name: "Open Lead Vocal bridge at 1:04" })).toBeTruthy();
+    expect(screen.getByText("Lead Vocal takes the bridge at 1:04.")).toBeTruthy();
+  });
+
+  it("keeps unavailable first-bridge guidance on the map without inventing a turn", () => {
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(screen.queryByRole("button", { name: /bridge at/ })).toBeNull();
+    expect(
+      screen.getByText("No bridge yet. Stay on tonight's map until the turn is labeled.")
+    ).toBeTruthy();
+  });
 });

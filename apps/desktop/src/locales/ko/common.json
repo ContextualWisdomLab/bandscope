@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstBridgeLabel": "오늘 첫 브리지",
+  "firstBridgeAction": "{at}에 {role} 브리지 듣기",
+  "firstBridgeActionBand": "{at} 첫 브리지 듣기",
+  "firstBridgeOpenAction": "{at} {role} 브리지 위치 열기",
+  "firstBridgeOpenActionBand": "{at} 첫 브리지 위치 열기",
+  "firstBridgeBody": "{role}이 {at} {section}에서 받습니다.",
+  "firstBridgeBodyBand": "밴드가 {at} {section}에서 받습니다.",
+  "firstBridgeArmed": "{at}에서 {role} 브리지를 잡으세요. 다음 프레이즈를 연주하세요.",
+  "firstBridgeArmedBand": "{at}에서 브리지를 잡으세요. 다음 프레이즈를 연주하세요.",
+  "firstBridgeUnavailable": "아직 브리지가 없습니다. 브리지가 표시될 때까지 오늘 지도에 머무르세요.",
+  "firstBridgeNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 브리지를 들으세요."
 }
