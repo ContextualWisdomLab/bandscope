@@ -43,8 +43,31 @@ def _rust_toolchain_dependabot_lane(content: str) -> str | None:
     return "\n".join(lines[start:end])
 
 
+def _required_workflow_commands() -> dict[str, tuple[tuple[str, int], ...]]:
+    """Return compiler evidence required from each workflow that owns Rust execution."""
+    install = f"rustup toolchain install {EXPECTED_TOOLCHAIN} --profile minimal"
+    target = f"--toolchain {EXPECTED_TOOLCHAIN}"
+    return {
+        "ci.yml": (
+            (install, 2),
+            (f"cargo +{EXPECTED_TOOLCHAIN} check", 1),
+            (f"cargo +{EXPECTED_TOOLCHAIN} test", 1),
+        ),
+        "release.yml": ((install, 1),),
+        "security-audit.yml": (
+            (install, 1),
+            (f"cargo +{EXPECTED_TOOLCHAIN} install cargo-audit --locked", 1),
+            (f"cargo +{EXPECTED_TOOLCHAIN} audit", 1),
+        ),
+        "build-baseline.yml": (
+            (install, 4),
+            (target, 4),
+        ),
+    }
+
+
 def main() -> int:
-    """Validate the root manifest, update lane, and every executable workflow."""
+    """Validate the root manifest, update lane, and every Rust-owning workflow."""
 
     failures = 0
     manifest = tomllib.loads(RUST_TOOLCHAIN.read_text(encoding="utf-8"))
@@ -74,27 +97,28 @@ def main() -> int:
                 _error(f"Dependabot Rust toolchain lane is missing {required!r}")
                 failures += 1
 
-    workflow_text = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted((*WORKFLOWS.glob("*.yml"), *WORKFLOWS.glob("*.yaml")))
-    )
+    workflow_paths = sorted((*WORKFLOWS.glob("*.yml"), *WORKFLOWS.glob("*.yaml")))
+    workflow_text = "\n".join(path.read_text(encoding="utf-8") for path in workflow_paths)
     for pattern in FLOATING_PATTERNS:
         if pattern in workflow_text:
             _error(f"workflow still contains floating Rust selector {pattern!r}")
             failures += 1
 
-    expected_commands = (
-        f"rustup toolchain install {EXPECTED_TOOLCHAIN} --profile minimal",
-        f"cargo +{EXPECTED_TOOLCHAIN} check",
-        f"cargo +{EXPECTED_TOOLCHAIN} test",
-        f"cargo +{EXPECTED_TOOLCHAIN} install cargo-audit --locked",
-        f"cargo +{EXPECTED_TOOLCHAIN} audit",
-        f"--toolchain {EXPECTED_TOOLCHAIN}",
-    )
-    for command in expected_commands:
-        if command not in workflow_text:
-            _error(f"workflow compiler contract is missing {command!r}")
+    for filename, requirements in _required_workflow_commands().items():
+        path = WORKFLOWS / filename
+        if not path.is_file():
+            _error(f"required Rust workflow {filename!r} is missing")
             failures += 1
+            continue
+        content = path.read_text(encoding="utf-8")
+        for command, minimum_count in requirements:
+            actual_count = content.count(command)
+            if actual_count < minimum_count:
+                _error(
+                    f"{filename} must contain {command!r} at least {minimum_count} time(s); "
+                    f"found {actual_count}"
+                )
+                failures += 1
 
     if failures:
         return 1
