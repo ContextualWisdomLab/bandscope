@@ -2,9 +2,9 @@
 
 ## Purpose
 
-GitHub Actions workflow source and the Actions workflow registry have independent lifecycles. Removing `.github/workflows/<name>.yml` from the protected branch does **not** prove that the corresponding registry identity is disabled. BandScope therefore treats repository-tree state and Actions-registry state as separate evidence authorities.
+GitHub Actions workflow source and the Actions workflow registry have independent lifecycles. Removing `.github/workflows/<name>.yml` from the protected branch does **not** prove that the corresponding registry identity is disabled, and absence from the protected default tree alone also does **not** prove that no live non-default branch still owns that workflow source. BandScope therefore treats repository-tree state, branch provenance, and Actions-registry state as separate evidence authorities.
 
-This document defines the BandScope-owned read-only recurrence detector added for issue #847. Organization-wide lifecycle policy and mutation authority remain with `ContextualWisdomLab/.github#945`.
+This document defines the BandScope-owned read-only recurrence detector added for issue #847. Organization-wide lifecycle policy, cross-branch provenance decisions, and registry mutation authority remain with `ContextualWisdomLab/.github#945`.
 
 ## Read-only audit
 
@@ -27,32 +27,34 @@ The detector:
 5. classifies every registry record without using workflow-name heuristics;
 6. emits a machine-readable JSON evidence envelope containing the bound SHA, observation time, pagination receipts, summary counts, workflow IDs, paths, states, classifications, and reasons.
 
+The detector deliberately does not enumerate every non-default branch. Therefore a repository workflow path that is active in the registry but absent from the bound `develop` tree is a candidate lifecycle drift signal, not proof of deletion. It is emitted as `unresolved` until an authorized control-plane step establishes branch provenance.
+
 ## Classifications
 
 - `present`: registry state is active and the repository workflow path exists in the bound tree.
-- `orphaned_deleted`: registry state is active, the path is repository-owned workflow YAML, and that path is absent from the bound tree.
 - `disabled`: registry state is not active.
-- `github_dynamic`: the registry record explicitly identifies GitHub-managed dynamic ownership rather than repository-backed workflow source.
-- `unresolved`: malformed, duplicate, ambiguous, or otherwise insufficient evidence. Unresolved evidence is non-passing.
+- `github_dynamic`: the registry path uses GitHub's observed platform-managed `dynamic/` namespace.
+- `unresolved`: malformed, duplicate, ambiguous, unknown non-repository, or active repository-path evidence that is absent from the bound default tree without independent branch-provenance proof. Unresolved evidence is non-passing.
+- `orphaned_deleted`: reserved in the v1 schema for an identity whose deletion has been independently proven. The standalone BandScope detector does not infer or emit this state from default-tree absence alone.
 
-A legitimate current workflow may contain words such as `bootstrap`, `finalize`, or `once`. Names never authorize disablement. Conversely, a benign name does not make an absent active repository path legitimate.
+A legitimate current workflow may contain words such as `bootstrap`, `finalize`, or `once`. Names never authorize disablement. An attacker-supplied auxiliary field such as `source: github` also cannot override exact path/tree evidence. Conversely, a benign name does not make an absent active repository path legitimate; it remains unresolved until provenance is established.
 
 ## Exit contract
 
 - `0`: complete evidence with no `orphaned_deleted` or `unresolved` records.
-- `1`: complete evidence found at least one active orphan or unresolved record.
+- `1`: complete evidence contains at least one proven orphan bucket or unresolved record. In the standalone detector, active default-tree absences contribute here as `unresolved`.
 - `2`: the audit itself could not establish complete trustworthy evidence, including permission loss, HTTP failure, malformed API data, truncated tree data, or branch movement.
 
 A nonzero result must not be converted to success merely to keep CI green.
 
 ## Mutation boundary
 
-The detector is deliberately read-only. It does **not** recreate historical workflow YAML, disable registry records, change workflow permissions, add a PAT, or mutate branch protection.
+The detector is deliberately read-only. It does **not** recreate historical workflows, disable registry records, enumerate or mutate non-default branches, change workflow permissions, add a PAT, or mutate branch protection.
 
-For an `orphaned_deleted` record, the operator/control plane must immediately before mutation re-resolve the protected `develop` SHA, refetch the exact workflow registry record, confirm that the path remains absent, and then use the authorized GitHub Actions lifecycle API to disable that exact workflow ID. Before/after registry evidence must be retained. If the evidence changed, abort and re-audit rather than using a stale workflow ID.
+For an active repository workflow that is absent from the bound `develop` tree, the BandScope report remains `unresolved`. Before any registry disablement, the authorized operator/control plane must independently establish that no live branch still owns the workflow source, re-resolve the protected `develop` SHA, refetch the exact workflow registry record, and confirm that the relevant evidence remains unchanged. Only that authority may promote the evidence to a proven orphan and disable the exact workflow ID. Before/after registry evidence must be retained. If the evidence changed, abort and re-audit rather than using a stale workflow ID.
 
-BandScope source ownership ends at the detector and repository-specific evidence. Organization-wide inventory, credentials, and registry mutation remain the central `.github` owner's responsibility. This prevents a leaf repository from creating a competing privileged cleanup mechanism.
+BandScope source ownership ends at the detector and repository-specific evidence. Organization-wide inventory, cross-branch provenance, credentials, and registry mutation remain the central `.github` owner's responsibility. This prevents a leaf repository from creating a competing privileged cleanup mechanism.
 
 ## Adversarial acceptance
 
-Repository tests cover complete pagination receipts, early pagination termination, total-count drift, malformed records, duplicate/reused workflow IDs, GitHub-managed dynamic identities, a legitimate present bootstrap-named workflow, exact branch binding, branch movement, tree truncation, cross-origin/scheme-switching request attempts, permission loss, and transient HTTP failures. These tests are deterministic and do not require live GitHub network access.
+Repository tests cover complete pagination receipts, early pagination termination, total-count drift, malformed records, duplicate/reused workflow IDs, GitHub-managed dynamic identities, a legitimate present bootstrap-named workflow, an active off-default workflow whose branch provenance is unproven, forged auxiliary source metadata, unknown active non-repository paths, exact branch binding, branch movement, tree truncation, cross-origin/scheme-switching request attempts, permission loss, and transient HTTP failures. These tests are deterministic and do not require live GitHub network access.
