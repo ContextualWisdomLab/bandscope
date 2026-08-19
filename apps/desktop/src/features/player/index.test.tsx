@@ -86,4 +86,12 @@ describe("PlayerFeature", () => {
     expect(screen.getByText("1 section")).toBeTruthy();
     expect(screen.getByText("verse")).toBeTruthy();
   });
+
+  it("does not pass an object-valued runtime song title into React copy", () => {
+    const song = songWithHandoff();
+    (song as unknown as { title: unknown }).title = { unsafe: "not-copy" };
+
+    expect(() => render(<PlayerFeature title="Player" song={song} />)).not.toThrow();
+    expect(screen.queryByText("not-copy")).toBeNull();
+  });
 });
