@@ -75,15 +75,17 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   return Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority);
 }
 
-/** Return whether one graph edge collection is complete and carries only safe role ids. */
-function isRoleIdCollection(value: unknown): value is string[] {
-  return (
-    isDenseRuntimeArray(value) &&
-    value.every((roleId) => typeof roleId === "string" && roleId.trim().length > 0)
+/** Return the usable role ids in a complete edge array, or null for sparse evidence. */
+function safeRoleIds(value: unknown): string[] | null {
+  if (!isDenseRuntimeArray(value)) {
+    return null;
+  }
+  return value.filter(
+    (roleId): roleId is string => typeof roleId === "string" && roleId.trim().length > 0
   );
 }
 
-/** Return whether one graph node has safe section-local identity and complete edge evidence. */
+/** Return whether one graph node has safe section-local identity and complete edge arrays. */
 function isSafeGraphNode(value: unknown): value is PartGraphNode {
   if (!isRuntimeObject(value)) {
     return false;
@@ -92,8 +94,8 @@ function isSafeGraphNode(value: unknown): value is PartGraphNode {
   return (
     typeof candidate.role_id === "string" &&
     candidate.role_id.trim().length > 0 &&
-    isRoleIdCollection(candidate.handoff_to) &&
-    isRoleIdCollection(candidate.handoff_from)
+    isDenseRuntimeArray(candidate.handoff_to) &&
+    isDenseRuntimeArray(candidate.handoff_from)
   );
 }
 
@@ -125,10 +127,14 @@ function hasBoundedSectionWindow(value: unknown): value is RehearsalSection {
 
 /** Require the receiving graph node to corroborate the outgoing edge. */
 function hasReciprocalHandoff(section: RehearsalSection, fromRoleId: string, toRoleId: string): boolean {
-  return section.partGraph.some(
-    (candidate) =>
-      candidate.role_id === toRoleId && candidate.handoff_from.includes(fromRoleId)
-  );
+  return section.partGraph.some((candidate) => {
+    const incomingRoleIds = safeRoleIds(candidate.handoff_from);
+    return (
+      candidate.role_id === toRoleId &&
+      incomingRoleIds !== null &&
+      incomingRoleIds.includes(fromRoleId)
+    );
+  });
 }
 
 /** Return the first validated section-local dropout, or null when no safe candidate remains. */
@@ -158,7 +164,8 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
     const rolesInSection = new Map(section.roles.map((role) => [role.id, role]));
 
     for (const node of section.partGraph) {
-      if (node.is_active !== true || node.handoff_to.length === 0) {
+      const handoffTargets = safeRoleIds(node.handoff_to);
+      if (node.is_active !== true || handoffTargets === null || handoffTargets.length === 0) {
         continue;
       }
 
@@ -167,7 +174,7 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
         continue;
       }
 
-      const targets = node.handoff_to
+      const targets = handoffTargets
         .map((roleId) => rolesInSection.get(roleId) ?? null)
         .filter(
           (role): role is RehearsalRole =>
