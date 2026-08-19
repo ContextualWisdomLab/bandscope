@@ -18,10 +18,29 @@ FLOATING_PATTERNS = (
     "cargo +stable",
     "--toolchain stable",
 )
+DEPENDABOT_LANE_MARKER = '  - package-ecosystem: "rust-toolchain"'
+DEPENDABOT_UPDATE_MARKER = "  - package-ecosystem:"
 
 
 def _error(message: str) -> None:
+    """Write one policy violation to stderr."""
     print(f"rust-toolchain-contract: {message}", file=sys.stderr)
+
+
+def _rust_toolchain_dependabot_lane(content: str) -> str | None:
+    """Return the single Rust toolchain update lane without borrowing sibling fields."""
+    lines = content.splitlines()
+    starts = [index for index, line in enumerate(lines) if line == DEPENDABOT_LANE_MARKER]
+    if len(starts) != 1:
+        return None
+
+    start = starts[0]
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        if lines[index].startswith(DEPENDABOT_UPDATE_MARKER):
+            end = index
+            break
+    return "\n".join(lines[start:end])
 
 
 def main() -> int:
@@ -41,14 +60,19 @@ def main() -> int:
         failures += 1
 
     dependabot = DEPENDABOT.read_text(encoding="utf-8")
-    for required in (
-        'package-ecosystem: "rust-toolchain"',
-        'target-branch: "develop"',
-        'interval: "weekly"',
-    ):
-        if required not in dependabot:
-            _error(f"Dependabot Rust toolchain lane is missing {required!r}")
-            failures += 1
+    dependabot_lane = _rust_toolchain_dependabot_lane(dependabot)
+    if dependabot_lane is None:
+        _error("Dependabot Rust toolchain lane is missing or duplicated")
+        failures += 1
+    else:
+        for required in (
+            'directory: "/"',
+            'target-branch: "develop"',
+            'interval: "weekly"',
+        ):
+            if required not in dependabot_lane:
+                _error(f"Dependabot Rust toolchain lane is missing {required!r}")
+                failures += 1
 
     workflow_text = "\n".join(
         path.read_text(encoding="utf-8")
