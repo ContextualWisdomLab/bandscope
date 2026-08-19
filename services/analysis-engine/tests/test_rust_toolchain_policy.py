@@ -160,3 +160,33 @@ def test_rust_toolchain_policy_fails_closed_on_every_contract_drift(
         "workflow compiler contract is missing",
     ):
         assert expected in captured.err
+
+
+def test_rust_toolchain_policy_rejects_compiler_evidence_borrowed_from_sibling_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A release lane cannot borrow its compiler pin from another workflow file."""
+    verifier = load_module(
+        "scripts/checks/verify_rust_toolchain.py", "verify_rust_toolchain_cross_workflow"
+    )
+    version = verifier.EXPECTED_TOOLCHAIN
+    _configure_policy_fixture(
+        verifier,
+        monkeypatch,
+        tmp_path,
+        manifest=f'[toolchain]\nchannel = "{version}"\nprofile = "minimal"\n',
+        dependabot=_complete_dependabot_contract(),
+        workflow=_complete_workflow_contract(version),
+    )
+    (tmp_path / ".github" / "workflows" / "release.yml").write_text(
+        "name: release\njobs:\n  release-preflight:\n    steps:\n      - run: echo no-rust-pin\n",
+        encoding="utf-8",
+    )
+
+    assert verifier.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "release.yml" in captured.err
+    assert f"rustup toolchain install {version} --profile minimal" in captured.err
