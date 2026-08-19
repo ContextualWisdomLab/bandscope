@@ -62,8 +62,10 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
   const sections = playerSummarySections(song);
   const songTitle = typeof song.title === "string" ? song.title : "";
   const sectionCountLabel = t(
-    sections.length === 1 ? "metricConfidenceSectionSingular" : "metricConfidenceSectionPlural"
-  );
+    sections.length === 1
+      ? "metricConfidenceSectionCountSingular"
+      : "metricConfidenceSectionCountPlural"
+  ).replace("{count}", String(sections.length));
 
   return (
     <section style={{ padding: "24px" }}>
@@ -81,7 +83,7 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
         <div style={{ marginBottom: "12px" }}>
           <strong>{songTitle}</strong>
           <span style={{ color: "#666", marginLeft: "8px" }}>
-            {sections.length} {sectionCountLabel}
+            {sectionCountLabel}
           </span>
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>

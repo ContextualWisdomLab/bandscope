@@ -139,6 +139,8 @@
   "metricConfidenceLocalAnalysis": "로컬 분석",
   "metricConfidenceSectionSingular": "구간",
   "metricConfidenceSectionPlural": "구간",
+  "metricConfidenceSectionCountSingular": "{count}개 섹션",
+  "metricConfidenceSectionCountPlural": "{count}개 섹션",
   "metricPriorityFallback": "트랙 선택",
   "metricPriorityPendingDetail": "오디오를 선택하거나 여세요",
   "loadProjectFailedPrefix": "프로젝트를 불러오지 못했습니다",

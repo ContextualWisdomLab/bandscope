@@ -8,7 +8,7 @@ This is a presentation contract only. Intro resolution, action-mode authority, a
 
 ## Security Notes
 
-- Untrusted input: rehearsal section and role identifiers used only as React keys and copy values.
+- Untrusted input: song, section, and role identifiers are used as copy values, local completion-state identity, and effect dependencies; they are not DOM-ID authority.
 - Trust boundary: renderer-owned song-structure children; analysis `section.id` is never DOM-ID authority.
 - Mitigations: `matchMedia` is read-only, scroll targets come from renderer child index, and copy interpolation runs once.
 - Test points: reduced-motion scroll uses `auto`; default motion uses `smooth`.

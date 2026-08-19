@@ -139,6 +139,8 @@
   "metricConfidenceLocalAnalysis": "Local analysis",
   "metricConfidenceSectionSingular": "section",
   "metricConfidenceSectionPlural": "sections",
+  "metricConfidenceSectionCountSingular": "{count} section",
+  "metricConfidenceSectionCountPlural": "{count} sections",
   "metricPriorityFallback": "Pick track",
   "metricPriorityPendingDetail": "Choose or open audio",
   "loadProjectFailedPrefix": "Failed to load project",
