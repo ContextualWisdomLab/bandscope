@@ -148,7 +148,7 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 
 /** Return the first labeled handoff, or null when no safe pass remains. */
 export function resolveFirstLabeledHandoff(song: RehearsalSong): FirstLabeledHandoff | null {
-  if (!isDenseRuntimeArray(song.sections)) {
+  if (!isRuntimeObject(song) || !isDenseRuntimeArray(song.sections)) {
     return null;
   }
 
