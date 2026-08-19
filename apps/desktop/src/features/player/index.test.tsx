@@ -55,6 +55,17 @@ describe("PlayerFeature", () => {
     expect(onPlayFromSeconds).toHaveBeenCalledWith(0);
   });
 
+  it("localizes the section count instead of hard-coding English player copy", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    try {
+      render(<PlayerFeature title="Player" song={songWithIntro()} />);
+      expect(screen.getByText("2개 섹션")).toBeTruthy();
+      expect(screen.queryByText("2 sections")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("renders a safe empty summary when the runtime section collection is not an array", () => {
     const song = songWithIntro();
     (song as unknown as { sections: unknown }).sections = null;
