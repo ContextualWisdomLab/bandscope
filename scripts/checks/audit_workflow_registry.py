@@ -25,6 +25,14 @@ DEFAULT_API_URL = "https://api.github.com"
 DEFAULT_BRANCH = "develop"
 DEFAULT_PER_PAGE = 100
 MAX_PAGES = 1000
+KNOWN_NON_ACTIVE_WORKFLOW_STATES = frozenset(
+    {
+        "deleted",
+        "disabled_fork",
+        "disabled_inactivity",
+        "disabled_manually",
+    }
+)
 CLASSIFICATIONS = (
     "present",
     "orphaned_deleted",
@@ -68,13 +76,14 @@ def classify_workflows(
     """Classify registry entries using exact-tree path and registry-state evidence.
 
     Workflow names are intentionally ignored for lifecycle classification: a legitimate
-    live workflow may contain words such as ``bootstrap`` or ``finalize``. Duplicate ids
-    and malformed objects fail closed as ``unresolved``. GitHub's live Actions registry
-    exposes platform-managed workflows under ``dynamic/`` paths, so that observed path
-    namespace is the only dynamic-ownership discriminator accepted here; untrusted
-    auxiliary fields cannot override repository path evidence. An active repository
-    workflow absent from the bound default tree is also unresolved because that absence
-    alone does not prove that no live non-default branch still owns the workflow source.
+    live workflow may contain words such as ``bootstrap`` or ``finalize``. Duplicate ids,
+    malformed objects, and unknown lifecycle states fail closed as ``unresolved``.
+    GitHub's live Actions registry exposes platform-managed workflows under ``dynamic/``
+    paths, so that observed path namespace is the only dynamic-ownership discriminator
+    accepted here; untrusted auxiliary fields cannot override repository path evidence.
+    An active repository workflow absent from the bound default tree is also unresolved
+    because that absence alone does not prove that no live non-default branch still owns
+    the workflow source.
     """
     workflow_ids = [workflow.get("id") for workflow in workflows]
     duplicate_ids = {
@@ -106,9 +115,12 @@ def classify_workflows(
         if workflow_id in duplicate_ids:
             classification = "unresolved"
             reason = "duplicate workflow id in registry snapshot"
-        elif state != "active":
+        elif state in KNOWN_NON_ACTIVE_WORKFLOW_STATES:
             classification = "disabled"
             reason = "registry state is not active"
+        elif state != "active":
+            classification = "unresolved"
+            reason = "unknown workflow registry state"
         elif _github_dynamic_workflow_path(path):
             classification = "github_dynamic"
             reason = "workflow path identifies a GitHub-managed dynamic identity"
