@@ -12,6 +12,8 @@ Security Notes:
 - Decoded audio is revalidated against the same versioned resource policy before
   Demucs/model work so overlong, malformed, or non-finite decoder output fails
   closed instead of being silently truncated or normalized.
+- Empty, non-finite, or float32-overflowed model stems fail closed before they
+  can become successful silence or downstream rehearsal evidence.
 - Inference runs locally on CPU with no network access. The model weights are
   loaded from the local Demucs cache or a configured bundled path; offline
   weight bundling is tracked in the supplemental component inventory.
@@ -51,6 +53,7 @@ logger = logging.getLogger(__name__)
 # Demucs htdemucs emits these four sources; this is the canonical stem set.
 _STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
 _EMPTY_RANGE_EPS = 1e-9
+_MODEL_OUTPUT_ERROR = "Stem separation produced invalid audio."
 
 
 def _contains_parent_path_segment(path: Path) -> bool:
@@ -250,7 +253,12 @@ class AudioStemSeparator:
 
 
 def _as_float_array(values: object) -> AudioStemArray:
-    """Convert decoder and model output to a finite one-dimensional float array."""
-    array = np.ravel(np.asarray(values, dtype=np.float32))
-    finite = np.nan_to_num(array, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
-    return cast(AudioStemArray, finite)
+    """Convert one finite, non-empty decoder/model output into mono float32 audio."""
+    try:
+        with np.errstate(over="ignore", invalid="ignore"):
+            array = np.ravel(np.asarray(values, dtype=np.float32))
+    except (OverflowError, TypeError, ValueError) as error:
+        raise ValueError(_MODEL_OUTPUT_ERROR) from error
+    if array.size == 0 or not np.isfinite(array).all():
+        raise ValueError(_MODEL_OUTPUT_ERROR)
+    return cast(AudioStemArray, array)
