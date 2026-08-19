@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2023-10-27 - O(1) deduplication with Python dictionaries
+**Learning:** Checking for list membership (`if item not in lst: lst.append(item)`) creates an $O(N^2)$ algorithmic bottleneck, especially noticeable when rendering large datasets or long cue-sheets.
+**Action:** Use Python dictionaries (`dict[item] = None`) for deduplication to leverage $O(1)$ key lookups while preserving insertion order (guaranteed in Python 3.7+), replacing the original list membership loops.
