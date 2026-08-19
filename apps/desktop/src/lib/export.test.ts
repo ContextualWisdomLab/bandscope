@@ -71,6 +71,14 @@ describe("export sanitization", () => {
       expect(escapeCsvField(" \x00@cmd")).toBe("' \x00@cmd");
     });
 
+    it("treats leading spreadsheet control tokens as dangerous on their own", () => {
+      expect(escapeCsvField("\tSAFE")).toBe("'\tSAFE");
+      expect(escapeCsvField(" \tSAFE")).toBe("' \tSAFE");
+      expect(escapeCsvField("\rSAFE")).toBe("\"'\rSAFE\"");
+      expect(escapeCsvField("\nSAFE")).toBe("\"'\nSAFE\"");
+      expect(escapeCsvField("\x00SAFE")).toBe("'\x00SAFE");
+    });
+
     it("prevents full-width spreadsheet formula-prefix bypasses", () => {
       expect(escapeCsvField("＝1+2")).toBe("'＝1+2");
       expect(escapeCsvField("＋SUM(A1)")).toBe("'＋SUM(A1)");
