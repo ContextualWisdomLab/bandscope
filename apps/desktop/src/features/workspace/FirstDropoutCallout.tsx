@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import {
+  createTranslator,
+  detectPreferredLocale,
+  translateSectionFormLabel
+} from "../../i18n";
 import { formatDropoutTime, resolveFirstDropoutHandoff } from "./firstDropoutHandoff";
 
 /** Props for the first-dropout rehearsal callout. */
@@ -36,14 +40,27 @@ export function FirstDropoutCallout({
   actionMode = "workspace-scroll",
   onHearDropout
 }: FirstDropoutCalloutProps) {
-  const t = createTranslator(detectPreferredLocale());
+  const locale = detectPreferredLocale();
+  const t = createTranslator(locale);
+  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
+  const songId = typeof runtimeSong?.id === "string" ? runtimeSong.id : "";
   const handoff = resolveFirstDropoutHandoff(song);
-  const handoffSectionIndex = handoff ? song.sections.indexOf(handoff.section) : -1;
+  const handoffSectionIndex =
+    handoff && Array.isArray(runtimeSong?.sections)
+      ? runtimeSong.sections.indexOf(handoff.section)
+      : -1;
   const [heardDropout, setHeardDropout] = useState<HeardDropout | null>(null);
 
   useEffect(() => {
     setHeardDropout(null);
-  }, [song.id, handoffSectionIndex, handoff?.section.id, handoff?.fromRole.id, handoff?.toRole.id, handoff?.endSeconds]);
+  }, [
+    songId,
+    handoffSectionIndex,
+    handoff?.section.id,
+    handoff?.fromRole.id,
+    handoff?.toRole.id,
+    handoff?.endSeconds
+  ]);
 
   if (!handoff) {
     return (
@@ -59,7 +76,7 @@ export function FirstDropoutCallout({
   }
 
   const heard =
-    heardDropout?.songId === song.id &&
+    heardDropout?.songId === songId &&
     heardDropout.sectionId === handoff.section.id &&
     heardDropout.sectionIndex === handoffSectionIndex &&
     heardDropout.fromRoleId === handoff.fromRole.id &&
@@ -69,7 +86,7 @@ export function FirstDropoutCallout({
   const copyValues: DropoutCopyValues = {
     from: handoff.fromRole.name,
     to: handoff.toRole.name,
-    section: handoff.section.label,
+    section: translateSectionFormLabel(locale, handoff.section.label),
     end
   };
   const actionLabel = formatDropoutCopy(
@@ -78,7 +95,20 @@ export function FirstDropoutCallout({
   );
   const body = formatDropoutCopy(t("firstDropoutBody"), copyValues);
   const armed = formatDropoutCopy(t("firstDropoutArmed"), copyValues);
-  const canExecuteAction = actionMode === "workspace-scroll" || onHearDropout !== undefined;
+  const canExecuteAction =
+    actionMode === "workspace-scroll" || typeof onHearDropout === "function";
+
+  /** Record completion only after the owning surface executes the selected dropout action. */
+  const markDropoutActionComplete = () => {
+    setHeardDropout({
+      songId,
+      sectionId: handoff.section.id,
+      sectionIndex: handoffSectionIndex,
+      fromRoleId: handoff.fromRole.id,
+      toRoleId: handoff.toRole.id,
+      endSeconds: handoff.endSeconds
+    });
+  };
 
   return (
     <aside
@@ -93,24 +123,21 @@ export function FirstDropoutCallout({
           type="button"
           className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-rose-400 font-black text-slate-950"
           onClick={() => {
-            setHeardDropout({
-              songId: song.id,
-              sectionId: handoff.section.id,
-              sectionIndex: handoffSectionIndex,
-              fromRoleId: handoff.fromRole.id,
-              toRoleId: handoff.toRole.id,
-              endSeconds: handoff.endSeconds
-            });
             if (actionMode === "callback-only") {
-              onHearDropout?.(handoff.endSeconds);
+              onHearDropout!(handoff.endSeconds);
+              markDropoutActionComplete();
               return;
             }
             const grid = document.querySelector('[data-testid="song-structure-grid"]');
             const target = handoffSectionIndex >= 0 ? grid?.children.item(handoffSectionIndex) : null;
-            target?.scrollIntoView?.({
+            if (typeof target?.scrollIntoView !== "function") {
+              return;
+            }
+            target.scrollIntoView({
               block: "nearest",
               behavior: "smooth"
             });
+            markDropoutActionComplete();
           }}
         >
           {actionLabel}
