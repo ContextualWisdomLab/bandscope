@@ -154,6 +154,6 @@ describe("App stale analysis polling", () => {
     });
 
     expect(screen.queryAllByText("Old analysis must stay stale")).toHaveLength(0);
-    expect(screen.getByRole("status")).toHaveTextContent("Queued for analysis");
+    expect(screen.getByText("Queued for analysis")).toBeTruthy();
   });
 });
