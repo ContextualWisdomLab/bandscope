@@ -71,11 +71,13 @@ function hasSafeSectionMembers(section: RehearsalSection): boolean {
   return hasUniqueIds(roleIds) && hasUniqueIds(graphRoleIds);
 }
 
-/** Return true when the role has a safe runtime identity and ranked rehearsal priority. */
+/** Return true when the role has safe runtime identity/copy and ranked rehearsal priority. */
 function hasRankedPriority(role: RehearsalRole): boolean {
   return (
     typeof role.id === "string" &&
     role.id.trim().length > 0 &&
+    typeof role.name === "string" &&
+    role.name.trim().length > 0 &&
     Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
   );
 }
