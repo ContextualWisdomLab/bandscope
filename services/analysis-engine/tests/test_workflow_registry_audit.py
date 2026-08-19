@@ -254,7 +254,7 @@ class _FakeClient:
 
     def fetch_workflows(self, _repository: str):
         return self.workflows, [
-            {"page": 1, "status": 200, "item_count": len(self.workflows)}
+            {"page": 1, "status": 200, "item_count": len(self.workflows)},
         ]
 
     def fetch_tree_paths(self, _repository: str, _sha: str):
@@ -343,7 +343,7 @@ def test_audit_repository_rejects_same_count_registry_replacement(audit_module) 
         def fetch_workflows(self, _repository: str):
             workflows = self.workflow_snapshots.pop(0)
             return workflows, [
-                {"page": 1, "status": 200, "item_count": len(workflows)}
+                {"page": 1, "status": 200, "item_count": len(workflows)},
             ]
 
         def fetch_tree_paths(self, _repository: str, _sha: str):
@@ -401,5 +401,5 @@ def test_audit_repository_accepts_reordered_registry_and_emits_final_receipts(au
 
     assert [record["workflow_id"] for record in report["workflows"]] == [22, 23]
     assert report["pagination_receipts"] == [
-        {"page": 1, "status": 200, "item_count": 2, "snapshot": "final"}
+        {"page": 1, "status": 200, "item_count": 2, "snapshot": "final"},
     ]
