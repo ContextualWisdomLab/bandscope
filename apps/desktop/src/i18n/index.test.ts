@@ -85,5 +85,10 @@ describe("i18n", () => {
     it("preserves unlabeled form values as data", () => {
       expect(translateSectionFormLabel("ko", "verse")).toBe("verse");
     });
+
+    it("does not treat inherited object keys as localized section labels", () => {
+      const inheritedKey = "toString" as never;
+      expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
+    });
   });
 });
