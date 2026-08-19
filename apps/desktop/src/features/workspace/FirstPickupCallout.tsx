@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import {
+  createTranslator,
+  detectPreferredLocale,
+  translateSectionFormLabel
+} from "../../i18n";
 import { formatPickupTime, resolveFirstPickupHandoff } from "./firstPickupHandoff";
 
 /** Props for the first-pickup rehearsal callout. */
@@ -44,7 +48,8 @@ export function FirstPickupCallout({
   actionMode = "workspace-scroll",
   onHearPickup
 }: FirstPickupCalloutProps) {
-  const t = createTranslator(detectPreferredLocale());
+  const locale = detectPreferredLocale();
+  const t = createTranslator(locale);
   const pickup = resolveFirstPickupHandoff(song);
   const pickupSectionIndex = pickup ? song.sections.indexOf(pickup.section) : -1;
   const [heardPickup, setHeardPickup] = useState<HeardPickup | null>(null);
@@ -84,7 +89,7 @@ export function FirstPickupCallout({
   const copyValues: PickupCopyValues = {
     from: pickup.fromRole?.name ?? "",
     to: pickup.toRole.name,
-    section: pickup.section.label,
+    section: translateSectionFormLabel(locale, pickup.section.label),
     at
   };
   const hasFrom = pickup.fromRole !== null;
