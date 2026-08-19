@@ -29,7 +29,7 @@
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
 
-## 2024-05-22 - [CSV Formula Injection NUL Byte Bypass]
-**Vulnerability:** A missing NUL byte check in the CSV formula injection detection logic.
-**Learning:** Control characters like NUL bytes (`\x00`) can bypass simple leading-character checks for formula injection payloads.
-**Prevention:** Always include NUL bytes in the regular expression or string check alongside `\t`, `\n`, `\r`, and leading whitespace when preventing CSV formula injection.
+## 2026-08-19 - CSV formula-prefix bypasses through NUL and full-width operators
+**Vulnerability:** Desktop CSV export did not fail closed when an attacker-controlled field placed an ASCII spreadsheet operator behind a NUL byte or began with a full-width lookalike (`＝`, `＋`, `－`, `＠`) that spreadsheet software may normalize at the formula boundary.
+**Learning:** Formula-injection defenses must reason about the spreadsheet parser's effective leading token, not only literal ASCII `=`, `+`, `-`, and `@`. Ignorable whitespace/BOM/control prefixes and compatibility lookalikes belong to the same trust boundary.
+**Prevention:** Prefix a single quote before exporting any field whose first effective token is an ASCII or full-width spreadsheet formula operator, TAB/CR/LF, or NUL, and regression-test leading whitespace plus BOM, NUL-prefixed ASCII payloads, and every supported full-width operator before applying ordinary CSV quoting.
