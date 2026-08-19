@@ -20,6 +20,28 @@ export function formatPickupTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+/** Return whether an untrusted runtime value can be inspected as an object. */
+function isRuntimeObject(value: unknown): value is object {
+  return value !== null && typeof value === "object";
+}
+
+/** Return whether every numeric index is present in a bounded runtime array. */
+function isDenseRuntimeArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+  const length = Number(value.length);
+  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
+    return false;
+  }
+  for (let index = 0; index < length; index += 1) {
+    if (!(index in value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Return true when the role has a safe runtime identity and ranked rehearsal priority. */
 function hasRankedPriority(role: RehearsalRole): boolean {
   return (
@@ -74,13 +96,15 @@ function pickHighestPriorityRole(roles: RehearsalRole[]): RehearsalRole | null {
   if (roles.length === 0) {
     return null;
   }
-  return [...roles].sort((left, right) => {
-    const rankDelta = PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
-    if (rankDelta !== 0) {
-      return rankDelta;
-    }
-    return left.id.localeCompare(right.id);
-  })[0] ?? null;
+  return (
+    [...roles].sort((left, right) => {
+      const rankDelta = PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
+      if (rankDelta !== 0) {
+        return rankDelta;
+      }
+      return left.id.localeCompare(right.id);
+    })[0] ?? null
+  );
 }
 
 /** Resolve an incoming corroborating partner for a pickup role, if one exists. */
@@ -107,6 +131,9 @@ function resolveIncomingPartner(section: RehearsalSection, toRole: RehearsalRole
 
 /** Return whether a section has a bounded, non-negative rehearsal window. */
 function hasBoundedTimeRange(section: RehearsalSection): boolean {
+  if (!isRuntimeObject(section.timeRange)) {
+    return false;
+  }
   return (
     Number.isFinite(section.timeRange.start) &&
     section.timeRange.start >= 0 &&
@@ -118,7 +145,10 @@ function hasBoundedTimeRange(section: RehearsalSection): boolean {
 /** Prefer an explicit pickup form label before falling back to an incoming handoff. */
 function resolveLabeledPickupSection(song: RehearsalSong): FirstPickupHandoff | null {
   const pickupSections = song.sections
-    .filter((section) => section.label === "pickup" && hasBoundedTimeRange(section))
+    .filter(
+      (section) =>
+        isRuntimeObject(section) && section.label === "pickup" && hasBoundedTimeRange(section)
+    )
     .sort((left, right) => left.timeRange.start - right.timeRange.start);
 
   for (const section of pickupSections) {
@@ -139,17 +169,23 @@ function resolveLabeledPickupSection(song: RehearsalSong): FirstPickupHandoff | 
 
 /** Return the first validated incoming pickup, or null when no safe candidate remains. */
 export function resolveFirstPickupHandoff(song: RehearsalSong): FirstPickupHandoff | null {
+  if (!isRuntimeObject(song) || !isDenseRuntimeArray(song.sections)) {
+    return null;
+  }
+
   const labeled = resolveLabeledPickupSection(song);
   if (labeled) {
     return labeled;
   }
 
-  const sections = song.sections.filter(hasBoundedTimeRange).sort((left, right) => {
-    if (left.timeRange.end !== right.timeRange.end) {
-      return left.timeRange.end - right.timeRange.end;
-    }
-    return left.timeRange.start - right.timeRange.start;
-  });
+  const sections = song.sections
+    .filter((section) => isRuntimeObject(section) && hasBoundedTimeRange(section))
+    .sort((left, right) => {
+      if (left.timeRange.end !== right.timeRange.end) {
+        return left.timeRange.end - right.timeRange.end;
+      }
+      return left.timeRange.start - right.timeRange.start;
+    });
 
   const candidates: FirstPickupHandoff[] = [];
 
