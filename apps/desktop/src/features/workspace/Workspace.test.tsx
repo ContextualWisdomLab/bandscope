@@ -285,11 +285,20 @@ describe("Workspace", () => {
   it("names tonight's first pickup as workspace navigation", () => {
     render(<Workspace song={createDemoRehearsalSong()} />);
 
+    const section = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(section).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(section!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
     const action = screen.getByRole("button", {
       name: "Open Lead Vocal pickup from Bass Guitar at 0:30"
     });
-    expect(action).toBeTruthy();
     fireEvent.click(action);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(
       screen.getByText(/Start Lead Vocal's pickup from Bass Guitar before the next downbeat \(0:30\)/)
     ).toBeTruthy();
