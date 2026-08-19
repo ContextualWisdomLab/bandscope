@@ -1,4 +1,9 @@
-import type { RehearsalRole, RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
+import {
+  MAX_SECTION_TIME_SECONDS,
+  type RehearsalRole,
+  type RehearsalSection,
+  type RehearsalSong
+} from "@bandscope/shared-types";
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 
@@ -35,16 +40,22 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   );
 }
 
-/** Return whether a section has a bounded, positive-length rehearsal window. */
+/** Return whether a section has a bounded, positive-length integer rehearsal window. */
 function hasBoundedTimeRange(section: RehearsalSection): boolean {
   const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
+  if (timeRange === null || typeof timeRange !== "object") {
+    return false;
+  }
+
+  const start = timeRange.start ?? -1;
+  const end = timeRange.end ?? -1;
   return (
-    timeRange !== null &&
-    typeof timeRange === "object" &&
-    Number.isFinite(timeRange.start) &&
-    (timeRange.start ?? -1) >= 0 &&
-    Number.isFinite(timeRange.end) &&
-    (timeRange.end ?? -1) > (timeRange.start ?? 0)
+    Number.isInteger(start) &&
+    start >= 0 &&
+    start <= MAX_SECTION_TIME_SECONDS &&
+    Number.isInteger(end) &&
+    end > start &&
+    end <= MAX_SECTION_TIME_SECONDS
   );
 }
 
