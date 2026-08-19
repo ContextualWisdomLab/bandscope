@@ -46,6 +46,19 @@ def _complete_workflow_contract(version: str) -> str:
     )
 
 
+def _complete_dependabot_contract() -> str:
+    """Return one minimal, complete Rust toolchain Dependabot update lane."""
+    return (
+        "version: 2\n"
+        "updates:\n"
+        '  - package-ecosystem: "rust-toolchain"\n'
+        '    directory: "/"\n'
+        '    target-branch: "develop"\n'
+        "    schedule:\n"
+        '      interval: "weekly"\n'
+    )
+
+
 def test_rust_toolchain_policy_accepts_exact_reviewed_contract(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -66,11 +79,7 @@ def test_rust_toolchain_policy_accepts_exact_reviewed_contract(
             'profile = "minimal"\n'
             'components = ["rustfmt", "clippy"]\n'
         ),
-        dependabot=(
-            'package-ecosystem: "rust-toolchain"\n'
-            'target-branch: "develop"\n'
-            'interval: "weekly"\n'
-        ),
+        dependabot=_complete_dependabot_contract(),
         workflow=_complete_workflow_contract(version),
     )
 
@@ -78,6 +87,44 @@ def test_rust_toolchain_policy_accepts_exact_reviewed_contract(
     captured = capsys.readouterr()
     assert captured.err == ""
     assert captured.out == f"Rust compiler contract is pinned to {version}.\n"
+
+
+def test_rust_toolchain_policy_rejects_cross_lane_dependabot_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Unrelated update lanes cannot satisfy the Rust toolchain lane contract."""
+    verifier = load_module(
+        "scripts/checks/verify_rust_toolchain.py", "verify_rust_toolchain_cross_lane"
+    )
+    version = verifier.EXPECTED_TOOLCHAIN
+    _configure_policy_fixture(
+        verifier,
+        monkeypatch,
+        tmp_path,
+        manifest=f'[toolchain]\nchannel = "{version}"\nprofile = "minimal"\n',
+        dependabot=(
+            "version: 2\n"
+            "updates:\n"
+            '  - package-ecosystem: "rust-toolchain"\n'
+            '    directory: "/wrong"\n'
+            '  - package-ecosystem: "npm"\n'
+            '    directory: "/"\n'
+            '    target-branch: "develop"\n'
+            "    schedule:\n"
+            '      interval: "weekly"\n'
+        ),
+        workflow=_complete_workflow_contract(version),
+    )
+
+    assert verifier.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Rust toolchain lane is missing" in captured.err
+    assert "directory" in captured.err
+    assert "target-branch" in captured.err
+    assert "interval" in captured.err
 
 
 def test_rust_toolchain_policy_fails_closed_on_every_contract_drift(
