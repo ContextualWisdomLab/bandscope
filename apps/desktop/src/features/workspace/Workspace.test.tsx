@@ -274,11 +274,20 @@ describe("Workspace", () => {
   it("names tonight's first dropout as workspace navigation", () => {
     render(<Workspace song={createDemoRehearsalSong()} />);
 
+    const section = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(section).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(section!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
     const action = screen.getByRole("button", {
       name: "Open Bass Guitar dropout for Lead Vocal at 0:30"
     });
-    expect(action).toBeTruthy();
     fireEvent.click(action);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Start the last bar of Bass Guitar before Lead Vocal takes the verse \(0:30\)/)).toBeTruthy();
   });
 });
