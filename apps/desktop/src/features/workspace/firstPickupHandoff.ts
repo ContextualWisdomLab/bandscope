@@ -1,4 +1,9 @@
-import type { RehearsalRole, RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
+import {
+  MAX_SECTION_TIME_SECONDS,
+  type RehearsalRole,
+  type RehearsalSection,
+  type RehearsalSong
+} from "@bandscope/shared-types";
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 
@@ -139,16 +144,20 @@ function resolveIncomingPartner(section: RehearsalSection, toRole: RehearsalRole
   return pickHighestPriorityRole(partners);
 }
 
-/** Return whether a section has a bounded, non-negative rehearsal window. */
+/** Return whether a section obeys the shared bounded positive integer rehearsal-window contract. */
 function hasBoundedTimeRange(section: RehearsalSection): boolean {
   if (!isRuntimeObject(section.timeRange)) {
     return false;
   }
+  const start = section.timeRange.start;
+  const end = section.timeRange.end;
   return (
-    Number.isFinite(section.timeRange.start) &&
-    section.timeRange.start >= 0 &&
-    Number.isFinite(section.timeRange.end) &&
-    section.timeRange.end >= section.timeRange.start
+    Number.isInteger(start) &&
+    start >= 0 &&
+    start <= MAX_SECTION_TIME_SECONDS &&
+    Number.isInteger(end) &&
+    end > start &&
+    end <= MAX_SECTION_TIME_SECONDS
   );
 }
 
