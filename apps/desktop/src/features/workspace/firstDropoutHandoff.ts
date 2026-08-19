@@ -1,6 +1,15 @@
-import type { RehearsalRole, RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
+import {
+  MAX_SECTION_TIME_SECONDS,
+  SECTION_FORM_LABELS,
+  type RehearsalRole,
+  type RehearsalSection,
+  type RehearsalSong,
+  type SectionFormLabel
+} from "@bandscope/shared-types";
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
+
+type PartGraphNode = RehearsalSection["partGraph"][number];
 
 /** Tonight's first dropout: earliest section handoff, then the highest-priority outgoing part. */
 export type FirstDropoutHandoff = {
@@ -20,17 +29,97 @@ export function formatDropoutTime(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+/** Return whether an untrusted runtime value can be inspected as an object. */
+function isRuntimeObject(value: unknown): value is object {
+  return value !== null && typeof value === "object";
+}
+
+/** Return whether every numeric index is present in a bounded runtime array. */
+function isDenseRuntimeArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+  const length = Number(value.length);
+  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
+    return false;
+  }
+  for (let index = 0; index < length; index += 1) {
+    if (!(index in value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Return true when every section-local identity is unambiguous. */
 function hasUniqueIdentities(ids: readonly string[]): boolean {
   return new Set(ids).size === ids.length;
 }
 
-/** Return true when the role has a safe runtime identity and ranked rehearsal priority. */
-function hasRankedPriority(role: RehearsalRole): boolean {
+/** Return whether one role has safe buyer-visible identity and copy. */
+function hasSafeRoleIdentity(role: unknown): role is RehearsalRole {
+  if (!isRuntimeObject(role)) {
+    return false;
+  }
+  const candidate = role as Partial<RehearsalRole>;
   return (
-    typeof role.id === "string" &&
-    role.id.trim().length > 0 &&
-    Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
+    typeof candidate.id === "string" &&
+    candidate.id.trim().length > 0 &&
+    typeof candidate.name === "string" &&
+    candidate.name.trim().length > 0
+  );
+}
+
+/** Return true when the safe role also has a ranked rehearsal priority. */
+function hasRankedPriority(role: RehearsalRole): boolean {
+  return Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority);
+}
+
+/** Return whether one graph edge collection is complete and carries only safe role ids. */
+function isRoleIdCollection(value: unknown): value is string[] {
+  return (
+    isDenseRuntimeArray(value) &&
+    value.every((roleId) => typeof roleId === "string" && roleId.trim().length > 0)
+  );
+}
+
+/** Return whether one graph node has safe section-local identity and complete edge evidence. */
+function isSafeGraphNode(value: unknown): value is PartGraphNode {
+  if (!isRuntimeObject(value)) {
+    return false;
+  }
+  const candidate = value as Partial<PartGraphNode>;
+  return (
+    typeof candidate.role_id === "string" &&
+    candidate.role_id.trim().length > 0 &&
+    isRoleIdCollection(candidate.handoff_to) &&
+    isRoleIdCollection(candidate.handoff_from)
+  );
+}
+
+/** Return whether one section has safe identity, form, and a bounded positive integer window. */
+function hasBoundedSectionWindow(value: unknown): value is RehearsalSection {
+  if (!isRuntimeObject(value)) {
+    return false;
+  }
+  const section = value as Partial<RehearsalSection>;
+  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
+  if (timeRange === null || typeof timeRange !== "object") {
+    return false;
+  }
+  const start = timeRange.start ?? -1;
+  const end = timeRange.end ?? -1;
+  return (
+    typeof section.id === "string" &&
+    section.id.trim().length > 0 &&
+    typeof section.label === "string" &&
+    SECTION_FORM_LABELS.includes(section.label as SectionFormLabel) &&
+    Number.isInteger(start) &&
+    start >= 0 &&
+    start <= MAX_SECTION_TIME_SECONDS &&
+    Number.isInteger(end) &&
+    end > start &&
+    end <= MAX_SECTION_TIME_SECONDS
   );
 }
 
@@ -38,28 +127,28 @@ function hasRankedPriority(role: RehearsalRole): boolean {
 function hasReciprocalHandoff(section: RehearsalSection, fromRoleId: string, toRoleId: string): boolean {
   return section.partGraph.some(
     (candidate) =>
-      candidate.role_id === toRoleId &&
-      Array.isArray(candidate.handoff_from) &&
-      candidate.handoff_from.includes(fromRoleId)
+      candidate.role_id === toRoleId && candidate.handoff_from.includes(fromRoleId)
   );
 }
 
 /** Return the first validated section-local dropout, or null when no safe candidate remains. */
 export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHandoff | null {
+  if (!isRuntimeObject(song) || !isDenseRuntimeArray(song.sections)) {
+    return null;
+  }
+
   const sections = song.sections
-    .filter(
-      (section) =>
-        Number.isFinite(section.timeRange.start) &&
-        section.timeRange.start >= 0 &&
-        Number.isFinite(section.timeRange.end) &&
-        section.timeRange.end >= section.timeRange.start
-    )
+    .filter(hasBoundedSectionWindow)
     .sort((left, right) => left.timeRange.start - right.timeRange.start);
 
   const candidates: FirstDropoutHandoff[] = [];
 
   for (const section of sections) {
     if (
+      !isDenseRuntimeArray(section.roles) ||
+      !section.roles.every(hasSafeRoleIdentity) ||
+      !isDenseRuntimeArray(section.partGraph) ||
+      !section.partGraph.every(isSafeGraphNode) ||
       !hasUniqueIdentities(section.roles.map((role) => role.id)) ||
       !hasUniqueIdentities(section.partGraph.map((node) => node.role_id))
     ) {
@@ -69,11 +158,7 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
     const rolesInSection = new Map(section.roles.map((role) => [role.id, role]));
 
     for (const node of section.partGraph) {
-      if (
-        node.is_active !== true ||
-        !Array.isArray(node.handoff_to) ||
-        node.handoff_to.length === 0
-      ) {
+      if (node.is_active !== true || node.handoff_to.length === 0) {
         continue;
       }
 
@@ -83,7 +168,6 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
       }
 
       const targets = node.handoff_to
-        .filter((roleId): roleId is string => typeof roleId === "string" && roleId.trim().length > 0)
         .map((roleId) => rolesInSection.get(roleId) ?? null)
         .filter(
           (role): role is RehearsalRole =>
