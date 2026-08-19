@@ -55,7 +55,7 @@ export function FirstHandoffCallout({
 
   useEffect(() => {
     setHeardHandoff(null);
-  }, [song.id, handoffSectionIndex, handoff?.section.id, handoff?.holdingRole?.id, handoff?.atSeconds]);
+  }, [song?.id, handoffSectionIndex, handoff?.section.id, handoff?.holdingRole?.id, handoff?.atSeconds]);
 
   if (!handoff) {
     return (
