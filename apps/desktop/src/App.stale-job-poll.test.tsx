@@ -156,4 +156,28 @@ describe("App stale analysis polling", () => {
     expect(screen.queryByText("Old analysis must stay stale")).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("Queued for analysis");
   });
+
+  it("rejects a poll response that carries a different job identity", async () => {
+    mockedSelectLocalAudioSource.mockResolvedValue({ ok: true, bootstrap: selectedSource() });
+    mockedStartAnalysisJob.mockResolvedValueOnce(queuedStatus("job-requested"));
+    mockedGetAnalysisJobStatus.mockResolvedValueOnce(
+      succeededStatus("job-foreign", "Foreign analysis must be rejected")
+    );
+    mockedSubscribeToAnalysisJobUpdates.mockResolvedValue(() => undefined);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^start analysis$/i })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
+    await waitFor(() => {
+      expect(mockedGetAnalysisJobStatus).toHaveBeenCalledWith("job-requested");
+    });
+
+    expect(screen.queryByText("Foreign analysis must be rejected")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent("Queued for analysis");
+  });
 });
