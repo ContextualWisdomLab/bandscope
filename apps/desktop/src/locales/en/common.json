@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstIntroLabel": "Tonight's first intro",
+  "firstIntroAction": "Hear {role} start at {at}",
+  "firstIntroActionBand": "Hear the first intro at {at}",
+  "firstIntroOpenAction": "Open {role} intro at {at}",
+  "firstIntroOpenActionBand": "Open the first intro at {at}",
+  "firstIntroBody": "{role} starts the {section} at {at}.",
+  "firstIntroBodyBand": "The band starts the {section} at {at}.",
+  "firstIntroArmed": "Count in with {role} at {at}. Start together.",
+  "firstIntroArmedBand": "Count in at {at}. Start together.",
+  "firstIntroUnavailable": "No intro yet. Stay on tonight's map until the start is labeled.",
+  "firstIntroNeedsSong": "Analyze tonight's song first, then hear the first intro from this player."
 }

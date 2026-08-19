@@ -270,4 +270,48 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first intro as workspace navigation", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    const intro = structuredClone(verse);
+    intro.id = "intro-1";
+    intro.label = "intro";
+    intro.timeRange = { start: 0, end: 8 };
+    intro.roles = [
+      {
+        ...verse.roles[0]!,
+        id: "drums",
+        name: "Drums",
+        rehearsalPriority: "high"
+      }
+    ];
+    intro.partGraph = [
+      {
+        role_id: "drums",
+        is_active: true,
+        handoff_to: [],
+        handoff_from: []
+      }
+    ];
+    song.sections = [intro, verse];
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    const action = screen.getByRole("button", {
+      name: "Open Drums intro at 0:00"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText(/Count in with Drums at 0:00. Start together./)).toBeTruthy();
+  });
 });
