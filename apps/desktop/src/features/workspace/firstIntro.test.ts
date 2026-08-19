@@ -118,6 +118,28 @@ describe("resolveFirstIntro", () => {
     expect(intro?.atSeconds).toBe(0);
   });
 
+  it("breaks same-time intro ties with locale-independent id ordering", () => {
+    const song = withIntroSection({ id: "ä-intro", start: 0, end: 8 });
+    const asciiIntro = structuredClone(song.sections[0]!);
+    asciiIntro.id = "z-intro";
+    song.sections = [song.sections[0]!, asciiIntro];
+
+    expect(resolveFirstIntro(song)?.section.id).toBe("z-intro");
+  });
+
+  it("breaks equal-priority role ties with locale-independent id ordering", () => {
+    const song = withIntroSection({ roleId: "ä-role", roleName: "Umlaut role", priority: "high" });
+    const intro = song.sections[0]!;
+    const asciiRole = { ...intro.roles[0]!, id: "z-role", name: "ASCII role" };
+    intro.roles = [intro.roles[0]!, asciiRole];
+    intro.partGraph = [
+      { role_id: "ä-role", is_active: true, handoff_to: [], handoff_from: [] },
+      { role_id: "z-role", is_active: true, handoff_to: [], handoff_from: [] }
+    ];
+
+    expect(resolveFirstIntro(song)?.holdingRole?.id).toBe("z-role");
+  });
+
   it("keeps a band-wide start when no active ranked role holds it", () => {
     const song = withIntroSection({ isActive: false });
     const intro = resolveFirstIntro(song);
