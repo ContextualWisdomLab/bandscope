@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstVerseLabel": "오늘 첫 벌스",
+  "firstVerseAction": "{at}에 {role} 벌스 듣기",
+  "firstVerseActionBand": "{at} 첫 벌스 듣기",
+  "firstVerseOpenAction": "{at} {role} 벌스 위치 열기",
+  "firstVerseOpenActionBand": "{at} 첫 벌스 위치 열기",
+  "firstVerseBody": "{role}이 {at} {section}에서 첫 소절을 잡습니다.",
+  "firstVerseBodyBand": "밴드가 {at} {section}에서 첫 소절을 잡습니다.",
+  "firstVerseArmed": "{at}에서 {role} 벌스를 익히세요. 첫 소절을 연주하세요.",
+  "firstVerseArmedBand": "{at}에서 벌스를 익히세요. 첫 소절을 연주하세요.",
+  "firstVerseUnavailable": "아직 벌스가 없습니다. 첫 벌스가 표시될 때까지 오늘 지도에 머무르세요.",
+  "firstVerseNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 벌스를 들으세요."
 }

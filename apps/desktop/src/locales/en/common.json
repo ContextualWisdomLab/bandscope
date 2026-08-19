@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstVerseLabel": "Tonight's first verse",
+  "firstVerseAction": "Hear {role} verse at {at}",
+  "firstVerseActionBand": "Hear the first verse at {at}",
+  "firstVerseOpenAction": "Open {role} verse at {at}",
+  "firstVerseOpenActionBand": "Open the first verse at {at}",
+  "firstVerseBody": "{role} carries the {section} at {at}.",
+  "firstVerseBodyBand": "The band carries the {section} at {at}.",
+  "firstVerseArmed": "Learn {role}'s verse at {at}. Play the first line.",
+  "firstVerseArmedBand": "Learn the verse at {at}. Play the first line.",
+  "firstVerseUnavailable": "No verse yet. Stay on tonight's map until the first verse is labeled.",
+  "firstVerseNeedsSong": "Analyze tonight's song first, then hear the first verse from this player."
 }
