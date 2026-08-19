@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import {
+  createTranslator,
+  detectPreferredLocale,
+  translateSectionFormLabel
+} from "../../i18n";
 import { formatStopTime, resolveFirstStopHandoff } from "./firstStopHandoff";
 
 /** Props for the first-stop rehearsal callout. */
@@ -43,14 +47,20 @@ export function FirstStopCallout({
   actionMode = "workspace-scroll",
   onHearStop
 }: FirstStopCalloutProps) {
-  const t = createTranslator(detectPreferredLocale());
+  const locale = detectPreferredLocale();
+  const t = createTranslator(locale);
+  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
+  const songId = typeof runtimeSong?.id === "string" ? runtimeSong.id : "";
   const stop = resolveFirstStopHandoff(song);
-  const stopSectionIndex = stop ? song.sections.indexOf(stop.section) : -1;
+  const stopSectionIndex =
+    stop && Array.isArray(runtimeSong?.sections)
+      ? runtimeSong.sections.indexOf(stop.section)
+      : -1;
   const [heardStop, setHeardStop] = useState<HeardStop | null>(null);
 
   useEffect(() => {
     setHeardStop(null);
-  }, [song.id, stopSectionIndex, stop?.section.id, stop?.holdingRole?.id, stop?.atSeconds]);
+  }, [songId, stopSectionIndex, stop?.section.id, stop?.holdingRole?.id, stop?.atSeconds]);
 
   if (!stop) {
     return (
@@ -66,7 +76,7 @@ export function FirstStopCallout({
   }
 
   const heard =
-    heardStop?.songId === song.id &&
+    heardStop?.songId === songId &&
     heardStop.sectionId === stop.section.id &&
     heardStop.sectionIndex === stopSectionIndex &&
     heardStop.holdingRoleId === (stop.holdingRole?.id ?? null) &&
@@ -74,7 +84,7 @@ export function FirstStopCallout({
   const at = formatStopTime(stop.atSeconds);
   const copyValues: StopCopyValues = {
     role: stop.holdingRole?.name ?? "",
-    section: stop.section.label,
+    section: translateSectionFormLabel(locale, stop.section.label),
     at
   };
   const hasRole = stop.holdingRole !== null;
@@ -96,7 +106,7 @@ export function FirstStopCallout({
   /** Record completion only after the owning surface has executed the selected stop action. */
   const markStopActionComplete = () => {
     setHeardStop({
-      songId: song.id,
+      songId,
       sectionId: stop.section.id,
       sectionIndex: stopSectionIndex,
       holdingRoleId: stop.holdingRole?.id ?? null,
