@@ -59,6 +59,7 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
   }
 
   const sections = playerSummarySections(song);
+  const songTitle = typeof song.title === "string" ? song.title : "";
 
   return (
     <section style={{ padding: "24px" }}>
@@ -74,7 +75,7 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
         }}
       >
         <div style={{ marginBottom: "12px" }}>
-          <strong>{song.title}</strong>
+          <strong>{songTitle}</strong>
           <span style={{ color: "#666", marginLeft: "8px" }}>
             {sections.length} {sections.length === 1 ? "section" : "sections"}
           </span>
