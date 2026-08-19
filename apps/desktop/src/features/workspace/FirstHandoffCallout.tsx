@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import {
+  createTranslator,
+  detectPreferredLocale,
+  translateSectionFormLabel
+} from "../../i18n";
 import { formatHandoffTime, resolveFirstLabeledHandoff } from "./firstLabeledHandoff";
 
 /** Props for the first-handoff rehearsal callout. */
@@ -43,7 +47,8 @@ export function FirstHandoffCallout({
   actionMode = "workspace-scroll",
   onHearHandoff
 }: FirstHandoffCalloutProps) {
-  const t = createTranslator(detectPreferredLocale());
+  const locale = detectPreferredLocale();
+  const t = createTranslator(locale);
   const handoff = resolveFirstLabeledHandoff(song);
   const handoffSectionIndex = handoff ? song.sections.indexOf(handoff.section) : -1;
   const [heardHandoff, setHeardHandoff] = useState<HeardHandoff | null>(null);
@@ -74,7 +79,7 @@ export function FirstHandoffCallout({
   const at = formatHandoffTime(handoff.atSeconds);
   const copyValues: HandoffCopyValues = {
     role: handoff.holdingRole?.name ?? "",
-    section: handoff.section.label,
+    section: translateSectionFormLabel(locale, handoff.section.label),
     at
   };
   const hasRole = handoff.holdingRole !== null;
