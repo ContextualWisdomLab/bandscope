@@ -47,10 +47,10 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust stable
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Add Windows target
-        run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain stable
+        run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain 1.97.1
       - name: Verify Windows antivirus baseline
         shell: pwsh
         run: |
@@ -142,10 +142,10 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust stable
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Add Windows arm target
-        run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain stable
+        run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain 1.97.1
       - name: Verify Windows antivirus baseline
         shell: pwsh
         run: |
@@ -248,10 +248,10 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust stable
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Add macOS Intel target
-        run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
+        run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain 1.97.1
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Install node dependencies
@@ -306,10 +306,10 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust stable
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Add macOS arm target
-        run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
+        run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain 1.97.1
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Install node dependencies
