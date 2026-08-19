@@ -13,6 +13,12 @@ import {
 // 1. Filename sanitization to prevent directory traversal or invalid characters.
 // 2. CSV formula injection prevention (fields starting with spreadsheet formula operators must be prefixed with a single quote).
 
+// Skip only Unicode spacing separators and BOM while locating the first effective
+// spreadsheet token. TAB/CR/LF/NUL are themselves dangerous prefixes and must not
+// be consumed as ordinary whitespace before the final trigger check.
+// eslint-disable-next-line no-control-regex
+const DANGEROUS_CSV_PREFIX = /^[\p{Zs}\uFEFF]*[=+\-@＝＋－＠\t\r\n\x00]/u;
+
 /** Documented. */
 export function sanitizeFilename(title: string): string {
   // Replace invalid filename characters with underscores
@@ -22,10 +28,10 @@ export function sanitizeFilename(title: string): string {
 /** Documented. */
 export function escapeCsvField(value: string): string {
   let escapedValue = value;
-  // Prevent CSV formula injection after ignorable leading whitespace/control prefixes.
-  // Include full-width spreadsheet operator lookalikes because office software may normalize them.
-  // eslint-disable-next-line no-control-regex
-  if (/^[\s\uFEFF\xA0]*[=+\-@＝＋－＠\t\r\n\x00]/.test(value)) {
+  // Prevent CSV formula injection after ignorable leading spacing/BOM prefixes.
+  // Full-width operator lookalikes and dangerous spreadsheet control tokens are
+  // evaluated as the first effective token rather than swallowed as whitespace.
+  if (DANGEROUS_CSV_PREFIX.test(value)) {
     escapedValue = `'${value}`;
   }
   // Enclose in double quotes if there's a comma, newline, or double quote
