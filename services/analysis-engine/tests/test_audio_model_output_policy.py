@@ -19,7 +19,7 @@ from bandscope_analysis.separation.audio_separator import _as_float_array
 )
 def test_model_output_rejects_empty_nonfinite_or_float32_overflow(values: np.ndarray) -> None:
     """Malformed model stems must fail instead of becoming successful silence."""
-    with pytest.raises(ValueError, match="^Stem separation produced invalid audio\.$"):
+    with pytest.raises(ValueError, match=r"^Stem separation produced invalid audio\.$"):
         _as_float_array(values)
 
 
