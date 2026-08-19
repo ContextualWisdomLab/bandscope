@@ -261,9 +261,7 @@ class _FakeClient:
         return self.tree_paths
 
 
-def test_audit_repository_binds_registry_to_unchanged_default_branch(
-    audit_module,
-) -> None:
+def test_audit_repository_binds_registry_to_unchanged_default_branch(audit_module) -> None:
     """The report records the exact branch SHA and refuses stale branch evidence."""
     client = _FakeClient(
         ref_shas=["a" * 40, "a" * 40],
