@@ -214,3 +214,55 @@ def test_rust_toolchain_policy_rejects_compiler_evidence_borrowed_from_sibling_w
     assert captured.out == ""
     assert "release.yml" in captured.err
     assert f"rustup toolchain install {version} --profile minimal" in captured.err
+
+
+def test_rust_toolchain_policy_rejects_compiler_evidence_borrowed_between_native_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One native packaging job cannot supply compiler evidence for sibling architectures."""
+    verifier = load_module(
+        "scripts/checks/verify_rust_toolchain.py", "verify_rust_toolchain_cross_job"
+    )
+    version = verifier.EXPECTED_TOOLCHAIN
+    _configure_policy_fixture(
+        verifier,
+        monkeypatch,
+        tmp_path,
+        manifest=f'[toolchain]\nchannel = "{version}"\nprofile = "minimal"\n',
+        dependabot=_complete_dependabot_contract(),
+        workflow=_complete_workflow_contract(version),
+    )
+    install = f"rustup toolchain install {version} --profile minimal"
+    target = f"rustup target add target --toolchain {version}"
+    (tmp_path / ".github" / "workflows" / "build-baseline.yml").write_text(
+        "jobs:\n"
+        "  build-windows-native:\n"
+        "    steps:\n"
+        f"      - run: {install}\n"
+        f"      - run: {install}\n"
+        f"      - run: {install}\n"
+        f"      - run: {install}\n"
+        f"      - run: {target}\n"
+        f"      - run: {target}\n"
+        f"      - run: {target}\n"
+        f"      - run: {target}\n"
+        "  build-windows-arm64:\n"
+        "    steps:\n"
+        "      - run: echo no-rust-pin\n"
+        "  build-macos-native:\n"
+        "    steps:\n"
+        "      - run: echo no-rust-pin\n"
+        "  build-macos-arm64:\n"
+        "    steps:\n"
+        "      - run: echo no-rust-pin\n",
+        encoding="utf-8",
+    )
+
+    assert verifier.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "build-windows-arm64" in captured.err
+    assert "build-macos-native" in captured.err
+    assert "build-macos-arm64" in captured.err
