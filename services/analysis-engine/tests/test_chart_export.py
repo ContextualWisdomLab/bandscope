@@ -340,3 +340,32 @@ class TestNoPathLeakage:
         assert "secret-demo" not in text
         assert "/Users" not in rows_json
         assert "secret-demo" not in rows_json
+
+
+class TestOrderPreservingDeduplication:
+    """Optimized de-duplication preserves the user-visible first-occurrence order."""
+
+    def test_names_cues_and_priorities_keep_first_occurrence_order(self) -> None:
+        """Separated duplicates collapse without reordering the remaining rehearsal data."""
+        song = _demo_song()
+        section = song["sections"][0]
+        del section["partGraph"]
+        section["roles"] = [
+            _role("drums-a", "Drums", "Count in", "Tight pocket"),
+            _role("bass", "Bass", "Enter", "Hold the root"),
+            _role("drums-b", "Drums", "Count in", "Tight pocket"),
+            _role("guitar", "Guitar", "Open up", "Leave space"),
+        ]
+        song["sections"] = [section]
+
+        rows = build_cue_sheet_rows(song)
+        assert rows[0]["roles"] == ["Drums", "Bass", "Guitar"]
+        assert rows[0]["cue"] == "Count in; Enter; Open up"
+
+        text = build_chart_text(song)
+        priorities = text.split("Priorities:\n", 1)[1].split("\nFocus:", 1)[0].splitlines()
+        assert priorities == [
+            "  - Drums: Tight pocket",
+            "  - Bass: Hold the root",
+            "  - Guitar: Leave space",
+        ]
