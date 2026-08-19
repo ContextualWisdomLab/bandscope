@@ -295,6 +295,7 @@ export function App() {
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
+  const activeJobStateRef = useRef<AnalysisJobStatus["state"] | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
@@ -313,10 +314,13 @@ export function App() {
 
   useEffect(() => {
     activeJobIdRef.current = jobStatus?.jobId ?? null;
-  }, [jobStatus?.jobId]);
+    activeJobStateRef.current = jobStatus?.state ?? null;
+  }, [jobStatus?.jobId, jobStatus?.state]);
 
-  /** Documented. */
+  /** Apply one status while synchronizing the polling authority snapshot. */
   const applyJobStatus = useCallback((nextStatus: AnalysisJobStatus) => {
+    activeJobIdRef.current = nextStatus.jobId;
+    activeJobStateRef.current = nextStatus.state;
     setJobStatus(nextStatus);
     if (nextStatus.state === "succeeded" && nextStatus.result) {
       setJobResult(nextStatus.result);
@@ -388,10 +392,19 @@ export function App() {
     const timer = window.setTimeout(async () => {
       try {
         const nextStatus = await getAnalysisJobStatus(jobStatus.jobId);
+        if (
+          activeJobIdRef.current !== jobStatus.jobId ||
+          (activeJobStateRef.current !== "queued" && activeJobStateRef.current !== "running")
+        ) {
+          return;
+        }
         applyJobStatus(nextStatus);
       } catch (error) {
         if (error instanceof Error && error.message === "Invalid analysis job status response") {
-          if (activeJobIdRef.current !== jobStatus.jobId) {
+          if (
+            activeJobIdRef.current !== jobStatus.jobId ||
+            (activeJobStateRef.current !== "queued" && activeJobStateRef.current !== "running")
+          ) {
             return;
           }
           const fallbackMessage = t("analysisCouldNotStart");
@@ -435,6 +448,8 @@ export function App() {
     try {
       const nextStatus = await startAnalysisJob(selectedRequest);
       if (nextStatus.state === "succeeded" && nextStatus.result) {
+        activeJobIdRef.current = nextStatus.jobId;
+        activeJobStateRef.current = nextStatus.state;
         setJobStatus(nextStatus);
         setJobResult(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
@@ -444,6 +459,8 @@ export function App() {
         applyJobStatus(nextStatus);
       }
     } catch {
+      activeJobIdRef.current = null;
+      activeJobStateRef.current = null;
       setJobStatus(null);
       setActiveAnalysisBootstrap(null);
       setJobError(t("analysisCouldNotStart"));
@@ -497,7 +514,6 @@ export function App() {
       setSelectionErrorSource("youtube");
       return;
     }
-
     setIsImporting(true);
     try {
       const selection = await importYoutubeUrl(normalizedUrl);
