@@ -14,10 +14,10 @@ Security Notes:
   closed instead of being silently truncated or normalized.
 - Empty, non-finite, or float32-overflowed model stems fail closed before they
   can become successful silence or downstream rehearsal evidence.
-- Inference runs locally with no network access. Model outputs cross back to CPU
-  before NumPy conversion so configured accelerator execution cannot fail at the
-  device/host boundary. The model weights are loaded from the local Demucs cache
-  or a configured bundled path; offline weight bundling is tracked in the
+- Inference runs locally with no network access. Accelerator outputs cross back
+  to CPU before NumPy conversion so configured device execution cannot fail at
+  the device/host boundary. The model weights are loaded from the local Demucs
+  cache or a configured bundled path; offline weight bundling is tracked in the
   supplemental component inventory.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
@@ -188,7 +188,13 @@ class AudioStemSeparator:
                 progress=False,
             )[0]
         out = out * ref_std + ref_mean
-        return {name: out[i].mean(0).cpu().numpy() for i, name in enumerate(model.sources)}
+        stems: dict[str, np.ndarray[Any, Any]] = {}
+        for index, name in enumerate(model.sources):
+            stem = out[index].mean(0)
+            if self.config.device != "cpu":
+                stem = stem.cpu()
+            stems[name] = stem.numpy()
+        return stems
 
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
