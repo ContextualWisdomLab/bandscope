@@ -8,25 +8,40 @@ import pytest
 from conftest import load_module
 
 
+def _job(name: str, *commands: str) -> str:
+    """Return one minimal workflow job containing the supplied shell commands."""
+    lines = [f"  {name}:", "    steps:"]
+    lines.extend(f"      - run: {command}" for command in commands)
+    return "\n".join(lines)
+
+
 def _supporting_workflow_contracts(version: str) -> dict[str, str]:
-    """Return minimal fixtures for Rust-owning workflows outside ordinary CI."""
+    """Return minimal valid fixtures for Rust-owning workflows outside ordinary CI."""
     install = f"rustup toolchain install {version} --profile minimal"
+    target = f"rustup target add target --toolchain {version}"
     return {
-        "release.yml": install,
-        "security-audit.yml": "\n".join(
-            (
+        "release.yml": "jobs:\n" + _job("release-preflight", install) + "\n",
+        "security-audit.yml": (
+            "jobs:\n"
+            + _job(
+                "audit",
                 install,
                 f"cargo +{version} install cargo-audit --locked",
                 f"cargo +{version} audit",
             )
+            + "\n"
         ),
-        "build-baseline.yml": "\n".join(
-            (install,) * 4
-            + tuple(
-                f"rustup target add target-{index} --toolchain {version}"
-                for index in range(4)
+        "build-baseline.yml": "jobs:\n"
+        + "\n".join(
+            _job(job_name, install, target)
+            for job_name in (
+                "build-windows-native",
+                "build-windows-arm64",
+                "build-macos-native",
+                "build-macos-arm64",
             )
-        ),
+        )
+        + "\n",
     }
 
 
@@ -58,15 +73,19 @@ def _configure_policy_fixture(
 
 
 def _complete_workflow_contract(version: str) -> str:
-    """Return a minimal CI fixture containing its two reviewed compiler owners."""
+    """Return a minimal valid CI fixture with both Rust-owning jobs."""
     install = f"rustup toolchain install {version} --profile minimal"
-    return "\n".join(
-        (
-            install,
+    return (
+        "jobs:\n"
+        + _job("verify", install)
+        + "\n"
+        + _job(
+            "rust-check",
             install,
             f"cargo +{version} check",
             f"cargo +{version} test",
         )
+        + "\n"
     )
 
 
@@ -181,7 +200,7 @@ def test_rust_toolchain_policy_fails_closed_on_every_contract_drift(
         "must retain profile = 'minimal'",
         "Dependabot Rust toolchain lane is missing",
         "workflow still contains floating Rust selector",
-        "ci.yml must contain",
+        "ci.yml is missing unique Rust-owning job",
     ):
         assert expected in captured.err
 
@@ -205,7 +224,7 @@ def test_rust_toolchain_policy_rejects_compiler_evidence_borrowed_from_sibling_w
         workflow=_complete_workflow_contract(version),
     )
     (tmp_path / ".github" / "workflows" / "release.yml").write_text(
-        "name: release\njobs:\n  release-preflight:\n    steps:\n      - run: echo no-rust-pin\n",
+        "jobs:\n" + _job("release-preflight", "echo no-rust-pin") + "\n",
         encoding="utf-8",
     )
 
@@ -213,6 +232,7 @@ def test_rust_toolchain_policy_rejects_compiler_evidence_borrowed_from_sibling_w
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "release.yml" in captured.err
+    assert "release-preflight" in captured.err
     assert f"rustup toolchain install {version} --profile minimal" in captured.err
 
 
@@ -238,25 +258,24 @@ def test_rust_toolchain_policy_rejects_compiler_evidence_borrowed_between_native
     target = f"rustup target add target --toolchain {version}"
     (tmp_path / ".github" / "workflows" / "build-baseline.yml").write_text(
         "jobs:\n"
-        "  build-windows-native:\n"
-        "    steps:\n"
-        f"      - run: {install}\n"
-        f"      - run: {install}\n"
-        f"      - run: {install}\n"
-        f"      - run: {install}\n"
-        f"      - run: {target}\n"
-        f"      - run: {target}\n"
-        f"      - run: {target}\n"
-        f"      - run: {target}\n"
-        "  build-windows-arm64:\n"
-        "    steps:\n"
-        "      - run: echo no-rust-pin\n"
-        "  build-macos-native:\n"
-        "    steps:\n"
-        "      - run: echo no-rust-pin\n"
-        "  build-macos-arm64:\n"
-        "    steps:\n"
-        "      - run: echo no-rust-pin\n",
+        + _job(
+            "build-windows-native",
+            install,
+            install,
+            install,
+            install,
+            target,
+            target,
+            target,
+            target,
+        )
+        + "\n"
+        + _job("build-windows-arm64", "echo no-rust-pin")
+        + "\n"
+        + _job("build-macos-native", "echo no-rust-pin")
+        + "\n"
+        + _job("build-macos-arm64", "echo no-rust-pin")
+        + "\n",
         encoding="utf-8",
     )
 
