@@ -35,7 +35,7 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   );
 }
 
-/** Return whether a section has a bounded, non-negative rehearsal window. */
+/** Return whether a section has a bounded, positive-length rehearsal window. */
 function hasBoundedTimeRange(section: RehearsalSection): boolean {
   const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
   return (
@@ -44,7 +44,7 @@ function hasBoundedTimeRange(section: RehearsalSection): boolean {
     Number.isFinite(timeRange.start) &&
     (timeRange.start ?? -1) >= 0 &&
     Number.isFinite(timeRange.end) &&
-    (timeRange.end ?? -1) >= (timeRange.start ?? 0)
+    (timeRange.end ?? -1) > (timeRange.start ?? 0)
   );
 }
 
