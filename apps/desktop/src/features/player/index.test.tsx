@@ -54,4 +54,36 @@ describe("PlayerFeature", () => {
     expect(onPlayFromSeconds).toHaveBeenCalledTimes(1);
     expect(onPlayFromSeconds).toHaveBeenCalledWith(22);
   });
+
+  it("renders a safe empty summary when the runtime section collection is not an array", () => {
+    const song = songWithHandoff();
+    (song as unknown as { sections: unknown }).sections = null;
+
+    render(<PlayerFeature title="Player" song={song} />);
+
+    expect(screen.getByText("No handoff yet. Stay on tonight's map until a pass is marked.")).toBeTruthy();
+    expect(screen.getByText("0 sections")).toBeTruthy();
+  });
+
+  it("renders a safe empty summary when the runtime section collection is sparse", () => {
+    const song = songWithHandoff();
+    const sparseSections: typeof song.sections = new Array(2);
+    sparseSections[1] = song.sections[1]!;
+    song.sections = sparseSections;
+
+    render(<PlayerFeature title="Player" song={song} />);
+
+    expect(screen.getByText("No handoff yet. Stay on tonight's map until a pass is marked.")).toBeTruthy();
+    expect(screen.getByText("0 sections")).toBeTruthy();
+  });
+
+  it("omits malformed runtime section elements without crashing the player summary", () => {
+    const song = songWithHandoff();
+    song.sections = [null, song.sections[0]!] as unknown as typeof song.sections;
+
+    render(<PlayerFeature title="Player" song={song} />);
+
+    expect(screen.getByText("1 section")).toBeTruthy();
+    expect(screen.getByText("verse")).toBeTruthy();
+  });
 });
