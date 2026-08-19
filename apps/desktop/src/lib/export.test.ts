@@ -56,21 +56,27 @@ describe("export sanitization", () => {
       expect(escapeCsvField("Text with\r\nboth")).toBe('"Text with\r\nboth"');
     });
 
-    it("prevents formula injection by prefixing =, +, -, @ with a single quote", () => {
+    it("prevents formula injection by prefixing ASCII operators with a single quote", () => {
       expect(escapeCsvField("=1+2")).toBe("'=1+2");
       expect(escapeCsvField("+SUM(A1)")).toBe("'+SUM(A1)");
       expect(escapeCsvField("-100")).toBe("'-100");
       expect(escapeCsvField("@cmd")).toBe("'@cmd");
 
-      // Prevent bypasses using leading whitespace or newlines
       expect(escapeCsvField(" =1+2")).toBe("' =1+2");
       expect(escapeCsvField("\t+SUM(A1)")).toBe("'\t+SUM(A1)");
       expect(escapeCsvField("\n-100")).toBe("\"'\n-100\"");
       expect(escapeCsvField("\r@cmd")).toBe("\"'\r@cmd\"");
 
-      // Prevent bypasses using NUL bytes
       expect(escapeCsvField("\x00=1+2")).toBe("'\x00=1+2");
       expect(escapeCsvField(" \x00@cmd")).toBe("' \x00@cmd");
+    });
+
+    it("prevents full-width spreadsheet formula-prefix bypasses", () => {
+      expect(escapeCsvField("＝1+2")).toBe("'＝1+2");
+      expect(escapeCsvField("＋SUM(A1)")).toBe("'＋SUM(A1)");
+      expect(escapeCsvField("－100")).toBe("'－100");
+      expect(escapeCsvField("＠cmd")).toBe("'＠cmd");
+      expect(escapeCsvField(" \uFEFF＝HYPERLINK(A1)")).toBe("' \uFEFF＝HYPERLINK(A1)");
     });
 
     it("handles combined scenarios: formula injection with structural characters", () => {
