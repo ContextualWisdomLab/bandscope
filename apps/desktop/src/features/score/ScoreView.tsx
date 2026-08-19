@@ -198,6 +198,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                       onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
                       disabled={!projectId}
                       aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
+                      title={`${t("scoreRemove")}: ${attachment.fileName}`}
                       className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
