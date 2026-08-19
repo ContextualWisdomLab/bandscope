@@ -21,11 +21,15 @@ python scripts/checks/audit_workflow_registry.py \
 The detector:
 
 1. resolves the exact `develop` commit SHA;
-2. paginates the complete Actions workflow registry and records a receipt for every page;
+2. paginates one complete Actions workflow registry observation;
 3. fetches the complete recursive tree for that exact SHA and rejects truncated tree evidence;
-4. refetches `develop` and aborts if the branch moved during the audit;
-5. classifies every registry record without using workflow-name heuristics;
-6. emits a machine-readable JSON evidence envelope containing the bound SHA, observation time, pagination receipts, summary counts, workflow IDs, paths, states, classifications, and reasons.
+4. paginates a second complete Actions workflow registry observation;
+5. refetches `develop` and aborts if the branch moved during the audit;
+6. compares the two registry observations as an order-independent multiset of classification-authoritative `(id, path, state, name)` values and aborts if they differ, including same-count remove/add replacement;
+7. classifies the final matching registry observation without using workflow-name heuristics; and
+8. emits a machine-readable JSON evidence envelope containing the bound SHA, observation time, final pagination receipts, summary counts, workflow IDs, paths, states, classifications, and reasons.
+
+Re-reading only the Git ref is insufficient because the Actions registry can change independently of the repository tree. The two complete registry observations therefore form a fail-closed stability check: changed order alone is accepted, while any changed classification-authoritative identity invalidates the audit. Auxiliary fields that do not authorize classification are not used to invent lifecycle movement.
 
 The detector deliberately does not enumerate every non-default branch. Therefore a repository workflow path that is active in the registry but absent from the bound `develop` tree is a candidate lifecycle drift signal, not proof of deletion. It is emitted as `unresolved` until an authorized control-plane step establishes branch provenance.
 
@@ -41,9 +45,9 @@ A legitimate current workflow may contain words such as `bootstrap`, `finalize`,
 
 ## Exit contract
 
-- `0`: complete evidence with no `orphaned_deleted` or `unresolved` records.
-- `1`: complete evidence contains at least one proven orphan bucket or unresolved record. In the standalone detector, active default-tree absences contribute here as `unresolved`.
-- `2`: the audit itself could not establish complete trustworthy evidence, including permission loss, HTTP failure, malformed API data, truncated tree data, or branch movement.
+- `0`: complete stable evidence with no `orphaned_deleted` or `unresolved` records.
+- `1`: complete stable evidence contains at least one proven orphan bucket or unresolved record. In the standalone detector, active default-tree absences contribute here as `unresolved`.
+- `2`: the audit itself could not establish complete trustworthy evidence, including permission loss, HTTP failure, malformed API data, truncated tree data, branch movement, or workflow-registry movement during the audit.
 
 A nonzero result must not be converted to success merely to keep CI green.
 
@@ -57,4 +61,4 @@ BandScope source ownership ends at the detector and repository-specific evidence
 
 ## Adversarial acceptance
 
-Repository tests cover complete pagination receipts, early pagination termination, total-count drift, malformed records, duplicate/reused workflow IDs, GitHub-managed dynamic identities, a legitimate present bootstrap-named workflow, an active off-default workflow whose branch provenance is unproven, forged auxiliary source metadata, unknown active non-repository paths, exact branch binding, branch movement, tree truncation, cross-origin/scheme-switching request attempts, permission loss, and transient HTTP failures. These tests are deterministic and do not require live GitHub network access.
+Repository tests cover complete pagination receipts, early pagination termination, total-count drift, same-count registry identity replacement, order-independent stable registry observations with final-receipt emission, malformed records, duplicate/reused workflow IDs, GitHub-managed dynamic identities, a legitimate present bootstrap-named workflow, an active off-default workflow whose branch provenance is unproven, forged auxiliary source metadata, unknown active non-repository paths, exact branch binding, branch movement, tree truncation, cross-origin/scheme-switching request attempts, permission loss, and transient HTTP failures. These tests are deterministic and do not require live GitHub network access.
