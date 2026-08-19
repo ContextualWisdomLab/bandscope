@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstHandoffLabel": "오늘 첫 핸드오프",
+  "firstHandoffAction": "{at}에 {role} 패스 듣기",
+  "firstHandoffActionBand": "{at} 첫 핸드오프 듣기",
+  "firstHandoffOpenAction": "{at} {role} 핸드오프 위치 열기",
+  "firstHandoffOpenActionBand": "{at} 첫 핸드오프 위치 열기",
+  "firstHandoffBody": "{role}이 {at} {section}에서 넘깁니다.",
+  "firstHandoffBodyBand": "밴드가 {at} {section}에서 넘깁니다.",
+  "firstHandoffArmed": "{at}에서 {role} 패스를 받으세요. 다음 파트를 잡으세요.",
+  "firstHandoffArmedBand": "{at}에서 패스를 받으세요. 다음 파트를 잡으세요.",
+  "firstHandoffUnavailable": "아직 핸드오프가 없습니다. 패스가 표시될 때까지 오늘 지도에 머무르세요.",
+  "firstHandoffNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 핸드오프를 들으세요."
 }

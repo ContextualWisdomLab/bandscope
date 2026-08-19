@@ -74,5 +74,14 @@ describe("i18n", () => {
         koDictionary.appSubtitle = originalSubtitle;
       }
     });
+
+    it("keeps first-handoff keys in both baseline locales", () => {
+      const tEn = createTranslator("en");
+      const tKo = createTranslator("ko");
+      expect(tEn("firstHandoffLabel")).toBe("Tonight's first handoff");
+      expect(tKo("firstHandoffLabel")).toBe("오늘 첫 핸드오프");
+      expect(tEn("firstHandoffOpenAction")).toContain("{role}");
+      expect(tKo("firstHandoffOpenAction")).toContain("{role}");
+    });
   });
 });
