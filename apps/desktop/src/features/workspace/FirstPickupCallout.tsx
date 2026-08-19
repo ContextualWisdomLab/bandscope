@@ -52,7 +52,7 @@ export function FirstPickupCallout({
   useEffect(() => {
     setHeardPickup(null);
   }, [
-    song.id,
+    song?.id,
     pickupSectionIndex,
     pickup?.section.id,
     pickup?.fromRole?.id,
