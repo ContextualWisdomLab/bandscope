@@ -324,3 +324,38 @@ def test_audit_repository_propagates_tree_truncation(audit_module) -> None:
             branch="develop",
             observed_at="2026-08-16T00:00:00Z",
         )
+
+
+def test_audit_repository_rejects_same_count_registry_replacement(audit_module) -> None:
+    """A same-size identity replacement must invalidate the registry snapshot."""
+
+    class ReplacedRegistryClient:
+        def __init__(self) -> None:
+            self.ref_shas = ["a" * 40, "a" * 40]
+            self.workflow_snapshots = [
+                [_workflow(20, ".github/workflows/ci.yml", name="CI")],
+                [_workflow(21, ".github/workflows/release.yml", name="Release")],
+            ]
+
+        def fetch_ref_sha(self, _repository: str, _branch: str) -> str:
+            return self.ref_shas.pop(0)
+
+        def fetch_workflows(self, _repository: str):
+            workflows = self.workflow_snapshots.pop(0)
+            return workflows, [
+                {"page": 1, "status": 200, "item_count": len(workflows)}
+            ]
+
+        def fetch_tree_paths(self, _repository: str, _sha: str):
+            return {
+                ".github/workflows/ci.yml",
+                ".github/workflows/release.yml",
+            }
+
+    with pytest.raises(audit_module.AuditError, match="workflow registry changed during audit"):
+        audit_module.audit_repository(
+            ReplacedRegistryClient(),
+            repository="ContextualWisdomLab/bandscope",
+            branch="develop",
+            observed_at="2026-08-16T00:00:00Z",
+        )
