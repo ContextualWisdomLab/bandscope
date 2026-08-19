@@ -63,7 +63,7 @@ def _configure_policy_fixture(
     toolchain_path.write_text(manifest, encoding="utf-8")
     dependabot_path.write_text(dependabot, encoding="utf-8")
     (workflows_path / "ci.yml").write_text(workflow, encoding="utf-8")
-    version = getattr(module, "EXPECTED_TOOLCHAIN")
+    version = module.EXPECTED_TOOLCHAIN
     for filename, content in _supporting_workflow_contracts(version).items():
         (workflows_path / filename).write_text(content, encoding="utf-8")
 
