@@ -55,12 +55,14 @@ describe("PlayerFeature", () => {
     expect(onPlayFromSeconds).toHaveBeenCalledWith(0);
   });
 
-  it("localizes the section count instead of hard-coding English player copy", () => {
+  it("localizes the section count and labeled intro badge instead of mixing English player copy", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     try {
       render(<PlayerFeature title="Player" song={songWithIntro()} />);
       expect(screen.getByText("2개 섹션")).toBeTruthy();
       expect(screen.queryByText("2 sections")).toBeNull();
+      expect(screen.getByText("인트로")).toBeTruthy();
+      expect(screen.queryByText("intro")).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }
