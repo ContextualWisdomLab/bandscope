@@ -117,6 +117,23 @@ describe("analysis bridge", () => {
     expect(status.result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
   });
 
+  it("rejects a status response whose job identity differs from the requested job", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
+      jobId: "job-foreign",
+      state: "queued",
+      requestedAt: "2026-08-19T00:00:00.000Z",
+      updatedAt: "2026-08-19T00:00:00.000Z",
+      progressLabel: "Queued for analysis"
+    });
+
+    await expect(getAnalysisJobStatus("job-requested")).rejects.toThrow(
+      "Invalid analysis job status response"
+    );
+    expect(tauriWindow.__TAURI_INVOKE__).toHaveBeenCalledWith("get_analysis_job_status", {
+      jobId: "job-requested"
+    });
+  });
+
   it("reports staged browser fallback progress before returning the demo result", async () => {
     const queued = await startAnalysisJob(createDemoAnalysisJobRequest());
 
