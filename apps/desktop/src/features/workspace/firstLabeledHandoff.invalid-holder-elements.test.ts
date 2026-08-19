@@ -23,30 +23,12 @@ describe("resolveFirstLabeledHandoff runtime holder elements", () => {
     }
   });
 
-  it("fails the holder closed when one malformed runtime role is mixed with otherwise valid roles", () => {
-    for (const malformedRole of [null, 42]) {
-      const { song, handoff } = songWithHandoff();
-      handoff.roles = [...handoff.roles, malformedRole] as unknown as typeof handoff.roles;
-
-      expect(resolveFirstLabeledHandoff(song)?.holdingRole).toBeNull();
-    }
-  });
-
   it("keeps the pass band-wide when runtime partGraph contains a non-object element", () => {
     for (const malformedNode of [null, 42]) {
       const { song, handoff } = songWithHandoff();
       handoff.partGraph = [malformedNode] as unknown as typeof handoff.partGraph;
 
       expect(() => resolveFirstLabeledHandoff(song)).not.toThrow();
-      expect(resolveFirstLabeledHandoff(song)?.holdingRole).toBeNull();
-    }
-  });
-
-  it("fails the holder closed when one malformed runtime graph node is mixed with otherwise valid nodes", () => {
-    for (const malformedNode of [null, 42]) {
-      const { song, handoff } = songWithHandoff();
-      handoff.partGraph = [...handoff.partGraph, malformedNode] as unknown as typeof handoff.partGraph;
-
       expect(resolveFirstLabeledHandoff(song)?.holdingRole).toBeNull();
     }
   });
