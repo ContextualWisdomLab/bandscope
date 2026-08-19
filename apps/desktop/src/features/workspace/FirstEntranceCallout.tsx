@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import {
+  createTranslator,
+  detectPreferredLocale,
+  translateSectionFormLabel
+} from "../../i18n";
 import { formatEntranceTime, resolveFirstEntrance } from "./firstEntrance";
 
 /** Props for the first-entrance rehearsal callout. */
@@ -44,15 +48,21 @@ export function FirstEntranceCallout({
   actionMode = "workspace-scroll",
   onHearEntrance
 }: FirstEntranceCalloutProps) {
-  const t = createTranslator(detectPreferredLocale());
+  const locale = detectPreferredLocale();
+  const t = createTranslator(locale);
+  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
+  const songId = typeof runtimeSong?.id === "string" ? runtimeSong.id : "";
   const entrance = resolveFirstEntrance(song);
-  const entranceSectionIndex = entrance ? song.sections.indexOf(entrance.section) : -1;
+  const entranceSectionIndex =
+    entrance && Array.isArray(runtimeSong?.sections)
+      ? runtimeSong.sections.indexOf(entrance.section)
+      : -1;
   const [heardEntrance, setHeardEntrance] = useState<HeardEntrance | null>(null);
 
   useEffect(() => {
     setHeardEntrance(null);
   }, [
-    song.id,
+    songId,
     entranceSectionIndex,
     entrance?.section.id,
     entrance?.role.id,
@@ -74,7 +84,7 @@ export function FirstEntranceCallout({
   }
 
   const heard =
-    heardEntrance?.songId === song.id &&
+    heardEntrance?.songId === songId &&
     heardEntrance.sectionId === entrance.section.id &&
     heardEntrance.sectionIndex === entranceSectionIndex &&
     heardEntrance.roleId === entrance.role.id &&
@@ -83,7 +93,7 @@ export function FirstEntranceCallout({
   const start = formatEntranceTime(entrance.startSeconds);
   const copyValues: EntranceCopyValues = {
     role: entrance.role.name,
-    section: entrance.section.label,
+    section: translateSectionFormLabel(locale, entrance.section.label),
     start,
     cue: entrance.role.cue.value
   };
@@ -93,7 +103,20 @@ export function FirstEntranceCallout({
   );
   const body = formatEntranceCopy(t("firstEntranceBody"), copyValues);
   const armed = formatEntranceCopy(t("firstEntranceArmed"), copyValues);
-  const canExecuteAction = actionMode === "workspace-scroll" || onHearEntrance !== undefined;
+  const canExecuteAction =
+    actionMode === "workspace-scroll" || typeof onHearEntrance === "function";
+
+  /** Record completion only after the owning surface executes the selected entrance action. */
+  const markEntranceActionComplete = () => {
+    setHeardEntrance({
+      songId,
+      sectionId: entrance.section.id,
+      sectionIndex: entranceSectionIndex,
+      roleId: entrance.role.id,
+      startSeconds: entrance.startSeconds,
+      cue: entrance.role.cue.value
+    });
+  };
 
   return (
     <aside
@@ -108,24 +131,21 @@ export function FirstEntranceCallout({
           type="button"
           className="mt-3 min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950"
           onClick={() => {
-            setHeardEntrance({
-              songId: song.id,
-              sectionId: entrance.section.id,
-              sectionIndex: entranceSectionIndex,
-              roleId: entrance.role.id,
-              startSeconds: entrance.startSeconds,
-              cue: entrance.role.cue.value
-            });
-            if (onHearEntrance) {
-              onHearEntrance(entrance.startSeconds);
+            if (actionMode === "callback-only") {
+              onHearEntrance!(entrance.startSeconds);
+              markEntranceActionComplete();
               return;
             }
             const grid = document.querySelector('[data-testid="song-structure-grid"]');
             const target = entranceSectionIndex >= 0 ? grid?.children.item(entranceSectionIndex) : null;
-            target?.scrollIntoView?.({
+            if (typeof target?.scrollIntoView !== "function") {
+              return;
+            }
+            target.scrollIntoView({
               block: "nearest",
               behavior: preferredEntranceScrollBehavior()
             });
+            markEntranceActionComplete();
           }}
         >
           {actionLabel}
