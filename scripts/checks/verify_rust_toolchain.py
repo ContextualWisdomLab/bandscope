@@ -150,13 +150,14 @@ def main() -> int:
         _error("Dependabot Rust toolchain lane is missing or duplicated")
         failures += 1
     else:
-        for required in (
-            'directory: "/"',
-            'target-branch: "develop"',
-            'interval: "weekly"',
+        lane_lines = set(dependabot_lane.splitlines())
+        for label, required_line in (
+            ('directory: "/"', '    directory: "/"'),
+            ('target-branch: "develop"', '    target-branch: "develop"'),
+            ('interval: "weekly"', '      interval: "weekly"'),
         ):
-            if required not in dependabot_lane:
-                _error(f"Dependabot Rust toolchain lane is missing {required!r}")
+            if required_line not in lane_lines:
+                _error(f"Dependabot Rust toolchain lane is missing {label!r}")
                 failures += 1
 
     workflow_paths = sorted((*WORKFLOWS.glob("*.yml"), *WORKFLOWS.glob("*.yaml")))
