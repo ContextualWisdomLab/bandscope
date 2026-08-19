@@ -125,9 +125,22 @@ function hasBoundedSectionWindow(value: unknown): value is RehearsalSection {
   );
 }
 
+/** Return the non-empty string identity carried by an untrusted object, when present. */
+function runtimeIdentity(value: unknown, key: "id" | "role_id"): string | null {
+  if (!isRuntimeObject(value)) {
+    return null;
+  }
+  const identity = (value as Record<string, unknown>)[key];
+  return typeof identity === "string" && identity.trim().length > 0 ? identity : null;
+}
+
 /** Require the receiving graph node to corroborate the outgoing edge. */
-function hasReciprocalHandoff(section: RehearsalSection, fromRoleId: string, toRoleId: string): boolean {
-  return section.partGraph.some((candidate) => {
+function hasReciprocalHandoff(
+  graphNodes: readonly PartGraphNode[],
+  fromRoleId: string,
+  toRoleId: string
+): boolean {
+  return graphNodes.some((candidate) => {
     const incomingRoleIds = safeRoleIds(candidate.handoff_from);
     return (
       candidate.role_id === toRoleId &&
@@ -150,20 +163,25 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
   const candidates: FirstDropoutHandoff[] = [];
 
   for (const section of sections) {
-    if (
-      !isDenseRuntimeArray(section.roles) ||
-      !section.roles.every(hasSafeRoleIdentity) ||
-      !isDenseRuntimeArray(section.partGraph) ||
-      !section.partGraph.every(isSafeGraphNode) ||
-      !hasUniqueIdentities(section.roles.map((role) => role.id)) ||
-      !hasUniqueIdentities(section.partGraph.map((node) => node.role_id))
-    ) {
+    if (!isDenseRuntimeArray(section.roles) || !isDenseRuntimeArray(section.partGraph)) {
       continue;
     }
 
-    const rolesInSection = new Map(section.roles.map((role) => [role.id, role]));
+    const roleIdentities = section.roles
+      .map((role) => runtimeIdentity(role, "id"))
+      .filter((identity): identity is string => identity !== null);
+    const graphIdentities = section.partGraph
+      .map((node) => runtimeIdentity(node, "role_id"))
+      .filter((identity): identity is string => identity !== null);
+    if (!hasUniqueIdentities(roleIdentities) || !hasUniqueIdentities(graphIdentities)) {
+      continue;
+    }
 
-    for (const node of section.partGraph) {
+    const safeRoles = section.roles.filter(hasSafeRoleIdentity);
+    const safeGraphNodes = section.partGraph.filter(isSafeGraphNode);
+    const rolesInSection = new Map(safeRoles.map((role) => [role.id, role]));
+
+    for (const node of safeGraphNodes) {
       const handoffTargets = safeRoleIds(node.handoff_to);
       if (node.is_active !== true || handoffTargets === null || handoffTargets.length === 0) {
         continue;
@@ -181,7 +199,7 @@ export function resolveFirstDropoutHandoff(song: RehearsalSong): FirstDropoutHan
             role !== null &&
             hasRankedPriority(role) &&
             role.id !== fromRole.id &&
-            hasReciprocalHandoff(section, fromRole.id, role.id)
+            hasReciprocalHandoff(safeGraphNodes, fromRole.id, role.id)
         );
 
       if (targets.length === 0) {
