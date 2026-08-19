@@ -11,7 +11,7 @@ import {
 
 // Security notes:
 // 1. Filename sanitization to prevent directory traversal or invalid characters.
-// 2. CSV formula injection prevention (fields starting with =, +, -, @ must be prefixed with a single quote).
+// 2. CSV formula injection prevention (fields starting with spreadsheet formula operators must be prefixed with a single quote).
 
 /** Documented. */
 export function sanitizeFilename(title: string): string {
@@ -22,9 +22,10 @@ export function sanitizeFilename(title: string): string {
 /** Documented. */
 export function escapeCsvField(value: string): string {
   let escapedValue = value;
-  // Prevent CSV formula injection by prefixing problematic leading characters with a single quote
+  // Prevent CSV formula injection after ignorable leading whitespace/control prefixes.
+  // Include full-width spreadsheet operator lookalikes because office software may normalize them.
   // eslint-disable-next-line no-control-regex
-  if (/^[\s\uFEFF\xA0]*[=+\-@\t\r\n\x00]/.test(value)) {
+  if (/^[\s\uFEFF\xA0]*[=+\-@＝＋－＠\t\r\n\x00]/.test(value)) {
     escapedValue = `'${value}`;
   }
   // Enclose in double quotes if there's a comma, newline, or double quote
@@ -52,7 +53,7 @@ export function generateCueSheetCsv(song: RehearsalSong): string {
         role.rehearsalPriority,
         notes
       ].map(escapeCsvField);
-      
+
       rows.push(row.join(","));
     }
   }
