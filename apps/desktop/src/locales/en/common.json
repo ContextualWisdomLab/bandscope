@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstChorusLabel": "Tonight's first chorus",
+  "firstChorusAction": "Hear {role} lift at {at}",
+  "firstChorusActionBand": "Hear the first chorus at {at}",
+  "firstChorusOpenAction": "Open {role} chorus at {at}",
+  "firstChorusOpenActionBand": "Open the first chorus at {at}",
+  "firstChorusBody": "{role} lifts the {section} at {at}.",
+  "firstChorusBodyBand": "The band lifts the {section} at {at}.",
+  "firstChorusArmed": "Catch {role}'s lift at {at}. Sing the next line.",
+  "firstChorusArmedBand": "Catch the lift at {at}. Sing the next line.",
+  "firstChorusUnavailable": "No chorus yet. Stay on tonight's map until the lift is labeled.",
+  "firstChorusNeedsSong": "Analyze tonight's song first, then hear the first chorus from this player."
 }
