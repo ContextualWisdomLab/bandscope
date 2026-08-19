@@ -47,14 +47,28 @@ function isDenseRuntimeArray(value: unknown): value is unknown[] {
   return true;
 }
 
-/** Return whether section-local roles and graph nodes are dense inspectable runtime objects. */
+/** Return whether safe non-empty identities occur at most once in a collection. */
+function hasUniqueIds(ids: string[]): boolean {
+  return new Set(ids).size === ids.length;
+}
+
+/** Return whether section-local roles and graph nodes are dense, inspectable, and unambiguous. */
 function hasSafeSectionMembers(section: RehearsalSection): boolean {
-  return (
-    isDenseRuntimeArray(section.roles) &&
-    section.roles.every(isRuntimeObject) &&
-    isDenseRuntimeArray(section.partGraph) &&
-    section.partGraph.every(isRuntimeObject)
-  );
+  if (
+    !isDenseRuntimeArray(section.roles) ||
+    !section.roles.every(isRuntimeObject) ||
+    !isDenseRuntimeArray(section.partGraph) ||
+    !section.partGraph.every(isRuntimeObject)
+  ) {
+    return false;
+  }
+  const roleIds = section.roles
+    .map((role) => role.id)
+    .filter((roleId): roleId is string => typeof roleId === "string" && roleId.trim().length > 0);
+  const graphRoleIds = section.partGraph
+    .map((node) => node.role_id)
+    .filter((roleId): roleId is string => typeof roleId === "string" && roleId.trim().length > 0);
+  return hasUniqueIds(roleIds) && hasUniqueIds(graphRoleIds);
 }
 
 /** Return true when the role has a safe runtime identity and ranked rehearsal priority. */
