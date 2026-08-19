@@ -14,9 +14,11 @@ Security Notes:
   closed instead of being silently truncated or normalized.
 - Empty, non-finite, or float32-overflowed model stems fail closed before they
   can become successful silence or downstream rehearsal evidence.
-- Inference runs locally on CPU with no network access. The model weights are
-  loaded from the local Demucs cache or a configured bundled path; offline
-  weight bundling is tracked in the supplemental component inventory.
+- Inference runs locally with no network access. Model outputs cross back to CPU
+  before NumPy conversion so configured accelerator execution cannot fail at the
+  device/host boundary. The model weights are loaded from the local Demucs cache
+  or a configured bundled path; offline weight bundling is tracked in the
+  supplemental component inventory.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -133,8 +135,8 @@ class AudioStemSeparator:
         """Run the Demucs model on mono audio and return canonical mono stems.
 
         This is the single boundary to the neural model; it converts the mono
-        signal to the stereo tensor Demucs expects, applies the model on CPU, and
-        downmixes each source back to a mono float array.
+        signal to the stereo tensor Demucs expects, applies the model on the
+        configured device, and downmixes each source back to a mono host array.
         """
         model = self._load_model()
         sources = self._apply_model(model, audio)
@@ -186,7 +188,7 @@ class AudioStemSeparator:
                 progress=False,
             )[0]
         out = out * ref_std + ref_mean
-        return {name: out[i].mean(0).numpy() for i, name in enumerate(model.sources)}
+        return {name: out[i].mean(0).cpu().numpy() for i, name in enumerate(model.sources)}
 
     def _resolve_audio_file(self, audio_path: str | Path) -> Path:
         """Normalize and validate the selected source path."""
