@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it, vi } from "vitest";
+import {
+  createDemoRehearsalSong,
+  type RehearsalSong
+} from "@bandscope/shared-types";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FirstDropoutCallout } from "./FirstDropoutCallout";
 
 function appendSongStructureTarget() {
@@ -18,6 +21,10 @@ function appendSongStructureTarget() {
 }
 
 describe("FirstDropoutCallout", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("names the first dropout as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
@@ -32,6 +39,23 @@ describe("FirstDropoutCallout", () => {
     expect(screen.getByText(/Start the last bar of Bass Guitar before Lead Vocal takes the verse \(0:30\)/)).toBeTruthy();
 
     grid.remove();
+  });
+
+  it("does not claim map navigation completed when the rendered section target is missing", () => {
+    render(<FirstDropoutCallout song={createDemoRehearsalSong()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Bass Guitar dropout for Lead Vocal at 0:30"
+      })
+    );
+
+    expect(
+      screen.getByText("Bass Guitar hands off to Lead Vocal at the end of the verse (0:30).")
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(/Start the last bar of Bass Guitar before Lead Vocal takes the verse \(0:30\)/)
+    ).toBeNull();
   });
 
   it("keeps workspace-scroll authoritative even when a playback callback is also supplied", () => {
@@ -76,6 +100,7 @@ describe("FirstDropoutCallout", () => {
 
   it("shows fresh guidance when the first dropout changes or returns later", () => {
     const initialSong = createDemoRehearsalSong();
+    const { grid } = appendSongStructureTarget();
     const { rerender } = render(<FirstDropoutCallout song={initialSong} />);
 
     fireEvent.click(
@@ -93,6 +118,8 @@ describe("FirstDropoutCallout", () => {
 
     rerender(<FirstDropoutCallout song={initialSong} />);
     expect(screen.getByText("Bass Guitar hands off to Lead Vocal at the end of the verse (0:30).")).toBeTruthy();
+
+    grid.remove();
   });
 
   it("keeps placeholder-looking rehearsal data literal", () => {
@@ -115,5 +142,25 @@ describe("FirstDropoutCallout", () => {
     expect(
       screen.getByText("No dropout yet. Stay on tonight's map until a part hands off.")
     ).toBeTruthy();
+  });
+
+  it("contains a malformed runtime song root instead of crashing the callout", () => {
+    render(<FirstDropoutCallout song={null as unknown as RehearsalSong} />);
+
+    expect(
+      screen.getByText("No dropout yet. Stay on tonight's map until a part hands off.")
+    ).toBeTruthy();
+  });
+
+  it("localizes the section form label instead of exposing its raw enum in Korean copy", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0]!.name = "베이스 기타";
+    song.sections[0]!.roles[2]!.name = "리드 보컬";
+
+    render(<FirstDropoutCallout song={song} />);
+
+    expect(screen.getByText("베이스 기타가 0:30 벌스 끝에서 리드 보컬에게 넘깁니다.")).toBeTruthy();
+    expect(screen.queryByText(/verse 끝에서/)).toBeNull();
   });
 });
