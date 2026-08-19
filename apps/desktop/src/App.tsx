@@ -241,7 +241,7 @@ function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnTy
       if (!lowestConfidence || confidenceOrder[section.confidence.level] < confidenceOrder[lowestConfidence]) {
         lowestConfidence = section.confidence.level;
         if (lowestConfidence === "low") {
-          break; // Short-circuit early since "low" is the lowest possible confidence bound
+          break;
         }
       }
     }
@@ -591,7 +591,7 @@ export function App() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bandscope-bg)] text-slate-100 selection:bg-cyan-300/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
-      <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px" />
+      <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px]" />
 
       <div className="relative flex min-h-screen">
         <aside className="hidden w-64 shrink-0 border-r border-[color:var(--bandscope-border)] bg-[var(--bandscope-surface-strong)] px-5 py-5 shadow-[24px_0_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex lg:flex-col">
