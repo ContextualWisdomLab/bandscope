@@ -139,6 +139,26 @@ def classify_workflows(
     return records
 
 
+def _workflow_identity_snapshot(workflows: list[dict[str, Any]]) -> list[str]:
+    """Return an order-independent canonical multiset of classification input fields."""
+    identities = [
+        json.dumps(
+            [
+                workflow.get("id"),
+                workflow.get("path"),
+                workflow.get("state"),
+                workflow.get("name"),
+            ],
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        for workflow in workflows
+    ]
+    identities.sort()
+    return identities
+
+
 def collect_paginated_workflows(
     fetch_page: Callable[[int, int], tuple[dict[str, Any], dict[str, Any]]],
     *,
@@ -371,13 +391,16 @@ def audit_repository(
     branch: str,
     observed_at: str | None = None,
 ) -> dict[str, Any]:
-    """Audit one repository while proving the bound branch did not move."""
+    """Audit one repository while proving the bound branch and registry did not move."""
     started_sha = client.fetch_ref_sha(repository, branch)
-    workflows, receipts = client.fetch_workflows(repository)
+    initial_workflows, _initial_receipts = client.fetch_workflows(repository)
     tree_paths = client.fetch_tree_paths(repository, started_sha)
+    workflows, receipts = client.fetch_workflows(repository)
     finished_sha = client.fetch_ref_sha(repository, branch)
     if finished_sha != started_sha:
         raise AuditError("default branch moved during audit")
+    if _workflow_identity_snapshot(initial_workflows) != _workflow_identity_snapshot(workflows):
+        raise AuditError("workflow registry changed during audit")
 
     records = classify_workflows(workflows, tree_paths)
     records.sort(key=lambda record: (str(record.get("workflow_id")), str(record.get("path"))))
