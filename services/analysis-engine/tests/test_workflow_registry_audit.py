@@ -102,7 +102,7 @@ def test_github_dynamic_identity_matches_live_registry_shape(audit_module) -> No
                 14,
                 "dynamic/agents/openai-code-agent",
                 name="OpenAI Codex",
-            )
+            ),
         ],
         set(),
     )
@@ -133,7 +133,7 @@ def test_source_field_cannot_override_repository_path_evidence(audit_module) -> 
                 142,
                 ".github/workflows/deleted-repair.yml",
                 source="github",
-            )
+            ),
         ],
         set(),
     )
