@@ -36,8 +36,8 @@ jobs:
         run: npm ci
       - name: Sync Python dependencies
         run: uv sync --project services/analysis-engine --group dev --frozen
-      - name: Install stable Rust toolchain
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1 toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Build and install Rust numeric extension
         run: |
           VENV_PY="$PWD/services/analysis-engine/.venv/bin/python"
@@ -58,13 +58,13 @@ jobs:
         with:
           node-version: 22.22.3
           cache: npm
-      - name: Install stable Rust toolchain
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1 toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Install node dependencies
         run: npm ci
       - name: Build frontend
         run: npm run build --workspace @bandscope/desktop
       - name: Check Tauri shell
-        run: cargo +stable check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+        run: cargo +1.97.1 check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
       - name: Test Tauri shell
-        run: cargo +stable test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+        run: cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
