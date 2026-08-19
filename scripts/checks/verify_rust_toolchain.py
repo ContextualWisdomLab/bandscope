@@ -61,6 +61,43 @@ def _workflow_job(content: str, job_name: str) -> str | None:
     return "\n".join(lines[start:end])
 
 
+def _inline_run_commands(job: str) -> tuple[str, ...]:
+    """Return executable inline ``run:`` payloads from one workflow job.
+
+    Required compiler evidence deliberately stays on one-line ``run:`` steps. A
+    comment, step name, environment value, or multiline scalar cannot satisfy
+    the contract accidentally; changing that representation requires an
+    explicit verifier update and regression rather than silently broadening the
+    evidence boundary.
+    """
+    commands: list[str] = []
+    for line in job.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- run:"):
+            command = stripped.removeprefix("- run:").strip()
+        elif stripped.startswith("run:"):
+            command = stripped.removeprefix("run:").strip()
+        else:
+            continue
+        if command and command not in {"|", ">", "|-", ">-"}:
+            commands.append(command)
+    return tuple(commands)
+
+
+def _job_runs_required_command(job: str, required: str) -> bool:
+    """Return whether one executable run step owns the required Rust evidence."""
+    commands = _inline_run_commands(job)
+    if required.startswith("--toolchain "):
+        return any(
+            command.startswith("rustup target add ") and required in command
+            for command in commands
+        )
+    return any(
+        command == required or command.startswith(f"{required} ")
+        for command in commands
+    )
+
+
 def _required_workflow_jobs() -> dict[str, dict[str, tuple[str, ...]]]:
     """Return compiler evidence required from each job that owns Rust execution."""
     install = f"rustup toolchain install {EXPECTED_TOOLCHAIN} --profile minimal"
@@ -143,7 +180,7 @@ def main() -> int:
                 failures += 1
                 continue
             for command in requirements:
-                if command not in job:
+                if not _job_runs_required_command(job, command):
                     _error(f"{filename} job {job_name!r} is missing {command!r}")
                     failures += 1
 
