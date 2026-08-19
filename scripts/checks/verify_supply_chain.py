@@ -142,6 +142,7 @@ RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
     "glib",
 )
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
+RUST_AUDIT_COMMAND = "cargo +1.97.1 audit"
 RUST_AUDIT_CONFIG = Path("apps/desktop/src-tauri/.cargo/audit.toml")
 RUST_OSV_SCANNER_CONFIG = Path("apps/desktop/src-tauri/osv-scanner.toml")
 TRIVY_IGNORE_CONFIG = Path(".trivyignore")
@@ -1232,7 +1233,7 @@ def _verify_security_audit_coverage(missing: list[str]) -> None:
     for token in [
         "npm audit --workspaces --audit-level=high",
         "pip-audit --local --strict",
-        "cargo +stable audit",
+        RUST_AUDIT_COMMAND,
     ]:
         if audit and not any(
             command_contains_token_sequence(command, token) for command in audit_run_commands
