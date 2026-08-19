@@ -5,7 +5,7 @@ import {
   type SectionFormLabel
 } from "@bandscope/shared-types";
 import { FirstIntroCallout } from "../workspace/FirstIntroCallout";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "../../i18n";
 
 type PlayerFeatureProps = {
   title: string;
@@ -99,7 +99,7 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
                 textTransform: "capitalize"
               }}
             >
-              {section.label}
+              {translateSectionFormLabel(locale, section.label)}
             </span>
           ))}
         </div>
