@@ -43,31 +43,56 @@ def _rust_toolchain_dependabot_lane(content: str) -> str | None:
     return "\n".join(lines[start:end])
 
 
-def _required_workflow_commands() -> dict[str, tuple[tuple[str, int], ...]]:
-    """Return compiler evidence required from each workflow that owns Rust execution."""
+def _workflow_job(content: str, job_name: str) -> str | None:
+    """Return one exact top-level workflow job so sibling jobs cannot lend evidence."""
+    lines = content.splitlines()
+    marker = f"  {job_name}:"
+    starts = [index for index, line in enumerate(lines) if line == marker]
+    if len(starts) != 1:
+        return None
+
+    start = starts[0]
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if line.startswith("  ") and not line.startswith("    ") and line.endswith(":"):
+            end = index
+            break
+    return "\n".join(lines[start:end])
+
+
+def _required_workflow_jobs() -> dict[str, dict[str, tuple[str, ...]]]:
+    """Return compiler evidence required from each job that owns Rust execution."""
     install = f"rustup toolchain install {EXPECTED_TOOLCHAIN} --profile minimal"
     target = f"--toolchain {EXPECTED_TOOLCHAIN}"
     return {
-        "ci.yml": (
-            (install, 2),
-            (f"cargo +{EXPECTED_TOOLCHAIN} check", 1),
-            (f"cargo +{EXPECTED_TOOLCHAIN} test", 1),
-        ),
-        "release.yml": ((install, 1),),
-        "security-audit.yml": (
-            (install, 1),
-            (f"cargo +{EXPECTED_TOOLCHAIN} install cargo-audit --locked", 1),
-            (f"cargo +{EXPECTED_TOOLCHAIN} audit", 1),
-        ),
-        "build-baseline.yml": (
-            (install, 4),
-            (target, 4),
-        ),
+        "ci.yml": {
+            "verify": (install,),
+            "rust-check": (
+                install,
+                f"cargo +{EXPECTED_TOOLCHAIN} check",
+                f"cargo +{EXPECTED_TOOLCHAIN} test",
+            ),
+        },
+        "release.yml": {"release-preflight": (install,)},
+        "security-audit.yml": {
+            "audit": (
+                install,
+                f"cargo +{EXPECTED_TOOLCHAIN} install cargo-audit --locked",
+                f"cargo +{EXPECTED_TOOLCHAIN} audit",
+            )
+        },
+        "build-baseline.yml": {
+            "build-windows-native": (install, target),
+            "build-windows-arm64": (install, target),
+            "build-macos-native": (install, target),
+            "build-macos-arm64": (install, target),
+        },
     }
 
 
 def main() -> int:
-    """Validate the root manifest, update lane, and every Rust-owning workflow."""
+    """Validate the root manifest, update lane, and every Rust-owning workflow job."""
 
     failures = 0
     manifest = tomllib.loads(RUST_TOOLCHAIN.read_text(encoding="utf-8"))
@@ -104,21 +129,23 @@ def main() -> int:
             _error(f"workflow still contains floating Rust selector {pattern!r}")
             failures += 1
 
-    for filename, requirements in _required_workflow_commands().items():
+    for filename, job_requirements in _required_workflow_jobs().items():
         path = WORKFLOWS / filename
         if not path.is_file():
             _error(f"required Rust workflow {filename!r} is missing")
             failures += 1
             continue
         content = path.read_text(encoding="utf-8")
-        for command, minimum_count in requirements:
-            actual_count = content.count(command)
-            if actual_count < minimum_count:
-                _error(
-                    f"{filename} must contain {command!r} at least {minimum_count} time(s); "
-                    f"found {actual_count}"
-                )
+        for job_name, requirements in job_requirements.items():
+            job = _workflow_job(content, job_name)
+            if job is None:
+                _error(f"{filename} is missing unique Rust-owning job {job_name!r}")
                 failures += 1
+                continue
+            for command in requirements:
+                if command not in job:
+                    _error(f"{filename} job {job_name!r} is missing {command!r}")
+                    failures += 1
 
     if failures:
         return 1
