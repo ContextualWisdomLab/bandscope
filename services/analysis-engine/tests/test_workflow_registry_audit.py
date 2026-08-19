@@ -108,10 +108,7 @@ def test_github_dynamic_identity_matches_live_registry_shape(audit_module) -> No
     )
 
     assert records[0]["classification"] == "github_dynamic"
-    assert (
-        records[0]["reason"]
-        == "workflow path identifies a GitHub-managed dynamic identity"
-    )
+    assert records[0]["reason"] == "workflow path identifies a GitHub-managed dynamic identity"
 
 
 def test_unrecognized_active_non_repository_path_fails_closed(audit_module) -> None:
@@ -253,17 +250,13 @@ class _FakeClient:
         return self.ref_shas.pop(0)
 
     def fetch_workflows(self, _repository: str):
-        return self.workflows, [
-            {"page": 1, "status": 200, "item_count": len(self.workflows)}
-        ]
+        return self.workflows, [{"page": 1, "status": 200, "item_count": len(self.workflows)}]
 
     def fetch_tree_paths(self, _repository: str, _sha: str):
         return self.tree_paths
 
 
-def test_audit_repository_binds_registry_to_unchanged_default_branch(
-    audit_module,
-) -> None:
+def test_audit_repository_binds_registry_to_unchanged_default_branch(audit_module) -> None:
     """The report records the exact branch SHA and refuses stale branch evidence."""
     client = _FakeClient(
         ref_shas=["a" * 40, "a" * 40],
