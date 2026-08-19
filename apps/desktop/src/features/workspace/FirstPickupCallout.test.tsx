@@ -78,6 +78,7 @@ describe("FirstPickupCallout", () => {
 
   it("shows fresh guidance when the first pickup changes or returns later", () => {
     const initialSong = createDemoRehearsalSong();
+    const { grid } = appendSongStructureTarget();
     const { rerender } = render(<FirstPickupCallout song={initialSong} />);
 
     fireEvent.click(
@@ -97,6 +98,8 @@ describe("FirstPickupCallout", () => {
 
     rerender(<FirstPickupCallout song={initialSong} />);
     expect(screen.getByText("Lead Vocal picks up from Bass Guitar at the end of the verse (0:30).")).toBeTruthy();
+
+    grid.remove();
   });
 
   it("keeps placeholder-looking rehearsal data literal", () => {
