@@ -8,6 +8,7 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -27,6 +28,10 @@ describe("Workspace", () => {
     Object.defineProperty(URL, "revokeObjectURL", {
       configurable: true,
       value: originalRevokeObjectUrl
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: originalScrollIntoView
     });
   });
 
@@ -235,11 +240,17 @@ describe("Workspace", () => {
   });
 
   it("names tonight's first entrance as workspace navigation", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
     render(<Workspace song={createDemoRehearsalSong()} />);
 
     const action = screen.getByRole("button", { name: "Open Bass Guitar entrance in the verse at 0:10" });
     expect(action).toBeTruthy();
     fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Start on Bass Guitar in the verse at 0:10/)).toBeTruthy();
   });
 });

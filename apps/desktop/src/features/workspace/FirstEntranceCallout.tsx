@@ -15,7 +15,7 @@ export interface FirstEntranceCalloutProps {
   onHearEntrance?: (startSeconds: number) => void;
 }
 
-type EntranceCopyValues = Readonly<Record<"role" | "section" | "start" | "cue", string>>;
+type EntranceCopyValues = Readonly<Record<"role" | "section" | "sectionParticle" | "start" | "cue", string>>;
 
 type HeardEntrance = Readonly<{
   songId: string;
@@ -28,10 +28,26 @@ type HeardEntrance = Readonly<{
 
 /** Interpolate entrance placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatEntranceCopy(template: string, values: EntranceCopyValues): string {
-  return template.replace(/\{(role|section|start|cue)\}/g, (placeholder) => {
+  return template.replace(/\{(role|section|sectionParticle|start|cue)\}/g, (placeholder) => {
     const key = placeholder.slice(1, -1) as keyof EntranceCopyValues;
     return values[key];
   });
+}
+
+/** Choose the Korean locative particle for a rendered section label. */
+function koreanLocativeParticle(value: string): "로" | "으로" {
+  const lastCharacter = [...value].at(-1);
+  if (!lastCharacter) {
+    return "로";
+  }
+
+  const codePoint = lastCharacter.charCodeAt(0);
+  if (codePoint < 0xac00 || codePoint > 0xd7a3) {
+    return "로";
+  }
+
+  const finalSound = (codePoint - 0xac00) % 28;
+  return finalSound === 0 || finalSound === 8 ? "로" : "으로";
 }
 
 /** Use immediate scrolling when the operating system requests reduced motion. */
@@ -91,9 +107,11 @@ export function FirstEntranceCallout({
     heardEntrance.startSeconds === entrance.startSeconds &&
     heardEntrance.cue === entrance.role.cue.value;
   const start = formatEntranceTime(entrance.startSeconds);
+  const section = translateSectionFormLabel(locale, entrance.section.label);
   const copyValues: EntranceCopyValues = {
     role: entrance.role.name,
-    section: translateSectionFormLabel(locale, entrance.section.label),
+    section,
+    sectionParticle: locale === "ko" ? koreanLocativeParticle(section) : "",
     start,
     cue: entrance.role.cue.value
   };

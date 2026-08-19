@@ -21,6 +21,10 @@ export function formatEntranceTime(totalSeconds: number): string {
 
 /** Return the first validated section/role the room should hear, or null when no safe candidate remains. */
 export function resolveFirstEntrance(song: RehearsalSong): FirstEntrance | null {
+  if (!song || !Array.isArray(song.sections)) {
+    return null;
+  }
+
   const candidate = song.sections
     .filter((section) => Number.isFinite(section.timeRange.start) && section.timeRange.start >= 0)
     .map((section) => {
