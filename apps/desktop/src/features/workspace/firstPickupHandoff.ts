@@ -42,6 +42,16 @@ function isDenseRuntimeArray(value: unknown): value is unknown[] {
   return true;
 }
 
+/** Return whether section-local roles and graph nodes are dense inspectable runtime objects. */
+function hasSafeSectionMembers(section: RehearsalSection): boolean {
+  return (
+    isDenseRuntimeArray(section.roles) &&
+    section.roles.every(isRuntimeObject) &&
+    isDenseRuntimeArray(section.partGraph) &&
+    section.partGraph.every(isRuntimeObject)
+  );
+}
+
 /** Return true when the role has a safe runtime identity and ranked rehearsal priority. */
 function hasRankedPriority(role: RehearsalRole): boolean {
   return (
@@ -147,7 +157,10 @@ function resolveLabeledPickupSection(song: RehearsalSong): FirstPickupHandoff | 
   const pickupSections = song.sections
     .filter(
       (section) =>
-        isRuntimeObject(section) && section.label === "pickup" && hasBoundedTimeRange(section)
+        isRuntimeObject(section) &&
+        section.label === "pickup" &&
+        hasBoundedTimeRange(section) &&
+        hasSafeSectionMembers(section)
     )
     .sort((left, right) => left.timeRange.start - right.timeRange.start);
 
@@ -179,7 +192,10 @@ export function resolveFirstPickupHandoff(song: RehearsalSong): FirstPickupHando
   }
 
   const sections = song.sections
-    .filter((section) => isRuntimeObject(section) && hasBoundedTimeRange(section))
+    .filter(
+      (section) =>
+        isRuntimeObject(section) && hasBoundedTimeRange(section) && hasSafeSectionMembers(section)
+    )
     .sort((left, right) => {
       if (left.timeRange.end !== right.timeRange.end) {
         return left.timeRange.end - right.timeRange.end;
