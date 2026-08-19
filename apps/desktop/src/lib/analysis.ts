@@ -273,11 +273,16 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
 /** Documented. */
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
+  let status: AnalysisJobStatus;
   try {
-    return parseAnalysisJobStatus(response);
+    status = parseAnalysisJobStatus(response);
   } catch {
     throw new Error("Invalid analysis job status response");
   }
+  if (status.jobId !== jobId) {
+    throw new Error("Invalid analysis job status response");
+  }
+  return status;
 }
 
 /** Documented. */
