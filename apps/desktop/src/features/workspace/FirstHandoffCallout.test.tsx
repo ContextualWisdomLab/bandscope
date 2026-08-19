@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FirstHandoffCallout } from "./FirstHandoffCallout";
 
 function songWithHandoff() {
@@ -47,6 +47,10 @@ function appendSongStructureTarget() {
 }
 
 describe("FirstHandoffCallout", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("names the first handoff as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
@@ -143,5 +147,16 @@ describe("FirstHandoffCallout", () => {
     render(<FirstHandoffCallout song={songWithHandoff()} actionMode="callback-only" />);
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.getByText("Lead Vocal passes the handoff at 0:22.")).toBeTruthy();
+  });
+
+  it("localizes the handoff form label instead of exposing its raw enum in Korean copy", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = songWithHandoff();
+    song.sections[1]!.roles[0]!.name = "리드 보컬";
+
+    render(<FirstHandoffCallout song={song} />);
+
+    expect(screen.getByText("리드 보컬이 0:22 핸드오프에서 넘깁니다.")).toBeTruthy();
+    expect(screen.queryByText(/handoff에서/)).toBeNull();
   });
 });
