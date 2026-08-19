@@ -131,7 +131,7 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 
 /** Return the first labeled stop, or null when no safe cut remains. */
 export function resolveFirstStopHandoff(song: RehearsalSong): FirstStopHandoff | null {
-  if (!Array.isArray(song.sections)) {
+  if (!isRuntimeObject(song) || !Array.isArray(song.sections)) {
     return null;
   }
 
