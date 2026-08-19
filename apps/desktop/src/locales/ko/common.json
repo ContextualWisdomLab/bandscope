@@ -152,8 +152,8 @@
   "firstDropoutLabel": "오늘 첫 드롭아웃",
   "firstDropoutAction": "{end}에 {to}에게 넘기고 빠지는 {from} 듣기",
   "firstDropoutOpenAction": "{end} {section}의 {from}→{to} 드롭아웃 위치 열기",
-  "firstDropoutBody": "{from}이 {end} {section} 끝에서 {to}에게 넘깁니다.",
-  "firstDropoutArmed": "{section}에서 {to}가 받기 전에 {from}의 마지막 마디를 시작하세요 ({end}).",
+  "firstDropoutBody": "{end} {section} 끝 파트 인계: {from} → {to}.",
+  "firstDropoutArmed": "{end} {section}: {to} 진입 전에 {from}의 마지막 마디를 시작하세요.",
   "firstDropoutUnavailable": "아직 드롭아웃이 없습니다. 파트가 넘기는 순간이 생길 때까지 오늘 지도에 머무르세요.",
   "firstDropoutNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 드롭아웃을 들으세요."
 }
