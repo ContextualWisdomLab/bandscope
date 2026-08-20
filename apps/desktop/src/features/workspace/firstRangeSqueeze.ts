@@ -73,11 +73,9 @@ export function firstRangeSqueeze(
   return fallback;
 }
 
-/** Fill `{token}` placeholders in rehearsal copy without leaving unmatched holes. */
+/** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
 export function fillRangeCopy(template: string, values: Record<string, string>): string {
-  let filled = template;
-  for (const [token, value] of Object.entries(values)) {
-    filled = filled.replaceAll(`{${token}}`, value);
-  }
-  return filled;
+  return template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (placeholder, token: string) => {
+    return values[token] ?? placeholder;
+  });
 }
