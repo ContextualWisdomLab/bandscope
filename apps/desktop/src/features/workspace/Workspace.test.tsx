@@ -1,5 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
+import {
+  createDemoRehearsalSong,
+  type ProjectBootstrapSummary,
+  type RehearsalSong,
+} from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 import { EmptyState, LoadingState } from "./WorkspaceStates";
@@ -12,8 +16,24 @@ const originalRevokeObjectUrl = URL.revokeObjectURL;
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
     configurable: true,
-    value: language
+    value: language,
   });
+}
+
+function createLocalSourceBootstrap(): ProjectBootstrapSummary {
+  return {
+    projectId: "project-1",
+    sourceMode: "reference",
+    projectRoot: "/tmp/bandscope/projects/project-1",
+    cacheRoot: "/tmp/bandscope/cache/project-1",
+    tempRoot: "/tmp/bandscope/temp/project-1",
+    source: {
+      sourcePath: "/Users/test/Music/late-night-set.wav",
+      fileName: "late-night-set.wav",
+      extension: "wav",
+      fileSizeBytes: 1_024_000,
+    },
+  };
 }
 
 describe("Workspace", () => {
@@ -22,11 +42,11 @@ describe("Workspace", () => {
     vi.restoreAllMocks();
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
-      value: originalCreateObjectUrl
+      value: originalCreateObjectUrl,
     });
     Object.defineProperty(URL, "revokeObjectURL", {
       configurable: true,
-      value: originalRevokeObjectUrl
+      value: originalRevokeObjectUrl,
     });
   });
 
@@ -37,7 +57,7 @@ describe("Workspace", () => {
       ...song.sections[0]!.roles[0]!,
       id: "bass-guitar",
       name: "Bass Guitar",
-      practiceProgress: 50
+      practiceProgress: 50,
     };
     const onSongUpdate = vi.fn();
 
@@ -46,7 +66,9 @@ describe("Workspace", () => {
     // Select the Bass Guitar role to render PracticeProgress
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const increaseBtn = screen.getByRole("button", { name: "Increase progress" });
+    const increaseBtn = screen.getByRole("button", {
+      name: "Increase progress",
+    });
     fireEvent.click(increaseBtn);
 
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
@@ -77,7 +99,7 @@ describe("Workspace", () => {
     const song = createDemoRehearsalSong();
     song.sections[0].timeRange = {
       start: Number.NaN,
-      end: Number.POSITIVE_INFINITY
+      end: Number.POSITIVE_INFINITY,
     };
 
     render(<Workspace song={song} />);
@@ -91,27 +113,60 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByRole("region", { name: /Tonight's section loop/i })).toBeTruthy();
-    expect(screen.getByTestId("rehearsal-loop-next-action").textContent).toMatch(
-      /Loop verse from 0:10–0:30\. Choose a local song first/i
-    );
+    expect(
+      screen.getByRole("region", { name: /Tonight's section loop/i }),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Loop verse from 0:10–0:30\. Choose a local song first/i);
   });
 
-  it("starts the section loop from the selected role instead of a coming-soon control", () => {
+  it("keeps the role loop action unavailable without local audio authority", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
       id: "bass-guitar",
-      name: "Bass Guitar"
+      name: "Bass Guitar",
     };
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const loopButton = screen.getByRole("button", {
+      name: "Loop this section",
+    });
+    expect(loopButton.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(loopButton);
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Choose a local song first/i);
+  });
+
+  it("starts the section loop from the selected role when local audio is available", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      id: "bass-guitar",
+      name: "Bass Guitar",
+    };
+
+    render(
+      <Workspace
+        song={song}
+        sourceBootstrap={createLocalSourceBootstrap()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
     fireEvent.click(screen.getByRole("button", { name: "Loop this section" }));
 
-    expect(screen.getByTestId("rehearsal-loop-next-action").textContent).toMatch(/Count in 4 beats at 120 BPM/i);
-    expect(screen.queryByRole("button", { name: /Loop section coming soon/i })).toBeNull();
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 120 BPM/i);
+    expect(
+      screen.queryByRole("button", { name: /Loop section coming soon/i }),
+    ).toBeNull();
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {
@@ -119,13 +174,15 @@ describe("Workspace", () => {
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
       id: "low-end",
-      name: "Bass Guitar"
+      name: "Bass Guitar",
     };
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
+    const transcribeButton = screen.getByRole("button", {
+      name: "Transcribe Bass",
+    }) as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(false);
     expect(transcribeButton.title).toBe("Transcribe part");
   });
@@ -137,14 +194,16 @@ describe("Workspace", () => {
       name: "Bass Guitar",
       transcription: [
         { pitch: "E2", onset: 0, offset: 0.75, velocity: 0.74 },
-        { pitch: "G2", onset: 0.9, offset: 1.25, velocity: 0.68 }
-      ]
+        { pitch: "G2", onset: 0.9, offset: 1.25, velocity: 0.68 },
+      ],
     };
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const grooveMap = screen.getByRole("region", { name: /bass transcription groove map/i });
+    const grooveMap = screen.getByRole("region", {
+      name: /bass transcription groove map/i,
+    });
     expect(grooveMap.className).toContain("bg-slate-950");
     expect(screen.getByText("E2")).toBeTruthy();
     expect(screen.getByText("G2")).toBeTruthy();
@@ -165,7 +224,9 @@ describe("Workspace", () => {
 
     expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
     expect(screen.getByText(/whole step lower/i)).toBeTruthy();
-    expect(screen.getByText(/Lock the bass entrance against the pickup/i)).toBeTruthy();
+    expect(
+      screen.getByText(/Lock the bass entrance against the pickup/i),
+    ).toBeTruthy();
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
@@ -175,11 +236,11 @@ describe("Workspace", () => {
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
       harmonicExplanation: "   ",
-      transpositionPlan: ""
+      transpositionPlan: "",
     };
     song.collaboration = {
       syncMode: "local_only",
-      syncNote: "Local-only draft"
+      syncNote: "Local-only draft",
     } as RehearsalSong["collaboration"];
 
     render(<Workspace song={song} />);
@@ -191,34 +252,27 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     expect(screen.getByText("vi pedal anchor")).toBeTruthy();
-    expect(screen.getAllByText("Stay on roots if the chorus entrance gets muddy.").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Stay on roots if the chorus entrance gets muddy.")
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it("exports a metadata-only handoff artifact from the workspace", async () => {
     const song = createDemoRehearsalSong();
-    const sourceBootstrap: ProjectBootstrapSummary = {
-      projectId: "project-1",
-      sourceMode: "reference",
-      projectRoot: "/tmp/bandscope/projects/project-1",
-      cacheRoot: "/tmp/bandscope/cache/project-1",
-      tempRoot: "/tmp/bandscope/temp/project-1",
-      source: {
-        sourcePath: "/Users/test/Music/late-night-set.wav",
-        fileName: "late-night-set.wav",
-        extension: "wav",
-        fileSizeBytes: 1_024_000
-      }
-    };
+    const sourceBootstrap = createLocalSourceBootstrap();
     const createObjectUrl = vi.fn(() => "blob:handoff");
     const revokeObjectUrl = vi.fn();
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
-      value: createObjectUrl
+      value: createObjectUrl,
     });
     Object.defineProperty(URL, "revokeObjectURL", {
       configurable: true,
-      value: revokeObjectUrl
+      value: revokeObjectUrl,
     });
 
     render(<Workspace song={song} sourceBootstrap={sourceBootstrap} />);
@@ -236,18 +290,20 @@ describe("Workspace", () => {
   it("exports metadata-only handoff when source bootstrap is invalid", async () => {
     const song = createDemoRehearsalSong();
     const invalidSourceBootstrap = {
-      projectId: "project-1"
+      projectId: "project-1",
     } as ProjectBootstrapSummary;
     const createObjectUrl = vi.fn(() => "blob:handoff");
     const revokeObjectUrl = vi.fn();
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
-      value: createObjectUrl
+      value: createObjectUrl,
     });
     Object.defineProperty(URL, "revokeObjectURL", {
       configurable: true,
-      value: revokeObjectUrl
+      value: revokeObjectUrl,
     });
 
     render(<Workspace song={song} sourceBootstrap={invalidSourceBootstrap} />);
@@ -264,11 +320,13 @@ describe("Workspace", () => {
   it("validates source bootstrap before generating metadata handoff", () => {
     const song = createDemoRehearsalSong();
     const invalidSourceBootstrap = {
-      projectId: "project-1"
+      projectId: "project-1",
     } as ProjectBootstrapSummary;
 
     expect(() => {
-      generateMetadataHandoffJson(song, { sourceBootstrap: invalidSourceBootstrap });
+      generateMetadataHandoffJson(song, {
+        sourceBootstrap: invalidSourceBootstrap,
+      });
     }).toThrow("sourceMode");
   });
 
@@ -277,7 +335,9 @@ describe("Workspace", () => {
     render(<EmptyState />);
     render(<LoadingState />);
 
-    expect(screen.getByRole("heading", { name: "분석 준비 완료" })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "분석 준비 완료" }),
+    ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "오디오 분석 중" })).toBeTruthy();
   });
 
@@ -286,7 +346,7 @@ describe("Workspace", () => {
     const song = createDemoRehearsalSong();
     song.exportSummary = {
       ...song.exportSummary,
-      headline: ""
+      headline: "",
     };
 
     render(<Workspace song={song} />);
