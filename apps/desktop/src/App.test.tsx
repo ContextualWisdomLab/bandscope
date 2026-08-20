@@ -92,7 +92,7 @@ function succeededResult() {
               setupNote: "Keep the attack short so the verse breathes.",
               manualOverrides: [],
               overlapWarnings: [
-                "Density warning: competing with Keyboard Left Hand in low register."
+                "The low register is crowded between Bass Guitar and accompaniment. Thin one part in this section so players can hear their cue."
               ]
             },
             {

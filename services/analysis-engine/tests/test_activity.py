@@ -71,15 +71,15 @@ def test_map_stems_to_roles_vocal_mapping() -> None:
     assert role_activity["acoustic-guitar"] is False
 
 
-def test_map_stems_to_roles_other_maps_to_keys_and_guitar() -> None:
-    """Ensure 'other' stem maps to keys and acoustic guitar roles."""
+def test_map_stems_to_roles_other_does_not_name_accompaniment_roles() -> None:
+    """Mixed ``other`` energy must not mark keyboard or guitar roles active."""
     activity = {"vocals": False, "bass": False, "drums": False, "other": True}
 
     role_activity = map_stems_to_roles(activity)
 
-    assert role_activity["keys-left"] is True
-    assert role_activity["keys-right"] is True
-    assert role_activity["acoustic-guitar"] is True
+    assert role_activity["keys-left"] is False
+    assert role_activity["keys-right"] is False
+    assert role_activity["acoustic-guitar"] is False
     assert role_activity["lead-vocal"] is False
     assert role_activity["bass-guitar"] is False
 

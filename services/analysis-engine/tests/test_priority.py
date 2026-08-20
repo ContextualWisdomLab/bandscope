@@ -21,7 +21,10 @@ def test_calculate_priority_with_overlap() -> None:
     """Test that having overlap warnings yields HIGH priority."""
     role = {
         "confidence": {"level": "high"},
-        "overlapWarnings": ["Melodic overlap"],
+        "overlapWarnings": [
+            "The low register is crowded between Bass Guitar and accompaniment. "
+            "Thin one part in this section so players can hear their cue."
+        ],
         "manualOverrides": [],
         "setupNote": "",
     }

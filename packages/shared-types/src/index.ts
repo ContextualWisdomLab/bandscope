@@ -476,7 +476,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           manualOverrides: [],
           overlapWarnings: [
-            "Density warning: competing with Keyboard Left Hand in low register."
+            "The low register is crowded between Bass Guitar and accompaniment. Thin one part in this section so players can hear their cue."
           ]
         },
         {
@@ -507,9 +507,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           setupNote: "Keep the patch bright enough to stay over the guitars.",
           transpositionPlan: "If the band rehearses in D, keep the voicing in first inversion so the top line still sings.",
           manualOverrides: [],
-          overlapWarnings: [
-            "Melodic overlap: top notes conflict with Lead Vocal range."
-          ]
+          overlapWarnings: []
         },
         {
           id: "lead-vocal",
@@ -550,7 +548,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
             }
           ],
           overlapWarnings: [
-            "Melodic overlap: competing with Keyboard 1 Right Hand."
+            "The mid register is crowded between accompaniment and Lead Vocal. Thin one part in this section so players can hear their cue."
           ]
         }
       ],
