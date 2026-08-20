@@ -17,7 +17,14 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
   // Find max offset to determine timeline width
   const maxTime = useMemo(() => {
-    return renderedNotes.reduce((max, n) => Math.max(max, n.offset), 10);
+    // Performance: Avoid .reduce() array scan with callback overhead. Use a raw for-loop.
+    let max = 10;
+    for (const n of renderedNotes) {
+      if (n.offset > max) {
+        max = n.offset;
+      }
+    }
+    return max;
   }, [renderedNotes]);
 
   // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
