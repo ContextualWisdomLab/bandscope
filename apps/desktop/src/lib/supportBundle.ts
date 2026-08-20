@@ -52,9 +52,59 @@ function invalid(): never {
   throw new Error("Invalid support bundle input");
 }
 
-/** Returns whether a runtime value is a plain record rather than an array or null. */
+/** Returns whether a runtime value is a record rather than an array or null. */
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  try {
+    return !Array.isArray(value);
+  } catch {
+    return false;
+  }
+}
+
+/** Reads one untrusted runtime property once and contains accessor failures. */
+function readProperty(record: Record<string, unknown>, key: string): unknown {
+  try {
+    return record[key];
+  } catch {
+    return invalid();
+  }
+}
+
+/** Snapshots a bounded untrusted array before downstream validation. */
+function snapshotBoundedArray(value: unknown, maximum: number): unknown[] {
+  let isArray: boolean;
+  try {
+    isArray = Array.isArray(value);
+  } catch {
+    return invalid();
+  }
+  if (!isArray) {
+    return invalid();
+  }
+
+  let length: number;
+  try {
+    length = (value as unknown[]).length;
+  } catch {
+    return invalid();
+  }
+  if (!Number.isSafeInteger(length) || length > maximum) {
+    return invalid();
+  }
+
+  let snapshot: unknown[];
+  try {
+    snapshot = Array.from(value as unknown[]);
+  } catch {
+    return invalid();
+  }
+  if (snapshot.length !== length || snapshot.length > maximum) {
+    return invalid();
+  }
+  return snapshot;
 }
 
 /** Validates one bounded identifier-like token without coercion. */
@@ -85,7 +135,7 @@ function safeBoundedInteger(value: unknown, maximum: number): number {
 
 /** Reads one optional allowlisted string field. */
 function optionalToken(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
+  const value = readProperty(record, key);
   return value === undefined ? undefined : safeToken(value);
 }
 
@@ -95,7 +145,7 @@ function optionalInteger(
   key: string,
   maximum: number
 ): number | undefined {
-  const value = record[key];
+  const value = readProperty(record, key);
   return value === undefined ? undefined : safeBoundedInteger(value, maximum);
 }
 
@@ -132,24 +182,34 @@ function parseEvent(value: unknown): SupportBundleEvent {
     return invalid();
   }
 
-  const severity = safeToken(value.severity);
+  const eventId = readProperty(value, "eventId");
+  const severityValue = readProperty(value, "severity");
+  const stage = readProperty(value, "stage");
+  const component = readProperty(value, "component");
+  const retryable = readProperty(value, "retryable");
+  const nextAction = readProperty(value, "nextAction");
+  const correlationId = readProperty(value, "correlationId");
+  const sequence = readProperty(value, "sequence");
+  const rawFields = readProperty(value, "fields");
+
+  const severity = safeToken(severityValue);
   if (!SEVERITIES.has(severity as SupportBundleEvent["severity"])) {
     return invalid();
   }
-  if (typeof value.retryable !== "boolean") {
+  if (typeof retryable !== "boolean") {
     return invalid();
   }
 
   return {
-    eventId: safeToken(value.eventId),
+    eventId: safeToken(eventId),
     severity: severity as SupportBundleEvent["severity"],
-    stage: safeToken(value.stage),
-    component: safeToken(value.component),
-    retryable: value.retryable,
-    nextAction: safeToken(value.nextAction),
-    correlationId: safeToken(value.correlationId),
-    sequence: safeBoundedInteger(value.sequence, Number.MAX_SAFE_INTEGER),
-    fields: parseFields(value.fields)
+    stage: safeToken(stage),
+    component: safeToken(component),
+    retryable,
+    nextAction: safeToken(nextAction),
+    correlationId: safeToken(correlationId),
+    sequence: safeBoundedInteger(sequence, Number.MAX_SAFE_INTEGER),
+    fields: parseFields(rawFields)
   };
 }
 
@@ -202,14 +262,19 @@ function parseGeneratedAt(value: unknown): string {
  * discarded rather than post-hoc masked.
  */
 export function buildSupportBundleManifest(input: unknown): SupportBundleManifest {
-  if (!isRecord(input) || !isRecord(input.app) || !Array.isArray(input.events)) {
-    return invalid();
-  }
-  if (input.events.length > MAX_SUPPORT_BUNDLE_EVENTS) {
+  if (!isRecord(input)) {
     return invalid();
   }
 
-  const events = input.events.map(parseEvent);
+  const appValue = readProperty(input, "app");
+  const generatedAt = readProperty(input, "generatedAt");
+  const rawEvents = readProperty(input, "events");
+  if (!isRecord(appValue)) {
+    return invalid();
+  }
+  const eventValues = snapshotBoundedArray(rawEvents, MAX_SUPPORT_BUNDLE_EVENTS);
+  const events = eventValues.map(parseEvent);
+
   const sequences = new Set<number>();
   for (const event of events) {
     if (sequences.has(event.sequence)) {
@@ -222,13 +287,13 @@ export function buildSupportBundleManifest(input: unknown): SupportBundleManifes
   return {
     schema: "bandscope.support-bundle-manifest",
     schemaVersion: 1,
-    generatedAt: parseGeneratedAt(input.generatedAt),
+    generatedAt: parseGeneratedAt(generatedAt),
     app: {
-      version: safeToken(input.app.version),
-      sourceRevision: safeToken(input.app.sourceRevision, REVISION_PATTERN),
-      buildId: safeToken(input.app.buildId),
-      platform: safeToken(input.app.platform),
-      architecture: safeToken(input.app.architecture)
+      version: safeToken(readProperty(appValue, "version")),
+      sourceRevision: safeToken(readProperty(appValue, "sourceRevision"), REVISION_PATTERN),
+      buildId: safeToken(readProperty(appValue, "buildId")),
+      platform: safeToken(readProperty(appValue, "platform")),
+      architecture: safeToken(readProperty(appValue, "architecture"))
     },
     events
   };
