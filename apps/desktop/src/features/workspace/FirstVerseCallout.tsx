@@ -18,7 +18,7 @@ export interface FirstVerseCalloutProps {
 type VerseCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 
 type HeardVerse = Readonly<{
-  songId: string;
+  song: RehearsalSong;
   sectionId: string;
   sectionIndex: number;
   holdingRoleId: string | null;
@@ -50,7 +50,6 @@ export function FirstVerseCallout({
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const songId = typeof runtimeSong?.id === "string" ? runtimeSong.id : "";
   const verse = resolveFirstVerse(song);
   const verseSectionIndex =
     verse && Array.isArray(runtimeSong?.sections)
@@ -60,7 +59,7 @@ export function FirstVerseCallout({
 
   useEffect(() => {
     setHeardVerse(null);
-  }, [songId, verseSectionIndex, verse?.section.id, verse?.holdingRole?.id, verse?.atSeconds]);
+  }, [song, verseSectionIndex, verse?.section.id, verse?.holdingRole?.id, verse?.atSeconds]);
 
   if (!verse) {
     return (
@@ -76,7 +75,7 @@ export function FirstVerseCallout({
   }
 
   const heard =
-    heardVerse?.songId === songId &&
+    heardVerse?.song === song &&
     heardVerse.sectionId === verse.section.id &&
     heardVerse.sectionIndex === verseSectionIndex &&
     heardVerse.holdingRoleId === (verse.holdingRole?.id ?? null) &&
@@ -106,7 +105,7 @@ export function FirstVerseCallout({
   /** Record completion only after the owning surface has executed the selected verse action. */
   const markVerseActionComplete = () => {
     setHeardVerse({
-      songId,
+      song,
       sectionId: verse.section.id,
       sectionIndex: verseSectionIndex,
       holdingRoleId: verse.holdingRole?.id ?? null,
