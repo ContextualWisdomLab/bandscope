@@ -1,6 +1,9 @@
 """BandScope analysis engine package."""
 
 import logging
+from importlib import import_module
+
+from .health import build_health_report
 
 
 class _ApiDiagnosticPrivacyFilter(logging.Filter):
@@ -15,8 +18,7 @@ class _ApiDiagnosticPrivacyFilter(logging.Filter):
 
 _api_logger = logging.getLogger("bandscope_analysis.api")
 _api_logger.addFilter(_ApiDiagnosticPrivacyFilter())
-
-from .api import get_analysis_status
-from .health import build_health_report
+_api_module = import_module(".api", __name__)
+get_analysis_status = _api_module.get_analysis_status
 
 __all__ = ["build_health_report", "get_analysis_status"]
