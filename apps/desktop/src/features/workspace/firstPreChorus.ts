@@ -14,9 +14,14 @@ export type FirstPreChorus = {
   atSeconds: number;
 };
 
-/** Format a non-negative pre-chorus time as m:ss for rehearsal copy. */
+/** Format a bounded, non-negative pre-chorus time as m:ss for rehearsal copy. */
 export function formatPreChorusTime(totalSeconds: number): string {
-  const safeSeconds = Number.isFinite(totalSeconds) && totalSeconds >= 0 ? totalSeconds : 0;
+  const safeSeconds =
+    Number.isFinite(totalSeconds) &&
+    totalSeconds >= 0 &&
+    totalSeconds <= MAX_SECTION_TIME_SECONDS
+      ? totalSeconds
+      : 0;
   const minutes = Math.floor(safeSeconds / 60);
   const seconds = Math.floor(safeSeconds % 60)
     .toString()
