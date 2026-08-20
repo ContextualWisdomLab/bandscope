@@ -5,6 +5,7 @@ const MAX_TOKEN_LENGTH = 128;
 const MAX_DURATION_MS = 86_400_000;
 const MAX_QUEUE_DEPTH = 100_000;
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+const CREDENTIAL_PREFIX_PATTERN = /^(?:gh[pousr]_|github_pat_|sk-|xox[baprs]-)/i;
 const REVISION_PATTERN = /^[0-9a-f]{40}$/i;
 const RFC3339_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const SEVERITIES = new Set(["debug", "info", "warning", "error"] as const);
@@ -120,6 +121,15 @@ function safeToken(value: unknown, pattern = TOKEN_PATTERN): string {
   return value;
 }
 
+/** Validates one bounded diagnostic token while rejecting credential-shaped values. */
+function safeDiagnosticToken(value: unknown): string {
+  const token = safeToken(value);
+  if (CREDENTIAL_PREFIX_PATTERN.test(token)) {
+    return invalid();
+  }
+  return token;
+}
+
 /** Validates one bounded non-negative integer without Boolean or string coercion. */
 function safeBoundedInteger(value: unknown, maximum: number): number {
   if (
@@ -136,7 +146,7 @@ function safeBoundedInteger(value: unknown, maximum: number): number {
 /** Reads one optional allowlisted string field. */
 function optionalToken(record: Record<string, unknown>, key: string): string | undefined {
   const value = readProperty(record, key);
-  return value === undefined ? undefined : safeToken(value);
+  return value === undefined ? undefined : safeDiagnosticToken(value);
 }
 
 /** Reads one optional allowlisted bounded integer field. */
