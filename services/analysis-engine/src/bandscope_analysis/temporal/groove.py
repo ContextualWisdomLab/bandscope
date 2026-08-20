@@ -14,6 +14,8 @@ Security Notes:
     - Safe failure: any degenerate input (fewer than three beats, empty audio,
       no detectable off-beat onsets) or unexpected error yields a deterministic
       neutral default. No exception is allowed to escape.
+    - Unexpected failures log only the operation and exception class; dependency
+      messages and tracebacks stay out of routine logs.
 """
 
 from __future__ import annotations
@@ -185,6 +187,9 @@ def detect_groove(
             "swing_ratio": _swing_ratio(median_pos),
             "confidence": _confidence(positions),
         }
-    except Exception:
-        logger.exception("Groove detection failed; returning safe default")
+    except Exception as error:
+        logger.error(
+            "Groove detection failed; returning safe default: %s",
+            type(error).__name__,
+        )
         return _safe_default()
