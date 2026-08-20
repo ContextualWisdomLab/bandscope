@@ -127,4 +127,18 @@ mod tests {
         assert_eq!(fs::read_dir(&root).expect("directory should be readable").count(), 0);
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
+
+    #[test]
+    fn save_project_command_routes_through_safe_publisher() {
+        let main_source = include_str!("main.rs");
+
+        assert!(
+            main_source.contains("project_persistence::publish_new_project_file"),
+            "the Tauri save command must use the staged non-clobbering publisher"
+        );
+        assert!(
+            !main_source.contains("std::fs::write(path, content)"),
+            "the Tauri save command must not truncate the selected destination directly"
+        );
+    }
 }
