@@ -1,3 +1,4 @@
+/** Maximum diagnostic events accepted by one support manifest. */
 export const MAX_SUPPORT_BUNDLE_EVENTS = 128;
 
 const MAX_TOKEN_LENGTH = 128;
@@ -8,6 +9,7 @@ const REVISION_PATTERN = /^[0-9a-f]{40}$/i;
 const RFC3339_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const SEVERITIES = new Set(["debug", "info", "warning", "error"] as const);
 
+/** Allowlisted structured evidence that may enter an offline support manifest. */
 export interface SupportBundleEventFields {
   errorClass?: string;
   backend?: string;
@@ -17,6 +19,7 @@ export interface SupportBundleEventFields {
   queueDepth?: number;
 }
 
+/** Privacy-minimized diagnostic event stored in sequence order. */
 export interface SupportBundleEvent {
   eventId: string;
   severity: "debug" | "info" | "warning" | "error";
@@ -29,6 +32,7 @@ export interface SupportBundleEvent {
   fields: SupportBundleEventFields;
 }
 
+/** Deterministic schema-v1 inventory for a future offline support archive. */
 export interface SupportBundleManifest {
   schema: "bandscope.support-bundle-manifest";
   schemaVersion: 1;
@@ -43,14 +47,17 @@ export interface SupportBundleManifest {
   events: SupportBundleEvent[];
 }
 
+/** Raises the stable fail-closed error for malformed support evidence. */
 function invalid(): never {
   throw new Error("Invalid support bundle input");
 }
 
+/** Returns whether a runtime value is a plain record rather than an array or null. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Validates one bounded identifier-like token without coercion. */
 function safeToken(value: unknown, pattern = TOKEN_PATTERN): string {
   if (
     typeof value !== "string" ||
@@ -63,6 +70,7 @@ function safeToken(value: unknown, pattern = TOKEN_PATTERN): string {
   return value;
 }
 
+/** Validates one bounded non-negative integer without Boolean or string coercion. */
 function safeBoundedInteger(value: unknown, maximum: number): number {
   if (
     typeof value !== "number" ||
@@ -75,11 +83,13 @@ function safeBoundedInteger(value: unknown, maximum: number): number {
   return value;
 }
 
+/** Reads one optional allowlisted string field. */
 function optionalToken(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return value === undefined ? undefined : safeToken(value);
 }
 
+/** Reads one optional allowlisted bounded integer field. */
 function optionalInteger(
   record: Record<string, unknown>,
   key: string,
@@ -89,6 +99,7 @@ function optionalInteger(
   return value === undefined ? undefined : safeBoundedInteger(value, maximum);
 }
 
+/** Projects runtime diagnostic fields onto the explicit privacy allowlist. */
 function parseFields(value: unknown): SupportBundleEventFields {
   if (value === undefined) {
     return {};
@@ -115,6 +126,7 @@ function parseFields(value: unknown): SupportBundleEventFields {
   return fields;
 }
 
+/** Validates and minimizes one runtime diagnostic event. */
 function parseEvent(value: unknown): SupportBundleEvent {
   if (!isRecord(value)) {
     return invalid();
@@ -141,6 +153,7 @@ function parseEvent(value: unknown): SupportBundleEvent {
   };
 }
 
+/** Validates the manifest's canonical UTC RFC 3339 timestamp profile. */
 function parseGeneratedAt(value: unknown): string {
   if (
     typeof value !== "string" ||
