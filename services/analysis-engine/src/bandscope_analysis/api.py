@@ -84,14 +84,14 @@ class CuePayload(TypedDict):
 
 
 class RangePayload(TypedDict):
-    """Typed range payload nested inside rehearsal results."""
+    """Typed range payload nested inside rehearsal roles."""
 
     lowestNote: str
     highestNote: str
 
 
 class HarmonyPayload(TypedDict):
-    """Typed harmony payload nested inside rehearsal results."""
+    """Typed harmony payload nested inside rehearsal roles."""
 
     chord: str
     functionLabel: str
@@ -283,9 +283,6 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
     if not isinstance(project_id, str) or not project_id.strip():
         raise ValueError("Invalid analysis job request: invalid field 'projectId'")
-    # Defense-in-depth: reject path separators and exact "." / ".." segments so
-    # projectId cannot escape app-owned roots if joined into filesystem paths.
-    # Allow identifiers that merely contain ".." as a substring (e.g. "my..id").
     if project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
         logger.warning("Security: path traversal detected in projectId")
         raise ValueError("Invalid analysis job request: path traversal detected in 'projectId'")
@@ -351,11 +348,9 @@ def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> R
     separation_info = features.get("separation", {})
     duration_seconds = separation_info.get("duration_seconds", 0.0) if separation_info else 0.0
 
-    # --- Integrated pipeline: real segmentation when stems are available ---
     if stems and duration_seconds > 0:
         return _build_from_pipeline(stems, sr, duration_seconds, features)
 
-    # --- Fallback: arrangement-based extraction (demo mode) ---
     return _build_from_arrangement(audio_features)
 
 
@@ -365,25 +360,15 @@ def _build_from_pipeline(
     duration_seconds: float,
     features: dict[str, Any],
 ) -> RehearsalSong:
-    """Build a RehearsalSong from the integrated analysis pipeline.
-
-    Pipeline stages:
-    1. Structural segmentation via SSM novelty curve on the mixed audio.
-    2. Stem activity detection per boundary.
-    3. Role extraction with real activity maps and handoffs.
-    4. Temporal grid fusion (section time ranges).
-    """
-    # Reconstruct mix from stems for segmentation
+    """Build a RehearsalSong from the integrated analysis pipeline."""
     mix = _reconstruct_mix(stems)
     if mix.size == 0:
         return _build_from_arrangement(features)
 
-    # 1+2. Structural segmentation and boundary detection (single pass)
     detected_sections, boundaries = segment_with_boundaries(mix, sr, duration_seconds)
     if not detected_sections:
         return _build_from_arrangement(features)
 
-    # 3. Role extraction with real stem activity
     extractor = RoleExtractor()
     role_result = extractor.extract(
         detected_sections,
@@ -394,24 +379,20 @@ def _build_from_pipeline(
         },
     )
 
-    # 4. Build final payload sections
     payload_sections: list[RehearsalSectionPayload] = []
     focus_sections: list[str] = []
 
     for i, section in enumerate(detected_sections):
-        # Compute time range from boundaries
         if i < len(boundaries):
             start_sec, end_sec = boundaries[i]
         else:
             start_sec = 0.0
             end_sec = duration_seconds
 
-        # Clamp to u32 bounds and convert to integers
         start_int = max(0, int(start_sec))
         end_int = max(start_int + 1, int(end_sec))
         time_range = build_section_time_range(start_int, end_int)
 
-        # Get topology for this section
         topology = role_result["topologies"][i] if i < len(role_result["topologies"]) else None
         section_roles = topology["active_roles"] if topology else []
         section_graph = topology["part_graph"] if topology else []
@@ -432,7 +413,6 @@ def _build_from_pipeline(
             }
         )
 
-        # Track high-priority sections for export summary
         if section["form_label"] in ("chorus", "verse"):
             if section["form_label"] not in focus_sections:
                 focus_sections.append(section["form_label"])
@@ -440,7 +420,6 @@ def _build_from_pipeline(
     if not focus_sections and payload_sections:
         focus_sections = [payload_sections[0]["label"]]
 
-    # Build export summary from detected structure
     headline = _build_export_headline(detected_sections)
 
     song: RehearsalSong = {
@@ -526,13 +505,11 @@ def _reconstruct_mix(stems: dict[str, Any]) -> Any:
     if not arrays:
         return np.array([], dtype=np.float32)
 
-    # Align lengths and sum
     max_len = max(a.size for a in arrays)
     mix = np.zeros(max_len, dtype=np.float64)
     for arr in arrays:
         mix[: arr.size] += arr
 
-    # Normalize to prevent clipping
     max_val = np.max(np.abs(mix))
     if max_val > 0:
         mix = mix / max_val
@@ -660,15 +637,7 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
 
 
 def _stem_work_sidecar_path(arrays_path: Path) -> Path:
-    """Return the authorized metadata sidecar for one stem-work arrays file.
-
-    The parent helper writes ``{digest}.json`` next to the worker ``.npz``
-    handoff. Callers must pass the already-authorized parent-helper arrays
-    path, not a worker-supplied ``arraysPath``. The sibling is re-checked
-    immediately before use so a pre-existing symlink cannot escape
-    ``tempRoot`` merely because the arrays file itself stayed inside the
-    authorized directory.
-    """
+    """Return the authorized metadata sidecar for one stem-work arrays file."""
     return resolve_authorized_child_path(
         str(arrays_path.parent),
         "tempRoot",
@@ -915,7 +884,7 @@ def _stem_separation_worker(
         result_queue.put(("ok", separation_result))
     except Exception as error:
         kind, safe_message, log_message = _stem_separation_failure(error)
-        logger.exception(log_message)
+        logger.error("%s (%s)", log_message, type(error).__name__)
         result_queue.put((kind, safe_message))
 
 
@@ -1254,7 +1223,10 @@ def run_analysis_job_updates(
                     )
                 )
                 return updates
-            logger.exception("Stem separation failed before analysis job completion.")
+            logger.error(
+                "Stem separation failed before analysis job completion. (%s)",
+                type(error).__name__,
+            )
             updates.append(
                 _build_job_status(
                     job_id=job_id,
