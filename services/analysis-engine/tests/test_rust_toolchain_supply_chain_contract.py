@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from conftest import load_module
 
 
@@ -30,7 +31,7 @@ jobs:
 
 
 def _rust_audit_violations(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     rust_audit_command: str,
 ) -> list[str]:
@@ -53,7 +54,7 @@ def _rust_audit_violations(
 
 
 def test_supply_chain_accepts_repository_pinned_rust_audit(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """The pinned audit command must satisfy the security workflow contract."""
@@ -63,7 +64,7 @@ def test_supply_chain_accepts_repository_pinned_rust_audit(
 
 
 def test_supply_chain_rejects_floating_stable_rust_audit(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """A floating stable selector cannot satisfy the exact Rust audit contract."""
