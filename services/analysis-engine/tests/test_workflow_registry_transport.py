@@ -17,6 +17,12 @@ class _FakeResponse:
     status: int
     data: bytes = b"{}"
 
+    def read(self, amount: int | None = None, **_kwargs: Any) -> bytes:
+        """Return at most *amount* bytes, matching urllib3's streaming response contract."""
+        if amount is None:
+            return self.data
+        return self.data[:amount]
+
 
 class _FakePool:
     """Minimal fixed-origin HTTPS pool fixture that never touches the network."""
@@ -101,6 +107,22 @@ def test_registry_client_fails_closed_on_api_error_status(
     assert method == "GET"
     assert options["redirect"] is False
     assert options["retries"] is False
+
+
+def test_registry_client_rejects_oversized_success_body_before_json_parse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful API response cannot allocate an unbounded JSON body."""
+    audit = _load_audit()
+    monkeypatch.setattr(audit.urllib3, "HTTPSConnectionPool", _FakePool)
+    _FakePool.response = _FakeResponse(200, b'{"pad":"' + b"x" * (8 * 1024 * 1024 + 1) + b'"}')
+    _FakePool.requests.clear()
+    client = audit.GitHubRegistryClient(api_url="https://api.github.com")
+
+    with pytest.raises(audit.AuditError, match="GitHub API response exceeded the 8 MiB safety limit"):
+        client._get_json(
+            "https://api.github.com/repos/ContextualWisdomLab/bandscope/git/trees/deadbeef?recursive=1"
+        )
 
 
 def test_registry_client_preserves_ghe_api_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
