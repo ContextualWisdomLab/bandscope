@@ -37,6 +37,26 @@ def committed_inventory() -> dict[str, object]:
     return copy.deepcopy(payload)
 
 
+def documents_with_all_page_identities(payload: dict[str, object]) -> dict[str, str]:
+    """Return synthetic docs that independently carry every canonical page identity."""
+    file_url = payload["fileUrl"]
+    file_key = payload["fileKey"]
+    pages = payload["canonicalPages"]
+    assert isinstance(file_url, str)
+    assert isinstance(file_key, str)
+    assert isinstance(pages, list)
+    lines = [
+        file_url,
+        file_key,
+        "Figma MCP get_metadata without nodeId lists only the current page.",
+    ]
+    for page in pages:
+        assert isinstance(page, dict)
+        lines.append(f"{page['name']} page {page['pageId']} root {page['rootId']}")
+    body = "\n".join(lines)
+    return {"README": body, "workflow": body, "contract": body}
+
+
 @pytest.mark.parametrize(
     ("field", "match"),
     [
@@ -102,3 +122,27 @@ def test_referencing_docs_label_undiscoverable_pages(
     errors = check.collect_doc_errors(payload, check.canonical_pages(payload), documents)
 
     assert f"{target_document} must mark {name} as not discoverable" in errors
+
+
+@pytest.mark.parametrize(
+    ("target_document", "identity_key"),
+    [
+        ("workflow", "pageId"),
+        ("contract", "rootId"),
+    ],
+)
+def test_every_contract_doc_requires_each_canonical_page_identity(
+    target_document: str,
+    identity_key: str,
+) -> None:
+    """Workflow and component contract cannot borrow page identity evidence from README."""
+    payload = committed_inventory()
+    pages = check.canonical_pages(payload)
+    documents = documents_with_all_page_identities(payload)
+    page = pages[1]
+    identity = str(page[identity_key])
+    documents[target_document] = documents[target_document].replace(identity, "missing-id", 1)
+
+    errors = check.collect_doc_errors(payload, pages, documents)
+
+    assert f"{target_document} missing {identity_key} {identity} for {page['name']}" in errors
