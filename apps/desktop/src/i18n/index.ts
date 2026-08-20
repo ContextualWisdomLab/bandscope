@@ -19,7 +19,7 @@ const sectionFormLabels: Readonly<
   ko: { "pre-chorus": "프리코러스" }
 };
 
-/** Documented. */
+/** Create a translation function that resolves keys for the selected locale. */
 export function createTranslator(locale: Locale = "en") {
   return function t(key: TranslationKey): string {
     return dictionaries[locale][key] ?? dictionaries.en[key];
