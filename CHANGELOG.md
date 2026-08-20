@@ -10,7 +10,7 @@
 
 ### Changed
 
-- Require the workflow-registry lifecycle auditor to treat only regular-file Git blobs as protected-tree workflow source evidence, so workflow-looking directories, symlink blobs, and other non-file tree entries cannot manufacture a `present` classification.
+- Require the workflow-registry lifecycle auditor to treat only regular-file Git blobs as protected-tree workflow source evidence, reject token-bearing non-canonical API origins, and bound successful API response bodies to 8 MiB before JSON parsing so external control-plane input cannot manufacture source evidence or trigger unbounded response allocation.
 
 ## [0.1.3] - 2026-04-29
 
