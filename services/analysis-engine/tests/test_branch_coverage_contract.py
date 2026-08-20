@@ -212,11 +212,12 @@ def test_shared_hits_continue_after_an_energetic_stem_has_no_onsets() -> None:
             hits.librosa.onset,
             "onset_detect",
             side_effect=[np.array([], dtype=np.float64), np.array([1.0], dtype=np.float64)],
-        ),
+        ) as onset_detect,
     ):
         result = hits.detect_shared_hits(energetic, 22_050)
 
     assert result == []
+    assert onset_detect.call_count == 2
 
 
 def test_contiguous_regions_finishes_cleanly_after_an_unvoiced_frame() -> None:
