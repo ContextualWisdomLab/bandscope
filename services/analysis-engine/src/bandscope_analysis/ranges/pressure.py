@@ -23,6 +23,8 @@ Security Notes:
 - Bounded computation: all work is linear in the number of input frames.
 - Safe failure: malformed, empty, or fully-unvoiced input yields a neutral
   default result. No exceptions escape the public functions.
+- Unexpected failures log only the operation and exception class; dependency
+  messages and traceback payloads stay out of routine logs.
 """
 
 import logging
@@ -184,8 +186,11 @@ def analyze_range_pressure(
     """
     try:
         return _analyze(f0_hz, voiced_flag, times)
-    except Exception:
-        logger.warning("Range-pressure analysis failed; returning default", exc_info=True)
+    except Exception as error:
+        logger.warning(
+            "Range-pressure analysis failed; returning default: %s",
+            type(error).__name__,
+        )
         return _empty_result()
 
 
@@ -212,8 +217,11 @@ def analyze_range_pressure_from_audio(audio: np.ndarray, sr: int = 22050) -> Ran
     fmax = float(librosa.note_to_hz("C8"))
     try:
         f0, voiced_flag, _voiced_probs = librosa.pyin(audio, fmin=fmin, fmax=fmax, sr=sr)
-    except librosa.util.exceptions.ParameterError:
-        logger.warning("pYIN failed during range-pressure analysis", exc_info=True)
+    except librosa.util.exceptions.ParameterError as error:
+        logger.warning(
+            "pYIN failed during range-pressure analysis: %s",
+            type(error).__name__,
+        )
         return _empty_result()
 
     times = librosa.times_like(f0, sr=sr)
