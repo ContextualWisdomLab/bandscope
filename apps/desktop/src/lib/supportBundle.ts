@@ -74,7 +74,7 @@ function readProperty(record: Record<string, unknown>, key: string): unknown {
   }
 }
 
-/** Snapshots a bounded untrusted array before downstream validation. */
+/** Snapshots a bounded untrusted array without invoking caller-controlled iteration. */
 function snapshotBoundedArray(value: unknown, maximum: number): unknown[] {
   let isArray: boolean;
   try {
@@ -96,13 +96,15 @@ function snapshotBoundedArray(value: unknown, maximum: number): unknown[] {
     return invalid();
   }
 
-  let snapshot: unknown[];
+  const snapshot: unknown[] = [];
   try {
-    snapshot = Array.from(value as unknown[]);
+    for (let index = 0; index < length; index += 1) {
+      snapshot.push((value as unknown[])[index]);
+    }
   } catch {
     return invalid();
   }
-  if (snapshot.length !== length || snapshot.length > maximum) {
+  if (snapshot.length !== length) {
     return invalid();
   }
   return snapshot;
