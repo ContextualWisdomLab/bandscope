@@ -207,6 +207,43 @@ export function buildSupportBundleManifest(input: unknown): SupportBundleManifes
   };
 }
 
+/** Formats one already-minimized event without consulting caller-owned diagnostic payloads. */
+function renderSupportBundleEvent(event: SupportBundleEvent): string {
+  const structuredFields = Object.entries(event.fields).map(
+    ([key, value]) => `${key}=${String(value)}`
+  );
+
+  return [
+    `${event.sequence}. [${event.severity}] ${event.component}/${event.stage} ${event.eventId}`,
+    `next=${event.nextAction}`,
+    `retryable=${event.retryable ? "yes" : "no"}`,
+    `correlation=${event.correlationId}`,
+    ...structuredFields
+  ].join(" | ");
+}
+
+/**
+ * Renders a deterministic human-readable report from the privacy-minimized manifest model.
+ *
+ * The report is deliberately derived from `buildSupportBundleManifest()` rather than from raw
+ * runtime diagnostics, so paths, URLs, messages, stacks, environment values, subprocess arguments,
+ * audio, and project payloads that have no allowlisted manifest slot cannot re-enter human output.
+ */
+export function renderSupportBundleReport(input: unknown): string {
+  const manifest = buildSupportBundleManifest(input);
+  return [
+    "BandScope support report",
+    `Schema: ${manifest.schema} v${manifest.schemaVersion}`,
+    `Generated: ${manifest.generatedAt}`,
+    `Build: ${manifest.app.version} | ${manifest.app.buildId}`,
+    `Source: ${manifest.app.sourceRevision}`,
+    `Platform: ${manifest.app.platform}/${manifest.app.architecture}`,
+    `Events: ${manifest.events.length}`,
+    ...manifest.events.map(renderSupportBundleEvent),
+    ""
+  ].join("\n");
+}
+
 /** Serializes a support manifest with stable formatting and a final newline for file tooling. */
 export function serializeSupportBundleManifest(input: unknown): string {
   return `${JSON.stringify(buildSupportBundleManifest(input), null, 2)}\n`;
