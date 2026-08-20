@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod project_persistence;
+
 use bandscope_desktop_core::*;
 use rfd::FileDialog;
 use serde_json::{json, Value};
