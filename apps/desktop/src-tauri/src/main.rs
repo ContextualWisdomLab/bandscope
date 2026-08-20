@@ -752,7 +752,7 @@ fn save_project(payload: Value) -> Result<(), String> {
 
     let content = serde_json::to_string_pretty(&parsed)
         .map_err(|_| "Failed to serialize project".to_string())?;
-    std::fs::write(path, content).map_err(|_| "Failed to write file".to_string())?;
+    project_persistence::publish_new_project_file(&path, content.as_bytes())?;
 
     Ok(())
 }
