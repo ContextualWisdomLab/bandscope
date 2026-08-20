@@ -17,7 +17,7 @@ env:
   GIT_CONFIG_COUNT: "1"
   GIT_CONFIG_KEY_0: init.defaultBranch
   GIT_CONFIG_VALUE_0: develop
-  EXPECTED_NPM_VERSION: "10.9.8"
+  EXPECTED_NPM_VERSION: "10.9.9"
 
 jobs:
   lock-validation:
@@ -31,8 +31,12 @@ jobs:
         with:
           node-version: "22.22.3"
           cache: npm
-      - name: Verify exact npm lockfile generator
-        run: test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+      - name: Activate pinned npm runtime
+        run: corepack enable npm
+      - name: Verify exact npm lockfile generator and bundled tar
+        run: |
+          test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+          npm run check:npm-runtime
       - name: Validate the frozen package lock without lifecycle execution
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Reject manifest or lockfile drift
@@ -50,8 +54,12 @@ jobs:
         with:
           node-version: "22.22.3"
           cache: npm
-      - name: Verify exact npm lockfile generator
-        run: test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+      - name: Activate pinned npm runtime
+        run: corepack enable npm
+      - name: Verify exact npm lockfile generator and bundled tar
+        run: |
+          test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+          npm run check:npm-runtime
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
         with:
           version: "0.8.6"
@@ -85,8 +93,12 @@ jobs:
         with:
           node-version: "22.22.3"
           cache: npm
-      - name: Verify exact npm lockfile generator
-        run: test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+      - name: Activate pinned npm runtime
+        run: corepack enable npm
+      - name: Verify exact npm lockfile generator and bundled tar
+        run: |
+          test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+          npm run check:npm-runtime
       - name: Install stable Rust toolchain
         run: rustup toolchain install stable --profile minimal
       - name: Install node dependencies
