@@ -5,7 +5,7 @@ import {
   type SectionFormLabel
 } from "@bandscope/shared-types";
 import { FirstPreChorusCallout } from "../workspace/FirstPreChorusCallout";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "../../i18n";
 
 type PlayerFeatureProps = {
   title: string;
@@ -47,7 +47,8 @@ function playerSummarySections(song: RehearsalSong): RehearsalSection[] {
 
 /** Player surface that names tonight's first labeled pre-chorus and delegates playback to the owning player. */
 export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureProps) {
-  const t = createTranslator(detectPreferredLocale());
+  const locale = detectPreferredLocale();
+  const t = createTranslator(locale);
 
   if (!song) {
     return (
@@ -60,6 +61,11 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
 
   const sections = playerSummarySections(song);
   const songTitle = typeof song.title === "string" ? song.title : "";
+  const sectionCountLabel = t(
+    sections.length === 1
+      ? "metricConfidenceSectionCountSingular"
+      : "metricConfidenceSectionCountPlural"
+  ).replace("{count}", String(sections.length));
 
   return (
     <section style={{ padding: "24px" }}>
@@ -77,7 +83,7 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
         <div style={{ marginBottom: "12px" }}>
           <strong>{songTitle}</strong>
           <span style={{ color: "#666", marginLeft: "8px" }}>
-            {sections.length} {sections.length === 1 ? "section" : "sections"}
+            {sectionCountLabel}
           </span>
         </div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -93,12 +99,12 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
                 textTransform: "capitalize"
               }}
             >
-              {section.label}
+              {translateSectionFormLabel(locale, section.label)}
             </span>
           ))}
         </div>
         <div style={{ marginTop: "16px", color: "#999", fontSize: "0.85em" }}>
-          Audio playback requires the desktop app with a local audio source.
+          {t("playerAudioPlaybackRequiresDesktop")}
         </div>
       </div>
     </section>
