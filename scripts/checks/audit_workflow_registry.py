@@ -244,6 +244,13 @@ class GitHubRegistryClient:
             or parsed.fragment
         ):
             raise AuditError("api_url must be an absolute HTTPS URL without credentials/query/fragment")
+        canonical_token_origin = (
+            parsed.hostname == "api.github.com"
+            and parsed_port in {None, 443}
+            and not parsed.path.rstrip("/")
+        )
+        if token and not canonical_token_origin:
+            raise AuditError("token-bearing api_url must use the canonical GitHub API origin")
         if timeout_seconds <= 0:
             raise AuditError("timeout_seconds must be positive")
 
