@@ -25,6 +25,7 @@ DEFAULT_API_URL = "https://api.github.com"
 DEFAULT_BRANCH = "develop"
 DEFAULT_PER_PAGE = 100
 MAX_PAGES = 1000
+MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 KNOWN_NON_ACTIVE_WORKFLOW_STATES = frozenset(
     {
         "deleted",
@@ -291,7 +292,7 @@ class GitHubRegistryClient:
         return target
 
     def _get_json(self, url: str) -> tuple[dict[str, Any], int]:
-        """Fetch one JSON object through a verified fixed-origin pool with redirects off."""
+        """Fetch one bounded JSON object through a verified fixed-origin HTTPS pool."""
         target = self._request_target(url)
         headers = {
             "Accept": "application/vnd.github+json",
@@ -315,16 +316,19 @@ class GitHubRegistryClient:
                 redirect=False,
                 retries=False,
                 timeout=urllib3.Timeout(total=self._timeout_seconds),
+                preload_content=False,
             )
             status = int(response.status)
-            body = bytes(response.data)
+            if status != 200:
+                raise AuditError(f"GitHub API request returned unexpected HTTP {status}")
+            body = bytes(response.read(MAX_API_RESPONSE_BYTES + 1, decode_content=True))
+            if len(body) > MAX_API_RESPONSE_BYTES:
+                raise AuditError("GitHub API response exceeded the 8 MiB safety limit")
         except (urllib3.exceptions.HTTPError, TimeoutError, OSError) as error:
             raise AuditError("GitHub API request failed before complete evidence was received") from error
         finally:
             pool.close()
 
-        if status != 200:
-            raise AuditError(f"GitHub API request returned unexpected HTTP {status}")
         try:
             payload = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
