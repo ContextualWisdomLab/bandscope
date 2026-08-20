@@ -60,6 +60,8 @@ class KeyDetector:
     - Bounded by the size of the passed input array.
     - Safe failure: degenerate input returns an empty result and no exception
       is allowed to escape ``detect``.
+    - Unexpected dependency failures log only the operation and exception
+      class; dependency messages and tracebacks stay out of routine logs.
     """
 
     def detect(self, audio: np.ndarray, sr: int) -> KeyResult:
@@ -83,8 +85,11 @@ class KeyDetector:
             # detection deterministic and avoids an unstable native pitch-track
             # code path on pure synthetic tones.
             chroma = librosa.feature.chroma_cqt(y=audio, sr=sr, tuning=0.0)
-        except Exception:  # noqa: BLE001 - safe failure: never raise to caller.
-            logger.exception("chroma_cqt failed during key detection")
+        except Exception as error:  # noqa: BLE001 - safe failure: never raise to caller.
+            logger.error(
+                "chroma_cqt failed during key detection: %s",
+                type(error).__name__,
+            )
             return _empty_result()
 
         if chroma.size == 0:
