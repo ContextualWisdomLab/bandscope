@@ -1,4 +1,11 @@
-"""Fail when committed Figma handoff evidence and design-system docs disagree."""
+"""Fail when committed Figma handoff evidence and design-system docs disagree.
+
+Security Notes
+--------------
+The committed inventory and documentation text are treated as untrusted local input. This
+checker reads repository files only; it does not open Figma URLs, make network requests, load
+credentials, or grant the recorded identifiers any runtime authority.
+"""
 
 from __future__ import annotations
 
@@ -135,7 +142,12 @@ def collect_doc_errors(
     pages: Sequence[Mapping[str, Any]],
     documents: Mapping[str, str],
 ) -> list[str]:
-    """Return committed-inventory/document consistency errors."""
+    """Return committed-inventory/document consistency errors.
+
+    The README owns the complete current page/root identity index. Workflow and component-contract
+    documents link the same Figma file and are checked only for identities they actually reference,
+    avoiding a second duplicated canonical page inventory.
+    """
     errors: list[str] = []
     file_url = _require_string(payload, "fileUrl")
     file_key = _require_string(payload, "fileKey")
