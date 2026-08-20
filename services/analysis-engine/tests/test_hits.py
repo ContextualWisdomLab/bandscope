@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 
 from bandscope_analysis.temporal.hits import detect_shared_hits, detect_stop_time
@@ -93,6 +94,25 @@ def test_detect_stop_time_safe_failure_inputs() -> None:
     assert detect_stop_time({"vocals": np.array(["boom"])}, SR) == []  # type: ignore[dict-item]
 
 
+def test_detect_stop_time_failure_log_is_payload_safe(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Stop-time safe failure keeps dependency payloads out of routine logs."""
+    sensitive_detail = "/Users/Alice/private-stop.wav token=super-secret"
+
+    def _boom(*_args: object, **_kwargs: object) -> list[dict[str, float]]:
+        raise RuntimeError(sensitive_detail)
+
+    monkeypatch.setattr("bandscope_analysis.temporal.hits._detect_stop_time", _boom)
+
+    assert detect_stop_time({}, SR) == []
+    assert "Stop-time detection failed; returning no moments" in caplog.text
+    assert "/Users/Alice" not in caplog.text
+    assert "private-stop.wav" not in caplog.text
+    assert "super-secret" not in caplog.text
+
+
 def test_detect_shared_hits_finds_aligned_impulses() -> None:
     """Clicks aligned in three stems at 1.0 s and 2.0 s are shared hits."""
     duration = 3.0
@@ -138,3 +158,22 @@ def test_detect_shared_hits_safe_failure_inputs() -> None:
     assert detect_shared_hits({"vocals": _tone(1.0)}, 0) == []
     # Non-numeric array must not raise.
     assert detect_shared_hits({"vocals": np.array(["boom"])}, SR) == []  # type: ignore[dict-item]
+
+
+def test_detect_shared_hits_failure_log_is_payload_safe(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Shared-hit safe failure keeps dependency payloads out of routine logs."""
+    sensitive_detail = "/Users/Alice/private-hit.wav token=super-secret"
+
+    def _boom(*_args: object, **_kwargs: object) -> list[dict[str, float | int]]:
+        raise RuntimeError(sensitive_detail)
+
+    monkeypatch.setattr("bandscope_analysis.temporal.hits._detect_shared_hits", _boom)
+
+    assert detect_shared_hits({}, SR) == []
+    assert "Shared-hit detection failed; returning no hits" in caplog.text
+    assert "/Users/Alice" not in caplog.text
+    assert "private-hit.wav" not in caplog.text
+    assert "super-secret" not in caplog.text

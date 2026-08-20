@@ -108,16 +108,24 @@ def test_beats_beyond_audio_have_no_frames() -> None:
     assert result == {"feel": "straight", "swing_ratio": 1.0, "confidence": 0.0}
 
 
-def test_internal_error_returns_safe_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Any unexpected error inside detection is swallowed into the safe default."""
+def test_internal_error_returns_payload_safe_default(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unexpected dependency errors fail safe without copying payloads into logs."""
+    sensitive_detail = "/Users/Alice/private-groove.wav token=super-secret"
 
     def _boom(*_args: Any, **_kwargs: Any) -> NDArray[np.float64]:
-        raise RuntimeError("onset failure")
+        raise RuntimeError(sensitive_detail)
 
     monkeypatch.setattr("bandscope_analysis.temporal.groove.librosa.onset.onset_strength", _boom)
     result = detect_groove(np.ones(SR, dtype=np.float64), SR, [0.0, 0.5, 1.0])
 
     assert result == {"feel": "straight", "swing_ratio": 1.0, "confidence": 0.0}
+    assert "Groove detection failed; returning safe default" in caplog.text
+    assert "/Users/Alice" not in caplog.text
+    assert "private-groove.wav" not in caplog.text
+    assert "super-secret" not in caplog.text
 
 
 def test_swing_ratio_clamps_at_beat_boundary() -> None:

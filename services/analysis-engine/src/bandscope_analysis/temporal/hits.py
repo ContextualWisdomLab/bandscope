@@ -9,6 +9,8 @@ Security Notes:
 - All computation is bounded by the input array lengths.
 - Fails safe: malformed, empty, or silent input yields empty lists and no
   exceptions escape the public functions.
+- Unexpected failures log only the operation and exception class; dependency
+  messages and tracebacks stay out of routine logs.
 """
 
 from __future__ import annotations
@@ -83,8 +85,11 @@ def detect_stop_time(
     """
     try:
         return _detect_stop_time(stems, sr, frame_seconds)
-    except Exception:
-        logger.exception("Stop-time detection failed; returning no moments")
+    except Exception as error:
+        logger.error(
+            "Stop-time detection failed; returning no moments: %s",
+            type(error).__name__,
+        )
         return []
 
 
@@ -164,8 +169,11 @@ def detect_shared_hits(
     """
     try:
         return _detect_shared_hits(stems, sr)
-    except Exception:
-        logger.exception("Shared-hit detection failed; returning no hits")
+    except Exception as error:
+        logger.error(
+            "Shared-hit detection failed; returning no hits: %s",
+            type(error).__name__,
+        )
         return []
 
 
