@@ -16,7 +16,9 @@ python scripts/checks/audit_workflow_registry.py \
   --branch develop
 ```
 
-`GITHUB_TOKEN` is optional for public reads and may be supplied for bounded authenticated reads. The token value is never emitted. The client accepts only an HTTPS API origin, does not follow redirects, and rejects request targets that leave the configured origin.
+`GITHUB_TOKEN` is optional for public reads and may be supplied for bounded authenticated reads. The token value is never emitted. The client accepts only an HTTPS API origin, does not follow redirects, and rejects request targets that leave the configured origin. Token-bearing requests are restricted to the canonical `https://api.github.com` origin. Successful response bodies are streamed with an 8 MiB hard ceiling before UTF-8/JSON parsing; an oversized body fails closed rather than being materialized without bound. Non-200 responses fail on status without consuming an untrusted response body.
+
+The 8 MiB ceiling leaves bounded headroom over GitHub's documented 7 MB maximum recursive-tree response while still enforcing a repository-owned memory limit. The workflow-list API is separately paginated at its documented maximum of 100 records per page.
 
 The detector:
 
@@ -49,7 +51,7 @@ A legitimate current workflow may contain words such as `bootstrap`, `finalize`,
 
 - `0`: complete stable evidence with no `orphaned_deleted` or `unresolved` records.
 - `1`: complete stable evidence contains at least one proven orphan bucket or unresolved record. In the standalone detector, active default-tree absences contribute here as `unresolved`.
-- `2`: the audit itself could not establish complete trustworthy evidence, including permission loss, HTTP failure, malformed API data, truncated tree data, branch movement, or workflow-registry movement during the audit.
+- `2`: the audit itself could not establish complete trustworthy evidence, including permission loss, HTTP failure, oversized or malformed API data, truncated tree data, branch movement, or workflow-registry movement during the audit.
 
 A nonzero result must not be converted to success merely to keep CI green.
 
@@ -63,4 +65,4 @@ BandScope source ownership ends at the detector and repository-specific evidence
 
 ## Adversarial acceptance
 
-Repository tests cover complete pagination receipts, early pagination termination, total-count drift, same-count registry identity replacement, order-independent stable registry observations with final-receipt emission, malformed records, duplicate/reused workflow IDs, GitHub-managed dynamic identities, a legitimate present bootstrap-named workflow, workflow-looking directory/tree and symlink entries that must not become source-file evidence, an active off-default workflow whose branch provenance is unproven, forged auxiliary source metadata, unknown active non-repository paths, exact branch binding, branch movement, tree truncation, cross-origin/scheme-switching request attempts, permission loss, and transient HTTP failures. These tests are deterministic and do not require live GitHub network access.
+Repository tests cover complete pagination receipts, early pagination termination, total-count drift, same-count registry identity replacement, order-independent stable registry observations with final-receipt emission, malformed records, duplicate/reused workflow IDs, GitHub-managed dynamic identities, a legitimate present bootstrap-named workflow, workflow-looking directory/tree and symlink entries that must not become source-file evidence, an active off-default workflow whose branch provenance is unproven, forged auxiliary source metadata, unknown active non-repository paths, exact branch binding, branch movement, tree truncation, cross-origin/scheme-switching request attempts, token-bearing non-canonical API origins, oversized successful response bodies, permission loss, and transient HTTP failures. These tests are deterministic and do not require live GitHub network access.
