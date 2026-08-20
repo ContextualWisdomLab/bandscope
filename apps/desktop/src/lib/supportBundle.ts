@@ -64,7 +64,12 @@ function safeToken(value: unknown, pattern = TOKEN_PATTERN): string {
 }
 
 function safeBoundedInteger(value: unknown, maximum: number): number {
-  if (!Number.isSafeInteger(value) || typeof value !== "number" || value < 0 || value > maximum) {
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0 ||
+    value > maximum
+  ) {
     return invalid();
   }
   return value;
