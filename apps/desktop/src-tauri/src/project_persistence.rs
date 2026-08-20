@@ -61,7 +61,7 @@ pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use super::{publish_new_project_file, MAX_PROJECT_FILE_BYTES};
+    use super::{publish_new_project_file, read_project_file, MAX_PROJECT_FILE_BYTES};
     use std::{
         fs,
         path::PathBuf,
@@ -129,6 +129,36 @@ mod tests {
     }
 
     #[test]
+    fn reads_project_content_within_the_existing_load_limit() {
+        let root = test_dir("read-valid");
+        let target = root.join("setlist.bscope");
+        let content = r#"{"id":"song-1"}"#;
+        fs::write(&target, content).expect("fixture should be written");
+
+        assert_eq!(
+            read_project_file(&target).expect("bounded project should be readable"),
+            content
+        );
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[test]
+    fn rejects_oversized_project_during_the_read_itself() {
+        let root = test_dir("read-oversize");
+        let target = root.join("setlist.bscope");
+        let file = File::create(&target).expect("fixture should be created");
+        file.set_len((MAX_PROJECT_FILE_BYTES + 1) as u64)
+            .expect("sparse oversize fixture should be sized");
+        drop(file);
+
+        let error = read_project_file(&target)
+            .expect_err("the project reader must enforce the byte ceiling while reading");
+
+        assert_eq!(error, "Project file is too large (exceeds 5MB limit)");
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[test]
     fn save_project_command_routes_through_safe_publisher() {
         let main_source = include_str!("main.rs");
 
@@ -139,6 +169,20 @@ mod tests {
         assert!(
             !main_source.contains("std::fs::write(path, content)"),
             "the Tauri save command must not truncate the selected destination directly"
+        );
+    }
+
+    #[test]
+    fn load_project_command_routes_through_bounded_reader() {
+        let main_source = include_str!("main.rs");
+
+        assert!(
+            main_source.contains("project_persistence::read_project_file(&path)"),
+            "the Tauri load command must enforce the byte ceiling while reading"
+        );
+        assert!(
+            !main_source.contains("std::fs::read_to_string(path)"),
+            "the Tauri load command must not allocate through an unbounded second read"
         );
     }
 }
