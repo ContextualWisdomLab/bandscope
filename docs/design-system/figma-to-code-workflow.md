@@ -2,6 +2,9 @@
 
 This workflow is for Codex, Frontend Engineers, and Publishers using the BandScope Figma file without Code Connect.
 
+Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
+
+
 Figma is the visual, structural, and handoff input. The repository remains the runtime source of truth for tests and release behavior, but the Figma file must carry enough implementation guidance to start work without opening these docs. Missing implementation detail inside Figma is a design-system defect.
 
 ## Can Codex Develop From This Figma?
@@ -12,7 +15,8 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 
 ## Required Loop
 
-1. Identify the target Figma node, screen, or component set.
+1. Identify the target Figma node, screen, or component set. If the MCP page list shows only `00 Cover`, query the committed pageId/rootId instead of treating Cover as the whole file.
+
 2. Read Figma structure and variants through Figma MCP or the node URL.
 3. Read `31 Component Contract Catalog` for the matching source path, current runtime API, TSX example, and QA note.
 4. Read `32 Screen Blueprints` for mobile and desktop placement before changing layout.
@@ -69,7 +73,8 @@ Codex must not paste generated Figma code directly into the app. Generated Figma
 - A required implementation detail exists only in repo docs and not in Figma.
 - A workspace empty, loading, error, ready, Groove Map, or Source Control Stack state is not represented on `34 Workspace State Matrix`, page `25 Groove Map`, page `26 Source Control Stack`, or page `31 Component Contract Catalog`.
 - A named review perspective such as `Ponytail` or `Superpowers` is treated as a tool-backed requirement without an actual available tool or documented project standard.
-- A page-level Figma metadata overview or direct Plugin API page inspection appears empty before the page has been loaded with `figma.setCurrentPageAsync(page)`, or this repo mirror claims populated Figma content that is not present in the loaded Figma page.
+- A page-level Figma metadata overview or Figma MCP `get_metadata` without nodeId lists only the current page (`16:2` `00 Cover`). That is not a complete page inventory. Load `28 Implementation Contract` by pageId `37:2` from [figma-handoff-inventory.json](figma-handoff-inventory.json) before declaring pages 28-34 missing. Direct Plugin API inspection can still appear empty until `figma.setCurrentPageAsync(page)`.
+
 - A Figma screen blueprint has a large placeholder-only or label-only section and the matching runtime surface has not been checked.
 - A Figma row, card, or blueprint detail only reads correctly because text or nested content spills outside its parent or overlaps a neighboring element.
 - A generated Figma layout would require duplicating an existing component.

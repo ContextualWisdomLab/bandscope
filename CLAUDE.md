@@ -61,7 +61,8 @@ Supporting packages:
 
 - `packages/shared-types` — the stable TypeScript contracts (rehearsal domain, analysis jobs, confidence, provenance, export summaries) shared by the UI and the orchestration layer. Both sides must use these types instead of inventing parallel schemas; contracts are property-tested with fast-check.
 - `packages/shared-config` — shared tsconfig/ESLint bases.
-- `scripts/harness/quickcheck.sh` and `scripts/checks/` — fail-fast mechanical gates, including doc presence, plan `Security Notes`, forbidden patterns, and supply-chain/workflow-pinning verification.
+- `scripts/harness/quickcheck.sh` and `scripts/checks/` — fail-fast mechanical gates, including doc presence, Figma handoff inventory drift, plan `Security Notes`, forbidden patterns, and supply-chain/workflow-pinning verification.
+
 
 ## Key conventions
 

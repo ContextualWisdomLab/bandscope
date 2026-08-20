@@ -1,0 +1,57 @@
+{
+  "fileKey": "zthWmqfNKUgJBECvv002Qk",
+  "fileUrl": "https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk",
+  "verifiedAt": "2026-08-21",
+  "verificationMethod": "figma_plugin_api_root_children_after_setCurrentPageAsync",
+  "mcpPageListLimitation": "Figma MCP get_metadata without nodeId lists only the current page (16:2 00 Cover). It is not a complete page inventory. Query by pageId or rootId, or inspect figma.root.children after setCurrentPageAsync.",
+  "canonicalPages": [
+    {
+      "name": "00 Cover",
+      "pageId": "16:2",
+      "rootId": "16:3",
+      "discoverable": true
+    },
+    {
+      "name": "28 Implementation Contract",
+      "pageId": "37:2",
+      "rootId": "99:2",
+      "discoverable": true
+    },
+    {
+      "name": "29 UI Repair Playbook",
+      "pageId": "38:2",
+      "rootId": "99:82",
+      "discoverable": true
+    },
+    {
+      "name": "30 Publisher + QA Matrix",
+      "pageId": "39:2",
+      "rootId": "99:171",
+      "discoverable": true
+    },
+    {
+      "name": "31 Component Contract Catalog",
+      "pageId": "45:86",
+      "rootId": "99:253",
+      "discoverable": true
+    },
+    {
+      "name": "32 Screen Blueprints",
+      "pageId": "45:270",
+      "rootId": "99:415",
+      "discoverable": true
+    },
+    {
+      "name": "33 Figma-Only Readiness Audit",
+      "pageId": "45:316",
+      "rootId": "99:714",
+      "discoverable": true
+    },
+    {
+      "name": "34 Workspace State Matrix",
+      "pageId": "80:2",
+      "rootId": "99:560",
+      "discoverable": true
+    }
+  ]
+}

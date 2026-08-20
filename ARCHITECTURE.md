@@ -4,7 +4,8 @@ Last updated: 2026-03-11
 
 ## Brand source
 
-- Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
+- Design-system Figma page/root identities live in `docs/design-system/figma-handoff-inventory.json`. `scripts/checks/verify_figma_handoff.py` reports drift without calling Figma.
+
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
 ## Security source
