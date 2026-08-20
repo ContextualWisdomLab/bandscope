@@ -118,6 +118,25 @@ describe("FirstVerseCallout", () => {
     grid.remove();
   });
 
+  it("does not carry completed guidance into a replacement song with an invalid runtime id", () => {
+    const firstSong = songWithVerse();
+    const replacementSong = songWithVerse();
+    (firstSong as unknown as { id: unknown }).id = null;
+    (replacementSong as unknown as { id: unknown }).id = null;
+    const { grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstVerseCallout song={firstSong} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal verse at 0:10" }));
+    expect(screen.getByText(/Learn Lead Vocal's verse at 0:10. Play the first line./)).toBeTruthy();
+
+    rerender(<FirstVerseCallout song={replacementSong} />);
+
+    expect(screen.getByText("Lead Vocal carries the verse at 0:10.")).toBeTruthy();
+    expect(screen.queryByText(/Learn Lead Vocal's verse at 0:10. Play the first line./)).toBeNull();
+
+    grid.remove();
+  });
+
   it("keeps an unavailable verse guidance-only", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.label = "chorus";
