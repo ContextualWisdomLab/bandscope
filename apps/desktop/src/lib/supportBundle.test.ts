@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_SUPPORT_BUNDLE_EVENTS,
   buildSupportBundleManifest,
+  renderSupportBundleReport,
   serializeSupportBundleManifest
 } from "./supportBundle";
 
@@ -108,6 +109,42 @@ describe("offline support-bundle manifest", () => {
     expect(serializeSupportBundleManifest(validInput())).toBe(
       serializeSupportBundleManifest(validInput())
     );
+  });
+
+  it("renders a deterministic human report from the same privacy-safe manifest", () => {
+    const input = validInput() as Record<string, unknown>;
+    input.absolutePath = "C:\\Users\\Alice\\secret.wav";
+
+    const events = input.events as Array<Record<string, unknown>>;
+    events[0] = {
+      ...events[0],
+      message: "Bearer super-secret /Users/alice/song.wav",
+      fields: {
+        ...(events[0].fields as Record<string, unknown>),
+        rawUrl: "https://example.test/?token=super-secret"
+      }
+    };
+
+    const report = renderSupportBundleReport(input);
+
+    expect(report).toBe(
+      [
+        "BandScope support report",
+        "Schema: bandscope.support-bundle-manifest v1",
+        "Generated: 2026-08-20T12:00:00.000Z",
+        "Build: 0.1.4 | desktop-release-42",
+        `Source: ${revision}`,
+        "Platform: windows/x86_64",
+        "Events: 2",
+        "1. [info] desktop/dispatch analysis.started | next=none | retryable=no | correlation=analysis-7 | backend=cpu",
+        "2. [error] analysis-engine/decode analysis.decode.failed | next=choose-another-file | retryable=yes | correlation=analysis-7 | errorClass=DecodeError | backend=ffmpeg | device=cuda:0 | codec=flac | durationMs=48 | queueDepth=1",
+        ""
+      ].join("\n")
+    );
+
+    for (const forbidden of ["Users", "secret.wav", "super-secret", "Bearer", "token="]) {
+      expect(report).not.toContain(forbidden);
+    }
   });
 
   it("copies only allowlisted diagnostic evidence and drops sensitive arbitrary payloads", () => {
