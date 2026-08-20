@@ -43,7 +43,7 @@ export function ConfidenceBadge({ level, size = "compact" }: ConfidenceBadgeProp
   return (
     <Badge
       variant="outline"
-      className={`${heightClass} px-1.5 py-0 text-[0.65rem] font-bold uppercase tracking-wider ${colorClass}`}
+      className={`${heightClass} px-1.5 py-0 text-[11px] font-medium leading-[16px] uppercase tracking-normal ${colorClass}`}
       title={label}
     >
       {label}
