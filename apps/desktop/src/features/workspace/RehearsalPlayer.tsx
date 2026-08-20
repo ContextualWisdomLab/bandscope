@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +68,7 @@ export function RehearsalPlayer({
       loop: resolveLoopWindow(song, playableSections[0]?.id),
     }),
   );
+  const lastHandledStartNonce = useRef(0);
 
   useEffect(() => {
     const nextLoop = resolveLoopWindow(song, selectedSectionId);
@@ -77,7 +78,11 @@ export function RehearsalPlayer({
   }, [song, selectedSectionId]);
 
   useEffect(() => {
-    if (startNonce <= 0) {
+    if (startNonce <= lastHandledStartNonce.current) {
+      return;
+    }
+    lastHandledStartNonce.current = startNonce;
+    if (!hasLocalAudio) {
       return;
     }
     setTransport((current) => {
@@ -89,7 +94,7 @@ export function RehearsalPlayer({
           });
       return reduceRehearsalTransport(armed, { type: "start" });
     });
-  }, [startNonce, song, selectedSectionId]);
+  }, [startNonce, hasLocalAudio, song, selectedSectionId]);
 
   useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
@@ -123,7 +128,7 @@ export function RehearsalPlayer({
     t(actionKey as TranslationKey),
     nextActionValues(transport),
   );
-  const canStart = transport.loop !== null;
+  const canStart = transport.loop !== null && hasLocalAudio;
   const canPause =
     transport.phase === "counting-in" || transport.phase === "looping";
   const canStop = transport.phase !== "idle" && transport.loop !== null;
@@ -197,11 +202,14 @@ export function RehearsalPlayer({
           disabled={!canStart}
           aria-disabled={!canStart}
           className="min-h-11 border-cyan-300/30 bg-cyan-300/15 font-semibold text-cyan-50 disabled:cursor-not-allowed disabled:opacity-70"
-          onClick={() =>
+          onClick={() => {
+            if (!canStart) {
+              return;
+            }
             setTransport((current) =>
               reduceRehearsalTransport(current, { type: "start" }),
-            )
-          }
+            );
+          }}
         >
           {startLabel}
         </Button>
