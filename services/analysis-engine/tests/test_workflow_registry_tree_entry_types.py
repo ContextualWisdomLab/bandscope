@@ -13,6 +13,7 @@ def test_directory_named_like_workflow_cannot_prove_active_source(monkeypatch) -
     )
     client = audit.GitHubRegistryClient()
     workflow_path = ".github/workflows/not-a-file.yml"
+    real_workflow_path = ".github/workflows/ci.yml"
 
     def fake_get_json(_url: str):
         return (
@@ -22,6 +23,7 @@ def test_directory_named_like_workflow_cannot_prove_active_source(monkeypatch) -
                     {"path": ".github", "type": "tree"},
                     {"path": ".github/workflows", "type": "tree"},
                     {"path": workflow_path, "type": "tree"},
+                    {"path": real_workflow_path, "type": "blob"},
                 ],
             },
             200,
@@ -42,6 +44,7 @@ def test_directory_named_like_workflow_cannot_prove_active_source(monkeypatch) -
         tree_paths,
     )
 
+    assert real_workflow_path in tree_paths
     assert workflow_path not in tree_paths
     assert records[0]["classification"] == "unresolved"
     assert records[0]["reason"] == (
