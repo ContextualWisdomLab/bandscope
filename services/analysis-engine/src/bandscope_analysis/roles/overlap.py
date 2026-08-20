@@ -182,8 +182,11 @@ def detect_register_overlap(
             )
         )
         return overlaps
-    except Exception:  # pragma: no cover - defensive fail-safe path
-        logger.warning("Register-overlap detection failed; returning no overlaps.", exc_info=True)
+    except Exception as error:
+        logger.warning(
+            "Register-overlap detection failed; returning no overlaps: %s",
+            type(error).__name__,
+        )
         return []
 
 
