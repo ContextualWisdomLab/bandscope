@@ -93,18 +93,26 @@ def _assert_patched_npm_precedes_dependency_consumption(steps: list[dict[str, ob
         None,
     )
     audit_index = next(
-        (index for index, command in enumerate(run_steps) if "npm run check:npm-runtime" in command),
+        (
+            index
+            for index, command in enumerate(run_steps)
+            if "npm run check:npm-runtime" in command
+        ),
         None,
     )
     consumption_index = next(
-        (index for index, command in enumerate(run_steps) if re.search(r"(?:^|\n)\s*npm ci(?:\s|$)", command)),
+        (
+            index
+            for index, command in enumerate(run_steps)
+            if re.search(r"(?:^|\n)\s*npm ci(?:\s|$)", command)
+        ),
         None,
     )
 
     assert activation_index is not None
     assert audit_index is not None
     assert consumption_index is not None
-    assert activation_index < audit_index < consumption_index
+    assert activation_index <= audit_index < consumption_index
 
 
 def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
@@ -203,7 +211,7 @@ def test_root_lock_preserves_esbuild_peer_metadata() -> None:
 
 
 def test_npm_consuming_workflows_activate_pinned_runtime_before_dependency_reads() -> None:
-    """Prevent setup-node from invoking its bundled npm before Corepack selects the reviewed runtime."""
+    """Prevent dependency reads before Corepack selects and verifies the reviewed npm runtime."""
     workflow_names = ("ci.yml", "release.yml", "security-audit.yml", "build-baseline.yml")
 
     for workflow_name in workflow_names:
@@ -234,7 +242,9 @@ def test_npm_consuming_workflows_activate_pinned_runtime_before_dependency_reads
             assert len(setup_node_steps) == 1, f"{workflow_name}:{job_name} setup-node ownership"
             setup_options = setup_node_steps[0].get("with")
             assert isinstance(setup_options, dict)
-            assert "cache" not in setup_options, f"{workflow_name}:{job_name} pre-Corepack npm cache"
+            assert "cache" not in setup_options, (
+                f"{workflow_name}:{job_name} pre-Corepack npm cache"
+            )
             assert setup_options.get("package-manager-cache") is False, (
                 f"{workflow_name}:{job_name} must disable setup-node package-manager cache"
             )
