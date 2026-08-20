@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstPreChorusLabel": "Tonight's first pre-chorus",
+  "firstPreChorusAction": "Hear {role} pre-chorus at {at}",
+  "firstPreChorusActionBand": "Hear the first pre-chorus at {at}",
+  "firstPreChorusOpenAction": "Open {role} pre-chorus at {at}",
+  "firstPreChorusOpenActionBand": "Open the first pre-chorus at {at}",
+  "firstPreChorusBody": "{role} carries the {section} at {at}.",
+  "firstPreChorusBodyBand": "The band carries the {section} at {at}.",
+  "firstPreChorusArmed": "Learn {role}'s pre-chorus at {at}. Play the lift into the chorus.",
+  "firstPreChorusArmedBand": "Learn the pre-chorus at {at}. Play the lift into the chorus.",
+  "firstPreChorusUnavailable": "No pre-chorus yet. Stay on tonight's map until the first lift is labeled.",
+  "firstPreChorusNeedsSong": "Analyze tonight's song first, then hear the first pre-chorus from this player."
 }

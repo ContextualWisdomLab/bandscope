@@ -148,5 +148,16 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstPreChorusLabel": "오늘 첫 프리코러스",
+  "firstPreChorusAction": "{at}에 {role} 프리코러스 듣기",
+  "firstPreChorusActionBand": "{at} 첫 프리코러스 듣기",
+  "firstPreChorusOpenAction": "{at} {role} 프리코러스 위치 열기",
+  "firstPreChorusOpenActionBand": "{at} 첫 프리코러스 위치 열기",
+  "firstPreChorusBody": "{role}이 {at} {section}에서 리프트를 잡습니다.",
+  "firstPreChorusBodyBand": "밴드가 {at} {section}에서 리프트를 잡습니다.",
+  "firstPreChorusArmed": "{at}에서 {role} 프리코러스를 익히세요. 코러스로 들어가세요.",
+  "firstPreChorusArmedBand": "{at}에서 프리코러스를 익히세요. 코러스로 들어가세요.",
+  "firstPreChorusUnavailable": "아직 프리코러스가 없습니다. 첫 리프트가 표시될 때까지 오늘 지도에 머무르세요.",
+  "firstPreChorusNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 프리코러스를 들으세요."
 }
