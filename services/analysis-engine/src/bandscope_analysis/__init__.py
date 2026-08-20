@@ -6,13 +6,26 @@ from importlib import import_module
 from .health import build_health_report
 
 
+_STEM_SAFE_FAILURE_LOG_MESSAGES = frozenset(
+    {
+        "Stem separation failed because the source file was missing.",
+        "Stem separation unavailable because Demucs or torch is not installed.",
+        "Stem separation rejected invalid audio source data.",
+        "Stem separation failed with a runtime error.",
+        "Stem separation failed unexpectedly.",
+        "Stem separation failed before analysis job completion.",
+    }
+)
+
+
 class _ApiDiagnosticPrivacyFilter(logging.Filter):
-    """Remove traceback payloads from the public analysis API's routine diagnostics."""
+    """Redact traceback payloads only for known stem safe-failure diagnostics."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Keep the safe operation message while discarding exception traceback state."""
-        record.exc_info = None
-        record.exc_text = None
+        """Preserve unrelated diagnostics while redacting owned safe-failure tracebacks."""
+        if record.getMessage() in _STEM_SAFE_FAILURE_LOG_MESSAGES:
+            record.exc_info = None
+            record.exc_text = None
         return True
 
 
