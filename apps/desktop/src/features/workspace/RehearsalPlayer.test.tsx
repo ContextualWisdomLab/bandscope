@@ -19,7 +19,7 @@ describe("RehearsalPlayer", () => {
     vi.restoreAllMocks();
   });
 
-  it("names the first playable loop and asks for a local song before hearing it", () => {
+  it("names the first playable loop and blocks starting before local audio exists", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     render(<RehearsalPlayer song={song} hasLocalAudio={false} />);
@@ -28,8 +28,31 @@ describe("RehearsalPlayer", () => {
       screen.getByTestId("rehearsal-loop-next-action").textContent,
     ).toMatch(/Loop verse from 0:10–0:30\. Choose a local song first/i);
     expect(
-      screen.getByRole("button", { name: /Start the count-in/i }),
-    ).toBeTruthy();
+      (
+        screen.getByRole("button", {
+          name: /Start the count-in/i,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it("does not let an external start request bypass missing local-audio authority", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={false}
+        startNonce={1}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Choose a local song first/i);
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).not.toMatch(/Count in 4 beats/i);
   });
 
   it("counts in then loops the selected section on the map clock", () => {
@@ -58,6 +81,47 @@ describe("RehearsalPlayer", () => {
     expect(
       screen.getByTestId("rehearsal-loop-playhead").getAttribute("style"),
     ).toContain("%");
+  });
+
+  it("does not restart the count-in when section selection changes under the same start nonce", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [
+      {
+        ...song.sections[0]!,
+        id: "verse-a",
+        label: "verse",
+        timeRange: { start: 10, end: 20 },
+      },
+      {
+        ...song.sections[0]!,
+        id: "chorus-b",
+        label: "chorus",
+        timeRange: { start: 20, end: 30 },
+      },
+    ];
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        startNonce={1}
+      />,
+    );
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats/i);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /chorus.*0:20.*0:30/i }),
+    );
+
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Loop chorus from 0:20–0:30\. Start the count-in/i);
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).not.toMatch(/Count in 4 beats/i);
   });
 
   it("stays fail-closed when no section has a usable window", () => {
