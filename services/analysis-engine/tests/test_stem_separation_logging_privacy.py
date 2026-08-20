@@ -102,3 +102,23 @@ def test_analysis_job_stem_failure_log_omits_dependency_payload_and_traceback(
     }
     assert "Stem separation failed before analysis job completion." in caplog.text
     _assert_payload_free_log(caplog)
+
+
+def test_api_logger_preserves_unrelated_exception_traceback(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Privacy redaction must not erase traceback evidence from unrelated API diagnostics."""
+    caplog.set_level(logging.ERROR, logger=analysis_api.__name__)
+
+    try:
+        raise RuntimeError("non-sensitive diagnostic sentinel")
+    except RuntimeError:
+        analysis_api.logger.exception("Unrelated analysis API diagnostic.")
+
+    records = [
+        record
+        for record in caplog.records
+        if record.getMessage() == "Unrelated analysis API diagnostic."
+    ]
+    assert len(records) == 1
+    assert records[0].exc_info is not None
