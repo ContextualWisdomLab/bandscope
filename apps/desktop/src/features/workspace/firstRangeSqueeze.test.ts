@@ -94,4 +94,13 @@ describe("fillRangeCopy", () => {
       })
     ).toBe("Bass Guitar in verse before the verse.");
   });
+
+  it("keeps replacement tokens and placeholder-shaped rehearsal values literal", () => {
+    expect(
+      fillRangeCopy("{roleName} in {sectionLabel}.", {
+        roleName: "Bass $& {sectionLabel}",
+        sectionLabel: "verse"
+      })
+    ).toBe("Bass $& {sectionLabel} in verse.");
+  });
 });
