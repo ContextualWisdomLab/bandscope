@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+
 from conftest import load_module
 
 
