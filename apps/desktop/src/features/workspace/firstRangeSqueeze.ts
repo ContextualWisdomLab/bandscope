@@ -29,6 +29,7 @@ const ACCIDENTAL_OFFSET: Record<string, number> = {
 
 const NOTE_PATTERN = /^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/u;
 
+/** Return whether an untrusted runtime value is a plain object record. */
 function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
