@@ -11,6 +11,7 @@ Implemented in this slice:
 - a canonical UTC `generatedAt` whose date and clock fields must describe an actual Gregorian calendar instant rather than a JavaScript-normalized date;
 - bounded diagnostic event count;
 - stable event IDs, severity, stage, component, retryability, next-action code, correlation ID and monotonic sequence;
+- single-read snapshots of untrusted object/array evidence with accessor failures contained at the stable manifest boundary;
 - an explicit structured-field allowlist (`errorClass`, `backend`, `device`, `codec`, `durationMs`, `queueDepth`);
 - deterministic sequence ordering and JSON serialization;
 - a deterministic human-readable report rendered only from the already privacy-minimized manifest model; and
@@ -31,6 +32,8 @@ Those remain separate #963 work and must not be inferred from the presence of th
 ## Privacy and trust boundary
 
 Runtime diagnostic objects are untrusted input even when TypeScript callers are typed. `buildSupportBundleManifest()` therefore accepts `unknown` and constructs a new object from an allowlist. It never serializes the caller object wholesale and never attempts broad post-hoc masking.
+
+The boundary also treats accessors and proxies as untrusted execution surfaces. Authority-bearing properties are read exactly once into local snapshots before validation or projection. Property-access exceptions are contained and converted to the stable `Invalid support bundle input` failure rather than allowing dependency-controlled exception text to cross the support boundary. Event collections are bounded from their observed length before snapshotting and are rejected if their snapshotted cardinality changes.
 
 The following caller-owned categories have no schema slot and are discarded rather than copied: absolute paths, raw URLs, environment variables, credentials, bearer/API tokens, exception messages, stack traces, subprocess arguments, audio, score PDFs, project JSON, lyrics and handoff payloads.
 
@@ -56,6 +59,8 @@ NIST SP 800-92 is used as operational rationale for deliberate log-management de
 | --- | --- |
 | Schema/version and build identity are deterministic | `supportBundle.test.ts` — stable schema-v1 manifest assertion |
 | Canonical UTC time is a real Gregorian date rather than a normalized impossible date | malformed top-level identity regression rejects February 31 and April 31 |
+| Accessor-backed authority cannot change between validation and projection | single-read `retryable` accessor regression |
+| Accessor exceptions cannot leak dependency-controlled error payloads | throwing `app` accessor regression requires the stable boundary error |
 | Event ordering cannot be ambiguous | out-of-order valid fixture plus duplicate-sequence rejection |
 | Arbitrary secret/path/URL/content payloads cannot enter the manifest | adversarial allowlist-only serialization regression |
 | Human-readable evidence cannot reintroduce raw diagnostic payloads | exact report regression with path/token/message/URL-shaped discarded inputs |
