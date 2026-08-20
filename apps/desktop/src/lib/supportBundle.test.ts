@@ -31,6 +31,7 @@ function validInput() {
         fields: {
           errorClass: "DecodeError",
           backend: "ffmpeg",
+          device: "cuda:0",
           codec: "flac",
           durationMs: 48,
           queueDepth: 1
@@ -92,6 +93,7 @@ describe("offline support-bundle manifest", () => {
           fields: {
             errorClass: "DecodeError",
             backend: "ffmpeg",
+            device: "cuda:0",
             codec: "flac",
             durationMs: 48,
             queueDepth: 1
@@ -113,7 +115,7 @@ describe("offline support-bundle manifest", () => {
     input.absolutePath = "C:\\Users\\Alice\\secret.wav";
     input.environment = { NVIDIA_NIM_API_KEY: "super-secret" };
 
-    const events = (input.events as Array<Record<string, unknown>>);
+    const events = input.events as Array<Record<string, unknown>>;
     events[0] = {
       ...events[0],
       message: "Bearer super-secret /Users/alice/song.wav",
@@ -147,20 +149,41 @@ describe("offline support-bundle manifest", () => {
     expect(serialized).toContain("ffmpeg");
   });
 
+  it("accepts an event with no structured fields and drops absent optional fields", () => {
+    const event = { ...validInput().events[0], fields: undefined, severity: "warning" };
+    const manifest = buildSupportBundleManifest({ ...validInput(), events: [event] });
+
+    expect(manifest.events[0]?.fields).toEqual({});
+    expect(manifest.events[0]?.severity).toBe("warning");
+
+    const emptyFields = buildSupportBundleManifest({
+      ...validInput(),
+      events: [{ ...validInput().events[0], fields: {}, severity: "debug" }]
+    });
+    expect(emptyFields.events[0]?.fields).toEqual({});
+    expect(emptyFields.events[0]?.severity).toBe("debug");
+  });
+
   it("rejects malformed top-level identity and unbounded event collections", () => {
     const invalidCases: unknown[] = [
       null,
+      [],
       {},
+      { ...validInput(), app: null },
+      { ...validInput(), generatedAt: 123 },
+      { ...validInput(), generatedAt: "x".repeat(41) },
       { ...validInput(), generatedAt: "not-rfc3339" },
+      { ...validInput(), generatedAt: "2026-99-99T99:99:99Z" },
       { ...validInput(), events: "not-an-array" },
       {
         ...validInput(),
         events: Array.from({ length: MAX_SUPPORT_BUNDLE_EVENTS + 1 }, (_, index) => ({
-          ...(validInput().events[0]),
+          ...validInput().events[0],
           sequence: index
         }))
       },
       { ...validInput(), app: { ...validInput().app, sourceRevision: "mutable-main" } },
+      { ...validInput(), app: { ...validInput().app, version: "" } },
       { ...validInput(), app: { ...validInput().app, version: "line\nbreak" } }
     ];
 
@@ -172,14 +195,20 @@ describe("offline support-bundle manifest", () => {
   it("rejects malformed event authority instead of coercing it", () => {
     const invalidEvents: unknown[] = [
       null,
+      [],
+      { ...validInput().events[0], sequence: "1" },
       { ...validInput().events[0], sequence: -1 },
       { ...validInput().events[0], sequence: 1.5 },
       { ...validInput().events[0], retryable: "true" },
       { ...validInput().events[0], severity: "fatal-ish" },
       { ...validInput().events[0], eventId: "x".repeat(129) },
       { ...validInput().events[0], correlationId: "bad\ncorrelation" },
+      { ...validInput().events[0], fields: null },
       { ...validInput().events[0], fields: { durationMs: -1 } },
+      { ...validInput().events[0], fields: { durationMs: 86_400_001 } },
+      { ...validInput().events[0], fields: { queueDepth: "1" } },
       { ...validInput().events[0], fields: { queueDepth: Number.POSITIVE_INFINITY } },
+      { ...validInput().events[0], fields: { queueDepth: 100_001 } },
       { ...validInput().events[0], fields: { errorClass: "bad\u0000class" } }
     ];
 
