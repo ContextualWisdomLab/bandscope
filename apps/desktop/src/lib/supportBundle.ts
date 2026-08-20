@@ -1,5 +1,5 @@
-/** Maximum diagnostic events accepted by one support manifest. */
-export const MAX_SUPPORT_BUNDLE_EVENTS = 128;
+export /** Maximum diagnostic events accepted by one support manifest. */
+const MAX_SUPPORT_BUNDLE_EVENTS = 128;
 
 const MAX_TOKEN_LENGTH = 128;
 const MAX_DURATION_MS = 86_400_000;
