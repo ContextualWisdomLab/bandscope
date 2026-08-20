@@ -103,3 +103,23 @@ def test_rust_toolchain_policy_rejects_required_command_present_only_in_comment(
     assert captured.out == ""
     assert "ci.yml job 'verify' is missing" in captured.err
     assert install in captured.err
+
+
+def test_rust_toolchain_policy_rejects_failure_masking_shell_suffixes() -> None:
+    """Shell control flow cannot turn a failed required Rust command into evidence."""
+    verifier = load_module(
+        "scripts/checks/verify_rust_toolchain.py",
+        "verify_rust_toolchain_failure_masking",
+    )
+    version = verifier.EXPECTED_TOOLCHAIN
+    install = f"rustup toolchain install {version} --profile minimal"
+    check = f"cargo +{version} check"
+    test = f"cargo +{version} test"
+
+    masked_commands = (
+        (install, f"{install} || true"),
+        (check, f"{check} --manifest-path crate/Cargo.toml --locked | cat"),
+        (test, f"{test} --manifest-path crate/Cargo.toml --locked ; true"),
+    )
+    for required, masked in masked_commands:
+        assert not verifier._job_runs_required_command(_job("owner", masked), required)
