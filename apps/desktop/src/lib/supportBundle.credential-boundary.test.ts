@@ -4,7 +4,11 @@ import { buildSupportBundleManifest } from "./supportBundle";
 
 const revision = "a".repeat(40);
 
-function inputWithField(field: string, value: string) {
+function credential(prefix: string, suffix: string): string {
+  return [prefix, suffix].join("");
+}
+
+function baseInput() {
   return {
     generatedAt: "2026-08-20T12:00:00Z",
     app: {
@@ -24,22 +28,42 @@ function inputWithField(field: string, value: string) {
         nextAction: "retry",
         correlationId: "analysis-7",
         sequence: 1,
-        fields: { [field]: value }
+        fields: {}
       }
     ]
   };
 }
 
+function inputWithField(field: string, value: string) {
+  const input = baseInput();
+  input.events[0]!.fields = { [field]: value };
+  return input;
+}
+
 describe("support-bundle credential boundary", () => {
   it.each([
-    ["backend", ["gh", "p_abcdefghijklmnopqrstuvwxyz0123456789"].join("")],
-    ["device", ["github", "_pat_11AA0_exampleCredential"].join("")],
-    ["codec", ["sk", "-proj-exampleCredential"].join("")],
-    ["errorClass", ["xox", "b-exampleCredential"].join("")]
+    ["backend", credential("gh", "p_abcdefghijklmnopqrstuvwxyz0123456789")],
+    ["device", credential("github", "_pat_11AA0_exampleCredential")],
+    ["codec", credential("sk", "-proj-exampleCredential")],
+    ["errorClass", credential("xox", "b-exampleCredential")]
   ])("rejects credential-shaped %s evidence before it enters the manifest", (field, value) => {
     expect(() => buildSupportBundleManifest(inputWithField(field, value))).toThrow(
       "Invalid support bundle input"
     );
+  });
+
+  it("rejects credential-shaped correlation identifiers before serialization", () => {
+    const input = baseInput();
+    input.events[0]!.correlationId = credential("gh", "o_exampleCredential");
+
+    expect(() => buildSupportBundleManifest(input)).toThrow("Invalid support bundle input");
+  });
+
+  it("rejects credential-shaped build identifiers before serialization", () => {
+    const input = baseInput();
+    input.app.buildId = credential("sk", "-proj-exampleCredential");
+
+    expect(() => buildSupportBundleManifest(input)).toThrow("Invalid support bundle input");
   });
 
   it("continues to preserve ordinary allowlisted structured tokens", () => {
