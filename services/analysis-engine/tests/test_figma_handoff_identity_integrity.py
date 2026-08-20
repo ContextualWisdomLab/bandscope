@@ -124,25 +124,16 @@ def test_referencing_docs_label_undiscoverable_pages(
     assert f"{target_document} must mark {name} as not discoverable" in errors
 
 
-@pytest.mark.parametrize(
-    ("target_document", "identity_key"),
-    [
-        ("workflow", "pageId"),
-        ("contract", "rootId"),
-    ],
-)
-def test_every_contract_doc_requires_each_canonical_page_identity(
-    target_document: str,
-    identity_key: str,
-) -> None:
-    """Workflow and component contract cannot borrow page identity evidence from README."""
+@pytest.mark.parametrize("identity_key", ["pageId", "rootId"])
+def test_readme_owns_complete_current_page_identity_index(identity_key: str) -> None:
+    """Sibling docs cannot satisfy a canonical page identity missing from the README index."""
     payload = committed_inventory()
     pages = check.canonical_pages(payload)
     documents = documents_with_all_page_identities(payload)
     page = pages[1]
     identity = str(page[identity_key])
-    documents[target_document] = documents[target_document].replace(identity, "missing-id", 1)
+    documents["README"] = documents["README"].replace(identity, "missing-id", 1)
 
     errors = check.collect_doc_errors(payload, pages, documents)
 
-    assert f"{target_document} missing {identity_key} {identity} for {page['name']}" in errors
+    assert f"README missing {identity_key} {identity} for {page['name']}" in errors
