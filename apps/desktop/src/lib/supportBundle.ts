@@ -153,13 +153,40 @@ function parseEvent(value: unknown): SupportBundleEvent {
   };
 }
 
+/** Returns whether a Gregorian year contains February 29. */
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+/** Returns the maximum valid day number for a validated Gregorian month. */
+function maximumDayForMonth(year: number, month: number): number {
+  if (month === 2) {
+    return isLeapYear(year) ? 29 : 28;
+  }
+  return month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
+}
+
 /** Validates the manifest's canonical UTC RFC 3339 timestamp profile. */
 function parseGeneratedAt(value: unknown): string {
+  if (typeof value !== "string" || value.length > 40 || !RFC3339_UTC_PATTERN.test(value)) {
+    return invalid();
+  }
+
+  const year = Number.parseInt(value.slice(0, 4), 10);
+  const month = Number.parseInt(value.slice(5, 7), 10);
+  const day = Number.parseInt(value.slice(8, 10), 10);
+  const hour = Number.parseInt(value.slice(11, 13), 10);
+  const minute = Number.parseInt(value.slice(14, 16), 10);
+  const second = Number.parseInt(value.slice(17, 19), 10);
+
   if (
-    typeof value !== "string" ||
-    value.length > 40 ||
-    !RFC3339_UTC_PATTERN.test(value) ||
-    Number.isNaN(Date.parse(value))
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > maximumDayForMonth(year, month) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
   ) {
     return invalid();
   }
