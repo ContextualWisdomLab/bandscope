@@ -3,8 +3,8 @@
 ## Project overview
 - BandScope is a local-first desktop app for rehearsal prep: a practical song view with likely harmony by section and by instrument or vocal role, form and groove cues, stems, playable ranges, simplification guidance, transposition or setup cues, part-overlap cues, visible confidence, and rehearsal priorities.
 - Authoritative delivery rules live in `ARCHITECTURE.md`, `docs/plans/`, and the root verification scripts.
+- Brand, tone, UX copy, and prioritization rules live in `docs/brand-story.md` and must be applied to PRDs, TRDs, UI copy, onboarding, empty states, and error messages.
 - Frontend work must follow `docs/design-system/README.md` and `docs/design-system/figma-handoff-inventory.json`. Figma MCP `get_metadata` without nodeId is not a page inventory; open page `37:2` (`28 Implementation Contract`) before coding UI.
-
 - App security rules live in `docs/security/app-security.md` and must be applied to file handling, URL intake, subprocesses, IPC, WebView usage, model loading, updates, logging, cache handling, and export behavior.
 - Dependency, SBOM, and supply-chain rules live in `docs/security/dependency-policy.md` and must be applied to dependency additions, GitHub Actions, releases, bundled binaries, and model artifacts.
 - Code Security rules live in `docs/security/code-security.md` and must be applied to CodeQL, dependency review, secret scanning, Dependabot, and GitHub security feature baselines.
