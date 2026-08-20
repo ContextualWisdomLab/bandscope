@@ -67,6 +67,19 @@ describe("firstRangeSqueeze", () => {
     expect(firstRangeSqueeze(song)?.roleName).toBe("Keyboard 1 Right Hand");
   });
 
+  it("rejects malformed and inverted spans instead of calling them playable", () => {
+    for (const range of [
+      { lowestNote: "not-a-note", highestNote: "E3" },
+      { lowestNote: "E3", highestNote: "C#2" }
+    ]) {
+      const song = createDemoRehearsalSong();
+      const selectedRole = song.sections[0]!.roles[0]!;
+      selectedRole.range = range;
+
+      expect(firstRangeSqueeze(song, selectedRole.id)).toBeNull();
+    }
+  });
+
   it("limits the squeeze to the selected role", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong(), "lead-vocal");
 
