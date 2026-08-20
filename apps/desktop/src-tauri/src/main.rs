@@ -764,12 +764,7 @@ fn load_project() -> Result<RehearsalSongPayload, String> {
         .pick_file()
         .ok_or_else(|| "User cancelled".to_string())?;
 
-    let metadata = std::fs::metadata(&path).map_err(|_| "Failed to read file".to_string())?;
-    if metadata.len() > 5 * 1024 * 1024 {
-        return Err("Project file is too large (exceeds 5MB limit)".to_string());
-    }
-
-    let content = std::fs::read_to_string(path).map_err(|_| "Failed to read file".to_string())?;
+    let content = project_persistence::read_project_file(&path)?;
     project_payload_from_content(&content)
 }
 
