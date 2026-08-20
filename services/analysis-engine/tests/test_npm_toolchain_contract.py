@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
+
+import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _EXPECTED_NPM_VERSION = "10.9.8"
@@ -22,11 +25,62 @@ def _primary_ci_workflow() -> str:
     return (_REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
 
+def _primary_ci_jobs(workflow: str) -> dict[str, object]:
+    """Parse and return the primary CI job mapping for structural assertions."""
+    document = yaml.safe_load(workflow)
+    assert isinstance(document, dict)
+    jobs = document.get("jobs")
+    assert isinstance(jobs, dict)
+    return jobs
+
+
+def _job_steps(jobs: dict[str, object], job_name: str) -> list[dict[str, object]]:
+    """Return one CI job's structurally parsed step mappings."""
+    job = jobs.get(job_name)
+    assert isinstance(job, dict)
+    steps = job.get("steps")
+    assert isinstance(steps, list)
+
+    parsed_steps: list[dict[str, object]] = []
+    for step in steps:
+        assert isinstance(step, dict)
+        parsed_steps.append(step)
+    return parsed_steps
+
+
 def _lock_validation_job(workflow: str) -> str:
     """Return only the frozen npm lock-validation job from the CI workflow."""
     start = workflow.index("  lock-validation:")
     end = workflow.index("\n  verify:", start)
     return workflow[start:end]
+
+
+def _assert_checkout_credentials_not_persisted(steps: list[dict[str, object]]) -> None:
+    """Require the owning checkout step itself to disable credential persistence."""
+    checkout_steps = [
+        step
+        for step in steps
+        if isinstance(step.get("uses"), str) and str(step["uses"]).startswith("actions/checkout@")
+    ]
+    assert len(checkout_steps) == 1
+    checkout_options = checkout_steps[0].get("with")
+    assert isinstance(checkout_options, dict)
+    assert checkout_options.get("persist-credentials") is False
+
+
+def _assert_no_mutable_npm_commands(steps: list[dict[str, object]]) -> None:
+    """Reject mutable npm/npx commands at executable shell-command boundaries."""
+    mutable_npm = re.compile(r"(?:^|[;&|]\s*)npm\s+(?:install|update)(?:\s|$)")
+    mutable_npx = re.compile(r"(?:^|[;&|]\s*)npx(?:\s|$)")
+
+    for step in steps:
+        run = step.get("run")
+        if not isinstance(run, str):
+            continue
+        for line in run.splitlines():
+            command = line.strip()
+            assert mutable_npm.search(command) is None
+            assert mutable_npx.search(command) is None
 
 
 def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
@@ -47,6 +101,8 @@ def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
 def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
     """Keep lock validation frozen while retaining exact Node and npm provenance."""
     workflow = _primary_ci_workflow()
+    jobs = _primary_ci_jobs(workflow)
+    lock_steps = _job_steps(jobs, "lock-validation")
     lock_job = _lock_validation_job(workflow)
 
     assert f'node-version: "{_EXPECTED_NODE_VERSION}"' in workflow
@@ -55,10 +111,10 @@ def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
     assert "npm ci --ignore-scripts --no-audit --no-fund" in lock_job
     assert "git diff --exit-code -- package.json package-lock.json" in lock_job
     assert "needs: lock-validation" in workflow
-    assert "persist-credentials: false" in lock_job
-    assert "npm install " not in lock_job
-    assert "npm update " not in lock_job
-    assert "npx " not in lock_job
+
+    for job_name in ("lock-validation", "verify", "rust-check"):
+        _assert_checkout_credentials_not_persisted(_job_steps(jobs, job_name))
+    _assert_no_mutable_npm_commands(lock_steps)
 
 
 def test_root_lock_uses_the_supported_location_keyed_format() -> None:
