@@ -9,8 +9,10 @@ from pathlib import Path
 import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-_EXPECTED_NPM_VERSION = "10.9.8"
+_EXPECTED_NPM_VERSION = "10.9.9"
 _EXPECTED_NODE_VERSION = "22.22.3"
+_MINIMUM_NPM_TAR_VERSION = "7.5.19"
+_NPM_RUNTIME_CHECK = "node scripts/checks/verify_npm_runtime.mjs"
 
 
 def _root_manifest() -> dict[str, object]:
@@ -83,6 +85,28 @@ def _assert_no_mutable_npm_commands(steps: list[dict[str, object]]) -> None:
             assert mutable_npx.search(command) is None
 
 
+def _assert_patched_npm_precedes_dependency_consumption(steps: list[dict[str, object]]) -> None:
+    """Require Corepack npm activation and runtime audit before the first npm dependency read."""
+    run_steps = [str(step["run"]) for step in steps if isinstance(step.get("run"), str)]
+    activation_index = next(
+        (index for index, command in enumerate(run_steps) if "corepack enable npm" in command),
+        None,
+    )
+    audit_index = next(
+        (index for index, command in enumerate(run_steps) if "npm run check:npm-runtime" in command),
+        None,
+    )
+    consumption_index = next(
+        (index for index, command in enumerate(run_steps) if re.search(r"(?:^|\n)\s*npm ci(?:\s|$)", command)),
+        None,
+    )
+
+    assert activation_index is not None
+    assert audit_index is not None
+    assert consumption_index is not None
+    assert activation_index < audit_index < consumption_index
+
+
 def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
     """Require npm and source-tree commands to reject a different generator."""
     manifest = _root_manifest()
@@ -96,6 +120,15 @@ def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
             "onFail": "error",
         }
     }
+    scripts = manifest.get("scripts")
+    assert isinstance(scripts, dict)
+    assert scripts.get("check:npm-runtime") == _NPM_RUNTIME_CHECK
+
+    runtime_check = (_REPOSITORY_ROOT / "scripts" / "checks" / "verify_npm_runtime.mjs").read_text(
+        encoding="utf-8"
+    )
+    assert f'EXPECTED_NPM_VERSION = "{_EXPECTED_NPM_VERSION}"' in runtime_check
+    assert f'MINIMUM_TAR_VERSION = "{_MINIMUM_NPM_TAR_VERSION}"' in runtime_check
 
 
 def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
@@ -113,7 +146,9 @@ def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
     assert "needs: lock-validation" in workflow
 
     for job_name in ("lock-validation", "verify", "rust-check"):
-        _assert_checkout_credentials_not_persisted(_job_steps(jobs, job_name))
+        job_steps = _job_steps(jobs, job_name)
+        _assert_checkout_credentials_not_persisted(job_steps)
+        _assert_patched_npm_precedes_dependency_consumption(job_steps)
     _assert_no_mutable_npm_commands(lock_steps)
 
 
