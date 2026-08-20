@@ -6,6 +6,7 @@ const MAX_DURATION_MS = 86_400_000;
 const MAX_QUEUE_DEPTH = 100_000;
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const CREDENTIAL_PREFIX_PATTERN = /(?:^|[._:-])(?:gh[pousr]_|github_pat_|sk-|xox[baprs]-)/i;
+const WINDOWS_DRIVE_RELATIVE_PATH_PATTERN = /^[A-Za-z]:/;
 const REVISION_PATTERN = /^[0-9a-f]{40}$/i;
 const RFC3339_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const SEVERITIES = new Set(["debug", "info", "warning", "error"] as const);
@@ -110,14 +111,15 @@ function snapshotBoundedArray(value: unknown, maximum: number): unknown[] {
   return snapshot;
 }
 
-/** Validates one bounded non-secret identifier-like token without coercion. */
+/** Validates one bounded non-secret, non-path identifier-like token without coercion. */
 function safeToken(value: unknown, pattern = TOKEN_PATTERN): string {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
     value.length > MAX_TOKEN_LENGTH ||
     !pattern.test(value) ||
-    CREDENTIAL_PREFIX_PATTERN.test(value)
+    CREDENTIAL_PREFIX_PATTERN.test(value) ||
+    WINDOWS_DRIVE_RELATIVE_PATH_PATTERN.test(value)
   ) {
     return invalid();
   }
@@ -309,7 +311,8 @@ function parseGeneratedAt(value: unknown): string {
  * variables, subprocess arguments, audio, project payloads, and other caller-owned properties are
  * discarded rather than post-hoc masked. Every serialized token also rejects high-confidence
  * credential prefixes at token start or after an allowed structural delimiter before it can enter
- * either the machine or human support representation.
+ * either the machine or human support representation. Windows drive-relative path tokens are also
+ * rejected while ordinary multi-letter device identifiers such as `cuda:0` remain valid.
  */
 export function buildSupportBundleManifest(input: unknown): SupportBundleManifest {
   if (!isRecord(input)) {
