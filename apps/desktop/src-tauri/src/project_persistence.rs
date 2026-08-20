@@ -1,7 +1,7 @@
 use std::{
     ffi::OsString,
     fs::{self, File},
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -9,6 +9,8 @@ const MAX_PROJECT_FILE_BYTES: usize = 5 * 1024 * 1024;
 const PROJECT_EXISTS_ERROR: &str = "Project file already exists. Choose a new file name.";
 const PROJECT_STAGE_ERROR: &str = "Could not stage the project safely.";
 const PROJECT_PUBLISH_ERROR: &str = "Could not publish the project safely.";
+const PROJECT_READ_ERROR: &str = "Failed to read file";
+const PROJECT_TOO_LARGE_ERROR: &str = "Project file is too large (exceeds 5MB limit)";
 
 fn staging_path(target: &Path) -> Result<PathBuf, String> {
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
@@ -21,6 +23,26 @@ fn staging_path(target: &Path) -> Result<PathBuf, String> {
 
 fn remove_stage(path: &Path) {
     let _ = fs::remove_file(path);
+}
+
+/// Reads one project through the same bounded byte ceiling used by project publication.
+///
+/// The file is opened once and the reader itself is capped at `MAX_PROJECT_FILE_BYTES + 1`, so a
+/// file that grows after selection cannot turn a metadata preflight into an unbounded allocation.
+/// UTF-8 decoding happens only after the bounded read completes. Path selection remains owned by the
+/// native file dialog; symlink/handle-level containment and durable project recovery are later #962
+/// boundaries rather than claims of this helper.
+pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
+    let file = File::open(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    let mut reader = file.take((MAX_PROJECT_FILE_BYTES + 1) as u64);
+    let mut bytes = Vec::new();
+    reader
+        .read_to_end(&mut bytes)
+        .map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    if bytes.len() > MAX_PROJECT_FILE_BYTES {
+        return Err(PROJECT_TOO_LARGE_ERROR.to_string());
+    }
+    String::from_utf8(bytes).map_err(|_| PROJECT_READ_ERROR.to_string())
 }
 
 /// Publishes one new project only after its complete bounded bytes are staged and synced.
@@ -146,7 +168,7 @@ mod tests {
     fn rejects_oversized_project_during_the_read_itself() {
         let root = test_dir("read-oversize");
         let target = root.join("setlist.bscope");
-        let file = File::create(&target).expect("fixture should be created");
+        let file = fs::File::create(&target).expect("fixture should be created");
         file.set_len((MAX_PROJECT_FILE_BYTES + 1) as u64)
             .expect("sparse oversize fixture should be sized");
         drop(file);
