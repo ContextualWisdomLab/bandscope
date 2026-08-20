@@ -80,6 +80,29 @@ describe("firstRangeSqueeze", () => {
     }
   });
 
+  it("fails closed on malformed runtime roots and collections", () => {
+    for (const malformed of [null, {}, { sections: null }, { sections: [null] }]) {
+      expect(firstRangeSqueeze(malformed as unknown as RehearsalSong)).toBeNull();
+    }
+
+    const song = createDemoRehearsalSong();
+    const validRole = song.sections[0]!.roles[0]!;
+    const malformedSection = {
+      ...song.sections[0],
+      roles: [null, { ...validRole, range: null }, validRole]
+    };
+
+    expect(
+      firstRangeSqueeze({ ...song, sections: [malformedSection] } as unknown as RehearsalSong)
+    ).toEqual({
+      sectionLabel: "verse",
+      roleName: "Bass Guitar",
+      lowestNote: "C#2",
+      highestNote: "E3",
+      overlapWarning: "Density warning: competing with Keyboard Left Hand in low register."
+    });
+  });
+
   it("limits the squeeze to the selected role", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong(), "lead-vocal");
 
