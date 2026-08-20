@@ -8,6 +8,7 @@ Implemented in this slice:
 
 - a schema-v1 manifest identifier and version;
 - exact application version, immutable 40-hex source revision, build identifier, platform and architecture evidence;
+- a canonical UTC `generatedAt` whose date and clock fields must describe an actual Gregorian calendar instant rather than a JavaScript-normalized date;
 - bounded diagnostic event count;
 - stable event IDs, severity, stage, component, retryability, next-action code, correlation ID and monotonic sequence;
 - an explicit structured-field allowlist (`errorClass`, `backend`, `device`, `codec`, `durationMs`, `queueDepth`);
@@ -45,6 +46,8 @@ The human-readable report uses the same sorted manifest and stable allowlisted f
 
 `generatedAt` uses a deliberately narrower UTC-only profile of RFC 3339: four-digit date, complete time, optional fractional seconds and a terminal `Z`. This slice does not accept local offsets or additional RFC 9557 zone annotations because the support artifact needs one unambiguous canonical timestamp representation before later archive hashing is introduced.
 
+Calendar validity is checked from the timestamp fields themselves. Month ranges, Gregorian leap-year February length, other month lengths, and 23:59:59 clock ceilings are validated before the value can become evidence. JavaScript `Date.parse()` is not used as calendar authority because engines can normalize impossible inputs such as February 31 into a later valid date. That normalization would make the support artifact claim a timestamp the caller never supplied. The fail-closed regression therefore includes impossible February and 30-day-month dates.
+
 NIST SP 800-92 is used as operational rationale for deliberate log-management design and bounded useful evidence, not as a certification claim. OpenTelemetry's stable Logs Data Model is a future interoperability target for #963; this slice does **not** emit OpenTelemetry records. Current OpenTelemetry semantic conventions remain separately versioned and must be evaluated when that projection is implemented.
 
 ## Traceability
@@ -52,6 +55,7 @@ NIST SP 800-92 is used as operational rationale for deliberate log-management de
 | Requirement | Executable evidence |
 | --- | --- |
 | Schema/version and build identity are deterministic | `supportBundle.test.ts` — stable schema-v1 manifest assertion |
+| Canonical UTC time is a real Gregorian date rather than a normalized impossible date | malformed top-level identity regression rejects February 31 and April 31 |
 | Event ordering cannot be ambiguous | out-of-order valid fixture plus duplicate-sequence rejection |
 | Arbitrary secret/path/URL/content payloads cannot enter the manifest | adversarial allowlist-only serialization regression |
 | Human-readable evidence cannot reintroduce raw diagnostic payloads | exact report regression with path/token/message/URL-shaped discarded inputs |
