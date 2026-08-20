@@ -374,7 +374,7 @@ class GitHubRegistryClient:
         return collect_paginated_workflows(fetch_page)
 
     def fetch_tree_paths(self, repository: str, sha: str) -> set[str]:
-        """Return blob paths from a complete recursive tree bound to *sha*."""
+        """Return regular-file blob paths from a complete recursive tree bound to *sha*."""
         repository_path = self._repository_path(repository)
         payload, _status = self._get_json(
             f"{self._api_url}/repos/{repository_path}/git/trees/{sha}?recursive=1"
@@ -392,7 +392,7 @@ class GitHubRegistryClient:
             path = _require_nonempty_string(entry.get("path"))
             if path is None:
                 raise AuditError("recursive tree entry is missing a valid path")
-            if entry.get("type") == "blob":
+            if entry.get("type") == "blob" and entry.get("mode") in {"100644", "100755"}:
                 paths.add(path)
         return paths
 
