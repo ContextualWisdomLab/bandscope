@@ -25,6 +25,8 @@ class PitchTracker:
     - No file I/O, network access, or shell execution.
     - Bounded computation: frame count capped by input duration.
     - Safe failure: exceptions in pYIN return empty range with low confidence.
+    - pYIN failures log only the operation and exception class; dependency
+      messages and traceback payloads stay out of routine logs.
     """
 
     def track(self, y: np.ndarray, sr: int = 22050) -> TrackedPitchRange:
@@ -50,8 +52,8 @@ class PitchTracker:
 
         try:
             f0, voiced_flag, voiced_probs = librosa.pyin(y, fmin=fmin, fmax=fmax, sr=sr)
-        except librosa.util.exceptions.ParameterError as e:
-            logger.warning("pYIN failed: %s", e)
+        except librosa.util.exceptions.ParameterError as error:
+            logger.warning("pYIN failed during pitch tracking: %s", type(error).__name__)
             return {"lowest_note": None, "highest_note": None, "confidence": "low"}
 
         # Filter f0 to only keep voiced frames
