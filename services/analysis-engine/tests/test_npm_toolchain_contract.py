@@ -200,3 +200,44 @@ def test_root_lock_preserves_esbuild_peer_metadata() -> None:
     for location, package_record in esbuild_records.items():
         assert isinstance(package_record, dict)
         assert package_record.get("peer") is True, f"missing peer metadata for {location}"
+
+
+def test_npm_consuming_workflows_activate_pinned_runtime_before_dependency_reads() -> None:
+    """Prevent setup-node from invoking its bundled npm before Corepack selects the reviewed runtime."""
+    workflow_names = ("ci.yml", "release.yml", "security-audit.yml", "build-baseline.yml")
+
+    for workflow_name in workflow_names:
+        workflow_path = _REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
+        document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        assert isinstance(document, dict)
+        jobs = document.get("jobs")
+        assert isinstance(jobs, dict)
+        npm_consumers = 0
+
+        for job_name in jobs:
+            steps = _job_steps(jobs, str(job_name))
+            consumes_npm = any(
+                isinstance(step.get("run"), str)
+                and re.search(r"(?:^|\n)\s*npm ci(?:\s|$)", str(step["run"]))
+                for step in steps
+            )
+            if not consumes_npm:
+                continue
+            npm_consumers += 1
+
+            setup_node_steps = [
+                step
+                for step in steps
+                if isinstance(step.get("uses"), str)
+                and str(step["uses"]).startswith("actions/setup-node@")
+            ]
+            assert len(setup_node_steps) == 1, f"{workflow_name}:{job_name} setup-node ownership"
+            setup_options = setup_node_steps[0].get("with")
+            assert isinstance(setup_options, dict)
+            assert "cache" not in setup_options, f"{workflow_name}:{job_name} pre-Corepack npm cache"
+            assert setup_options.get("package-manager-cache") is False, (
+                f"{workflow_name}:{job_name} must disable setup-node package-manager cache"
+            )
+            _assert_patched_npm_precedes_dependency_consumption(steps)
+
+        assert npm_consumers > 0, f"{workflow_name} must contain an npm dependency consumer"
