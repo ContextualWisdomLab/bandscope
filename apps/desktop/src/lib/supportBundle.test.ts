@@ -258,6 +258,35 @@ describe("offline support-bundle manifest", () => {
     }
   });
 
+  it("snapshots accessor-backed Boolean authority exactly once", () => {
+    const event = { ...validInput().events[0] } as Record<string, unknown>;
+    let retryableReads = 0;
+    Object.defineProperty(event, "retryable", {
+      enumerable: true,
+      get() {
+        retryableReads += 1;
+        return retryableReads === 1 ? true : "not-a-boolean";
+      }
+    });
+
+    const manifest = buildSupportBundleManifest({ ...validInput(), events: [event] });
+
+    expect(manifest.events[0]?.retryable).toBe(true);
+    expect(retryableReads).toBe(1);
+  });
+
+  it("contains accessor exceptions at the stable support-bundle boundary", () => {
+    const input = validInput() as Record<string, unknown>;
+    Object.defineProperty(input, "app", {
+      enumerable: true,
+      get() {
+        throw new Error("token=super-secret /Users/alice/private.wav");
+      }
+    });
+
+    expect(() => buildSupportBundleManifest(input)).toThrow("Invalid support bundle input");
+  });
+
   it("rejects duplicate sequence numbers so ordering evidence cannot be ambiguous", () => {
     const first = validInput().events[0];
     const second = { ...validInput().events[1], sequence: first.sequence };
