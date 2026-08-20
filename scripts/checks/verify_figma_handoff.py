@@ -1,4 +1,4 @@
-"""Fail when design-system docs claim Figma pages the inventory does not discover."""
+"""Fail when committed Figma handoff evidence and design-system docs disagree."""
 
 from __future__ import annotations
 
@@ -69,6 +69,8 @@ def canonical_pages(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
         raise HandoffError("canonicalPages must be a non-empty array")
     validated: list[dict[str, Any]] = []
     seen_names: set[str] = set()
+    seen_page_ids: set[str] = set()
+    seen_root_ids: set[str] = set()
     for index, page in enumerate(pages):
         if not isinstance(page, dict):
             raise HandoffError(f"canonicalPages[{index}] must be an object")
@@ -89,7 +91,13 @@ def canonical_pages(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             raise HandoffError(f"canonicalPages[{index}].discoverable must be a boolean")
         if name in seen_names:
             raise HandoffError(f"duplicate canonical page name: {name}")
+        if page_id in seen_page_ids:
+            raise HandoffError(f"duplicate canonical pageId: {page_id}")
+        if root_id in seen_root_ids:
+            raise HandoffError(f"duplicate canonical rootId: {root_id}")
         seen_names.add(name)
+        seen_page_ids.add(page_id)
+        seen_root_ids.add(root_id)
         validated.append(
             {
                 "name": name,
@@ -104,12 +112,30 @@ def canonical_pages(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     return validated
 
 
+def _current_verified_id_block(readme: str) -> str:
+    """Return the README block that explicitly presents Figma IDs as current."""
+    block: list[str] = []
+    collecting = False
+    for line in readme.splitlines():
+        if not collecting:
+            if "Current verified Figma" in line and "root IDs" in line:
+                collecting = True
+                block.append(line)
+            continue
+        if line.startswith("  - "):
+            block.append(line)
+            continue
+        if line.startswith("- "):
+            break
+    return "\n".join(block)
+
+
 def collect_doc_errors(
     payload: Mapping[str, Any],
     pages: Sequence[Mapping[str, Any]],
     documents: Mapping[str, str],
 ) -> list[str]:
-    """Return documentation drift errors for the loaded inventory and docs."""
+    """Return committed-inventory/document consistency errors."""
     errors: list[str] = []
     file_url = _require_string(payload, "fileUrl")
     file_key = _require_string(payload, "fileKey")
@@ -135,6 +161,7 @@ def collect_doc_errors(
     if not all(marker in workflow for marker in MCP_LIMITATION_MARKERS):
         errors.append("workflow must warn that get_metadata without nodeId is not a page inventory")
 
+    current_id_block = _current_verified_id_block(readme)
     for page in pages:
         name = str(page["name"])
         page_id = str(page["pageId"])
@@ -149,7 +176,7 @@ def collect_doc_errors(
             marker = f"{name} is not discoverable"
             if marker not in readme:
                 errors.append(f"README must mark {name} as not discoverable")
-            if "Current verified Figma root IDs" in readme and root_id in readme:
+            if root_id in current_id_block:
                 errors.append(f"README must not claim unverified root {root_id} as current")
     return errors
 
@@ -170,7 +197,7 @@ def read_documents(root: Path) -> dict[str, str]:
 
 
 def verify(root: Path | None = None) -> list[str]:
-    """Return drift errors for the repository rooted at ``root``."""
+    """Return committed Figma inventory/document errors under ``root``."""
     base = Path.cwd() if root is None else root
     payload = load_inventory(base / INVENTORY_PATH)
     pages = canonical_pages(payload)
@@ -179,7 +206,7 @@ def verify(root: Path | None = None) -> list[str]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Print drift errors and return a failing exit code when any exist."""
+    """Print consistency errors and return a failing exit code when any exist."""
     del argv
     try:
         errors = verify()
