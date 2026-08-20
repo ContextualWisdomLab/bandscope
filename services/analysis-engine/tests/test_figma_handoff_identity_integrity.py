@@ -70,3 +70,35 @@ def test_undiscoverable_page_is_rejected_from_actual_current_id_section() -> Non
     errors = check.collect_doc_errors(payload, check.canonical_pages(payload), documents)
 
     assert "README must not claim unverified root 99:2 as current" in errors
+
+
+@pytest.mark.parametrize(
+    ("target_document", "page_index"),
+    [
+        ("workflow", 1),
+        ("contract", 4),
+    ],
+)
+def test_referencing_docs_label_undiscoverable_pages(
+    target_document: str,
+    page_index: int,
+) -> None:
+    """Every repository doc that still references a page must disclose lost discoverability."""
+    payload = committed_inventory()
+    pages = payload["canonicalPages"]
+    assert isinstance(pages, list)
+    page = pages[page_index]
+    assert isinstance(page, dict)
+    page["discoverable"] = False
+    name = page["name"]
+    assert isinstance(name, str)
+    marker = f"{name} is not discoverable"
+
+    documents = check.read_documents(REPO_ROOT)
+    for label in documents:
+        if label != target_document:
+            documents[label] += f"\n{marker}\n"
+
+    errors = check.collect_doc_errors(payload, check.canonical_pages(payload), documents)
+
+    assert f"{target_document} must mark {name} as not discoverable" in errors
