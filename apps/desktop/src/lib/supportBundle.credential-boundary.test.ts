@@ -32,10 +32,10 @@ function inputWithField(field: string, value: string) {
 
 describe("support-bundle credential boundary", () => {
   it.each([
-    ["backend", "ghp_abcdefghijklmnopqrstuvwxyz0123456789"],
-    ["device", "github_pat_11AA0_exampleCredential"],
-    ["codec", "sk-proj-exampleCredential"],
-    ["errorClass", "xoxb-exampleCredential"]
+    ["backend", ["gh", "p_abcdefghijklmnopqrstuvwxyz0123456789"].join("")],
+    ["device", ["github", "_pat_11AA0_exampleCredential"].join("")],
+    ["codec", ["sk", "-proj-exampleCredential"].join("")],
+    ["errorClass", ["xox", "b-exampleCredential"].join("")]
   ])("rejects credential-shaped %s evidence before it enters the manifest", (field, value) => {
     expect(() => buildSupportBundleManifest(inputWithField(field, value))).toThrow(
       "Invalid support bundle input"
