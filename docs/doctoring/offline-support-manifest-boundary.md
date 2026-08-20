@@ -14,6 +14,7 @@ Implemented in the current branch:
 - single-read snapshots of untrusted object/array evidence with accessor failures contained at the stable manifest boundary;
 - an explicit structured-field allowlist (`errorClass`, `backend`, `device`, `codec`, `durationMs`, `queueDepth`);
 - rejection of high-confidence credential prefixes at a token boundary before any allowed string can enter the manifest or report;
+- rejection of Windows drive-relative path-shaped tokens such as `C:private-project` while preserving ordinary multi-letter device identifiers such as `cuda:0`;
 - deterministic sequence ordering and JSON serialization;
 - a deterministic human-readable report rendered only from the already privacy-minimized manifest model;
 - a local bounded `SupportDiagnosticBuffer` that validates and minimizes each event before mutation, requires strictly increasing sequence authority, evicts only the oldest retained event at capacity, and returns detached event/field snapshots; and
@@ -40,6 +41,8 @@ The boundary also treats accessors and proxies as untrusted execution surfaces. 
 The following caller-owned categories have no schema slot and are discarded rather than copied: absolute paths, raw URLs, environment variables, credentials, bearer/API tokens, exception messages, stack traces, subprocess arguments, audio, score PDFs, project JSON, lyrics and handoff payloads.
 
 Allowed string fields additionally reject high-confidence GitHub, OpenAI-style and Slack-style credential prefixes when the prefix starts the token or follows one of the token grammar's structural delimiters (`.`, `_`, `:`, `-`). This catches values such as a correlation identifier whose namespace is followed by a credential-shaped segment without treating an ordinary interior letter sequence such as `risk-score` as a credential.
+
+Windows drive-relative path syntax is a separate path-authority edge case because a string such as `C:private-project` is relative to the current directory on drive `C:` even though it contains no slash or backslash. The identifier grammar therefore rejects a single ASCII drive letter immediately followed by `:` in every support token slot. This narrow rule does not reject multi-letter device/runtime identifiers such as `cuda:0`, so useful structured diagnostics remain available without admitting Windows path-shaped evidence.
 
 `SupportDiagnosticBuffer.record()` runs the same event projection before retained state changes. An invalid event therefore cannot partially mutate the buffer. The buffer retains only the minimized event model, not the original runtime object, and `snapshot()` copies both each event and its structured-field object so a UI/report caller cannot rewrite retained diagnostic evidence. Capacity is constrained to 1–128 events, matching the manifest ceiling. Once recording has begun, sequence values must increase strictly; duplicate or out-of-order evidence fails closed instead of silently reordering operational history.
 
@@ -70,6 +73,7 @@ NIST SP 800-92 is used as operational rationale for deliberate log-management de
 | Accessor-backed authority cannot change between validation and projection | single-read `retryable` accessor regression |
 | Accessor exceptions cannot leak dependency-controlled error payloads | throwing `app` accessor regression requires the stable boundary error |
 | Credential-shaped allowed strings cannot enter machine or human output | `supportBundle.credential-boundary.test.ts` covers direct and delimiter-prefixed credential segments plus non-secret interior text |
+| Windows drive-relative path-shaped strings cannot enter support evidence | `supportBundle.path-boundary.test.ts` rejects `C:...`-style tokens while retaining `cuda:0` |
 | Event ordering cannot be ambiguous | out-of-order valid fixture plus duplicate-sequence rejection |
 | Arbitrary secret/path/URL/content payloads cannot enter the manifest | adversarial allowlist-only serialization regression |
 | Human-readable evidence cannot reintroduce raw diagnostic payloads | exact report regression with path/token/message/URL-shaped discarded inputs |
@@ -89,6 +93,8 @@ Bray, T. (2017). *The JavaScript Object Notation (JSON) Data Interchange Format*
 Kent, K., & Souppaya, M. (2006). *Guide to computer security log management* (NIST Special Publication 800-92). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-92
 
 Klyne, G., & Newman, C. (2002). *Date and time on the Internet: Timestamps* (RFC 3339). Internet Engineering Task Force. https://doi.org/10.17487/RFC3339
+
+Microsoft. (n.d.). *File path formats on Windows systems*. Microsoft Learn. https://learn.microsoft.com/dotnet/standard/io/file-path-formats
 
 OpenTelemetry. (2026). *Logs data model*. https://opentelemetry.io/docs/specs/otel/logs/data-model/
 
