@@ -174,8 +174,10 @@ def collect_doc_errors(
             errors.append(f"README missing rootId {root_id} for {name}")
         if page["discoverable"] is False:
             marker = f"{name} is not discoverable"
-            if marker not in readme:
-                errors.append(f"README must mark {name} as not discoverable")
+            for label, content in documents.items():
+                references_page = any(token in content for token in (name, page_id, root_id))
+                if references_page and marker not in content:
+                    errors.append(f"{label} must mark {name} as not discoverable")
             if root_id in current_id_block:
                 errors.append(f"README must not claim unverified root {root_id} as current")
     return errors
