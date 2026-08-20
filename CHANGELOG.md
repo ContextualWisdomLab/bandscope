@@ -10,7 +10,7 @@
 
 ### Changed
 
-- Require the workflow-registry lifecycle auditor to treat only exact Git blob entries as protected-tree workflow source evidence, so workflow-looking directories or other non-file tree entries cannot manufacture a `present` classification.
+- Require the workflow-registry lifecycle auditor to treat only regular-file Git blobs as protected-tree workflow source evidence, so workflow-looking directories, symlink blobs, and other non-file tree entries cannot manufacture a `present` classification.
 
 ## [0.1.3] - 2026-04-29
 
