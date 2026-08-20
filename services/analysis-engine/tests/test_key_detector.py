@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from bandscope_analysis.chords.key_detector import (
     KeyDetector,
@@ -85,12 +86,18 @@ def test_detect_empty_audio() -> None:
     assert result == {"key": "", "tonic": "", "mode": "", "confidence": 0.0}
 
 
-def test_detect_chroma_cqt_exception() -> None:
-    """A failure inside chroma_cqt yields the empty result and never raises."""
+def test_detect_chroma_cqt_exception(caplog: pytest.LogCaptureFixture) -> None:
+    """A dependency failure stays payload-safe in routine key-detection logs."""
     audio = _tone(_NOTE_FREQS["C"], 1.0)
-    with patch("librosa.feature.chroma_cqt", side_effect=RuntimeError("boom")):
+    sensitive_detail = "/Users/Alice/private-song.wav token=super-secret"
+    with patch("librosa.feature.chroma_cqt", side_effect=RuntimeError(sensitive_detail)):
         result = KeyDetector().detect(audio, SAMPLE_RATE)
+
     assert result == _empty_result()
+    assert "chroma_cqt failed during key detection" in caplog.text
+    assert "/Users/Alice" not in caplog.text
+    assert "private-song.wav" not in caplog.text
+    assert "super-secret" not in caplog.text
 
 
 def test_detect_empty_chroma() -> None:
