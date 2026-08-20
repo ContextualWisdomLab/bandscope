@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import shlex
 import sys
 import tomllib
 from pathlib import Path
@@ -20,6 +21,7 @@ FLOATING_PATTERNS = (
 )
 DEPENDABOT_LANE_MARKER = '  - package-ecosystem: "rust-toolchain"'
 DEPENDABOT_UPDATE_MARKER = "  - package-ecosystem:"
+SHELL_CONTROL_CHARACTERS = frozenset("|&;")
 
 
 def _error(message: str) -> None:
@@ -84,9 +86,32 @@ def _inline_run_commands(job: str) -> tuple[str, ...]:
     return tuple(commands)
 
 
+def _is_single_shell_command(command: str) -> bool:
+    """Return whether a run payload has no shell control operator.
+
+    A required Rust command may carry ordinary arguments such as
+    ``--manifest-path`` or ``--locked``. It may not be chained, piped, or
+    backgrounded, because a later command could replace the required command's
+    exit status and manufacture passing policy evidence.
+    """
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars="|&;")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = tuple(lexer)
+    except ValueError:
+        return False
+    return bool(tokens) and not any(
+        token and all(character in SHELL_CONTROL_CHARACTERS for character in token)
+        for token in tokens
+    )
+
+
 def _job_runs_required_command(job: str, required: str) -> bool:
-    """Return whether one executable run step owns the required Rust evidence."""
-    commands = _inline_run_commands(job)
+    """Return whether one unmasked executable run step owns the Rust evidence."""
+    commands = tuple(
+        command for command in _inline_run_commands(job) if _is_single_shell_command(command)
+    )
     if required.startswith("--toolchain "):
         return any(
             command.startswith("rustup target add ") and required in command
