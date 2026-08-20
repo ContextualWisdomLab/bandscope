@@ -9,6 +9,26 @@ export type FirstRangeSqueeze = {
   overlapWarning?: string;
 };
 
+const NATURAL_PITCH_CLASS = {
+  C: 0,
+  D: 2,
+  E: 4,
+  F: 5,
+  G: 7,
+  A: 9,
+  B: 11
+} as const;
+
+const ACCIDENTAL_OFFSET: Record<string, number> = {
+  "": 0,
+  "#": 1,
+  "♯": 1,
+  b: -1,
+  "♭": -1
+};
+
+const NOTE_PATTERN = /^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/u;
+
 /** Return trimmed copy that is not a blank or `none` sentinel. */
 export function meaningfulRangeText(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -18,12 +38,44 @@ export function meaningfulRangeText(value: string | undefined): string | undefin
   return trimmed;
 }
 
+/** Convert a bounded scientific-pitch label into chromatic ordering. */
+function notePitchValue(note: string): number | null {
+  const match = NOTE_PATTERN.exec(note);
+  if (!match) {
+    return null;
+  }
+  const letter = match[1].toUpperCase() as keyof typeof NATURAL_PITCH_CLASS;
+  const octave = Number(match[3]);
+  return (octave + 1) * 12 + NATURAL_PITCH_CLASS[letter] + ACCIDENTAL_OFFSET[match[2]];
+}
+
+/** Return a complete, ordered scientific-pitch range or fail closed. */
+function playableRange(
+  lowestNoteValue: string | undefined,
+  highestNoteValue: string | undefined
+): Pick<FirstRangeSqueeze, "lowestNote" | "highestNote"> | null {
+  const lowestNote = meaningfulRangeText(lowestNoteValue);
+  const highestNote = meaningfulRangeText(highestNoteValue);
+  if (!lowestNote || !highestNote) {
+    return null;
+  }
+
+  const lowestPitch = notePitchValue(lowestNote);
+  const highestPitch = notePitchValue(highestNote);
+  if (lowestPitch === null || highestPitch === null || lowestPitch > highestPitch) {
+    return null;
+  }
+
+  return { lowestNote, highestNote };
+}
+
 /**
  * Pick the first playable range a player should check before the next section.
  *
  * Prefers a named span that also carries a clash warning so the board names
  * the squeeze that will waste rehearsal time. Falls back to the first named
- * span when no clash is present. Roles without both notes stay unnamed.
+ * span when no clash is present. Malformed, incomplete, or inverted ranges
+ * fail closed instead of becoming buyer-visible playable-range evidence.
  */
 export function firstRangeSqueeze(
   song: RehearsalSong,
@@ -37,9 +89,8 @@ export function firstRangeSqueeze(
         continue;
       }
 
-      const lowestNote = meaningfulRangeText(role.range.lowestNote);
-      const highestNote = meaningfulRangeText(role.range.highestNote);
-      if (!lowestNote || !highestNote) {
+      const range = playableRange(role.range.lowestNote, role.range.highestNote);
+      if (!range) {
         continue;
       }
 
@@ -55,8 +106,7 @@ export function firstRangeSqueeze(
       const candidate: FirstRangeSqueeze = {
         sectionLabel: section.label,
         roleName: role.name,
-        lowestNote,
-        highestNote,
+        ...range,
         overlapWarning
       };
 
