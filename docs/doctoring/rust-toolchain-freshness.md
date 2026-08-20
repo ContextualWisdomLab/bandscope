@@ -29,6 +29,14 @@ stable`, `cargo +stable`, or `--toolchain stable`. The same guard binds
 `rust-toolchain` Dependabot lane so an unrelated ecosystem entry cannot satisfy
 the compiler-update policy.
 
+Required Rust command evidence is also bound to one inline executable `run:`
+step whose exit status cannot be replaced by shell chaining, pipelines, or
+background control operators. Arguments such as `--manifest-path`, `--locked`,
+and an explicit target triple remain valid, but forms such as `|| true`,
+`| cat`, or `; true` fail closed. This prevents an unsuccessfully installed,
+checked, tested, or audited Rust toolchain from becoming success-shaped policy
+evidence merely because a later shell command returns zero.
+
 ## References
 
 GitHub. (2025, August 19). *Dependabot now supports Rust toolchain updates*.
