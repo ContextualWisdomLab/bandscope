@@ -11,7 +11,8 @@ Implemented in this slice:
 - bounded diagnostic event count;
 - stable event IDs, severity, stage, component, retryability, next-action code, correlation ID and monotonic sequence;
 - an explicit structured-field allowlist (`errorClass`, `backend`, `device`, `codec`, `durationMs`, `queueDepth`);
-- deterministic sequence ordering and JSON serialization; and
+- deterministic sequence ordering and JSON serialization;
+- a deterministic human-readable report rendered only from the already privacy-minimized manifest model; and
 - fail-closed rejection of malformed or over-budget authority-bearing values.
 
 Not implemented in this slice:
@@ -32,11 +33,15 @@ Runtime diagnostic objects are untrusted input even when TypeScript callers are 
 
 The following caller-owned categories have no schema slot and are discarded rather than copied: absolute paths, raw URLs, environment variables, credentials, bearer/API tokens, exception messages, stack traces, subprocess arguments, audio, score PDFs, project JSON, lyrics and handoff payloads.
 
+`serializeSupportBundleManifest()` and `renderSupportBundleReport()` both derive their output from `buildSupportBundleManifest()`. The human report does not inspect the original runtime diagnostic object after validation, so a raw message, path, URL, stack, secret, environment value, subprocess argument, or user-content property cannot regain output authority merely because a human-readable representation is requested.
+
 Allowed string fields use a bounded identifier-like grammar. Numeric evidence is admitted only as finite safe non-negative integers with field-specific ceilings. Event sequence values must be unique, preventing ambiguous order evidence. One manifest accepts at most 128 events before mapping or serialization.
 
 ## Determinism and standards boundary
 
 The serialized form is RFC 8259 JSON with stable property construction, event sorting by `sequence`, two-space indentation and one final newline. Object member order is a BandScope serialization convention for reproducible artifacts; RFC 8259 itself defines JSON object semantics independently of this repository convention.
+
+The human-readable report uses the same sorted manifest and stable allowlisted field insertion order. It is an operator-readable projection of the schema-v1 evidence, not an independent diagnostic source of truth and not yet the buyer-facing preview/export UI required for the complete #963 support bundle.
 
 `generatedAt` uses a deliberately narrower UTC-only profile of RFC 3339: four-digit date, complete time, optional fractional seconds and a terminal `Z`. This slice does not accept local offsets or additional RFC 9557 zone annotations because the support artifact needs one unambiguous canonical timestamp representation before later archive hashing is introduced.
 
@@ -49,11 +54,12 @@ NIST SP 800-92 is used as operational rationale for deliberate log-management de
 | Schema/version and build identity are deterministic | `supportBundle.test.ts` — stable schema-v1 manifest assertion |
 | Event ordering cannot be ambiguous | out-of-order valid fixture plus duplicate-sequence rejection |
 | Arbitrary secret/path/URL/content payloads cannot enter the manifest | adversarial allowlist-only serialization regression |
+| Human-readable evidence cannot reintroduce raw diagnostic payloads | exact report regression with path/token/message/URL-shaped discarded inputs |
 | Event count and values are bounded before serialization | oversized event collection and numeric/token boundary regressions |
 | Runtime values are not coerced into authority | malformed top-level/event/Boolean/string/numeric regressions |
 | Optional structured evidence remains minimal | undefined/empty-fields regressions |
 
-This is only the manifest boundary. The #963 acceptance criteria for offline archive safety, preview/exclusion, crash evidence, concurrent event capture, retention, support-tool parsing, hashing/signing, OpenTelemetry compatibility and user-facing export remain open.
+This is only the manifest/report-model boundary. The #963 acceptance criteria for offline archive safety, preview/exclusion, crash evidence, concurrent event capture, retention, support-tool parsing, hashing/signing, OpenTelemetry compatibility and user-facing export remain open.
 
 ## References (APA 7)
 
