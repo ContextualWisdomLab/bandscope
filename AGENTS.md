@@ -1,7 +1,9 @@
 # AGENTS.md
 
 ## Project overview
+
 - BandScope is a local-first desktop app for rehearsal prep: a practical song view with likely harmony by section and by instrument or vocal role, form and groove cues, stems, playable ranges, simplification guidance, transposition or setup cues, part-overlap cues, visible confidence, and rehearsal priorities.
+- The ready workspace must name a next rehearsal action. Tonight's first playable section loop (count-in, pause, stop) is the #961 transport slice; stem playback and pitch-preserving rate remain later work.
 - Authoritative delivery rules live in `ARCHITECTURE.md`, `docs/plans/`, and the root verification scripts.
 - Brand, tone, UX copy, and prioritization rules live in `docs/brand-story.md` and must be applied to PRDs, TRDs, UI copy, onboarding, empty states, and error messages.
 - App security rules live in `docs/security/app-security.md` and must be applied to file handling, URL intake, subprocesses, IPC, WebView usage, model loading, updates, logging, cache handling, and export behavior.
@@ -12,15 +14,19 @@
 - Repository governance and Gitflow rules live in `docs/repository/governance.md`, `docs/repository/bootstrap-plan.md`, and `docs/repository/gitflow.md`.
 
 ## Security workflow
+
 - Before writing PRDs, TRDs, UX copy, architecture changes, or implementation plans that touch risky boundaries, read `docs/security/app-security.md`.
 - If a task touches files, URLs, subprocesses, ffmpeg or native tools, WebView, local backend or IPC, updates, model downloads, project formats, logs, telemetry, or exports, the result must include `Security Notes`.
 - `Security Notes` should cover untrusted inputs, trust boundaries, allowlists or validation, safe failure, logging/privacy impact, and test points.
 
 <!-- BEGIN cwl-agent-guidance -->
+
 ## Agent guidance (CWL governance)
+
 This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working in this repo.
 
 ### Security & review gate
+
 - Every PR runs a central **Security Scan** required gate: `osv-scan` + `dependency-review` (diff-scoped) and `trivy-fs` (repo-wide, CRITICAL/HIGH, fixable). It runs on every PR base, **including stacked PRs**. Gating is by the Security Scan **job result**.
 - A failing `trivy-fs` is a **REAL finding, not a flake.** Read the job log (it prints each finding's rule id / severity / file) or the run's SARIF results, then **remediate**:
   - This repo ships **no Dockerfile and no k8s manifests**, so findings are almost always dependency vulns. Bump the offending package in the relevant lockfile — `apps/desktop/src-tauri/Cargo.lock` (Rust/Tauri), `package-lock.json` (Node), or `uv.lock` / `services/analysis-engine` (Python).
@@ -30,10 +36,13 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - The org `code_scanning` ruleset is intentionally **CodeQL-only** (multiple code-scanning tools can't converge on one PR ref). Do **not** add tools to the `code_scanning` rule; enforcement stays on the Security Scan job.
 
 ### Code exploration
+
 - This repo has **no `.codegraph/` index**, so use normal search (grep/find/ripgrep) to locate and understand code. If a `.codegraph/` directory is later added at the repo root, prefer CodeGraph (`codegraph explore "<query>"`, or the code-review-graph MCP tools) **before** grep/find — it surfaces callers/callees/impact that text search misses.
+
 <!-- END cwl-agent-guidance -->
 
 ## Supply chain workflow
+
 - Before adding or changing dependencies, GitHub Actions, bundled binaries, or model artifacts, read `docs/security/dependency-policy.md`.
 - New direct dependencies must include admission rationale covering purpose, dependency class, alternatives, maintainer trust, license fit, known security issues, transitive footprint, and BandScope release risk.
 - Lockfiles, dependency review, audit, SBOM generation, and supplemental component inventory are mandatory and must not be skipped or loosened.
@@ -41,26 +50,31 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Use `FAILED` when repo-controlled supply-chain artifacts are missing; use `BLOCKED` only when GitHub permission, auth, network, or platform capability prevents enforcement.
 
 ## Cross-platform build workflow
+
 - Before changing CI, packaging, release flows, or native desktop build settings, read `docs/security/cross-platform-build-policy.md`.
 - Windows and macOS builds are required security controls for `develop`, `main`, and release validation.
 - Protected-branch build checks for Windows and macOS must not be removed, downgraded, or treated as optional.
 
 ## GitHub bootstrap workflow
+
 - Before declaring a GitHub task blocked, read `docs/workflow/github-bootstrap-execution-policy.md`.
 - Missing local git state, missing GitHub repo, missing `main`, missing `develop`, or missing initial workflows are bootstrap conditions, not default blockers.
 - For GitHub tasks, only use `BLOCKED` when the failure is caused by missing GitHub permissions, missing auth, missing network access, or platform-level feature limits.
 
 ## Setup commands
+
 - Node: `npm install`
 - Python: `uv sync --project services/analysis-engine --group dev`
 
 ## Build / Test commands
+
 - Full harness check: `./scripts/harness/quickcheck.sh`
 - Frontend tests: `npm run test --workspaces --if-present`
 - Python tests: `uv run --project services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100`
 - Typecheck: `npm run typecheck --workspaces --if-present && uv run --project services/analysis-engine mypy src`
 
 ## Architecture references
+
 - `ARCHITECTURE.md`
 - `docs/engineering/acceptance-criteria.md`
 - `docs/engineering/harness-engineering.md`
@@ -80,6 +94,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - `docs/plans/2026-03-10-bandscope-harness.md`
 
 ## Code style
+
 - Keep UI and analysis engine decoupled through shared contracts.
 - Prefer minimal, test-first changes for production code.
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
@@ -87,6 +102,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
 
 ## Safety
+
 - Do not add network-dependent runtime paths for local analysis.
 - Treat YouTube import as policy-constrained and fallback-friendly.
 - Treat files, URLs, metadata, model artifacts, and project files as untrusted input.

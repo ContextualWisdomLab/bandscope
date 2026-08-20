@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-21
 
 ## Brand source
 
@@ -86,6 +86,7 @@ Last updated: 2026-03-11
   - simplification, transposition, capo, tuning, or setup cues where applicable
   - role-specific rehearsal priorities and confidence flags
   - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
+  - a local rehearsal transport that arms the first valid section loop, counts in at the admitted tempo, and names the next play/pause/stop action without pretending disk audio is playing when no local song is loaded
 
 ## Confidence, edits, and provenance
 

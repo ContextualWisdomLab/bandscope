@@ -85,6 +85,35 @@ describe("Workspace", () => {
     expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
+  it("puts tonight's first playable loop on the map before a role is chosen", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByRole("region", { name: /Tonight's section loop/i })).toBeTruthy();
+    expect(screen.getByTestId("rehearsal-loop-next-action").textContent).toMatch(
+      /Loop verse from 0:10–0:30\. Choose a local song first/i
+    );
+  });
+
+  it("starts the section loop from the selected role instead of a coming-soon control", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      id: "bass-guitar",
+      name: "Bass Guitar"
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Loop this section" }));
+
+    expect(screen.getByTestId("rehearsal-loop-next-action").textContent).toMatch(/Count in 4 beats at 120 BPM/i);
+    expect(screen.queryByRole("button", { name: /Loop section coming soon/i })).toBeNull();
+  });
+
   it("enables bass transcription from selected role metadata rather than role id text", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {

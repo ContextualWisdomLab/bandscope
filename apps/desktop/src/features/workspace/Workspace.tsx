@@ -4,6 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { RehearsalPlayer } from "./RehearsalPlayer";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -120,6 +121,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [loopStartNonce, setLoopStartNonce] = useState(0);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -333,6 +335,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <SongStructure sections={song.sections} t={t} />
 
+          <RehearsalPlayer
+            song={song}
+            hasLocalAudio={safeProjectBootstrapSummary(sourceBootstrap) !== null}
+            startNonce={loopStartNonce}
+          />
+
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -364,14 +372,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </Button>
                   <Button
                     type="button"
-                    aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
-                    onClick={preventUnavailableAction}
+                    aria-label={t("workspaceLoopThisSection")}
+                    title={t("workspaceLoopThisSection")}
+                    onClick={() => setLoopStartNonce((current) => current + 1)}
                     variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
+                    className="min-h-11 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white"
                   >
-                    Loop section
+                    {t("workspaceLoopThisSection")}
                   </Button>
                   <Button
                     type="button"

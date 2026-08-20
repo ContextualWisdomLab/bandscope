@@ -148,5 +148,19 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "workspaceLoopRegionLabel": "Tonight's section loop",
+  "workspaceLoopTitle": "Tonight's loop",
+  "workspaceLoopSectionPickerLabel": "Playable sections",
+  "workspaceLoopStart": "Start the count-in",
+  "workspaceLoopThisSection": "Loop this section",
+  "workspaceLoopResume": "Continue this loop",
+  "workspaceLoopPause": "Pause the loop",
+  "workspaceLoopStop": "Stop and reset",
+  "workspaceLoopIdle": "Add a section with a start and end time, then loop it here.",
+  "workspaceLoopArmedNoAudio": "Loop {section} from {start}–{end}. Choose a local song first so you can hear this loop.",
+  "workspaceLoopArmedWithAudio": "Loop {section} from {start}–{end}. Start the count-in to hear it.",
+  "workspaceLoopCountingIn": "Count in {beats} beats at {tempo} BPM, then {section} loops.",
+  "workspaceLoopPlaying": "{section} is looping {start}–{end}. Pause when you have the entrance.",
+  "workspaceLoopPaused": "{section} is paused on the loop. Press play to continue."
 }
