@@ -1,7 +1,72 @@
+use std::{
+    ffi::OsString,
+    fs::{self, File},
+    io::Write,
+    path::{Path, PathBuf},
+};
+
+const MAX_PROJECT_FILE_BYTES: usize = 5 * 1024 * 1024;
+const PROJECT_EXISTS_ERROR: &str = "Project file already exists. Choose a new file name.";
+const PROJECT_STAGE_ERROR: &str = "Could not stage the project safely.";
+const PROJECT_PUBLISH_ERROR: &str = "Could not publish the project safely.";
+
+fn staging_path(target: &Path) -> Result<PathBuf, String> {
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = target.file_name().ok_or_else(|| PROJECT_PUBLISH_ERROR.to_string())?;
+    let mut stage_name = OsString::from(".");
+    stage_name.push(file_name);
+    stage_name.push(format!(".{}.stage", uuid::Uuid::new_v4()));
+    Ok(parent.join(stage_name))
+}
+
+fn remove_stage(path: &Path) {
+    let _ = fs::remove_file(path);
+}
+
+/// Publishes one new project only after its complete bounded bytes are staged and synced.
+///
+/// This helper deliberately does not implement overwrite semantics. `File::create_new` makes the
+/// staging name non-clobbering, and `hard_link` atomically creates the user-selected destination
+/// only if that destination is still absent. An existing file or dangling symlink therefore stays
+/// untouched instead of being truncated before replacement bytes are durable. Crash-safe overwrite,
+/// backup rotation, migration, and recovery remain separate project-format work under #962.
+pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
+    if content.is_empty() || content.len() > MAX_PROJECT_FILE_BYTES {
+        return Err(PROJECT_STAGE_ERROR.to_string());
+    }
+
+    let stage = staging_path(target)?;
+    let mut staged = File::create_new(&stage).map_err(|_| PROJECT_STAGE_ERROR.to_string())?;
+    if staged.write_all(content).is_err() || staged.sync_all().is_err() {
+        drop(staged);
+        remove_stage(&stage);
+        return Err(PROJECT_STAGE_ERROR.to_string());
+    }
+    drop(staged);
+
+    if let Err(error) = fs::hard_link(&stage, target) {
+        remove_stage(&stage);
+        return if error.kind() == std::io::ErrorKind::AlreadyExists {
+            Err(PROJECT_EXISTS_ERROR.to_string())
+        } else {
+            Err(PROJECT_PUBLISH_ERROR.to_string())
+        };
+    }
+
+    // Both names reference the already-synced inode at this point. Cleanup failure does not make the
+    // published target partial, so do not report a false save failure after publication succeeded.
+    remove_stage(&stage);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::publish_new_project_file;
-    use std::{fs, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+    use super::{publish_new_project_file, MAX_PROJECT_FILE_BYTES};
+    use std::{
+        fs,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn test_dir(label: &str) -> PathBuf {
         let nonce = SystemTime::now()
@@ -45,6 +110,21 @@ mod tests {
 
         assert_eq!(error, "Project file already exists. Choose a new file name.");
         assert_eq!(fs::read(&target).expect("known-good project should remain"), known_good);
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[test]
+    fn rejects_project_bytes_beyond_the_existing_load_limit_before_staging() {
+        let root = test_dir("oversize");
+        let target = root.join("setlist.bscope");
+        let content = vec![b'x'; MAX_PROJECT_FILE_BYTES + 1];
+
+        let error = publish_new_project_file(&target, &content)
+            .expect_err("oversized project should fail before publication");
+
+        assert_eq!(error, "Could not stage the project safely.");
+        assert!(!target.exists());
+        assert_eq!(fs::read_dir(&root).expect("directory should be readable").count(), 0);
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 }
