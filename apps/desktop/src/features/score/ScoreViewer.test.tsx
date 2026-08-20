@@ -120,8 +120,10 @@ describe("ScoreViewer", () => {
       expect(page.render).toHaveBeenCalled();
     });
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Previous page" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Previous page" })).toHaveAttribute("title", "Previous page");
+    expect(screen.getByRole("button", { name: "Next page" })).not.toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Next page" })).toHaveAttribute("title", "Next page");
   });
 
   it("shows the file name when provided", async () => {
@@ -174,14 +176,24 @@ describe("ScoreViewer", () => {
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     const previousButton = screen.getByRole("button", { name: "Previous page" });
     const nextButton = screen.getByRole("button", { name: "Next page" });
-    expect(previousButton).toBeDisabled();
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
+
+    const spyPrev = vi.spyOn(Event.prototype, 'preventDefault');
+    fireEvent.click(previousButton);
+    expect(spyPrev).toHaveBeenCalled();
+    spyPrev.mockRestore();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
-    expect(nextButton).toBeDisabled();
+    expect(nextButton).toHaveAttribute("aria-disabled", "true");
+
+    const spyNext = vi.spyOn(Event.prototype, 'preventDefault');
+    fireEvent.click(nextButton);
+    expect(spyNext).toHaveBeenCalled();
+    spyNext.mockRestore();
 
     await waitFor(() => {
       expect(doc.getPage).toHaveBeenCalledWith(3);
@@ -204,6 +216,9 @@ describe("ScoreViewer", () => {
     const zoomInButton = screen.getByRole("button", { name: "Zoom in" });
     const zoomOutButton = screen.getByRole("button", { name: "Zoom out" });
     const fitWidthButton = screen.getByRole("button", { name: "Fit width" });
+    expect(zoomInButton).toHaveAttribute("title", "Zoom in");
+    expect(zoomOutButton).toHaveAttribute("title", "Zoom out");
+    expect(fitWidthButton).toHaveAttribute("title", "Fit width");
     expect(fitWidthButton).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(zoomInButton);
