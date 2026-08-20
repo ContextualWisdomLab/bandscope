@@ -215,6 +215,50 @@ function parseEvent(value: unknown): SupportBundleEvent {
   };
 }
 
+/** Copies one already-minimized event so callers cannot mutate retained diagnostic evidence. */
+function copyEvent(event: SupportBundleEvent): SupportBundleEvent {
+  return { ...event, fields: { ...event.fields } };
+}
+
+/**
+ * Bounded local store for privacy-minimized support diagnostics.
+ *
+ * Events are validated before mutation, must arrive with strictly increasing sequence authority,
+ * and are copied back out so UI/report consumers cannot rewrite retained evidence. The capacity is
+ * capped at the same 128-event manifest boundary, keeping later offline bundle creation bounded.
+ */
+export class SupportDiagnosticBuffer {
+  private readonly capacity: number;
+  private readonly events: SupportBundleEvent[] = [];
+  private lastSequence: number | null = null;
+
+  constructor(capacity = MAX_SUPPORT_BUNDLE_EVENTS) {
+    if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > MAX_SUPPORT_BUNDLE_EVENTS) {
+      return invalid();
+    }
+    this.capacity = capacity;
+  }
+
+  /** Validates and records one event without retaining arbitrary runtime payloads. */
+  record(value: unknown): void {
+    const event = parseEvent(value);
+    if (this.lastSequence !== null && event.sequence <= this.lastSequence) {
+      return invalid();
+    }
+
+    this.lastSequence = event.sequence;
+    this.events.push(event);
+    if (this.events.length > this.capacity) {
+      this.events.shift();
+    }
+  }
+
+  /** Returns a detached ordered snapshot suitable for manifest construction or local preview. */
+  snapshot(): SupportBundleEvent[] {
+    return this.events.map(copyEvent);
+  }
+}
+
 /** Returns whether a Gregorian year contains February 29. */
 function isLeapYear(year: number): boolean {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
