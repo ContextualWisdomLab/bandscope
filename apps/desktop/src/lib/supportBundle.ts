@@ -108,26 +108,18 @@ function snapshotBoundedArray(value: unknown, maximum: number): unknown[] {
   return snapshot;
 }
 
-/** Validates one bounded identifier-like token without coercion. */
+/** Validates one bounded non-secret identifier-like token without coercion. */
 function safeToken(value: unknown, pattern = TOKEN_PATTERN): string {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
     value.length > MAX_TOKEN_LENGTH ||
-    !pattern.test(value)
+    !pattern.test(value) ||
+    CREDENTIAL_PREFIX_PATTERN.test(value)
   ) {
     return invalid();
   }
   return value;
-}
-
-/** Validates one bounded diagnostic token while rejecting credential-shaped values. */
-function safeDiagnosticToken(value: unknown): string {
-  const token = safeToken(value);
-  if (CREDENTIAL_PREFIX_PATTERN.test(token)) {
-    return invalid();
-  }
-  return token;
 }
 
 /** Validates one bounded non-negative integer without Boolean or string coercion. */
@@ -146,7 +138,7 @@ function safeBoundedInteger(value: unknown, maximum: number): number {
 /** Reads one optional allowlisted string field. */
 function optionalToken(record: Record<string, unknown>, key: string): string | undefined {
   const value = readProperty(record, key);
-  return value === undefined ? undefined : safeDiagnosticToken(value);
+  return value === undefined ? undefined : safeToken(value);
 }
 
 /** Reads one optional allowlisted bounded integer field. */
@@ -269,7 +261,8 @@ function parseGeneratedAt(value: unknown): string {
  * The input is intentionally accepted as unknown because runtime diagnostics are a trust boundary.
  * Only explicitly modeled fields are copied. Arbitrary messages, stacks, paths, URLs, environment
  * variables, subprocess arguments, audio, project payloads, and other caller-owned properties are
- * discarded rather than post-hoc masked.
+ * discarded rather than post-hoc masked. Every serialized token also rejects high-confidence
+ * credential prefixes before it can enter either the machine or human support representation.
  */
 export function buildSupportBundleManifest(input: unknown): SupportBundleManifest {
   if (!isRecord(input)) {
