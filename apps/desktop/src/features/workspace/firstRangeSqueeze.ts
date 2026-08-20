@@ -29,9 +29,16 @@ const ACCIDENTAL_OFFSET: Record<string, number> = {
 
 const NOTE_PATTERN = /^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/u;
 
+function isRuntimeObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /** Return trimmed copy that is not a blank or `none` sentinel. */
-export function meaningfulRangeText(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
+export function meaningfulRangeText(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
   if (!trimmed || /^none$/i.test(trimmed)) {
     return undefined;
   }
@@ -51,8 +58,8 @@ function notePitchValue(note: string): number | null {
 
 /** Return a complete, ordered scientific-pitch range or fail closed. */
 function playableRange(
-  lowestNoteValue: string | undefined,
-  highestNoteValue: string | undefined
+  lowestNoteValue: unknown,
+  highestNoteValue: unknown
 ): Pick<FirstRangeSqueeze, "lowestNote" | "highestNote"> | null {
   const lowestNote = meaningfulRangeText(lowestNoteValue);
   const highestNote = meaningfulRangeText(highestNoteValue);
@@ -74,38 +81,62 @@ function playableRange(
  *
  * Prefers a named span that also carries a clash warning so the board names
  * the squeeze that will waste rehearsal time. Falls back to the first named
- * span when no clash is present. Malformed, incomplete, or inverted ranges
- * fail closed instead of becoming buyer-visible playable-range evidence.
+ * span when no clash is present. Runtime roots and collection members are
+ * treated as untrusted; malformed evidence is isolated instead of crashing
+ * the buyer-visible workspace or becoming playable-range authority.
  */
 export function firstRangeSqueeze(
   song: RehearsalSong,
   activeRole: string | null = null
 ): FirstRangeSqueeze | null {
+  const runtimeSong: unknown = song;
+  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
+    return null;
+  }
+
   let fallback: FirstRangeSqueeze | null = null;
 
-  for (const section of song.sections) {
-    for (const role of section.roles) {
-      if (activeRole && role.id !== activeRole) {
+  for (const sectionValue of runtimeSong.sections) {
+    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+      continue;
+    }
+    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    if (!sectionLabel) {
+      continue;
+    }
+
+    for (const roleValue of sectionValue.roles) {
+      if (!isRuntimeObject(roleValue)) {
+        continue;
+      }
+      const roleId = meaningfulRangeText(roleValue.id);
+      const roleName = meaningfulRangeText(roleValue.name);
+      if (!roleId || !roleName || (activeRole && roleId !== activeRole)) {
+        continue;
+      }
+      if (!isRuntimeObject(roleValue.range)) {
         continue;
       }
 
-      const range = playableRange(role.range.lowestNote, role.range.highestNote);
+      const range = playableRange(roleValue.range.lowestNote, roleValue.range.highestNote);
       if (!range) {
         continue;
       }
 
       let overlapWarning: string | undefined;
-      for (const warning of role.overlapWarnings) {
-        const meaningfulWarning = meaningfulRangeText(warning);
-        if (meaningfulWarning) {
-          overlapWarning = meaningfulWarning;
-          break;
+      if (Array.isArray(roleValue.overlapWarnings)) {
+        for (const warning of roleValue.overlapWarnings) {
+          const meaningfulWarning = meaningfulRangeText(warning);
+          if (meaningfulWarning) {
+            overlapWarning = meaningfulWarning;
+            break;
+          }
         }
       }
 
       const candidate: FirstRangeSqueeze = {
-        sectionLabel: section.label,
-        roleName: role.name,
+        sectionLabel,
+        roleName,
         ...range,
         overlapWarning
       };
