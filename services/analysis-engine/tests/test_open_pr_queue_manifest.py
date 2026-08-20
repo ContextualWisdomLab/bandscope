@@ -60,6 +60,14 @@ def _valid_manifest() -> dict[str, object]:
     }
 
 
+def _append_duplicate_pr(manifest: dict[str, object]) -> None:
+    """Duplicate one PR while keeping the declared count internally consistent."""
+    pull_requests = manifest["pull_requests"]
+    assert isinstance(pull_requests, list)
+    pull_requests.append(dict(pull_requests[0]))
+    manifest["open_pr_count"] = len(pull_requests)
+
+
 def test_open_pr_queue_manifest_accepts_a_well_formed_seed() -> None:
     """A structurally consistent seed is accepted without network access."""
     verifier = _load_verifier()
@@ -70,12 +78,7 @@ def test_open_pr_queue_manifest_accepts_a_well_formed_seed() -> None:
     ("mutate", "expected"),
     [
         (lambda manifest: manifest.update(open_pr_count=3), "open_pr_count"),
-        (
-            lambda manifest: manifest["pull_requests"].append(
-                dict(manifest["pull_requests"][0])
-            ),
-            "duplicate pull request number",
-        ),
+        (_append_duplicate_pr, "duplicate pull request number"),
         (
             lambda manifest: manifest["pull_requests"][0].update(initial_train="T99"),
             "unknown train",
