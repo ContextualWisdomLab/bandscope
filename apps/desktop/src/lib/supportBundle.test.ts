@@ -211,6 +211,8 @@ describe("offline support-bundle manifest", () => {
       { ...validInput(), generatedAt: "x".repeat(41) },
       { ...validInput(), generatedAt: "not-rfc3339" },
       { ...validInput(), generatedAt: "2026-99-99T99:99:99Z" },
+      { ...validInput(), generatedAt: "2026-02-31T12:00:00Z" },
+      { ...validInput(), generatedAt: "2026-04-31T12:00:00Z" },
       { ...validInput(), events: "not-an-array" },
       {
         ...validInput(),
