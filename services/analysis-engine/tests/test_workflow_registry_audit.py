@@ -358,7 +358,9 @@ def test_audit_repository_rejects_same_count_registry_replacement(audit_module) 
         )
 
 
-def test_audit_repository_accepts_reordered_registry_and_emits_final_receipts(audit_module) -> None:
+def test_audit_repository_accepts_reordered_registry_and_emits_final_receipts(
+    audit_module,
+) -> None:
     """Equivalent registry order is stable and the final complete receipt is reported."""
 
     class ReorderedRegistryClient:
