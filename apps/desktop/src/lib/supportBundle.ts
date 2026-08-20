@@ -5,7 +5,7 @@ const MAX_TOKEN_LENGTH = 128;
 const MAX_DURATION_MS = 86_400_000;
 const MAX_QUEUE_DEPTH = 100_000;
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-const CREDENTIAL_PREFIX_PATTERN = /^(?:gh[pousr]_|github_pat_|sk-|xox[baprs]-)/i;
+const CREDENTIAL_PREFIX_PATTERN = /(?:^|[._:-])(?:gh[pousr]_|github_pat_|sk-|xox[baprs]-)/i;
 const REVISION_PATTERN = /^[0-9a-f]{40}$/i;
 const RFC3339_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const SEVERITIES = new Set(["debug", "info", "warning", "error"] as const);
@@ -262,7 +262,8 @@ function parseGeneratedAt(value: unknown): string {
  * Only explicitly modeled fields are copied. Arbitrary messages, stacks, paths, URLs, environment
  * variables, subprocess arguments, audio, project payloads, and other caller-owned properties are
  * discarded rather than post-hoc masked. Every serialized token also rejects high-confidence
- * credential prefixes before it can enter either the machine or human support representation.
+ * credential prefixes at token start or after an allowed structural delimiter before it can enter
+ * either the machine or human support representation.
  */
 export function buildSupportBundleManifest(input: unknown): SupportBundleManifest {
   if (!isRecord(input)) {
