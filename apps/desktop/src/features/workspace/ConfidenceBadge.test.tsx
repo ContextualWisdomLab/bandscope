@@ -37,6 +37,17 @@ describe("ConfidenceBadge", () => {
     );
   });
 
+  it("matches the live Figma Caption/Status typography contract", () => {
+    render(<ConfidenceBadge level="low" />);
+
+    expect(screen.getByText("확신이 낮음")).toHaveClass(
+      "text-[11px]",
+      "font-medium",
+      "leading-[16px]",
+      "tracking-normal"
+    );
+  });
+
   it("keeps confidence colors mapped to the live Figma 19:239 semantic status variables", () => {
     const tokenSource = readFileSync(
       resolve(process.cwd(), "src/styles/workspace-tokens.css"),
