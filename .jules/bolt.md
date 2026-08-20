@@ -65,3 +65,7 @@
 ## 2026-07-14 - Array reduce callback overhead
 **Learning:** Using `array.reduce()` on large collections like transcription notes introduces unnecessary callback allocation and execution overhead compared to raw loops.
 **Action:** Replace `array.reduce()` with a standard `for...of` loop to avoid GC and callback overhead in critical path rendering components.
+
+## 2026-07-15 - npm audit fix interaction with workspace dependency changes
+**Learning:** `npm audit fix` and `npm audit fix --force` modifies the workspace `package.json` file in addition to `package-lock.json`. Since Trivy or other security audits fail the build, both must be staged and submitted together.
+**Action:** When performing `npm audit fix`, explicitly stage both `package-lock.json` and the affected `apps/desktop/package.json` files to avoid out-of-sync lockfile errors and ensure security pipelines pass.
