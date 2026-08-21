@@ -156,7 +156,18 @@ describe("FirstHandoffCallout", () => {
 
     render(<FirstHandoffCallout song={song} />);
 
-    expect(screen.getByText("리드 보컬이 0:22 핸드오프에서 넘깁니다.")).toBeTruthy();
+    expect(screen.getByText("0:22 핸드오프에서 리드 보컬 파트가 넘깁니다.")).toBeTruthy();
     expect(screen.queryByText(/handoff에서/)).toBeNull();
+  });
+
+  it("keeps dynamic Korean role names particle-safe without guessing Hangul morphology", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = songWithHandoff();
+    song.sections[1]!.roles[0]!.name = "피아노";
+
+    render(<FirstHandoffCallout song={song} />);
+
+    expect(screen.getByText("0:22 핸드오프에서 피아노 파트가 넘깁니다.")).toBeTruthy();
+    expect(screen.queryByText("피아노이 0:22 핸드오프에서 넘깁니다.")).toBeNull();
   });
 });
