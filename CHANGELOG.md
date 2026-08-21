@@ -12,6 +12,7 @@
 - Redact native workspace-fetch failures at the desktop console boundary so dependency-controlled local paths, tokens, and tool diagnostics cannot be copied into routine frontend logs.
 - Redact dependency-controlled YouTube import failures at the desktop bridge so URLs, local paths, tokens, cookies, or tool diagnostics cannot be surfaced directly to the UI; users receive one safe next-action message instead.
 - Removed the browser-only synthetic analysis workspace and timed fake success path. Analysis execution and project-save mutations now require the native Tauri runtime; browser-only execution fails closed instead of manufacturing `ready` rehearsal results or silently reporting an unpersisted save as successful.
+- Reject native `demo` analysis before bridge invocation until a licensed demo track is installed, preventing the arrangement-only test fixture from becoming buyer-visible production success while directing musicians to local audio.
 
 ## [0.1.3] - 2026-04-29
 
