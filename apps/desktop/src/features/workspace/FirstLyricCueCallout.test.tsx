@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FirstLyricCueCallout } from "./FirstLyricCueCallout";
 
 function appendSongStructureTarget() {
@@ -18,6 +18,10 @@ function appendSongStructureTarget() {
 }
 
 describe("FirstLyricCueCallout", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("names the first lyric cue as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
@@ -83,6 +87,17 @@ describe("FirstLyricCueCallout", () => {
         name: "Open {section} lyric cue “city lights” in the verse at 0:10"
       })
     ).toBeTruthy();
+  });
+
+  it("keeps dynamic Korean role names particle-safe without guessing Hangul morphology", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[2]!.name = "피아노";
+
+    render(<FirstLyricCueCallout song={song} />);
+
+    expect(screen.getByText("0:10 벌스에서 피아노 파트가 “city lights”으로 들어옵니다.")).toBeTruthy();
+    expect(screen.queryByText("피아노이 0:10 벌스에서 “city lights”으로 들어옵니다.")).toBeNull();
   });
 
   it("tells the room to stay on the map when no lyric exists", () => {
