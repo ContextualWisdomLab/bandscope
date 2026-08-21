@@ -65,6 +65,17 @@ describe("App rehearsal-help failure recovery", () => {
     analysisMocks.subscribeToAnalysisJobUpdates.mockResolvedValue(() => undefined);
   });
 
+  it("exposes rehearsal help from compact navigation", () => {
+    render(<App />);
+
+    const compactHelp = screen.getByRole("button", { name: /how bandscope helps tonight/i });
+    const compactNav = compactHelp.closest("nav");
+
+    expect(compactNav?.getAttribute("aria-label")).toMatch(/compact rehearsal views/i);
+    fireEvent.click(compactHelp);
+    expect(screen.getByTestId("rehearsal-help-dialog")).toBeTruthy();
+  });
+
   it("advances from retry to start analysis after a different local song is selected", async () => {
     analysisMocks.selectLocalAudioSource
       .mockResolvedValueOnce({ ok: true, bootstrap: bootstrap("project-a", "failed-song.wav") })
