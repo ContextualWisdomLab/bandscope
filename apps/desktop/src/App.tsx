@@ -475,6 +475,12 @@ export function App() {
     try {
       const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
+        setAnalysisFailed(false);
+        setJobError(null);
+        setJobResult(null);
+        setJobResultBootstrap(null);
+        setJobStatus(null);
+        setActiveAnalysisBootstrap(null);
         setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
       } else {
