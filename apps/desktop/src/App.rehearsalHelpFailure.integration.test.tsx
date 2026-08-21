@@ -1,3 +1,4 @@
+import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -49,6 +50,11 @@ function bootstrap(projectId: string, fileName: string) {
   };
 }
 
+/**
+ * Security Notes:
+ * - Local paths in this suite are synthetic test fixtures and are never rendered in customer-facing copy.
+ * - The suite mocks the existing picker and analysis boundaries; it adds no network access or IPC permission.
+ */
 describe("App rehearsal-help failure recovery", () => {
   beforeEach(() => {
     for (const mock of Object.values(analysisMocks)) {
@@ -98,5 +104,42 @@ describe("App rehearsal-help failure recovery", () => {
     );
     expect(within(helpDialog).queryByRole("button", { name: /choose another song/i })).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("forgets the previous analyzed song when a different local source is selected", async () => {
+    analysisMocks.selectLocalAudioSource
+      .mockResolvedValueOnce({ ok: true, bootstrap: bootstrap("project-a", "analyzed-song.wav") })
+      .mockResolvedValueOnce({ ok: true, bootstrap: bootstrap("project-b", "fresh-song.wav") });
+    analysisMocks.startAnalysisJob.mockResolvedValueOnce({
+      jobId: "job-help-succeeded",
+      state: "succeeded",
+      requestedAt: "2026-08-21T05:10:00.000Z",
+      updatedAt: "2026-08-21T05:10:01.000Z",
+      progressLabel: "Analysis ready",
+      progressStage: "ready",
+      progressPercent: 100,
+      cacheStatus: "disabled",
+      result: createDemoRehearsalSong(),
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/analyzed-song\.wav/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save project/i }).getAttribute("aria-disabled")).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/fresh-song\.wav/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    const helpDialog = screen.getByTestId("rehearsal-help-dialog");
+    expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
+      /start analysis to get tonight's first cues/i,
+    );
+    expect(within(helpDialog).queryByRole("button", { name: /show rehearsal map/i })).toBeNull();
   });
 });
