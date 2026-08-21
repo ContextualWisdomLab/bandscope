@@ -1,3 +1,5 @@
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   rehearsalHelpAction,
@@ -17,7 +19,22 @@ function snapshot(
   };
 }
 
+function productionHelpModuleNames(): string[] {
+  return readdirSync(join(process.cwd(), "src", "features", "help"))
+    .filter(
+      (name) => /\.(?:ts|tsx)$/.test(name) && !name.includes(".test."),
+    )
+    .map((name) => name.replace(/\.(?:ts|tsx)$/, ""));
+}
+
 describe("rehearsalHelp", () => {
+  it("keeps production module basenames unique on case-insensitive filesystems", () => {
+    const moduleNames = productionHelpModuleNames();
+    const caseFoldedNames = moduleNames.map((name) => name.toLowerCase());
+
+    expect(new Set(caseFoldedNames).size).toBe(moduleNames.length);
+  });
+
   it("asks for a local song before any source is chosen", () => {
     expect(resolveRehearsalHelpPhase(snapshot())).toBe("choose-local-song");
     expect(rehearsalHelpAction("choose-local-song")).toBe("choose-local");
