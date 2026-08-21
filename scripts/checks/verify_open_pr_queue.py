@@ -14,6 +14,32 @@ DEFAULT_MANIFEST_PATH = REPO_ROOT / "docs" / "product-readiness" / "open-pr-queu
 REPOSITORY = "ContextualWisdomLab/bandscope"
 BASE_BRANCH = "develop"
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
+ROOT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "snapshot_date",
+        "timezone",
+        "repository",
+        "base_branch",
+        "base_sha",
+        "open_pr_count",
+        "authority_note",
+        "trains",
+        "pull_requests",
+    }
+)
+TRAIN_FIELDS = frozenset({"description", "issue"})
+PULL_REQUEST_FIELDS = frozenset(
+    {
+        "number",
+        "title",
+        "url",
+        "initial_train",
+        "initial_disposition",
+        "head_sha",
+        "head_sha_status",
+    }
+)
 
 
 class ManifestError(ValueError):
@@ -30,6 +56,13 @@ def _require_record(value: object, field: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         _fail(f"{field} must be an object")
     return value
+
+
+def _reject_unknown_fields(record: dict[str, Any], allowed: frozenset[str], field: str) -> None:
+    """Reject evidence fields that are not part of the reviewed manifest schema."""
+    unsupported = sorted(set(record) - allowed)
+    if unsupported:
+        _fail(f"{field} has unsupported field: {unsupported[0]}")
 
 
 def _require_list(value: object, field: str) -> list[Any]:
@@ -57,6 +90,7 @@ def _require_sha(value: object, field: str) -> str:
 def validate_manifest(manifest: object) -> None:
     """Validate intrinsic queue invariants without treating the seed as live GitHub evidence."""
     root = _require_record(manifest, "manifest")
+    _reject_unknown_fields(root, ROOT_FIELDS, "manifest")
     if root.get("schema_version") != "1.0.0":
         _fail("schema_version must be 1.0.0")
     if root.get("repository") != REPOSITORY:
@@ -74,6 +108,7 @@ def validate_manifest(manifest: object) -> None:
     for train_name, raw_train in trains.items():
         _require_non_empty_string(train_name, "train name")
         train = _require_record(raw_train, f"trains.{train_name}")
+        _reject_unknown_fields(train, TRAIN_FIELDS, f"trains.{train_name}")
         _require_non_empty_string(train.get("description"), f"trains.{train_name}.description")
         issue = train.get("issue")
         if isinstance(issue, bool) or not isinstance(issue, int) or issue <= 0:
@@ -92,6 +127,7 @@ def validate_manifest(manifest: object) -> None:
     for index, raw_pr in enumerate(pull_requests):
         prefix = f"pull_requests[{index}]"
         pr = _require_record(raw_pr, prefix)
+        _reject_unknown_fields(pr, PULL_REQUEST_FIELDS, prefix)
         number = pr.get("number")
         if isinstance(number, bool) or not isinstance(number, int) or number <= 0:
             _fail(f"{prefix}.number must be a positive integer")
