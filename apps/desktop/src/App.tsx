@@ -428,6 +428,8 @@ export function App() {
     setSelectionErrorSource(null);
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
+      setJobError(null);
+      setJobStatus(null);
       setSelectedBootstrap(selection.bootstrap);
       return;
     }
