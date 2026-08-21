@@ -108,7 +108,9 @@ def test_github_dynamic_identity_matches_live_registry_shape(audit_module) -> No
     )
 
     assert records[0]["classification"] == "github_dynamic"
-    assert records[0]["reason"] == "workflow path identifies a GitHub-managed dynamic identity"
+    assert records[0]["reason"] == (
+        "workflow path identifies a GitHub-managed dynamic identity"
+    )
 
 
 def test_unrecognized_active_non_repository_path_fails_closed(audit_module) -> None:
@@ -119,7 +121,9 @@ def test_unrecognized_active_non_repository_path_fails_closed(audit_module) -> N
     )
 
     assert records[0]["classification"] == "unresolved"
-    assert records[0]["reason"] == "active registry path is not repository workflow YAML"
+    assert (
+        records[0]["reason"] == "active registry path is not repository workflow YAML"
+    )
 
 
 def test_source_field_cannot_override_repository_path_evidence(audit_module) -> None:
@@ -175,15 +179,24 @@ def test_collect_paginated_workflows_requires_complete_receipts(audit_module) ->
     """The detector must enumerate every page before it trusts the registry snapshot."""
     pages = {
         1: (
-            {"total_count": 3, "workflows": [_workflow(1, ".github/workflows/a.yml")]},
+            {
+                "total_count": 3,
+                "workflows": [_workflow(1, ".github/workflows/a.yml")],
+            },
             {"page": 1, "status": 200, "item_count": 1},
         ),
         2: (
-            {"total_count": 3, "workflows": [_workflow(2, ".github/workflows/b.yml")]},
+            {
+                "total_count": 3,
+                "workflows": [_workflow(2, ".github/workflows/b.yml")],
+            },
             {"page": 2, "status": 200, "item_count": 1},
         ),
         3: (
-            {"total_count": 3, "workflows": [_workflow(3, ".github/workflows/c.yml")]},
+            {
+                "total_count": 3,
+                "workflows": [_workflow(3, ".github/workflows/c.yml")],
+            },
             {"page": 3, "status": 200, "item_count": 1},
         ),
     }
@@ -198,11 +211,16 @@ def test_collect_paginated_workflows_requires_complete_receipts(audit_module) ->
     assert all(receipt["status"] == 200 for receipt in receipts)
 
 
-def test_collect_paginated_workflows_rejects_incomplete_pagination(audit_module) -> None:
+def test_collect_paginated_workflows_rejects_incomplete_pagination(
+    audit_module,
+) -> None:
     """An early empty page is evidence loss, not a clean inventory."""
     pages = {
         1: (
-            {"total_count": 2, "workflows": [_workflow(1, ".github/workflows/a.yml")]},
+            {
+                "total_count": 2,
+                "workflows": [_workflow(1, ".github/workflows/a.yml")],
+            },
             {"page": 1, "status": 200, "item_count": 1},
         ),
         2: (
@@ -211,7 +229,10 @@ def test_collect_paginated_workflows_rejects_incomplete_pagination(audit_module)
         ),
     }
 
-    with pytest.raises(audit_module.AuditError, match="pagination ended before total_count"):
+    with pytest.raises(
+        audit_module.AuditError,
+        match="pagination ended before total_count",
+    ):
         audit_module.collect_paginated_workflows(
             lambda page, _per_page: pages[page],
             per_page=1,
@@ -222,16 +243,25 @@ def test_collect_paginated_workflows_rejects_count_drift(audit_module) -> None:
     """Changing total_count during pagination invalidates the snapshot."""
     pages = {
         1: (
-            {"total_count": 2, "workflows": [_workflow(1, ".github/workflows/a.yml")]},
+            {
+                "total_count": 2,
+                "workflows": [_workflow(1, ".github/workflows/a.yml")],
+            },
             {"page": 1, "status": 200, "item_count": 1},
         ),
         2: (
-            {"total_count": 3, "workflows": [_workflow(2, ".github/workflows/b.yml")]},
+            {
+                "total_count": 3,
+                "workflows": [_workflow(2, ".github/workflows/b.yml")],
+            },
             {"page": 2, "status": 200, "item_count": 1},
         ),
     }
 
-    with pytest.raises(audit_module.AuditError, match="total_count changed during pagination"):
+    with pytest.raises(
+        audit_module.AuditError,
+        match="total_count changed during pagination",
+    ):
         audit_module.collect_paginated_workflows(
             lambda page, _per_page: pages[page],
             per_page=1,
@@ -258,7 +288,9 @@ class _FakeClient:
         return self.tree_paths
 
 
-def test_audit_repository_binds_registry_to_unchanged_default_branch(audit_module) -> None:
+def test_audit_repository_binds_registry_to_unchanged_default_branch(
+    audit_module,
+) -> None:
     """The report records the exact branch SHA and refuses stale branch evidence."""
     client = _FakeClient(
         ref_shas=["a" * 40, "a" * 40],
@@ -292,7 +324,10 @@ def test_audit_repository_rejects_branch_movement(audit_module) -> None:
         tree_paths={".github/workflows/ci.yml"},
     )
 
-    with pytest.raises(audit_module.AuditError, match="default branch moved during audit"):
+    with pytest.raises(
+        audit_module.AuditError,
+        match="default branch moved during audit",
+    ):
         audit_module.audit_repository(
             client,
             repository="ContextualWisdomLab/bandscope",
@@ -314,7 +349,10 @@ def test_audit_repository_propagates_tree_truncation(audit_module) -> None:
         tree_paths=set(),
     )
 
-    with pytest.raises(audit_module.AuditError, match="recursive tree response was truncated"):
+    with pytest.raises(
+        audit_module.AuditError,
+        match="recursive tree response was truncated",
+    ):
         audit_module.audit_repository(
             client,
             repository="ContextualWisdomLab/bandscope",
@@ -323,7 +361,9 @@ def test_audit_repository_propagates_tree_truncation(audit_module) -> None:
         )
 
 
-def test_audit_repository_rejects_same_count_registry_replacement(audit_module) -> None:
+def test_audit_repository_rejects_same_count_registry_replacement(
+    audit_module,
+) -> None:
     """A same-size identity replacement must invalidate the registry snapshot."""
 
     class ReplacedRegistryClient:
@@ -349,7 +389,10 @@ def test_audit_repository_rejects_same_count_registry_replacement(audit_module) 
                 ".github/workflows/release.yml",
             }
 
-    with pytest.raises(audit_module.AuditError, match="workflow registry changed during audit"):
+    with pytest.raises(
+        audit_module.AuditError,
+        match="workflow registry changed during audit",
+    ):
         audit_module.audit_repository(
             ReplacedRegistryClient(),
             repository="ContextualWisdomLab/bandscope",
@@ -371,11 +414,25 @@ def test_audit_repository_accepts_reordered_registry_and_emits_final_receipts(
             self.workflow_snapshots = [
                 (
                     [first, second],
-                    [{"page": 1, "status": 200, "item_count": 2, "snapshot": "initial"}],
+                    [
+                        {
+                            "page": 1,
+                            "status": 200,
+                            "item_count": 2,
+                            "snapshot": "initial",
+                        }
+                    ],
                 ),
                 (
                     [second, first],
-                    [{"page": 1, "status": 200, "item_count": 2, "snapshot": "final"}],
+                    [
+                        {
+                            "page": 1,
+                            "status": 200,
+                            "item_count": 2,
+                            "snapshot": "final",
+                        }
+                    ],
                 ),
             ]
 
