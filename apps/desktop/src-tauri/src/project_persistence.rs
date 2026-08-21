@@ -12,6 +12,11 @@ const PROJECT_PUBLISH_ERROR: &str = "Could not publish the project safely.";
 const PROJECT_READ_ERROR: &str = "Failed to read file";
 const PROJECT_TOO_LARGE_ERROR: &str = "Project file is too large (exceeds 5MB limit)";
 
+#[cfg(windows)]
+const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+#[cfg(windows)]
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+
 fn staging_path(target: &Path) -> Result<PathBuf, String> {
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let file_name = target.file_name().ok_or_else(|| PROJECT_PUBLISH_ERROR.to_string())?;
@@ -25,16 +30,76 @@ fn remove_stage(path: &Path) {
     let _ = fs::remove_file(path);
 }
 
+#[cfg(windows)]
+fn open_project_file(target: &Path) -> std::io::Result<File> {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let mut options = fs::OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    options.open(target)
+}
+
+#[cfg(not(windows))]
+fn open_project_file(target: &Path) -> std::io::Result<File> {
+    File::open(target)
+}
+
+#[cfg(unix)]
+fn same_file_identity(left: &fs::Metadata, right: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    left.dev() == right.dev() && left.ino() == right.ino()
+}
+
+#[cfg(windows)]
+fn same_file_identity(left: &fs::Metadata, right: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    left.file_attributes() == right.file_attributes()
+        && left.creation_time() == right.creation_time()
+        && left.last_write_time() == right.last_write_time()
+        && left.file_size() == right.file_size()
+}
+
+#[cfg(not(any(unix, windows)))]
+fn same_file_identity(_left: &fs::Metadata, _right: &fs::Metadata) -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn metadata_is_regular_project_file(metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    metadata.is_file() && metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT == 0
+}
+
+#[cfg(not(windows))]
+fn metadata_is_regular_project_file(metadata: &fs::Metadata) -> bool {
+    metadata.is_file() && !metadata.file_type().is_symlink()
+}
+
 fn read_project_file_with_opener<F>(target: &Path, open_file: F) -> Result<String, String>
 where
     F: FnOnce(&Path) -> std::io::Result<File>,
 {
-    let metadata = fs::symlink_metadata(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
-    if metadata.file_type().is_symlink() {
+    let before = fs::symlink_metadata(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    if !metadata_is_regular_project_file(&before) {
         return Err(PROJECT_READ_ERROR.to_string());
     }
 
     let file = open_file(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    let opened = file.metadata().map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    let after = fs::symlink_metadata(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    if !metadata_is_regular_project_file(&opened)
+        || !metadata_is_regular_project_file(&after)
+        || !same_file_identity(&before, &opened)
+        || !same_file_identity(&opened, &after)
+    {
+        return Err(PROJECT_READ_ERROR.to_string());
+    }
+
     let mut reader = file.take((MAX_PROJECT_FILE_BYTES + 1) as u64);
     let mut bytes = Vec::new();
     reader
@@ -46,16 +111,17 @@ where
     String::from_utf8(bytes).map_err(|_| PROJECT_READ_ERROR.to_string())
 }
 
-/// Reads one project through the same bounded byte ceiling used by project publication.
+/// Reads one project through a bounded, path-stable native file handle.
 ///
-/// A directly selected symlink is rejected before it can redirect the read to different content.
-/// The regular file is then opened once and the reader itself is capped at
-/// `MAX_PROJECT_FILE_BYTES + 1`, so a file that grows after selection cannot turn a metadata
-/// preflight into an unbounded allocation. UTF-8 decoding happens only after the bounded read
-/// completes. Handle-level identity checks for a path swapped between inspection and open remain a
-/// later #962 boundary and are not claimed by this helper.
+/// The selected path must name the same regular file before the open, on the opened handle, and
+/// immediately after the open. Unix builds compare device/inode identity. Windows opens the reparse
+/// point itself rather than following it and rejects reparse handles, then requires the stable file
+/// metadata revision to match around the open. This closes the selected-path swap between the
+/// preflight and handle acquisition without adding a dependency or granting JavaScript path
+/// authority. The reader remains capped at `MAX_PROJECT_FILE_BYTES + 1`; backup, migration, and
+/// recovery semantics remain later #962 work.
 pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
-    read_project_file_with_opener(target, File::open)
+    read_project_file_with_opener(target, open_project_file)
 }
 
 /// Publishes one new project only after its complete bounded bytes are staged and synced.
