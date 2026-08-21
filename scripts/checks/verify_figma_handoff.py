@@ -10,6 +10,7 @@ credentials, or grant the recorded identifiers any runtime authority.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -64,6 +65,12 @@ def _require_string(payload: Mapping[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise HandoffError(f"inventory {key} must be a non-empty string")
     return value
+
+
+def _contains_node_id(content: str, node_id: str) -> bool:
+    """Return whether ``content`` contains one exact colon-form Figma node identity token."""
+    token = re.compile(rf"(?<![0-9A-Za-z_:]){re.escape(node_id)}(?![0-9A-Za-z_:])")
+    return token.search(content) is not None
 
 
 def canonical_pages(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -180,17 +187,21 @@ def collect_doc_errors(
         root_id = str(page["rootId"])
         if name not in readme:
             errors.append(f"README missing page name {name}")
-        if page_id not in readme:
+        if not _contains_node_id(readme, page_id):
             errors.append(f"README missing pageId {page_id} for {name}")
-        if root_id not in readme:
+        if not _contains_node_id(readme, root_id):
             errors.append(f"README missing rootId {root_id} for {name}")
         if page["discoverable"] is False:
             marker = f"{name} is not discoverable"
             for label, content in documents.items():
-                references_page = any(token in content for token in (name, page_id, root_id))
+                references_page = (
+                    name in content
+                    or _contains_node_id(content, page_id)
+                    or _contains_node_id(content, root_id)
+                )
                 if references_page and marker not in content:
                     errors.append(f"{label} must mark {name} as not discoverable")
-            if root_id in current_id_block:
+            if _contains_node_id(current_id_block, root_id):
                 errors.append(f"README must not claim unverified root {root_id} as current")
     return errors
 
