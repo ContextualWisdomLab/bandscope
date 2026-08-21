@@ -40,6 +40,21 @@ describe("rehearsalTransport", () => {
     expect(window?.endSeconds).toBe(64);
   });
 
+  it("skips malformed section entries before requested-id lookup and fallback", () => {
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [null as never, chorus];
+
+    const window = resolveLoopWindow(song, "missing-section");
+
+    expect(window?.sectionId).toBe("chorus-1");
+    expect(window?.startSeconds).toBe(40);
+    expect(window?.endSeconds).toBe(64);
+  });
+
   it("assumes 120 BPM when tempo is missing and keeps published tempo in range", () => {
     expect(resolveRehearsalTempo(undefined)).toEqual({
       tempoBpm: 120,
