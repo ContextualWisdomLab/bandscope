@@ -55,6 +55,58 @@ describe("RehearsalPlayer", () => {
     ).not.toMatch(/Count in 4 beats/i);
   });
 
+  it("stops active count-in and loop ticking when local-audio authority is revoked", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const song = createDemoRehearsalSong();
+    const { rerender } = render(
+      <RehearsalPlayer song={song} hasLocalAudio={true} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats/i);
+
+    rerender(<RehearsalPlayer song={song} hasLocalAudio={false} />);
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Choose a local song first/i);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).not.toMatch(/looping/i);
+
+    rerender(<RehearsalPlayer song={song} hasLocalAudio={true} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/looping/i);
+
+    const playheadBeforeRevocation = screen
+      .getByTestId("rehearsal-loop-playhead")
+      .getAttribute("style");
+    rerender(<RehearsalPlayer song={song} hasLocalAudio={false} />);
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Choose a local song first/i);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-playhead").getAttribute("style"),
+    ).toBe(playheadBeforeRevocation);
+  });
+
   it("counts in then loops the selected section on the map clock", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
