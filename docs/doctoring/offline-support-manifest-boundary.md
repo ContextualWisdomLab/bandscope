@@ -13,7 +13,7 @@ Implemented in the current branch:
 - stable event IDs, severity, stage, component, retryability, next-action code, correlation ID and monotonic sequence;
 - single-read snapshots of untrusted own object properties and bounded array evidence, with inherited prototype values excluded from evidence authority and accessor failures contained at the stable manifest boundary;
 - an explicit structured-field allowlist (`errorClass`, `backend`, `device`, `codec`, `durationMs`, `queueDepth`);
-- rejection of high-confidence credential prefixes at a token boundary before any allowed string can enter the manifest or report;
+- rejection of registered high-confidence credential shapes at token boundaries before any allowed string can enter the manifest or report;
 - rejection of Windows drive-relative path-shaped tokens such as `C:private-project` while preserving ordinary multi-letter device identifiers such as `cuda:0`;
 - deterministic sequence ordering and JSON serialization;
 - a deterministic human-readable report rendered only from the already privacy-minimized manifest model;
@@ -40,7 +40,7 @@ The boundary also treats accessors, proxies, and prototype inheritance as untrus
 
 The following caller-owned categories have no schema slot and are discarded rather than copied: absolute paths, raw URLs, environment variables, credentials, bearer/API tokens, exception messages, stack traces, subprocess arguments, audio, score PDFs, project JSON, lyrics and handoff payloads.
 
-Allowed string fields additionally reject high-confidence GitHub, OpenAI-style and Slack-style credential prefixes when the prefix starts the token or follows one of the token grammar's structural delimiters (`.`, `_`, `:`, `-`). This catches values such as a correlation identifier whose namespace is followed by a credential-shaped segment without treating an ordinary interior letter sequence such as `risk-score` as a credential.
+Allowed string fields additionally reject registered high-confidence credential shapes when a recognized shape starts the token or follows one of the token grammar's structural delimiters (`.`, `_`, `:`, `-`). The regression set covers the existing GitHub/OpenAI-style/Slack families plus AWS access-key-ID-shaped values, Google API-key-shaped values, GitLab PAT-shaped values and Stripe secret/restricted live/test-shaped values. This is defense in depth rather than a universal secret classifier: secrets must not be mapped into allowlisted semantic slots, and arbitrary runtime payloads remain discarded rather than depending on credential-pattern detection. Ordinary interior text such as `risk-score` and structured device identifiers such as `cuda:0` remain usable.
 
 Windows drive-relative path syntax is a separate path-authority edge case because a string such as `C:private-project` is relative to the current directory on drive `C:` even though it contains no slash or backslash. The identifier grammar therefore rejects a single ASCII drive letter immediately followed by `:` in every support token slot. This narrow rule does not reject multi-letter device/runtime identifiers such as `cuda:0`, so useful structured diagnostics remain available without admitting Windows path-shaped evidence.
 
@@ -73,7 +73,7 @@ NIST SP 800-92 is used as operational rationale for deliberate log-management de
 | Accessor-backed authority cannot change between validation and projection | single-read `retryable` accessor regression |
 | Accessor exceptions cannot leak dependency-controlled error payloads | throwing `app` accessor regression requires the stable boundary error |
 | Inherited prototype state cannot become serialized support evidence | `supportBundle.iterator-boundary.test.ts` rejects an event whose required `eventId` exists only on its prototype |
-| Credential-shaped allowed strings cannot enter machine or human output | `supportBundle.credential-boundary.test.ts` covers direct and delimiter-prefixed credential segments plus non-secret interior text |
+| Credential-shaped allowed strings cannot enter machine or human output | `supportBundle.credential-boundary.test.ts` covers direct and delimiter-prefixed credential segments, AWS/Google/GitLab/Stripe-shaped regressions, and ordinary-token preservation |
 | Windows drive-relative path-shaped strings cannot enter support evidence | `supportBundle.path-boundary.test.ts` rejects `C:...`-style tokens while retaining `cuda:0` |
 | Event ordering cannot be ambiguous | out-of-order valid fixture plus duplicate-sequence rejection |
 | Arbitrary secret/path/URL/content payloads cannot enter the manifest | adversarial allowlist-only serialization regression |
