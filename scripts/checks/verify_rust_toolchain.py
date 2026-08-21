@@ -67,18 +67,32 @@ def _inline_run_commands(job: str) -> tuple[str, ...]:
     """Return executable inline ``run:`` payloads from one workflow job.
 
     Required compiler evidence deliberately stays on one-line ``run:`` steps. A
-    comment, step name, environment value, or multiline scalar cannot satisfy
-    the contract accidentally; changing that representation requires an
-    explicit verifier update and regression rather than silently broadening the
-    evidence boundary.
+    comment, step name, environment value, nested ``with`` value, or multiline
+    scalar cannot satisfy the contract accidentally; changing that representation
+    requires an explicit verifier update and regression rather than silently
+    broadening the evidence boundary.
     """
+    lines = job.splitlines()
+    step_markers = [index for index, line in enumerate(lines) if line == "    steps:"]
+    if len(step_markers) != 1:
+        return ()
+
+    start = step_markers[0] + 1
+    end = len(lines)
+    for index in range(start, len(lines)):
+        line = lines[index]
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if line.startswith("    ") and not line.startswith("      "):
+            end = index
+            break
+
     commands: list[str] = []
-    for line in job.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- run:"):
-            command = stripped.removeprefix("- run:").strip()
-        elif stripped.startswith("run:"):
-            command = stripped.removeprefix("run:").strip()
+    for line in lines[start:end]:
+        if line.startswith("      - run:"):
+            command = line.removeprefix("      - run:").strip()
+        elif line.startswith("        run:"):
+            command = line.removeprefix("        run:").strip()
         else:
             continue
         if command and command not in {"|", ">", "|-", ">-"}:
