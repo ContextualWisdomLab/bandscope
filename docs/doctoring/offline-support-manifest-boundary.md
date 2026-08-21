@@ -11,7 +11,7 @@ Implemented in the current branch:
 - a canonical UTC `generatedAt` whose date and clock fields must describe an actual Gregorian calendar instant rather than a JavaScript-normalized date;
 - bounded diagnostic event count;
 - stable event IDs, severity, stage, component, retryability, next-action code, correlation ID and monotonic sequence;
-- single-read snapshots of untrusted object/array evidence with accessor failures contained at the stable manifest boundary;
+- single-read snapshots of untrusted own object properties and bounded array evidence, with inherited prototype values excluded from evidence authority and accessor failures contained at the stable manifest boundary;
 - an explicit structured-field allowlist (`errorClass`, `backend`, `device`, `codec`, `durationMs`, `queueDepth`);
 - rejection of high-confidence credential prefixes at a token boundary before any allowed string can enter the manifest or report;
 - rejection of Windows drive-relative path-shaped tokens such as `C:private-project` while preserving ordinary multi-letter device identifiers such as `cuda:0`;
@@ -36,7 +36,7 @@ Those remain separate #963 work and must not be inferred from the presence of th
 
 Runtime diagnostic objects are untrusted input even when TypeScript callers are typed. `buildSupportBundleManifest()` therefore accepts `unknown` and constructs a new object from an allowlist. It never serializes the caller object wholesale and never attempts broad post-hoc masking.
 
-The boundary also treats accessors and proxies as untrusted execution surfaces. Authority-bearing properties are read exactly once into local snapshots before validation or projection. Property-access exceptions are contained and converted to the stable `Invalid support bundle input` failure rather than allowing dependency-controlled exception text to cross the support boundary. Event collections are bounded from their observed length before snapshotting and are rejected if their snapshotted cardinality changes.
+The boundary also treats accessors, proxies, and prototype inheritance as untrusted execution/data surfaces. Authority-bearing fields must be own properties of the supplied runtime object; an inherited prototype value cannot silently satisfy a required support-evidence field. Once own-property authority is established, a property is read exactly once into a local snapshot before validation or projection. Property-access exceptions are contained and converted to the stable `Invalid support bundle input` failure rather than allowing dependency-controlled exception text to cross the support boundary. Event collections are bounded from their observed length before snapshotting and are rejected if their snapshotted cardinality changes.
 
 The following caller-owned categories have no schema slot and are discarded rather than copied: absolute paths, raw URLs, environment variables, credentials, bearer/API tokens, exception messages, stack traces, subprocess arguments, audio, score PDFs, project JSON, lyrics and handoff payloads.
 
@@ -72,6 +72,7 @@ NIST SP 800-92 is used as operational rationale for deliberate log-management de
 | Canonical UTC time is a real Gregorian date rather than a normalized impossible date | malformed top-level identity regression rejects February 31 and April 31 |
 | Accessor-backed authority cannot change between validation and projection | single-read `retryable` accessor regression |
 | Accessor exceptions cannot leak dependency-controlled error payloads | throwing `app` accessor regression requires the stable boundary error |
+| Inherited prototype state cannot become serialized support evidence | `supportBundle.iterator-boundary.test.ts` rejects an event whose required `eventId` exists only on its prototype |
 | Credential-shaped allowed strings cannot enter machine or human output | `supportBundle.credential-boundary.test.ts` covers direct and delimiter-prefixed credential segments plus non-secret interior text |
 | Windows drive-relative path-shaped strings cannot enter support evidence | `supportBundle.path-boundary.test.ts` rejects `C:...`-style tokens while retaining `cuda:0` |
 | Event ordering cannot be ambiguous | out-of-order valid fixture plus duplicate-sequence rejection |
