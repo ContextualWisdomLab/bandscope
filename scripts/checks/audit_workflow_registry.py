@@ -48,11 +48,18 @@ class AuditError(RuntimeError):
 
 
 def _require_nonempty_string(value: object) -> str | None:
-    """Return a non-empty string, or ``None`` for malformed external input."""
+    """Return a trimmed non-empty display string, or ``None`` for malformed input."""
     if not isinstance(value, str):
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _require_exact_nonempty_string(value: object) -> str | None:
+    """Return an exact non-empty authority string without normalizing its identity."""
+    if not isinstance(value, str) or not value:
+        return None
+    return value
 
 
 def _valid_workflow_id(value: object) -> bool:
@@ -97,8 +104,8 @@ def classify_workflows(
     for workflow in workflows:
         workflow_id = workflow.get("id")
         name = _require_nonempty_string(workflow.get("name"))
-        path = _require_nonempty_string(workflow.get("path"))
-        state = _require_nonempty_string(workflow.get("state"))
+        path = _require_exact_nonempty_string(workflow.get("path"))
+        state = _require_exact_nonempty_string(workflow.get("state"))
 
         if not _valid_workflow_id(workflow_id) or name is None or path is None or state is None:
             records.append(
@@ -385,7 +392,7 @@ class GitHubRegistryClient:
         return collect_paginated_workflows(fetch_page)
 
     def fetch_tree_paths(self, repository: str, sha: str) -> set[str]:
-        """Return regular-file blob paths from a complete recursive tree bound to *sha*."""
+        """Return exact regular-file blob paths from a complete recursive tree bound to *sha*."""
         repository_path = self._repository_path(repository)
         payload, _status = self._get_json(
             f"{self._api_url}/repos/{repository_path}/git/trees/{sha}?recursive=1"
@@ -401,7 +408,7 @@ class GitHubRegistryClient:
         for entry in tree:
             if not isinstance(entry, dict):
                 raise AuditError("recursive tree contains a malformed entry")
-            path = _require_nonempty_string(entry.get("path"))
+            path = _require_exact_nonempty_string(entry.get("path"))
             if path is None:
                 raise AuditError("recursive tree entry is missing a valid path")
             if path in seen_paths:
