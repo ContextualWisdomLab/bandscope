@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 
 RUSTSEC_IDS = {"RUSTSEC-2026-0194", "RUSTSEC-2026-0195"}
