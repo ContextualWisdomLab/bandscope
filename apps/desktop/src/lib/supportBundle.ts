@@ -66,9 +66,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   }
 }
 
-/** Reads one untrusted runtime property once and contains accessor failures. */
+/** Reads one own untrusted runtime property once and contains accessor failures. */
 function readProperty(record: Record<string, unknown>, key: string): unknown {
   try {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) {
+      return undefined;
+    }
     return record[key];
   } catch {
     return invalid();
