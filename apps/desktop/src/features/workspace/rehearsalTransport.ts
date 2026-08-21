@@ -192,7 +192,11 @@ export function reduceRehearsalTransport(
         return state;
       }
       if (state.phase === "paused") {
-        return { ...state, phase: "looping" };
+        return {
+          ...state,
+          phase:
+            state.countInRemainingBeats > 0 ? "counting-in" : "looping",
+        };
       }
       return {
         ...state,
