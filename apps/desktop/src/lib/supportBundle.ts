@@ -246,7 +246,7 @@ export class SupportDiagnosticBuffer {
   /** Creates a bounded diagnostic buffer with the manifest's maximum event capacity. */
   constructor(capacity = MAX_SUPPORT_BUNDLE_EVENTS) {
     if (!Number.isSafeInteger(capacity) || capacity < 1 || capacity > MAX_SUPPORT_BUNDLE_EVENTS) {
-      return invalid();
+      invalid();
     }
     this.capacity = capacity;
   }
