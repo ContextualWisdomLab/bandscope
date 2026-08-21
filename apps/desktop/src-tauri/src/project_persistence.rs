@@ -27,12 +27,18 @@ fn remove_stage(path: &Path) {
 
 /// Reads one project through the same bounded byte ceiling used by project publication.
 ///
-/// The file is opened once and the reader itself is capped at `MAX_PROJECT_FILE_BYTES + 1`, so a
-/// file that grows after selection cannot turn a metadata preflight into an unbounded allocation.
-/// UTF-8 decoding happens only after the bounded read completes. Path selection remains owned by the
-/// native file dialog; symlink/handle-level containment and durable project recovery are later #962
-/// boundaries rather than claims of this helper.
+/// A directly selected symlink is rejected before it can redirect the read to different content.
+/// The regular file is then opened once and the reader itself is capped at
+/// `MAX_PROJECT_FILE_BYTES + 1`, so a file that grows after selection cannot turn a metadata
+/// preflight into an unbounded allocation. UTF-8 decoding happens only after the bounded read
+/// completes. Handle-level identity checks for a path swapped between inspection and open remain a
+/// later #962 boundary and are not claimed by this helper.
 pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
+    let metadata = fs::symlink_metadata(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    if metadata.file_type().is_symlink() {
+        return Err(PROJECT_READ_ERROR.to_string());
+    }
+
     let file = File::open(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
     let mut reader = file.take((MAX_PROJECT_FILE_BYTES + 1) as u64);
     let mut bytes = Vec::new();
