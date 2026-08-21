@@ -216,5 +216,7 @@ describe("App rehearsal-help failure recovery", () => {
     fireEvent.click(within(helpDialog).getByRole("button", { name: /show rehearsal map/i }));
 
     await waitFor(() => expect(screen.queryByTestId("score-view")).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId("rehearsal-help-dialog")).toBeNull());
+    expect(document.activeElement?.id).toBe("main-content");
   });
 });
