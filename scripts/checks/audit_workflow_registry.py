@@ -94,10 +94,13 @@ def classify_workflows(
     the workflow source.
     """
     workflow_ids = [workflow.get("id") for workflow in workflows]
+    valid_workflow_ids = [
+        workflow_id for workflow_id in workflow_ids if _valid_workflow_id(workflow_id)
+    ]
     duplicate_ids = {
         workflow_id
-        for workflow_id, count in Counter(workflow_ids).items()
-        if _valid_workflow_id(workflow_id) and count > 1
+        for workflow_id, count in Counter(valid_workflow_ids).items()
+        if count > 1
     }
     records: list[dict[str, Any]] = []
 
