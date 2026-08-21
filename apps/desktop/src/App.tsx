@@ -885,6 +885,7 @@ export function App() {
           void handleStartAnalysis();
         }}
         onShowMap={() => {
+          setActiveView("workspace");
           document.getElementById("main-content")?.focus();
         }}
       />
