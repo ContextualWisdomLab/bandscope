@@ -429,7 +429,10 @@ export function App() {
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setJobError(null);
+      setJobResult(null);
+      setJobResultBootstrap(null);
       setJobStatus(null);
+      setActiveAnalysisBootstrap(null);
       setSelectedBootstrap(selection.bootstrap);
       return;
     }
