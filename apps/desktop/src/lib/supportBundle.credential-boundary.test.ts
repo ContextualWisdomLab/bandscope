@@ -52,6 +52,17 @@ describe("support-bundle credential boundary", () => {
     );
   });
 
+  it.each([
+    ["backend", "AKIAIOSFODNN7EXAMPLE"],
+    ["device", "AIzaSyA123456789012345678901234567890123"],
+    ["codec", "glpat-abcdefghijklmnopqrst"],
+    ["errorClass", "sk_live_51exampleCredential"]
+  ])("rejects additional high-confidence credential-shaped %s evidence", (field, value) => {
+    expect(() => buildSupportBundleManifest(inputWithField(field, value))).toThrow(
+      "Invalid support bundle input"
+    );
+  });
+
   it("rejects credential-shaped correlation identifiers before serialization", () => {
     const input = baseInput();
     input.events[0]!.correlationId = credential("gh", "o_exampleCredential");
