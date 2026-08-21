@@ -135,6 +135,29 @@ describe("RehearsalPlayer", () => {
     ).toContain("%");
   });
 
+  it("disables start while count-in or loop timing is already active", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const song = createDemoRehearsalSong();
+    render(<RehearsalPlayer song={song} hasLocalAudio={true} />);
+
+    const startButton = screen.getByRole("button", {
+      name: /Start the count-in/i,
+    }) as HTMLButtonElement;
+    expect(startButton.disabled).toBe(false);
+
+    fireEvent.click(startButton);
+    expect(startButton.disabled).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(startButton.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /Pause/i }));
+    expect(startButton.disabled).toBe(false);
+  });
+
   it("does not restart the count-in when section selection changes under the same start nonce", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
