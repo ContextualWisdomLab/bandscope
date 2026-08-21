@@ -19,6 +19,11 @@ function snapshot(
   };
 }
 
+/**
+ * Security Notes: this test-only helper reads the fixed
+ * process.cwd()/src/features/help directory. It accepts no user-provided path
+ * and must not become a general-purpose file-reading API.
+ */
 function productionHelpModuleNames(): string[] {
   return readdirSync(join(process.cwd(), "src", "features", "help"))
     .filter(
