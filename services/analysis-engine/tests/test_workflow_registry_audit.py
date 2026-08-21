@@ -166,7 +166,8 @@ def test_duplicate_workflow_id_fails_closed(audit_module) -> None:
 
     assert {record["classification"] for record in records} == {"unresolved"}
     assert all(
-        record["reason"] == "duplicate workflow id in registry snapshot" for record in records
+        record["reason"] == "duplicate workflow id in registry snapshot"
+        for record in records
     )
 
 
