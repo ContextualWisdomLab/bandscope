@@ -16,6 +16,7 @@ import {
   nextActionTemplateKey,
   nextActionValues,
   reduceRehearsalTransport,
+  type RehearsalLoopWindow,
   type RehearsalTransportState,
 } from "./rehearsalTransport";
 
@@ -42,6 +43,20 @@ function loopProgressPercent(state: RehearsalTransportState): number {
       0,
       ((state.playheadSeconds - state.loop.startSeconds) / duration) * 100,
     ),
+  );
+}
+
+/** Return whether two loop windows describe the same transport timing authority. */
+function hasSameLoopTiming(
+  current: RehearsalLoopWindow,
+  next: RehearsalLoopWindow,
+): boolean {
+  return (
+    current.sectionId === next.sectionId &&
+    current.startSeconds === next.startSeconds &&
+    current.endSeconds === next.endSeconds &&
+    current.tempoBpm === next.tempoBpm &&
+    current.countInBeats === next.countInBeats
   );
 }
 
@@ -77,9 +92,22 @@ export function RehearsalPlayer({
     const nextLoop = selectedSection
       ? createLoopWindow(selectedSection, song.tempo)
       : null;
-    setTransport((current) =>
-      reduceRehearsalTransport(current, { type: "arm", loop: nextLoop }),
-    );
+    setTransport((current) => {
+      if (
+        current.loop &&
+        nextLoop &&
+        hasSameLoopTiming(current.loop, nextLoop)
+      ) {
+        if (
+          current.loop.sectionLabel === nextLoop.sectionLabel &&
+          current.loop.tempoAssumed === nextLoop.tempoAssumed
+        ) {
+          return current;
+        }
+        return { ...current, loop: nextLoop };
+      }
+      return reduceRehearsalTransport(current, { type: "arm", loop: nextLoop });
+    });
   }, [playableSections, selectedRendererIndex, song.tempo]);
 
   useEffect(() => {
