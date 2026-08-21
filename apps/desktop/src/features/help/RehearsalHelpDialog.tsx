@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement } from "react";
+import { useMemo, useRef, type ReactElement } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -55,11 +55,22 @@ export function RehearsalHelp({
   onShowMap,
 }: RehearsalHelpProps): ReactElement {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const focusMapOnCloseRef = useRef(false);
   const action = rehearsalHelpAction(phase);
   const retry = phase === "retry-after-failure";
 
+  /** Preserve Base UI's normal focus restoration except for the explicit map action. */
+  const finalFocusTarget = (): true | HTMLElement => {
+    if (!focusMapOnCloseRef.current) {
+      return true;
+    }
+    focusMapOnCloseRef.current = false;
+    return document.getElementById("main-content") ?? true;
+  };
+
   /** Documented. */
   const runNextAction = (): void => {
+    focusMapOnCloseRef.current = action === "focus-map";
     onOpenChange(false);
     if (action === "choose-local") {
       onChooseLocal();
@@ -79,6 +90,7 @@ export function RehearsalHelp({
       <DialogContent
         className="border-cyan-300/20 bg-slate-950 text-slate-100 sm:max-w-lg"
         data-testid="rehearsal-help-dialog"
+        finalFocus={finalFocusTarget}
       >
         <DialogHeader>
           <DialogTitle className="text-xl font-black tracking-tight text-white">
