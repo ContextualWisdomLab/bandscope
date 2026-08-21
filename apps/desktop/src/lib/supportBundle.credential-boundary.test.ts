@@ -53,8 +53,8 @@ describe("support-bundle credential boundary", () => {
   });
 
   it.each([
-    ["backend", "AKIAIOSFODNN7EXAMPLE"],
-    ["device", "AIzaSyA123456789012345678901234567890123"],
+    ["backend", credential("AK", "IAIOSFODNN7EXAMPLE")],
+    ["device", credential("AI", "zaSyA123456789012345678901234567890123")],
     ["codec", "glpat-abcdefghijklmnopqrst"],
     ["errorClass", "sk_live_51exampleCredential"]
   ])("rejects additional high-confidence credential-shaped %s evidence", (field, value) => {
