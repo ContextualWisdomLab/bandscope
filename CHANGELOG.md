@@ -7,6 +7,13 @@
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
+### Fixed
+
+- Redact native workspace-fetch failures at the desktop console boundary so dependency-controlled local paths, tokens, and tool diagnostics cannot be copied into routine frontend logs.
+- Redact dependency-controlled YouTube import failures at the desktop bridge so URLs, local paths, tokens, cookies, or tool diagnostics cannot be surfaced directly to the UI; users receive one safe next-action message instead.
+- Removed the browser-only synthetic analysis workspace and timed fake success path. Analysis execution and project-save mutations now require the native Tauri runtime; browser-only execution fails closed instead of manufacturing `ready` rehearsal results or silently reporting an unpersisted save as successful.
+- Reject native `demo` analysis before bridge invocation until a licensed demo track is installed, preventing the arrangement-only test fixture from becoming buyer-visible production success while directing musicians to local audio.
+
 ## [0.1.3] - 2026-04-29
 
 ### Fixed
@@ -49,7 +56,7 @@
 - Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
 - Issue #40: Enforced 100% Python docstring and test coverage
 - Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Implemented secure local audio intake and project bootstrap
+- Issue #33: Engineered section, form, and cue anchor extraction pipeline
 - Issue #35: Engineered section, form, and cue anchor extraction pipeline
 - Issue #34: Implemented role extraction targets and part graph
 - Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
@@ -64,5 +71,5 @@
 ### 추가됨 (Added)
 
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
-- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
+- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트(Role)의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
 - 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
