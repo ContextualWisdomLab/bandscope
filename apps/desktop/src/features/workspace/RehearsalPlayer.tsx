@@ -202,9 +202,12 @@ export function RehearsalPlayer({
                 }
                 onClick={() => setSelectedSectionIndex(index)}
               >
-                {section.label} ·{" "}
-                {formatRehearsalClock(section.timeRange.start)}–
-                {formatRehearsalClock(section.timeRange.end)}
+                <span>{section.label}</span>
+                <span> · </span>
+                <span>
+                  {formatRehearsalClock(section.timeRange.start)}–
+                  {formatRehearsalClock(section.timeRange.end)}
+                </span>
               </Button>
             );
           })}
