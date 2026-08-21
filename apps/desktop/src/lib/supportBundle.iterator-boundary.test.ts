@@ -70,4 +70,28 @@ describe("support-bundle event snapshot authority", () => {
       })
     ).toThrowError("Invalid support bundle input");
   });
+
+  it("does not admit inherited sparse-array elements as diagnostic evidence", () => {
+    const events = new Array<unknown>(1);
+    const inheritedSlots = Object.create(Array.prototype) as unknown[];
+    Object.defineProperty(inheritedSlots, "0", {
+      configurable: true,
+      value: validEvent()
+    });
+    Object.setPrototypeOf(events, inheritedSlots);
+
+    expect(() =>
+      buildSupportBundleManifest({
+        generatedAt: "2026-08-20T12:00:00Z",
+        app: {
+          version: "0.1.4",
+          sourceRevision: revision,
+          buildId: "desktop-release-42",
+          platform: "windows",
+          architecture: "x86_64"
+        },
+        events
+      })
+    ).toThrowError("Invalid support bundle input");
+  });
 });
