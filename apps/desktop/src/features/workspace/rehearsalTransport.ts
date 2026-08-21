@@ -127,7 +127,9 @@ export function resolveLoopWindow(
 ): RehearsalLoopWindow | null {
   const sections = Array.isArray(song?.sections) ? song.sections : [];
   if (typeof sectionId === "string" && sectionId.trim()) {
-    const requested = sections.find((section) => section.id === sectionId);
+    const requested = sections.find(
+      (section) => isPlayableLoopSection(section) && section.id === sectionId,
+    );
     const requestedWindow = requested
       ? createLoopWindow(requested, song?.tempo)
       : null;
