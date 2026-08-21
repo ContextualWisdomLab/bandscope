@@ -164,6 +164,24 @@ mod tests {
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn rejects_project_symlink_before_reading_external_content() {
+        use std::os::unix::fs::symlink;
+
+        let root = test_dir("read-symlink");
+        let external = root.join("external.json");
+        let selected = root.join("selected.bscope");
+        fs::write(&external, r#"{"id":"external"}"#).expect("external fixture should be written");
+        symlink(&external, &selected).expect("fixture symlink should be created");
+
+        let error = read_project_file(&selected)
+            .expect_err("a selected symlink must not redirect the project reader");
+
+        assert_eq!(error, "Failed to read file");
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
     #[test]
     fn rejects_oversized_project_during_the_read_itself() {
         let root = test_dir("read-oversize");
