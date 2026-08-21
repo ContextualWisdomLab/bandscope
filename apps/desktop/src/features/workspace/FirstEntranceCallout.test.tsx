@@ -143,14 +143,15 @@ describe("FirstEntranceCallout", () => {
     ).toBeTruthy();
   });
 
-  it("localizes the section form label instead of exposing its raw enum in Korean copy", () => {
+  it("localizes the section form label and keeps dynamic Korean role names particle-safe", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
-    song.sections[0]!.roles[0]!.name = "건반";
+    song.sections[0]!.roles[0]!.name = "피아노";
 
     render(<FirstEntranceCallout song={song} />);
 
-    expect(screen.getByText(/^건반이 0:10에 벌스로 들어옵니다\./)).toBeTruthy();
+    expect(screen.getByText(/^0:10에 벌스로 피아노 파트가 들어옵니다\./)).toBeTruthy();
+    expect(screen.queryByText(/^피아노이 0:10에 벌스로 들어옵니다\./)).toBeNull();
     expect(screen.queryByText(/verse로 들어옵니다/)).toBeNull();
   });
 });
