@@ -32,7 +32,7 @@ vi.mock("./lib/analysis", () => ({
 }));
 
 vi.mock("./features/score/ScoreView", () => ({
-  ScoreView: () => null,
+  ScoreView: () => <div data-testid="score-view">Score view</div>,
 }));
 
 function bootstrap(projectId: string, fileName: string) {
@@ -180,5 +180,41 @@ describe("App rehearsal-help failure recovery", () => {
 
     resolveImport?.({ ok: true, bootstrap: bootstrap("project-youtube", "imported-song.m4a") });
     await waitFor(() => expect(screen.getByText(/imported-song\.m4a/i)).toBeTruthy());
+  });
+
+  it("switches from score back to the workspace before showing the rehearsal map", async () => {
+    analysisMocks.selectLocalAudioSource.mockResolvedValueOnce({
+      ok: true,
+      bootstrap: bootstrap("project-map", "map-song.wav"),
+    });
+    analysisMocks.startAnalysisJob.mockResolvedValueOnce({
+      jobId: "job-help-map",
+      state: "succeeded",
+      requestedAt: "2026-08-21T05:20:00.000Z",
+      updatedAt: "2026-08-21T05:20:01.000Z",
+      progressLabel: "Analysis ready",
+      progressStage: "ready",
+      progressPercent: 100,
+      cacheStatus: "disabled",
+      result: createDemoRehearsalSong(),
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/map-song\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save project/i }).getAttribute("aria-disabled")).toBeNull();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^score$/i })[0]!);
+    await waitFor(() => expect(screen.getByTestId("score-view")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    const helpDialog = screen.getByTestId("rehearsal-help-dialog");
+    fireEvent.click(within(helpDialog).getByRole("button", { name: /show rehearsal map/i }));
+
+    await waitFor(() => expect(screen.queryByTestId("score-view")).toBeNull());
   });
 });
