@@ -174,6 +174,51 @@ describe("App rehearsal-help failure recovery", () => {
     expect(within(helpDialog).queryByRole("button", { name: /show the rehearsal map/i })).toBeNull();
   });
 
+  it("forgets the previous analyzed song when a YouTube source is imported", async () => {
+    analysisMocks.isSupportedYoutubeUrl.mockReturnValue(true);
+    analysisMocks.selectLocalAudioSource.mockResolvedValueOnce({
+      ok: true,
+      bootstrap: bootstrap("project-local", "analyzed-song.wav"),
+    });
+    analysisMocks.startAnalysisJob.mockResolvedValueOnce({
+      jobId: "job-help-youtube-reset",
+      state: "succeeded",
+      requestedAt: "2026-08-21T05:15:00.000Z",
+      updatedAt: "2026-08-21T05:15:01.000Z",
+      progressLabel: "Analysis ready",
+      progressStage: "ready",
+      progressPercent: 100,
+      cacheStatus: "disabled",
+      result: createDemoRehearsalSong(),
+    });
+    analysisMocks.importYoutubeUrl.mockResolvedValueOnce({
+      ok: true,
+      bootstrap: bootstrap("project-youtube", "imported-song.m4a"),
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/analyzed-song\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save project/i }).getAttribute("aria-disabled")).toBeNull();
+    });
+
+    fireEvent.change(screen.getByRole("textbox", { name: /youtube url/i }), {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /import youtube/i }));
+    await waitFor(() => expect(screen.getByText(/imported-song\.m4a/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    const helpDialog = screen.getByTestId("rehearsal-help-dialog");
+    expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
+      /start analysis to get tonight's first cues/i,
+    );
+    expect(within(helpDialog).queryByRole("button", { name: /show the rehearsal map/i })).toBeNull();
+  });
+
   it("shows a wait-only help state while a YouTube import is in flight", async () => {
     let resolveImport: ((value: unknown) => void) | undefined;
     analysisMocks.isSupportedYoutubeUrl.mockReturnValue(true);
