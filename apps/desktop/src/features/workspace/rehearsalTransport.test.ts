@@ -99,6 +99,29 @@ describe("rehearsalTransport", () => {
     expect(wrapPlayhead(loop!.endSeconds, loop!)).toBe(loop!.startSeconds);
   });
 
+  it("resumes the remaining count-in beats after pausing during count-in", () => {
+    const song = createDemoRehearsalSong();
+    const loop = resolveLoopWindow(song);
+    let state = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+    state = reduceRehearsalTransport(state, { type: "start" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    expect(state.countInRemainingBeats).toBe(3);
+    state = reduceRehearsalTransport(state, { type: "pause" });
+    expect(state.phase).toBe("paused");
+
+    state = reduceRehearsalTransport(state, { type: "start" });
+
+    expect(state.phase).toBe("counting-in");
+    expect(state.countInRemainingBeats).toBe(3);
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    expect(state.phase).toBe("looping");
+  });
+
   it("pauses a live loop and names the next play action", () => {
     const song = createDemoRehearsalSong();
     const loop = resolveLoopWindow(song, song.sections[0]!.id);
