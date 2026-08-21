@@ -154,7 +154,10 @@ export function RehearsalPlayer({
     t(actionKey as TranslationKey),
     nextActionValues(transport),
   );
-  const canStart = transport.loop !== null && hasLocalAudio;
+  const canStart =
+    transport.loop !== null &&
+    hasLocalAudio &&
+    (transport.phase === "armed" || transport.phase === "paused");
   const canPause =
     transport.phase === "counting-in" || transport.phase === "looping";
   const canStop = transport.phase !== "idle" && transport.loop !== null;
