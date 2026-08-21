@@ -135,6 +135,47 @@ describe("RehearsalPlayer", () => {
     ).toContain("%");
   });
 
+  it("keeps a live loop running across unrelated song metadata updates", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const song = createDemoRehearsalSong();
+    const { rerender } = render(
+      <RehearsalPlayer song={song} hasLocalAudio={true} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/looping/i);
+
+    const updatedSong = {
+      ...song,
+      sections: song.sections.map((section, sectionIndex) =>
+        sectionIndex === 0
+          ? {
+              ...section,
+              roles: section.roles.map((role, roleIndex) =>
+                roleIndex === 0
+                  ? { ...role, practiceProgress: 50 }
+                  : role,
+              ),
+            }
+          : section,
+      ),
+    };
+
+    rerender(<RehearsalPlayer song={updatedSong} hasLocalAudio={true} />);
+
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/looping/i);
+  });
+
   it("disables start while count-in or loop timing is already active", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
