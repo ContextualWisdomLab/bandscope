@@ -124,6 +124,44 @@ describe("RehearsalPlayer", () => {
     ).not.toMatch(/Count in 4 beats/i);
   });
 
+  it("keeps duplicate analysis section ids selectable by renderer position", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [
+      {
+        ...song.sections[0]!,
+        id: "duplicate-section",
+        label: "verse",
+        timeRange: { start: 10, end: 20 },
+      },
+      {
+        ...song.sections[0]!,
+        id: "duplicate-section",
+        label: "chorus",
+        timeRange: { start: 30, end: 40 },
+      },
+    ];
+
+    render(<RehearsalPlayer song={song} hasLocalAudio={true} />);
+
+    const verseButton = screen.getByRole("button", {
+      name: /verse.*0:10.*0:20/i,
+    });
+    const chorusButton = screen.getByRole("button", {
+      name: /chorus.*0:30.*0:40/i,
+    });
+    expect(verseButton.getAttribute("aria-pressed")).toBe("true");
+    expect(chorusButton.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(chorusButton);
+
+    expect(verseButton.getAttribute("aria-pressed")).toBe("false");
+    expect(chorusButton.getAttribute("aria-pressed")).toBe("true");
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Loop chorus from 0:30–0:40\. Start the count-in/i);
+  });
+
   it("stays fail-closed when no section has a usable window", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
