@@ -70,8 +70,8 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 
 - Full harness check: `./scripts/harness/quickcheck.sh`
 - Frontend tests: `npm run test --workspaces --if-present`
-- Python tests: `uv run --project services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100`
-- Typecheck: `npm run typecheck --workspaces --if-present && uv run --project services/analysis-engine mypy src`
+- Python tests: `uv run --directory services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100`
+- Typecheck: `npm run typecheck --workspaces --if-present && uv run --directory services/analysis-engine mypy src`
 
 ## Architecture references
 
