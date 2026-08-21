@@ -879,19 +879,13 @@ describe("App", () => {
     });
   });
 
-  it("keeps handoff metadata tied to the source that produced the current result", async () => {
+  it("retires handoff export when a different source replaces the analyzed source", async () => {
     const originalCreateObjectUrl = URL.createObjectURL;
-    const originalRevokeObjectUrl = URL.revokeObjectURL;
     const createObjectUrl = vi.fn(() => "blob:handoff");
-    const revokeObjectUrl = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
       value: createObjectUrl
-    });
-    Object.defineProperty(URL, "revokeObjectURL", {
-      configurable: true,
-      value: revokeObjectUrl
     });
 
     tauriInvoke
@@ -927,23 +921,15 @@ describe("App", () => {
       fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
       await waitFor(() => expect(screen.getByText(/next-song\.wav/i)).toBeTruthy());
 
-      fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
-      const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
-      const payload = JSON.parse(await blob.text());
-
-      expect(payload.sourceAssets[0].fileName).toBe("late-night-set.wav");
-      expect(JSON.stringify(payload)).not.toContain("next-song.wav");
-      expect(click).toHaveBeenCalledTimes(1);
-      expect(revokeObjectUrl).toHaveBeenCalledWith("blob:handoff");
+      expect(screen.queryByRole("heading", { name: /Late Night Set/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /export handoff/i })).toBeNull();
+      expect(createObjectUrl).not.toHaveBeenCalled();
+      expect(click).not.toHaveBeenCalled();
     } finally {
       click.mockRestore();
       Object.defineProperty(URL, "createObjectURL", {
         configurable: true,
         value: originalCreateObjectUrl
-      });
-      Object.defineProperty(URL, "revokeObjectURL", {
-        configurable: true,
-        value: originalRevokeObjectUrl
       });
     }
   });
@@ -1379,24 +1365,26 @@ describe("App", () => {
     });
   });
 
-  it("handles saving a project failure gracefully", async () => {
+  it("keeps the loaded rehearsal map visible when saving the project fails", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
 
-    // Load first to get jobResult populated
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
 
     mockSaveProject.mockRejectedValueOnce(new Error("Permission denied"));
-
-    // Now click save
     fireEvent.click(screen.getByRole("button", { name: /save project/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to save project: Permission denied/i)).toBeTruthy();
     });
+    expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    const helpDialog = screen.getByTestId("rehearsal-help-dialog");
+    expect(within(helpDialog).getByRole("button", { name: /show the rehearsal map/i })).toBeTruthy();
   });
 
   it("ignores cancellation when saving a project with Error object", async () => {
