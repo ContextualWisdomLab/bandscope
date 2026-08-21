@@ -257,6 +257,7 @@ export function App() {
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
@@ -273,9 +274,9 @@ export function App() {
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const helpPhase = resolveRehearsalHelpPhase({
     hasLocalSource: selectedBootstrap !== null,
-    analysisInFlight: analysisInFlight || isStarting,
+    analysisInFlight: analysisInFlight || isStarting || isImporting,
     hasSong: jobResult !== null,
-    hasError: jobError !== null,
+    hasError: analysisFailed,
   });
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
     ? {
@@ -298,9 +299,11 @@ export function App() {
       setJobResultBootstrap(activeAnalysisBootstrap);
       setActiveAnalysisBootstrap(null);
       setJobError(null);
+      setAnalysisFailed(false);
     }
     if (nextStatus.state === "failed") {
       setActiveAnalysisBootstrap(null);
+      setAnalysisFailed(true);
       setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
     }
   }, [activeAnalysisBootstrap, t]);
@@ -370,6 +373,7 @@ export function App() {
             return;
           }
           const fallbackMessage = t("analysisCouldNotStart");
+          setAnalysisFailed(true);
           setJobError(fallbackMessage);
           setJobStatus({
             ...jobStatus,
@@ -401,6 +405,7 @@ export function App() {
     }
 
     const submittedBootstrap = selectedBootstrap;
+    setAnalysisFailed(false);
     setJobError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
@@ -420,6 +425,7 @@ export function App() {
     } catch {
       setJobStatus(null);
       setActiveAnalysisBootstrap(null);
+      setAnalysisFailed(true);
       setJobError(t("analysisCouldNotStart"));
     } finally {
       setIsStarting(false);
@@ -432,6 +438,7 @@ export function App() {
     setSelectionErrorSource(null);
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
+      setAnalysisFailed(false);
       setJobError(null);
       setJobResult(null);
       setJobResultBootstrap(null);
@@ -495,11 +502,13 @@ export function App() {
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
+      setAnalysisFailed(false);
       setSelectedBootstrap(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
+        setAnalysisFailed(false);
         setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
       }
     }
@@ -556,7 +565,7 @@ export function App() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bandscope-bg)] text-slate-100 selection:bg-cyan-300/30">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
-      <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px]" />
+      <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px" />
 
       <div className="relative flex min-h-screen">
         <aside className="hidden w-64 shrink-0 border-r border-[color:var(--bandscope-border)] bg-[var(--bandscope-surface-strong)] px-5 py-5 shadow-[24px_0_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl lg:flex lg:flex-col">
@@ -684,7 +693,7 @@ export function App() {
             })}
             <button
               type="button"
-              aria-label={t("helpTitle")}
+              aria-label={t("helpOpen")}
               title={t("helpOpen")}
               aria-haspopup="dialog"
               aria-expanded={helpOpen}
