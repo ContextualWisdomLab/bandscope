@@ -47,7 +47,7 @@ import { createTranslator, detectPreferredLocale, type TranslationKey } from "./
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
-import { RehearsalHelp } from "./features/help/RehearsalHelp";
+import { RehearsalHelp } from "./features/help/RehearsalHelpDialog";
 import { resolveRehearsalHelpPhase } from "./features/help/rehearsalHelp";import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
