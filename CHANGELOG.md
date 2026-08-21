@@ -10,6 +10,7 @@
 ### Fixed
 
 - Stage and sync new project saves before non-clobbering publication, and enforce the existing 5 MiB project limit during the file read itself so a selected project cannot grow past a metadata preflight into an unbounded load allocation.
+- Reject directly selected project symlinks before reading so a chosen `.bscope` path cannot silently redirect the loader to different file content.
 
 ## [0.1.3] - 2026-04-29
 
