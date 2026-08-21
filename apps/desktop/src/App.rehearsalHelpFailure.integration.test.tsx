@@ -153,7 +153,7 @@ describe("App rehearsal-help failure recovery", () => {
     expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
       /start analysis to get tonight's first cues/i,
     );
-    expect(within(helpDialog).queryByRole("button", { name: /show rehearsal map/i })).toBeNull();
+    expect(within(helpDialog).queryByRole("button", { name: /show the rehearsal map/i })).toBeNull();
   });
 
   it("does not start stale local analysis from help while a YouTube import is in flight", async () => {
@@ -224,7 +224,7 @@ describe("App rehearsal-help failure recovery", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
-    fireEvent.click(within(helpDialog).getByRole("button", { name: /show rehearsal map/i }));
+    fireEvent.click(within(helpDialog).getByRole("button", { name: /show the rehearsal map/i }));
 
     await waitFor(() => expect(screen.queryByTestId("score-view")).toBeNull());
     await waitFor(() => expect(screen.queryByTestId("rehearsal-help-dialog")).toBeNull());
