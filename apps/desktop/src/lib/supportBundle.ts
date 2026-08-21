@@ -104,6 +104,9 @@ function snapshotBoundedArray(value: unknown, maximum: number): unknown[] {
   const snapshot: unknown[] = [];
   try {
     for (let index = 0; index < length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(value, index)) {
+        return invalid();
+      }
       snapshot.push((value as unknown[])[index]);
     }
   } catch {
