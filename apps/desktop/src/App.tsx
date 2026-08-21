@@ -682,6 +682,18 @@ export function App() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              aria-label={t("helpTitle")}
+              title={t("helpOpen")}
+              aria-haspopup="dialog"
+              aria-expanded={helpOpen}
+              onClick={() => setHelpOpen(true)}
+              className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-xl px-3 text-cyan-200 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            >
+              <CircleHelp className="size-4" aria-hidden="true" />
+              <span className="sr-only">{t("helpOpen")}</span>
+            </button>
           </nav>
 
           <section aria-label={t("sourceControlsAriaLabel")} className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
