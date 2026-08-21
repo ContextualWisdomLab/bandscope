@@ -1076,6 +1076,119 @@ describe("App", () => {
     });
   });
 
+  it("retries the admitted song from the analysis failure card", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(failedJobStatus("job-5", "Analysis queue is full. Please wait for a running job to finish."))
+      .mockResolvedValueOnce(succeededResult());
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /try this song again/i })).toBeTruthy();
+    });
+    expect(screen.getByText(/this song is still on this device/i)).toBeTruthy();
+    expect(screen.getByText(/analysis queue is full/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /try this song again/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Section Roadmap/i)).toBeTruthy();
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("lets the player choose another song after analysis fails", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(failedJobStatus("job-7", "Analysis engine is unavailable."))
+      .mockResolvedValueOnce(bootstrapResponse({
+        projectId: "project-2",
+        source: {
+          sourcePath: "/Users/test/Music/next-song.wav",
+          fileName: "next-song.wav",
+          extension: "wav",
+          fileSizeBytes: 2048000
+        }
+      }));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /choose another song/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /choose another song/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/next-song\.wav/i)).toBeTruthy();
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText(/choose an audio file to prepare for your rehearsal/i)).toBeTruthy();
+  });
+
+  it("keeps the admitted song when choosing another file fails after analysis failure", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(failedJobStatus("job-8", "Analysis engine is unavailable."));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /choose another song/i })).toBeTruthy();
+    });
+
+    mockLocalAudioSelectionResult = {
+      ok: false,
+      error: { code: "invalid_request", message: "Choose a WAV, MP3, FLAC, or M4A file to start analysis." }
+    };
+    fireEvent.click(screen.getByRole("button", { name: /choose another song/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
+    });
+    expect(screen.getAllByRole("alert").some((alert) => /analysis engine is unavailable/i.test(alert.textContent ?? ""))).toBe(true);
+    expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /try this song again/i }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("does not offer analysis retry after a project save failure", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(succeededResult());
+    mockSaveProject.mockRejectedValueOnce(new Error("Disk full"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save project/i })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to save project: disk full/i)).toBeTruthy();
+    });
+    expect(screen.queryByRole("button", { name: /try this song again/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /choose another song/i })).toBeNull();
+  });
+
   it("renders the result immediately when start returns a succeeded job", async () => {
     tauriInvoke
       .mockResolvedValueOnce(bootstrapResponse())

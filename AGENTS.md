@@ -83,6 +83,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Keep UI and analysis engine decoupled through shared contracts.
 - Prefer minimal, test-first changes for production code.
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
+- After analysis fails, customer-facing copy must enable the next rehearsal action (try this song again or choose another file). Do not leave a failed analysis as a message-only dead end.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
 

@@ -1,6 +1,7 @@
 import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Music, AlertCircle } from "lucide-react";
+import { Loader2, Music, AlertCircle, Play, Upload } from "lucide-react";
 
 /** Documented. */
 export function EmptyState() {
@@ -38,17 +39,69 @@ export function LoadingState() {
   );
 }
 
-/** Documented. */
-export function ErrorState({ error }: { error?: string }) {
+/** Next-action handlers after analysis fails without claiming a demo or stem player. */
+export interface ErrorStateProps {
+  error?: string;
+  canRetry?: boolean;
+  onRetry?: () => void;
+  onChooseAnotherSong?: () => void;
+  actionsDisabled?: boolean;
+}
+
+/** Name the next rehearsal action after analysis fails. */
+export function ErrorState({
+  error,
+  canRetry = false,
+  onRetry,
+  onChooseAnotherSong,
+  actionsDisabled = false
+}: ErrorStateProps) {
   const t = createTranslator(detectPreferredLocale());
+  const showRecoveryActions = Boolean(onRetry || onChooseAnotherSong);
+
   return (
     <Card className="border-rose-300/30 bg-rose-950/40 shadow-[0_18px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl" role="alert" aria-live="assertive" aria-atomic="true">
       <CardContent className="flex flex-col items-center justify-center py-20 text-center">
         <div className="mb-4 rounded-full border border-rose-300/30 bg-rose-300/10 p-4 text-rose-200 shadow-sm">
           <AlertCircle className="size-8" aria-hidden="true" />
         </div>
-        <h3 className="mb-2 text-lg font-black text-rose-100">{t("workspaceErrorState")}</h3>
+        <h3 className="mb-2 text-lg font-black text-rose-100">
+          {showRecoveryActions ? t("analysisFailedTitle") : t("workspaceErrorState")}
+        </h3>
+        {showRecoveryActions ? (
+          <p className="max-w-md text-slate-300">{t("analysisFailedGuidance")}</p>
+        ) : null}
         {error && <p className="mt-2 rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">{error}</p>}
+        {showRecoveryActions ? (
+          <div className="mt-8 flex w-full max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
+            {onRetry ? (
+              <Button
+                type="button"
+                onClick={onRetry}
+                disabled={actionsDisabled || !canRetry}
+                title={canRetry ? undefined : t("analysisFailedRetryUnavailable")}
+                className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
+                aria-label={t("analysisFailedRetry")}
+              >
+                <Play className="mr-2 size-4 fill-current" aria-hidden="true" />
+                {t("analysisFailedRetry")}
+              </Button>
+            ) : null}
+            {onChooseAnotherSong ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onChooseAnotherSong}
+                disabled={actionsDisabled}
+                className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
+                aria-label={t("analysisFailedChooseAnother")}
+              >
+                <Upload className="mr-2 size-4" aria-hidden="true" />
+                {t("analysisFailedChooseAnother")}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
