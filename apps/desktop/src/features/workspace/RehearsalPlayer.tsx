@@ -9,13 +9,13 @@ import {
 import {
   beatDurationMs,
   createIdleTransportState,
+  createLoopWindow,
   fillRehearsalCopy,
   formatRehearsalClock,
   isPlayableLoopSection,
   nextActionTemplateKey,
   nextActionValues,
   reduceRehearsalTransport,
-  resolveLoopWindow,
   type RehearsalTransportState,
 } from "./rehearsalTransport";
 
@@ -59,23 +59,28 @@ export function RehearsalPlayer({
         : [],
     [song],
   );
-  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
-    playableSections[0]?.id ?? null,
-  );
-  const [transport, setTransport] = useState<RehearsalTransportState>(() =>
-    reduceRehearsalTransport(createIdleTransportState(), {
+  const [selectedSectionIndex, setSelectedSectionIndex] = useState(0);
+  const selectedRendererIndex = playableSections[selectedSectionIndex]
+    ? selectedSectionIndex
+    : 0;
+  const [transport, setTransport] = useState<RehearsalTransportState>(() => {
+    const firstSection = playableSections[0];
+    return reduceRehearsalTransport(createIdleTransportState(), {
       type: "arm",
-      loop: resolveLoopWindow(song, playableSections[0]?.id),
-    }),
-  );
+      loop: firstSection ? createLoopWindow(firstSection, song.tempo) : null,
+    });
+  });
   const lastHandledStartNonce = useRef(0);
 
   useEffect(() => {
-    const nextLoop = resolveLoopWindow(song, selectedSectionId);
+    const selectedSection = playableSections[selectedRendererIndex];
+    const nextLoop = selectedSection
+      ? createLoopWindow(selectedSection, song.tempo)
+      : null;
     setTransport((current) =>
       reduceRehearsalTransport(current, { type: "arm", loop: nextLoop }),
     );
-  }, [song, selectedSectionId]);
+  }, [playableSections, selectedRendererIndex, song.tempo]);
 
   useEffect(() => {
     if (startNonce <= lastHandledStartNonce.current) {
@@ -86,15 +91,24 @@ export function RehearsalPlayer({
       return;
     }
     setTransport((current) => {
+      const selectedSection = playableSections[selectedRendererIndex];
       const armed = current.loop
         ? current
         : reduceRehearsalTransport(current, {
             type: "arm",
-            loop: resolveLoopWindow(song, selectedSectionId),
+            loop: selectedSection
+              ? createLoopWindow(selectedSection, song.tempo)
+              : null,
           });
       return reduceRehearsalTransport(armed, { type: "start" });
     });
-  }, [startNonce, hasLocalAudio, song, selectedSectionId]);
+  }, [
+    startNonce,
+    hasLocalAudio,
+    playableSections,
+    selectedRendererIndex,
+    song.tempo,
+  ]);
 
   useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
@@ -157,12 +171,11 @@ export function RehearsalPlayer({
           role="group"
           aria-label={t("workspaceLoopSectionPickerLabel")}
         >
-          {playableSections.map((section) => {
-            const selected =
-              section.id === (transport.loop?.sectionId ?? selectedSectionId);
+          {playableSections.map((section, index) => {
+            const selected = index === selectedRendererIndex;
             return (
               <Button
-                key={section.id}
+                key={`rehearsal-loop-section-${index}`}
                 type="button"
                 variant={selected ? "default" : "outline"}
                 size="sm"
@@ -172,7 +185,7 @@ export function RehearsalPlayer({
                     ? "min-h-10 border-cyan-300/30 bg-cyan-300 font-semibold text-slate-950"
                     : "min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100"
                 }
-                onClick={() => setSelectedSectionId(section.id)}
+                onClick={() => setSelectedSectionIndex(index)}
               >
                 {section.label} ·{" "}
                 {formatRehearsalClock(section.timeRange.start)}–
