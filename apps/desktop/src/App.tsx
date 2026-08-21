@@ -396,6 +396,10 @@ export function App() {
 
   /** Documented. */
   const handleStartAnalysis = async () => {
+    if (analysisInFlight || isStarting || isImporting || !selectedBootstrap) {
+      return;
+    }
+
     const submittedBootstrap = selectedBootstrap;
     setJobError(null);
     setJobResult(null);
