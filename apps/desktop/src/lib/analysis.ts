@@ -35,6 +35,8 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   "Could not prepare the local temp workspace."
 ]);
 const BROWSER_ANALYSIS_UNAVAILABLE_MESSAGE = "BandScope analysis requires the Tauri runtime";
+const DEMO_ANALYSIS_UNAVAILABLE_MESSAGE =
+  "Demo analysis is unavailable until a licensed demo track is installed. Choose a local audio file.";
 const YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Try again or choose a local audio file.";
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
@@ -220,6 +222,17 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
       error: {
         code: "invalid_request",
         message: error instanceof Error ? error.message : "Invalid analysis job request."
+      }
+    });
+  }
+
+  if (parsedRequest.sourceKind === "demo" && getInvoke()) {
+    return createAnalysisJobStatus({
+      jobId: browserJobId("demo-unavailable-job"),
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: DEMO_ANALYSIS_UNAVAILABLE_MESSAGE
       }
     });
   }
