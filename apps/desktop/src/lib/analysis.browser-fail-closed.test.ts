@@ -1,5 +1,9 @@
-import { beforeEach, expect, it } from "vitest";
-import { createDemoAnalysisJobRequest, createDemoRehearsalSong } from "@bandscope/shared-types";
+import { beforeEach, expect, it, vi } from "vitest";
+import {
+  createAnalysisJobStatus,
+  createDemoAnalysisJobRequest,
+  createDemoRehearsalSong
+} from "@bandscope/shared-types";
 
 import { getAnalysisJobStatus, saveProject, startAnalysisJob } from "./analysis";
 
@@ -46,4 +50,29 @@ it("fails closed instead of reporting browser-only project save success", async 
   await expect(saveProject(createDemoRehearsalSong())).rejects.toThrow(
     "Project save requires the Tauri runtime."
   );
+});
+
+it("does not send an unlicensed synthetic demo request to the native analysis bridge", async () => {
+  const nativeInvoke = vi.fn(async () =>
+    createAnalysisJobStatus({
+      jobId: "synthetic-native-demo",
+      state: "succeeded",
+      progressStage: "ready",
+      progressPercent: 100,
+      result: createDemoRehearsalSong()
+    })
+  );
+  tauriWindow.__TAURI_INVOKE__ = nativeInvoke;
+
+  const status = await startAnalysisJob(createDemoAnalysisJobRequest());
+
+  expect(nativeInvoke).not.toHaveBeenCalled();
+  expect(status).toMatchObject({
+    state: "failed",
+    error: {
+      code: "engine_unavailable",
+      message: "Demo analysis is unavailable until a licensed demo track is installed. Choose a local audio file."
+    }
+  });
+  expect(status.result).toBeUndefined();
 });
