@@ -107,6 +107,30 @@ def test_open_pr_queue_manifest_fails_closed_on_corrupt_evidence(mutate, expecte
         verifier.validate_manifest(manifest)
 
 
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (lambda manifest: manifest.update(merge_ready=True), "manifest has unsupported field"),
+        (
+            lambda manifest: manifest["trains"]["T0"].update(owner="dependency-team"),
+            "trains.T0 has unsupported field",
+        ),
+        (
+            lambda manifest: manifest["pull_requests"][0].update(merge_ready=True),
+            r"pull_requests\[0\] has unsupported field",
+        ),
+    ],
+)
+def test_open_pr_queue_manifest_rejects_unsupported_evidence_fields(mutate, expected: str) -> None:
+    """Unreviewed fields must not smuggle unsupported success or ownership evidence into the queue."""
+    verifier = _load_verifier()
+    manifest = _valid_manifest()
+    mutate(manifest)
+
+    with pytest.raises(verifier.ManifestError, match=expected):
+        verifier.validate_manifest(manifest)
+
+
 def test_quickcheck_executes_open_pr_queue_verifier() -> None:
     """The repository harness must execute the queue contract on every normal quickcheck."""
     quickcheck = QUICKCHECK_PATH.read_text(encoding="utf-8")
