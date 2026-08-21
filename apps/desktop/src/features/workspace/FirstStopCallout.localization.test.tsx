@@ -9,7 +9,7 @@ function songWithLocalizedStop() {
   const role = {
     ...section.roles[0]!,
     id: "keyboard-stop",
-    name: "건반",
+    name: "피아노",
     rehearsalPriority: "high" as const
   };
   section.id = "localized-stop";
@@ -40,12 +40,13 @@ describe("FirstStopCallout runtime and locale boundary", () => {
     ).toBeTruthy();
   });
 
-  it("uses Korean section-form copy instead of exposing the raw stop enum", () => {
+  it("uses particle-safe Korean section-form copy instead of exposing the raw stop enum", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
 
     render(<FirstStopCallout song={songWithLocalizedStop()} />);
 
-    expect(screen.getByText("건반이 0:10 스톱에서 컷합니다.")).toBeTruthy();
+    expect(screen.getByText("0:10 스톱에서 피아노 파트가 컷합니다.")).toBeTruthy();
+    expect(screen.queryByText("피아노이 0:10 스톱에서 컷합니다.")).toBeNull();
     expect(screen.queryByText(/ stop에서 /)).toBeNull();
   });
 });
