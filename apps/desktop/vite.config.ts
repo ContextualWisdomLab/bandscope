@@ -24,6 +24,7 @@ export default defineConfig({
         "src/lib/export.ts",
         "src/i18n/index.ts",
         "src/features/help/rehearsalHelp.ts",
+        "src/features/help/RehearsalHelpDialog.tsx",
         "src/features/score/ScoreViewer.tsx",
         "src/features/score/ScoreView.tsx",
         "src/features/score/scoreStorage.ts"
