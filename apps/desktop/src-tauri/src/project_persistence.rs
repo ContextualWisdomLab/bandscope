@@ -17,9 +17,18 @@ const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 #[cfg(windows)]
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
 
+fn project_parent(target: &Path) -> &Path {
+    match target.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    }
+}
+
 fn staging_path(target: &Path) -> Result<PathBuf, String> {
-    let parent = target.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = target.file_name().ok_or_else(|| PROJECT_PUBLISH_ERROR.to_string())?;
+    let parent = project_parent(target);
+    let file_name = target
+        .file_name()
+        .ok_or_else(|| PROJECT_PUBLISH_ERROR.to_string())?;
     let mut stage_name = OsString::from(".");
     stage_name.push(file_name);
     stage_name.push(format!(".{}.stage", uuid::Uuid::new_v4()));
@@ -80,6 +89,18 @@ fn metadata_is_regular_project_file(metadata: &fs::Metadata) -> bool {
     metadata.is_file() && !metadata.file_type().is_symlink()
 }
 
+#[cfg(windows)]
+fn metadata_is_safe_project_directory(metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    metadata.is_dir() && metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT == 0
+}
+
+#[cfg(not(windows))]
+fn metadata_is_safe_project_directory(metadata: &fs::Metadata) -> bool {
+    metadata.is_dir() && !metadata.file_type().is_symlink()
+}
+
 fn read_project_file_with_opener<F>(target: &Path, open_file: F) -> Result<String, String>
 where
     F: FnOnce(&Path) -> std::io::Result<File>,
@@ -126,13 +147,22 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 
 /// Publishes one new project only after its complete bounded bytes are staged and synced.
 ///
-/// This helper deliberately does not implement overwrite semantics. `File::create_new` makes the
-/// staging name non-clobbering, and `hard_link` atomically creates the user-selected destination
-/// only if that destination is still absent. An existing file or dangling symlink therefore stays
-/// untouched instead of being truncated before replacement bytes are durable. Crash-safe overwrite,
-/// backup rotation, migration, and recovery remain separate project-format work under #962.
+/// This helper deliberately does not implement overwrite semantics. The directly selected parent
+/// must itself be a real directory rather than a symlink/reparse point before any staging artifact is
+/// created. `File::create_new` makes the staging name non-clobbering, and `hard_link` atomically
+/// creates the user-selected destination only if that destination is still absent. An existing file
+/// or dangling symlink therefore stays untouched instead of being truncated before replacement bytes
+/// are durable. Crash-safe overwrite, ancestor-handle binding, parent-directory durability, backup
+/// rotation, migration, and recovery remain separate project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     if content.is_empty() || content.len() > MAX_PROJECT_FILE_BYTES {
+        return Err(PROJECT_STAGE_ERROR.to_string());
+    }
+
+    let parent = project_parent(target);
+    let parent_metadata =
+        fs::symlink_metadata(parent).map_err(|_| PROJECT_STAGE_ERROR.to_string())?;
+    if !metadata_is_safe_project_directory(&parent_metadata) {
         return Err(PROJECT_STAGE_ERROR.to_string());
     }
 
@@ -193,7 +223,10 @@ mod tests {
 
         publish_new_project_file(&target, content).expect("new project should publish safely");
 
-        assert_eq!(fs::read(&target).expect("published project should be readable"), content);
+        assert_eq!(
+            fs::read(&target).expect("published project should be readable"),
+            content
+        );
         let names = fs::read_dir(&root)
             .expect("test directory should be readable")
             .map(|entry| entry.expect("directory entry should be readable").file_name())
@@ -212,8 +245,14 @@ mod tests {
         let error = publish_new_project_file(&target, br#"{\"id\":\"replacement\"}"#)
             .expect_err("existing project must not be overwritten unsafely");
 
-        assert_eq!(error, "Project file already exists. Choose a new file name.");
-        assert_eq!(fs::read(&target).expect("known-good project should remain"), known_good);
+        assert_eq!(
+            error,
+            "Project file already exists. Choose a new file name."
+        );
+        assert_eq!(
+            fs::read(&target).expect("known-good project should remain"),
+            known_good
+        );
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
@@ -228,7 +267,12 @@ mod tests {
 
         assert_eq!(error, "Could not stage the project safely.");
         assert!(!target.exists());
-        assert_eq!(fs::read_dir(&root).expect("directory should be readable").count(), 0);
+        assert_eq!(
+            fs::read_dir(&root)
+                .expect("directory should be readable")
+                .count(),
+            0
+        );
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
@@ -254,7 +298,8 @@ mod tests {
         let root = test_dir("read-symlink");
         let external = root.join("external.json");
         let selected = root.join("selected.bscope");
-        fs::write(&external, r#"{"id":"external"}"#).expect("external fixture should be written");
+        fs::write(&external, r#"{"id":"external"}"#)
+            .expect("external fixture should be written");
         symlink(&external, &selected).expect("fixture symlink should be created");
 
         let error = read_project_file(&selected)
@@ -270,9 +315,13 @@ mod tests {
         let selected = root.join("selected.bscope");
         let replacement = root.join("replacement.bscope");
         let parked = root.join("parked.bscope");
-        fs::write(&selected, r#"{"id":"selected"}"#).expect("selected fixture should be written");
-        fs::write(&replacement, r#"{"id":"replacement-with-different-bytes"}"#)
-            .expect("replacement fixture should be written");
+        fs::write(&selected, r#"{"id":"selected"}"#)
+            .expect("selected fixture should be written");
+        fs::write(
+            &replacement,
+            r#"{"id":"replacement-with-different-bytes"}"#,
+        )
+        .expect("replacement fixture should be written");
 
         let error = read_project_file_with_opener(&selected, |path| {
             fs::rename(path, &parked)?;
