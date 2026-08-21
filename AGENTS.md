@@ -2,6 +2,7 @@
 
 ## Project overview
 - BandScope is a local-first desktop app for rehearsal prep: a practical song view with likely harmony by section and by instrument or vocal role, form and groove cues, stems, playable ranges, simplification guidance, transposition or setup cues, part-overlap cues, visible confidence, and rehearsal priorities.
+- Rehearsal help must name the next action: choose a local song, start analysis, wait, retry after failure, or open tonight's map. Stem playback and a licensed demo remain later work.
 - Authoritative delivery rules live in `ARCHITECTURE.md`, `docs/plans/`, and the root verification scripts.
 - Brand, tone, UX copy, and prioritization rules live in `docs/brand-story.md` and must be applied to PRDs, TRDs, UI copy, onboarding, empty states, and error messages.
 - App security rules live in `docs/security/app-security.md` and must be applied to file handling, URL intake, subprocesses, IPC, WebView usage, model loading, updates, logging, cache handling, and export behavior.

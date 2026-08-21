@@ -218,7 +218,11 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
     expect(fireEvent.click(screen.getByRole("button", { name: /settings coming soon/i }))).toBe(false);
-    expect(fireEvent.click(screen.getByRole("button", { name: /help coming soon/i }))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    expect(screen.getByTestId("rehearsal-help-next-action").textContent).toMatch(
+      /Choose a local song first/i,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Close help/i }));
     const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
     const activePrimaryNavButton = within(primaryNav).getByRole("button", { name: "Workspace" });
     expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
@@ -1553,14 +1557,65 @@ describe("App", () => {
   });
 
 
-  it("renders Settings and Help as focusable aria-disabled controls", () => {
+  it("renders Settings as a focusable aria-disabled control and opens rehearsal help", () => {
     render(<App />);
     const settingsButton = screen.getByRole("button", { name: "Settings coming soon" });
-    const helpButton = screen.getByRole("button", { name: "Help coming soon" });
+    const helpButton = screen.getByRole("button", { name: "Open rehearsal help" });
     expect(settingsButton).toHaveAttribute("aria-disabled", "true");
     expect(settingsButton).not.toHaveAttribute("disabled");
-    expect(helpButton).toHaveAttribute("aria-disabled", "true");
-    expect(helpButton).not.toHaveAttribute("disabled");
+    expect(helpButton).toHaveAttribute("aria-haspopup", "dialog");
+    expect(helpButton).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(helpButton);
+    expect(helpButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /Choose a local song/i })).toBeTruthy();
+  });
+
+  it("starts local-file intake from rehearsal help before a song is loaded", async () => {
+    tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Choose a local song/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+  });
+
+  it("starts analysis from rehearsal help after a local song is chosen", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-help-start",
+        state: "queued",
+        progressLabel: "Queued for analysis"
+      }))
+      .mockResolvedValueOnce(succeededResult());
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    const helpDialog = screen.getByTestId("rehearsal-help-dialog");
+    expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
+      /Start analysis to get tonight's first cues/i,
+    );
+    fireEvent.click(within(helpDialog).getByRole("button", { name: /^Start analysis$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+  });
+
+  it("focuses tonight's rehearsal map from help after analysis is ready", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Show the rehearsal map/i }));
+    expect(document.getElementById("main-content")).toBe(document.activeElement);
   });
 
   it("keeps the Score view disabled until a song is loaded", () => {

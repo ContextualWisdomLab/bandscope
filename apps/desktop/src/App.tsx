@@ -47,7 +47,8 @@ import { createTranslator, detectPreferredLocale, type TranslationKey } from "./
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
-import { Button } from "@/components/ui/button";
+import { RehearsalHelp } from "./features/help/RehearsalHelp";
+import { resolveRehearsalHelpPhase } from "./features/help/rehearsalHelp";import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Toaster } from "@/components/ui/sonner";
@@ -264,10 +265,17 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
+  const [helpOpen, setHelpOpen] = useState(false);
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
+  const helpPhase = resolveRehearsalHelpPhase({
+    hasLocalSource: selectedBootstrap !== null,
+    analysisInFlight: analysisInFlight || isStarting,
+    hasSong: jobResult !== null,
+    hasError: jobError !== null,
+  });
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
     ? {
         sourceKind: "local_audio",
@@ -623,11 +631,12 @@ export function App() {
               </button>
               <button
                 type="button"
-                aria-disabled={true}
-                aria-label={t("helpComingSoon")}
-                title={t("helpComingSoon")}
-                onClick={preventUnavailableAction}
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                aria-label={t("helpOpen")}
+                title={t("helpOpen")}
+                aria-haspopup="dialog"
+                aria-expanded={helpOpen}
+                onClick={() => setHelpOpen(true)}
+                className="inline-flex items-center justify-center rounded-xl p-2 text-cyan-200 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
               >
                 <CircleHelp className="size-5" aria-hidden="true" />
               </button>
@@ -635,7 +644,7 @@ export function App() {
           </div>
         </aside>
 
-        <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
+        <main id="main-content" tabIndex={-1} className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
@@ -855,6 +864,20 @@ export function App() {
         </main>
       </div>
 
+      <RehearsalHelp
+        open={helpOpen}
+        phase={helpPhase}
+        onOpenChange={setHelpOpen}
+        onChooseLocal={() => {
+          void handleChooseLocalAudio();
+        }}
+        onStartAnalysis={() => {
+          void handleStartAnalysis();
+        }}
+        onShowMap={() => {
+          document.getElementById("main-content")?.focus();
+        }}
+      />
       <Toaster />
     </div>
   );
