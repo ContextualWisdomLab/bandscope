@@ -154,7 +154,7 @@
   "firstStopActionBand": "{at} 첫 스톱 듣기",
   "firstStopOpenAction": "{at} {role} 스톱 위치 열기",
   "firstStopOpenActionBand": "{at} 첫 스톱 위치 열기",
-  "firstStopBody": "{role}이 {at} {section}에서 컷합니다.",
+  "firstStopBody": "{at} {section}에서 {role} 파트가 컷합니다.",
   "firstStopBodyBand": "밴드가 {at} {section}에서 컷합니다.",
   "firstStopArmed": "{at}에서 {role} 컷을 지키세요. 그대로 밀고 가지 마세요.",
   "firstStopArmedBand": "{at}에서 컷을 지키세요. 그대로 밀고 가지 마세요.",
