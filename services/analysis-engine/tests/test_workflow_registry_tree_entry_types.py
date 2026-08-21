@@ -124,3 +124,32 @@ def test_recursive_tree_paths_are_not_whitespace_normalized(monkeypatch) -> None
 
     assert distinct_git_path in tree_paths
     assert canonical_path not in tree_paths
+
+
+def test_registry_path_and_state_are_not_whitespace_normalized() -> None:
+    """Whitespace-altered registry authority must stay unresolved rather than canonicalized."""
+    audit = load_module(
+        "scripts/checks/audit_workflow_registry.py",
+        "audit_workflow_registry_whitespace_registry_authority_test",
+    )
+    canonical_path = ".github/workflows/ci.yml"
+
+    records = audit.classify_workflows(
+        [
+            {
+                "id": 1,
+                "name": "Whitespace path",
+                "path": f"{canonical_path} ",
+                "state": "active",
+            },
+            {
+                "id": 2,
+                "name": "Whitespace state",
+                "path": canonical_path,
+                "state": " active ",
+            },
+        ],
+        {canonical_path},
+    )
+
+    assert [record["classification"] for record in records] == ["unresolved", "unresolved"]
