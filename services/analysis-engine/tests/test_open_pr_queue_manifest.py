@@ -122,7 +122,7 @@ def test_open_pr_queue_manifest_fails_closed_on_corrupt_evidence(mutate, expecte
     ],
 )
 def test_open_pr_queue_manifest_rejects_unsupported_evidence_fields(mutate, expected: str) -> None:
-    """Unreviewed fields must not smuggle unsupported success or ownership evidence into the queue."""
+    """Reject fields that could smuggle unsupported success or ownership evidence."""
     verifier = _load_verifier()
     manifest = _valid_manifest()
     mutate(manifest)
