@@ -154,7 +154,7 @@
   "firstHandoffActionBand": "{at} 첫 핸드오프 듣기",
   "firstHandoffOpenAction": "{at} {role} 핸드오프 위치 열기",
   "firstHandoffOpenActionBand": "{at} 첫 핸드오프 위치 열기",
-  "firstHandoffBody": "{role}이 {at} {section}에서 넘깁니다.",
+  "firstHandoffBody": "{at} {section}에서 {role} 파트가 넘깁니다.",
   "firstHandoffBodyBand": "밴드가 {at} {section}에서 넘깁니다.",
   "firstHandoffArmed": "{at}에서 {role} 패스를 받으세요. 다음 파트를 잡으세요.",
   "firstHandoffArmedBand": "{at}에서 패스를 받으세요. 다음 파트를 잡으세요.",
