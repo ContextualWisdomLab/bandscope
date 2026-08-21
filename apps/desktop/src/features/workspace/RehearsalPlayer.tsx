@@ -111,6 +111,18 @@ export function RehearsalPlayer({
   ]);
 
   useEffect(() => {
+    if (hasLocalAudio) {
+      return;
+    }
+    setTransport((current) => {
+      if (current.phase === "idle" || current.phase === "armed") {
+        return current;
+      }
+      return reduceRehearsalTransport(current, { type: "stop" });
+    });
+  }, [hasLocalAudio]);
+
+  useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
       return undefined;
     }
