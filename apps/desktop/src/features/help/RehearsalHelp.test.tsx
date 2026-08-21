@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RehearsalHelp } from "./RehearsalHelp";
+import { RehearsalHelp } from "./RehearsalHelpDialog";
 import type { RehearsalHelpPhase } from "./rehearsalHelp";
 
 const originalLanguage = navigator.language;
