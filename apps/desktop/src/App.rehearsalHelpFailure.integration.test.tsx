@@ -65,15 +65,33 @@ describe("App rehearsal-help failure recovery", () => {
     analysisMocks.subscribeToAnalysisJobUpdates.mockResolvedValue(() => undefined);
   });
 
-  it("exposes rehearsal help from compact navigation", () => {
+  it("exposes rehearsal help from compact navigation with the same accessible name", () => {
     render(<App />);
 
-    const compactHelp = screen.getByRole("button", { name: /how bandscope helps tonight/i });
+    const compactHelp = screen.getByRole("button", { name: /open rehearsal help/i });
     const compactNav = compactHelp.closest("nav");
 
     expect(compactNav?.getAttribute("aria-label")).toMatch(/compact rehearsal views/i);
     fireEvent.click(compactHelp);
     expect(screen.getByTestId("rehearsal-help-dialog")).toBeTruthy();
+  });
+
+  it("does not describe a project-load error as an analysis failure", async () => {
+    analysisMocks.loadProject.mockRejectedValueOnce(new Error("Broken project fixture"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    const helpDialog = screen.getByTestId("rehearsal-help-dialog");
+    expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
+      /choose a local song first/i,
+    );
+    expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).not.toMatch(
+      /analysis did not finish/i,
+    );
   });
 
   it("advances from retry to start analysis after a different local song is selected", async () => {
