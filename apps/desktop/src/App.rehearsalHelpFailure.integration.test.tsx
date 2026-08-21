@@ -156,7 +156,7 @@ describe("App rehearsal-help failure recovery", () => {
     expect(within(helpDialog).queryByRole("button", { name: /show the rehearsal map/i })).toBeNull();
   });
 
-  it("does not start stale local analysis from help while a YouTube import is in flight", async () => {
+  it("shows a wait-only help state while a YouTube import is in flight", async () => {
     let resolveImport: ((value: unknown) => void) | undefined;
     analysisMocks.isSupportedYoutubeUrl.mockReturnValue(true);
     analysisMocks.selectLocalAudioSource.mockResolvedValueOnce({
@@ -185,8 +185,11 @@ describe("App rehearsal-help failure recovery", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
-    fireEvent.click(within(helpDialog).getByRole("button", { name: /^start analysis$/i }));
 
+    expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
+      /wait for this step to finish/i,
+    );
+    expect(within(helpDialog).queryByRole("button", { name: /^start analysis$/i })).toBeNull();
     expect(analysisMocks.startAnalysisJob).not.toHaveBeenCalled();
 
     resolveImport?.({ ok: true, bootstrap: bootstrap("project-youtube", "imported-song.m4a") });
