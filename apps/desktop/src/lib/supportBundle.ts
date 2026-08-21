@@ -5,7 +5,8 @@ const MAX_TOKEN_LENGTH = 128;
 const MAX_DURATION_MS = 86_400_000;
 const MAX_QUEUE_DEPTH = 100_000;
 const TOKEN_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
-const CREDENTIAL_PREFIX_PATTERN = /(?:^|[._:-])(?:gh[pousr]_|github_pat_|sk-|xox[baprs]-)/i;
+const CREDENTIAL_PREFIX_PATTERN =
+  /(?:^|[._:-])(?:gh[pousr]_|github_pat_|sk-|xox[baprs]-|glpat-|AIza[A-Za-z0-9_-]{20,}|(?:AKIA|ASIA)[0-9A-Z]{16}|[sr]k_(?:live|test)_)/i;
 const WINDOWS_DRIVE_RELATIVE_PATH_PATTERN = /^[A-Za-z]:/;
 const REVISION_PATTERN = /^[0-9a-f]{40}$/i;
 const RFC3339_UTC_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
