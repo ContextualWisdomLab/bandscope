@@ -6,6 +6,7 @@ import { App } from "./App";
 const analysisMocks = vi.hoisted(() => ({
   getAnalysisJobStatus: vi.fn(),
   importYoutubeUrl: vi.fn(),
+  isSupportedYoutubeUrl: vi.fn(),
   loadProject: vi.fn(),
   saveProject: vi.fn(),
   selectLocalAudioSource: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock("./lib/analysis", () => ({
   }),
   getAnalysisJobStatus: analysisMocks.getAnalysisJobStatus,
   importYoutubeUrl: analysisMocks.importYoutubeUrl,
-  isSupportedYoutubeUrl: () => false,
+  isSupportedYoutubeUrl: analysisMocks.isSupportedYoutubeUrl,
   loadProject: analysisMocks.loadProject,
   MAX_YOUTUBE_URL_LENGTH: 2048,
   saveProject: analysisMocks.saveProject,
@@ -60,6 +61,7 @@ describe("App rehearsal-help failure recovery", () => {
     for (const mock of Object.values(analysisMocks)) {
       mock.mockReset();
     }
+    analysisMocks.isSupportedYoutubeUrl.mockReturnValue(false);
     analysisMocks.subscribeToAnalysisJobUpdates.mockResolvedValue(() => undefined);
   });
 
@@ -141,5 +143,42 @@ describe("App rehearsal-help failure recovery", () => {
       /start analysis to get tonight's first cues/i,
     );
     expect(within(helpDialog).queryByRole("button", { name: /show rehearsal map/i })).toBeNull();
+  });
+
+  it("does not start stale local analysis from help while a YouTube import is in flight", async () => {
+    let resolveImport: ((value: unknown) => void) | undefined;
+    analysisMocks.isSupportedYoutubeUrl.mockReturnValue(true);
+    analysisMocks.selectLocalAudioSource.mockResolvedValueOnce({
+      ok: true,
+      bootstrap: bootstrap("project-local", "local-song.wav"),
+    });
+    analysisMocks.importYoutubeUrl.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveImport = resolve;
+        }),
+    );
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/local-song\.wav/i)).toBeTruthy());
+
+    fireEvent.change(screen.getByRole("textbox", { name: /youtube url/i }), {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /import youtube/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /import youtube/i }).textContent).toMatch(/importing/i);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    const helpDialog = screen.getByTestId("rehearsal-help-dialog");
+    fireEvent.click(within(helpDialog).getByRole("button", { name: /^start analysis$/i }));
+
+    expect(analysisMocks.startAnalysisJob).not.toHaveBeenCalled();
+
+    resolveImport?.({ ok: true, bootstrap: bootstrap("project-youtube", "imported-song.m4a") });
+    await waitFor(() => expect(screen.getByText(/imported-song\.m4a/i)).toBeTruthy());
   });
 });
