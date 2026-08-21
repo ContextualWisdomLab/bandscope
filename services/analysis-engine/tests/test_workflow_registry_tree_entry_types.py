@@ -95,3 +95,32 @@ def test_duplicate_recursive_tree_paths_fail_closed(monkeypatch) -> None:
         assert str(error) == "recursive tree contains a duplicate path"
     else:
         raise AssertionError("duplicate recursive-tree paths must fail closed")
+
+
+def test_recursive_tree_paths_are_not_whitespace_normalized(monkeypatch) -> None:
+    """A distinct whitespace-suffixed Git path cannot prove canonical workflow presence."""
+    audit = load_module(
+        "scripts/checks/audit_workflow_registry.py",
+        "audit_workflow_registry_whitespace_tree_path_test",
+    )
+    client = audit.GitHubRegistryClient()
+    canonical_path = ".github/workflows/ci.yml"
+    distinct_git_path = f"{canonical_path} "
+
+    def fake_get_json(_url: str):
+        return (
+            {
+                "truncated": False,
+                "tree": [
+                    {"path": distinct_git_path, "type": "blob", "mode": "100644"},
+                ],
+            },
+            200,
+        )
+
+    monkeypatch.setattr(client, "_get_json", fake_get_json)
+
+    tree_paths = client.fetch_tree_paths("ContextualWisdomLab/bandscope", "a" * 40)
+
+    assert distinct_git_path in tree_paths
+    assert canonical_path not in tree_paths
