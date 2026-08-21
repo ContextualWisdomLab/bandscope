@@ -156,7 +156,18 @@ describe("FirstChorusCallout", () => {
 
     render(<FirstChorusCallout song={song} />);
 
-    expect(screen.getByText("리드 보컬이 0:30 후렴에서 올립니다.")).toBeTruthy();
+    expect(screen.getByText("0:30 후렴에서 리드 보컬 파트가 올립니다.")).toBeTruthy();
     expect(screen.queryByText(/chorus에서/)).toBeNull();
+  });
+
+  it("keeps dynamic Korean role names particle-safe without guessing Hangul morphology", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = songWithChorus();
+    song.sections[1]!.roles[0]!.name = "피아노";
+
+    render(<FirstChorusCallout song={song} />);
+
+    expect(screen.getByText("0:30 후렴에서 피아노 파트가 올립니다.")).toBeTruthy();
+    expect(screen.queryByText("피아노이 0:30 후렴에서 올립니다.")).toBeNull();
   });
 });
