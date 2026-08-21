@@ -1616,4 +1616,98 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
     expect(screen.queryByText(/Song Timeline/i)).toBeNull();
   });
+
+  it("turns a selected local song into a first-run analyze card", async () => {
+    tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
+
+    expect(await screen.findByRole("heading", { name: "Tonight's song is ready" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Analyze this song" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Whole band" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("/Users/test/Music/late-night-set.wav")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Ready to Analyze" })).toBeNull();
+  });
+
+  it("starts analysis from the first-run card with the chosen part", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-first-run",
+        state: "queued",
+        progressLabel: "Queued for analysis"
+      }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
+    expect(await screen.findByRole("heading", { name: "Tonight's song is ready" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Lead vocal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Analyze this song" }));
+
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenNthCalledWith(2, "start_analysis_job", {
+        request: {
+          sourceKind: "local_audio",
+          projectId: "project-1",
+          sourceLabel: "late-night-set.wav",
+          roleFocus: ["lead-vocal"]
+        }
+      });
+    });
+  });
+
+  it("lets the first-run card choose a different local file", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(bootstrapResponse({
+        projectId: "project-2",
+        source: {
+          sourcePath: "/Users/test/Music/next-song.wav",
+          fileName: "next-song.wav",
+          extension: "wav",
+          fileSizeBytes: 2048000
+        }
+      }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
+    expect(await screen.findByRole("heading", { name: "Tonight's song is ready" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose a different file" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/next-song\.wav/i)).toBeTruthy();
+    });
+    expect(screen.getByRole("heading", { name: "Tonight's song is ready" })).toBeTruthy();
+    expect(screen.queryByText("/Users/test/Music/next-song.wav")).toBeNull();
+  });
+
+  it("keeps header start-analysis on the whole-band role until a part is chosen", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-header-role",
+        state: "queued",
+        progressLabel: "Queued for analysis"
+      }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
+    expect(await screen.findByRole("heading", { name: "Tonight's song is ready" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Start analysis$/i }));
+
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenNthCalledWith(2, "start_analysis_job", {
+        request: {
+          sourceKind: "local_audio",
+          projectId: "project-1",
+          sourceLabel: "late-night-set.wav",
+          roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
+        }
+      });
+    });
+  });
 });
