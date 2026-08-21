@@ -41,8 +41,8 @@ npm --workspace @bandscope/desktop exec vitest run src/lib/export.test.ts   # on
 npm run dev --workspace @bandscope/desktop                 # Vite dev server (browser fallback mode)
 npm run storybook --workspace @bandscope/desktop           # component workbench
 
-uv run --project services/analysis-engine pytest tests/test_chords.py       # one Python test file (no coverage gate)
-uv run --project services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100   # full Python gate
+uv run --directory services/analysis-engine pytest tests/test_chords.py       # one Python test file (no coverage gate)
+uv run --directory services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100   # full Python gate
 ```
 
 ## Architecture
