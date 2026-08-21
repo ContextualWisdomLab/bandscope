@@ -64,3 +64,34 @@ def test_only_regular_blob_can_prove_active_workflow_source(monkeypatch) -> None
         )
         for record in records
     )
+
+
+def test_duplicate_recursive_tree_paths_fail_closed(monkeypatch) -> None:
+    """Contradictory duplicate path evidence cannot manufacture workflow presence."""
+    audit = load_module(
+        "scripts/checks/audit_workflow_registry.py",
+        "audit_workflow_registry_duplicate_tree_path_test",
+    )
+    client = audit.GitHubRegistryClient()
+    workflow_path = ".github/workflows/ci.yml"
+
+    def fake_get_json(_url: str):
+        return (
+            {
+                "truncated": False,
+                "tree": [
+                    {"path": workflow_path, "type": "blob", "mode": "100644"},
+                    {"path": workflow_path, "type": "blob", "mode": "120000"},
+                ],
+            },
+            200,
+        )
+
+    monkeypatch.setattr(client, "_get_json", fake_get_json)
+
+    try:
+        client.fetch_tree_paths("ContextualWisdomLab/bandscope", "a" * 40)
+    except audit.AuditError as error:
+        assert str(error) == "recursive tree contains a duplicate path"
+    else:
+        raise AssertionError("duplicate recursive-tree paths must fail closed")
