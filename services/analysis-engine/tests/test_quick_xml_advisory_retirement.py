@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import tomllib
-
+from pathlib import Path
 
 RUSTSEC_IDS = {"RUSTSEC-2026-0194", "RUSTSEC-2026-0195"}
 MINIMUM_QUICK_XML = (0, 41, 0)
