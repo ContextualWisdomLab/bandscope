@@ -15,9 +15,9 @@ export function OverlapWarningList({ warnings }: OverlapWarningListProps) {
 
   return (
     <ul className="mt-2 space-y-1.5" aria-label={t("overlapWarning")}>
-      {warnings.map((warning) => (
+      {warnings.map((warning, index) => (
         <li
-          key={warning}
+          key={index}
           className="flex items-start gap-2 rounded-md border border-[color:var(--bandscope-overlap-border)] bg-[var(--bandscope-overlap-bg)] p-2 text-xs font-medium text-[color:var(--bandscope-overlap-fg)]"
         >
           <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
