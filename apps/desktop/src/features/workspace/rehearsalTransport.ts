@@ -37,7 +37,7 @@ export type RehearsalTransportEvent =
   | { type: "pause" }
   | { type: "stop" };
 
-/** Documented. */
+/** Return true only for finite numeric values greater than or equal to zero. */
 export function isFiniteNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
