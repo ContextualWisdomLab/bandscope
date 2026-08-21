@@ -101,16 +101,6 @@ fn metadata_is_safe_project_directory(metadata: &fs::Metadata) -> bool {
     metadata.is_dir() && !metadata.file_type().is_symlink()
 }
 
-fn parent_chain_is_safe(parent: &Path) -> bool {
-    parent
-        .ancestors()
-        .filter(|path| !path.as_os_str().is_empty())
-        .all(|path| {
-            fs::symlink_metadata(path)
-                .is_ok_and(|metadata| metadata_is_safe_project_directory(&metadata))
-        })
-}
-
 fn read_project_file_with_opener<F>(target: &Path, open_file: F) -> Result<String, String>
 where
     F: FnOnce(&Path) -> std::io::Result<File>,
@@ -170,7 +160,9 @@ pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<
     }
 
     let parent = project_parent(target);
-    if !parent_chain_is_safe(parent) {
+    let parent_metadata =
+        fs::symlink_metadata(parent).map_err(|_| PROJECT_STAGE_ERROR.to_string())?;
+    if !metadata_is_safe_project_directory(&parent_metadata) {
         return Err(PROJECT_STAGE_ERROR.to_string());
     }
 
