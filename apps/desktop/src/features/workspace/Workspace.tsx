@@ -123,6 +123,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [loopStartNonce, setLoopStartNonce] = useState(0);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const hasLocalAudio = safeProjectBootstrapSummary(sourceBootstrap) !== null;
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -337,7 +338,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <RehearsalPlayer
             song={song}
-            hasLocalAudio={safeProjectBootstrapSummary(sourceBootstrap) !== null}
+            hasLocalAudio={hasLocalAudio}
             startNonce={loopStartNonce}
           />
 
@@ -373,10 +374,21 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <Button
                     type="button"
                     aria-label={t("workspaceLoopThisSection")}
+                    aria-disabled={!hasLocalAudio}
                     title={t("workspaceLoopThisSection")}
-                    onClick={() => setLoopStartNonce((current) => current + 1)}
+                    onClick={(event) => {
+                      if (!hasLocalAudio) {
+                        preventUnavailableAction(event);
+                        return;
+                      }
+                      setLoopStartNonce((current) => current + 1);
+                    }}
                     variant="outline"
-                    className="min-h-11 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white"
+                    className={
+                      hasLocalAudio
+                        ? "min-h-11 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white"
+                        : "min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-400 opacity-70"
+                    }
                   >
                     {t("workspaceLoopThisSection")}
                   </Button>
