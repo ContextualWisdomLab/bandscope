@@ -397,12 +397,16 @@ class GitHubRegistryClient:
             raise AuditError("recursive tree response is missing the tree array")
 
         paths: set[str] = set()
+        seen_paths: set[str] = set()
         for entry in tree:
             if not isinstance(entry, dict):
                 raise AuditError("recursive tree contains a malformed entry")
             path = _require_nonempty_string(entry.get("path"))
             if path is None:
                 raise AuditError("recursive tree entry is missing a valid path")
+            if path in seen_paths:
+                raise AuditError("recursive tree contains a duplicate path")
+            seen_paths.add(path)
             if entry.get("type") == "blob" and entry.get("mode") in {"100644", "100755"}:
                 paths.add(path)
         return paths
