@@ -134,7 +134,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     const loopButton = screen.getByRole("button", {
-      name: "Loop this section",
+      name: "Start selected section loop",
     });
     expect(loopButton.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(loopButton);
@@ -143,7 +143,7 @@ describe("Workspace", () => {
     ).toMatch(/Choose a local song first/i);
   });
 
-  it("starts the section loop from the selected role when local audio is available", () => {
+  it("starts the selected section loop from the role action when local audio is available", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
@@ -159,7 +159,9 @@ describe("Workspace", () => {
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
-    fireEvent.click(screen.getByRole("button", { name: "Loop this section" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Start selected section loop" }),
+    );
 
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
