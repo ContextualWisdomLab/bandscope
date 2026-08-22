@@ -491,6 +491,7 @@ export function App() {
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
+        setJobError(null);
         setProjectError({
           kind: "load",
           message: `${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`
