@@ -462,8 +462,8 @@ export function App() {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
         setSelectionErrorSource("youtube");
       }
-    } catch {
-      setSelectionError(t("youtubeImportFailed"));
+    } catch (error) {
+      setSelectionError(safeErrorDetail(error, t("youtubeImportFailed")));
       setSelectionErrorSource("youtube");
     } finally {
       setIsImporting(false);
