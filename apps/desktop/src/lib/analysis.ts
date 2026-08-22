@@ -18,6 +18,9 @@ import { listen } from "@tauri-apps/api/event";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
+type AudioSourceSuccess = { ok: true; bootstrap: ProjectBootstrapSummary };
+type AudioSourceFailure = { ok: false; error: AnalysisJobError };
+
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: {
@@ -48,11 +51,14 @@ const MAX_YOUTUBE_URL_LENGTH = 2000;
 
 export { MAX_YOUTUBE_URL_LENGTH };
 
-/** Documented. */
+/** Local-picker result; only this boundary can report native picker cancellation. */
 export type LocalAudioSelectionResult =
-  | { ok: true; bootstrap: ProjectBootstrapSummary }
+  | AudioSourceSuccess
   | { ok: false; cancelled: true }
-  | { ok: false; error: AnalysisJobError };
+  | AudioSourceFailure;
+
+/** YouTube import result; this boundary has no native-picker cancellation state. */
+export type YoutubeImportResult = AudioSourceSuccess | AudioSourceFailure;
 
 /** Documented. */
 function getInvoke(): TauriInvoke | null {
@@ -329,7 +335,7 @@ export async function subscribeToAnalysisJobUpdates(
 }
 
 /** Documented. */
-export async function importYoutubeUrl(url: string): Promise<LocalAudioSelectionResult> {
+export async function importYoutubeUrl(url: string): Promise<YoutubeImportResult> {
   if (!isSupportedYoutubeUrl(url)) {
     return {
       ok: false,
