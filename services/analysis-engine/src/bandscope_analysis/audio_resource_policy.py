@@ -205,7 +205,7 @@ def _array_layout(audio: np.ndarray) -> tuple[int, int]:
         if first <= 4 and second >= first:
             return first, second
         return second, first
-    _raise("malformed_header")
+    raise AudioResourcePolicyError("malformed_header", POLICY_MESSAGES["malformed_header"])
 
 
 def validate_decoded_audio(
@@ -214,7 +214,7 @@ def validate_decoded_audio(
     policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> None:
     """Revalidate decoded samples because container metadata is untrusted."""
-    if not isinstance(audio, np.ndarray) or audio.dtype == object:
+    if not isinstance(audio, np.ndarray) or audio.dtype.kind not in "fiu":
         _raise("malformed_header")
     if audio.size == 0:
         _raise("duration_too_short")
