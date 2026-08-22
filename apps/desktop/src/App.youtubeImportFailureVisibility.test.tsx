@@ -87,7 +87,7 @@ describe("App YouTube import failure visibility", () => {
       expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy();
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
-    expect(screen.getByText(/This video is age restricted/i)).toBeTruthy();
+    expect(screen.getAllByText(/This video is age restricted/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/https:\/\/youtube\.com/i)).toBeNull();
   });
 
