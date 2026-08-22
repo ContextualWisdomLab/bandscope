@@ -138,7 +138,7 @@ def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(librosa, "load", fake_load)
 
     analyzer = TemporalAnalyzer()
-    with pytest.raises(ValueError, match="too large"):
+    with pytest.raises(ValueError, match="Choose a shorter or smaller song file to start analysis"):
         analyzer.analyze(test_wav)
 
 
@@ -182,7 +182,7 @@ def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
 
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
         warnings.warn("unrelated downstream warning", FutureWarning, stacklevel=2)
-        return np.zeros(1024, dtype=float), 44100
+        return np.zeros(44100, dtype=float), 44100
 
     monkeypatch.setattr(librosa, "load", fake_load)
     monkeypatch.setattr(librosa, "get_duration", lambda *, y, sr: 1.0)

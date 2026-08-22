@@ -12,14 +12,23 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
+from bandscope_analysis.audio_resource_policy import (
+    MAX_DURATION_SECONDS,
+    MAX_ENCODED_FILE_BYTES,
+    TARGET_SAMPLING_RATE_HZ,
+    AudioResourcePolicyError,
+    policy_rejection_message,
+    validate_decoded_audio,
+)
+
 from .model import TemporalFeatures
 
 logger = logging.getLogger(__name__)
 
-# Standard sample rate for BandScope analysis
-TARGET_SR = 44100
-MAX_AUDIO_FILE_BYTES = 100 * 1024 * 1024  # 100 MiB
-MAX_ANALYSIS_DURATION_SECONDS = 15 * 60  # 15 minutes
+MAX_ANALYSIS_DURATION_SECONDS = MAX_DURATION_SECONDS
+MAX_AUDIO_FILE_BYTES = MAX_ENCODED_FILE_BYTES
+TARGET_SR = TARGET_SAMPLING_RATE_HZ
+
 KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
     (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
     (FutureWarning, r".*Numba.*", r".*numba.*"),
@@ -78,10 +87,11 @@ class TemporalAnalyzer:
         try:
             with path.open("rb") as fileobj:
                 file_size = os.fstat(fileobj.fileno()).st_size
+                # MAX_AUDIO_FILE_BYTES remains monkeypatchable for tests.
                 if file_size > MAX_AUDIO_FILE_BYTES:
-                    raise ValueError(
-                        f"Audio file is too large for temporal analysis: {file_size} bytes "
-                        f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
+                    raise AudioResourcePolicyError(
+                        "encoded_file_too_large",
+                        policy_rejection_message("encoded_file_too_large"),
                     )
 
                 with warnings.catch_warnings():
@@ -112,6 +122,7 @@ class TemporalAnalyzer:
                 raise ValueError("Expected numpy array from librosa.load")
 
             y_array: NDArray[np.floating[Any]] = y
+            validate_decoded_audio(y_array, sr)
             duration = float(librosa.get_duration(y=y_array, sr=sr))
 
             logger.info("Extracting tempo and beat tracking...")
@@ -139,6 +150,15 @@ class TemporalAnalyzer:
                 "audio_path": path_str,
             }
 
+        except AudioResourcePolicyError as error:
+            logger.info(
+                "Rejected audio against resource policy version %s (%s)",
+                error.policy_version,
+                error.reason,
+            )
+            raise
+        except ValueError:
+            raise
         except Exception as e:
             logger.error(f"Failed to analyze audio {path_str}: {e}")
             raise ValueError(f"Temporal analysis failed: {e}") from e

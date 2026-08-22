@@ -10,9 +10,17 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
-TARGET_SR = 22050
-MAX_STEM_BYTES = 50 * 1024 * 1024
-MAX_TRANSCRIPTION_DURATION_SECONDS = 120
+from bandscope_analysis.audio_resource_policy import (
+    MAX_DURATION_SECONDS,
+    MAX_ENCODED_FILE_BYTES,
+    AudioResourcePolicyError,
+    policy_rejection_message,
+    validate_decoded_audio,
+)
+
+TARGET_SR = 22050  # pYIN feature DSP rate after canonical resource validation
+MAX_STEM_BYTES = MAX_ENCODED_FILE_BYTES
+MAX_TRANSCRIPTION_DURATION_SECONDS = MAX_DURATION_SECONDS
 FRAME_LENGTH = 2048
 HOP_LENGTH = 512
 MIN_NOTE_DURATION_SECONDS = 0.05
@@ -40,7 +48,10 @@ def transcribe_bass_stem(stem_data: bytes) -> list[NoteEvent]:
     if not stem_data:
         return []
     if len(stem_data) > MAX_STEM_BYTES:
-        raise ValueError("Stem data is too large for transcription.")
+        raise AudioResourcePolicyError(
+            "encoded_file_too_large",
+            policy_rejection_message("encoded_file_too_large"),
+        )
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
@@ -54,6 +65,7 @@ def transcribe_bass_stem(stem_data: bytes) -> list[NoteEvent]:
     y_array = np.asarray(y, dtype=np.float32)
     if y_array.size == 0 or float(np.max(np.abs(y_array))) < MIN_SIGNAL_PEAK:
         return []
+    validate_decoded_audio(y_array, sr)
 
     fmin = float(librosa.note_to_hz("C1"))
     fmax = float(librosa.note_to_hz("C5"))

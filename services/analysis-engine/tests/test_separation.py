@@ -454,7 +454,7 @@ def test_audio_stem_separator_rejects_oversized_audio_file(tmp_path) -> None:
     separator = AudioStemSeparator(
         AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=8)
     )
-    with pytest.raises(ValueError, match="Audio file is too large for stem separation"):
+    with pytest.raises(ValueError, match="Choose a shorter or smaller song file to start analysis"):
         separator.separate(audio_path)
 
 

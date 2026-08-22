@@ -62,6 +62,20 @@ def test_transcribe_bass_stem_rejects_oversized_input(monkeypatch) -> None:
         transcribe_bass_stem(b"abc")
 
 
+def test_transcribe_bass_stem_uses_canonical_duration_limit(monkeypatch) -> None:
+    """Bass transcription must not silently cap rehearsal stems at two minutes."""
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_load(*_args: object, **kwargs: object) -> tuple[np.ndarray, int]:
+        captured_kwargs.update(kwargs)
+        return np.zeros(int(SAMPLE_RATE * 0.5), dtype=np.float32), SAMPLE_RATE
+
+    monkeypatch.setattr(transcription_api.librosa, "load", fake_load)
+    transcribe_bass_stem(b"wav-bytes")
+    assert captured_kwargs["duration"] == transcription_api.MAX_TRANSCRIPTION_DURATION_SECONDS
+    assert captured_kwargs["duration"] == 15 * 60
+
+
 def test_transcribe_bass_stem_wraps_pitch_tracking_parameter_errors(monkeypatch) -> None:
     """Return a stable ValueError when pYIN rejects decoded audio parameters."""
     stem_data = _render_bass_sequence([ExpectedNote("E2", 0.0, 0.45)])

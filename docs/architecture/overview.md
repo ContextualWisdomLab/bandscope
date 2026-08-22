@@ -35,6 +35,7 @@ GitHub is the source of truth for repository governance, PR review, CI/CD, Code 
 - prefer local processing for audio and analysis
 - keep risky capabilities narrow, allowlisted, and explicit
 - treat files, URLs, models, caches, and release artifacts as untrusted inputs
+- admit local and YouTube audio through one canonical resource policy (15 minutes / 100 MiB / mono-stereo) before decode or feature DSP
 - route orchestration through typed Tauri IPC and a narrow Python subprocess bridge before considering any loopback HTTP surface
 - bootstrap local audio projects by validating the selected file in Rust, then passing only typed source metadata through the orchestration boundary
 - keep project and temp/cache bootstrap roots under Tauri-resolved app-owned directories rather than the shared OS temp namespace

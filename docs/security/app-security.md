@@ -137,6 +137,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Cross-check extension, MIME, and actual decode behavior.
 - Prefer isolated worker processing for decode and analysis.
 - Guard against very large files, abnormal duration, and hostile metadata.
+- Apply the canonical audio resource policy (`docs/doctoring/audio-resource-policy.md`): 15 minutes, 100 MiB encoded, mono or stereo, 8–192 kHz source, 44.1 kHz analysis target. Check encoded size before decode and revalidate decoded output. Return payload-free copy that names the next song to choose.
 - Do not add arbitrary filesystem scanning just to find media files.
 - When bootstrapping a project around local audio, prefer referencing the validated original file plus app-owned temp/cache/project roots over copying the file until persistence requirements justify the extra storage boundary.
 
