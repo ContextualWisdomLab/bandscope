@@ -122,9 +122,11 @@ def _role_display_name(role: Mapping[str, object]) -> str | None:
 def _active_role_names(section: Mapping[str, object]) -> list[str]:
     """Return de-duplicated display names for the section's active roles."""
     names: list[str] = []
+    seen: dict[str, None] = {}
     for role in _active_roles(section):
         name = _role_display_name(role)
-        if name is not None and name not in names:
+        if name is not None and name not in seen:
+            seen[name] = None
             names.append(name)
     return names
 
@@ -132,12 +134,14 @@ def _active_role_names(section: Mapping[str, object]) -> list[str]:
 def _section_cue(section: Mapping[str, object]) -> str:
     """Join the active roles' cue values into a single cue string."""
     cues: list[str] = []
+    seen: dict[str, None] = {}
     for role in _active_roles(section):
         cue = role.get("cue")
         if not isinstance(cue, Mapping):
             continue
         value = cue.get("value")
-        if isinstance(value, str) and value and value not in cues:
+        if isinstance(value, str) and value and value not in seen:
+            seen[value] = None
             cues.append(value)
     return "; ".join(cues)
 
@@ -189,6 +193,7 @@ def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object
     """Build the footer: per-role rehearsal priorities and the export focus."""
     lines: list[str] = []
     priorities: list[str] = []
+    seen_priorities: dict[str, None] = {}
     for section in sections:
         for role in _section_roles(section):
             name = _role_display_name(role)
@@ -196,7 +201,8 @@ def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object
             if name is None or not isinstance(priority, str) or not priority:
                 continue
             entry = f"  - {name}: {priority}"
-            if entry not in priorities:
+            if entry not in seen_priorities:
+                seen_priorities[entry] = None
                 priorities.append(entry)
     if priorities:
         lines.append("Priorities:")
