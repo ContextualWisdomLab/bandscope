@@ -4,6 +4,7 @@ import { EmptyState, LoadingState } from "./WorkspaceStates";
 
 const originalLanguage = window.navigator.language;
 
+/** Override the browser language so localized workspace copy can be verified deterministically. */
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(window.navigator, "language", {
     configurable: true,
