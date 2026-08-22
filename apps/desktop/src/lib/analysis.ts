@@ -35,6 +35,7 @@ const BROWSER_PROGRESS_STEPS = [
   { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
 ] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
+const LOCAL_AUDIO_USER_CANCELLED_MESSAGE = "User cancelled";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   "Could not read the selected audio file.",
@@ -50,6 +51,7 @@ export { MAX_YOUTUBE_URL_LENGTH };
 /** Documented. */
 export type LocalAudioSelectionResult =
   | { ok: true; bootstrap: ProjectBootstrapSummary }
+  | { ok: false; cancelled: true }
   | { ok: false; error: AnalysisJobError };
 
 /** Documented. */
@@ -223,6 +225,17 @@ export function createDefaultAnalysisRequest(): AnalysisJobRequest {
 }
 
 /** Documented. */
+function localAudioCancellationMessage(error: unknown): string | null {
+  if (typeof error === "string") {
+    return error.trim() === LOCAL_AUDIO_USER_CANCELLED_MESSAGE ? error.trim() : null;
+  }
+  if (error instanceof Error && error.message.trim() === LOCAL_AUDIO_USER_CANCELLED_MESSAGE) {
+    return error.message.trim();
+  }
+  return null;
+}
+
+/** Documented. */
 export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResult> {
   try {
     const response = await invokeAnalysis("select_local_audio_source");
@@ -231,6 +244,9 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
       bootstrap: parseProjectBootstrapSummary(response)
     };
   } catch (error) {
+    if (localAudioCancellationMessage(error)) {
+      return { ok: false, cancelled: true };
+    }
     return {
       ok: false,
       error: {
