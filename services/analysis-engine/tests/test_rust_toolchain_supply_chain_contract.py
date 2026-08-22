@@ -6,7 +6,6 @@ from pathlib import Path
 
 from conftest import load_module
 
-
 PINNED_RUST_AUDIT = "cargo +1.97.1 audit"
 
 
