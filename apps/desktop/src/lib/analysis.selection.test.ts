@@ -1,5 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { selectLocalAudioSource } from "./analysis";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { importYoutubeUrl, selectLocalAudioSource } from "./analysis";
+
+type YoutubeCancellation = Extract<
+  Awaited<ReturnType<typeof importYoutubeUrl>>,
+  { cancelled: true }
+>;
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -69,5 +74,9 @@ describe("selectLocalAudioSource cancellation and redaction", () => {
         message: "Choose a WAV, MP3, FLAC, or M4A file to start analysis."
       }
     });
+  });
+
+  it("keeps native-picker cancellation out of YouTube import results", () => {
+    expectTypeOf<YoutubeCancellation>().toEqualTypeOf<never>();
   });
 });
