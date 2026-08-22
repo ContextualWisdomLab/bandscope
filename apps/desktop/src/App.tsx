@@ -431,12 +431,21 @@ export function App() {
     setJobStatus(null);
   };
 
-  /** Documented. */
+  /**
+   * Import the current YouTube URL through BandScope's existing downloader boundary.
+   *
+   * Security Notes:
+   * - The URL field and bridge failure detail are untrusted input.
+   * - URL admission remains fail-closed through `isSupportedYoutubeUrl` before the downloader is invoked.
+   * - Buyer-visible failures pass through `safeErrorDetail`, which removes URL, local-path, and secret-shaped details.
+   * - The recovery action only focuses/selects the existing field; it never performs a second network request.
+   */
   const handleImportYoutube = async () => {
     if (isImporting) {
       return;
     }
 
+    setJobError(null);
     setSelectionError(null);
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
@@ -778,7 +787,7 @@ export function App() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting}
+                  disabled={analysisInFlight || isStarting || isImporting}
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label={t("openProject")}
