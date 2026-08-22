@@ -31,7 +31,9 @@ from bandscope_analysis.audio_resource_policy import (
 
 def _malformed_header_error() -> AudioResourcePolicyError:
     """Build the stable payload-free container-probe failure."""
-    return AudioResourcePolicyError("malformed_header", policy_rejection_message("malformed_header"))
+    return AudioResourcePolicyError(
+        "malformed_header", policy_rejection_message("malformed_header")
+    )
 
 
 def preflight_audio_metadata(
@@ -43,10 +45,9 @@ def preflight_audio_metadata(
         fileobj.seek(0)
         info = soundfile.info(fileobj)
     except Exception as error:
-        try:
-            fileobj.seek(0)
-        except Exception:
-            pass
+        # No decoder runs after a failed metadata probe, so there is no consumer
+        # that needs the rejected handle rewound. Preserve the parser failure as
+        # the internal cause instead of masking it with a best-effort seek.
         raise _malformed_header_error() from error
 
     try:
