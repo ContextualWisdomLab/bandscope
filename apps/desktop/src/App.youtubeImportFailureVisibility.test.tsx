@@ -91,6 +91,51 @@ describe("App YouTube import failure visibility", () => {
     expect(screen.queryByText(/https:\/\/youtube\.com/i)).toBeNull();
   });
 
+  it("surfaces recovery over score view and restores score after clearing the failed URL", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Project" }));
+    await waitFor(() => expect(screen.getByText("Late Night Set")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Score" }));
+    expect(screen.getByText("Score view")).toBeTruthy();
+
+    const input = screen.getByRole("textbox", { name: "YouTube URL" });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import YouTube" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
+    );
+    expect(screen.queryByText("Score view")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear YouTube URL" }));
+
+    expect(input).toHaveProperty("value", "");
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "That YouTube link can't start tonight" })).toBeNull();
+    expect(screen.getByText("Score view")).toBeTruthy();
+  });
+
+  it("dismisses loaded-workspace recovery when the failed URL is edited", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Project" }));
+    await waitFor(() => expect(screen.getByText("Late Night Set")).toBeTruthy());
+
+    const input = screen.getByRole("textbox", { name: "YouTube URL" });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import YouTube" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
+    );
+
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=next123DEF45" } });
+
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "That YouTube link can't start tonight" })).toBeNull();
+    expect(screen.getByText("Late Night Set")).toBeTruthy();
+  });
+
   it("clears stale YouTube recovery after a project opens successfully", async () => {
     render(<App />);
 
