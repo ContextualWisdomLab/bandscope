@@ -192,6 +192,7 @@ describe("App YouTube import failure visibility", () => {
       expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
     );
     expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert").textContent).toContain("This video is age restricted.");
     expect(input.getAttribute("aria-describedby")).toBe("selection-error");
     expect(document.getElementById("selection-error")?.textContent).toContain("This video is age restricted.");
   });
