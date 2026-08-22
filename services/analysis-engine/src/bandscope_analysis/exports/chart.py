@@ -79,11 +79,13 @@ def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
     if not isinstance(part_graph, list):
         return None
     active: list[str] = []
+    seen: set[str] = set()
     for node in part_graph:
         if not isinstance(node, Mapping) or node.get("is_active") is not True:
             continue
         role_id = node.get("role_id")
-        if isinstance(role_id, str) and role_id and role_id not in active:
+        if isinstance(role_id, str) and role_id and role_id not in seen:
+            seen.add(role_id)
             active.append(role_id)
     return active
 
