@@ -257,6 +257,7 @@ export function App() {
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
@@ -508,6 +509,7 @@ export function App() {
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
+      setSaveError(null);
       setAnalysisFailed(false);
       setSelectedBootstrap(null);
       setActiveAnalysisBootstrap(null);
@@ -522,11 +524,12 @@ export function App() {
 
   /** Documented. */
   const handleSaveProject = async () => {
+    setSaveError(null);
     try {
       await saveProject(jobResult!);
     } catch (e) {
       if (!isUserCancellation(e)) {
-        setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
+        setSaveError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
       }
     }
   };
@@ -873,6 +876,12 @@ export function App() {
                 {selectionError && (
                   <div id={selectionErrorSource === "youtube" ? "selection-error" : undefined} className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
                     {selectionError}
+                  </div>
+                )}
+
+                {saveError && (
+                  <div className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                    {saveError}
                   </div>
                 )}
               </div>
