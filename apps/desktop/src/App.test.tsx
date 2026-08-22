@@ -1286,6 +1286,9 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to load project: Corrupt file/i)).toBeTruthy();
     });
+    expect(screen.getByRole("heading", { name: /That project file can't open tonight/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Choose another project/i })).toBeTruthy();
+    expect(screen.queryByText(/An error occurred during analysis/i)).toBeNull();
   });
 
   it("ignores cancellation when loading a project", async () => {
@@ -1393,6 +1396,10 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to save project: Permission denied/i)).toBeTruthy();
     });
+    expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Tonight's rehearsal map couldn't be saved/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Try saving again/i })).toBeTruthy();
+    expect(screen.queryByText(/An error occurred during analysis/i)).toBeNull();
   });
 
   it("ignores cancellation when saving a project with Error object", async () => {
@@ -1534,6 +1541,254 @@ describe("App", () => {
     expect(saveButton).not.toHaveAttribute("disabled");
     fireEvent.click(saveButton);
     expect(mockSaveProject).not.toHaveBeenCalled();
+  });
+
+  it("names Choose another project and retries a failed load from the recovery action", async () => {
+    mockLoadProject
+      .mockRejectedValueOnce(new Error("Corrupt file"))
+      .mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Choose another project/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Choose another project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+    expect(mockLoadProject).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/That project file can't open tonight/i)).toBeNull();
+    expect(screen.queryByText(/Failed to load project/i)).toBeNull();
+  });
+
+  it("keeps Choose another project available when the replacement picker is cancelled", async () => {
+    mockLoadProject
+      .mockRejectedValueOnce(new Error("Corrupt file"))
+      .mockRejectedValueOnce(new Error("User cancelled"));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Choose another project/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Choose another project/i }));
+
+    await waitFor(() => {
+      expect(mockLoadProject).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole("heading", { name: /That project file can't open tonight/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Choose another project/i })).toBeTruthy();
+  });
+
+  it("keeps the open rehearsal map when opening another project fails", async () => {
+    mockLoadProject
+      .mockResolvedValueOnce(succeededResult().result)
+      .mockRejectedValueOnce(new Error("Corrupt file"));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load project: Corrupt file/i)).toBeTruthy();
+    });
+    expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Choose another project/i })).toBeTruthy();
+    expect(screen.queryByText(/An error occurred during analysis/i)).toBeNull();
+  });
+
+  it("retries a failed save from Try saving again and clears recovery after success", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject
+      .mockRejectedValueOnce(new Error("Permission denied"))
+      .mockResolvedValueOnce(undefined);
+
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Try saving again/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Try saving again/i }));
+
+    await waitFor(() => {
+      expect(mockSaveProject).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    expect(screen.queryByText(/Tonight's rehearsal map couldn't be saved/i)).toBeNull();
+    expect(screen.queryByText(/Failed to save project/i)).toBeNull();
+  });
+
+  it("keeps Try saving again available when the save picker is cancelled", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject
+      .mockRejectedValueOnce(new Error("Permission denied"))
+      .mockRejectedValueOnce(new Error("User cancelled"));
+
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Try saving again/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Try saving again/i }));
+
+    await waitFor(() => {
+      expect(mockSaveProject).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByRole("heading", { name: /Tonight's rehearsal map couldn't be saved/i })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+  });
+
+  it("does not put secret-shaped save diagnostics in the recovery title or action", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce(
+      new Error("token=secret-token https://example.com/leak /Users/seongho/private.band")
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Try saving again/i })).toBeTruthy();
+    });
+    const title = screen.getByRole("heading", { name: /Tonight's rehearsal map couldn't be saved/i });
+    const action = screen.getByRole("button", { name: /Try saving again/i });
+    expect(title.textContent).not.toMatch(/secret-token|example\.com|\/Users\/seongho/i);
+    expect(action.textContent).not.toMatch(/secret-token|example\.com|\/Users\/seongho/i);
+    expect(screen.getByRole("alert").textContent).not.toMatch(/secret-token/i);
+  });
+
+  it("clears a failed load card when the musician chooses local audio instead", async () => {
+    mockLoadProject.mockRejectedValueOnce(new Error("Corrupt file"));
+    tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Choose another project/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+    expect(screen.queryByText(/That project file can't open tonight/i)).toBeNull();
+    expect(screen.getByRole("heading", { name: /Ready to Analyze/i })).toBeTruthy();
+  });
+
+  it("clears a failed load card after a successful YouTube import", async () => {
+    mockLoadProject.mockRejectedValueOnce(new Error("Corrupt file"));
+    tauriInvoke.mockResolvedValueOnce({
+      projectId: "project-yt-1",
+      sourceMode: "reference",
+      projectRoot: "/tmp/bandscope/projects/project-yt-1",
+      cacheRoot: "/tmp/bandscope/cache/project-yt-1",
+      tempRoot: "/tmp/bandscope/temp/project-yt-1",
+      source: {
+        sourcePath: "/tmp/bandscope/temp/project-yt-1/youtube.wav",
+        fileName: "youtube.wav",
+        extension: "wav",
+        fileSizeBytes: 5000000
+      }
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Choose another project/i })).toBeTruthy();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/YouTube URL.../i), {
+      target: { value: "https://youtube.com/watch?v=abc123DEF45" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/youtube\.wav/i)).toBeTruthy();
+    });
+    expect(screen.queryByText(/That project file can't open tonight/i)).toBeNull();
+  });
+
+  it("clears a save-failure card when analysis starts again", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-1",
+        state: "queued",
+        progressLabel: "Queued for analysis"
+      }))
+      .mockResolvedValueOnce(succeededResult())
+      .mockResolvedValueOnce(jobStatusResponse({
+        jobId: "job-retry-1",
+        state: "queued",
+        progressLabel: "Queued for analysis"
+      }))
+      .mockResolvedValueOnce(succeededResult());
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
+    });
+
+    mockSaveProject.mockRejectedValueOnce(new Error("Permission denied"));
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Try saving again/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/queued for analysis/i)).toBeTruthy();
+    });
+    expect(screen.queryByText(/Tonight's rehearsal map couldn't be saved/i)).toBeNull();
+  });
+
+  it("renders Korean recovery copy for a failed project load", async () => {
+    const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
+    mockLoadProject.mockRejectedValueOnce(new Error("Corrupt file"));
+
+    try {
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: /프로젝트 열기/i }));
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: /그 프로젝트 파일로는 오늘 합주를 열 수 없습니다/i })).toBeTruthy();
+      });
+      expect(screen.getByRole("button", { name: /다른 프로젝트 선택하기/i })).toBeTruthy();
+      expect(screen.queryByText(/An error occurred during analysis/i)).toBeNull();
+    } finally {
+      languageSpy.mockRestore();
+    }
   });
 
   it("handles exception thrown by importYoutubeUrl itself", async () => {

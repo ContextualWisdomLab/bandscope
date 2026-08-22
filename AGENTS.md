@@ -90,6 +90,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Do not add network-dependent runtime paths for local analysis.
 - Treat YouTube import as policy-constrained and fallback-friendly.
 - Treat files, URLs, metadata, model artifacts, and project files as untrusted input.
+- Project load/save failures stay fail-closed and redacted, name the next local file action, and must not replace an open rehearsal map with the analysis error card.
 - Do not add generic exec/read/write APIs.
 - Use `shell=False`-style subprocess invocation with argument arrays only.
 - Keep local backend access on allowlisted IPC or `127.0.0.1` only, with strict schema validation.
