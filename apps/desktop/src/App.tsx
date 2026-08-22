@@ -463,7 +463,9 @@ export function App() {
         setSelectionErrorSource("youtube");
       }
     } catch (error) {
-      setSelectionError(safeErrorDetail(error, t("youtubeImportFailed")));
+      const fallback = t("youtubeImportFailed");
+      const detail = safeErrorDetail(error, fallback);
+      setSelectionError(detail === fallback ? fallback : `${fallback} ${detail}`);
       setSelectionErrorSource("youtube");
     } finally {
       setIsImporting(false);
@@ -476,10 +478,19 @@ export function App() {
     youtubeInputRef.current?.select();
   };
 
+  /** Clear only the YouTube-owned recovery state, preserving unrelated source errors. */
+  const dismissYoutubeSelectionError = () => {
+    if (selectionErrorSource === "youtube") {
+      setSelectionError(null);
+      setSelectionErrorSource(null);
+    }
+  };
+
   /** Documented. */
   const handleClearYoutubeUrl = () => {
     youtubeInputRef.current?.focus();
     setYoutubeUrl("");
+    dismissYoutubeSelectionError();
   };
 
   /** Documented. */
@@ -543,6 +554,7 @@ export function App() {
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  const youtubeRecoveryVisible = Boolean(selectionError && selectionErrorSource === "youtube");
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
@@ -726,7 +738,10 @@ export function App() {
                         placeholder={t("youtubePlaceholder")}
                         value={youtubeUrl}
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
-                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        onChange={(e) => {
+                          setYoutubeUrl(e.target.value);
+                          dismissYoutubeSelectionError();
+                        }}
                         disabled={analysisInFlight || isStarting || isImporting}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
@@ -873,7 +888,7 @@ export function App() {
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-            {currentView === "score" && jobResult ? (
+            {currentView === "score" && jobResult && !youtubeRecoveryVisible ? (
               <ScoreView
                 song={jobResult}
                 projectId={jobResultBootstrap?.projectId ?? null}
