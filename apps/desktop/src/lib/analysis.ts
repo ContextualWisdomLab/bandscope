@@ -219,7 +219,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
 async function invokeAnalysis(command: string, args?: Record<string, unknown>): Promise<unknown> {
   const invokeCommand = getInvoke();
   if (invokeCommand) {
-    return invokeCommand(command, args);
+    return args === undefined ? invokeCommand(command) : invokeCommand(command, args);
   }
 
   return browserFallback(command, args);
