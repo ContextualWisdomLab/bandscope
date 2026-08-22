@@ -2,6 +2,7 @@ import { createDemoRehearsalSong, type ProjectBootstrapSummary } from "@bandscop
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import type { LocalAudioSelectionResult } from "./lib/analysis";
 
 const analysisMocks = vi.hoisted(() => ({
   getAnalysisJobStatus: vi.fn(),
@@ -215,10 +216,10 @@ describe("App YouTube import failure visibility", () => {
   });
 
   it("does not start a second YouTube import while the first request is pending", async () => {
-    let releaseImport!: (value: { ok: false; error: { code: "invalid_request"; message: string } }) => void;
+    let releaseImport!: (value: LocalAudioSelectionResult) => void;
     analysisMocks.importYoutubeUrl.mockImplementationOnce(
       () =>
-        new Promise((resolve) => {
+        new Promise<LocalAudioSelectionResult>((resolve) => {
           releaseImport = resolve;
         })
     );
@@ -240,5 +241,50 @@ describe("App YouTube import failure visibility", () => {
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
     );
+  });
+
+  it("disables project opening while a YouTube import request is pending", async () => {
+    let releaseImport!: (value: LocalAudioSelectionResult) => void;
+    analysisMocks.importYoutubeUrl.mockImplementationOnce(
+      () =>
+        new Promise<LocalAudioSelectionResult>((resolve) => {
+          releaseImport = resolve;
+        })
+    );
+    render(<App />);
+
+    const input = screen.getByRole("textbox", { name: "YouTube URL" });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import YouTube" }));
+
+    const openProjectButton = screen.getByRole("button", { name: "Open Project" });
+    await waitFor(() => expect(openProjectButton).toHaveProperty("disabled", true));
+    fireEvent.click(openProjectButton);
+    expect(analysisMocks.loadProject).not.toHaveBeenCalled();
+
+    releaseImport({
+      ok: false,
+      error: { code: "invalid_request", message: "This video is age restricted." }
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
+    );
+  });
+
+  it("shows YouTube recovery instead of a stale project error after a new import fails", async () => {
+    analysisMocks.loadProject.mockRejectedValueOnce(new Error("broken project"));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Project" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("broken project"));
+
+    const input = screen.getByRole("textbox", { name: "YouTube URL" });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import YouTube" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
+    );
+    expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
   });
 });
