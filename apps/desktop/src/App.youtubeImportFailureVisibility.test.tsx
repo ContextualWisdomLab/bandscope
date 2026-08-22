@@ -129,7 +129,7 @@ describe("App YouTube import failure visibility", () => {
       expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start Analysis" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start analysis" }));
 
     await waitFor(() => expect(analysisMocks.startAnalysisJob).toHaveBeenCalledTimes(1));
     expect(screen.getByText("Late Night Set")).toBeTruthy();
