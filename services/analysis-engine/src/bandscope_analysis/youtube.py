@@ -144,14 +144,14 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             if info is None:
                 raise Exception("Failed to extract info")
             duration = info.get("duration")
-            if duration:
+            if duration is not None:
                 try:
                     validate_duration_seconds(duration)
                 except AudioResourcePolicyError as error:
                     return {
                         "ok": False,
                         "error": {
-                            "code": "duration_exceeded",
+                            "code": error.reason,
                             "message": error.message,
                         },
                     }
@@ -180,7 +180,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                     return {
                         "ok": False,
                         "error": {
-                            "code": "size_exceeded",
+                            "code": error.reason,
                             "message": error.message,
                         },
                     }
