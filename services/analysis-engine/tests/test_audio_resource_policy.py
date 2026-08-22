@@ -27,7 +27,7 @@ from bandscope_analysis.audio_resource_policy import (
 )
 
 
-def _policy_error(reason: str) -> pytest.RaisesContext[AudioResourcePolicyError]:
+def _policy_error(reason: str) -> pytest.RaisesExc[AudioResourcePolicyError]:
     """Expect a payload-free rejection for one stable reason code."""
     return pytest.raises(AudioResourcePolicyError, match=policy_rejection_message(reason))
 
@@ -166,6 +166,20 @@ def test_decoded_audio_rejects_empty_or_non_array_payloads() -> None:
 def test_decoded_audio_rejects_non_finite_samples() -> None:
     """NaN/Inf PCM cannot proceed into analyzers."""
     audio = np.array([0.0, math.nan], dtype=np.float32)
+    with _policy_error("malformed_header"):
+        validate_decoded_audio(audio, 44_100)
+
+
+@pytest.mark.parametrize(
+    "audio",
+    [
+        np.array(["x"]),
+        np.array([b"x"]),
+        np.array(["2020-01-01"], dtype="datetime64[D]"),
+    ],
+)
+def test_decoded_audio_rejects_non_numeric_dtypes(audio: np.ndarray) -> None:
+    """String, byte-string, and datetime arrays stay outside PCM authority."""
     with _policy_error("malformed_header"):
         validate_decoded_audio(audio, 44_100)
 
