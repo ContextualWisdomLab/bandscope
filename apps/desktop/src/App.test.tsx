@@ -428,9 +428,10 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "That file can't start tonight" })).toBeTruthy();
     });
     expect(screen.getByRole("alert").textContent).toMatch(/choose a wav, mp3, flac, or m4a file/i);
+    expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
   });
 
@@ -450,6 +451,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
     });
+    expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
   });
 
@@ -463,7 +465,157 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/could not read the selected audio file/i)).toBeTruthy();
     });
+    expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
+  });
+
+  it("starts local file intake from the selection-failure next action", async () => {
+    tauriInvoke
+      .mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."))
+      .mockResolvedValueOnce(bootstrapResponse());
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose another song" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+    expect(screen.queryByRole("button", { name: "Choose another song" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "That file can't start tonight" })).toBeNull();
+  });
+
+  it("keeps the empty workspace silent when the local picker is cancelled", async () => {
+    tauriInvoke.mockRejectedValueOnce(new Error("User cancelled"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenCalledWith("select_local_audio_source");
+    });
+
+    expect(screen.getByRole("heading", { name: "Ready to Analyze" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "That file can't start tonight" })).toBeNull();
+  });
+
+  it("keeps an admitted song when a replacement picker is cancelled", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockRejectedValueOnce(new Error("User cancelled"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenCalledTimes(2);
+    });
+
+    expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "That file can't start tonight" })).toBeNull();
+  });
+
+  it("keeps the selection-failure next action when a replacement picker is cancelled", async () => {
+    tauriInvoke
+      .mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."))
+      .mockRejectedValueOnce(new Error("User cancelled"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose another song" }));
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenCalledTimes(2);
+    });
+
+    expect(screen.getByRole("heading", { name: "That file can't start tonight" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Choose another song" })).toBeEnabled();
+  });
+
+  it("localizes the local selection-failure next action", async () => {
+    const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
+    tauriInvoke.mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."));
+
+    try {
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: /로컬 오디오 선택/i }));
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "그 파일로는 오늘 합주를 시작할 수 없습니다" })).toBeTruthy();
+      });
+      expect(screen.getByRole("button", { name: "다른 곡 선택하기" })).toBeTruthy();
+    } finally {
+      languageSpy.mockRestore();
+    }
+  });
+
+  it("allows only one local picker while the first selection is pending", async () => {
+    let resolveSelection: ((value: ReturnType<typeof bootstrapResponse>) => void) | undefined;
+    tauriInvoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSelection = resolve;
+        })
+    );
+
+    render(<App />);
+
+    const headerAction = screen.getByRole("button", { name: /choose local audio/i });
+    fireEvent.click(headerAction);
+
+    await waitFor(() => {
+      expect(headerAction).toBeDisabled();
+    });
+
+    fireEvent.click(headerAction);
+    expect(tauriInvoke).toHaveBeenCalledTimes(1);
+
+    resolveSelection?.(bootstrapResponse());
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+  });
+
+  it("disables the selection-failure next action while a replacement picker is pending", async () => {
+    tauriInvoke.mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."));
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
+    });
+
+    let resolveSelection: ((value: ReturnType<typeof bootstrapResponse>) => void) | undefined;
+    tauriInvoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSelection = resolve;
+        })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose another song" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Choose another song" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /choose local audio/i })).toBeDisabled();
+    });
+
+    resolveSelection?.(bootstrapResponse());
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
   });
 
   it("starts an analysis job and renders the returned rehearsal result", async () => {
