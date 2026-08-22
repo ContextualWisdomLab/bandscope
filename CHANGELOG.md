@@ -9,7 +9,7 @@
 
 ### Changed
 
-- Keep unavailable score-open, score-remove, and PDF pagination controls keyboard-focusable, expose their unavailable state to assistive technology, explain blocked actions, and prevent activation at the action boundary.
+- Keep unavailable Add/Open/Remove score actions and PDF pagination controls keyboard-focusable, expose their unavailable state and recovery copy to assistive technology, and prevent project-missing, pagination-boundary, or repeated in-flight attach activation at the action boundary.
 
 ## [0.1.3] - 2026-04-29
 
