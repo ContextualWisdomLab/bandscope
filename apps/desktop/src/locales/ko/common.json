@@ -12,7 +12,7 @@
   "sourceModeReference": "원본 파일을 참조합니다",
   "unsupportedLocalAudio": "분석을 시작하려면 WAV, MP3, FLAC 또는 M4A 파일을 선택하세요.",
   "localSelectionFailureTitle": "그 파일로는 오늘 합주를 시작할 수 없습니다",
-  "localSelectionFailureGuidance": "이 기기에서 WAV, MP3, FLAC 또는 M4A 파일을 선택하세요. 파일은 기기에만 남습니다.",
+  "localSelectionFailureGuidance": "이 기기에서 다른 곡을 선택하세요. 파일은 기기에만 남습니다.",
   "chooseAnotherSong": "다른 곡 선택하기",
   "sectionConfidence": "구간 신뢰도",
   "roleConfidence": "신뢰도",
