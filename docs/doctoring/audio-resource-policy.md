@@ -23,6 +23,7 @@ echoes paths, sizes, durations, or header bytes:
 
 - Choose a shorter or smaller song file to start analysis.
 - Choose a song shorter than 15 minutes to start analysis.
+- Choose a shorter song file to start analysis.
 - Choose a longer song file to start analysis.
 - Choose a WAV, MP3, FLAC, or M4A file recorded at a standard sample rate.
 - Choose a mono or stereo song file to start analysis.
