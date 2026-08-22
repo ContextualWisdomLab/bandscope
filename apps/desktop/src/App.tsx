@@ -263,6 +263,7 @@ export function App() {
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isChoosingLocalAudio, setIsChoosingLocalAudio] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
@@ -415,18 +416,27 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
-    setSelectionError(null);
-    setSelectionErrorSource(null);
-    const selection = await selectLocalAudioSource();
-    if (selection.ok) {
-      setSelectedBootstrap(selection.bootstrap);
+    if (isChoosingLocalAudio) {
       return;
     }
 
-    setSelectedBootstrap(null);
-    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
-    setSelectionErrorSource("local");
-    setJobStatus(null);
+    setSelectionError(null);
+    setSelectionErrorSource(null);
+    setIsChoosingLocalAudio(true);
+    try {
+      const selection = await selectLocalAudioSource();
+      if (selection.ok) {
+        setSelectedBootstrap(selection.bootstrap);
+        return;
+      }
+
+      setSelectedBootstrap(null);
+      setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
+      setSelectionErrorSource("local");
+      setJobStatus(null);
+    } finally {
+      setIsChoosingLocalAudio(false);
+    }
   };
 
   /** Documented. */
@@ -514,7 +524,7 @@ export function App() {
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
-    return <EmptyState onUseOwnSong={() => { void handleChooseLocalAudio(); }} chooseDisabled={analysisInFlight || isStarting || isImporting} />;
+    return <EmptyState onUseOwnSong={() => { void handleChooseLocalAudio(); }} chooseDisabled={isImporting || isChoosingLocalAudio} />;
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
@@ -682,7 +692,7 @@ export function App() {
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
                   onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting}
+                  disabled={analysisInFlight || isStarting || isImporting || isChoosingLocalAudio}
                   variant="secondary"
                   className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
                   aria-label={t("chooseLocalAudio")}
