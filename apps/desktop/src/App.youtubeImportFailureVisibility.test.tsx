@@ -150,4 +150,32 @@ describe("App YouTube import failure visibility", () => {
     expect(input.getAttribute("aria-describedby")).toBe("selection-error");
     expect(document.getElementById("selection-error")?.textContent).toContain("This video is age restricted.");
   });
+
+  it("does not start a second YouTube import while the first request is pending", async () => {
+    let releaseImport!: (value: { ok: false; error: { code: "invalid_request"; message: string } }) => void;
+    analysisMocks.importYoutubeUrl.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseImport = resolve;
+        })
+    );
+    render(<App />);
+
+    const input = screen.getByRole("textbox", { name: "YouTube URL" });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+    const importButton = screen.getByRole("button", { name: "Import YouTube" });
+    fireEvent.click(importButton);
+    fireEvent.click(importButton);
+
+    await waitFor(() => expect(analysisMocks.importYoutubeUrl).toHaveBeenCalledTimes(1));
+    expect(importButton).toHaveProperty("disabled", true);
+
+    releaseImport({
+      ok: false,
+      error: { code: "invalid_request", message: "This video is age restricted." }
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
+    );
+  });
 });
