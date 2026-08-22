@@ -525,9 +525,6 @@ export function App() {
     if (analysisInFlight || isStarting) {
       return <LoadingState />;
     }
-    if (jobResult) {
-      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
-    }
     if (selectionError && selectionErrorSource === "local") {
       return (
         <ErrorState
@@ -541,6 +538,9 @@ export function App() {
           actionDisabled={isChoosingLocalAudio}
         />
       );
+    }
+    if (jobResult) {
+      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
     return <EmptyState />;
   };
