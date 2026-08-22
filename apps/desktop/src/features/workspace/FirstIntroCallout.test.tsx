@@ -164,7 +164,7 @@ describe("FirstIntroCallout", () => {
 
     render(<FirstIntroCallout song={song} />);
 
-    expect(screen.getByText("드럼이 0:00 인트로에서 시작합니다.")).toBeTruthy();
+    expect(screen.getByText("0:00 인트로에서 드럼 파트가 시작합니다.")).toBeTruthy();
     expect(screen.queryByText(/intro에서/)).toBeNull();
   });
 });
