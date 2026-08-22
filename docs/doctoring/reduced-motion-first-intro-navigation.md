@@ -8,7 +8,7 @@ This is a presentation contract only. Intro resolution, action-mode authority, a
 
 ## Security Notes
 
-- Untrusted input: song, section, and role identifiers are used as copy values, local completion-state identity, and effect dependencies; they are not DOM-ID authority.
-- Trust boundary: renderer-owned song-structure children; analysis `section.id` is never DOM-ID authority.
-- Mitigations: `matchMedia` is read-only, scroll targets come from renderer child index, and copy interpolation runs once.
-- Test points: reduced-motion scroll uses `auto`; default motion uses `smooth`.
+- Untrusted input: song, section, time-range, role, and section-local graph metadata are runtime data; inherited properties and arrays masquerading as record metadata are not authority.
+- Trust boundary: intro resolution accepts required fields only when the inspected record owns them, while renderer-owned song-structure children remain the only navigation targets; analysis `section.id` is never DOM-ID authority.
+- Mitigations: runtime record guards reject arrays, dense collections require own indexed elements, required metadata fields must be own properties, `matchMedia` is read-only, scroll targets come from renderer child index, and copy interpolation runs once.
+- Test points: inherited song/section/timing/role/graph metadata is rejected, array-backed section records are rejected, reduced-motion scroll uses `auto`, and default motion uses `smooth`.
