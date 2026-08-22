@@ -86,8 +86,8 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
 
   /**
    * Attach a new score PDF via the native picker and open it. The attach
-   * control is disabled while `isAttaching`, so overlapping attaches cannot be
-   * started; the active project id is supplied by the enabled control.
+   * control is action-guarded while `isAttaching`, so overlapping attaches
+   * cannot be started; the active project id is supplied by the enabled control.
    */
   const handleAttach = async (activeProjectId: string) => {
     setError(null);
@@ -142,10 +142,18 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
               <p className="mt-1 max-w-2xl text-sm text-slate-400">{t("scoreViewSubtitle")}</p>
             </div>
             <Button
-              onClick={projectId ? () => void handleAttach(projectId) : undefined}
-              disabled={!projectId || isAttaching}
+              onClick={(e) => {
+                if (!projectId || isAttaching) {
+                  e.preventDefault();
+                } else {
+                  void handleAttach(projectId);
+                }
+              }}
+              aria-disabled={!projectId || isAttaching}
+              aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
+              title={!projectId ? t("scoreNavDisabledHint") : undefined}
               variant="secondary"
-              className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
+              className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             >
               {isAttaching ? (
                 <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
