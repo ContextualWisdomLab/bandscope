@@ -118,7 +118,9 @@ describe("Workspace", () => {
     ).toBeTruthy();
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
-    ).toMatch(/Loop verse from 0:10–0:30\. Choose a local song first/i);
+    ).toMatch(
+      /Map verse from 0:10–0:30\. Choose a local song first to start the rehearsal clock/i,
+    );
   });
 
   it("keeps the role loop action unavailable without local audio authority", () => {
