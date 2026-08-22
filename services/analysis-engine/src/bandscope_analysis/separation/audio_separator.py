@@ -228,11 +228,11 @@ class AudioStemSeparator:
         except Exception as error:
             raise ValueError(f"Stem separation decode failed for {path.name}") from error
 
-        decoded = _as_float_array(y)
+        decoded = np.ravel(np.asarray(y, dtype=np.float32))
         if decoded.size == 0:
             raise ValueError(f"Stem separation decode failed for {path.name}")
         validate_decoded_audio(decoded, int(sr))
-        return decoded, int(sr)
+        return _as_float_array(decoded), int(sr)
 
     def _fit_length(self, audio: AudioStemArray, target_length: int) -> AudioStemArray:
         """Trim or pad a stem to match the source length exactly."""
