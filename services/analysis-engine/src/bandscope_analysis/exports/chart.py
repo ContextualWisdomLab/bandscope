@@ -122,7 +122,7 @@ def _role_display_name(role: Mapping[str, object]) -> str | None:
 def _active_role_names(section: Mapping[str, object]) -> list[str]:
     """Return de-duplicated display names for the section's active roles."""
     names: list[str] = []
-    # ⚡ Bolt: O(1) deduplication cache to prevent O(N^2) list.includes() bottleneck
+    # Use expected O(1) dictionary membership instead of O(N) list membership.
     seen: dict[str, None] = {}
     for role in _active_roles(section):
         name = _role_display_name(role)
@@ -135,7 +135,7 @@ def _active_role_names(section: Mapping[str, object]) -> list[str]:
 def _section_cue(section: Mapping[str, object]) -> str:
     """Join the active roles' cue values into a single cue string."""
     cues: list[str] = []
-    # ⚡ Bolt: O(1) deduplication cache to prevent O(N^2) list.includes() bottleneck
+    # Use expected O(1) dictionary membership instead of O(N) list membership.
     seen: dict[str, None] = {}
     for role in _active_roles(section):
         cue = role.get("cue")
@@ -195,7 +195,7 @@ def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object
     """Build the footer: per-role rehearsal priorities and the export focus."""
     lines: list[str] = []
     priorities: list[str] = []
-    # ⚡ Bolt: O(1) deduplication cache to prevent O(N^2) list.includes() bottleneck
+    # Use expected O(1) dictionary membership instead of O(N) list membership.
     seen_priorities: dict[str, None] = {}
     for section in sections:
         for role in _section_roles(section):
