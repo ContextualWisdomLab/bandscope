@@ -1162,11 +1162,13 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent(/This video is age restricted/i);
-      expect(alert).toHaveAttribute("id", "selection-error");
+      const fieldError = document.getElementById("selection-error");
+      expect(fieldError).toHaveTextContent(/This video is age restricted/i);
+      expect(fieldError).toHaveAttribute("id", "selection-error");
       expect(input).toHaveAttribute("aria-invalid", "true");
-      expect(input).toHaveAttribute("aria-describedby", alert.id);
+      expect(input).toHaveAttribute("aria-describedby", "selection-error");
+      expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
 
@@ -1183,6 +1185,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Network Error/i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
 
@@ -1198,6 +1201,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
 
@@ -1210,6 +1214,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
 
@@ -1222,6 +1227,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
 
@@ -1234,6 +1240,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });
@@ -1247,6 +1254,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });
@@ -1260,8 +1268,60 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
+  });
+
+  it("focuses the YouTube field from the import-failure next action", async () => {
+    render(<App />);
+    const input = screen.getByRole("textbox", { name: /YouTube URL/i });
+    fireEvent.change(input, { target: { value: "not-a-url" } });
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Paste another YouTube link" }));
+
+    expect(document.activeElement).toBe(input);
+    expect(input).toHaveValue("not-a-url");
+  });
+
+  it("redacts URL-shaped YouTube import diagnostics before they become buyer copy", async () => {
+    tauriInvoke.mockRejectedValueOnce(
+      new Error("download failed: https://youtube.com/watch?v=secret-token")
+    );
+
+    render(<App />);
+    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy();
+    });
+    expect(document.getElementById("selection-error")?.textContent).toMatch(/download failed: \[link\]/i);
+    expect(screen.queryByText(/secret-token/i)).toBeNull();
+    expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
+  });
+
+  it("localizes the YouTube import-failure next action", async () => {
+    const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
+
+    try {
+      render(<App />);
+      const input = screen.getByRole("textbox", { name: /유튜브 URL/i });
+      fireEvent.change(input, { target: { value: "not-a-url" } });
+      fireEvent.click(screen.getByRole("button", { name: /유튜브 가져오기/i }));
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "그 유튜브 링크로는 오늘 합주를 시작할 수 없습니다" })).toBeTruthy();
+      });
+      expect(screen.getByRole("button", { name: "다른 유튜브 링크 붙여넣기" })).toBeTruthy();
+    } finally {
+      languageSpy.mockRestore();
+    }
   });
 
 
@@ -1524,6 +1584,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
 
@@ -1549,6 +1610,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
 

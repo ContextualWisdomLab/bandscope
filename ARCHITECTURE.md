@@ -6,6 +6,7 @@ Last updated: 2026-03-11
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
+- Failed YouTube import names Paste another YouTube link as the next action. Buyer-visible copy stays redacted and does not retry the network from the recovery card.
 
 ## Security source
 

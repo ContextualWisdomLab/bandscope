@@ -431,6 +431,10 @@ export function App() {
 
   /** Documented. */
   const handleImportYoutube = async () => {
+    if (isImporting) {
+      return;
+    }
+
     setSelectionError(null);
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
@@ -462,6 +466,12 @@ export function App() {
     } finally {
       setIsImporting(false);
     }
+  };
+
+  /** Focus the YouTube field so the next paste replaces the failed link. */
+  const handlePasteAnotherYoutubeLink = () => {
+    youtubeInputRef.current?.focus();
+    youtubeInputRef.current?.select();
   };
 
   /** Documented. */
@@ -510,6 +520,17 @@ export function App() {
     }
     if (analysisInFlight || isStarting) {
       return <LoadingState />;
+    }
+    if (selectionError && selectionErrorSource === "youtube") {
+      return (
+        <ErrorState
+          title={t("youtubeImportFailureTitle")}
+          guidance={t("youtubeImportFailureGuidance")}
+          actionLabel={t("pasteAnotherYoutubeLink")}
+          onAction={handlePasteAnotherYoutubeLink}
+          actionDisabled={isImporting}
+        />
+      );
     }
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
