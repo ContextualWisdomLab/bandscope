@@ -57,7 +57,10 @@ def test_preflight_rejects_untrusted_container_metadata(
     assert error.value.reason == reason
 
 
-@patch("bandscope_analysis.audio_metadata.soundfile.info", side_effect=RuntimeError("decoder detail"))
+@patch(
+    "bandscope_analysis.audio_metadata.soundfile.info",
+    side_effect=RuntimeError("decoder detail"),
+)
 def test_preflight_maps_probe_failures_to_payload_free_policy_error(_mock_info: object) -> None:
     """Container parser failures must not leak decoder detail or bypass policy errors."""
     with pytest.raises(AudioResourcePolicyError) as error:
