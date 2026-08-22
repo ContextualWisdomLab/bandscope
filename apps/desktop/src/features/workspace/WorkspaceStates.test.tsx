@@ -41,6 +41,23 @@ describe("WorkspaceStates YouTube import failure", () => {
     expect(screen.getByText(/keeps the audio on this device/i)).toBeTruthy();
   });
 
+  it("keeps the recovery action outside the assertive alert region", () => {
+    render(
+      <ErrorState
+        error="This video is age restricted."
+        title="That YouTube link can't start tonight"
+        guidance="Paste another supported link."
+        actionLabel="Paste another YouTube link"
+        onAction={vi.fn()}
+      />
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain("This video is age restricted.");
+    expect(alert.querySelector("button")).toBeNull();
+    expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
+  });
+
   it("disables the next action while import is already running", () => {
     const onAction = vi.fn();
     render(
