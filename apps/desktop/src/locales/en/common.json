@@ -154,13 +154,13 @@
   "workspaceLoopSectionPickerLabel": "Playable sections",
   "workspaceLoopStart": "Start the count-in",
   "workspaceLoopThisSection": "Start selected section loop",
-  "workspaceLoopResume": "Continue this loop",
-  "workspaceLoopPause": "Pause the loop",
-  "workspaceLoopStop": "Stop and reset",
+  "workspaceLoopResume": "Continue rehearsal clock",
+  "workspaceLoopPause": "Pause rehearsal clock",
+  "workspaceLoopStop": "Stop and reset rehearsal clock",
   "workspaceLoopIdle": "Add a section with a start and end time, then loop it here.",
-  "workspaceLoopArmedNoAudio": "Loop {section} from {start}–{end}. Choose a local song first so you can hear this loop.",
-  "workspaceLoopArmedWithAudio": "Loop {section} from {start}–{end}. Start the count-in to hear it.",
-  "workspaceLoopCountingIn": "Count in {beats} beats at {tempo} BPM, then {section} loops.",
-  "workspaceLoopPlaying": "{section} is looping {start}–{end}. Pause when you have the entrance.",
-  "workspaceLoopPaused": "{section} is paused on the loop. Press play to continue."
+  "workspaceLoopArmedNoAudio": "Map {section} from {start}–{end}. Choose a local song first to start the rehearsal clock.",
+  "workspaceLoopArmedWithAudio": "Map {section} from {start}–{end}. Start the count-in to run the rehearsal clock.",
+  "workspaceLoopCountingIn": "Count in {beats} beats at {tempo} BPM, then the rehearsal clock loops {section}.",
+  "workspaceLoopPlaying": "The rehearsal clock is looping {section} from {start}–{end}. Pause when you have the entrance.",
+  "workspaceLoopPaused": "The rehearsal clock is paused on {section}. Continue when you are ready."
 }
