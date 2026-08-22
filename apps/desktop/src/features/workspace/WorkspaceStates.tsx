@@ -60,14 +60,16 @@ export function ErrorState({
 }: ErrorStateProps) {
   const t = createTranslator(detectPreferredLocale());
   return (
-    <Card className="border-rose-300/30 bg-rose-950/40 shadow-[0_18px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl" role="alert" aria-live="assertive" aria-atomic="true">
+    <Card className="border-rose-300/30 bg-rose-950/40 shadow-[0_18px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl">
       <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="mb-4 rounded-full border border-rose-300/30 bg-rose-300/10 p-4 text-rose-200 shadow-sm">
-          <AlertCircle className="size-8" aria-hidden="true" />
+        <div role="alert" aria-live="assertive" aria-atomic="true" className="flex flex-col items-center">
+          <div className="mb-4 rounded-full border border-rose-300/30 bg-rose-300/10 p-4 text-rose-200 shadow-sm">
+            <AlertCircle className="size-8" aria-hidden="true" />
+          </div>
+          <h3 className="mb-2 text-lg font-black text-rose-100">{title ?? t("workspaceErrorState")}</h3>
+          {error && <p className="mt-2 rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">{error}</p>}
+          {guidance && <p className="mt-3 max-w-md text-sm text-rose-100/80">{guidance}</p>}
         </div>
-        <h3 className="mb-2 text-lg font-black text-rose-100">{title ?? t("workspaceErrorState")}</h3>
-        {error && <p className="mt-2 rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">{error}</p>}
-        {guidance && <p className="mt-3 max-w-md text-sm text-rose-100/80">{guidance}</p>}
         {onAction && actionLabel && (
           <Button
             type="button"
