@@ -151,6 +151,23 @@ describe("App YouTube import failure visibility", () => {
     expect(document.getElementById("selection-error")?.textContent).toContain("This video is age restricted.");
   });
 
+  it("keeps a redacted thrown import detail instead of replacing it with a generic message", async () => {
+    analysisMocks.importYoutubeUrl.mockRejectedValueOnce(
+      new Error("download failed: https://youtube.com/watch?v=secret-token")
+    );
+    render(<App />);
+
+    const input = screen.getByRole("textbox", { name: "YouTube URL" });
+    fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import YouTube" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "That YouTube link can't start tonight" })).toBeTruthy()
+    );
+    expect(document.getElementById("selection-error")?.textContent).toContain("download failed: [link]");
+    expect(document.getElementById("selection-error")?.textContent).not.toContain("secret-token");
+  });
+
   it("does not start a second YouTube import while the first request is pending", async () => {
     let releaseImport!: (value: { ok: false; error: { code: "invalid_request"; message: string } }) => void;
     analysisMocks.importYoutubeUrl.mockImplementationOnce(
