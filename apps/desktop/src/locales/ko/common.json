@@ -158,7 +158,7 @@
   "firstIntroOpenActionBand": "{at} 첫 인트로 위치 열기",
   "firstIntroBody": "{at} {section}에서 {role} 파트가 시작합니다.",
   "firstIntroBodyBand": "밴드가 {at} {section}에서 시작합니다.",
-  "firstIntroArmed": "{at}에서 {role}과 함께 카운트인하세요. 같이 시작하세요.",
+  "firstIntroArmed": "{at}에서 {role} 파트와 함께 카운트인하세요. 같이 시작하세요.",
   "firstIntroArmedBand": "{at}에서 카운트인하세요. 같이 시작하세요.",
   "firstIntroUnavailable": "아직 인트로가 없습니다. 시작이 표시될 때까지 오늘 지도에 머무르세요.",
   "firstIntroNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 인트로를 들으세요."
