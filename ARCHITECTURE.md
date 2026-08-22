@@ -6,6 +6,7 @@ Last updated: 2026-03-11
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
+- Local-audio picker cancellation stays silent. Unsupported or unreadable local files name Choose another song as the next action and do not invent a bundled demo.
 
 ## Security source
 
