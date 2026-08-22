@@ -424,6 +424,7 @@ export function App() {
     try {
       const selection = await selectLocalAudioSource();
       if (selection.ok) {
+        setJobError(null);
         setSelectionError(null);
         setSelectionErrorSource(null);
         setSelectedBootstrap(selection.bootstrap);
@@ -434,6 +435,7 @@ export function App() {
         return;
       }
 
+      setJobError(null);
       setSelectedBootstrap(null);
       setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
       setSelectionErrorSource("local");
@@ -491,6 +493,8 @@ export function App() {
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
+      setSelectionError(null);
+      setSelectionErrorSource(null);
       setSelectedBootstrap(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
