@@ -1,9 +1,16 @@
 import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Music, AlertCircle } from "lucide-react";
+import { Loader2, Music, AlertCircle, Upload } from "lucide-react";
 
-/** Documented. */
-export function EmptyState() {
+/** Next-action handlers for the empty rehearsal workspace. */
+export interface EmptyStateProps {
+  onUseOwnSong: () => void;
+  chooseDisabled?: boolean;
+}
+
+/** Render the empty card that names choosing a local song as the next action. */
+export function EmptyState({ onUseOwnSong, chooseDisabled = false }: EmptyStateProps) {
   const t = createTranslator(detectPreferredLocale());
   return (
     <Card className="border-2 border-dashed border-cyan-300/20 bg-slate-950/50 shadow-[0_18px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
@@ -11,8 +18,20 @@ export function EmptyState() {
         <div className="mb-6 rounded-full border border-cyan-300/30 bg-cyan-300/10 p-6 text-cyan-200 shadow-[0_0_38px_rgba(34,211,238,0.18)]">
           <Music className="size-10" aria-hidden="true" />
         </div>
-        <h3 className="mb-2 text-xl font-black text-white">{t("workspaceReadyToAnalyzeTitle")}</h3>
-        <p className="max-w-sm text-slate-400">{t("workspaceEmptyState")}</p>
+        <h3 className="mb-2 text-xl font-black text-white">{t("firstRunEmptyTitle")}</h3>
+        <p className="max-w-md text-slate-400">{t("firstRunEmptyGuidance")}</p>
+        <p className="mt-3 max-w-md text-sm text-slate-500">{t("firstRunEmptyLocalFirst")}</p>
+        <Button
+          type="button"
+          onClick={onUseOwnSong}
+          disabled={chooseDisabled}
+          className="mt-8 min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
+          aria-label={t("firstRunUseOwnSong")}
+        >
+          <Upload className="mr-2 size-4" aria-hidden="true" />
+          {t("firstRunUseOwnSong")}
+        </Button>
+        <p className="mt-4 max-w-md text-sm text-slate-500">{t("firstRunEmptyDemoNote")}</p>
       </CardContent>
     </Card>
   );

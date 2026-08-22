@@ -514,7 +514,7 @@ export function App() {
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
-    return <EmptyState />;
+    return <EmptyState onUseOwnSong={() => { void handleChooseLocalAudio(); }} chooseDisabled={analysisInFlight || isStarting || isImporting} />;
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";

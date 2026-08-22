@@ -248,6 +248,25 @@ describe("App", () => {
     expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
   });
 
+  it("names using a local song as the empty-workspace next action", () => {
+    render(<App />);
+
+    expect(screen.getByRole("heading", { name: "Start tonight's rehearsal" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Use my own song" })).toBeTruthy();
+    expect(screen.getByText(/licensed demo is not bundled yet/i)).toBeTruthy();
+  });
+
+  it("starts local file intake from the empty-workspace next action", async () => {
+    tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use my own song" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+  });
+
   it("renders localized Korean shell copy for buyer-demo surfaces", () => {
     const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
 
@@ -260,6 +279,7 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: /^작업 공간$/i })).toBeTruthy();
       expect(screen.getByRole("button", { name: /프로젝트 열기/i })).toBeTruthy();
       expect(screen.getByRole("button", { name: /유튜브 가져오기/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "내 곡 사용하기" })).toBeTruthy();
       expect(screen.getByText(/로컬 우선/i)).toBeTruthy();
       expect(screen.getByText(/합주 지도는 이 기기에 머뭅니다/i)).toBeTruthy();
       expect(screen.getByText(/^템포$/i)).toBeTruthy();
