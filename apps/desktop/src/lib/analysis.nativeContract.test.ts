@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const tauriMainSource = readFileSync(new URL("../../src-tauri/src/main.rs", import.meta.url), "utf8");
+const tauriMainSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "main.rs"), "utf8");
 
 /**
  * Security Notes:
