@@ -539,6 +539,7 @@ export function App() {
     if (selectionError && selectionErrorSource === "youtube") {
       return (
         <ErrorState
+          error={selectionError}
           title={t("youtubeImportFailureTitle")}
           guidance={t("youtubeImportFailureGuidance")}
           actionLabel={t("pasteAnotherYoutubeLink")}
