@@ -232,13 +232,14 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
       bootstrap: parseProjectBootstrapSummary(response)
     };
   } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : typeof error === "string" ? error : null;
     return {
       ok: false,
       error: {
         code: "invalid_request",
         message:
-          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
-            ? error.message
+          rawMessage && SAFE_LOCAL_AUDIO_MESSAGES.has(rawMessage)
+            ? rawMessage
             : UNSUPPORTED_LOCAL_AUDIO_MESSAGE
       }
     };
