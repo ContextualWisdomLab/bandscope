@@ -153,7 +153,7 @@
   "workspaceLoopTitle": "오늘 밤 루프",
   "workspaceLoopSectionPickerLabel": "연습할 구간",
   "workspaceLoopStart": "카운트인 시작",
-  "workspaceLoopThisSection": "이 구간 루프",
+  "workspaceLoopThisSection": "선택한 구간 루프 시작",
   "workspaceLoopResume": "이 루프 이어가기",
   "workspaceLoopPause": "루프 일시정지",
   "workspaceLoopStop": "멈추고 처음으로",
