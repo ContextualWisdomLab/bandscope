@@ -85,7 +85,7 @@ describe("ScoreView", () => {
 
     expect(screen.getByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
     expect(screen.getByText("No scores attached to this song yet.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add score" })).not.toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
     expect(mockInvoke).not.toHaveBeenCalled();
   });
@@ -95,11 +95,24 @@ describe("ScoreView", () => {
     render(<ScoreView song={song} projectId={null} onSongUpdate={vi.fn()} />);
 
     expect(screen.getByText("Scores attach to the active analysis project.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
+    const addBtn = screen.getByRole("button", { name: "Add score" });
+    const openBtn = screen.getByRole("button", { name: "Open score: opener.pdf" });
+    const removeBtn = screen.getByRole("button", { name: "Remove: opener.pdf" });
+
+    expect(addBtn).toHaveAttribute("aria-disabled", "true");
+    expect(openBtn).toHaveAttribute("aria-disabled", "true");
+    expect(removeBtn).toHaveAttribute("aria-disabled", "true");
+
+    const preventDefaultSpy = vi.spyOn(Event.prototype, 'preventDefault');
+
+    fireEvent.click(addBtn);
+    fireEvent.click(openBtn);
+    fireEvent.click(removeBtn);
+
+    expect(preventDefaultSpy).toHaveBeenCalledTimes(3);
+    preventDefaultSpy.mockRestore();
+
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
@@ -143,7 +156,7 @@ describe("ScoreView", () => {
       "Choose a PDF file to attach as a score."
     );
     expect(onSongUpdate).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add score" })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("falls back to the generic attach failure for malformed bridge responses", async () => {
