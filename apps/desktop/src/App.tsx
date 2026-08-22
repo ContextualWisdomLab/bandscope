@@ -408,6 +408,7 @@ export function App() {
     const submittedBootstrap = selectedBootstrap;
     setAnalysisFailed(false);
     setJobError(null);
+    setSaveError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
     setJobStatus(null);
@@ -441,6 +442,7 @@ export function App() {
     if (selection.ok) {
       setAnalysisFailed(false);
       setJobError(null);
+      setSaveError(null);
       setJobResult(null);
       setJobResultBootstrap(null);
       setJobStatus(null);
@@ -478,6 +480,7 @@ export function App() {
       if (selection.ok) {
         setAnalysisFailed(false);
         setJobError(null);
+        setSaveError(null);
         setJobResult(null);
         setJobResultBootstrap(null);
         setJobStatus(null);
@@ -702,7 +705,7 @@ export function App() {
             })}
             <button
               type="button"
-              aria-label={t("helpOpen")}
+              aria-label={`${t("helpOpen")} ${t("compactViewSuffix")}`}
               title={t("helpOpen")}
               aria-haspopup="dialog"
               aria-expanded={helpOpen}
