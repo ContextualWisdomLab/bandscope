@@ -365,6 +365,7 @@ export function App() {
             return;
           }
           const fallbackMessage = t("analysisCouldNotStart");
+          setActiveAnalysisBootstrap(null);
           setJobError(fallbackMessage);
           setJobErrorKind("analysis");
           setJobStatus({
@@ -431,6 +432,10 @@ export function App() {
       setJobErrorKind(null);
       setJobStatus(null);
       setActiveAnalysisBootstrap(null);
+      return;
+    }
+
+    if (isUserCancellation(selection.error.message)) {
       return;
     }
 
