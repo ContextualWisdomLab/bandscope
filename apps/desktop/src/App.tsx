@@ -388,6 +388,8 @@ export function App() {
   /** Documented. */
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
+    setSelectionError(null);
+    setSelectionErrorSource(null);
     setJobError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
@@ -484,6 +486,8 @@ export function App() {
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
+      setSelectionError(null);
+      setSelectionErrorSource(null);
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
@@ -846,7 +850,13 @@ export function App() {
                 )}
 
                 {selectionError && (
-                  <div id={selectionErrorSource === "youtube" ? "selection-error" : undefined} className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                  <div
+                    id={selectionErrorSource === "youtube" ? "selection-error" : undefined}
+                    className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100"
+                    role={selectionErrorSource === "youtube" ? undefined : "alert"}
+                    aria-live={selectionErrorSource === "youtube" ? undefined : "assertive"}
+                    aria-atomic={selectionErrorSource === "youtube" ? undefined : "true"}
+                  >
                     {selectionError}
                   </div>
                 )}
