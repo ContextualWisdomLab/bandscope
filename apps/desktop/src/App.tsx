@@ -441,6 +441,10 @@ export function App() {
 
   /** Documented. */
   const handleImportYoutube = async () => {
+    if (isChoosingLocalAudio) {
+      return;
+    }
+
     setSelectionError(null);
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
@@ -712,7 +716,7 @@ export function App() {
                         value={youtubeUrl}
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
-                        disabled={analysisInFlight || isStarting || isImporting}
+                        disabled={analysisInFlight || isStarting || isImporting || isChoosingLocalAudio}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
                         aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
@@ -733,7 +737,7 @@ export function App() {
                   </div>
                   <Button
                     onClick={handleImportYoutube}
-                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting || isChoosingLocalAudio}
                     variant="outline"
                     className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
                     aria-label={t("importYoutube")}
