@@ -1,4 +1,4 @@
-import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { createDemoRehearsalSong, type ProjectBootstrapSummary } from "@bandscope/shared-types";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -47,7 +47,7 @@ const localBootstrap = {
     extension: "wav",
     fileSizeBytes: 1024
   }
-};
+} satisfies ProjectBootstrapSummary;
 
 /**
  * Security Notes:
