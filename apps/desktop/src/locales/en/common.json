@@ -139,6 +139,8 @@
   "metricConfidenceLocalAnalysis": "Local analysis",
   "metricConfidenceSectionSingular": "section",
   "metricConfidenceSectionPlural": "sections",
+  "metricConfidenceSectionCountSingular": "{count} section",
+  "metricConfidenceSectionCountPlural": "{count} sections",
   "metricPriorityFallback": "Pick track",
   "metricPriorityPendingDetail": "Choose or open audio",
   "loadProjectFailedPrefix": "Failed to load project",
@@ -148,5 +150,16 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstOutroLabel": "Tonight's first outro",
+  "firstOutroAction": "Hear {role} land at {at}",
+  "firstOutroActionBand": "Hear the first outro at {at}",
+  "firstOutroOpenAction": "Open {role} outro at {at}",
+  "firstOutroOpenActionBand": "Open the first outro at {at}",
+  "firstOutroBody": "{role} holds the {section} at {at}.",
+  "firstOutroBodyBand": "The band lands the {section} at {at}.",
+  "firstOutroArmed": "Hold with {role} at {at}. Finish together.",
+  "firstOutroArmedBand": "Hold at {at}. Finish together.",
+  "firstOutroUnavailable": "No outro yet. Stay on tonight's map until the ending is labeled.",
+  "firstOutroNeedsSong": "Analyze tonight's song first, then hear the first outro from this player."
 }

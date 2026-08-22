@@ -1,3 +1,4 @@
+import type { SectionFormLabel } from "@bandscope/shared-types";
 import enCommon from "../locales/en/common.json";
 import koCommon from "../locales/ko/common.json";
 
@@ -11,11 +12,24 @@ const dictionaries = {
   ko: koCommon
 } as const;
 
+const sectionFormLabels: Readonly<
+  Record<Locale, Partial<Record<SectionFormLabel, string>>>
+> = {
+  en: { outro: "outro" },
+  ko: { outro: "아웃트로" }
+};
+
 /** Documented. */
 export function createTranslator(locale: Locale = "en") {
   return function t(key: TranslationKey): string {
     return dictionaries[locale][key] ?? dictionaries.en[key];
   };
+}
+
+/** Return localized copy for an own section-form entry, preserving unknown labels as data. */
+export function translateSectionFormLabel(locale: Locale, label: SectionFormLabel): string {
+  const labels = sectionFormLabels[locale];
+  return Object.prototype.hasOwnProperty.call(labels, label) ? (labels[label] ?? label) : label;
 }
 
 /** Documented. */

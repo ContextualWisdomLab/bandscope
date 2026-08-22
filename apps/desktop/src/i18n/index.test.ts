@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -73,6 +73,22 @@ describe("i18n", () => {
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }
+    });
+  });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes an outro label for Korean rehearsal copy", () => {
+      expect(translateSectionFormLabel("ko", "outro")).toBe("아웃트로");
+      expect(translateSectionFormLabel("en", "outro")).toBe("outro");
+    });
+
+    it("preserves unlabeled form values as data", () => {
+      expect(translateSectionFormLabel("ko", "verse")).toBe("verse");
+    });
+
+    it("does not treat inherited object keys as localized section labels", () => {
+      const inheritedKey = "toString" as never;
+      expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
     });
   });
 });

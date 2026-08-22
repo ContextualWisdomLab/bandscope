@@ -139,6 +139,8 @@
   "metricConfidenceLocalAnalysis": "로컬 분석",
   "metricConfidenceSectionSingular": "구간",
   "metricConfidenceSectionPlural": "구간",
+  "metricConfidenceSectionCountSingular": "{count}개 섹션",
+  "metricConfidenceSectionCountPlural": "{count}개 섹션",
   "metricPriorityFallback": "트랙 선택",
   "metricPriorityPendingDetail": "오디오를 선택하거나 여세요",
   "loadProjectFailedPrefix": "프로젝트를 불러오지 못했습니다",
@@ -148,5 +150,16 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstOutroLabel": "오늘 첫 아웃트로",
+  "firstOutroAction": "{at}에 {role} 끝맺음 듣기",
+  "firstOutroActionBand": "{at} 첫 아웃트로 듣기",
+  "firstOutroOpenAction": "{at} {role} 아웃트로 위치 열기",
+  "firstOutroOpenActionBand": "{at} 첫 아웃트로 위치 열기",
+  "firstOutroBody": "{at} {section}에서 {role} 파트가 끝맺습니다.",
+  "firstOutroBodyBand": "밴드가 {at} {section}에서 끝맺습니다.",
+  "firstOutroArmed": "{at}에서 {role} 파트와 함께 마지막 마디를 잡으세요. 같이 끝내세요.",
+  "firstOutroArmedBand": "{at}에서 마지막 마디를 잡으세요. 같이 끝내세요.",
+  "firstOutroUnavailable": "아직 아웃트로가 없습니다. 끝맺음이 표시될 때까지 오늘 지도에 머무르세요.",
+  "firstOutroNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 아웃트로를 들으세요."
 }
