@@ -65,13 +65,15 @@ describe("App rehearsal-help failure recovery", () => {
     analysisMocks.subscribeToAnalysisJobUpdates.mockResolvedValue(() => undefined);
   });
 
-  it("exposes rehearsal help from compact navigation with the same accessible name", () => {
+  it("gives compact rehearsal help a distinct accessible name", () => {
     render(<App />);
 
-    const compactHelp = screen.getByRole("button", { name: /open rehearsal help/i });
-    const compactNav = compactHelp.closest("nav");
+    const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
+    const compactHelp = within(compactNav).getByRole("button", {
+      name: /^open rehearsal help compact view$/i,
+    });
 
-    expect(compactNav?.getAttribute("aria-label")).toMatch(/compact rehearsal views/i);
+    expect(screen.getByRole("button", { name: /^open rehearsal help$/i })).toBeTruthy();
     fireEvent.click(compactHelp);
     expect(screen.getByTestId("rehearsal-help-dialog")).toBeTruthy();
   });
@@ -172,6 +174,40 @@ describe("App rehearsal-help failure recovery", () => {
       /start analysis to get tonight's first cues/i,
     );
     expect(within(helpDialog).queryByRole("button", { name: /show the rehearsal map/i })).toBeNull();
+  });
+
+  it("clears a stale save failure when a different local source is selected", async () => {
+    analysisMocks.selectLocalAudioSource
+      .mockResolvedValueOnce({ ok: true, bootstrap: bootstrap("project-save-a", "save-failed-song.wav") })
+      .mockResolvedValueOnce({ ok: true, bootstrap: bootstrap("project-save-b", "fresh-song.wav") });
+    analysisMocks.startAnalysisJob.mockResolvedValueOnce({
+      jobId: "job-help-save-failure",
+      state: "succeeded",
+      requestedAt: "2026-08-22T06:00:00.000Z",
+      updatedAt: "2026-08-22T06:00:01.000Z",
+      progressLabel: "Analysis ready",
+      progressStage: "ready",
+      progressPercent: 100,
+      cacheStatus: "disabled",
+      result: createDemoRehearsalSong(),
+    });
+    analysisMocks.saveProject.mockRejectedValueOnce(new Error("Disk unavailable"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/save-failed-song\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /^start analysis$/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /save project/i }).getAttribute("aria-disabled")).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/disk unavailable/i));
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/fresh-song\.wav/i)).toBeTruthy());
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("forgets the previous analyzed song when a YouTube source is imported", async () => {
