@@ -70,4 +70,33 @@ describe("App local selection failure visibility", () => {
       expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
     });
   });
+
+  it("clears a stale local selection failure after a saved project opens successfully", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose local audio" }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "That file can't start tonight" })).toBeTruthy()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Project" }));
+
+    await waitFor(() => expect(screen.getByText("Late Night Set")).toBeTruthy());
+    expect(screen.queryByRole("heading", { name: "That file can't start tonight" })).toBeNull();
+  });
+
+  it("replaces a stale project-load error with the later local recovery action", async () => {
+    analysisMocks.loadProject.mockRejectedValueOnce(new Error("synthetic project load failure"));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Project" }));
+    await waitFor(() => expect(analysisMocks.loadProject).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose local audio" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "That file can't start tonight" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
+    });
+  });
 });
