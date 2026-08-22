@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 
-const selectLocalAudioSource = vi.fn();
-const startAnalysisJob = vi.fn();
+const analysisMocks = vi.hoisted(() => ({
+  selectLocalAudioSource: vi.fn(),
+  startAnalysisJob: vi.fn()
+}));
 
 vi.mock("./features/score/ScoreView", () => ({
   ScoreView: () => <div>Score view</div>
@@ -22,8 +24,8 @@ vi.mock("./lib/analysis", () => ({
   isSupportedYoutubeUrl: () => false,
   loadProject: vi.fn(),
   saveProject: vi.fn(),
-  selectLocalAudioSource,
-  startAnalysisJob,
+  selectLocalAudioSource: analysisMocks.selectLocalAudioSource,
+  startAnalysisJob: analysisMocks.startAnalysisJob,
   subscribeToAnalysisJobUpdates: vi.fn().mockResolvedValue(() => undefined)
 }));
 
@@ -43,18 +45,18 @@ const admittedBootstrap = {
 
 describe("analysis failure recovery cancellation", () => {
   beforeEach(() => {
-    selectLocalAudioSource.mockReset();
-    startAnalysisJob.mockReset();
+    analysisMocks.selectLocalAudioSource.mockReset();
+    analysisMocks.startAnalysisJob.mockReset();
   });
 
   it("keeps the admitted song and recovery actions when the replacement picker is cancelled", async () => {
-    selectLocalAudioSource
+    analysisMocks.selectLocalAudioSource
       .mockResolvedValueOnce({ ok: true, bootstrap: admittedBootstrap })
       .mockResolvedValueOnce({
         ok: false,
         error: { code: "invalid_request", message: "User cancelled" }
       });
-    startAnalysisJob.mockResolvedValue({
+    analysisMocks.startAnalysisJob.mockResolvedValue({
       jobId: "job-1",
       state: "failed",
       requestedAt: "2026-08-22T00:00:00.000Z",
@@ -74,7 +76,7 @@ describe("analysis failure recovery cancellation", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /choose another song/i })).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /choose another song/i }));
-    await waitFor(() => expect(selectLocalAudioSource).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(analysisMocks.selectLocalAudioSource).toHaveBeenCalledTimes(2));
 
     expect(screen.queryByText(/user cancelled/i)).toBeNull();
     expect(screen.queryByText(/choose a wav, mp3, flac, or m4a file/i)).toBeNull();
