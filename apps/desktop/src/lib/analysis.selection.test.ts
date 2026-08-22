@@ -16,7 +16,7 @@ describe("local audio selection boundary", () => {
   });
 
   it("preserves native picker cancellation as a silent-capable signal", async () => {
-    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockRejectedValue(new Error("User cancelled"));
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockRejectedValue("User cancelled");
 
     await expect(selectLocalAudioSource()).resolves.toEqual({
       ok: false,
