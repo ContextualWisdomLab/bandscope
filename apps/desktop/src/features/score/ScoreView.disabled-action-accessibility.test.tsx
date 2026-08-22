@@ -38,16 +38,18 @@ describe("ScoreView unavailable action accessibility", () => {
     render(<ScoreView song={song} projectId={null} onSongUpdate={vi.fn()} />);
 
     const requirement = screen.getByText("Scores attach to the active analysis project.");
+    const addButton = screen.getByRole("button", { name: "Add score" });
     const openButton = screen.getByRole("button", { name: "Open score: opener.pdf" });
     const removeButton = screen.getByRole("button", { name: "Remove: opener.pdf" });
 
-    for (const button of [openButton, removeButton]) {
+    for (const button of [addButton, openButton, removeButton]) {
       expect(button).toHaveAttribute("aria-disabled", "true");
       expect(button).toHaveAttribute("aria-describedby", requirement.id);
       expect(button).toHaveAttribute("title", "Analyze or open a song first");
       expect(button).not.toBeDisabled();
     }
 
+    fireEvent.click(addButton);
     fireEvent.click(openButton);
     fireEvent.click(removeButton);
     expect(vi.mocked(invoke)).not.toHaveBeenCalled();
