@@ -39,14 +39,14 @@ const sectionFormLabels: Readonly<Record<Locale, Readonly<Record<SectionFormLabe
   }
 };
 
-/** Documented. */
+/** Create a locale-aware translation lookup that falls back to English copy. */
 export function createTranslator(locale: Locale = "en") {
   return function t(key: TranslationKey): string {
     return dictionaries[locale][key] ?? dictionaries.en[key];
   };
 }
 
-/** Return localized buyer copy for an own supported section-form entry. */
+/** Return the localized display label for a supported rehearsal section form. */
 export function translateSectionFormLabel(locale: Locale, label: SectionFormLabel): string {
   const labels = sectionFormLabels[locale] as Readonly<Record<PropertyKey, string>>;
   return Object.prototype.hasOwnProperty.call(labels, label) ? labels[label] : String(label);
