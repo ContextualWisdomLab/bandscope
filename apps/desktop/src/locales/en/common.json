@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstHarmonicExplanationLabel": "Tonight's first harmonic explanation",
+  "firstHarmonicExplanationOpenAction": "Open {role} explanation at {at}",
+  "firstHarmonicExplanationBody": "{role} still has a harmonic explanation in the {section} at {at}.",
+  "firstHarmonicExplanationArmed": "Play from that explanation on {role} at {at} before the room starts.",
+  "firstHarmonicExplanationUnavailable": "Nothing still has a harmonic explanation. Stay on tonight's map until a part owns rehearsal-facing harmony copy."
 }

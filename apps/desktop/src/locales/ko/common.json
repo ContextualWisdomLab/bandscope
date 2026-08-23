@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstHarmonicExplanationLabel": "오늘 첫 화성 설명",
+  "firstHarmonicExplanationOpenAction": "{at} {role} 화성 설명 위치 열기",
+  "firstHarmonicExplanationBody": "{at} {section}에서 {role} 파트의 화성 설명이 있습니다.",
+  "firstHarmonicExplanationArmed": "{at}에서 {role} 파트의 화성 설명을 확인한 다음 합주를 시작하세요.",
+  "firstHarmonicExplanationUnavailable": "아직 화성 설명이 없습니다. 파트가 합주용 화성 설명을 가질 때까지 오늘 지도에 머무르세요."
 }
