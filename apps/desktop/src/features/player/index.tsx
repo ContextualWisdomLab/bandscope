@@ -27,22 +27,25 @@ function isPlayerSummarySection(value: unknown): value is RehearsalSection {
   );
 }
 
-/** Return dense, individually valid sections without trusting runtime collection metadata. */
+/** Return dense, individually valid sections without scanning attacker-controlled synthetic lengths. */
 function playerSummarySections(song: RehearsalSong): RehearsalSection[] {
   const sections = song.sections as unknown;
   if (!Array.isArray(sections)) {
     return [];
   }
-  const length = Number(sections.length);
-  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
-    return [];
-  }
-  for (let index = 0; index < length; index += 1) {
-    if (!(index in sections)) {
+  try {
+    const length = Number(sections.length);
+    if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
       return [];
     }
+    const keys = Object.keys(sections);
+    if (keys.length !== length || !keys.every((key, index) => key === String(index))) {
+      return [];
+    }
+    return sections.filter(isPlayerSummarySection);
+  } catch {
+    return [];
   }
-  return sections.filter(isPlayerSummarySection);
 }
 
 /** Player surface that names tonight's first labeled intro and delegates playback to the owning player. */
