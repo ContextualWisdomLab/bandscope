@@ -16,13 +16,26 @@ export interface FirstOpenCommentCalloutProps {
 type OpenCommentCopyValues = Readonly<Record<"author" | "role" | "section" | "at", string>>;
 
 type OpenedOpenComment = Readonly<{
-  songIdentity: unknown;
+  songIdentifier: string | null;
   commentId: string;
   sectionId: string;
   sectionIndex: number;
   holdingRoleId: string | null;
   atSeconds: number;
 }>;
+
+/** Read a stable song id only when runtime data owns it as a plain string value. */
+function ownedSongIdentifier(song: RehearsalSong): string | null {
+  if (song === null || typeof song !== "object" || Array.isArray(song)) {
+    return null;
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(song, "id");
+  return descriptor !== undefined &&
+    Object.prototype.hasOwnProperty.call(descriptor, "value") &&
+    typeof descriptor.value === "string"
+    ? descriptor.value
+    : null;
+}
 
 /** Interpolate comment placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatOpenCommentCopy(template: string, values: OpenCommentCopyValues): string {
@@ -44,7 +57,7 @@ function preferredOpenCommentScrollBehavior(): ScrollBehavior {
 export function FirstOpenCommentCallout({ song }: FirstOpenCommentCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
-  const songIdentity: unknown = song;
+  const songIdentifier = ownedSongIdentifier(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const openComment = resolveFirstOpenComment(song);
   const openCommentSectionIndex =
@@ -56,7 +69,7 @@ export function FirstOpenCommentCallout({ song }: FirstOpenCommentCalloutProps) 
   useEffect(() => {
     setOpenedOpenComment(null);
   }, [
-    songIdentity,
+    songIdentifier,
     openCommentSectionIndex,
     openComment?.comment.id,
     openComment?.section.id,
@@ -79,7 +92,7 @@ export function FirstOpenCommentCallout({ song }: FirstOpenCommentCalloutProps) 
 
   const opened =
     openedOpenComment !== null &&
-    openedOpenComment.songIdentity === songIdentity &&
+    openedOpenComment.songIdentifier === songIdentifier &&
     openedOpenComment.commentId === openComment.comment.id &&
     openedOpenComment.sectionId === openComment.section.id &&
     openedOpenComment.sectionIndex === openCommentSectionIndex &&
@@ -133,7 +146,7 @@ export function FirstOpenCommentCallout({ song }: FirstOpenCommentCalloutProps) 
             behavior: preferredOpenCommentScrollBehavior()
           });
           setOpenedOpenComment({
-            songIdentity,
+            songIdentifier,
             commentId: openComment.comment.id,
             sectionId: openComment.section.id,
             sectionIndex: openCommentSectionIndex,
