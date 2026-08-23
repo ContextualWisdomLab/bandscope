@@ -148,5 +148,15 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "metricTempoReadyValue": "{bpm} BPM",
+  "metricTempoReadyDetail": "첫 시작 전에 {bpm}으로 카운트하세요.",
+  "metricTempoAction": "오늘 카운트 위치 열기",
+  "metricTempoArmed": "{bpm}으로 같이 세고 지도에서 들어가세요.",
+  "metricKeyReadyDetail": "{role} 파트가 이 모양으로 시작합니다. 첫 시작을 확인하세요.",
+  "metricKeyAction": "오늘 첫 코드 열기",
+  "metricKeyArmed": "방에 들어가기 전에 첫 시작에서 {chord} 모양을 확인하세요.",
+  "metricTransposeReadyDetail": "{role}: {plan}",
+  "metricTransposeAction": "{role} 세팅 잠그기",
+  "metricTransposeArmed": "{role} 세팅을 잠그고 지도에서 카운트하세요."
 }

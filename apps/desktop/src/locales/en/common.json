@@ -148,5 +148,15 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "metricTempoReadyValue": "{bpm} BPM",
+  "metricTempoReadyDetail": "Count {bpm} in before the first entrance.",
+  "metricTempoAction": "Open tonight's count-in",
+  "metricTempoArmed": "Count {bpm} together. Start from the map.",
+  "metricKeyReadyDetail": "{role} starts in this shape. Check the first entrance.",
+  "metricKeyAction": "Open tonight's first chord",
+  "metricKeyArmed": "Check {chord} at the first entrance before the room starts.",
+  "metricTransposeReadyDetail": "{role}: {plan}",
+  "metricTransposeAction": "Lock {role}'s setup",
+  "metricTransposeArmed": "Lock {role}'s setup, then count in from the map."
 }
