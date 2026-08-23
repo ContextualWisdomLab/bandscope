@@ -182,3 +182,73 @@ def test_refresh_manifest_rejects_untrustworthy_live_inventory(
         refresher.build_refreshed_manifest(
             _seed(), live, base_sha="d" * 40, snapshot_date="2026-08-24"
         )
+
+
+def test_github_request_uses_fixed_https_host_and_relative_repo_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Token-bearing live reads connect only to the canonical GitHub API host."""
+    refresher = _load_refresher()
+    observed: dict[str, object] = {}
+
+    class FakeResponse:
+        status = 200
+        reason = "OK"
+
+        def read(self, amount: int) -> bytes:
+            observed["read_amount"] = amount
+            return b'{"ok":true}'
+
+        def getheader(self, name: str, default: str = "") -> str:
+            assert name == "Link"
+            return default
+
+    class FakeConnection:
+        def __init__(self, host: str, *, timeout: int) -> None:
+            observed["host"] = host
+            observed["timeout"] = timeout
+
+        def request(self, method: str, path: str, *, headers: dict[str, str]) -> None:
+            observed["method"] = method
+            observed["path"] = path
+            observed["headers"] = headers
+
+        def getresponse(self) -> FakeResponse:
+            return FakeResponse()
+
+        def close(self) -> None:
+            observed["closed"] = True
+
+    monkeypatch.setattr(refresher.http.client, "HTTPSConnection", FakeConnection)
+
+    payload, link = refresher._request_github_json(
+        "/repos/ContextualWisdomLab/bandscope/branches/develop", "token-value"
+    )
+
+    assert payload == {"ok": True}
+    assert link == ""
+    assert observed["host"] == "api.github.com"
+    assert observed["method"] == "GET"
+    assert observed["path"] == "/repos/ContextualWisdomLab/bandscope/branches/develop"
+    assert observed["headers"]["Authorization"] == "Bearer token-value"
+    assert observed["closed"] is True
+
+
+def test_github_request_rejects_absolute_or_foreign_paths_before_connecting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Caller-controlled authorities cannot be smuggled into a token-bearing request target."""
+    refresher = _load_refresher()
+
+    def unexpected_connection(host: str, *, timeout: int) -> object:
+        raise AssertionError(f"unexpected connection to {host} with timeout {timeout}")
+
+    monkeypatch.setattr(refresher.http.client, "HTTPSConnection", unexpected_connection)
+
+    for target in (
+        "https://api.github.com/repos/ContextualWisdomLab/bandscope/branches/develop",
+        "//evil.example/repos/ContextualWisdomLab/bandscope",
+        "/repos/other-owner/other-repo/pulls",
+    ):
+        with pytest.raises(refresher.RefreshError, match="repository path"):
+            refresher._request_github_json(target, "token-value")
