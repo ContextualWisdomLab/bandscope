@@ -59,6 +59,22 @@ function preferredBlockedScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
+/** Resolve the song-structure renderer owned by this workspace, failing closed on ambiguous mounts. */
+function resolveBlockedRenderer(origin: HTMLElement): HTMLElement | null {
+  const selector = '[data-testid="song-structure-grid"]';
+  const localScope = origin.closest("aside")?.parentElement ?? null;
+  const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
+  if (localRenderers.length === 1) {
+    return localRenderers[0] ?? null;
+  }
+  if (localRenderers.length > 1) {
+    return null;
+  }
+
+  const globalRenderers = document.querySelectorAll<HTMLElement>(selector);
+  return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
+}
+
 /** Name tonight's first blocked job and open the matching rendered map section. */
 export function FirstBlockedCallout({ song }: FirstBlockedCalloutProps) {
   const locale = useMemo(() => detectPreferredLocale(), []);
@@ -131,8 +147,8 @@ export function FirstBlockedCallout({ song }: FirstBlockedCalloutProps) {
       <Button
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-rose-300 to-orange-300 font-black text-slate-950"
-        onClick={() => {
-          const renderer = document.querySelector<HTMLElement>('[data-testid="song-structure-grid"]');
+        onClick={(event) => {
+          const renderer = resolveBlockedRenderer(event.currentTarget);
           const target =
             blockedSectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(`[data-section-index="${blockedSectionIndex}"]`) ??
