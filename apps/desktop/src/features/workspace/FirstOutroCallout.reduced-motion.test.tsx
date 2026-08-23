@@ -48,9 +48,10 @@ describe("FirstOutroCallout reduced motion", () => {
     }));
 
     const grid = document.createElement("div");
-    grid.dataset.testid = "song-structure-grid";
     const first = document.createElement("div");
+    first.dataset.sectionIndex = "0";
     const target = document.createElement("div");
+    target.dataset.sectionIndex = "1";
     const scrollIntoView = vi.fn();
     Object.defineProperty(target, "scrollIntoView", {
       configurable: true,
