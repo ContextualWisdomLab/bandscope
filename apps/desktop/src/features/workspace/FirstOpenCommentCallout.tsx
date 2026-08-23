@@ -29,7 +29,12 @@ function ownedSongIdentifier(song: RehearsalSong): string | null {
   if (song === null || typeof song !== "object" || Array.isArray(song)) {
     return null;
   }
-  const descriptor = Object.getOwnPropertyDescriptor(song, "id");
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(song, "id");
+  } catch {
+    return null;
+  }
   return descriptor !== undefined &&
     Object.prototype.hasOwnProperty.call(descriptor, "value") &&
     typeof descriptor.value === "string"
