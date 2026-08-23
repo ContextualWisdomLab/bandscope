@@ -13,6 +13,16 @@ type PlayerFeatureProps = {
   onPlayFromSeconds?: (startSeconds: number) => void;
 };
 
+/** Read an own data property without invoking accessors or letting descriptor traps escape. */
+function readOwnDataProperty(value: object, key: PropertyKey): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Return whether one runtime section is safe to summarize in the player. */
 function isPlayerSummarySection(value: unknown): value is RehearsalSection {
   if (value === null || typeof value !== "object") {
@@ -27,9 +37,9 @@ function isPlayerSummarySection(value: unknown): value is RehearsalSection {
   );
 }
 
-/** Return dense, individually valid sections without scanning attacker-controlled synthetic lengths. */
+/** Return dense, individually valid sections without invoking an untrusted collection accessor. */
 function playerSummarySections(song: RehearsalSong): RehearsalSection[] {
-  const sections = song.sections as unknown;
+  const sections = readOwnDataProperty(song, "sections");
   if (!Array.isArray(sections)) {
     return [];
   }
