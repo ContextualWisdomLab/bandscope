@@ -21,6 +21,7 @@ describe("FirstTagCallout Korean role copy", () => {
     song.sections = [tag];
 
     const grid = document.createElement("div");
+    grid.id = "song-structure-grid";
     const target = document.createElement("div");
     target.dataset.sectionIndex = "0";
     Object.defineProperty(target, "scrollIntoView", {
