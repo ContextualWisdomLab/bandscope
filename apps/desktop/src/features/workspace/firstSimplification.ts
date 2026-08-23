@@ -65,6 +65,20 @@ function isDenseRuntimeArray(value: unknown): value is unknown[] {
   return true;
 }
 
+/** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
+function truncateCodePoints(value: string, maximum: number): string {
+  let codePoints = 0;
+  let endIndex = 0;
+  for (const character of value) {
+    if (codePoints >= maximum) {
+      break;
+    }
+    endIndex += character.length;
+    codePoints += 1;
+  }
+  return endIndex === value.length ? value : value.slice(0, endIndex);
+}
+
 /** Return a bounded owned simplification hint, or null when the field cannot be shown. */
 function ownedSimplificationHint(role: RehearsalRole): string | null {
   if (!hasOwnData(role, "simplification") || typeof role.simplification !== "string") {
@@ -74,7 +88,7 @@ function ownedSimplificationHint(role: RehearsalRole): string | null {
   if (hint.length === 0) {
     return null;
   }
-  return hint.length <= MAX_HINT_CHARACTERS ? hint : hint.slice(0, MAX_HINT_CHARACTERS);
+  return truncateCodePoints(hint, MAX_HINT_CHARACTERS);
 }
 
 /** Return true when the role has safe owned identity/copy, ranked priority, and a named simpler take. */
