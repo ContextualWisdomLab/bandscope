@@ -122,10 +122,8 @@ def _live_pr_entry(
     base = _require_record(pr.get("base"), f"pull_requests[{index}].base")
     if base.get("ref") != BASE_BRANCH:
         _fail(f"pull_requests[{index}].base.ref must be {BASE_BRANCH}")
-    if (
-        "sha" in base
-        and _require_sha(base.get("sha"), f"pull_requests[{index}].base.sha") != base_sha
-    ):
+    pr_base_sha = _require_sha(base.get("sha"), f"pull_requests[{index}].base.sha")
+    if pr_base_sha != base_sha:
         _fail(f"pull_requests[{index}].base.sha must match the live {BASE_BRANCH} tip")
 
     head = _require_record(pr.get("head"), f"pull_requests[{index}].head")
