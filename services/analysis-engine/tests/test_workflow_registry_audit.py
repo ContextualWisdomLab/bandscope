@@ -420,7 +420,7 @@ def test_audit_repository_accepts_reordered_registry_and_emits_final_receipts(
                             "status": 200,
                             "item_count": 2,
                             "snapshot": "initial",
-                        },
+                        }
                     ],
                 ),
                 (
@@ -431,7 +431,7 @@ def test_audit_repository_accepts_reordered_registry_and_emits_final_receipts(
                             "status": 200,
                             "item_count": 2,
                             "snapshot": "final",
-                        },
+                        }
                     ],
                 ),
             ]
