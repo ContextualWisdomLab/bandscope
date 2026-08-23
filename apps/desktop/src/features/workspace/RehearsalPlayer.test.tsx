@@ -26,7 +26,7 @@ describe("RehearsalPlayer", () => {
 
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
-    ).toMatch(/Loop verse from 0:10–0:30\. Choose a local song first/i);
+    ).toMatch(/Map verse from 0:10–0:30\. Choose a local song first/i);
     expect(
       (
         screen.getByRole("button", {
@@ -125,7 +125,7 @@ describe("RehearsalPlayer", () => {
     });
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
-    ).toMatch(/verse is looping 0:10–0:30/i);
+    ).toMatch(/The rehearsal clock is looping verse from 0:10–0:30/i);
 
     act(() => {
       vi.advanceTimersByTime(1500);
@@ -234,7 +234,7 @@ describe("RehearsalPlayer", () => {
 
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
-    ).toMatch(/Loop chorus from 0:20–0:30\. Start the count-in/i);
+    ).toMatch(/Map chorus from 0:20–0:30\. Start the count-in/i);
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
     ).not.toMatch(/Count in 4 beats/i);
@@ -275,7 +275,7 @@ describe("RehearsalPlayer", () => {
     expect(chorusButton.getAttribute("aria-pressed")).toBe("true");
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
-    ).toMatch(/Loop chorus from 0:30–0:40\. Start the count-in/i);
+    ).toMatch(/Map chorus from 0:30–0:40\. Start the count-in/i);
   });
 
   it("stays fail-closed when no section has a usable window", () => {
