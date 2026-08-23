@@ -79,6 +79,41 @@ describe("FirstEarCheckCallout", () => {
     grid.remove();
   });
 
+  it("preserves armed guidance across immutable edits of the same owned song", () => {
+    const song = songWithEarCheck();
+    const { grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstEarCheckCallout song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar ear check at 0:10" }));
+    expect(screen.getByText(/Confirm Bass Guitar by ear at 0:10 before the room starts./)).toBeTruthy();
+
+    rerender(<FirstEarCheckCallout song={{ ...song }} />);
+
+    expect(screen.getByText(/Confirm Bass Guitar by ear at 0:10 before the room starts./)).toBeTruthy();
+    expect(screen.queryByText("Bass Guitar still needs an ear check in the verse at 0:10.")).toBeNull();
+
+    grid.remove();
+  });
+
+  it("does not show another uncertain part's notes under the named holding part", () => {
+    const song = songWithEarCheck();
+    song.sections[0]!.roles[0]!.confidence = {
+      level: "low",
+      source: "model",
+      notes: ""
+    };
+    song.sections[0]!.roles[1]!.confidence = {
+      level: "medium",
+      source: "model",
+      notes: "Check the keyboard voicing instead."
+    };
+
+    render(<FirstEarCheckCallout song={song} />);
+
+    expect(screen.getByText("Bass Guitar still needs an ear check in the verse at 0:10.")).toBeTruthy();
+    expect(screen.queryByText("Check the keyboard voicing instead.")).toBeNull();
+  });
+
   it("names the first ear check as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
