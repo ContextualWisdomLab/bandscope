@@ -101,6 +101,28 @@ describe("FirstTagCallout", () => {
     grid.remove();
   });
 
+  it("scopes map navigation to the song-structure renderer when another surface reuses an index", () => {
+    const decoy = document.createElement("div");
+    decoy.dataset.sectionIndex = "1";
+    const decoyScrollIntoView = vi.fn();
+    Object.defineProperty(decoy, "scrollIntoView", {
+      configurable: true,
+      value: decoyScrollIntoView
+    });
+    document.body.appendChild(decoy);
+    const { grid, scrollIntoView } = appendSongStructureTarget();
+
+    render(<FirstTagCallout song={songWithTag()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal tag at 3:20" }));
+
+    expect(decoyScrollIntoView).not.toHaveBeenCalled();
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+
+    decoy.remove();
+    grid.remove();
+  });
+
   it("shows fresh guidance when the first tag changes or returns later", () => {
     const initialSong = songWithTag();
     const { grid } = appendSongStructureTarget();
