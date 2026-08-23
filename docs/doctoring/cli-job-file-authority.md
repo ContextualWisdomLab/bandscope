@@ -14,9 +14,7 @@ The CLI consequently rejects pathname strings whose slash-normalized form begins
 
 NTFS also permits named alternate data streams. Microsoft documents the full stream form as `filename:stream name:stream type` and the common named-data-stream form as `file:stream`; the default stream is the one addressed when no stream-name component is supplied (Microsoft, n.d.-c; Russinovich, 2021). A caller who selected `job.json:secret` would therefore be selecting a different data stream than the ordinary file contents even though the path still names a regular filesystem object. The CLI's job-file contract intentionally authorizes only the ordinary unnamed file stream, so a colon in any post-drive path component is rejected before `os.lstat()`. The drive-designator colon in an absolute form such as `C:\path\job.json` remains distinct because `ntpath.splitdrive()` removes that authority prefix before the alternate-stream test.
 
-Reserved Win32 device aliases are also classified before metadata lookup. Device-name comparison strips the leading ASCII space that Win32 can normalize away during file/folder creation, then applies the already-established trailing ASCII-space/period, extension, alternate-stream, and case normalization. This prevents forms such as `` NUL``, `` NUL.txt``, `` COM1 .log``, and `` AUX:`` from bypassing the lexical authority boundary merely because a caller prepended an ASCII space (Microsoft, n.d.-b).
-
-The reserved-name list is not one bucket. Microsoft's *Naming files, paths, and namespaces* page lists `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, and `LPT1`–`LPT9`. `CONIN$` and `CONOUT$` are documented separately as console handles (Microsoft, 2021-12-30) and are not naming-a-file reserved filenames. `CLOCK$` is a legacy DOS device that the current reserved-name list no longer carries; the CLI still fail-closes it so a job path cannot acquire that device. Drive-relative forms such as `C:job.json` remain a distinct authority class and must fail before `os.lstat` or `os.open`. Rejection diagnostics log the lexical class only; they do not echo the rejected path.
+Reserved Win32 device aliases are also classified before metadata lookup. Device-name comparison strips the leading ASCII space that Win32 can normalize away during file/folder creation, then applies the already-established trailing ASCII-space/period, extension, alternate-stream, and case normalization. This prevents forms such as ` NUL`, ` NUL.txt`, ` COM1 .log`, and ` AUX:` from bypassing the lexical authority boundary merely because a caller prepended an ASCII space (Microsoft, n.d.-b).
 
 ## Descriptor-bound local-file validation
 
@@ -60,8 +58,6 @@ Microsoft. (2024, April 23). *[MS-DFSC]: UNC path*. Microsoft Learn. https://lea
 Microsoft. (2025, October 22). *File path formats on Windows systems*. Microsoft Learn. https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats
 
 Microsoft. (n.d.-a). *Maximum path length limitation*. Microsoft Learn. Retrieved August 16, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
-
-Microsoft. (2021, December 30). *Console handles*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/console/console-handles
 
 Microsoft. (n.d.-b). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 16, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 

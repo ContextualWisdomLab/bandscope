@@ -17,12 +17,12 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 MAX_JSON_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-
-# Microsoft "Naming files, paths, and namespaces" reserved filenames.
-# CONIN$/CONOUT$ are not on that list; they are console handles.
-_WINDOWS_RESERVED_FILENAMES = frozenset(
+_WINDOWS_DEVICE_NAMES = frozenset(
     {
         "CON",
+        "CONIN$",
+        "CONOUT$",
+        "CLOCK$",
         "PRN",
         "AUX",
         "NUL",
@@ -36,21 +36,6 @@ _WINDOWS_RESERVED_FILENAMES = frozenset(
         "LPT³",
     }
 )
-
-# Microsoft console-handles (2021-12-30): CONIN$ and CONOUT$ are console
-# input/output aliases, not reserved filenames from naming-a-file.
-_WINDOWS_CONSOLE_HANDLES = frozenset({"CONIN$", "CONOUT$"})
-
-# CLOCK$ is a legacy DOS device that modern naming-a-file no longer lists.
-# Keep fail-closed so a job path cannot acquire that device.
-_WINDOWS_LEGACY_DEVICE_ALIASES = frozenset({"CLOCK$"})
-
-WINDOWS_JOB_PATH_RESERVED_FILENAME = "reserved-filename"
-WINDOWS_JOB_PATH_CONSOLE_HANDLE = "console-handle"
-WINDOWS_JOB_PATH_LEGACY_DEVICE = "legacy-device"
-WINDOWS_JOB_PATH_DRIVE_RELATIVE = "drive-relative"
-WINDOWS_JOB_PATH_UNC_OR_DEVICE_NAMESPACE = "unc-or-device-namespace"
-WINDOWS_JOB_PATH_ALTERNATE_STREAM = "alternate-stream"
 
 # Compatibility hook for existing CLI-level tests and downstream monkeypatches.
 # The CLI intentionally does not invoke temporal analysis before request validation;
@@ -103,40 +88,14 @@ def _read_bounded_stdin() -> tuple[str | None, int]:
     return raw_text.strip(), 0
 
 
-def _normalized_win32_device_token(component: str) -> str:
-    """Return the Win32 device token after documented space/period normalization."""
-    normalized_component = component.lstrip(" ").rstrip(" .")
-    return normalized_component.split(".", 1)[0].rstrip(" ").split(":", 1)[0].upper()
-
-
-def _path_device_tokens(path: str) -> list[str]:
-    """Return normalized device tokens for every path component."""
-    components = path.replace("\\", "/").split("/")
-    return [_normalized_win32_device_token(component) for component in components]
-
-
-def _uses_windows_reserved_filename(path: str) -> bool:
-    """Return whether any component is a naming-a-file reserved filename."""
-    return any(token in _WINDOWS_RESERVED_FILENAMES for token in _path_device_tokens(path))
-
-
-def _uses_windows_console_handle(path: str) -> bool:
-    """Return whether any component is a CONIN$/CONOUT$ console handle."""
-    return any(token in _WINDOWS_CONSOLE_HANDLES for token in _path_device_tokens(path))
-
-
-def _uses_windows_legacy_device_alias(path: str) -> bool:
-    """Return whether any component is a fail-closed legacy device such as CLOCK$."""
-    return any(token in _WINDOWS_LEGACY_DEVICE_ALIASES for token in _path_device_tokens(path))
-
-
 def _uses_windows_device_alias(path: str) -> bool:
-    """Return whether any component normalizes to a reserved, console, or legacy device."""
-    return (
-        _uses_windows_reserved_filename(path)
-        or _uses_windows_console_handle(path)
-        or _uses_windows_legacy_device_alias(path)
-    )
+    """Return whether any component normalizes to a reserved Win32 device."""
+    for component in path.replace("\\", "/").split("/"):
+        normalized_component = component.lstrip(" ").rstrip(" .")
+        base_name = normalized_component.split(".", 1)[0].rstrip(" ").split(":", 1)[0].upper()
+        if base_name in _WINDOWS_DEVICE_NAMES:
+            return True
+    return False
 
 
 def _uses_windows_alternate_stream(path: str) -> bool:
@@ -145,41 +104,15 @@ def _uses_windows_alternate_stream(path: str) -> bool:
     return any(":" in component for component in drive_tail.replace("\\", "/").split("/"))
 
 
-def classify_windows_job_path_authority(path: str) -> str | None:
-    """Return the lexical job-path rejection class, or ``None`` if lookup may proceed.
-
-    Classification is purely lexical and must not call ``os.lstat`` or ``os.open``.
-    Console handles, including trailing-colon forms such as ``CONOUT$:``, are
-    reported before the NTFS alternate-stream colon test. Reserved filenames
-    and the legacy ``CLOCK$`` device follow the same order so a Win32 device
-    suffix cannot be mislabeled as a named stream.
-    """
-    drive, drive_tail = ntpath.splitdrive(path)
-    if path.replace("/", "\\").startswith("\\\\"):
-        return WINDOWS_JOB_PATH_UNC_OR_DEVICE_NAMESPACE
-    if drive and not drive_tail.startswith(("\\", "/")):
-        return WINDOWS_JOB_PATH_DRIVE_RELATIVE
-    if _uses_windows_console_handle(path):
-        return WINDOWS_JOB_PATH_CONSOLE_HANDLE
-    if _uses_windows_legacy_device_alias(path):
-        return WINDOWS_JOB_PATH_LEGACY_DEVICE
-    if _uses_windows_reserved_filename(path):
-        return WINDOWS_JOB_PATH_RESERVED_FILENAME
-    if _uses_windows_alternate_stream(path):
-        return WINDOWS_JOB_PATH_ALTERNATE_STREAM
-    return None
-
-
 def _read_bounded_job_file(path: str) -> bytes:
     """Read a bounded regular local job file through a verified descriptor.
 
     UNC/network shapes, device namespaces, drive-relative Win32 paths, NTFS
-    alternate-stream syntax, naming-a-file reserved filenames, console handles
-    (``CONIN$`` / ``CONOUT$``, including ``CONOUT$:``), and the legacy ``CLOCK$``
-    device are rejected lexically before any filesystem lookup. Slash
-    translation is applied before the UNC/device-namespace prefix test so
-    mixed-separator forms such as ``/\\\\server\\\\share`` or ``/\\\\.\\\\pipe\\\\...``
-    cannot reach ``lstat`` or ``open``. Drive-relative forms such as
+    alternate-stream syntax, and reserved DOS device aliases are rejected
+    lexically before any filesystem lookup. Slash translation is applied before
+    the UNC/device-namespace prefix test so mixed-separator forms such as
+    ``/\\server\\share`` or ``/\\.\\pipe\\...`` cannot reach ``lstat`` or
+    ``open``. Drive-relative forms such as
     ``C:job.json`` are authority-bearing: Win32 resolves them through a per-drive
     current directory rather than from the drive root. The remaining path is
     inspected with ``lstat`` before opening so known directories, FIFOs, devices,
@@ -192,13 +125,26 @@ def _read_bounded_job_file(path: str) -> bytes:
     byte bound is enforced on the descriptor-backed stream rather than on a second
     path lookup.
     """
-    authority = classify_windows_job_path_authority(path)
-    if authority is not None:
-        logger.warning("Security: rejected job path authority class=%s", authority)
+    drive, drive_tail = ntpath.splitdrive(path)
+    uses_drive_relative_path = bool(drive) and not drive_tail.startswith(("\\", "/"))
+    uses_unc_or_device_namespace = path.replace("/", "\\").startswith("\\\\")
+    if (
+        uses_unc_or_device_namespace
+        or uses_drive_relative_path
+        or _uses_windows_alternate_stream(path)
+        or _uses_windows_device_alias(path)
+    ):
+        logger.warning(
+            "Security: Path validation failure - unpermitted namespace or authority",
+            extra={"path": path},
+        )
         raise OSError("job path must use the local regular-file namespace")
 
     before = os.lstat(path)
     if not stat.S_ISREG(before.st_mode):
+        logger.warning(
+            "Security: Path validation failure - not a regular file", extra={"path": path}
+        )
         raise OSError("job path is not a regular file")
 
     flags = os.O_RDONLY
@@ -209,8 +155,16 @@ def _read_bounded_job_file(path: str) -> bytes:
     try:
         opened = os.fstat(descriptor)
         if not stat.S_ISREG(opened.st_mode):
+            logger.warning(
+                "Security: Path validation failure - descriptor yielded non-regular file",
+                extra={"path": path},
+            )
             raise OSError("opened job path is not a regular file")
         if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+            logger.warning(
+                "Security: Path validation failure - detected potential TOCTOU",
+                extra={"path": path},
+            )
             raise OSError("job path changed before open")
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
             return stream.read(MAX_JSON_FILE_SIZE + 1)
