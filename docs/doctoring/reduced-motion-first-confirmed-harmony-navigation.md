@@ -1,0 +1,14 @@
+# Reduced-motion first-confirmed-harmony navigation
+
+Workspace map navigation for tonight's first confirmed chord follows the operating-system reduced-motion preference.
+
+When `prefers-reduced-motion: reduce` matches, `FirstConfirmedHarmonyCallout` scrolls the renderer-owned song-structure section with `behavior: "auto"`. Otherwise it uses `behavior: "smooth"`.
+
+This is a presentation contract only. Confirmed-harmony resolution and analysis-id isolation stay unchanged.
+
+## Security Notes
+
+- Untrusted input: song, section, time-range, role, `manualOverrides`, and section-local graph metadata are runtime data; inherited properties and arrays masquerading as record metadata are not authority.
+- Trust boundary: confirmed-harmony resolution accepts required fields only when the inspected record owns them, while renderer-owned song-structure children remain the only navigation targets; analysis `section.id` is never DOM-ID authority. The owned function-label string is rendered as a text node and is never rescanned as template syntax. Groove, cue, setup, simplification, overlap, range copy, model harmony, and user-provenance without an owned `manualOverrides` record cannot invent a confirmed chord.
+- Mitigations: runtime record guards reject arrays, dense collections require own indexed elements, required metadata fields must be own properties, `matchMedia` is read-only, scroll targets come from renderer child index, copy interpolation runs once, the confirmed chord is bounded to 32 Unicode code points, and the function-label hint is bounded to 180 Unicode code points.
+- Test points: inherited song/section/timing/role/graph/override metadata is rejected, array-backed section records are rejected, reduced-motion scroll uses `auto`, and default motion uses `smooth`.

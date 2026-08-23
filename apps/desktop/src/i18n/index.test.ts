@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -73,6 +73,53 @@ describe("i18n", () => {
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }
+    });
+  });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes every supported section form label for Korean rehearsal copy", () => {
+      expect(
+        [
+          "intro",
+          "verse",
+          "pre-chorus",
+          "chorus",
+          "bridge",
+          "outro",
+          "tag",
+          "pickup",
+          "stop",
+          "handoff"
+        ].map((label) => translateSectionFormLabel("ko", label as never))
+      ).toEqual([
+        "인트로",
+        "벌스",
+        "프리코러스",
+        "코러스",
+        "브리지",
+        "아웃트로",
+        "태그",
+        "픽업",
+        "스톱",
+        "핸드오프"
+      ]);
+    });
+
+    it("preserves every supported English section form label", () => {
+      expect(translateSectionFormLabel("en", "verse")).toBe("verse");
+      expect(translateSectionFormLabel("en", "outro")).toBe("outro");
+    });
+
+    it("does not treat inherited object keys as localized section labels", () => {
+      const inheritedKey = "toString" as never;
+      expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
+    });
+
+    it("keeps Korean first-confirmed-harmony next-action copy particle-safe", () => {
+      const t = createTranslator("ko");
+      expect(t("firstConfirmedHarmonyOpenAction")).toBe("{at} {role} 확인 코드 위치 열기");
+      expect(t("firstConfirmedHarmonyBody")).toBe("{at} {section}에서 {role} 파트의 확인된 코드는 {chord}입니다.");
+      expect(t("firstConfirmedHarmonyArmed")).toBe("{at}에서 {role} 파트를 {chord}로 연주한 다음 합주를 시작하세요.");
     });
   });
 });

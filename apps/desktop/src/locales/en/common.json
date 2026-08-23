@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstConfirmedHarmonyLabel": "Tonight's first confirmed chord",
+  "firstConfirmedHarmonyOpenAction": "Open {role} confirmed {chord} at {at}",
+  "firstConfirmedHarmonyBody": "{role} still has a confirmed {chord} in the {section} at {at}.",
+  "firstConfirmedHarmonyArmed": "Play {chord} on {role} at {at} before the room starts.",
+  "firstConfirmedHarmonyUnavailable": "Nothing still has a confirmed chord. Stay on tonight's map until a part is marked user-confirmed."
 }
