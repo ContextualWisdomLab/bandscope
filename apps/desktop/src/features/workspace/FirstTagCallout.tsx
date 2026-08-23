@@ -68,7 +68,8 @@ export function FirstTagCallout({ song }: FirstTagCalloutProps) {
   }
 
   const opened =
-    openedTag?.songIdentity === songIdentity &&
+    openedTag !== null &&
+    openedTag.songIdentity === songIdentity &&
     openedTag.sectionId === tag.section.id &&
     openedTag.sectionIndex === tagSectionIndex &&
     openedTag.holdingRoleId === (tag.holdingRole?.id ?? null) &&
