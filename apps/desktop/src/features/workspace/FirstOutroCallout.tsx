@@ -132,15 +132,12 @@ export function FirstOutroCallout({
               markOutroActionComplete();
               return;
             }
-            const grid = document.getElementById("song-structure-grid");
             const target =
               outroSectionIndex >= 0
-                ? Array.from(grid?.children ?? []).find(
-                    (child) =>
-                      child instanceof HTMLElement &&
-                      child.dataset.sectionIndex === String(outroSectionIndex)
+                ? document.querySelector<HTMLElement>(
+                    `[data-section-index="${outroSectionIndex}"]`
                   )
-                : undefined;
+                : null;
             if (typeof target?.scrollIntoView !== "function") {
               return;
             }
