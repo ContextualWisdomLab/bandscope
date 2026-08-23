@@ -86,11 +86,14 @@ describe("RehearsalPlayer", () => {
       screen.getByRole("button", { name: /Start the count-in/i }),
     );
     act(() => {
-      vi.advanceTimersByTime(2500);
+      vi.advanceTimersByTime(2000);
     });
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
     ).toMatch(/looping/i);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
 
     const playheadBeforeRevocation = screen
       .getByTestId("rehearsal-loop-playhead")
