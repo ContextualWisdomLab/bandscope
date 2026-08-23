@@ -103,9 +103,7 @@ export function FirstOverlapCallout({ song }: FirstOverlapCalloutProps) {
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-rose-300 to-amber-300 font-black text-slate-950"
         onClick={() => {
-          const renderer = document.querySelector<HTMLElement>(
-            '[role="region"][aria-label="Scrollable song structure timeline"]'
-          );
+          const renderer = document.querySelector<HTMLElement>('[data-testid="song-structure-grid"]');
           const target =
             overlapSectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(
