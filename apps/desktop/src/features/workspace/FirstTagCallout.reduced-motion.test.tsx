@@ -48,6 +48,7 @@ describe("FirstTagCallout reduced motion", () => {
     }));
 
     const grid = document.createElement("div");
+    grid.id = "song-structure-grid";
     const first = document.createElement("div");
     first.dataset.sectionIndex = "0";
     const target = document.createElement("div");
