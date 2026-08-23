@@ -13,7 +13,7 @@ const MAX_CHORD_LENGTH = 32;
 const MAX_ROLE_NAME_LENGTH = 80;
 const MAX_PLAN_LENGTH = 180;
 const SECTION_FORM_LABEL_OWNED: Readonly<Record<string, true>> = Object.freeze(
-  Object.fromEntries(SECTION_FORM_LABELS.map((label) => [label, true]))
+  Object.fromEntries(SECTION_FORM_LABELS.map((label) => [label, true] as const))
 );
 
 export /** Renderer-owned workspace targets for cockpit next actions. */
