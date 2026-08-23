@@ -255,13 +255,10 @@ function sectionHasEarCheck(section: RehearsalSection): boolean {
   return section.roles.some((role) => isRuntimeObject(role) && ownedEarCheckLevel(role) !== null);
 }
 
-/** Return owned notes for the holding part, else any owned uncertain role, else the section. */
+/** Return notes owned by the named holding part, else any owned uncertain role, else the section. */
 function ownedEarCheckHint(section: RehearsalSection, holdingRole: RehearsalRole | null): string {
   if (holdingRole) {
-    const fromHolder = ownedEarCheckNotes(holdingRole);
-    if (fromHolder.length > 0) {
-      return fromHolder;
-    }
+    return ownedEarCheckNotes(holdingRole);
   }
   if (hasOwnData(section, "roles") && isDenseRuntimeArray(section.roles)) {
     for (const role of section.roles) {
