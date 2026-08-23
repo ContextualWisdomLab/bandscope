@@ -31,6 +31,27 @@ function formatSimplificationCopy(template: string, values: SimplificationCopyVa
   });
 }
 
+/** Use a stable own song id when available, otherwise retain object identity without invoking accessors. */
+function stableSongIdentity(song: unknown): unknown {
+  if (song === null || typeof song !== "object") {
+    return song;
+  }
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(song, "id");
+    if (
+      descriptor !== undefined &&
+      Object.prototype.hasOwnProperty.call(descriptor, "value") &&
+      typeof descriptor.value === "string" &&
+      descriptor.value.trim().length > 0
+    ) {
+      return descriptor.value;
+    }
+  } catch {
+    return song;
+  }
+  return song;
+}
+
 /** Use immediate scrolling when the operating system requests reduced motion. */
 function preferredSimplificationScrollBehavior(): ScrollBehavior {
   return typeof window.matchMedia === "function" &&
@@ -43,7 +64,7 @@ function preferredSimplificationScrollBehavior(): ScrollBehavior {
 export function FirstSimplificationCallout({ song }: FirstSimplificationCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
-  const songIdentity: unknown = song;
+  const songIdentity = stableSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const simpler = resolveFirstSimplification(song);
   const sectionIndex =
