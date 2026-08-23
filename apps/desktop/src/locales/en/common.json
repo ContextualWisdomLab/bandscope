@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstTagLabel": "Tonight's first tag",
+  "firstTagOpenAction": "Open {role} tag at {at}",
+  "firstTagOpenActionBand": "Open the first tag at {at}",
+  "firstTagBody": "{role} holds the {section} at {at}.",
+  "firstTagBodyBand": "The band catches the {section} at {at}.",
+  "firstTagArmed": "Catch the last line with {role} at {at}. End together.",
+  "firstTagArmedBand": "Catch the last line at {at}. End together.",
+  "firstTagUnavailable": "No tag yet. Stay on tonight's map until the last line is labeled."
 }

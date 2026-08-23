@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstTagLabel": "오늘 첫 태그",
+  "firstTagOpenAction": "{at} {role} 태그 위치 열기",
+  "firstTagOpenActionBand": "{at} 첫 태그 위치 열기",
+  "firstTagBody": "{at} {section}에서 {role} 파트가 마지막 한 줄을 잡습니다.",
+  "firstTagBodyBand": "밴드가 {at} {section}에서 마지막 한 줄을 잡습니다.",
+  "firstTagArmed": "{at}에서 {role} 파트와 함께 마지막 한 줄을 잡으세요. 같이 끝내세요.",
+  "firstTagArmedBand": "{at}에서 마지막 한 줄을 잡으세요. 같이 끝내세요.",
+  "firstTagUnavailable": "아직 태그가 없습니다. 마지막 한 줄이 표시될 때까지 오늘 지도에 머무르세요."
 }
