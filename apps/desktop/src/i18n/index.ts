@@ -39,7 +39,7 @@ const sectionFormLabels: Readonly<Record<Locale, Readonly<Record<SectionFormLabe
   }
 };
 
-/** Documented. */
+/** Create a translator for the requested locale, falling back to the English dictionary for missing entries. */
 export function createTranslator(locale: Locale = "en") {
   return function t(key: TranslationKey): string {
     return dictionaries[locale][key] ?? dictionaries.en[key];
