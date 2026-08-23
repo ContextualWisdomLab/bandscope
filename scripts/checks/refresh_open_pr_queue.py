@@ -232,7 +232,13 @@ def _request_github_json(target: str, token: str | None) -> tuple[object, str]:
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    connection = http.client.HTTPSConnection(GITHUB_API_HOST, timeout=20)
+    # Python >=3.12 verifies HTTPS certificates by default; the host and target
+    # are both fixed/validated above, so this generic legacy-version warning is
+    # a false positive for BandScope's declared runtime contract.
+    connection = http.client.HTTPSConnection(  # nosemgrep: python.lang.security.audit.httpsconnection-detected.httpsconnection-detected
+        GITHUB_API_HOST,
+        timeout=20,
+    )
     try:
         connection.request("GET", target, headers=headers)
         response = connection.getresponse()
