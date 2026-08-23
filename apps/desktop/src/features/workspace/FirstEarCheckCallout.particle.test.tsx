@@ -53,4 +53,42 @@ describe("FirstEarCheckCallout Korean role copy", () => {
 
     grid.remove();
   });
+
+  it("keeps the section locator after opening a band-wide ear check", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    const seed = song.sections[0]!;
+    seed.roles = [
+      {
+        ...seed.roles[0]!,
+        confidence: {
+          level: "medium",
+          source: "model",
+          notes: "Confirm the section by ear."
+        }
+      }
+    ];
+    seed.partGraph = [];
+
+    const grid = document.createElement("div");
+    grid.dataset.testid = "song-structure-grid";
+    grid.setAttribute("role", "region");
+    grid.setAttribute("aria-label", "Scrollable song structure timeline");
+    const target = document.createElement("div");
+    target.dataset.sectionIndex = "0";
+    Object.defineProperty(target, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn()
+    });
+    grid.appendChild(target);
+    document.body.appendChild(grid);
+
+    render(<FirstEarCheckCallout song={song} />);
+
+    expect(screen.getByText("0:10 벌스에서 귀로 한 번 더 확인하세요.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "0:10 첫 귀 확인 위치 열기" }));
+    expect(screen.getByText("0:10 벌스에서 귀로 확인한 다음 합주를 시작하세요.")).toBeTruthy();
+
+    grid.remove();
+  });
 });
