@@ -111,7 +111,7 @@ export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanati
       <aside
         id="workspace-surface-harmonic-explanation"
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
-        aria-label={t("firstHarmonicExplanationUnavailable")}
+        aria-label={t("firstHarmonicExplanationLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
           {t("firstHarmonicExplanationLabel")}
