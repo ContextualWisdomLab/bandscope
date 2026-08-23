@@ -51,7 +51,7 @@ export function createTranslator(locale: Locale = "en") {
 /** Return localized copy for an own section-form entry, preserving unknown labels as data. */
 export function translateSectionFormLabel(locale: Locale, label: SectionFormLabel): string {
   const labels = sectionFormLabels[locale];
-  return Object.prototype.hasOwnProperty.call(labels, label) ? (labels[label] ?? label) : label;
+  return Object.prototype.hasOwnProperty.call(labels, label) ? labels[label] : label;
 }
 
 /** Documented. */
