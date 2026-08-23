@@ -3,13 +3,12 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
 import sys
-import urllib.error
 import urllib.parse
-import urllib.request
 from collections.abc import Callable
 from copy import deepcopy
 from datetime import datetime
@@ -23,9 +22,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "docs" / "product-readiness" / "open-pr-queue.json"
 REPOSITORY = "ContextualWisdomLab/bandscope"
 BASE_BRANCH = "develop"
-GITHUB_API_ORIGIN = "https://api.github.com"
+GITHUB_API_HOST = "api.github.com"
+REPOSITORY_API_PREFIX = f"/repos/{REPOSITORY}/"
 PAGE_SIZE = 100
 MAX_PAGES = 10
+MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 UNTRIAGED_TRAIN = "T8"
 UNTRIAGED_DESCRIPTION = "Live additions awaiting explicit merge-train triage"
 UNTRIAGED_ISSUE = 966
@@ -218,10 +219,11 @@ def build_refreshed_manifest(
     return refreshed
 
 
-def _request_json(url: str, token: str | None) -> tuple[object, str]:
-    """Read JSON from the fixed GitHub API origin without exposing token-bearing custom URLs."""
-    if not url.startswith(f"{GITHUB_API_ORIGIN}/"):
-        _fail("GitHub API URL escaped the canonical origin")
+def _request_github_json(target: str, token: str | None) -> tuple[object, str]:
+    """Read bounded JSON through a fixed GitHub host and repository-relative request target."""
+    target = _require_text(target, "GitHub repository path")
+    if not target.startswith(REPOSITORY_API_PREFIX) or "://" in target or "\n" in target or "\r" in target:
+        _fail("GitHub repository path escaped the canonical repository")
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
@@ -229,20 +231,31 @@ def _request_json(url: str, token: str | None) -> tuple[object, str]:
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    request = urllib.request.Request(url, headers=headers)
+
+    connection = http.client.HTTPSConnection(GITHUB_API_HOST, timeout=20)
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310
-            payload = json.loads(response.read().decode("utf-8"))
-            link = response.headers.get("Link", "")
-    except (OSError, UnicodeError, json.JSONDecodeError, urllib.error.URLError) as exc:
+        connection.request("GET", target, headers=headers)
+        response = connection.getresponse()
+        if response.status != 200:
+            _fail(f"GitHub API request failed with HTTP status {response.status}")
+        encoded = response.read(MAX_RESPONSE_BYTES + 1)
+        if len(encoded) > MAX_RESPONSE_BYTES:
+            _fail("GitHub API response exceeded the bounded response size")
+        payload = json.loads(encoded.decode("utf-8"))
+        link = response.getheader("Link", "") or ""
+        if not isinstance(link, str):
+            _fail("GitHub API Link header must be text")
+    except (OSError, UnicodeError, json.JSONDecodeError, http.client.HTTPException) as exc:
         raise RefreshError(f"GitHub API request failed: {type(exc).__name__}") from exc
+    finally:
+        connection.close()
     return payload, link
 
 
 def fetch_live_base_sha(token: str | None) -> str:
     """Resolve the current develop branch tip from the canonical GitHub API."""
-    url = f"{GITHUB_API_ORIGIN}/repos/{REPOSITORY}/branches/{BASE_BRANCH}"
-    payload, _ = _request_json(url, token)
+    target = f"{REPOSITORY_API_PREFIX}branches/{BASE_BRANCH}"
+    payload, _ = _request_github_json(target, token)
     branch = _require_record(payload, "branch")
     commit = _require_record(branch.get("commit"), "branch.commit")
     return _require_sha(commit.get("sha"), "branch.commit.sha")
@@ -266,8 +279,8 @@ def fetch_live_pull_page(
             "direction": "asc",
         }
     )
-    url = f"{GITHUB_API_ORIGIN}/repos/{REPOSITORY}/pulls?{query}"
-    payload, link = _request_json(url, token)
+    target = f"{REPOSITORY_API_PREFIX}pulls?{query}"
+    payload, link = _request_github_json(target, token)
     items = _require_list(payload, f"pull request page {page}")
     if any(not isinstance(item, dict) for item in items):
         _fail(f"pull request page {page} must contain objects")
