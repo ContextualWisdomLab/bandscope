@@ -28,3 +28,8 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
+
+## 2024-05-18 - CSV Formula Injection NUL byte bypass
+**Vulnerability:** CSV formula injection mitigation missed NUL byte (\x00) prefix bypasses.
+**Learning:** Excel and other spreadsheet programs may ignore NUL bytes before formula execution characters, allowing attackers to bypass standard regex checks.
+**Prevention:** Include \x00 in the regex character class for leading whitespace/control characters when sanitizing CSV fields.
