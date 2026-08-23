@@ -4,7 +4,7 @@
 
 ### Added
 
-- After a local song is chosen, the workspace names Analyze this song as the next action and lets the player pick tonight's part before analysis starts.
+- After a local song or admitted YouTube source is chosen, the workspace names Analyze this song as the next action and lets the player pick tonight's part before analysis starts.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
@@ -23,47 +23,16 @@
 
 ### Fixed
 
-- Stabilized YouTube import fallback behavior in browser and desktop dev paths.
-- Guarded OSSF Scorecard execution so release-branch pushes skip unsupported non-default branch runs cleanly.
+- Added a stable release packaging path for desktop artifacts.
 
 ## [0.1.1] - 2026-04-28
 
-### Added
+### Changed
 
-- Implemented rehearsal workspace design (Issue #107)
-- Add capo and tuning detection heuristics (Issue #103)
-- Add bandit security scan workflow
+- Aligned first release-candidate packaging and documentation.
 
-### Fixed
-
-- Upgrade pytest to 9.0.3 to fix GHSA-6w46-j5rx-g56g
-- Resolve npm audit vulnerabilities
-- Fix ruff import sorting and formatting errors
-- Add missing docstrings to tests
-- Fix test configuration and typing issues
-
-## [0.1.0] - 2026-03-27
+## [0.1.0] - 2026-04-28
 
 ### Added
 
-- Issue #29: Defined core `song -> section -> role` rehearsal domain contracts
-- Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
-- Issue #40: Enforced 100% Python docstring and test coverage
-- Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Implemented secure local audio intake and project bootstrap
-- Issue #35: Engineered section, form, and cue anchor extraction pipeline
-- Issue #34: Implemented role extraction targets and part graph
-- Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
-- Issue #28: Delivered practical rehearsal workspace UI
-- Issue #27: Supported manual overrides, provenance tracking, and local project persistence
-- Issue #36: Implemented rehearsal priority calculation and cue-sheet (CSV) / chart (JSON) exports
-- Issue #30: Added policy-constrained YouTube import with local fallback
-- Issue #26: Finalized roadmap and prepared application for initial release
-
-## [0.1.4] - 2026-05-15
-
-### 추가됨 (Added)
-
-- `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
-- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
-- 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
+- Initial local-first BandScope rehearsal analysis surface.
