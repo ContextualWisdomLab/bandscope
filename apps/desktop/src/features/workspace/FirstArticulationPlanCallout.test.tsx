@@ -38,9 +38,7 @@ describe("FirstArticulationPlanCallout", () => {
     render(<FirstArticulationPlanCallout song={null as unknown as RehearsalSong} />);
 
     expect(
-      screen.getByText(
-        "Nothing still has an articulation plan. Stay on tonight's map until a part owns rehearsal-facing articulation copy."
-      )
+      screen.getByText("No articulation plan is available. Stay on tonight's map for the next rehearsal cue.")
     ).toBeTruthy();
   });
 
@@ -237,9 +235,7 @@ describe("FirstArticulationPlanCallout", () => {
       screen.getByRole("complementary", { name: "Tonight's first articulation plan" })
     ).toBeTruthy();
     expect(
-      screen.getByText(
-        "Nothing still has an articulation plan. Stay on tonight's map until a part owns rehearsal-facing articulation copy."
-      )
+      screen.getByText("No articulation plan is available. Stay on tonight's map for the next rehearsal cue.")
     ).toBeTruthy();
   });
 
