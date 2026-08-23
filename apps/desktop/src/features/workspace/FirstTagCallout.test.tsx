@@ -80,6 +80,32 @@ describe("FirstTagCallout", () => {
     expect(screen.getByRole("button", { name: "Open Lead Vocal tag at 3:20" })).toBeTruthy();
   });
 
+  it("resets armed guidance when accessor-id songs change with the same tag signature", () => {
+    const firstSong = songWithTag();
+    const nextSong = songWithTag();
+    for (const song of [firstSong, nextSong]) {
+      Object.defineProperty(song, "id", {
+        configurable: true,
+        enumerable: true,
+        get() {
+          throw new Error("hostile song id getter");
+        }
+      });
+    }
+    const { grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstTagCallout song={firstSong} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal tag at 3:20" }));
+    expect(screen.getByText(/Catch the last line with Lead Vocal at 3:20. End together./)).toBeTruthy();
+
+    rerender(<FirstTagCallout song={nextSong} />);
+
+    expect(screen.getByText("Lead Vocal holds the tag at 3:20.")).toBeTruthy();
+    expect(screen.queryByText(/Catch the last line with Lead Vocal at 3:20. End together./)).toBeNull();
+
+    grid.remove();
+  });
+
   it("names the first tag as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
