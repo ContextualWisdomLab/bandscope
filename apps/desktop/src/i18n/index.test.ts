@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -73,6 +73,23 @@ describe("i18n", () => {
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }
+    });
+  });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes Korean section form labels without treating inherited keys as labels", () => {
+      expect(translateSectionFormLabel("ko", "verse")).toBe("벌스");
+      expect(translateSectionFormLabel("ko", "pre-chorus")).toBe("프리코러스");
+      expect(translateSectionFormLabel("en", "verse")).toBe("verse");
+      const inheritedKey = "toString" as never;
+      expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
+    });
+
+    it("keeps Korean first-blocked next-action copy particle-safe", () => {
+      const t = createTranslator("ko");
+      expect(t("firstBlockedOpenAction")).toBe("{at} {section} 막힘 위치 열기");
+      expect(t("firstBlockedBody")).toBe("{assignee}님이 {at} {section}에서 {role} 진행이 막혀 있습니다.");
+      expect(t("firstBlockedArmed")).toBe("{at} {section} 막힘을 먼저 풀어 주세요.");
     });
   });
 });

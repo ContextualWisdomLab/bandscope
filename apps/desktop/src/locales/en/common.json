@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstBlockedLabel": "Tonight's first blocked job",
+  "firstBlockedOpenAction": "Open {section} blocker at {at}",
+  "firstBlockedOpenActionBand": "Open the blocked job at {at}",
+  "firstBlockedBody": "{assignee} is blocked on {role} in the {section} at {at}.",
+  "firstBlockedBodyBand": "{assignee} is blocked in the {section} at {at}.",
+  "firstBlockedArmed": "Unblock the {section} job at {at} before the next run.",
+  "firstBlockedArmedBand": "Unblock the job at {at} before the next run.",
+  "firstBlockedUnavailable": "No blocked job yet. Stay on tonight's map until a part is stuck."
 }

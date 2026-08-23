@@ -1,11 +1,11 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-23
 
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
-- Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
+- The mounted workspace copy for tonight's first blocked assignment must name the assignee, the uniquely named labeled section and time, and the holding part when it is corroborated so the next action is obvious. Open moves to the matching rendered map section. Do not invent a blocked job from todo, in-progress, or ready assignments, comments, or approvals.
 
 ## Security source
 
