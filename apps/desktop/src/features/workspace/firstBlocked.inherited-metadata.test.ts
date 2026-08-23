@@ -45,7 +45,7 @@ describe("resolveFirstBlockedAssignment inherited metadata", () => {
   it("rejects inherited assignment fields", () => {
     const { song } = songWithBlocked();
     song.collaboration!.assignments = [
-      Object.create(song.collaboration!.assignments[0]!) as (typeof song.collaboration.assignments)[number]
+      Object.create(song.collaboration!.assignments[0]!) as RehearsalAssignment
     ];
     expect(resolveFirstBlockedAssignment(song)).toBeNull();
   });
