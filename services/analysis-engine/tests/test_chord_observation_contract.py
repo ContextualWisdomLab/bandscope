@@ -15,3 +15,14 @@ def test_observation_probs_reject_similarity_frame_mismatch() -> None:
 
     with pytest.raises(ValueError, match="similarity shape"):
         recognizer._build_observation_probs(chromagram, similarity, rms)
+
+
+def test_observation_probs_reject_similarity_chord_state_mismatch() -> None:
+    """Reject similarity arrays that do not contain all 24 chord templates."""
+    recognizer = ChordRecognizer()
+    chromagram = np.ones((12, 5), dtype=np.float64)
+    similarity = np.ones((23, 5), dtype=np.float64)
+    rms = np.ones(5, dtype=np.float64)
+
+    with pytest.raises(ValueError, match="similarity shape"):
+        recognizer._build_observation_probs(chromagram, similarity, rms)
