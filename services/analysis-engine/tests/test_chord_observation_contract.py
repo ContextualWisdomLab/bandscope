@@ -1,4 +1,4 @@
-"""Regression tests for chord observation probability shape contracts."""
+"""Test observation probability contracts for the chord recognizer."""
 
 import numpy as np
 import pytest
