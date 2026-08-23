@@ -65,6 +65,12 @@ export function FirstRunState({
         <h3 className="mb-2 text-xl font-black text-white">{t("firstRunTitle")}</h3>
         <p className="max-w-md text-slate-400">{t("firstRunGuidance")}</p>
         <p className="mt-3 max-w-md text-sm text-slate-500">{t("firstRunLocalFirst")}</p>
+        {safeFileName && (
+          <p className="mt-4 max-w-md text-sm text-slate-300">
+            <span className="font-semibold text-slate-400">{t("firstRunFileLabel")}</span>{" "}
+            <span className="break-all font-bold text-slate-100">{safeFileName}</span>
+          </p>
+        )}
 
         <div
           role="radiogroup"
