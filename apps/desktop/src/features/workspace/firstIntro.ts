@@ -7,6 +7,18 @@ import {
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 
+type RankedRoleCandidate = {
+  role: RehearsalRole;
+  id: string;
+  priority: keyof typeof PRIORITY_RANK;
+};
+
+type IntroSectionCandidate = {
+  section: RehearsalSection;
+  id: string;
+  start: number;
+};
+
 /** Tonight's first labeled intro: the earliest start and the part that counts it in. */
 export type FirstIntro = {
   section: RehearsalSection;
@@ -40,15 +52,6 @@ function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Return whether a runtime record owns the named field without letting Proxy traps escape. */
-function hasOwn(value: object, key: PropertyKey): boolean {
-  try {
-    return Object.prototype.hasOwnProperty.call(value, key);
-  } catch {
-    return false;
-  }
-}
-
 /** Read an own data property without invoking accessors or letting Proxy descriptor traps escape. */
 function readOwnDataProperty(value: object, key: PropertyKey): unknown {
   try {
@@ -76,39 +79,71 @@ function isDenseRuntimeArray(value: unknown): value is unknown[] {
   }
 }
 
-/** Return true when the role has safe owned identity/copy and ranked rehearsal priority. */
-function hasRankedPriority(role: RehearsalRole): boolean {
-  return (
-    hasOwn(role, "id") &&
-    typeof role.id === "string" &&
-    role.id.trim().length > 0 &&
-    hasOwn(role, "name") &&
-    typeof role.name === "string" &&
-    role.name.trim().length > 0 &&
-    hasOwn(role, "rehearsalPriority") &&
-    Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
-  );
-}
-
-/** Return whether a section owns a bounded, positive-length integer rehearsal window. */
-function hasBoundedTimeRange(section: RehearsalSection): boolean {
+/** Snapshot the bounded integer rehearsal window from own data properties only. */
+function readBoundedTimeRange(section: object): { start: number; end: number } | null {
   const timeRange = readOwnDataProperty(section, "timeRange");
   if (!isRuntimeObject(timeRange)) {
-    return false;
+    return null;
   }
 
   const start = readOwnDataProperty(timeRange, "start");
   const end = readOwnDataProperty(timeRange, "end");
-  return (
-    typeof start === "number" &&
-    Number.isInteger(start) &&
-    start >= 0 &&
-    start <= MAX_SECTION_TIME_SECONDS &&
-    typeof end === "number" &&
-    Number.isInteger(end) &&
-    end > start &&
-    end <= MAX_SECTION_TIME_SECONDS
-  );
+  if (
+    typeof start !== "number" ||
+    !Number.isInteger(start) ||
+    start < 0 ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    typeof end !== "number" ||
+    !Number.isInteger(end) ||
+    end <= start ||
+    end > MAX_SECTION_TIME_SECONDS
+  ) {
+    return null;
+  }
+  return { start, end };
+}
+
+/** Snapshot the ranking fields needed from one untrusted role without invoking accessors. */
+function readRankedRoleCandidate(value: unknown): RankedRoleCandidate | null {
+  if (!isRuntimeObject(value)) {
+    return null;
+  }
+  const id = readOwnDataProperty(value, "id");
+  const name = readOwnDataProperty(value, "name");
+  const priority = readOwnDataProperty(value, "rehearsalPriority");
+  if (
+    typeof id !== "string" ||
+    id.trim().length === 0 ||
+    typeof name !== "string" ||
+    name.trim().length === 0 ||
+    typeof priority !== "string" ||
+    !Object.prototype.hasOwnProperty.call(PRIORITY_RANK, priority)
+  ) {
+    return null;
+  }
+  return {
+    role: value as RehearsalRole,
+    id,
+    priority: priority as keyof typeof PRIORITY_RANK
+  };
+}
+
+/** Snapshot a valid labeled intro candidate so later sorting cannot invoke untrusted accessors. */
+function readIntroSectionCandidate(value: unknown): IntroSectionCandidate | null {
+  if (!isRuntimeObject(value)) {
+    return null;
+  }
+  const label = readOwnDataProperty(value, "label");
+  const id = readOwnDataProperty(value, "id");
+  const timeRange = readBoundedTimeRange(value);
+  if (label !== "intro" || typeof id !== "string" || id.trim().length === 0 || !timeRange) {
+    return null;
+  }
+  return {
+    section: value as RehearsalSection,
+    id,
+    start: timeRange.start
+  };
 }
 
 /** Return safe identities that appear more than once in one section-local collection. */
@@ -126,110 +161,89 @@ function repeatedIds(ids: string[]): Set<string> {
 }
 
 /** Prefer the highest-priority ranked role, then a locale-independent stable id order. */
-function pickHighestPriorityRole(roles: RehearsalRole[]): RehearsalRole | null {
-  if (roles.length === 0) {
+function pickHighestPriorityRole(candidates: RankedRoleCandidate[]): RehearsalRole | null {
+  if (candidates.length === 0) {
     return null;
   }
   return (
-    [...roles].sort((left, right) => {
-      const rankDelta = PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
+    [...candidates].sort((left, right) => {
+      const rankDelta = PRIORITY_RANK[left.priority] - PRIORITY_RANK[right.priority];
       if (rankDelta !== 0) {
         return rankDelta;
       }
       return compareStableId(left.id, right.id);
-    })[0] ?? null
+    })[0]?.role ?? null
   );
 }
 
 /** Return ranked roles whose unique graph node is explicitly active. */
-function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
-  if (
-    !hasOwn(section, "roles") ||
-    !hasOwn(section, "partGraph") ||
-    !isDenseRuntimeArray(section.roles) ||
-    !isDenseRuntimeArray(section.partGraph)
-  ) {
+function rankedActiveRoles(section: RehearsalSection): RankedRoleCandidate[] {
+  const roles = readOwnDataProperty(section, "roles");
+  const partGraph = readOwnDataProperty(section, "partGraph");
+  if (!isDenseRuntimeArray(roles) || !isDenseRuntimeArray(partGraph)) {
     return [];
   }
 
-  const safeRoleIds = section.roles
-    .filter(
-      (role) =>
-        isRuntimeObject(role) &&
-        hasOwn(role, "id") &&
-        typeof role.id === "string" &&
-        role.id.trim().length > 0
-    )
-    .map((role) => role.id);
-  const safeGraphRoleIds = section.partGraph
-    .filter(
-      (node) =>
-        isRuntimeObject(node) &&
-        hasOwn(node, "role_id") &&
-        typeof node.role_id === "string" &&
-        node.role_id.trim().length > 0
-    )
-    .map((node) => node.role_id);
-  const repeatedRoleIds = repeatedIds(safeRoleIds);
-  const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
+  const roleCandidates = roles
+    .map(readRankedRoleCandidate)
+    .filter((candidate): candidate is RankedRoleCandidate => candidate !== null);
+  const repeatedRoleIds = repeatedIds(roleCandidates.map((candidate) => candidate.id));
+
+  const graphCandidates = partGraph.flatMap((node) => {
+    if (!isRuntimeObject(node)) {
+      return [];
+    }
+    const roleId = readOwnDataProperty(node, "role_id");
+    const isActive = readOwnDataProperty(node, "is_active");
+    if (typeof roleId !== "string" || roleId.trim().length === 0) {
+      return [];
+    }
+    return [{ roleId, isActive }];
+  });
+  const repeatedGraphRoleIds = repeatedIds(graphCandidates.map((candidate) => candidate.roleId));
   const activeIds = new Set(
-    section.partGraph
+    graphCandidates
       .filter(
-        (node) =>
-          isRuntimeObject(node) &&
-          hasOwn(node, "is_active") &&
-          node.is_active === true &&
-          hasOwn(node, "role_id") &&
-          typeof node.role_id === "string" &&
-          node.role_id.trim().length > 0 &&
-          !repeatedGraphRoleIds.has(node.role_id)
+        (candidate) => candidate.isActive === true && !repeatedGraphRoleIds.has(candidate.roleId)
       )
-      .map((node) => node.role_id)
+      .map((candidate) => candidate.roleId)
   );
 
-  return section.roles.filter(
-    (role) =>
-      isRuntimeObject(role) &&
-      hasRankedPriority(role) &&
-      !repeatedRoleIds.has(role.id) &&
-      activeIds.has(role.id)
+  return roleCandidates.filter(
+    (candidate) => !repeatedRoleIds.has(candidate.id) && activeIds.has(candidate.id)
   );
 }
 
 /** Return the first labeled intro, or null when no safe start remains. */
 export function resolveFirstIntro(song: RehearsalSong): FirstIntro | null {
   try {
-    if (!isRuntimeObject(song) || !hasOwn(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+    if (!isRuntimeObject(song)) {
+      return null;
+    }
+    const sections = readOwnDataProperty(song, "sections");
+    if (!isDenseRuntimeArray(sections)) {
       return null;
     }
 
-    const introSections = song.sections
-      .filter(
-        (section) =>
-          isRuntimeObject(section) &&
-          hasOwn(section, "label") &&
-          section.label === "intro" &&
-          hasOwn(section, "id") &&
-          typeof section.id === "string" &&
-          section.id.trim().length > 0 &&
-          hasBoundedTimeRange(section)
-      )
+    const introSections = sections
+      .map(readIntroSectionCandidate)
+      .filter((candidate): candidate is IntroSectionCandidate => candidate !== null)
       .sort((left, right) => {
-        if (left.timeRange.start !== right.timeRange.start) {
-          return left.timeRange.start - right.timeRange.start;
+        if (left.start !== right.start) {
+          return left.start - right.start;
         }
         return compareStableId(left.id, right.id);
       });
 
-    const section = introSections[0];
-    if (!section) {
+    const candidate = introSections[0];
+    if (!candidate) {
       return null;
     }
 
     return {
-      section,
-      holdingRole: pickHighestPriorityRole(rankedActiveRoles(section)),
-      atSeconds: section.timeRange.start
+      section: candidate.section,
+      holdingRole: pickHighestPriorityRole(rankedActiveRoles(candidate.section)),
+      atSeconds: candidate.start
     };
   } catch {
     return null;
