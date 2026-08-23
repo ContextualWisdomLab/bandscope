@@ -90,6 +90,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Do not add network-dependent runtime paths for local analysis.
 - Treat YouTube import as policy-constrained and fallback-friendly.
 - Treat files, URLs, metadata, model artifacts, and project files as untrusted input.
+- CLI `--job` paths classify CONIN$/CONOUT$ as console handles (2021-12-30), not naming-a-file reserved names; CLOCK$ stays fail-closed as a legacy device; drive-relative jobs must not reach lstat.
 - Do not add generic exec/read/write APIs.
 - Use `shell=False`-style subprocess invocation with argument arrays only.
 - Keep local backend access on allowlisted IPC or `127.0.0.1` only, with strict schema validation.
