@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstCountCueLabel": "Tonight's first count",
+  "firstCountCueOpenAction": "Open {role} count at {at}",
+  "firstCountCueOpenActionBand": "Open the first count at {at}",
+  "firstCountCueBody": "{role} counts in the {section} at {at}.",
+  "firstCountCueBodyBand": "The band counts in the {section} at {at}.",
+  "firstCountCueArmed": "Catch the count with {role} at {at}. Enter together.",
+  "firstCountCueArmedBand": "Catch the count at {at}. Enter together.",
+  "firstCountCueUnavailable": "No count yet. Stay on tonight's map until a part names the entrance."
 }
