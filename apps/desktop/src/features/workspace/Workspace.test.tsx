@@ -137,7 +137,7 @@ describe("Workspace", () => {
     expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
     expect(screen.getByText(/whole step lower/i)).toBeTruthy();
     expect(screen.getByText(/Lock the bass entrance against the pickup/i)).toBeTruthy();
-    expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
+    expect(screen.getAllByText(/Verse harmony pass/i).length).toBeGreaterThan(0);
   });
 
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
@@ -269,5 +269,16 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("names tonight's first pending approval on the mounted map", () => {
+    setNavigatorLanguage("en-US");
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(screen.getByText("Tonight's first approval")).toBeTruthy();
+    expect(
+      screen.getByText("MD still needs to sign off on Verse harmony pass in the verse at 0:10.")
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open verse approval at 0:10" })).toBeTruthy();
   });
 });
