@@ -29,6 +29,20 @@ describe("resolveFirstTag inherited metadata", () => {
     expect(resolveFirstTag(song)).toBeNull();
   });
 
+  it("contains exceptions from own runtime accessors instead of trusting them", () => {
+    const { song, tag } = songWithTag();
+    Object.defineProperty(tag, "label", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("hostile tag label getter");
+      }
+    });
+
+    expect(() => resolveFirstTag(song)).not.toThrow();
+    expect(resolveFirstTag(song)).toBeNull();
+  });
+
   it("does not let inherited role or graph metadata establish the holding part", () => {
     const { song, tag } = songWithTag();
     const role = tag.roles[0]!;
