@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstTranspositionPlanLabel": "Tonight's first transpose plan",
+  "firstTranspositionPlanOpenAction": "Open {role} transpose at {at}",
+  "firstTranspositionPlanBody": "{role} still has a transpose plan in the {section} at {at}.",
+  "firstTranspositionPlanArmed": "Lock that transpose on {role} at {at} before the room starts.",
+  "firstTranspositionPlanUnavailable": "Nothing still has a transpose plan. Stay on tonight's map until a part owns rehearsal-facing transpose copy."
 }

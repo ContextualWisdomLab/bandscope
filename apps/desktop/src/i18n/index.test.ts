@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -75,4 +75,52 @@ describe("i18n", () => {
       }
     });
   });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes every supported Korean section form label", () => {
+      expect(
+        [
+          "intro",
+          "verse",
+          "pre-chorus",
+          "chorus",
+          "bridge",
+          "outro",
+          "tag",
+          "pickup",
+          "stop",
+          "handoff"
+        ].map((label) => translateSectionFormLabel("ko", label as never))
+      ).toEqual([
+        "인트로",
+        "벌스",
+        "프리코러스",
+        "코러스",
+        "브리지",
+        "아웃트로",
+        "태그",
+        "픽업",
+        "스톱",
+        "핸드오프"
+      ]);
+    });
+
+    it("preserves every supported English section form label", () => {
+      expect(translateSectionFormLabel("en", "verse")).toBe("verse");
+      expect(translateSectionFormLabel("en", "outro")).toBe("outro");
+    });
+
+    it("does not treat inherited object keys as localized section labels", () => {
+      const inheritedKey = "toString" as never;
+      expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
+    });
+
+    it("keeps Korean first-transposition-plan next-action copy particle-safe", () => {
+      const t = createTranslator("ko");
+      expect(t("firstTranspositionPlanOpenAction")).toBe("{at} {role} 이조 위치 열기");
+      expect(t("firstTranspositionPlanBody")).toBe("{at} {section}에서 {role} 파트의 이조 계획이 있습니다.");
+      expect(t("firstTranspositionPlanArmed")).toBe("{at}에서 {role} 파트의 이조를 맞춘 다음 합주를 시작하세요.");
+    });
+  });
 });
+

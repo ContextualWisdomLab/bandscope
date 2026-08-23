@@ -1,10 +1,11 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-24
 
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
+- The mounted workspace copy for tonight's first transposition plan must name the owning part when corroborated, the owned `transpositionPlan` text, the labeled section, and the time so the next action is obvious. Open moves to the matching rendered map section. Do not invent that copy from groove, cue, simplification, overlap, range, chord labels, function labels, setup notes, confirmed overrides, harmonic explanations, or confidence notes. Distinct from the first-entrance Tempo/Key/Transpose cockpit metrics.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
 ## Security source
