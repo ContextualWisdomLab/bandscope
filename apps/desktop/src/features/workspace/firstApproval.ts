@@ -219,7 +219,7 @@ function uniqueReadySections(song: RehearsalSong): Map<string, RehearsalSection>
 /** Return the unique ready section named by the owned scope, or null when the pointer is ambiguous. */
 function resolveNamedSection(scope: string, sections: Map<string, RehearsalSection>): RehearsalSection | null {
   const labels = matchedFormLabels(scope);
-  if (labels.size === 0) {
+  if (labels.size !== 1) {
     return null;
   }
   const named = [...sections.values()].filter(
