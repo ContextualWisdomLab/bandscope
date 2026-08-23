@@ -13,10 +13,32 @@ const dictionaries = {
 } as const;
 
 const sectionFormLabels: Readonly<
-  Record<Locale, Partial<Record<SectionFormLabel, string>>>
+  Record<Locale, Readonly<Record<SectionFormLabel, string>>>
 > = {
-  en: { intro: "intro" },
-  ko: { intro: "인트로" }
+  en: {
+    intro: "intro",
+    verse: "verse",
+    "pre-chorus": "pre-chorus",
+    chorus: "chorus",
+    bridge: "bridge",
+    outro: "outro",
+    tag: "tag",
+    pickup: "pickup",
+    stop: "stop",
+    handoff: "handoff"
+  },
+  ko: {
+    intro: "인트로",
+    verse: "벌스",
+    "pre-chorus": "프리코러스",
+    chorus: "코러스",
+    bridge: "브리지",
+    outro: "아웃트로",
+    tag: "태그",
+    pickup: "픽업",
+    stop: "스톱",
+    handoff: "핸드오프"
+  }
 };
 
 /** Documented. */
