@@ -35,7 +35,6 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 | Source Control Stack | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-655 | `apps/desktop/src/App.tsx` | Feature-local source controls for local audio, YouTube URL import, project actions, and Start Analysis; keep before metrics at 375px. |
 | Export Action Group | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-731 | `apps/desktop/src/features/workspace/Workspace.tsx` | Feature-local export buttons call `handleExportCueSheet`, `handleExportChart`, and `handleExportHandoff`. |
 | Workspace State Matrix | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=99-560 | `apps/desktop/src/features/workspace/WorkspaceStates.tsx`, `apps/desktop/src/App.tsx` | Whole-workspace empty, loading, error, and ready state routing; use before changing `renderWorkspaceState()`. |
-| First Blocked Callout | workspace next-action pattern | `apps/desktop/src/features/workspace/FirstBlockedCallout.tsx` | Name the assignee, the uniquely named labeled section and time, and the holding part when it is corroborated. Do not invent a blocked job from todo, in-progress, ready assignments, comments, approvals, empty/whitespace summaries, or inherited runtime metadata. Open scrolls the renderer-owned song-structure section. Keep the unavailable state guidance-only. Distinct from first-assignment (#996), first-open-comment (#997), and first-pending-approval (#998). |
 
 ## Prop And State Mapping
 
@@ -95,6 +94,7 @@ These Figma patterns are valid visual guidance but are not yet extracted as stan
 | Status Pill | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when assignment/comment/approval status UI is reused. |
 | Song Structure Timeline | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when timeline editing or playback controls are added. |
 | Export Action Group | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when export controls are reused outside the workspace header. |
+| First Blocked Callout | `apps/desktop/src/features/workspace/FirstBlockedCallout.tsx` | Feature-local workspace next-action pattern until a traceable Figma node exists; extract or promote to Canonical Components when the pattern is reused and design authority is published. |
 
 ## PR Review Rules
 
