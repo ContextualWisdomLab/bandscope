@@ -1,8 +1,10 @@
 /** Kind discriminator for the public licensed-demo provenance manifest. */
-export const DEMO_PROVENANCE_KIND = "bandscope.licensed-demo" as const;
+const DEMO_PROVENANCE_KIND = "bandscope.licensed-demo" as const;
 
 /** Relative directory that Tauri bundles as the licensed demo package. */
-export const DEMO_RESOURCE_DIRECTORY = "apps/desktop/src-tauri/resources/demo";
+const DEMO_RESOURCE_DIRECTORY = "apps/desktop/src-tauri/resources/demo";
+
+export { DEMO_PROVENANCE_KIND, DEMO_RESOURCE_DIRECTORY };
 
 /** Permitted asset roles inside one licensed demo package. */
 export type DemoAssetRole = "audio" | "license" | "annotations";
@@ -37,6 +39,7 @@ const MAX_MANIFEST_BYTES = 16_384;
 const MAX_ASSET_BYTES = 2_000_000;
 const REQUIRED_ROLES: DemoAssetRole[] = ["audio", "license", "annotations"];
 
+/** Read one bounded non-empty provenance string. */
 function asNonEmptyString(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0 || value.length > 200) {
     throw new Error(`Invalid demo provenance field '${field}'`);
@@ -44,6 +47,7 @@ function asNonEmptyString(value: unknown, field: string): string {
   return value.trim();
 }
 
+/** Narrow one untrusted asset role to the licensed-demo allowlist. */
 function asAssetRole(value: unknown): DemoAssetRole {
   if (value === "audio" || value === "license" || value === "annotations") {
     return value;
