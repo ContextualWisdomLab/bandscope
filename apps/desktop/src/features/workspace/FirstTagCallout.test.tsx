@@ -30,11 +30,12 @@ function songWithTag() {
   return song;
 }
 
-function appendSongStructureTarget() {
+function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeline") {
   const timeline = document.createElement("div");
   timeline.setAttribute("role", "region");
-  timeline.setAttribute("aria-label", "Scrollable song structure timeline");
+  timeline.setAttribute("aria-label", ariaLabel);
   const grid = document.createElement("div");
+  grid.dataset.testid = "song-structure-grid";
   const first = document.createElement("div");
   first.dataset.sectionIndex = "0";
   const unrelatedSibling = document.createElement("div");
@@ -116,6 +117,19 @@ describe("FirstTagCallout", () => {
     });
     expect(action).toBeTruthy();
     fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText(/Catch the last line with Lead Vocal at 3:20. End together./)).toBeTruthy();
+
+    grid.remove();
+  });
+
+  it("keeps map navigation stable when the renderer accessible name is localized", () => {
+    const { grid, scrollIntoView } = appendSongStructureTarget("스크롤 가능한 곡 구조 타임라인");
+
+    render(<FirstTagCallout song={songWithTag()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal tag at 3:20" }));
+
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Catch the last line with Lead Vocal at 3:20. End together./)).toBeTruthy();
 
