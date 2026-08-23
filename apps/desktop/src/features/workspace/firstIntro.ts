@@ -40,9 +40,23 @@ function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Return whether a runtime record owns the named field rather than inheriting it. */
+/** Return whether a runtime record owns the named field without letting Proxy traps escape. */
 function hasOwn(value: object, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
+  try {
+    return Object.prototype.hasOwnProperty.call(value, key);
+  } catch {
+    return false;
+  }
+}
+
+/** Read an own data property without invoking accessors or letting Proxy descriptor traps escape. */
+function readOwnDataProperty(value: object, key: PropertyKey): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Return whether every numeric index is an own element in a bounded runtime array. */
@@ -78,24 +92,19 @@ function hasRankedPriority(role: RehearsalRole): boolean {
 
 /** Return whether a section owns a bounded, positive-length integer rehearsal window. */
 function hasBoundedTimeRange(section: RehearsalSection): boolean {
-  if (!hasOwn(section, "timeRange")) {
-    return false;
-  }
-  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
-  if (
-    !isRuntimeObject(timeRange) ||
-    !hasOwn(timeRange, "start") ||
-    !hasOwn(timeRange, "end")
-  ) {
+  const timeRange = readOwnDataProperty(section, "timeRange");
+  if (!isRuntimeObject(timeRange)) {
     return false;
   }
 
-  const start = timeRange.start ?? -1;
-  const end = timeRange.end ?? -1;
+  const start = readOwnDataProperty(timeRange, "start");
+  const end = readOwnDataProperty(timeRange, "end");
   return (
+    typeof start === "number" &&
     Number.isInteger(start) &&
     start >= 0 &&
     start <= MAX_SECTION_TIME_SECONDS &&
+    typeof end === "number" &&
     Number.isInteger(end) &&
     end > start &&
     end <= MAX_SECTION_TIME_SECONDS
@@ -189,36 +198,40 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 
 /** Return the first labeled intro, or null when no safe start remains. */
 export function resolveFirstIntro(song: RehearsalSong): FirstIntro | null {
-  if (!isRuntimeObject(song) || !hasOwn(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+  try {
+    if (!isRuntimeObject(song) || !hasOwn(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+      return null;
+    }
+
+    const introSections = song.sections
+      .filter(
+        (section) =>
+          isRuntimeObject(section) &&
+          hasOwn(section, "label") &&
+          section.label === "intro" &&
+          hasOwn(section, "id") &&
+          typeof section.id === "string" &&
+          section.id.trim().length > 0 &&
+          hasBoundedTimeRange(section)
+      )
+      .sort((left, right) => {
+        if (left.timeRange.start !== right.timeRange.start) {
+          return left.timeRange.start - right.timeRange.start;
+        }
+        return compareStableId(left.id, right.id);
+      });
+
+    const section = introSections[0];
+    if (!section) {
+      return null;
+    }
+
+    return {
+      section,
+      holdingRole: pickHighestPriorityRole(rankedActiveRoles(section)),
+      atSeconds: section.timeRange.start
+    };
+  } catch {
     return null;
   }
-
-  const introSections = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        hasOwn(section, "label") &&
-        section.label === "intro" &&
-        hasOwn(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
-    )
-    .sort((left, right) => {
-      if (left.timeRange.start !== right.timeRange.start) {
-        return left.timeRange.start - right.timeRange.start;
-      }
-      return compareStableId(left.id, right.id);
-    });
-
-  const section = introSections[0];
-  if (!section) {
-    return null;
-  }
-
-  return {
-    section,
-    holdingRole: pickHighestPriorityRole(rankedActiveRoles(section)),
-    atSeconds: section.timeRange.start
-  };
 }
