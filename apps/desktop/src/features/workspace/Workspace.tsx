@@ -87,7 +87,6 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
         aria-label="Scrollable song structure timeline"
       >
         <div
-          id="song-structure-grid"
           className="grid min-w-[720px]"
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
@@ -183,66 +182,81 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
     onSongUpdate(nextSong);
   };
-
-  const safeSourceBootstrap = useMemo(
-    () => safeProjectBootstrapSummary(sourceBootstrap),
-    [sourceBootstrap]
+  const collaborationAssignments = useMemo(
+    () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
+    [song.collaboration]
   );
+  const collaborationComments = useMemo(
+    () => (Array.isArray(song.collaboration?.comments) ? song.collaboration.comments : []),
+    [song.collaboration]
+  );
+  const collaborationApprovals = useMemo(
+    () => (Array.isArray(song.collaboration?.approvals) ? song.collaboration.approvals : []),
+    [song.collaboration]
+  );
+  const collaborationSummary = useMemo(
+    () => ({
+      assignments: collaborationAssignments.length,
+      comments: collaborationComments.length,
+      approvals: collaborationApprovals.length
+    }),
+    [collaborationApprovals.length, collaborationAssignments.length, collaborationComments.length]
+  );
+  const activeRoleAssignments = useMemo(
+    () => collaborationAssignments.filter(assignment => assignment.roleId === undefined || assignment.roleId === activeRole),
+    [activeRole, collaborationAssignments]
+  );
+  const activeRoleComments = useMemo(
+    () => collaborationComments.filter(comment => comment.roleId === undefined || comment.roleId === activeRole),
+    [activeRole, collaborationComments]
+  );
+  const roleHarmonicExplanation =
+    nonBlankText(activeRoleDetails?.harmonicExplanation) ??
+    nonBlankText(activeRoleDetails?.harmony.functionLabel) ??
+    t("workspaceHarmonyExplainFallback");
+  const roleTranspositionPlan =
+    nonBlankText(activeRoleDetails?.transpositionPlan) ??
+    nonBlankText(activeRoleDetails?.simplification);
 
-  const collaborationSummary = useMemo(() => {
-    if (!song.collaboration) {
-      return { assignments: 0, comments: 0, approvals: 0 };
-    }
-
-    return {
-      assignments: song.collaboration.assignments.length,
-      comments: song.collaboration.comments.length,
-      approvals: song.collaboration.approvals.length
-    };
-  }, [song.collaboration]);
-
-  const activeRolePlan = useMemo(() => {
-    if (!activeRole || !song.rehearsalPlan) {
-      return null;
-    }
-    return song.rehearsalPlan.rolePlans.find((plan) => plan.roleId === activeRole) ?? null;
-  }, [activeRole, song.rehearsalPlan]);
-
-  const roleHarmonicExplanation = nonBlankText(activeRolePlan?.harmonicExplanation);
-  const roleTransposition = nonBlankText(activeRolePlan?.transposition);
-  const roleTranspositionRationale = nonBlankText(activeRolePlan?.transpositionRationale);
-
+  /** Documented. */
   const handleExportCueSheet = () => {
-    downloadTextFile(generateCueSheetCsv(song), "text/csv", sanitizeFilename(`${song.title}-cue-sheet.csv`));
+    const csv = generateCueSheetCsv(song);
+    downloadTextFile(csv, "text/csv;charset=utf-8;", `${sanitizeFilename(song.title)}_cuesheet.csv`);
   };
 
+  /** Documented. */
   const handleExportChart = () => {
-    downloadTextFile(
-      generateChartSummaryJson(song),
-      "application/json",
-      sanitizeFilename(`${song.title}-chart.json`)
-    );
+    const json = generateChartSummaryJson(song);
+    downloadTextFile(json, "application/json;charset=utf-8;", `${sanitizeFilename(song.title)}_chart.json`);
   };
 
+  /** Documented. */
   const handleExportHandoff = () => {
-    downloadTextFile(
-      generateMetadataHandoffJson(song, safeSourceBootstrap),
-      "application/json",
-      sanitizeFilename(`${song.title}-handoff.json`)
-    );
+    const parsedSourceBootstrap = safeProjectBootstrapSummary(sourceBootstrap);
+    const json = generateMetadataHandoffJson(song, {
+      sourceBootstrap: parsedSourceBootstrap,
+      workspaceId: song.id,
+      workspaceTitle: song.title
+    });
+    downloadTextFile(json, "application/json;charset=utf-8;", `${sanitizeFilename(song.title)}_handoff.json`);
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden border-white/10 bg-slate-950/90 shadow-[0_22px_80px_rgba(0,0,0,0.34)] backdrop-blur-xl">
-        <CardHeader className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-5 md:p-7">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.28em] text-cyan-200">{t("workspaceSurfaceLabel")}</span>
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.2em] text-emerald-200">{t("workspaceLocalBadge")}</span>
-            </div>
-            <CardDescription className="max-w-3xl text-sm leading-6 text-slate-300 md:text-base">
+    <div className="animate-in space-y-6 fade-in slide-in-from-bottom-4 duration-700 ease-out fill-mode-both">
+      <Card className="overflow-hidden border-white/10 bg-slate-950/78 text-slate-100 shadow-[0_24px_90px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+        <CardHeader className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))] p-5 pb-6 md:p-7">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">{t("workspaceRehearsalMapLabel")}</p>
+                {song.tempo && (
+                  <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[0.65rem] font-bold text-cyan-100">
+                    {t("workspaceTempoLabel")}: {song.tempo} BPM
+                  </span>
+                )}
+              </div>
+              <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">{song.title}</h2>
+              <CardDescription className="text-base font-medium text-slate-300">
               {song.exportSummary?.headline || t("workspaceRehearsalFallback")}
             </CardDescription>
           </div>
@@ -414,41 +428,71 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       <ClipboardList className="size-4" aria-hidden="true" />
                       <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
                     </div>
-                    <p className="mt-2 text-sm font-semibold text-indigo-100">
-                      {roleTransposition ?? t("workspaceTranspositionUnavailable")}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-slate-300">
-                      {roleTranspositionRationale ?? t("workspaceTranspositionRationaleFallback")}
+                    <p className="mt-2 text-sm leading-6 text-slate-200">
+                      {roleTranspositionPlan}
                     </p>
                   </div>
                 </div>
+                {song.collaboration && (
+                  <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="flex items-center gap-2 text-slate-100">
+                        <ClipboardList className="size-4 text-cyan-200" aria-hidden="true" />
+                        <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceAssignmentsLabel")}</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {activeRoleAssignments.map((assignment) => (
+                          <div key={assignment.id} className="rounded-lg border border-cyan-300/15 bg-cyan-300/[0.06] p-2">
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">{assignment.assignee}</p>
+                            <p className="mt-1 text-sm text-slate-100">{assignment.summary}</p>
+                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{formatStatusLabel(assignment.status)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="flex items-center gap-2 text-slate-100">
+                        <MessageSquareMore className="size-4 text-amber-200" aria-hidden="true" />
+                        <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceCommentsLabel")}</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {activeRoleComments.map((comment) => (
+                          <div key={comment.id} className="rounded-lg border border-amber-300/15 bg-amber-300/[0.07] p-2">
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">{comment.author}</p>
+                            <p className="mt-1 text-sm text-slate-100">{comment.body}</p>
+                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{formatStatusLabel(comment.status)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="flex items-center gap-2 text-slate-100">
+                        <CheckCheck className="size-4 text-emerald-200" aria-hidden="true" />
+                        <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceApprovalsLabel")}</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {collaborationApprovals.map((approval) => (
+                          <div key={approval.id} className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.07] p-2">
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-100">{approval.scope}</p>
+                            <p className="mt-1 text-sm text-slate-100">{approval.owner}</p>
+                            <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-slate-400">{formatStatusLabel(approval.status)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
+                <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
               </div>
             )}
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <section>
-                <h4 className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-slate-200">
-                  <CheckCheck className="size-4 text-cyan-300" aria-hidden="true" />
-                  {t("workspaceSectionsLabel")}
-                </h4>
-                <SectionRoadmap sections={song.sections} activeRole={activeRole} />
-              </section>
-
-              <section>
-                <h4 className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-[0.22em] text-slate-200">
-                  <MessageSquareMore className="size-4 text-violet-300" aria-hidden="true" />
-                  {t("workspaceGrooveLabel")}
-                </h4>
-                <GrooveMap sections={song.sections} activeRole={activeRole} />
-              </section>
-            </div>
-          </section>
-
-          <PracticeProgress
+          <SectionRoadmap
             song={song}
             activeRole={activeRole}
-            onProgressChange={handlePracticeProgressChange}
+            onSongUpdate={onSongUpdate}
           />
+          </section>
         </CardContent>
       </Card>
     </div>
