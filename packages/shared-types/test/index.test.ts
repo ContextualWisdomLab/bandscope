@@ -233,7 +233,7 @@ describe("shared type helpers", () => {
     expect(request).toEqual({
       sourceKind: "demo",
       sourceLabel: "Late Night Set",
-      roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
+      roleFocus: ["bass-guitar", "keys-right", "lead-vocal", "acoustic-guitar"]
     });
     expect(parseAnalysisJobRequest(request)).toEqual(request);
     expect(() => parseAnalysisJobRequest(null)).toThrow("root");
@@ -723,6 +723,12 @@ describe("shared type helpers", () => {
                 kind: "lyric",
                 value: "city lights"
               }
+            },
+            {
+              id: "acoustic-guitar",
+              name: "Acoustic Guitar",
+              roleType: "instrument",
+              capoPlan: "Capo 2 in standard tuning so the verse fingers G shapes while the room still sounds in A."
             }
           ]
         }
@@ -738,6 +744,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.sections[0]?.roles[3]?.capoPlan).toContain("Capo 2");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
@@ -812,8 +819,8 @@ describe("shared type helpers", () => {
     parsed.sections[0]?.roles.splice(0, 1);
     parsed.collaboration?.comments.splice(0, 1);
 
-    expect(parsed.sections[0]?.roles).toHaveLength(2);
-    expect(song.sections[0]?.roles).toHaveLength(3);
+    expect(parsed.sections[0]?.roles).toHaveLength(3);
+    expect(song.sections[0]?.roles).toHaveLength(4);
     expect(song.collaboration?.comments).toHaveLength(2);
     const legacySong = createDemoRehearsalSong() as unknown as {
       sections: Array<Record<string, unknown>>;
@@ -1255,6 +1262,12 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].capoPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.capoPlan = 2 as never;
         })
       },
       {

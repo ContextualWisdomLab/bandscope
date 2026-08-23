@@ -139,6 +139,7 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  capoPlan?: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -552,12 +553,45 @@ const demoRehearsalSongSeed: RehearsalSong = {
           overlapWarnings: [
             "Melodic overlap: competing with Keyboard 1 Right Hand."
           ]
+        },
+        {
+          id: "acoustic-guitar",
+          name: "Acoustic Guitar",
+          roleType: "instrument",
+          harmony: {
+            chord: "A",
+            functionLabel: "IV open-shape floor",
+            source: "model"
+          },
+          harmonicExplanation: "The guitar holds the verse in sounding A so capo 2 can keep the shapes in G while the rest of the room stays in concert pitch.",
+          cue: {
+            kind: "count",
+            value: "Strum on beat 1 after the pickup."
+          },
+          range: {
+            lowestNote: "E2",
+            highestNote: "B4"
+          },
+          confidence: {
+            level: "medium",
+            source: "model",
+            notes: "Confirm the capo fret before the first pass."
+          },
+          rehearsalPriority: "high",
+          simplification: "Stay on open G shapes if the chorus still feels crowded.",
+          setupNote: "Keep the strum light so the verse still breathes.",
+          capoPlan: "Capo 2 in standard tuning so the verse fingers G shapes while the room still sounds in A.",
+          manualOverrides: [],
+          overlapWarnings: [
+            "Density warning: competing with Keyboard 1 Right Hand in the midrange."
+          ]
         }
       ],
       partGraph: [
         { role_id: "bass-guitar", is_active: true, handoff_to: ["lead-vocal"], handoff_from: [] },
         { role_id: "keys-right", is_active: true, handoff_to: [], handoff_from: [] },
-        { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: ["bass-guitar"] }
+        { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: ["bass-guitar"] },
+        { role_id: "acoustic-guitar", is_active: true, handoff_to: [], handoff_from: [] }
       ]
     }
   ],
@@ -1497,6 +1531,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "transpositionPlan",
+      "capoPlan",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1551,6 +1586,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.capoPlan !== undefined && typeof value.capoPlan !== "string") {
+    return invalidField(`${path}.capoPlan`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);

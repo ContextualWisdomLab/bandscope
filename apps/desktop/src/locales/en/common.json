@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstCapoPlanLabel": "Tonight's first capo plan",
+  "firstCapoPlanOpenAction": "Open {role} capo at {at}",
+  "firstCapoPlanBody": "{role} still has a capo plan in the {section} at {at}.",
+  "firstCapoPlanArmed": "Lock that capo on {role} at {at} before the room starts.",
+  "firstCapoPlanUnavailable": "Nothing still has a capo plan. Stay on tonight's map until a guitar part owns rehearsal-facing capo copy."
 }
