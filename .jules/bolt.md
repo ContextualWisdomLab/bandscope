@@ -61,6 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-## 2024-05-14 - Python O(N^2) list dedup bottleneck
-**Learning:** Found O(N^2) deduplication using `if item not in list:` inside nested loops in `services/analysis-engine/src/bandscope_analysis/exports/chart.py`. Given that memory instructions suggest using dictionary keys for deduplication (`dict.fromkeys(items)` or `seen[item] = None`) to maintain O(1) lookups and preserve insertion order, this is a measurable performance anti-pattern.
-**Action:** Replace `item not in list` with dict key lookups (`dict.fromkeys()` where applicable, or a `seen` dict) in hot paths like export and formatting routines.
