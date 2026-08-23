@@ -161,7 +161,7 @@ describe("Workspace", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    expect(screen.getByText("vi pedal anchor")).toBeTruthy();
+    expect(screen.getAllByText("vi pedal anchor").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Stay on roots if the chorus entrance gets muddy.").length).toBeGreaterThan(0);
   });
 
@@ -269,5 +269,31 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("names tonight's first harmonic function as workspace navigation", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    expect(screen.getAllByText("vi pedal anchor").length).toBeGreaterThan(0);
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar function at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(
+      screen.getByText(/Lock that function on Bass Guitar at 0:10 before the room starts./)
+    ).toBeTruthy();
   });
 });

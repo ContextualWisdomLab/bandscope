@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstHarmonicFunctionLabel": "Tonight's first harmonic function",
+  "firstHarmonicFunctionOpenAction": "Open {role} function at {at}",
+  "firstHarmonicFunctionBody": "{role} still has a harmonic function in the {section} at {at}.",
+  "firstHarmonicFunctionArmed": "Lock that function on {role} at {at} before the room starts.",
+  "firstHarmonicFunctionUnavailable": "Nothing still has a harmonic function. Stay on tonight's map until a part owns rehearsal-facing function copy."
 }
