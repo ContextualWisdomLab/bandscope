@@ -77,13 +77,19 @@ describe("i18n", () => {
   });
 
   describe("translateSectionFormLabel", () => {
-    it("localizes an intro label for Korean rehearsal copy", () => {
+    it("localizes every supported section-form label for Korean rehearsal copy", () => {
       expect(translateSectionFormLabel("ko", "intro")).toBe("인트로");
+      expect(translateSectionFormLabel("ko", "verse")).toBe("벌스");
+      expect(translateSectionFormLabel("ko", "pre-chorus")).toBe("프리코러스");
+      expect(translateSectionFormLabel("ko", "chorus")).toBe("코러스");
+      expect(translateSectionFormLabel("ko", "bridge")).toBe("브리지");
+      expect(translateSectionFormLabel("ko", "outro")).toBe("아웃트로");
+      expect(translateSectionFormLabel("ko", "tag")).toBe("태그");
+      expect(translateSectionFormLabel("ko", "pickup")).toBe("픽업");
+      expect(translateSectionFormLabel("ko", "stop")).toBe("스톱");
+      expect(translateSectionFormLabel("ko", "handoff")).toBe("핸드오프");
       expect(translateSectionFormLabel("en", "intro")).toBe("intro");
-    });
-
-    it("preserves unlabeled form values as data", () => {
-      expect(translateSectionFormLabel("ko", "verse")).toBe("verse");
+      expect(translateSectionFormLabel("en", "chorus")).toBe("chorus");
     });
 
     it("does not treat inherited object keys as localized section labels", () => {
