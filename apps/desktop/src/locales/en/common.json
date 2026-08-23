@@ -153,5 +153,5 @@
   "firstArticulationPlanOpenAction": "Open {role} articulation at {at}",
   "firstArticulationPlanBody": "{role} still has an articulation plan in the {section} at {at}.",
   "firstArticulationPlanArmed": "Lock that articulation on {role} at {at} before the room starts.",
-  "firstArticulationPlanUnavailable": "Nothing still has an articulation plan. Stay on tonight's map until a part owns rehearsal-facing articulation copy."
+  "firstArticulationPlanUnavailable": "No articulation plan is available. Stay on tonight's map for the next rehearsal cue."
 }
