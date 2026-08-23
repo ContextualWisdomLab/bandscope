@@ -1,17 +1,20 @@
 /** Role-focus IDs used when first-run analysis covers the whole band. */
-export const FIRST_RUN_WHOLE_BAND_ROLE_FOCUS = [
+const FIRST_RUN_WHOLE_BAND_ROLE_FOCUS = [
   "bass-guitar",
   "keys-right",
   "lead-vocal"
 ] as const;
 
 /** Closed first-run role choices and their admitted analysis role-focus IDs. */
-export const FIRST_RUN_ROLE_OPTIONS = [
+const FIRST_RUN_ROLE_OPTIONS = [
   { id: "whole-band", roleFocus: FIRST_RUN_WHOLE_BAND_ROLE_FOCUS },
   { id: "lead-vocal", roleFocus: ["lead-vocal"] },
   { id: "bass-guitar", roleFocus: ["bass-guitar"] },
   { id: "keys-right", roleFocus: ["keys-right"] }
 ] as const;
+
+/** Export the immutable first-run role contracts without duplicating declaration authority. */
+export { FIRST_RUN_ROLE_OPTIONS, FIRST_RUN_WHOLE_BAND_ROLE_FOCUS };
 
 /** Identifier for an admitted first-run role choice. */
 export type FirstRunRoleId = (typeof FIRST_RUN_ROLE_OPTIONS)[number]["id"];
