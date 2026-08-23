@@ -75,4 +75,11 @@ describe("i18n", () => {
       }
     });
   });
+
+  it("keeps Korean first-transition next-action copy particle-safe", () => {
+    const t = createTranslator("ko");
+    expect(t("firstTransitionOpenAction")).toBe("{at} {role} 전환 위치 열기");
+    expect(t("firstTransitionBody")).toBe("{at}에서 {role} 파트가 전환을 잡습니다.");
+    expect(t("firstTransitionArmed")).toBe("{at}에서 {role} 파트와 함께 전환을 잡으세요. 같이 넘기세요.");
+  });
 });
