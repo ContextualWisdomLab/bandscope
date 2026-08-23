@@ -142,50 +142,17 @@ describe("analysis bridge", () => {
     expect(status.result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
   });
 
-  it("reports staged browser fallback progress before returning the demo result", async () => {
-    const queued = await startAnalysisJob(createDemoAnalysisJobRequest());
+  it("fails browser analysis closed instead of synthesizing a rehearsal result", async () => {
+    const status = await startAnalysisJob(createDemoAnalysisJobRequest());
 
-    expect(queued).toMatchObject({
-      state: "queued",
-      progressLabel: "Queued for analysis",
-      progressStage: "queued",
-      progressPercent: 0
+    expect(status).toMatchObject({
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis engine is unavailable."
+      }
     });
-
-    const running = await getAnalysisJobStatus(queued.jobId);
-    expect(running).toMatchObject({
-      state: "running",
-      progressLabel: "Decoding audio",
-      progressStage: "decode",
-      progressPercent: 20
-    });
-
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Separating stems... (45%)",
-      progressStage: "separate",
-      progressPercent: 45
-    });
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Building rehearsal cues",
-      progressStage: "analyze",
-      progressPercent: 70
-    });
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Saving reusable features",
-      progressStage: "persist",
-      progressPercent: 90
-    });
-
-    const ready = await getAnalysisJobStatus(queued.jobId);
-    expect(ready).toMatchObject({
-      state: "succeeded",
-      progressLabel: "Analysis ready",
-      progressStage: "ready",
-      progressPercent: 100
-    });
+    expect(status.result).toBeNull();
   });
 
   it("ignores a non-function Tauri v1 invoke shim", async () => {
