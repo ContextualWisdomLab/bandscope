@@ -86,7 +86,7 @@ describe("RehearsalPlayer", () => {
       screen.getByRole("button", { name: /Start the count-in/i }),
     );
     act(() => {
-      vi.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(2500);
     });
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
@@ -95,16 +95,23 @@ describe("RehearsalPlayer", () => {
     const playheadBeforeRevocation = screen
       .getByTestId("rehearsal-loop-playhead")
       .getAttribute("style");
+    expect(playheadBeforeRevocation).not.toContain("width: 0%");
+
     rerender(<RehearsalPlayer song={song} hasLocalAudio={false} />);
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
     ).toMatch(/Choose a local song first/i);
+    const playheadAfterRevocation = screen
+      .getByTestId("rehearsal-loop-playhead")
+      .getAttribute("style");
+    expect(playheadAfterRevocation).not.toBe(playheadBeforeRevocation);
+
     act(() => {
       vi.advanceTimersByTime(1000);
     });
     expect(
       screen.getByTestId("rehearsal-loop-playhead").getAttribute("style"),
-    ).toBe(playheadBeforeRevocation);
+    ).toBe(playheadAfterRevocation);
   });
 
   it("counts in then loops the selected section on the map clock", () => {
