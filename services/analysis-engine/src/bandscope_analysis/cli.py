@@ -134,12 +134,12 @@ def _read_bounded_job_file(path: str) -> bytes:
         or _uses_windows_alternate_stream(path)
         or _uses_windows_device_alias(path)
     ):
-        logger.warning(f"Security: rejected unpermitted path authority or namespace: {path}")
+        logger.warning("Security: rejected unpermitted path authority or namespace: %s", path)
         raise OSError("job path must use the local regular-file namespace")
 
     before = os.lstat(path)
     if not stat.S_ISREG(before.st_mode):
-        logger.warning(f"Security: rejected non-regular job file: {path}")
+        logger.warning("Security: rejected non-regular job file: %s", path)
         raise OSError("job path is not a regular file")
 
     flags = os.O_RDONLY
@@ -150,10 +150,10 @@ def _read_bounded_job_file(path: str) -> bytes:
     try:
         opened = os.fstat(descriptor)
         if not stat.S_ISREG(opened.st_mode):
-            logger.warning(f"Security: descriptor yielded non-regular file: {path}")
+            logger.warning("Security: descriptor yielded non-regular file: %s", path)
             raise OSError("opened job path is not a regular file")
         if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
-            logger.warning(f"Security: detected potential TOCTOU on job path: {path}")
+            logger.warning("Security: detected potential TOCTOU on job path: %s", path)
             raise OSError("job path changed before open")
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
             return stream.read(MAX_JSON_FILE_SIZE + 1)
