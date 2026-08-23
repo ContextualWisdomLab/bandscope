@@ -294,6 +294,10 @@ class ChordRecognizer:
             Observation probabilities of shape (25, n_frames).
         """
         n_frames = chromagram.shape[1]
+        if similarity.shape != (24, n_frames):
+            raise ValueError(
+                f"similarity shape must be (24, {n_frames}), got {similarity.shape}"
+            )
         obs_probs = np.zeros((_NUM_CHORD_STATES, n_frames))
 
         # Chord observation likelihoods from template similarity
@@ -308,11 +312,7 @@ class ChordRecognizer:
         chroma_vars = np.var(chromagram, axis=0)
 
         rms_vals = np.pad(rms, (0, max(0, n_frames - len(rms))))[:n_frames]
-        max_sims = (
-            similarity[:, :n_frames].max(axis=0)
-            if similarity.shape[1] >= n_frames
-            else np.pad(similarity[:, :].max(axis=0), (0, max(0, n_frames - similarity.shape[1])))
-        )
+        max_sims = similarity.max(axis=0)
 
         condition = (max_sims < 0.3) | (rms_vals < 0.01) | (chroma_vars[:n_frames] < 0.02)
 
