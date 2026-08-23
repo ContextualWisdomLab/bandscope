@@ -411,29 +411,25 @@ def test_audit_repository_accepts_reordered_registry_and_emits_final_receipts(
             self.ref_shas = ["a" * 40, "a" * 40]
             first = _workflow(22, ".github/workflows/ci.yml", name="CI")
             second = _workflow(23, ".github/workflows/release.yml", name="Release")
+            initial_receipts = [
+                {
+                    "page": 1,
+                    "status": 200,
+                    "item_count": 2,
+                    "snapshot": "initial",
+                },
+            ]
+            final_receipts = [
+                {
+                    "page": 1,
+                    "status": 200,
+                    "item_count": 2,
+                    "snapshot": "final",
+                },
+            ]
             self.workflow_snapshots = [
-                (
-                    [first, second],
-                    [
-                        {
-                            "page": 1,
-                            "status": 200,
-                            "item_count": 2,
-                            "snapshot": "initial",
-                        }
-                    ],
-                ),
-                (
-                    [second, first],
-                    [
-                        {
-                            "page": 1,
-                            "status": 200,
-                            "item_count": 2,
-                            "snapshot": "final",
-                        }
-                    ],
-                ),
+                ([first, second], initial_receipts),
+                ([second, first], final_receipts),
             ]
 
         def fetch_ref_sha(self, _repository: str, _branch: str) -> str:
