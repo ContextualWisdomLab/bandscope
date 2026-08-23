@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-08-23 - Vectorize Python loop over audio frames in probability matrix construction
+**Learning:** Computing observation probabilities per frame using a `for i in range(n_frames)` loop in pure Python generates significant overhead when handling audio segments (e.g. 50k+ frames), creating a slow bottleneck before Viterbi decoding.
+**Action:** Replace sequential per-frame condition checks with fully vectorized NumPy operations (`np.pad`, `|` boolean mask, and array slicing assignments) to compute logic globally over the time axis, changing slow Python loops into fast C-level operations.
