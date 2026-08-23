@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +77,7 @@ function resolveDynamicsPlanRenderer(origin: HTMLElement): HTMLElement | null {
 
 /** Name tonight's first dynamics plan and open the matching rendered map section. */
 export function FirstDynamicsPlanCallout({ song }: FirstDynamicsPlanCalloutProps) {
+  const calloutId = `workspace-surface-dynamics-plan-${useId()}`;
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableDynamicsPlanSongIdentity(song);
@@ -102,7 +103,7 @@ export function FirstDynamicsPlanCallout({ song }: FirstDynamicsPlanCalloutProps
   if (!named) {
     return (
       <aside
-        id="workspace-surface-dynamics-plan"
+        id={calloutId}
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
         aria-label={t("firstDynamicsPlanLabel")}
       >
@@ -134,7 +135,7 @@ export function FirstDynamicsPlanCallout({ song }: FirstDynamicsPlanCalloutProps
 
   return (
     <aside
-      id="workspace-surface-dynamics-plan"
+      id={calloutId}
       className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
       aria-label={t("firstDynamicsPlanLabel")}
     >
