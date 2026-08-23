@@ -90,4 +90,38 @@ describe("resolveFirstIntro inherited metadata", () => {
     expect(() => resolveFirstIntro(song)).not.toThrow();
     expect(resolveFirstIntro(song)).toBeNull();
   });
+
+  it("skips a throwing malformed candidate and preserves a later valid intro", () => {
+    const { song, intro } = songWithIntro();
+    const malformed = structuredClone(intro);
+    malformed.id = "broken-intro";
+    Object.defineProperty(malformed, "label", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("candidate label getter must not poison later intros");
+      }
+    });
+    song.sections = [malformed, intro];
+
+    const resolved = resolveFirstIntro(song);
+    expect(resolved?.section.id).toBe("intro-own");
+    expect(resolved?.atSeconds).toBe(0);
+  });
+
+  it("keeps a valid intro when one role exposes a throwing identity accessor", () => {
+    const { song, intro } = songWithIntro();
+    const role = intro.roles[0]!;
+    Object.defineProperty(role, "id", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("role id getter must not poison the intro");
+      }
+    });
+
+    const resolved = resolveFirstIntro(song);
+    expect(resolved?.section.id).toBe("intro-own");
+    expect(resolved?.holdingRole).toBeNull();
+  });
 });
