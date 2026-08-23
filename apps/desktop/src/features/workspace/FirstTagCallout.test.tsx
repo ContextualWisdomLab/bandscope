@@ -32,7 +32,7 @@ function songWithTag() {
 
 function appendSongStructureTarget() {
   const grid = document.createElement("div");
-  grid.id = "song-structure-grid";
+  grid.dataset.testid = "song-structure-grid";
   const first = document.createElement("div");
   first.dataset.sectionIndex = "0";
   const unrelatedSibling = document.createElement("div");
