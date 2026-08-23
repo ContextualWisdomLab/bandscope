@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstOverlapLabel": "Tonight's first overlap",
+  "firstOverlapOpenAction": "Open {role} overlap at {at}",
+  "firstOverlapOpenActionBand": "Open the first overlap at {at}",
+  "firstOverlapBody": "{role} overlaps in the {section} at {at}.",
+  "firstOverlapBodyBand": "The band overlaps in the {section} at {at}.",
+  "firstOverlapArmed": "Clear the overlap with {role} at {at}. Make room for each other.",
+  "firstOverlapArmedBand": "Clear the overlap at {at}. Make room for each other.",
+  "firstOverlapUnavailable": "No overlap yet. Stay on tonight's map until a part names a clash."
 }
