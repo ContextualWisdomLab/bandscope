@@ -100,9 +100,7 @@ export function FirstTagCallout({ song }: FirstTagCalloutProps) {
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-rose-300 font-black text-slate-950"
         onClick={() => {
-          const renderer = document.querySelector<HTMLElement>(
-            '[role="region"][aria-label="Scrollable song structure timeline"]'
-          );
+          const renderer = document.querySelector<HTMLElement>('[data-testid="song-structure-grid"]');
           const target =
             tagSectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(
