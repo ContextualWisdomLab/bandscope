@@ -115,21 +115,21 @@ function readOwnDataProperty(value: object, key: PropertyKey): unknown {
   }
 }
 
-/** Return whether every numeric index is an own element in a bounded runtime array. */
+/** Return whether materialized enumerable keys exactly cover a runtime array's numeric indices. */
 function isDenseRuntimeArray(value: unknown): value is unknown[] {
   if (!Array.isArray(value)) {
     return false;
   }
-  const length = Number(value.length);
-  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
-    return false;
-  }
-  for (let index = 0; index < length; index += 1) {
-    if (!hasOwn(value, index)) {
+  try {
+    const length = Number(value.length);
+    if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
       return false;
     }
+    const keys = Object.keys(value);
+    return keys.length === length && keys.every((key, index) => key === String(index));
+  } catch {
+    return false;
   }
-  return true;
 }
 
 /** Return a bounded non-empty own data string, or null. */
