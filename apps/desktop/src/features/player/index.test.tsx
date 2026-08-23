@@ -38,19 +38,20 @@ describe("PlayerFeature", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the outro hear action unavailable without a player playback callback", () => {
+  it("keeps the outro hear action unavailable without a mounted playback owner", () => {
     render(<PlayerFeature title="Player" song={songWithOutro()} />);
 
     expect(screen.queryByRole("button", { name: "Hear Drums land at 3:00" })).toBeNull();
     expect(screen.getByText("Drums holds the outro at 3:00.")).toBeTruthy();
   });
 
-  it("does not expose an unreachable Hear action from the unmounted player placeholder", () => {
-    const onPlayFromSeconds = vi.fn();
-    render(<PlayerFeature title="Player" song={songWithOutro()} onPlayFromSeconds={onPlayFromSeconds} />);
+  it("does not grant seek authority to the unmounted player placeholder", () => {
+    // @ts-expect-error PlayerFeature is not a mounted playback owner and must not accept seek authority.
+    const unreachablePlayer = <PlayerFeature title="Player" song={songWithOutro()} onPlayFromSeconds={() => undefined} />;
 
+    expect(unreachablePlayer).toBeTruthy();
+    render(<PlayerFeature title="Player" song={songWithOutro()} />);
     expect(screen.queryByRole("button", { name: "Hear Drums land at 3:00" })).toBeNull();
-    expect(onPlayFromSeconds).not.toHaveBeenCalled();
   });
 
   it("localizes the section count, labels, and playback guidance instead of mixing English player copy", () => {
