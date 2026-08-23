@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it, vi } from "vitest";
 import { PlayerFeature } from "./index";
@@ -45,14 +45,12 @@ describe("PlayerFeature", () => {
     expect(screen.getByText("Drums holds the outro at 3:00.")).toBeTruthy();
   });
 
-  it("delegates the outro hear action to the owning player callback", () => {
+  it("does not expose an unreachable Hear action from the unmounted player placeholder", () => {
     const onPlayFromSeconds = vi.fn();
     render(<PlayerFeature title="Player" song={songWithOutro()} onPlayFromSeconds={onPlayFromSeconds} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Hear Drums land at 3:00" }));
-
-    expect(onPlayFromSeconds).toHaveBeenCalledTimes(1);
-    expect(onPlayFromSeconds).toHaveBeenCalledWith(180);
+    expect(screen.queryByRole("button", { name: "Hear Drums land at 3:00" })).toBeNull();
+    expect(onPlayFromSeconds).not.toHaveBeenCalled();
   });
 
   it("localizes the section count, labels, and playback guidance instead of mixing English player copy", () => {
