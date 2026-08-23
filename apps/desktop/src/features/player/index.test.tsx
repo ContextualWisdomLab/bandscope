@@ -55,7 +55,7 @@ describe("PlayerFeature", () => {
     expect(onPlayFromSeconds).toHaveBeenCalledWith(180);
   });
 
-  it("localizes the section count and labeled outro badge instead of mixing English player copy", () => {
+  it("localizes the section count, labels, and playback guidance instead of mixing English player copy", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     try {
       render(<PlayerFeature title="Player" song={songWithOutro()} />);
@@ -63,6 +63,12 @@ describe("PlayerFeature", () => {
       expect(screen.queryByText("2 sections")).toBeNull();
       expect(screen.getByText("아웃트로")).toBeTruthy();
       expect(screen.queryByText("outro")).toBeNull();
+      expect(
+        screen.getByText("오디오 재생은 로컬 오디오 소스가 있는 데스크톱 앱에서 사용할 수 있습니다.")
+      ).toBeTruthy();
+      expect(
+        screen.queryByText("Audio playback requires the desktop app with a local audio source.")
+      ).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }
