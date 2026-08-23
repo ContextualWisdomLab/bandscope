@@ -151,6 +151,7 @@
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
   "increasePracticeProgressLabel": "Increase progress",
+  "playerPlaybackRequiresLocalAudio": "Audio playback requires the desktop app with a local audio source.",
   "firstOutroLabel": "Tonight's first outro",
   "firstOutroAction": "Hear {role} land at {at}",
   "firstOutroActionBand": "Hear the first outro at {at}",
