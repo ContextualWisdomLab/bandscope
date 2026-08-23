@@ -16,7 +16,7 @@ export interface FirstTagCalloutProps {
 type TagCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 
 type OpenedTag = Readonly<{
-  songId: string;
+  songIdentity: unknown;
   sectionId: string;
   sectionIndex: number;
   holdingRoleId: string | null;
@@ -31,21 +31,6 @@ function formatTagCopy(template: string, values: TagCopyValues): string {
   });
 }
 
-/** Read a stable own string without invoking accessor-backed runtime metadata. */
-function readOwnDataString(value: unknown, key: PropertyKey): string {
-  if (value === null || typeof value !== "object") {
-    return "";
-  }
-  try {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    return descriptor && "value" in descriptor && typeof descriptor.value === "string"
-      ? descriptor.value
-      : "";
-  } catch {
-    return "";
-  }
-}
-
 /** Use immediate scrolling when the operating system requests reduced motion. */
 function preferredTagScrollBehavior(): ScrollBehavior {
   return typeof window.matchMedia === "function" &&
@@ -58,8 +43,8 @@ function preferredTagScrollBehavior(): ScrollBehavior {
 export function FirstTagCallout({ song }: FirstTagCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
+  const songIdentity: unknown = song;
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const songId = readOwnDataString(runtimeSong, "id");
   const tag = resolveFirstTag(song);
   const tagSectionIndex =
     tag && Array.isArray(runtimeSong?.sections) ? runtimeSong.sections.indexOf(tag.section) : -1;
@@ -67,7 +52,7 @@ export function FirstTagCallout({ song }: FirstTagCalloutProps) {
 
   useEffect(() => {
     setOpenedTag(null);
-  }, [songId, tagSectionIndex, tag?.section.id, tag?.holdingRole?.id, tag?.atSeconds]);
+  }, [songIdentity, tagSectionIndex, tag?.section.id, tag?.holdingRole?.id, tag?.atSeconds]);
 
   if (!tag) {
     return (
@@ -83,7 +68,7 @@ export function FirstTagCallout({ song }: FirstTagCalloutProps) {
   }
 
   const opened =
-    openedTag?.songId === songId &&
+    openedTag?.songIdentity === songIdentity &&
     openedTag.sectionId === tag.section.id &&
     openedTag.sectionIndex === tagSectionIndex &&
     openedTag.holdingRoleId === (tag.holdingRole?.id ?? null) &&
@@ -131,7 +116,7 @@ export function FirstTagCallout({ song }: FirstTagCalloutProps) {
             behavior: preferredTagScrollBehavior()
           });
           setOpenedTag({
-            songId,
+            songIdentity,
             sectionId: tag.section.id,
             sectionIndex: tagSectionIndex,
             holdingRoleId: tag.holdingRole?.id ?? null,
