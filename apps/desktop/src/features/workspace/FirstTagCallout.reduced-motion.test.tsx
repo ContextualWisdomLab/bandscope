@@ -30,6 +30,26 @@ function songWithTag() {
   return song;
 }
 
+function appendTagTarget() {
+  const grid = document.createElement("div");
+  grid.dataset.testid = "song-structure-grid";
+  grid.setAttribute("role", "region");
+  grid.setAttribute("aria-label", "Scrollable song structure timeline");
+  const first = document.createElement("div");
+  first.dataset.sectionIndex = "0";
+  const target = document.createElement("div");
+  target.dataset.sectionIndex = "1";
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(target, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView
+  });
+  grid.appendChild(first);
+  grid.appendChild(target);
+  document.body.appendChild(grid);
+  return { grid, scrollIntoView };
+}
+
 describe("FirstTagCallout reduced motion", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -46,27 +66,22 @@ describe("FirstTagCallout reduced motion", () => {
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn()
     }));
-
-    const grid = document.createElement("div");
-    grid.dataset.testid = "song-structure-grid";
-    grid.setAttribute("role", "region");
-    grid.setAttribute("aria-label", "Scrollable song structure timeline");
-    const first = document.createElement("div");
-    first.dataset.sectionIndex = "0";
-    const target = document.createElement("div");
-    target.dataset.sectionIndex = "1";
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(target, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView
-    });
-    grid.appendChild(first);
-    grid.appendChild(target);
-    document.body.appendChild(grid);
+    const { grid, scrollIntoView } = appendTagTarget();
 
     render(<FirstTagCallout song={songWithTag()} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal tag at 3:20" }));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "auto" });
+
+    grid.remove();
+  });
+
+  it("uses smooth scrolling when matchMedia is unavailable", () => {
+    vi.stubGlobal("matchMedia", undefined);
+    const { grid, scrollIntoView } = appendTagTarget();
+
+    render(<FirstTagCallout song={songWithTag()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal tag at 3:20" }));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
 
     grid.remove();
   });
