@@ -58,6 +58,22 @@ function preferredEarCheckScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
+/** Resolve the song-structure renderer owned by this workspace, failing closed on ambiguous mounts. */
+function resolveEarCheckRenderer(origin: HTMLElement): HTMLElement | null {
+  const selector = '[data-testid="song-structure-grid"]';
+  const localScope = origin.closest("aside")?.parentElement ?? null;
+  const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
+  if (localRenderers.length === 1) {
+    return localRenderers[0] ?? null;
+  }
+  if (localRenderers.length > 1) {
+    return null;
+  }
+
+  const globalRenderers = document.querySelectorAll<HTMLElement>(selector);
+  return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
+}
+
 /** Name tonight's first ear check and open the matching rendered map section. */
 export function FirstEarCheckCallout({ song }: FirstEarCheckCalloutProps) {
   const locale = detectPreferredLocale();
@@ -127,8 +143,8 @@ export function FirstEarCheckCallout({ song }: FirstEarCheckCalloutProps) {
       <Button
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-rose-300 font-black text-slate-950"
-        onClick={() => {
-          const renderer = document.querySelector<HTMLElement>('[data-testid="song-structure-grid"]');
+        onClick={(event) => {
+          const renderer = resolveEarCheckRenderer(event.currentTarget);
           const target =
             earCheckSectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(
