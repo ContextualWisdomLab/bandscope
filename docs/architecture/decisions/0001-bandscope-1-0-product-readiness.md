@@ -22,7 +22,7 @@ A large number of individually plausible PRs can make delivery less reliable whe
 - design states are represented before runtime behavior exists;
 - a validation package is described as a release without signing, notarization, updater, or rollback evidence.
 
-The saved Figma file is useful but also demonstrates the need for source parity. Its cover describes a 28-page design-system plan while the current file exposes two top-level pages. Its footer cites version `0.1.3`, whereas the reviewed repository and Tauri package metadata cite `0.1.0`.
+The saved Figma file is useful but also demonstrates the need for source parity. Its cover describes a 28-page design-system plan while the current file exposes two top-level pages. Its footer and the reviewed repository/Tauri package metadata all cite version `0.1.3`; the remaining parity risk is planned or unimplemented design state rather than a current version-label mismatch.
 
 ## Decision
 
@@ -143,7 +143,7 @@ Rejected because unique tests, security findings, and product requirements could
 
 ### Treat the Figma file as the product source of truth
 
-Rejected because the current file contains planned/unimplemented pages and stale version metadata. Behavior and semantics must remain executable and testable in code.
+Rejected because the current file contains planned or unimplemented pages. Behavior, semantics, and version identity must remain executable and testable in code.
 
 ### Release unsigned artifacts and add trust later
 
