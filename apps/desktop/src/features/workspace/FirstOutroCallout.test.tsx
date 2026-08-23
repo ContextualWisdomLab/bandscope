@@ -34,13 +34,17 @@ function appendSongStructureTarget() {
   const grid = document.createElement("div");
   grid.dataset.testid = "song-structure-grid";
   const first = document.createElement("div");
+  first.dataset.sectionIndex = "0";
+  const unrelatedSibling = document.createElement("div");
   const target = document.createElement("div");
+  target.dataset.sectionIndex = "1";
   const scrollIntoView = vi.fn();
   Object.defineProperty(target, "scrollIntoView", {
     configurable: true,
     value: scrollIntoView
   });
   grid.appendChild(first);
+  grid.appendChild(unrelatedSibling);
   grid.appendChild(target);
   document.body.appendChild(grid);
   return { grid, scrollIntoView };
