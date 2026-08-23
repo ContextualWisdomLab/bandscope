@@ -183,8 +183,8 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
   );
 }
 
-/** Return the first labeled tag, or null when no safe last-line ending remains. */
-export function resolveFirstTag(song: RehearsalSong): FirstTag | null {
+/** Resolve a tag after the runtime root has passed its structural boundary checks. */
+function resolveSafeFirstTag(song: RehearsalSong): FirstTag | null {
   if (!isRuntimeObject(song) || !hasOwn(song, "sections") || !isDenseRuntimeArray(song.sections)) {
     return null;
   }
@@ -217,4 +217,13 @@ export function resolveFirstTag(song: RehearsalSong): FirstTag | null {
     holdingRole: pickHighestPriorityRole(rankedActiveRoles(section)),
     atSeconds: section.timeRange.start
   };
+}
+
+/** Return the first labeled tag, or null when untrusted runtime metadata cannot be read safely. */
+export function resolveFirstTag(song: RehearsalSong): FirstTag | null {
+  try {
+    return resolveSafeFirstTag(song);
+  } catch {
+    return null;
+  }
 }
