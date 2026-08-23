@@ -10,7 +10,7 @@ describe("FirstHarmonicExplanationCallout accessibility", () => {
     expect(screen.getByLabelText("Tonight's first harmonic explanation")).toBeTruthy();
     expect(
       screen.getByText(
-        "Nothing still has a harmonic explanation. Stay on tonight's map until a part owns rehearsal-facing harmonic copy."
+        "Nothing still has a harmonic explanation. Stay on tonight's map until a part owns rehearsal-facing harmony copy."
       )
     ).toBeTruthy();
   });
