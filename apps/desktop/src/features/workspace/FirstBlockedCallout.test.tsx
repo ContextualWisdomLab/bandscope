@@ -99,6 +99,22 @@ describe("FirstBlockedCallout", () => {
     grid.remove();
   });
 
+  it("preserves armed guidance across immutable edits of the same owned song", () => {
+    const song = songWithBlocked();
+    const { grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstBlockedCallout song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open verse blocker at 0:10" }));
+    expect(screen.getByText(/Unblock the verse job at 0:10 before the next run./)).toBeTruthy();
+
+    rerender(<FirstBlockedCallout song={{ ...song }} />);
+
+    expect(screen.getByText(/Unblock the verse job at 0:10 before the next run./)).toBeTruthy();
+    expect(screen.queryByText("Keys is blocked on Keyboard 1 Right Hand in the verse at 0:10.")).toBeNull();
+
+    grid.remove();
+  });
+
   it("names the first blocked job as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
