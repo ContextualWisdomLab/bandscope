@@ -94,7 +94,7 @@ describe("App local song intake concurrency", () => {
     await waitFor(() => expect(screen.getByText("selected-song.wav")).toBeTruthy());
   });
 
-  it("blocks YouTube intake while the local picker owns source selection", async () => {
+  it("blocks every YouTube source control while the local picker owns source selection", async () => {
     let resolveSelection: ((value: SuccessfulLocalAudioSelection) => void) | undefined;
     analysisMocks.isSupportedYoutubeUrl.mockReturnValue(true);
     analysisMocks.selectLocalAudioSource.mockImplementation(
@@ -110,12 +110,14 @@ describe("App local song intake concurrency", () => {
     const youtubeImport = screen.getByRole("button", { name: "Import YouTube" });
     fireEvent.change(youtubeInput, { target: { value: "https://www.youtube.com/watch?v=demo" } });
     expect(youtubeImport).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Clear YouTube URL" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Use my own song" }));
 
     await waitFor(() => {
       expect(youtubeInput).toBeDisabled();
       expect(youtubeImport).toBeDisabled();
+      expect(screen.queryByRole("button", { name: "Clear YouTube URL" })).toBeNull();
     });
 
     fireEvent.click(youtubeImport);
