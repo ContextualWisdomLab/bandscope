@@ -161,5 +161,6 @@
   "firstIntroArmed": "Count in with {role} at {at}. Start together.",
   "firstIntroArmedBand": "Count in at {at}. Start together.",
   "firstIntroUnavailable": "No intro yet. Stay on tonight's map until the start is labeled.",
-  "firstIntroNeedsSong": "Analyze tonight's song first, then hear the first intro from this player."
+  "firstIntroNeedsSong": "Analyze tonight's song first, then hear the first intro from this player.",
+  "playerPlaybackRequiresDesktop": "Audio playback requires the desktop app with a local audio source."
 }
