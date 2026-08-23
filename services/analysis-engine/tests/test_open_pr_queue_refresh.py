@@ -57,15 +57,19 @@ def _live_pr(
     head_sha: str,
     *,
     base_ref: str = "develop",
+    base_sha: str | None = "d" * 40,
     title: str | None = None,
 ) -> dict[str, object]:
     """Return a minimal GitHub pulls-API record for one open PR."""
+    base: dict[str, object] = {"ref": base_ref}
+    if base_sha is not None:
+        base["sha"] = base_sha
     return {
         "number": number,
         "title": title or f"PR {number}",
         "html_url": f"https://github.com/ContextualWisdomLab/bandscope/pull/{number}",
         "state": "open",
-        "base": {"ref": base_ref},
+        "base": base,
         "head": {"sha": head_sha},
     }
 
@@ -151,6 +155,20 @@ def test_refresh_manifest_updates_exact_heads_and_adds_untriaged_live_prs() -> N
                 "pull_requests": [_live_pr(783, "b" * 40, base_ref="main")],
             },
             "base.ref",
+        ),
+        (
+            {
+                "incomplete_results": False,
+                "pull_requests": [_live_pr(783, "b" * 40, base_sha=None)],
+            },
+            "base.sha",
+        ),
+        (
+            {
+                "incomplete_results": False,
+                "pull_requests": [_live_pr(783, "b" * 40, base_sha="e" * 40)],
+            },
+            "base.sha",
         ),
     ],
 )
