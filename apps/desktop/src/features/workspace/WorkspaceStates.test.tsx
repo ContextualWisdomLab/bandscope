@@ -46,7 +46,7 @@ describe("WorkspaceStates first-run card", () => {
     expect(screen.queryByText("/Users/test/Music/rehearsal-take.wav")).toBeNull();
   });
 
-  it("does not render local path segments from a selected file name", () => {
+  it("shows the selected song basename without exposing local path segments", () => {
     render(
       <FirstRunState
         fileName="/Users/test/Music/late-night-set.wav"
@@ -58,6 +58,8 @@ describe("WorkspaceStates first-run card", () => {
     );
 
     expect(screen.queryByText(/\/Users\/test/)).toBeNull();
+    expect(screen.getByText("Selected song")).toBeTruthy();
+    expect(screen.getByText("late-night-set.wav")).toBeTruthy();
     expect(document.querySelector('[data-selected-audio="late-night-set.wav"]')).toBeTruthy();
   });
 
