@@ -115,7 +115,7 @@ export function FirstTagCallout({ song }: FirstTagCalloutProps) {
         className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-rose-300 font-black text-slate-950"
         onClick={() => {
           const renderer = document.querySelector<HTMLElement>(
-            '[data-testid="song-structure-grid"]'
+            '[role="region"][aria-label="Scrollable song structure timeline"]'
           );
           const target =
             tagSectionIndex >= 0
