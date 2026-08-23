@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "../../i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +15,40 @@ const FIRST_RUN_ROLE_LABELS = {
   "bass-guitar": "firstRunRoleBass",
   "keys-right": "firstRunRoleKeys"
 } as const satisfies Record<FirstRunRoleId, TranslationKey>;
+
+/** Move a first-run role radio using the ARIA radiogroup keyboard pattern. */
+function handleRoleNavigation(
+  event: KeyboardEvent<HTMLButtonElement>,
+  currentIndex: number,
+  onSelectRole: (roleId: FirstRunRoleId) => void
+): void {
+  const lastIndex = FIRST_RUN_ROLE_OPTIONS.length - 1;
+  let nextIndex: number | null = null;
+
+  if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+    nextIndex = currentIndex === lastIndex ? 0 : currentIndex + 1;
+  } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+    nextIndex = currentIndex === 0 ? lastIndex : currentIndex - 1;
+  } else if (event.key === "Home") {
+    nextIndex = 0;
+  } else if (event.key === "End") {
+    nextIndex = lastIndex;
+  }
+
+  if (nextIndex === null) {
+    return;
+  }
+
+  event.preventDefault();
+  const nextOption = FIRST_RUN_ROLE_OPTIONS[nextIndex];
+  if (!nextOption) {
+    return;
+  }
+  onSelectRole(nextOption.id);
+  const group = event.currentTarget.closest('[role="radiogroup"]');
+  const radios = group?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+  radios?.[nextIndex]?.focus();
+}
 
 /** Documented. */
 export function EmptyState() {
@@ -77,7 +112,7 @@ export function FirstRunState({
           aria-label={t("firstRunRoleLabel")}
           className="mt-8 flex w-full max-w-lg flex-wrap items-center justify-center gap-2"
         >
-          {FIRST_RUN_ROLE_OPTIONS.map((option) => {
+          {FIRST_RUN_ROLE_OPTIONS.map((option, optionIndex) => {
             const checked = selectedRoleId === option.id;
             return (
               <button
@@ -85,7 +120,9 @@ export function FirstRunState({
                 type="button"
                 role="radio"
                 aria-checked={checked}
+                tabIndex={checked ? 0 : -1}
                 onClick={() => onSelectRole(option.id)}
+                onKeyDown={(event) => handleRoleNavigation(event, optionIndex, onSelectRole)}
                 className={`min-h-11 rounded-full border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                   checked
                     ? "border-cyan-300/40 bg-cyan-300/20 text-cyan-50"
