@@ -104,7 +104,7 @@ export function FirstCapoPlanCallout({ song }: FirstCapoPlanCalloutProps) {
       <aside
         id="workspace-surface-capo-plan"
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
-        aria-label={t("firstCapoPlanUnavailable")}
+        aria-label={t("firstCapoPlanLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
           {t("firstCapoPlanLabel")}
