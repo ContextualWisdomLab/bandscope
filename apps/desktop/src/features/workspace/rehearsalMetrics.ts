@@ -16,12 +16,12 @@ const SECTION_FORM_LABEL_OWNED: Readonly<Record<string, true>> = Object.freeze(
   Object.fromEntries(SECTION_FORM_LABELS.map((label) => [label, true]))
 );
 
-/** Renderer-owned workspace targets for cockpit next actions. */
-export const WORKSPACE_SURFACE_TEMPO = "workspace-surface-tempo";
-/** Renderer-owned workspace target for the first-entrance chord. */
-export const WORKSPACE_SURFACE_HARMONY = "workspace-surface-harmony";
-/** Renderer-owned workspace target for tonight's transpose setup. */
-export const WORKSPACE_SURFACE_TRANSPOSE = "workspace-surface-transpose";
+export /** Renderer-owned workspace targets for cockpit next actions. */
+const WORKSPACE_SURFACE_TEMPO = "workspace-surface-tempo";
+export /** Renderer-owned workspace target for the first-entrance chord. */
+const WORKSPACE_SURFACE_HARMONY = "workspace-surface-harmony";
+export /** Renderer-owned workspace target for tonight's transpose setup. */
+const WORKSPACE_SURFACE_TRANSPOSE = "workspace-surface-transpose";
 
 /** Integer BPM the room can count in before the first entrance. */
 export type TonightTempo = {
@@ -40,8 +40,7 @@ export type TonightTransposePlan = {
   roleName: string;
 };
 
-const METRIC_COPY_KEYS = ["bpm", "chord", "role", "plan"] as const;
-type MetricCopyKey = (typeof METRIC_COPY_KEYS)[number];
+type MetricCopyKey = "bpm" | "chord" | "role" | "plan";
 
 /** Interpolate cockpit placeholders once so rehearsal data is never rescanned as template syntax. */
 export function formatMetricCopy(
@@ -354,5 +353,3 @@ export function resolveTonightTransposePlan(
   }
   return null;
 }
-
-
