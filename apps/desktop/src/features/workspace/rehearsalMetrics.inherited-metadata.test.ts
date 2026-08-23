@@ -62,4 +62,51 @@ describe("rehearsal cockpit metrics inherited metadata", () => {
     expect(resolveTonightStartingChord(song)?.chord).not.toBe("C#m7");
     expect(resolveTonightTransposePlan(song)).toBeNull();
   });
+
+  it("contains an own tempo accessor that throws", () => {
+    const song = createDemoRehearsalSong();
+    Object.defineProperty(song, "tempo", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("tempo getter must stay data");
+      }
+    });
+
+    expect(() => resolveTonightTempo(song)).not.toThrow();
+    expect(resolveTonightTempo(song)).toBeNull();
+  });
+
+  it("contains an own timeRange accessor that throws", () => {
+    const song = createDemoRehearsalSong();
+    Object.defineProperty(song.sections[0]!, "timeRange", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("timeRange getter must stay data");
+      }
+    });
+
+    expect(() => resolveTonightStartingChord(song)).not.toThrow();
+    expect(() => resolveTonightTransposePlan(song)).not.toThrow();
+    expect(resolveTonightStartingChord(song)).toBeNull();
+    expect(resolveTonightTransposePlan(song)).toBeNull();
+  });
+
+  it("contains a nested timeRange Proxy whose descriptor trap throws", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.timeRange = new Proxy(
+      { start: 0, end: 8 },
+      {
+        getOwnPropertyDescriptor() {
+          throw new Error("timeRange descriptor trap");
+        }
+      }
+    ) as typeof song.sections[0]["timeRange"];
+
+    expect(() => resolveTonightStartingChord(song)).not.toThrow();
+    expect(() => resolveTonightTransposePlan(song)).not.toThrow();
+    expect(resolveTonightStartingChord(song)).toBeNull();
+    expect(resolveTonightTransposePlan(song)).toBeNull();
+  });
 });
