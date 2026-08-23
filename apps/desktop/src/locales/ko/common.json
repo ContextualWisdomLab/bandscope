@@ -150,7 +150,7 @@
   "decreasePracticeProgressLabel": "진척도 감소",
   "increasePracticeProgressLabel": "진척도 증가",
   "firstConfirmedHarmonyLabel": "오늘 첫 확인 코드",
-  "firstConfirmedHarmonyOpenAction": "{at} {role} 확인 코드 위치 열기",
+  "firstConfirmedHarmonyOpenAction": "{at} {role} {chord} 확인 코드 위치 열기",
   "firstConfirmedHarmonyBody": "{at} {section}에서 {role} 파트의 확인된 코드는 {chord}입니다.",
   "firstConfirmedHarmonyArmed": "{at}에서 {role} 파트를 {chord}로 연주한 다음 합주를 시작하세요.",
   "firstConfirmedHarmonyUnavailable": "아직 확인된 코드가 없습니다. 사용자 확인 코드가 표시될 때까지 오늘 지도에 머무르세요."
