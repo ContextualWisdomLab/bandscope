@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstTransitionLabel": "Tonight's first transition",
+  "firstTransitionOpenAction": "Open {role} transition at {at}",
+  "firstTransitionOpenActionBand": "Open the first transition at {at}",
+  "firstTransitionBody": "{role} changes in the {section} at {at}.",
+  "firstTransitionBodyBand": "The band changes in the {section} at {at}.",
+  "firstTransitionArmed": "Catch the change with {role} at {at}. Hold through together.",
+  "firstTransitionArmedBand": "Catch the change at {at}. Hold through together.",
+  "firstTransitionUnavailable": "No transition yet. Stay on tonight's map until a part names the change."
 }

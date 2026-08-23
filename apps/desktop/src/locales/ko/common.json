@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstTransitionLabel": "오늘 첫 전환",
+  "firstTransitionOpenAction": "{at} {role} 전환 위치 열기",
+  "firstTransitionOpenActionBand": "{at} 첫 전환 위치 열기",
+  "firstTransitionBody": "{at} {section}에서 {role} 파트가 바뀝니다.",
+  "firstTransitionBodyBand": "밴드가 {at} {section}에서 바뀝니다.",
+  "firstTransitionArmed": "{at}에서 {role} 파트 전환을 잡으세요. 끝까지 붙잡으세요.",
+  "firstTransitionArmedBand": "{at}에서 전환을 잡으세요. 끝까지 붙잡으세요.",
+  "firstTransitionUnavailable": "아직 전환이 없습니다. 파트가 변화를 표시할 때까지 오늘 지도에 머무르세요."
 }

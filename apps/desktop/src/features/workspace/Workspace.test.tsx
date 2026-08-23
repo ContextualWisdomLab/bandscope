@@ -270,4 +270,27 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first transition as workspace navigation", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    expect(screen.getAllByText("Hold through the pickup before the downbeat.").length).toBeGreaterThan(0);
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar transition at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText(/Catch the change with Bass Guitar at 0:10. Hold through together./)).toBeTruthy();
+  });
 });
