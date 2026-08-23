@@ -4,8 +4,13 @@
 
 ### Added
 
+- Add a read-only GitHub Actions workflow-registry lifecycle auditor that binds registry pagination to an exact protected `develop` tree, fails closed on incomplete evidence or branch movement, and distinguishes current, orphaned, disabled, GitHub-managed, and unresolved workflow identities without name heuristics.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
+
+### Changed
+
+- Require the workflow-registry lifecycle auditor to treat only regular-file Git blobs as protected-tree workflow source evidence, reject token-bearing non-canonical API origins, and bound successful API response bodies to 8 MiB before JSON parsing so external control-plane input cannot manufacture source evidence or trigger unbounded response allocation.
 
 ## [0.1.3] - 2026-04-29
 
