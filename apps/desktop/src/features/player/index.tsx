@@ -104,7 +104,7 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
           ))}
         </div>
         <div style={{ marginTop: "16px", color: "#999", fontSize: "0.85em" }}>
-          Audio playback requires the desktop app with a local audio source.
+          {t("playerPlaybackRequiresLocalAudio")}
         </div>
       </div>
     </section>
