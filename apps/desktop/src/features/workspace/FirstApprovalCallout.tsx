@@ -39,6 +39,22 @@ function preferredApprovalScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
+/** Resolve the song-structure renderer owned by this workspace, failing closed on ambiguous mounts. */
+function resolveApprovalRenderer(origin: HTMLElement): HTMLElement | null {
+  const selector = '[data-testid="song-structure-grid"]';
+  const localScope = origin.closest("aside")?.parentElement ?? null;
+  const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
+  if (localRenderers.length === 1) {
+    return localRenderers[0] ?? null;
+  }
+  if (localRenderers.length > 1) {
+    return null;
+  }
+
+  const globalRenderers = document.querySelectorAll<HTMLElement>(selector);
+  return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
+}
+
 /** Name tonight's first pending approval and open the matching rendered map section. */
 export function FirstApprovalCallout({ song }: FirstApprovalCalloutProps) {
   const locale = detectPreferredLocale();
@@ -118,8 +134,8 @@ export function FirstApprovalCallout({ song }: FirstApprovalCalloutProps) {
         <Button
           type="button"
           className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-orange-300 font-black text-slate-950"
-          onClick={() => {
-            const renderer = document.querySelector<HTMLElement>('[data-testid="song-structure-grid"]');
+          onClick={(event) => {
+            const renderer = resolveApprovalRenderer(event.currentTarget);
             const candidate =
               approvalSectionIndex >= 0 ? renderer?.children.item(approvalSectionIndex) : null;
             const target = candidate instanceof HTMLElement ? candidate : null;
