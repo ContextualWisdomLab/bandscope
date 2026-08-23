@@ -31,8 +31,10 @@ function songWithTag() {
 }
 
 function appendSongStructureTarget() {
+  const timeline = document.createElement("div");
+  timeline.setAttribute("role", "region");
+  timeline.setAttribute("aria-label", "Scrollable song structure timeline");
   const grid = document.createElement("div");
-  grid.id = "song-structure-grid";
   const first = document.createElement("div");
   first.dataset.sectionIndex = "0";
   const unrelatedSibling = document.createElement("div");
@@ -46,8 +48,9 @@ function appendSongStructureTarget() {
   grid.appendChild(first);
   grid.appendChild(unrelatedSibling);
   grid.appendChild(target);
-  document.body.appendChild(grid);
-  return { grid, scrollIntoView };
+  timeline.appendChild(grid);
+  document.body.appendChild(timeline);
+  return { grid: timeline, scrollIntoView };
 }
 
 describe("FirstTagCallout", () => {
