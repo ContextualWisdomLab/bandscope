@@ -112,18 +112,17 @@ export function FirstApprovalCallout({ song }: FirstApprovalCalloutProps) {
       aria-label={t("firstApprovalLabel")}
     >
       <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("firstApprovalLabel")}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-300">{opened ? armed : body}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-300">{body}</p>
+      {opened ? <p className="mt-1 text-sm leading-6 text-slate-400">{armed}</p> : null}
       {hasSection ? (
         <Button
           type="button"
           className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-orange-300 font-black text-slate-950"
           onClick={() => {
             const renderer = document.querySelector<HTMLElement>('[data-testid="song-structure-grid"]');
-            const target =
-              approvalSectionIndex >= 0
-                ? (renderer?.querySelector<HTMLElement>(`[data-section-index="${approvalSectionIndex}"]`) ??
-                  null)
-                : null;
+            const candidate =
+              approvalSectionIndex >= 0 ? renderer?.children.item(approvalSectionIndex) : null;
+            const target = candidate instanceof HTMLElement ? candidate : null;
             if (typeof target?.scrollIntoView !== "function") {
               return;
             }
