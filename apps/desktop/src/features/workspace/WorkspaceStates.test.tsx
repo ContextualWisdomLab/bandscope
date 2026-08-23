@@ -63,6 +63,30 @@ describe("WorkspaceStates first-run card", () => {
     expect(document.querySelector('[data-selected-audio="late-night-set.wav"]')).toBeTruthy();
   });
 
+  it("uses roving focus and arrow keys for the role radiogroup", () => {
+    const onSelectRole = vi.fn();
+    render(
+      <FirstRunState
+        fileName="rehearsal-take.wav"
+        selectedRoleId="whole-band"
+        onSelectRole={onSelectRole}
+        onStartAnalysis={vi.fn()}
+        onChooseDifferentFile={vi.fn()}
+      />
+    );
+
+    const wholeBand = screen.getByRole("radio", { name: "Whole band" });
+    const leadVocal = screen.getByRole("radio", { name: "Lead vocal" });
+    expect(wholeBand).toHaveAttribute("tabindex", "0");
+    expect(leadVocal).toHaveAttribute("tabindex", "-1");
+
+    wholeBand.focus();
+    fireEvent.keyDown(wholeBand, { key: "ArrowRight" });
+
+    expect(onSelectRole).toHaveBeenCalledWith("lead-vocal");
+    expect(document.activeElement).toBe(leadVocal);
+  });
+
   it("localizes the first-run next-action copy", () => {
     setNavigatorLanguage("ko-KR");
     render(
