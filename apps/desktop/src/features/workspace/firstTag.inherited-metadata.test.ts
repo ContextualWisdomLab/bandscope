@@ -43,6 +43,19 @@ describe("resolveFirstTag inherited metadata", () => {
     expect(resolveFirstTag(song)).toBeNull();
   });
 
+  it("does not treat own accessors as stable tag identity authority", () => {
+    const { song, tag } = songWithTag();
+    Object.defineProperty(tag, "id", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return "tag-own";
+      }
+    });
+
+    expect(resolveFirstTag(song)).toBeNull();
+  });
+
   it("does not let inherited role or graph metadata establish the holding part", () => {
     const { song, tag } = songWithTag();
     const role = tag.roles[0]!;
