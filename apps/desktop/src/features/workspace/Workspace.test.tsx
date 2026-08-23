@@ -136,7 +136,7 @@ describe("Workspace", () => {
 
     expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
     expect(screen.getByText(/whole step lower/i)).toBeTruthy();
-    expect(screen.getByText(/Lock the bass entrance against the pickup/i)).toBeTruthy();
+    expect(screen.getAllByText(/Lock the bass entrance against the pickup/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
@@ -269,5 +269,29 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("names tonight's first assignment as workspace navigation", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    expect(
+      screen.getAllByText("Lock the bass entrance against the pickup so the chorus lift lands together.").length
+    ).toBeGreaterThan(0);
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar assignment at 0:10"
+    });
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText("Keep the Bass Guitar assignment moving at 0:10. Lock it in together.")).toBeTruthy();
   });
 });

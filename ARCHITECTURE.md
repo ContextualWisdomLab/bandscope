@@ -5,6 +5,7 @@ Last updated: 2026-03-11
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
+- The mounted workspace copy for tonight's first assignment must name the assignee, the corroborated holding part when an active graph node matches, the owned assignment summary, the labeled section, and the time so the next action is obvious. Open moves to the matching rendered map section. Do not invent a job from comments, approvals, rehearsal priority, setup, cue, groove, simplification, overlap, range copy, ready, or blocked status.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
 ## Security source

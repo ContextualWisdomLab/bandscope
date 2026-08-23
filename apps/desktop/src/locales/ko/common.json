@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstAssignmentLabel": "오늘 첫 과제",
+  "firstAssignmentOpenAction": "{at} {role} 과제 위치 열기",
+  "firstAssignmentOpenActionBand": "{at} 첫 과제 위치 열기",
+  "firstAssignmentBody": "{at} {section}에서 {role} 파트 담당은 {assignee}입니다.",
+  "firstAssignmentBodyBand": "{at} {section} 담당은 {assignee}입니다.",
+  "firstAssignmentArmed": "{at}에서 {role} 파트 과제를 이어서 하세요. 함께 잠그세요.",
+  "firstAssignmentArmedBand": "{at}에서 과제를 이어서 하세요. 함께 잠그세요.",
+  "firstAssignmentUnavailable": "아직 과제가 없습니다. 파트가 할 일이 생길 때까지 오늘 지도에 머무르세요."
 }

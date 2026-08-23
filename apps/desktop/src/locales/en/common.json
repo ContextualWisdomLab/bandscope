@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstAssignmentLabel": "Tonight's first assignment",
+  "firstAssignmentOpenAction": "Open {role} assignment at {at}",
+  "firstAssignmentOpenActionBand": "Open the first assignment at {at}",
+  "firstAssignmentBody": "{assignee} holds {role} in the {section} at {at}.",
+  "firstAssignmentBodyBand": "{assignee} holds the {section} assignment at {at}.",
+  "firstAssignmentArmed": "Keep the {role} assignment moving at {at}. Lock it in together.",
+  "firstAssignmentArmedBand": "Keep the assignment moving at {at}. Lock it in together.",
+  "firstAssignmentUnavailable": "No assignment yet. Stay on tonight's map until a part has a job."
 }
