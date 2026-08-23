@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
-  createDemoRehearsalSong,
   createProjectBootstrapSummary,
   parseAnalysisJobStatus,
   parseAnalysisJobRequest,
@@ -27,13 +26,6 @@ declare global {
   }
 }
 
-const browserJobStore = new Map<string, AnalysisJobStatus>();
-const BROWSER_PROGRESS_STEPS = [
-  { progressLabel: "Decoding audio", progressStage: "decode", progressPercent: 20 },
-  { progressLabel: "Separating stems... (45%)", progressStage: "separate", progressPercent: 45 },
-  { progressLabel: "Building rehearsal cues", progressStage: "analyze", progressPercent: 70 },
-  { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
-] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
 const DEMO_UNAVAILABLE_MESSAGE =
   "The licensed demo song could not be loaded. Use your own song to start tonight.";
@@ -118,17 +110,14 @@ function browserJobId(prefix: string): string {
 async function browserFallback(command: string, args?: Record<string, unknown>): Promise<unknown> {
   if (command === "start_analysis_job") {
     parseAnalysisJobRequest(args?.request);
-    const jobId = browserJobId("browser-job");
-    const queued = createAnalysisJobStatus({
-      jobId,
-      state: "queued",
-      progressLabel: "Queued for analysis",
-      progressStage: "queued",
-      progressPercent: 0,
-      cacheStatus: "disabled"
+    return createAnalysisJobStatus({
+      jobId: browserJobId("browser-job"),
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis engine is unavailable."
+      }
     });
-    browserJobStore.set(jobId, queued);
-    return queued;
   }
 
   if (command === "select_local_audio_source") {
@@ -141,46 +130,14 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
 
   if (command === "get_analysis_job_status") {
     const jobId = String(args?.jobId ?? "");
-    const existing = browserJobStore.get(jobId);
-    if (!existing) {
-      return createAnalysisJobStatus({
-        jobId,
-        state: "failed",
-        error: {
-          code: "not_found",
-          message: "Analysis job was not found."
-        }
-      });
-    }
-    if (existing.state === "queued" || existing.state === "running") {
-      const currentPercent = existing.progressPercent ?? 0;
-      const nextStep = BROWSER_PROGRESS_STEPS.find((step) => step.progressPercent > currentPercent);
-      if (nextStep) {
-        const running = createAnalysisJobStatus({
-          jobId,
-          state: "running",
-          requestedAt: existing.requestedAt,
-          progressLabel: nextStep.progressLabel,
-          progressStage: nextStep.progressStage,
-          progressPercent: nextStep.progressPercent,
-          cacheStatus: "disabled"
-        });
-        browserJobStore.set(jobId, running);
-        return running;
-      }
-    }
-    const succeeded = createAnalysisJobStatus({
+    return createAnalysisJobStatus({
       jobId,
-      state: "succeeded",
-      progressLabel: "Analysis ready",
-      progressStage: "ready",
-      progressPercent: 100,
-      cacheStatus: "disabled",
-      requestedAt: existing.requestedAt,
-      result: createDemoRehearsalSong()
+      state: "failed",
+      error: {
+        code: "not_found",
+        message: "Analysis job was not found."
+      }
     });
-    browserJobStore.set(jobId, succeeded);
-    return succeeded;
   }
 
   if (command === "save_project") {
@@ -360,7 +317,12 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       bootstrap: parseProjectBootstrapSummary(response)
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : (typeof error === "string" ? error : "YouTube import failed.");
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "YouTube import failed.";
     return {
       ok: false,
       error: {
