@@ -104,7 +104,7 @@ export function FirstSetupNoteCallout({ song }: FirstSetupNoteCalloutProps) {
       <aside
         id="workspace-surface-setup-note"
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
-        aria-label={t("firstSetupNoteUnavailable")}
+        aria-label={t("firstSetupNoteLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
           {t("firstSetupNoteLabel")}
