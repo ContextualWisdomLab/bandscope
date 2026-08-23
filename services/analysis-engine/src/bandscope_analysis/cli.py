@@ -186,11 +186,12 @@ def _read_bounded_job_file(path: str) -> bytes:
     sockets, and symbolic links fail before descriptor acquisition. The open also
     requests nonblocking mode where available so a path replaced by a FIFO/device
     after preflight cannot turn descriptor acquisition into an unbounded wait.
-    The obtained descriptor is then checked with ``fstat`` and must identify the
-    same regular-file inode observed during preflight. ``O_NOFOLLOW`` and
-    close-on-exec are additionally requested where the platform exposes them. The
-    byte bound is enforced on the descriptor-backed stream rather than on a second
-    path lookup.
+    Windows opens additionally request ``O_BINARY`` so descriptor reads preserve
+    the raw job bytes without text-mode CRLF or 0x1A translation. The obtained
+    descriptor is then checked with ``fstat`` and must identify the same regular-file
+    inode observed during preflight. ``O_NOFOLLOW`` and close-on-exec are additionally
+    requested where the platform exposes them. The byte bound is enforced on the
+    descriptor-backed stream rather than on a second path lookup.
     """
     authority = classify_windows_job_path_authority(path)
     if authority is not None:
@@ -205,6 +206,7 @@ def _read_bounded_job_file(path: str) -> bytes:
     flags |= getattr(os, "O_CLOEXEC", 0)
     flags |= getattr(os, "O_NOFOLLOW", 0)
     flags |= getattr(os, "O_NONBLOCK", 0)
+    flags |= getattr(os, "O_BINARY", 0)
     descriptor = os.open(path, flags)
     try:
         opened = os.fstat(descriptor)
