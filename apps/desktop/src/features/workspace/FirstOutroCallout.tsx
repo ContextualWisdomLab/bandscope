@@ -133,7 +133,14 @@ export function FirstOutroCallout({
               return;
             }
             const grid = document.querySelector('[data-testid="song-structure-grid"]');
-            const target = outroSectionIndex >= 0 ? grid?.children.item(outroSectionIndex) : null;
+            const target =
+              outroSectionIndex >= 0
+                ? Array.from(grid?.children ?? []).find(
+                    (child) =>
+                      child instanceof HTMLElement &&
+                      child.dataset.sectionIndex === String(outroSectionIndex)
+                  )
+                : undefined;
             if (typeof target?.scrollIntoView !== "function") {
               return;
             }
