@@ -92,6 +92,37 @@ describe("PlayerFeature", () => {
     expect(screen.getByText("0 sections")).toBeTruthy();
   });
 
+  it("renders a safe empty summary when sections is a throwing own accessor", () => {
+    const song = songWithIntro();
+    Object.defineProperty(song, "sections", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("sections getter must stay data");
+      }
+    });
+
+    expect(() => render(<PlayerFeature title="Player" song={song} />)).not.toThrow();
+    expect(screen.getByText("No intro yet. Stay on tonight's map until the start is labeled.")).toBeTruthy();
+    expect(screen.getByText("0 sections")).toBeTruthy();
+  });
+
+  it("renders a safe empty summary when a song Proxy throws on sections access", () => {
+    const song = songWithIntro();
+    const proxiedSong = new Proxy(song, {
+      get(target, key, receiver) {
+        if (key === "sections") {
+          throw new Error("sections get trap");
+        }
+        return Reflect.get(target, key, receiver);
+      }
+    });
+
+    expect(() => render(<PlayerFeature title="Player" song={proxiedSong} />)).not.toThrow();
+    expect(screen.getByText("No intro yet. Stay on tonight's map until the start is labeled.")).toBeTruthy();
+    expect(screen.getByText("0 sections")).toBeTruthy();
+  });
+
   it("omits malformed runtime section elements without crashing the player summary", () => {
     const song = songWithIntro();
     song.sections = [null, song.sections[1]!] as unknown as typeof song.sections;
