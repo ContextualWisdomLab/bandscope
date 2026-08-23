@@ -59,7 +59,7 @@ describe("PlayerFeature", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     try {
       render(<PlayerFeature title="Player" song={songWithOutro()} />);
-      expect(screen.getByText("2개 섹션")).toBeTruthy();
+      expect(screen.getByText("2개 구간")).toBeTruthy();
       expect(screen.queryByText("2 sections")).toBeNull();
       expect(screen.getByText("아웃트로")).toBeTruthy();
       expect(screen.queryByText("outro")).toBeNull();
