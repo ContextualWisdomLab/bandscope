@@ -1,5 +1,6 @@
 import {
   MAX_SECTION_TIME_SECONDS,
+  SECTION_FORM_LABELS,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -7,6 +8,7 @@ import {
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_ARTICULATION_PLAN_CHARACTERS = 180;
+const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
 /** Tonight's first articulation plan: the earliest labeled section and the part that owns it. */
 export type FirstArticulationPlan = {
@@ -106,6 +108,15 @@ function hasRankedPriority(role: RehearsalRole): boolean {
     role.name.trim().length > 0 &&
     hasOwnData(role, "rehearsalPriority") &&
     Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
+  );
+}
+
+/** Return whether a section owns a canonical form label from the shared contract. */
+function hasSupportedSectionLabel(section: RehearsalSection): boolean {
+  return (
+    hasOwnData(section, "label") &&
+    typeof section.label === "string" &&
+    SECTION_FORM_LABEL_SET.has(section.label)
   );
 }
 
@@ -226,9 +237,7 @@ function resolveSafeFirstArticulationPlan(song: RehearsalSong): FirstArticulatio
     .filter(
       (section) =>
         isRuntimeObject(section) &&
-        hasOwnData(section, "label") &&
-        typeof section.label === "string" &&
-        section.label.trim().length > 0 &&
+        hasSupportedSectionLabel(section) &&
         hasOwnData(section, "id") &&
         typeof section.id === "string" &&
         section.id.trim().length > 0 &&
