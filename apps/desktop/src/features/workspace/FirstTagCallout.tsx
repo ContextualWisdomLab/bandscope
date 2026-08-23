@@ -99,9 +99,12 @@ export function FirstTagCallout({ song }: FirstTagCalloutProps) {
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-rose-300 font-black text-slate-950"
         onClick={() => {
+          const renderer = document.getElementById("song-structure-grid");
           const target =
             tagSectionIndex >= 0
-              ? document.querySelector<HTMLElement>(`[data-section-index="${tagSectionIndex}"]`)
+              ? (renderer?.querySelector<HTMLElement>(
+                  `[data-section-index="${tagSectionIndex}"]`
+                ) ?? null)
               : null;
           if (typeof target?.scrollIntoView !== "function") {
             return;
