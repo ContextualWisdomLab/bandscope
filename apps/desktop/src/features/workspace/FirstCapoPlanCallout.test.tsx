@@ -233,6 +233,9 @@ describe("FirstCapoPlanCallout", () => {
     render(<FirstCapoPlanCallout song={song} />);
     expect(screen.queryByRole("button")).toBeNull();
     expect(
+      screen.getByRole("complementary", { name: "Tonight's first capo plan" })
+    ).toBeTruthy();
+    expect(
       screen.getByText(
         "Nothing still has a capo plan. Stay on tonight's map until a guitar part owns rehearsal-facing capo copy."
       )
