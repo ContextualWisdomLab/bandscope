@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstArticulationPlanLabel": "Tonight's first articulation plan",
+  "firstArticulationPlanOpenAction": "Open {role} articulation at {at}",
+  "firstArticulationPlanBody": "{role} still has an articulation plan in the {section} at {at}.",
+  "firstArticulationPlanArmed": "Lock that articulation on {role} at {at} before the room starts.",
+  "firstArticulationPlanUnavailable": "Nothing still has an articulation plan. Stay on tonight's map until a part owns rehearsal-facing articulation copy."
 }
