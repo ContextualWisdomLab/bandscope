@@ -1,10 +1,11 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-23
 
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
+- The mounted workspace copy for tonight's first ear check must name the uncertain part when corroborated, the owned confidence notes, the labeled section, and the time so the next action is obvious. Open moves to the matching rendered map section. Do not invent an ear check from groove, cue, setup, simplification, overlap, range copy, or high confidence.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
 ## Security source
