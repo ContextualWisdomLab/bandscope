@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,11 +77,11 @@ function resolveTuningPlanRenderer(origin: HTMLElement): HTMLElement | null {
 
 /** Name tonight's first tuning plan and open the matching rendered map section. */
 export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableTuningPlanSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const named = resolveFirstTuningPlan(song);
+  const named = useMemo(() => resolveFirstTuningPlan(song), [song]);
   const namedSectionIndex =
     named && Array.isArray(runtimeSong?.sections)
       ? runtimeSong.sections.indexOf(named.section)
