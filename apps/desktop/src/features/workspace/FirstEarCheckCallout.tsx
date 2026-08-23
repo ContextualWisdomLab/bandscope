@@ -23,6 +23,25 @@ type OpenedEarCheck = Readonly<{
   atSeconds: number;
 }>;
 
+/** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
+function stableEarCheckSongIdentity(song: RehearsalSong): unknown {
+  if (song === null || typeof song !== "object" || Array.isArray(song)) {
+    return song;
+  }
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(song, "id");
+  } catch {
+    return song;
+  }
+  return descriptor !== undefined &&
+    Object.prototype.hasOwnProperty.call(descriptor, "value") &&
+    typeof descriptor.value === "string" &&
+    descriptor.value.trim().length > 0
+    ? descriptor.value
+    : song;
+}
+
 /** Interpolate ear-check placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatEarCheckCopy(template: string, values: EarCheckCopyValues): string {
   return template.replace(/\{(role|section|at)\}/g, (placeholder) => {
@@ -43,7 +62,7 @@ function preferredEarCheckScrollBehavior(): ScrollBehavior {
 export function FirstEarCheckCallout({ song }: FirstEarCheckCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
-  const songIdentity: unknown = song;
+  const songIdentity = stableEarCheckSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const earCheck = resolveFirstEarCheck(song);
   const earCheckSectionIndex =
