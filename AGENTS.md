@@ -83,6 +83,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Keep UI and analysis engine decoupled through shared contracts.
 - Prefer minimal, test-first changes for production code.
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
+- Name tonight's first corroborated part-to-part handoff with the giving part, receiving part, labeled section, and time so the next action is obvious. Open moves to the matching rendered map section. Do not invent that pass from groove, cue, simplification, overlap, range, chord labels, function labels, setup notes, confirmed overrides, harmonic explanations, confidence notes, transposition plans, or a labeled `handoff` form without owned bidirectional `partGraph` edges. Distinct from labeled-form handoff (#937) and Part Handoff Map visualization (#850).
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
 
