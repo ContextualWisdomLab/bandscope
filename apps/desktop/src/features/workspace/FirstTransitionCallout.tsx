@@ -28,6 +28,27 @@ function formatTransitionCopy(template: string, values: TransitionCopyValues): s
   });
 }
 
+/** Resolve a stable song identity without invoking inherited or accessor-backed runtime state. */
+function stableSongIdentity(song: unknown): unknown {
+  if (song === null || typeof song !== "object") {
+    return song;
+  }
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(song, "id");
+    if (
+      descriptor &&
+      Object.prototype.hasOwnProperty.call(descriptor, "value") &&
+      typeof descriptor.value === "string" &&
+      descriptor.value.trim().length > 0
+    ) {
+      return descriptor.value;
+    }
+  } catch {
+    // Hostile Proxy descriptor traps cannot establish persistent song identity.
+  }
+  return song;
+}
+
 /** Use immediate scrolling when the operating system requests reduced motion. */
 function preferredTransitionScrollBehavior(): ScrollBehavior {
   return typeof window.matchMedia === "function" &&
@@ -40,7 +61,7 @@ function preferredTransitionScrollBehavior(): ScrollBehavior {
 export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
-  const songIdentity: unknown = song;
+  const songIdentity = stableSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const transition = resolveFirstTransition(song);
   const transitionSectionIndex =
