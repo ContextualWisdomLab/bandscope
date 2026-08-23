@@ -168,4 +168,11 @@ describe("resolveFirstSimplification", () => {
     expect(resolved?.hint.length).toBe(180);
     expect(resolved?.holdingRole?.id).toBe("bass-guitar");
   });
+
+  it("does not split a Unicode surrogate pair at the hint boundary", () => {
+    const song = withSimplification({ simplification: `${"a".repeat(179)}😀tail` });
+    const resolved = resolveFirstSimplification(song);
+    expect(Array.from(resolved?.hint ?? "")).toHaveLength(180);
+    expect(resolved?.hint.endsWith("😀")).toBe(true);
+  });
 });
