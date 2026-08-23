@@ -1,4 +1,4 @@
-import { createDemoRehearsalSong, type RehearsalSection } from "@bandscope/shared-types";
+import { createDemoRehearsalSong, type RehearsalSection, type RehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
 import { resolveTonightStartingChord, resolveTonightTransposePlan } from "./rehearsalMetrics";
 
@@ -40,5 +40,28 @@ describe("rehearsal metric runtime collection bounds", () => {
     expect(resolveTonightStartingChord(song)).toBeNull();
     expect(resolveTonightTransposePlan(song)).toBeNull();
     expect(hostile.numericDescriptorReads()).toBeLessThan(8);
+  });
+
+  it("fails closed when the song ownership check hits a descriptor trap", () => {
+    const song = new Proxy(createDemoRehearsalSong(), {
+      getOwnPropertyDescriptor() {
+        throw new Error("descriptor trap");
+      }
+    }) as RehearsalSong;
+
+    expect(resolveTonightStartingChord(song)).toBeNull();
+    expect(resolveTonightTransposePlan(song)).toBeNull();
+  });
+
+  it("fails closed when runtime section enumeration hits a proxy trap", () => {
+    const song = createDemoRehearsalSong();
+    song.sections = new Proxy(song.sections, {
+      ownKeys() {
+        throw new Error("ownKeys trap");
+      }
+    });
+
+    expect(resolveTonightStartingChord(song)).toBeNull();
+    expect(resolveTonightTransposePlan(song)).toBeNull();
   });
 });
