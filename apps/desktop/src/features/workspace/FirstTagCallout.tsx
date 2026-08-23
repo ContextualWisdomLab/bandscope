@@ -31,6 +31,21 @@ function formatTagCopy(template: string, values: TagCopyValues): string {
   });
 }
 
+/** Read a stable own string without invoking accessor-backed runtime metadata. */
+function readOwnDataString(value: unknown, key: PropertyKey): string {
+  if (value === null || typeof value !== "object") {
+    return "";
+  }
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && "value" in descriptor && typeof descriptor.value === "string"
+      ? descriptor.value
+      : "";
+  } catch {
+    return "";
+  }
+}
+
 /** Use immediate scrolling when the operating system requests reduced motion. */
 function preferredTagScrollBehavior(): ScrollBehavior {
   return typeof window.matchMedia === "function" &&
@@ -44,7 +59,7 @@ export function FirstTagCallout({ song }: FirstTagCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const songId = typeof runtimeSong?.id === "string" ? runtimeSong.id : "";
+  const songId = readOwnDataString(runtimeSong, "id");
   const tag = resolveFirstTag(song);
   const tagSectionIndex =
     tag && Array.isArray(runtimeSong?.sections) ? runtimeSong.sections.indexOf(tag.section) : -1;
