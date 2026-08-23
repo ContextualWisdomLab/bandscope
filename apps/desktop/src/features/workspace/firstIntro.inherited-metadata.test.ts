@@ -47,4 +47,47 @@ describe("resolveFirstIntro inherited metadata", () => {
     song.sections = [arraySection];
     expect(resolveFirstIntro(song)).toBeNull();
   });
+
+  it("contains an own timeRange accessor that throws", () => {
+    const { song, intro } = songWithIntro();
+    Object.defineProperty(intro, "timeRange", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("timeRange getter must stay data");
+      }
+    });
+
+    expect(() => resolveFirstIntro(song)).not.toThrow();
+    expect(resolveFirstIntro(song)).toBeNull();
+  });
+
+  it("contains a nested timeRange Proxy whose descriptor trap throws", () => {
+    const { song, intro } = songWithIntro();
+    intro.timeRange = new Proxy(
+      { start: 0, end: 8 },
+      {
+        getOwnPropertyDescriptor() {
+          throw new Error("timeRange descriptor trap");
+        }
+      }
+    ) as typeof intro.timeRange;
+
+    expect(() => resolveFirstIntro(song)).not.toThrow();
+    expect(resolveFirstIntro(song)).toBeNull();
+  });
+
+  it("contains a section Proxy whose descriptor trap throws", () => {
+    const { song, intro } = songWithIntro();
+    song.sections = [
+      new Proxy(intro, {
+        getOwnPropertyDescriptor() {
+          throw new Error("section descriptor trap");
+        }
+      })
+    ];
+
+    expect(() => resolveFirstIntro(song)).not.toThrow();
+    expect(resolveFirstIntro(song)).toBeNull();
+  });
 });
