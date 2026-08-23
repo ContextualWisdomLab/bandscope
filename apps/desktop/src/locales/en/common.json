@@ -12,7 +12,7 @@
   "sourceModeReference": "References the original file",
   "unsupportedLocalAudio": "Choose a WAV, MP3, FLAC, or M4A file to start analysis.",
   "sectionConfidence": "Section confidence",
-  "roleConfidence": "confidence",
+  "roleConfidence": "Confidence",
   "harmonySource": "harmony source",
   "manualOverride": "manual override",
   "startAnalysis": "Start analysis",
