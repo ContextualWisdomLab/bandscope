@@ -24,7 +24,7 @@ describe("Workspace timeline localization", () => {
     render(<Workspace song={song} />);
 
     expect(
-      screen.getByText(`${song.sections.length}개 섹션에 그루브, 역할 큐, 코드 신뢰도 메모가 매핑되어 있습니다.`)
+      screen.getByText(`${song.sections.length}개 섹션 · 그루브 · 역할 · 코드 · 신뢰도`)
     ).toBeTruthy();
     expect(screen.queryByText(/mapped with groove, role cues, and chord confidence notes/i)).toBeNull();
   });
