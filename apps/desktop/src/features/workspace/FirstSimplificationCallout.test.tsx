@@ -13,11 +13,12 @@ function songWithoutSimplification() {
   return song;
 }
 
-function appendSongStructureTarget() {
+function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeline") {
   const timeline = document.createElement("div");
   timeline.setAttribute("role", "region");
-  timeline.setAttribute("aria-label", "Scrollable song structure timeline");
+  timeline.setAttribute("aria-label", ariaLabel);
   const grid = document.createElement("div");
+  grid.dataset.testid = "song-structure-grid";
   const target = document.createElement("div");
   target.dataset.sectionIndex = "0";
   const scrollIntoView = vi.fn();
@@ -120,6 +121,21 @@ describe("FirstSimplificationCallout", () => {
     });
     expect(action).toBeTruthy();
     fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(
+      screen.getByText(/Use the simpler take with Bass Guitar at 0:10. Get through it together./)
+    ).toBeTruthy();
+
+    grid.remove();
+  });
+
+  it("keeps map navigation stable when the renderer accessible name is localized", () => {
+    const { grid, scrollIntoView } = appendSongStructureTarget("스크롤 가능한 곡 구조 타임라인");
+
+    render(<FirstSimplificationCallout song={createDemoRehearsalSong()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar simpler take at 0:10" }));
+
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(
       screen.getByText(/Use the simpler take with Bass Guitar at 0:10. Get through it together./)
