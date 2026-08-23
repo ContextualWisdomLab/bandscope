@@ -225,6 +225,9 @@ describe("FirstPartHandoffCallout", () => {
     render(<FirstPartHandoffCallout song={song} />);
     expect(screen.queryByRole("button")).toBeNull();
     expect(
+      screen.getByRole("complementary", { name: "Tonight's first part handoff" })
+    ).toBeTruthy();
+    expect(
       screen.getByText(
         "Nothing still has a part handoff. Stay on tonight's map until a part owns a rehearsal-facing pass."
       )
