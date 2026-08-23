@@ -132,7 +132,7 @@ export function FirstOutroCallout({
               markOutroActionComplete();
               return;
             }
-            const grid = document.querySelector('[data-testid="song-structure-grid"]');
+            const grid = document.getElementById("song-structure-grid");
             const target =
               outroSectionIndex >= 0
                 ? Array.from(grid?.children ?? []).find(
