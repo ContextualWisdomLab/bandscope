@@ -213,6 +213,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const sectionCountLabel = t(
+    song.sections.length === 1
+      ? "metricConfidenceSectionCountSingular"
+      : "metricConfidenceSectionCountPlural"
+  ).replace("{count}", String(song.sections.length));
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -293,7 +298,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">{t("workspaceSongTimelineLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                {song.sections.length} section{song.sections.length === 1 ? "" : "s"} mapped with groove, role cues, and chord confidence notes.
+                {sectionCountLabel} · {t("sectionGrooveLabel")} · {t("navRoles")} · {t("sectionChordLabel")} · {t("roleConfidence")}
               </p>
             </section>
 
