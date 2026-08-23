@@ -10,7 +10,6 @@ import { createTranslator, detectPreferredLocale, translateSectionFormLabel } fr
 type PlayerFeatureProps = {
   title: string;
   song?: RehearsalSong | null;
-  onPlayFromSeconds?: (startSeconds: number) => void;
 };
 
 /** Return whether one runtime section is safe to summarize in the player. */
@@ -45,8 +44,8 @@ function playerSummarySections(song: RehearsalSong): RehearsalSection[] {
   return sections.filter(isPlayerSummarySection);
 }
 
-/** Player surface that names tonight's first labeled outro and delegates playback to the owning player. */
-export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureProps) {
+/** Player summary remains guidance-only until a mounted playback owner provides real seek authority. */
+export function PlayerFeature({ title, song }: PlayerFeatureProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
 
@@ -70,7 +69,7 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
   return (
     <section style={{ padding: "24px" }}>
       <h2>{title}</h2>
-      <FirstOutroCallout song={song} actionMode="callback-only" onHearOutro={onPlayFromSeconds} />
+      <FirstOutroCallout song={song} actionMode="callback-only" />
       <div
         style={{
           padding: "16px",
