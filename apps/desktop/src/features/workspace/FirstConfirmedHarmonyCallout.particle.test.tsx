@@ -52,7 +52,7 @@ describe("FirstConfirmedHarmonyCallout Korean role copy", () => {
     expect(screen.queryByText(/피아노이/)).toBeNull();
     expect(screen.queryByText(/피아노가/)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "0:10 피아노 확인 코드 위치 열기" }));
+    fireEvent.click(screen.getByRole("button", { name: "0:10 피아노 C#m11 확인 코드 위치 열기" }));
 
     expect(screen.getByText("0:10에서 피아노 파트를 C#m11로 연주한 다음 합주를 시작하세요.")).toBeTruthy();
     expect(screen.queryByText(/피아노과/)).toBeNull();
