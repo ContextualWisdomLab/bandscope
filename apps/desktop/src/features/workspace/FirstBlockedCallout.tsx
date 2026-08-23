@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,25 @@ type OpenedBlocked = Readonly<{
   atSeconds: number;
 }>;
 
+/** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
+function stableBlockedSongIdentity(song: RehearsalSong): unknown {
+  if (song === null || typeof song !== "object" || Array.isArray(song)) {
+    return song;
+  }
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(song, "id");
+  } catch {
+    return song;
+  }
+  return descriptor !== undefined &&
+    Object.prototype.hasOwnProperty.call(descriptor, "value") &&
+    typeof descriptor.value === "string" &&
+    descriptor.value.trim().length > 0
+    ? descriptor.value
+    : song;
+}
+
 /** Interpolate blocked-job placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatBlockedCopy(template: string, values: BlockedCopyValues): string {
   return template.replace(/\{(role|section|at|assignee)\}/g, (placeholder) => {
@@ -42,11 +61,11 @@ function preferredBlockedScrollBehavior(): ScrollBehavior {
 
 /** Name tonight's first blocked job and open the matching rendered map section. */
 export function FirstBlockedCallout({ song }: FirstBlockedCalloutProps) {
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
-  const songIdentity: unknown = song;
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
+  const songIdentity = stableBlockedSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const blocked = resolveFirstBlockedAssignment(song);
+  const blocked = useMemo(() => resolveFirstBlockedAssignment(song), [song]);
   const blockedSectionIndex =
     blocked && Array.isArray(runtimeSong?.sections)
       ? runtimeSong.sections.indexOf(blocked.section)
