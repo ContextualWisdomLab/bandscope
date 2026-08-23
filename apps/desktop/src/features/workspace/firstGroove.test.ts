@@ -158,6 +158,42 @@ describe("resolveFirstGroove", () => {
     expect(resolveFirstGroove(song)).toBeNull();
   });
 
+  it("rejects a proxy-reported oversized section collection without scanning reported indices", () => {
+    const song = withGrooveSection();
+    let numericDescriptorReads = 0;
+    const target: typeof song.sections = [];
+    const oversizedSections = new Proxy(target, {
+      get(innerTarget, property, receiver) {
+        if (property === "length") {
+          return 1_000_000;
+        }
+        return Reflect.get(innerTarget, property, receiver);
+      },
+      getOwnPropertyDescriptor(innerTarget, property) {
+        if (typeof property === "string" && /^\d+$/.test(property)) {
+          numericDescriptorReads += 1;
+          if (numericDescriptorReads > 32) {
+            throw new Error("unbounded numeric descriptor scan");
+          }
+          return {
+            configurable: true,
+            enumerable: true,
+            value: undefined,
+            writable: true
+          };
+        }
+        return Reflect.getOwnPropertyDescriptor(innerTarget, property);
+      },
+      ownKeys() {
+        return ["length"];
+      }
+    });
+    song.sections = oversizedSections;
+
+    expect(resolveFirstGroove(song)).toBeNull();
+    expect(numericDescriptorReads).toBe(0);
+  });
+
   it("keeps the groove band-wide when role identities are duplicated", () => {
     const song = withGrooveSection();
     const role = song.sections[0]!.roles[0]!;
