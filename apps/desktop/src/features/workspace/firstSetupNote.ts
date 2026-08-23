@@ -1,5 +1,6 @@
 import {
   MAX_SECTION_TIME_SECONDS,
+  SECTION_FORM_LABELS,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -229,6 +230,7 @@ function resolveSafeFirstSetupNote(song: RehearsalSong): FirstSetupNote | null {
         hasOwnData(section, "label") &&
         typeof section.label === "string" &&
         section.label.trim().length > 0 &&
+        SECTION_FORM_LABELS.includes(section.label) &&
         hasOwnData(section, "id") &&
         typeof section.id === "string" &&
         section.id.trim().length > 0 &&
