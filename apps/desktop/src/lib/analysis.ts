@@ -35,12 +35,15 @@ const BROWSER_PROGRESS_STEPS = [
   { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
 ] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
+const DEMO_UNAVAILABLE_MESSAGE =
+  "The licensed demo song could not be loaded. Use your own song to start tonight.";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   "Could not read the selected audio file.",
   "Could not prepare the local project workspace.",
   "Could not prepare the local cache workspace.",
-  "Could not prepare the local temp workspace."
+  "Could not prepare the local temp workspace.",
+  DEMO_UNAVAILABLE_MESSAGE
 ]);
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
@@ -130,6 +133,10 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
 
   if (command === "select_local_audio_source") {
     throw new Error(UNSUPPORTED_LOCAL_AUDIO_MESSAGE);
+  }
+
+  if (command === "select_demo_audio_source") {
+    throw new Error(DEMO_UNAVAILABLE_MESSAGE);
   }
 
   if (command === "get_analysis_job_status") {
@@ -239,6 +246,28 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
           error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
             ? error.message
             : UNSUPPORTED_LOCAL_AUDIO_MESSAGE
+      }
+    };
+  }
+}
+
+/** Select the bundled licensed demo through the same local-audio bootstrap. */
+export async function selectDemoAudioSource(): Promise<LocalAudioSelectionResult> {
+  try {
+    const response = await invokeAnalysis("select_demo_audio_source");
+    return {
+      ok: true,
+      bootstrap: parseProjectBootstrapSummary(response)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message:
+          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
+            ? error.message
+            : DEMO_UNAVAILABLE_MESSAGE
       }
     };
   }

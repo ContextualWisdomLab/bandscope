@@ -19,6 +19,7 @@ const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
 const mockSubscribeToAnalysisJobUpdates = vi.fn();
 let mockLocalAudioSelectionResult: Record<string, unknown> | null = null;
+let mockDemoAudioSelectionResult: Record<string, unknown> | null = null;
 let mockImportYoutubeUrlError = false;
 let latestStatusSubscription: ((payload: Record<string, unknown>) => void) | null = null;
 
@@ -46,6 +47,7 @@ vi.mock("./lib/analysis", async (importActual) => {
       roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
     }),
     selectLocalAudioSource: async () => mockLocalAudioSelectionResult ?? actual.selectLocalAudioSource(),
+    selectDemoAudioSource: async () => mockDemoAudioSelectionResult ?? actual.selectDemoAudioSource(),
     subscribeToAnalysisJobUpdates: (...args: Parameters<typeof mockSubscribeToAnalysisJobUpdates>) =>
       mockSubscribeToAnalysisJobUpdates(...args),
     loadProject: () => mockLoadProject(),
@@ -191,6 +193,7 @@ describe("App", () => {
     mockSaveProject.mockReset();
     mockSubscribeToAnalysisJobUpdates.mockReset();
     mockLocalAudioSelectionResult = null;
+    mockDemoAudioSelectionResult = null;
     mockImportYoutubeUrlError = false;
     latestStatusSubscription = null;
     mockSubscribeToAnalysisJobUpdates.mockImplementation(
@@ -417,6 +420,33 @@ describe("App", () => {
           roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
         }
       });
+    });
+  });
+
+  it("selects the licensed demo through the same local-audio bootstrap", async () => {
+    tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /try the demo/i }));
+
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenCalledWith("select_demo_audio_source");
+      expect(screen.getByText(/start analysis to open tonight's first cue/i)).toBeTruthy();
+    });
+  });
+
+  it("names using your own song when the licensed demo cannot load", async () => {
+    tauriInvoke.mockRejectedValueOnce(
+      new Error("The licensed demo song could not be loaded. Use your own song to start tonight.")
+    );
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /try the demo/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/use your own song to start tonight/i);
     });
   });
 

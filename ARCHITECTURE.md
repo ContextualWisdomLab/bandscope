@@ -113,6 +113,7 @@ Last updated: 2026-03-11
 - The current shared-types baseline includes a rehearsal-domain fixture that exercises section, role, cue, confidence, provenance, and export-summary fields in the desktop shell before the full analysis pipeline lands.
 - Local analysis orchestration uses typed Tauri IPC commands and a Python subprocess over stdin/stdout rather than a loopback HTTP listener.
 - Local audio intake bootstraps a project by validating a user-selected file in Rust, creating app-owned temp/cache/project roots, and referencing the original source file rather than copying it in this phase.
+- First-run empty workspace names **Try the demo** and **Use my own song**. The licensed demo is the CC0 `Late Night Set` package under `apps/desktop/src-tauri/resources/demo/` and enters through `select_demo_audio_source`, which reuses the same bootstrap as a user-selected local file.
 - Those bootstrap roots should resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
 - Product and UX decisions should prefer rehearsal-first simplicity while still maintaining high analytical accuracy.
 - Security decisions should prefer allowlisted narrow capabilities over generic convenience APIs.

@@ -4,6 +4,7 @@ import {
   MAX_YOUTUBE_URL_LENGTH,
   getAnalysisJobStatus,
   importYoutubeUrl,
+  selectDemoAudioSource,
   startAnalysisJob
 } from "./analysis";
 
@@ -18,6 +19,30 @@ describe("analysis bridge", () => {
   beforeEach(() => {
     delete tauriWindow.__TAURI_INTERNALS__;
     delete tauriWindow.__TAURI_INVOKE__;
+  });
+
+  it("fails closed when the licensed demo is requested outside Tauri", async () => {
+    const selection = await selectDemoAudioSource();
+
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "The licensed demo song could not be loaded. Use your own song to start tonight."
+      }
+    });
+  });
+
+  it("does not invent a browser demo bootstrap when Tauri internals lack invoke", async () => {
+    tauriWindow.__TAURI_INTERNALS__ = {};
+
+    const selection = await selectDemoAudioSource();
+
+    expect(selection.ok).toBe(false);
+    if (selection.ok) {
+      throw new Error("browser demo intake must fail closed");
+    }
+    expect(selection.error.message).toMatch(/use your own song/i);
   });
 
   it("imports a standard YouTube URL through the browser fallback when Tauri is absent", async () => {

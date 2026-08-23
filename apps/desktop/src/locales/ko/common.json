@@ -27,9 +27,9 @@
   "confidenceLevelHigh": "믿고 가져가도 됨",
   "provenanceSourceModel": "자동 추정",
   "provenanceSourceUser": "사용자 확인",
-  "workspaceReadyToAnalyzeTitle": "분석 준비 완료",
+  "workspaceReadyToAnalyzeTitle": "오늘 합주를 시작하세요",
   "workspaceAnalyzingAudioTitle": "오디오 분석 중",
-  "workspaceEmptyState": "합주할 곡의 오디오 파일을 선택해주세요.",
+  "workspaceEmptyState": "라이선스가 있는 데모를 써 보거나 내 곡을 사용하세요. 오디오는 이 기기에 남습니다.",
   "workspaceLoadingState": "곡의 폼과 악기별 역할을 분석하고 있습니다...",
   "workspaceErrorState": "분석 중 오류가 발생했습니다. 다시 시도해주세요.",
   "workspaceRehearsalMapLabel": "오늘의 합주 지도",
@@ -148,5 +148,11 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "tryTheDemo": "데모 써 보기",
+  "useMyOwnSong": "내 곡 사용",
+  "demoSelectedNextAction": "분석을 시작해 오늘 첫 큐를 여세요.",
+  "demoUnavailable": "라이선스 데모 곡을 불러올 수 없습니다. 내 곡으로 오늘 합주를 시작하세요.",
+  "demoLimitation": "데모는 평가용 오리지널 BandScope 오디오이며 상업 음원이 아닙니다.",
+  "chooseDifferentSong": "다른 곡 선택"
 }

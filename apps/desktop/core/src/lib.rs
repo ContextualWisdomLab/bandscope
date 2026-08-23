@@ -40,6 +40,17 @@ pub const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 
 pub const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 
+pub const DEMO_AUDIO_FILE_NAME: &str = "late-night-set.wav";
+
+pub const DEMO_AUDIO_BYTES: u64 = 88244;
+
+pub const DEMO_UNAVAILABLE_MESSAGE: &str =
+    "The licensed demo song could not be loaded. Use your own song to start tonight.";
+
+const WAV_RIFF_MAGIC: &[u8] = b"RIFF";
+
+const WAV_WAVE_MAGIC: &[u8] = b"WAVE";
+
 pub const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__";
 
 pub const YOUTUBE_IMPORT_TIMEOUT: Duration = Duration::from_secs(120);
@@ -659,6 +670,60 @@ pub fn validate_score_pdf_source(path: &Path) -> Result<(PathBuf, String, u64), 
 /// WebView. The path is rebuilt server-side from validated ids, symlinks are
 /// refused, and the canonicalized result must still live under the
 /// canonicalized app-owned scores root (path-traversal guard).
+
+/// Validate the bundled licensed demo WAV before it reuses local-audio bootstrap.
+pub fn validate_demo_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, String> {
+    let link_metadata = std::fs::symlink_metadata(path)
+        .map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+    #[cfg(not(all(coverage, windows)))]
+    if link_metadata.file_type().is_symlink() {
+        return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
+    }
+
+    #[cfg(coverage)]
+    let canonical = path
+        .canonicalize()
+        .expect("demo audio path should canonicalize after metadata lookup");
+    #[cfg(not(coverage))]
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+
+    let file_name = canonical
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+    if file_name != DEMO_AUDIO_FILE_NAME {
+        return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
+    }
+    let extension = canonical
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+    if extension != "wav" {
+        return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
+    }
+    if !link_metadata.is_file() || link_metadata.len() != DEMO_AUDIO_BYTES {
+        return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
+    }
+
+    let mut header = [0u8; 12];
+    std::fs::File::open(&canonical)
+        .and_then(|mut file| file.read_exact(&mut header))
+        .map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+    if &header[0..4] != WAV_RIFF_MAGIC || &header[8..12] != WAV_WAVE_MAGIC {
+        return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
+    }
+
+    Ok(LocalAudioSourcePayload {
+        source_path: canonical.to_string_lossy().into_owned(),
+        file_name: file_name.to_string(),
+        extension,
+        file_size_bytes: link_metadata.len(),
+    })
+}
+
 pub fn resolve_existing_score_pdf(scores_root: &Path, score_id: &str) -> Result<PathBuf, String> {
     if !is_valid_score_id(score_id) {
         return Err("Score was not found.".to_string());
@@ -1280,4 +1345,65 @@ mod tests {
         let _ = std::fs::remove_dir_all(scores_root);
         let _ = std::fs::remove_dir_all(outside_root);
     }
+
+    fn write_sized_demo_wav(path: &Path, bytes: u64, riff: bool, wave: bool) {
+        let mut data = vec![0u8; bytes as usize];
+        if riff && data.len() >= 4 {
+            data[0..4].copy_from_slice(b"RIFF");
+        }
+        if wave && data.len() >= 12 {
+            data[8..12].copy_from_slice(b"WAVE");
+        }
+        std::fs::write(path, data).expect("demo fixture should be written");
+    }
+
+    #[test]
+    fn demo_audio_validation_accepts_the_licensed_wav_contract() {
+        let root = unique_test_dir("demo-valid");
+        std::fs::create_dir_all(&root).expect("demo root should be created");
+        let path = root.join(DEMO_AUDIO_FILE_NAME);
+        write_sized_demo_wav(&path, DEMO_AUDIO_BYTES, true, true);
+        let source = validate_demo_audio_source(&path).expect("licensed demo wav should validate");
+        assert_eq!(source.file_name, DEMO_AUDIO_FILE_NAME);
+        assert_eq!(source.extension, "wav");
+        assert_eq!(source.file_size_bytes, DEMO_AUDIO_BYTES);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn demo_audio_validation_rejects_wrong_name_size_magic_and_missing_files() {
+        let root = unique_test_dir("demo-reject");
+        std::fs::create_dir_all(&root).expect("demo root should be created");
+
+        let wrong_name = root.join("other.wav");
+        write_sized_demo_wav(&wrong_name, DEMO_AUDIO_BYTES, true, true);
+        assert!(validate_demo_audio_source(&wrong_name).is_err());
+
+        let wrong_size = root.join(DEMO_AUDIO_FILE_NAME);
+        write_sized_demo_wav(&wrong_size, 12, true, true);
+        assert!(validate_demo_audio_source(&wrong_size).is_err());
+
+        write_sized_demo_wav(&wrong_size, DEMO_AUDIO_BYTES, false, true);
+        assert!(validate_demo_audio_source(&wrong_size).is_err());
+
+        write_sized_demo_wav(&wrong_size, DEMO_AUDIO_BYTES, true, false);
+        assert!(validate_demo_audio_source(&wrong_size).is_err());
+
+        let missing = root.join("missing").join(DEMO_AUDIO_FILE_NAME);
+        assert!(validate_demo_audio_source(&missing).is_err());
+
+        #[cfg(unix)]
+        {
+            let valid = root.join("target.wav");
+            write_sized_demo_wav(&valid, DEMO_AUDIO_BYTES, true, true);
+            let linked = root.join(DEMO_AUDIO_FILE_NAME);
+            let _ = std::fs::remove_file(&linked);
+            std::os::unix::fs::symlink(&valid, &linked).expect("symlink should be created");
+            assert!(validate_demo_audio_source(&linked).is_err());
+        }
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+
 }

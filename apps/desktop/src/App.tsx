@@ -40,6 +40,7 @@ import {
   MAX_YOUTUBE_URL_LENGTH,
   saveProject,
   subscribeToAnalysisJobUpdates,
+  selectDemoAudioSource,
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
@@ -415,6 +416,10 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
+    if (analysisInFlight || isStarting || isImporting) {
+      return;
+    }
+
     setSelectionError(null);
     setSelectionErrorSource(null);
     const selection = await selectLocalAudioSource();
@@ -425,6 +430,26 @@ export function App() {
 
     setSelectedBootstrap(null);
     setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
+    setSelectionErrorSource("local");
+    setJobStatus(null);
+  };
+
+  /** Validate the bundled licensed demo through the same local-audio bootstrap. */
+  const handleTryDemo = async () => {
+    if (analysisInFlight || isStarting || isImporting) {
+      return;
+    }
+
+    setSelectionError(null);
+    setSelectionErrorSource(null);
+    const selection = await selectDemoAudioSource();
+    if (selection.ok) {
+      setSelectedBootstrap(selection.bootstrap);
+      return;
+    }
+
+    setSelectedBootstrap(null);
+    setSelectionError(safeErrorDetail(selection.error.message, t("demoUnavailable")));
     setSelectionErrorSource("local");
     setJobStatus(null);
   };
@@ -514,7 +539,14 @@ export function App() {
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
-    return <EmptyState />;
+    return (
+      <EmptyState
+        selectedLabel={selectedBootstrap?.source.fileName ?? null}
+        disabled={analysisInFlight || isStarting || isImporting}
+        onTryDemo={handleTryDemo}
+        onUseOwnSong={handleChooseLocalAudio}
+      />
+    );
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";

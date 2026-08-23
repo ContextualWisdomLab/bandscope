@@ -98,3 +98,4 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Do not justify risky debug defaults as temporary shortcuts.
 - Do not defer dependency review, SBOM generation, or supply-chain checks to a later phase.
 - Do not defer Windows or macOS build enforcement to a later phase.
+- The licensed demo is original CC0 audio that must pass the same local-audio intake as a user-selected file. Never present mocked browser success as production analysis.
