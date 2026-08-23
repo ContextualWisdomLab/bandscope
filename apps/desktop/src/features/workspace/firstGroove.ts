@@ -48,21 +48,21 @@ function hasOwnData(value: object, key: PropertyKey): boolean {
   return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
 }
 
-/** Return whether every numeric index is an own data element in a bounded runtime array. */
+/** Return whether materialized enumerable keys exactly cover a runtime array's numeric indices. */
 function isDenseRuntimeArray(value: unknown): value is unknown[] {
   if (!Array.isArray(value)) {
     return false;
   }
-  const length = Number(value.length);
-  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
-    return false;
-  }
-  for (let index = 0; index < length; index += 1) {
-    if (!hasOwnData(value, index)) {
+  try {
+    const length = Number(value.length);
+    if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
       return false;
     }
+    const keys = Object.keys(value);
+    return keys.length === length && keys.every((key, index) => key === String(index));
+  } catch {
+    return false;
   }
-  return true;
 }
 
 /** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
