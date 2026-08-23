@@ -63,6 +63,20 @@ describe("FirstTagCallout", () => {
     ).toBeTruthy();
   });
 
+  it("contains a hostile song identity accessor instead of crashing the callout", () => {
+    const song = songWithTag();
+    Object.defineProperty(song, "id", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("hostile song id getter");
+      }
+    });
+
+    expect(() => render(<FirstTagCallout song={song} />)).not.toThrow();
+    expect(screen.getByRole("button", { name: "Open Lead Vocal tag at 3:20" })).toBeTruthy();
+  });
+
   it("names the first tag as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
