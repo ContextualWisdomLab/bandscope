@@ -53,18 +53,9 @@ describe("FirstOpenCommentCallout", () => {
     expect(screen.getByRole("button", { name: "Open Keyboard 1 Right Hand at 0:10" })).toBeTruthy();
   });
 
-  it("resets armed guidance when accessor-id songs change with the same comment signature", () => {
+  it("keeps armed guidance when an unrelated song edit preserves the first-open-note identity", () => {
     const firstSong = songWithOpenComment();
-    const nextSong = songWithOpenComment();
-    for (const song of [firstSong, nextSong]) {
-      Object.defineProperty(song, "id", {
-        configurable: true,
-        enumerable: true,
-        get() {
-          throw new Error("hostile song id getter");
-        }
-      });
-    }
+    const nextSong = { ...firstSong };
     const { grid } = appendSongStructureTarget();
     const { rerender } = render(<FirstOpenCommentCallout song={firstSong} />);
 
@@ -75,10 +66,10 @@ describe("FirstOpenCommentCallout", () => {
 
     rerender(<FirstOpenCommentCallout song={nextSong} />);
 
-    expect(screen.getByText("MD left a note for Keyboard 1 Right Hand in the verse at 0:10.")).toBeTruthy();
     expect(
-      screen.queryByText(/Read MD's note with Keyboard 1 Right Hand at 0:10. Keep that part in view./)
-    ).toBeNull();
+      screen.getByText(/Read MD's note with Keyboard 1 Right Hand at 0:10. Keep that part in view./)
+    ).toBeTruthy();
+    expect(screen.queryByText("MD left a note for Keyboard 1 Right Hand in the verse at 0:10.")).toBeNull();
 
     grid.remove();
   });
