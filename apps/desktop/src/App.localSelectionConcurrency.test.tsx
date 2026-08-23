@@ -1,6 +1,8 @@
+import type { ProjectBootstrapSummary } from "@bandscope/shared-types";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import type { LocalAudioSelectionResult } from "./lib/analysis";
 
 const analysisMocks = vi.hoisted(() => ({
   getAnalysisJobStatus: vi.fn(),
@@ -8,7 +10,7 @@ const analysisMocks = vi.hoisted(() => ({
   isSupportedYoutubeUrl: vi.fn(() => false),
   loadProject: vi.fn(),
   saveProject: vi.fn(),
-  selectLocalAudioSource: vi.fn(),
+  selectLocalAudioSource: vi.fn<() => Promise<LocalAudioSelectionResult>>(),
   startAnalysisJob: vi.fn(),
   subscribeToAnalysisJobUpdates: vi.fn(async () => () => undefined),
 }));
@@ -46,7 +48,9 @@ const selectedBootstrap = {
     extension: "wav",
     fileSizeBytes: 1024,
   },
-};
+} satisfies ProjectBootstrapSummary;
+
+type SuccessfulLocalAudioSelection = Extract<LocalAudioSelectionResult, { ok: true }>;
 
 /**
  * Security Notes:
@@ -63,10 +67,10 @@ describe("App local song intake concurrency", () => {
   });
 
   it("allows only one local picker while the first selection is pending", async () => {
-    let resolveSelection: ((value: { ok: true; bootstrap: typeof selectedBootstrap }) => void) | undefined;
+    let resolveSelection: ((value: SuccessfulLocalAudioSelection) => void) | undefined;
     analysisMocks.selectLocalAudioSource.mockImplementation(
       () =>
-        new Promise((resolve) => {
+        new Promise<SuccessfulLocalAudioSelection>((resolve) => {
           resolveSelection = resolve;
         }),
     );
@@ -91,11 +95,11 @@ describe("App local song intake concurrency", () => {
   });
 
   it("blocks YouTube intake while the local picker owns source selection", async () => {
-    let resolveSelection: ((value: { ok: true; bootstrap: typeof selectedBootstrap }) => void) | undefined;
+    let resolveSelection: ((value: SuccessfulLocalAudioSelection) => void) | undefined;
     analysisMocks.isSupportedYoutubeUrl.mockReturnValue(true);
     analysisMocks.selectLocalAudioSource.mockImplementation(
       () =>
-        new Promise((resolve) => {
+        new Promise<SuccessfulLocalAudioSelection>((resolve) => {
           resolveSelection = resolve;
         }),
     );
