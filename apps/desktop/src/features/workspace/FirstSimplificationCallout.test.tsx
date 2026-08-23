@@ -88,6 +88,27 @@ describe("FirstSimplificationCallout", () => {
     grid.remove();
   });
 
+  it("keeps armed guidance across unrelated immutable edits to the same song", () => {
+    const initialSong = createDemoRehearsalSong();
+    const { grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstSimplificationCallout song={initialSong} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar simpler take at 0:10" }));
+    expect(
+      screen.getByText(/Use the simpler take with Bass Guitar at 0:10. Get through it together./)
+    ).toBeTruthy();
+
+    const updatedSong = structuredClone(initialSong);
+    updatedSong.sections[0]!.roles[0]!.practiceProgress = 60;
+    rerender(<FirstSimplificationCallout song={updatedSong} />);
+
+    expect(
+      screen.getByText(/Use the simpler take with Bass Guitar at 0:10. Get through it together./)
+    ).toBeTruthy();
+
+    grid.remove();
+  });
+
   it("names the first simpler take as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
