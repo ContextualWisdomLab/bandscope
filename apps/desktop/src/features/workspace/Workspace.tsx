@@ -4,6 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { resolveTonightTempo } from "./rehearsalMetrics";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const tonightTempo = resolveTonightTempo(song);
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -244,12 +246,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">{t("workspaceRehearsalMapLabel")}</p>
-                {song.tempo && (
+                {tonightTempo && (
                   <span
                     id="workspace-surface-tempo"
                     className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[0.65rem] font-bold text-cyan-100"
                   >
-                    {t("workspaceTempoLabel")}: {song.tempo} BPM
+                    {t("workspaceTempoLabel")}: {tonightTempo.bpm} BPM
                   </span>
                 )}
               </div>
