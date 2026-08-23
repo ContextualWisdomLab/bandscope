@@ -269,6 +269,8 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText(/벌스 · 0:10–0:40/)).toBeTruthy();
+    expect(screen.queryByText(/verse · 0:10–0:40/i)).toBeNull();
   });
 
   it("names tonight's first groove as workspace navigation", () => {
