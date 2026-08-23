@@ -104,7 +104,7 @@ export function FirstPartHandoffCallout({ song }: FirstPartHandoffCalloutProps) 
       <aside
         id="workspace-surface-part-handoff"
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
-        aria-label={t("firstPartHandoffUnavailable")}
+        aria-label={t("firstPartHandoffLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
           {t("firstPartHandoffLabel")}
