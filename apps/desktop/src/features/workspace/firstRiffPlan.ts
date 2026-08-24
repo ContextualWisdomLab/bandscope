@@ -133,26 +133,31 @@ function hasSupportedSectionLabel(section: RehearsalSection): boolean {
   );
 }
 
-/** Return whether a section owns a bounded, positive-length integer rehearsal window. */
-function hasBoundedTimeRange(section: RehearsalSection): boolean {
-  if (!hasOwnData(section, "timeRange")) {
-    return false;
-  }
-  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
-  if (!isRuntimeObject(timeRange) || !hasOwnData(timeRange, "start") || !hasOwnData(timeRange, "end")) {
-    return false;
+/** Snapshot a section's bounded positive-length integer rehearsal window. */
+function ownedBoundedTimeRange(
+  section: RehearsalSection
+): RehearsalSection["timeRange"] | null {
+  const timeRange = ownDataValue(section, "timeRange");
+  if (!isRuntimeObject(timeRange)) {
+    return null;
   }
 
-  const start = timeRange.start ?? -1;
-  const end = timeRange.end ?? -1;
-  return (
-    Number.isInteger(start) &&
-    start >= 0 &&
-    start <= MAX_SECTION_TIME_SECONDS &&
-    Number.isInteger(end) &&
-    end > start &&
-    end <= MAX_SECTION_TIME_SECONDS
-  );
+  const start = ownDataValue(timeRange, "start");
+  const end = ownDataValue(timeRange, "end");
+  if (
+    !Number.isInteger(start) ||
+    typeof start !== "number" ||
+    start < 0 ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    !Number.isInteger(end) ||
+    typeof end !== "number" ||
+    end <= start ||
+    end > MAX_SECTION_TIME_SECONDS
+  ) {
+    return null;
+  }
+
+  return { start, end };
 }
 
 /** Return safe identities that appear more than once in one section-local collection. */
@@ -252,17 +257,24 @@ function resolveSafeFirstRiffPlan(song: RehearsalSong): FirstRiffPlan | null {
   const sections = sectionsValue as RehearsalSection[];
 
   const candidates = sections
-    .map((section, sectionIndex) => ({ section, sectionIndex }))
+    .map((section, sectionIndex) => ({
+      section,
+      sectionIndex,
+      timeRange: isRuntimeObject(section) ? ownedBoundedTimeRange(section) : null
+    }))
     .filter(
-      ({ section }) =>
+      ({ section, timeRange }) =>
         isRuntimeObject(section) &&
         hasSupportedSectionLabel(section) &&
         hasOwnData(section, "id") &&
         typeof section.id === "string" &&
         section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
+        timeRange !== null
     )
-    .flatMap(({ section, sectionIndex }) => {
+    .flatMap(({ section, sectionIndex, timeRange }) => {
+      if (!timeRange) {
+        return [];
+      }
       const holdingRole = pickHoldingRole(
         rankedActiveRoles(section).filter((role) => ownedRiffPlan(role) !== null)
       );
@@ -279,7 +291,7 @@ function resolveSafeFirstRiffPlan(song: RehearsalSong): FirstRiffPlan | null {
           sectionIndex,
           holdingRole,
           riffPlan,
-          atSeconds: section.timeRange.start
+          atSeconds: timeRange.start
         }
       ];
     })
