@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import type { RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
   createTranslator,
@@ -43,6 +43,16 @@ function stableHarmonicFunctionSongIdentity(song: RehearsalSong): unknown {
     : song;
 }
 
+/** Resolve the renderer-owned section position without allowing hostile song access to escape. */
+function resolveHarmonicFunctionSectionIndex(song: RehearsalSong, section: RehearsalSection): number {
+  try {
+    const runtimeSections = (song as unknown as Partial<RehearsalSong> | null)?.sections;
+    return Array.isArray(runtimeSections) ? runtimeSections.indexOf(section) : -1;
+  } catch {
+    return -1;
+  }
+}
+
 /** Interpolate harmonic-function placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatHarmonicFunctionCopy(template: string, values: HarmonicFunctionCopyValues): string {
   return template.replace(/\{(role|section|at)\}/g, (placeholder) => {
@@ -80,12 +90,8 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableHarmonicFunctionSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = resolveFirstHarmonicFunction(song);
-  const namedSectionIndex =
-    named && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(named.section)
-      : -1;
+  const namedSectionIndex = named ? resolveHarmonicFunctionSectionIndex(song, named.section) : -1;
   const [openedHarmonicFunction, setOpenedHarmonicFunction] = useState<OpenedHarmonicFunction | null>(null);
 
   useEffect(() => {
