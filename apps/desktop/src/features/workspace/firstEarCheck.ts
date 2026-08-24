@@ -1,5 +1,6 @@
 import {
   MAX_SECTION_TIME_SECONDS,
+  SECTION_FORM_LABELS,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -268,6 +269,15 @@ function ownedEarCheckHint(section: RehearsalSection, holdingRole: RehearsalRole
   return "";
 }
 
+/** Return whether the section label belongs to the shared canonical form vocabulary. */
+function hasCanonicalSectionLabel(section: RehearsalSection): boolean {
+  return (
+    hasOwnData(section, "label") &&
+    typeof section.label === "string" &&
+    SECTION_FORM_LABELS.some((label) => label === section.label)
+  );
+}
+
 /** Resolve an ear check after the runtime root has passed its structural boundary checks. */
 function resolveSafeFirstEarCheck(song: RehearsalSong): FirstEarCheck | null {
   if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
@@ -278,9 +288,7 @@ function resolveSafeFirstEarCheck(song: RehearsalSong): FirstEarCheck | null {
     .filter(
       (section) =>
         isRuntimeObject(section) &&
-        hasOwnData(section, "label") &&
-        typeof section.label === "string" &&
-        section.label.trim().length > 0 &&
+        hasCanonicalSectionLabel(section) &&
         hasOwnData(section, "id") &&
         typeof section.id === "string" &&
         section.id.trim().length > 0 &&
