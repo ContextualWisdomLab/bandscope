@@ -85,6 +85,17 @@ describe("resolveFirstTuningPlan inherited metadata", () => {
     expect(resolveFirstTuningPlan(song)).toBeNull();
   });
 
+  it("rejects section labels outside the shared form vocabulary", () => {
+    const { song, section } = songWithTuningPlan();
+    Object.defineProperty(section, "label", {
+      configurable: true,
+      enumerable: true,
+      value: "verse-legacy"
+    });
+
+    expect(resolveFirstTuningPlan(song)).toBeNull();
+  });
+
   it("rejects arrays masquerading as section records", () => {
     const { song, section } = songWithTuningPlan();
     const arraySection = Object.assign([], section) as unknown as typeof section;
