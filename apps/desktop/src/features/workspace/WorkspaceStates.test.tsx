@@ -45,13 +45,13 @@ describe("workspace first-run states", () => {
   });
 
   it("keeps loading and error copy action-oriented", () => {
-    render(<LoadingState />);
+    const { rerender } = render(<LoadingState />);
     expect(screen.getByRole("status")).toHaveTextContent(/analyzing audio/i);
 
-    render(<ErrorState error="Choose another file." />);
+    rerender(<ErrorState error="Choose another file." />);
     expect(screen.getByRole("alert")).toHaveTextContent(/choose another file/i);
 
-    render(<ErrorState />);
+    rerender(<ErrorState />);
     expect(screen.getByRole("alert")).toHaveTextContent(/an error occurred during analysis/i);
   });
 
