@@ -86,12 +86,18 @@ export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanati
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableHarmonicExplanationSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = useMemo(() => resolveFirstHarmonicExplanation(song), [song]);
-  const namedSectionIndex =
-    named && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(named.section)
-      : -1;
+  const namedSectionIndex = useMemo(() => {
+    if (!named) {
+      return -1;
+    }
+    try {
+      const runtimeSections = (song as unknown as Partial<RehearsalSong> | null)?.sections;
+      return Array.isArray(runtimeSections) ? runtimeSections.indexOf(named.section) : -1;
+    } catch {
+      return -1;
+    }
+  }, [named, song]);
   const [openedHarmonicExplanation, setOpenedHarmonicExplanation] =
     useState<OpenedHarmonicExplanation | null>(null);
 
