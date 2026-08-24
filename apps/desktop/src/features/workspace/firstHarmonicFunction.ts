@@ -121,26 +121,29 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   );
 }
 
-/** Return whether a section owns a bounded, positive-length integer rehearsal window. */
-function hasBoundedTimeRange(section: RehearsalSection): boolean {
-  if (!hasOwnData(section, "timeRange")) {
-    return false;
+/** Snapshot a section's bounded positive-length integer rehearsal window. */
+function ownedBoundedTimeRange(
+  section: RehearsalSection
+): RehearsalSection["timeRange"] | null {
+  const timeRange = ownDataValue(section, "timeRange");
+  if (!isRuntimeObject(timeRange)) {
+    return null;
   }
-  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
-  if (!isRuntimeObject(timeRange) || !hasOwnData(timeRange, "start") || !hasOwnData(timeRange, "end")) {
-    return false;
+  const start = ownDataValue(timeRange, "start");
+  const end = ownDataValue(timeRange, "end");
+  if (
+    typeof start !== "number" ||
+    !Number.isInteger(start) ||
+    start < 0 ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    typeof end !== "number" ||
+    !Number.isInteger(end) ||
+    end <= start ||
+    end > MAX_SECTION_TIME_SECONDS
+  ) {
+    return null;
   }
-
-  const start = timeRange.start ?? -1;
-  const end = timeRange.end ?? -1;
-  return (
-    Number.isInteger(start) &&
-    start >= 0 &&
-    start <= MAX_SECTION_TIME_SECONDS &&
-    Number.isInteger(end) &&
-    end > start &&
-    end <= MAX_SECTION_TIME_SECONDS
-  );
+  return { start, end };
 }
 
 /** Return safe identities that appear more than once in one section-local collection. */
@@ -235,8 +238,12 @@ function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFun
   }
 
   const candidates = song.sections
+    .map((section) => ({
+      section,
+      timeRange: isRuntimeObject(section) ? ownedBoundedTimeRange(section) : null
+    }))
     .filter(
-      (section) =>
+      ({ section, timeRange }) =>
         isRuntimeObject(section) &&
         hasOwnData(section, "label") &&
         typeof section.label === "string" &&
@@ -244,9 +251,12 @@ function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFun
         hasOwnData(section, "id") &&
         typeof section.id === "string" &&
         section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
+        timeRange !== null
     )
-    .flatMap((section) => {
+    .flatMap(({ section, timeRange }) => {
+      if (!timeRange) {
+        return [];
+      }
       const holdingRole = pickHoldingRole(
         rankedActiveRoles(section).filter((role) => ownedFunctionLabel(role) !== null)
       );
@@ -262,7 +272,7 @@ function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFun
           section,
           holdingRole,
           functionLabel,
-          atSeconds: section.timeRange.start
+          atSeconds: timeRange.start
         }
       ];
     })
