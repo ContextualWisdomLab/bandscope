@@ -464,7 +464,7 @@ describe("FirstEarCheckCallout", () => {
 
     render(<FirstEarCheckCallout song={song} />);
 
-    expect(screen.getByText("0:10 벌스에서 베이스 기타 파트를 귀로 확인하세요.")).toBeTruthy();
+    expect(screen.getByText("0:10 벌스에서 베이스 기타 파트는 아직 귀 확인이 필요합니다.")).toBeTruthy();
     expect(screen.queryByText(/verse에서/)).toBeNull();
   });
 
@@ -497,12 +497,12 @@ describe("FirstEarCheckCallout", () => {
     song.sections[0]!.roles[1]!.rehearsalPriority = "low";
     song.sections[0]!.roles[2]!.rehearsalPriority = "low";
     const { rerender } = render(<FirstEarCheckCallout song={song} />);
-    expect(screen.getByText("0:10 벌스에서 베이스 기타 파트를 귀로 확인하세요.")).toBeTruthy();
+    expect(screen.getByText("0:10 벌스에서 베이스 기타 파트는 아직 귀 확인이 필요합니다.")).toBeTruthy();
 
     vi.stubGlobal("navigator", { language: "en-US" });
     rerender(<FirstEarCheckCallout song={song} />);
 
-    expect(screen.getByText("0:10 벌스에서 베이스 기타 파트를 귀로 확인하세요.")).toBeTruthy();
+    expect(screen.getByText("0:10 벌스에서 베이스 기타 파트는 아직 귀 확인이 필요합니다.")).toBeTruthy();
     expect(screen.queryByText("베이스 기타 still needs an ear check in the verse at 0:10.")).toBeNull();
   });
 
