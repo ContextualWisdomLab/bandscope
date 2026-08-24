@@ -48,6 +48,14 @@ function hasOwnData(value: object, key: PropertyKey): boolean {
   return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
 }
 
+/** Snapshot one owned data-property value without invoking a getter or Proxy get trap. */
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor.value
+    : undefined;
+}
+
 /** Return whether every numeric index is an own data element in a bounded runtime array. */
 function isDenseRuntimeArray(value: unknown): value is unknown[] {
   if (!Array.isArray(value)) {
@@ -79,16 +87,16 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Return a bounded own harmonic function label, or null when it cannot be shown. */
+/** Return a bounded snapshotted own harmonic function label, or null when it cannot be shown. */
 function ownedFunctionLabel(role: unknown): string | null {
-  if (!isRuntimeObject(role) || !hasOwnData(role, "harmony")) {
+  if (!isRuntimeObject(role)) {
     return null;
   }
-  const harmony = (role as { harmony?: unknown }).harmony;
-  if (!isRuntimeObject(harmony) || !hasOwnData(harmony, "functionLabel")) {
+  const harmony = ownDataValue(role, "harmony");
+  if (!isRuntimeObject(harmony)) {
     return null;
   }
-  const functionLabel = (harmony as { functionLabel?: unknown }).functionLabel;
+  const functionLabel = ownDataValue(harmony, "functionLabel");
   if (typeof functionLabel !== "string") {
     return null;
   }
