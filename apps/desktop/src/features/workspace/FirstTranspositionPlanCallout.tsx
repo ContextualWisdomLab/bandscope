@@ -18,7 +18,6 @@ type TranspositionPlanCopyValues = Readonly<Record<"role" | "section" | "at", st
 type OpenedTranspositionPlan = Readonly<{
   songIdentity: unknown;
   sectionId: string;
-  sectionIndex: number;
   holdingRoleId: string;
   transpositionPlan: string;
   atSeconds: number;
@@ -93,7 +92,6 @@ export function FirstTranspositionPlanCallout({ song }: FirstTranspositionPlanCa
     setOpenedTranspositionPlan(null);
   }, [
     songIdentity,
-    namedSectionIndex,
     named?.section.id,
     named?.holdingRole.id,
     named?.transpositionPlan,
@@ -119,7 +117,6 @@ export function FirstTranspositionPlanCallout({ song }: FirstTranspositionPlanCa
     openedTranspositionPlan !== null &&
     openedTranspositionPlan.songIdentity === songIdentity &&
     openedTranspositionPlan.sectionId === named.section.id &&
-    openedTranspositionPlan.sectionIndex === namedSectionIndex &&
     openedTranspositionPlan.holdingRoleId === named.holdingRole.id &&
     openedTranspositionPlan.transpositionPlan === named.transpositionPlan &&
     openedTranspositionPlan.atSeconds === named.atSeconds;
@@ -165,7 +162,6 @@ export function FirstTranspositionPlanCallout({ song }: FirstTranspositionPlanCa
           setOpenedTranspositionPlan({
             songIdentity,
             sectionId: named.section.id,
-            sectionIndex: namedSectionIndex,
             holdingRoleId: named.holdingRole.id,
             transpositionPlan: named.transpositionPlan,
             atSeconds: named.atSeconds
