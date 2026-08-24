@@ -456,6 +456,28 @@ describe("App", () => {
     expect(await screen.findByText(/start analysis to open tonight's first cue/i)).toBeTruthy();
   });
 
+  it("does not issue duplicate local selection requests while intake is pending", async () => {
+    let resolveSelection: ((value: unknown) => void) | null = null;
+    tauriInvoke.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveSelection = resolve;
+      })
+    );
+
+    render(<App />);
+
+    const chooseOwnSong = screen.getByRole("button", { name: /use my own song/i });
+    fireEvent.click(chooseOwnSong);
+    fireEvent.click(chooseOwnSong);
+
+    expect(tauriInvoke).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveSelection?.(bootstrapResponse());
+      await Promise.resolve();
+    });
+    expect(await screen.findByText(/start analysis to open your first cue/i)).toBeTruthy();
+  });
+
   it("names using your own song when the licensed demo cannot load", async () => {
     tauriInvoke.mockRejectedValueOnce(
       new Error("The licensed demo song could not be loaded. Use your own song to start tonight.")
@@ -1172,6 +1194,7 @@ describe("App", () => {
         url: "https://youtube.com/watch?v=abc123DEF45"
       });
       expect(screen.getByText(/youtube\.wav/i)).toBeTruthy();
+      expect(screen.getByText(/start analysis to open your first cue/i)).toBeTruthy();
     });
   });
 

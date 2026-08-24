@@ -259,8 +259,9 @@ export function App() {
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
-  const [selectedSourceKind, setSelectedSourceKind] = useState<"demo" | "local" | null>(null);
+  const [selectedSourceKind, setSelectedSourceKind] = useState<"demo" | "local" | "youtube" | null>(null);
   const [isSelectingDemo, setIsSelectingDemo] = useState(false);
+  const [isSelectingLocal, setIsSelectingLocal] = useState(false);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
@@ -269,6 +270,7 @@ export function App() {
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
   const demoSelectionInFlightRef = useRef(false);
+  const localSelectionInFlightRef = useRef(false);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
@@ -419,24 +421,37 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
-    if (analysisInFlight || isStarting || isImporting || isSelectingDemo) {
+    if (
+      analysisInFlight ||
+      isStarting ||
+      isImporting ||
+      isSelectingDemo ||
+      localSelectionInFlightRef.current
+    ) {
       return;
     }
 
+    localSelectionInFlightRef.current = true;
+    setIsSelectingLocal(true);
     setSelectionError(null);
     setSelectionErrorSource(null);
-    const selection = await selectLocalAudioSource();
-    if (selection.ok) {
-      setSelectedBootstrap(selection.bootstrap);
-      setSelectedSourceKind("local");
-      return;
-    }
+    try {
+      const selection = await selectLocalAudioSource();
+      if (selection.ok) {
+        setSelectedBootstrap(selection.bootstrap);
+        setSelectedSourceKind("local");
+        return;
+      }
 
-    setSelectedBootstrap(null);
-    setSelectedSourceKind(null);
-    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
-    setSelectionErrorSource("local");
-    setJobStatus(null);
+      setSelectedBootstrap(null);
+      setSelectedSourceKind(null);
+      setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
+      setSelectionErrorSource("local");
+      setJobStatus(null);
+    } finally {
+      localSelectionInFlightRef.current = false;
+      setIsSelectingLocal(false);
+    }
   };
 
   /** Validate the bundled licensed demo through the same local-audio bootstrap. */
@@ -490,6 +505,7 @@ export function App() {
       const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
         setSelectedBootstrap(selection.bootstrap);
+        setSelectedSourceKind("youtube");
         setYoutubeUrl("");
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
@@ -557,7 +573,7 @@ export function App() {
       <EmptyState
         selectedLabel={selectedBootstrap?.source.fileName ?? null}
         selectedKind={selectedSourceKind}
-        disabled={isImporting || isSelectingDemo}
+        disabled={isImporting || isSelectingDemo || isSelectingLocal}
         onTryDemo={handleTryDemo}
         onUseOwnSong={handleChooseLocalAudio}
       />
