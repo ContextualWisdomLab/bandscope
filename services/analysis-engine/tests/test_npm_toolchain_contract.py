@@ -232,6 +232,7 @@ def test_npm_consuming_workflows_activate_pinned_runtime_before_dependency_reads
             if not consumes_npm:
                 continue
             npm_consumers += 1
+            _assert_checkout_credentials_not_persisted(steps)
 
             setup_node_steps = [
                 step
