@@ -82,16 +82,15 @@ export function FirstFillPlanCallout({ song }: FirstFillPlanCalloutProps) {
   const t = createTranslator(locale);
   const songIdentity = stableFillPlanSongIdentity(song);
   const named = useMemo(() => resolveFirstFillPlan(song), [song]);
-  const namedSectionIndex = named?.sectionIndex ?? -1;
   const [openedFillPlan, setOpenedFillPlan] = useState<OpenedFillPlan | null>(null);
 
   useEffect(() => {
     setOpenedFillPlan(null);
   }, [
     songIdentity,
-    namedSectionIndex,
-    named?.section.id,
-    named?.holdingRole.id,
+    named?.sectionIndex,
+    named?.sectionId,
+    named?.holdingRoleId,
     named?.fillPlan,
     named?.atSeconds
   ]);
@@ -114,15 +113,15 @@ export function FirstFillPlanCallout({ song }: FirstFillPlanCalloutProps) {
   const opened =
     openedFillPlan !== null &&
     openedFillPlan.songIdentity === songIdentity &&
-    openedFillPlan.sectionId === named.section.id &&
-    openedFillPlan.sectionIndex === namedSectionIndex &&
-    openedFillPlan.holdingRoleId === named.holdingRole.id &&
+    openedFillPlan.sectionId === named.sectionId &&
+    openedFillPlan.sectionIndex === named.sectionIndex &&
+    openedFillPlan.holdingRoleId === named.holdingRoleId &&
     openedFillPlan.fillPlan === named.fillPlan &&
     openedFillPlan.atSeconds === named.atSeconds;
   const at = formatFillPlanTime(named.atSeconds);
   const copyValues: FillPlanCopyValues = {
-    role: named.holdingRole.name,
-    section: translateSectionFormLabel(locale, named.section.label),
+    role: named.holdingRoleName,
+    section: translateSectionFormLabel(locale, named.sectionLabel),
     at
   };
   const actionLabel = formatFillPlanCopy(t("firstFillPlanOpenAction"), copyValues);
@@ -146,9 +145,9 @@ export function FirstFillPlanCallout({ song }: FirstFillPlanCalloutProps) {
         onClick={(event) => {
           const renderer = resolveFillPlanRenderer(event.currentTarget);
           const target =
-            namedSectionIndex >= 0
+            named.sectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(
-                  `[data-section-index="${namedSectionIndex}"]`
+                  `[data-section-index="${named.sectionIndex}"]`
                 ) ?? null)
               : null;
           if (typeof target?.scrollIntoView !== "function") {
@@ -160,9 +159,9 @@ export function FirstFillPlanCallout({ song }: FirstFillPlanCalloutProps) {
           });
           setOpenedFillPlan({
             songIdentity,
-            sectionId: named.section.id,
-            sectionIndex: namedSectionIndex,
-            holdingRoleId: named.holdingRole.id,
+            sectionId: named.sectionId,
+            sectionIndex: named.sectionIndex,
+            holdingRoleId: named.holdingRoleId,
             fillPlan: named.fillPlan,
             atSeconds: named.atSeconds
           });
