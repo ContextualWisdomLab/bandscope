@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -183,6 +183,7 @@ export function FirstEarCheckCallout({ song }: FirstEarCheckCalloutProps) {
   // Match the surrounding workspace pattern: locale detection and translation are mount-scoped.
   const [locale] = useState(() => detectPreferredLocale());
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const landmarkId = useId();
   const resolution = useMemo(() => {
     const songIdentity = stableEarCheckSongIdentity(song);
     const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
@@ -209,7 +210,7 @@ export function FirstEarCheckCallout({ song }: FirstEarCheckCalloutProps) {
   if (!earCheck) {
     return (
       <aside
-        id="workspace-surface-ear-check"
+        id={`workspace-surface-ear-check-${landmarkId}`}
         className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4"
         aria-label={t("firstEarCheckUnavailable")}
       >
@@ -242,7 +243,7 @@ export function FirstEarCheckCallout({ song }: FirstEarCheckCalloutProps) {
 
   return (
     <aside
-      id="workspace-surface-ear-check"
+      id={`workspace-surface-ear-check-${landmarkId}`}
       className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4"
       aria-label={t("firstEarCheckLabel")}
     >
