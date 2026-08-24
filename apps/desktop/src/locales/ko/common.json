@@ -152,7 +152,7 @@
   "firstEarCheckLabel": "오늘 첫 귀 확인",
   "firstEarCheckOpenAction": "{at} {role} 귀 확인 위치 열기",
   "firstEarCheckOpenActionBand": "{at} 첫 귀 확인 위치 열기",
-  "firstEarCheckBody": "{at} {section}에서 {role} 파트를 귀로 확인하세요.",
+  "firstEarCheckBody": "{at} {section}에서 {role} 파트는 아직 귀 확인이 필요합니다.",
   "firstEarCheckBodyBand": "{at} {section}에서 아직 귀 확인이 필요합니다.",
   "firstEarCheckArmed": "{at}에서 {role} 파트를 귀로 확인한 다음 합주를 시작하세요.",
   "firstEarCheckArmedBand": "{at} {section}에서 귀로 확인한 다음 합주를 시작하세요.",
