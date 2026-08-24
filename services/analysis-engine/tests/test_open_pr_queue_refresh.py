@@ -125,8 +125,7 @@ def test_refresh_manifest_updates_exact_heads_and_adds_untriaged_live_prs() -> N
     assert refreshed["pull_requests"][0]["head_sha"] == "b" * 40
     assert refreshed["pull_requests"][0]["head_sha_status"] == "exact_current_head"
     assert (
-        refreshed["pull_requests"][0]["initial_disposition"]
-        == "canonical_dependency_security_base"
+        refreshed["pull_requests"][0]["initial_disposition"] == "canonical_dependency_security_base"
     )
     assert refreshed["pull_requests"][1]["number"] == 1002
     assert refreshed["pull_requests"][1]["initial_train"] == "T8"
