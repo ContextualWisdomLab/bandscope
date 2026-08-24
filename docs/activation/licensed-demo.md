@@ -28,7 +28,7 @@ Canonical files live in `apps/desktop/src-tauri/resources/demo/`:
 
 `Late Night Set` is original Contextual Wisdom Lab audio. It is not a commercial recording. Private or copyrighted benchmark assets stay out of this public package.
 
-Regenerate the WAV with `scripts/generate_licensed_demo_wav.py` and refresh `provenance.json` hashes before changing the audio.
+After changing the source audio, regenerate the WAV with `scripts/generate_licensed_demo_wav.py`, then refresh `provenance.json` with the final file's byte size and SHA-256 before packaging or committing it.
 
 ## Production boundary
 
