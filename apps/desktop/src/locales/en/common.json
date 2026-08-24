@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstFillPlanLabel": "Tonight's first fill plan",
+  "firstFillPlanOpenAction": "Open {role} fill at {at}",
+  "firstFillPlanBody": "{role} still has a fill plan in the {section} at {at}.",
+  "firstFillPlanArmed": "Lock that fill on {role} at {at} before the room starts.",
+  "firstFillPlanUnavailable": "No fill plan is available. Stay on tonight's map for the next rehearsal cue."
 }
