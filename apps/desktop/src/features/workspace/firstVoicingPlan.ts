@@ -81,12 +81,16 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Return a bounded own voicing plan, or null when it cannot be shown. */
+/** Return a bounded snapshotted own voicing plan, or null when it cannot be shown. */
 function ownedVoicingPlan(role: unknown): string | null {
-  if (!isRuntimeObject(role) || !hasOwnData(role, "voicingPlan")) {
+  if (!isRuntimeObject(role)) {
     return null;
   }
-  const voicingPlan = (role as { voicingPlan?: unknown }).voicingPlan;
+  const descriptor = Object.getOwnPropertyDescriptor(role, "voicingPlan");
+  if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+    return null;
+  }
+  const voicingPlan = descriptor.value;
   if (typeof voicingPlan !== "string") {
     return null;
   }
