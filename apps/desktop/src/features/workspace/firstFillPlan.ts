@@ -81,12 +81,16 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Return a bounded own fill plan, or null when it cannot be shown. */
+/** Return a bounded snapshotted own fill plan, or null when it cannot be shown. */
 function ownedFillPlan(role: unknown): string | null {
-  if (!isRuntimeObject(role) || !hasOwnData(role, "fillPlan")) {
+  if (!isRuntimeObject(role)) {
     return null;
   }
-  const fillPlan = (role as { fillPlan?: unknown }).fillPlan;
+  const descriptor = Object.getOwnPropertyDescriptor(role, "fillPlan");
+  if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+    return null;
+  }
+  const fillPlan = descriptor.value;
   if (typeof fillPlan !== "string") {
     return null;
   }
