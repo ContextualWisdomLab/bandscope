@@ -42,7 +42,7 @@ describe("FirstEarCheckCallout Korean role copy", () => {
 
     render(<FirstEarCheckCallout song={song} />);
 
-    expect(screen.getByText("0:10 벌스에서 피아노 파트를 귀로 확인하세요.")).toBeTruthy();
+    expect(screen.getByText("0:10 벌스에서 피아노 파트는 아직 귀 확인이 필요합니다.")).toBeTruthy();
     expect(screen.queryByText(/피아노이/)).toBeNull();
     expect(screen.queryByText(/피아노가/)).toBeNull();
 
