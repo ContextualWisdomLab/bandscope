@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,7 +82,7 @@ export function FirstFillPlanCallout({ song }: FirstFillPlanCalloutProps) {
   const t = createTranslator(locale);
   const songIdentity = stableFillPlanSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const named = resolveFirstFillPlan(song);
+  const named = useMemo(() => resolveFirstFillPlan(song), [song]);
   const namedSectionIndex =
     named && Array.isArray(runtimeSong?.sections)
       ? runtimeSong.sections.indexOf(named.section)
