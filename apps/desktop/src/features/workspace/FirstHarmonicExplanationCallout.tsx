@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,6 +82,7 @@ function resolveHarmonicExplanationRenderer(origin: HTMLElement): HTMLElement | 
 
 /** Name tonight's first harmonic explanation and open the matching rendered map section. */
 export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanationCalloutProps) {
+  const calloutId = useId();
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableHarmonicExplanationSongIdentity(song);
@@ -107,7 +108,7 @@ export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanati
   if (!named) {
     return (
       <aside
-        id="workspace-surface-harmonic-explanation"
+        id={`workspace-surface-harmonic-explanation-${calloutId}`}
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
         aria-label={t("firstHarmonicExplanationLabel")}
       >
@@ -138,7 +139,7 @@ export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanati
 
   return (
     <aside
-      id="workspace-surface-harmonic-explanation"
+      id={`workspace-surface-harmonic-explanation-${calloutId}`}
       className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
       aria-label={t("firstHarmonicExplanationLabel")}
     >
