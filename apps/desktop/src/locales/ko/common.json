@@ -153,7 +153,7 @@
   "firstLyricCueAction": "{start} {section}에서 “{lyric}”으로 들어오는 {role} 듣기",
   "firstLyricCueOpenAction": "{start} {section}의 {role} 가사 큐 “{lyric}” 위치 열기",
   "firstLyricCueBody": "{start} {section}에서 {role} 파트가 “{lyric}”으로 들어옵니다.",
-  "firstLyricCueArmed": "{section}의 {role}을 “{lyric}” ({start})에서 시작하세요.",
+  "firstLyricCueArmed": "{section}의 {role} 파트를 “{lyric}” ({start})에서 시작하세요.",
   "firstLyricCueUnavailable": "가사 큐가 아직 없습니다. 가사가 있는 파트가 생길 때까지 오늘 지도에 머무르세요.",
   "firstLyricCueNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 가사 큐를 들으세요."
 }

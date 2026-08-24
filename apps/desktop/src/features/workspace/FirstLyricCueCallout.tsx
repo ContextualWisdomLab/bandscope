@@ -87,6 +87,16 @@ export function FirstLyricCueCallout({
   const body = formatLyricCueCopy(t("firstLyricCueBody"), copyValues);
   const armed = formatLyricCueCopy(t("firstLyricCueArmed"), copyValues);
   const canExecuteAction = actionMode === "workspace-scroll" || onHearLyricCue !== undefined;
+  /** Arm the confirmation only after the chosen surface actually accepts the action. */
+  const rememberHeardCue = () =>
+    setHeardCue({
+      songId: song.id,
+      sectionId: cue.section.id,
+      sectionIndex: cueSectionIndex,
+      roleId: cue.role.id,
+      startSeconds: cue.startSeconds,
+      lyric: cue.lyric
+    });
 
   return (
     <aside
@@ -101,24 +111,21 @@ export function FirstLyricCueCallout({
           type="button"
           className="mt-3 min-h-11 bg-gradient-to-r from-violet-400 to-cyan-400 font-black text-slate-950"
           onClick={() => {
-            setHeardCue({
-              songId: song.id,
-              sectionId: cue.section.id,
-              sectionIndex: cueSectionIndex,
-              roleId: cue.role.id,
-              startSeconds: cue.startSeconds,
-              lyric: cue.lyric
-            });
             if (onHearLyricCue) {
               onHearLyricCue(cue.startSeconds);
+              rememberHeardCue();
               return;
             }
             const grid = document.querySelector('[data-testid="song-structure-grid"]');
-            const target = cueSectionIndex >= 0 ? grid?.children.item(cueSectionIndex) : null;
-            target?.scrollIntoView?.({
+            const target = grid?.children.item(cueSectionIndex);
+            if (!target) {
+              return;
+            }
+            target.scrollIntoView?.({
               block: "nearest",
               behavior: preferredLyricCueScrollBehavior()
             });
+            rememberHeardCue();
           }}
         >
           {actionLabel}
