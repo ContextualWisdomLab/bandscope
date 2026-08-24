@@ -1,5 +1,6 @@
 import {
   MAX_SECTION_TIME_SECONDS,
+  SECTION_FORM_LABELS,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -46,6 +47,15 @@ function isRuntimeObject(value: unknown): value is object {
 function hasOwnData(value: object, key: PropertyKey): boolean {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
   return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
+}
+
+/** Return whether a runtime section owns a label from the shared canonical form vocabulary. */
+function hasKnownSectionLabel(section: RehearsalSection): boolean {
+  return (
+    hasOwnData(section, "label") &&
+    typeof section.label === "string" &&
+    (SECTION_FORM_LABELS as readonly string[]).includes(section.label)
+  );
 }
 
 /** Return whether every numeric index is an own data element in a bounded runtime array. */
@@ -226,9 +236,7 @@ function resolveSafeFirstHarmonicExplanation(song: RehearsalSong): FirstHarmonic
     .filter(
       (section) =>
         isRuntimeObject(section) &&
-        hasOwnData(section, "label") &&
-        typeof section.label === "string" &&
-        section.label.trim().length > 0 &&
+        hasKnownSectionLabel(section) &&
         hasOwnData(section, "id") &&
         typeof section.id === "string" &&
         section.id.trim().length > 0 &&
