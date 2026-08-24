@@ -26,6 +26,13 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
       </>
     );
 
+    const callouts = screen.getAllByRole("complementary", {
+      name: "Tonight's first transposition plan"
+    });
+    expect(callouts).toHaveLength(2);
+    expect(callouts.every((callout) => callout.id.length > 0)).toBe(true);
+    expect(new Set(callouts.map((callout) => callout.id)).size).toBe(callouts.length);
+
     const targets = container.querySelectorAll<HTMLElement>('[data-section-index="0"]');
     expect(targets).toHaveLength(2);
     const firstScrollIntoView = vi.fn();
