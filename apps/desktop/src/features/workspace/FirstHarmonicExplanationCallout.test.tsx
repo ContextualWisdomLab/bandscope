@@ -112,6 +112,40 @@ describe("FirstHarmonicExplanationCallout", () => {
     grid.remove();
   });
 
+  it("preserves armed guidance when the same explained section moves to a new renderer index", () => {
+    const song = songWithHarmonicExplanation();
+    const namedSection = song.sections[0]!;
+    const precedingSection = {
+      ...namedSection,
+      id: "count-in-section",
+      label: "intro" as const,
+      timeRange: { start: 0, end: 5 },
+      roles: namedSection.roles.map((role) => ({ ...role, harmonicExplanation: undefined }))
+    };
+    const { grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstHarmonicExplanationCallout song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar explanation at 0:10" }));
+    expect(
+      screen.getByText(/Play from that explanation on Bass Guitar at 0:10 before the room starts./)
+    ).toBeTruthy();
+
+    rerender(
+      <FirstHarmonicExplanationCallout
+        song={{ ...song, sections: [precedingSection, namedSection] }}
+      />
+    );
+
+    expect(
+      screen.getByText(/Play from that explanation on Bass Guitar at 0:10 before the room starts./)
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("Bass Guitar still has a harmonic explanation in the verse at 0:10.")
+    ).toBeNull();
+
+    grid.remove();
+  });
+
   it("does not show another part's explanation under the named holding part", () => {
     const song = songWithHarmonicExplanation();
     song.sections[0]!.roles[0]!.harmonicExplanation = "";
