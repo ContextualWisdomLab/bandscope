@@ -100,7 +100,7 @@ describe("resolveFirstEarCheck inherited metadata", () => {
     const resolved = resolveFirstEarCheck(song);
     expect(resolved?.section.id).toBe("ear-check-own");
     expect(resolved?.holdingRole).toBeNull();
-    expect(resolved?.hint).toBe("Watch the slide into the turnaround.");
+    expect(resolved?.hint).toBe("");
   });
 
   it("rejects arrays masquerading as section records", () => {
