@@ -81,12 +81,16 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Return a bounded own dynamics plan, or null when it cannot be shown. */
+/** Return a bounded snapshotted own dynamics plan, or null when it cannot be shown. */
 function ownedDynamicsPlan(role: unknown): string | null {
-  if (!isRuntimeObject(role) || !hasOwnData(role, "dynamicsPlan")) {
+  if (!isRuntimeObject(role)) {
     return null;
   }
-  const dynamicsPlan = (role as { dynamicsPlan?: unknown }).dynamicsPlan;
+  const descriptor = Object.getOwnPropertyDescriptor(role, "dynamicsPlan");
+  if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+    return null;
+  }
+  const dynamicsPlan = descriptor.value;
   if (typeof dynamicsPlan !== "string") {
     return null;
   }
