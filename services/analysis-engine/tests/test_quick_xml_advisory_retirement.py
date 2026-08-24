@@ -16,8 +16,7 @@ def _version_tuple(value: str) -> tuple[int, int, int]:
     return int(major), int(minor), int(patch)
 
 
-def test_quick_xml_advisories_are_retired_from_desktop_lock_and_scanners(
-) -> None:
+def test_quick_xml_advisories_are_retired_from_desktop_lock_and_scanners() -> None:
     """Patched owner chains must replace the temporary quick-xml exceptions."""
     repository_root = Path(__file__).resolve().parents[3]
     tauri_root = repository_root / "apps" / "desktop" / "src-tauri"
@@ -25,9 +24,7 @@ def test_quick_xml_advisories_are_retired_from_desktop_lock_and_scanners(
 
     packages = lock["package"]
     quick_xml_versions = [
-        _version_tuple(package["version"])
-        for package in packages
-        if package["name"] == "quick-xml"
+        _version_tuple(package["version"]) for package in packages if package["name"] == "quick-xml"
     ]
     wayland_scanner_versions = [
         _version_tuple(package["version"])

@@ -65,11 +65,3 @@ reason = "Inherited through the current Tauri GTK3 owner chain and already track
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0429"
 reason = "glib 0.18.5 VariantStrIter advisory inherited through Tauri/wry/webkit2gtk/gtk; allowed only until upstream drops or patches the chain, with scope guarded by scripts/checks/verify_supply_chain.py."
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0194"
-reason = "quick-xml 0.39.4 duplicate-attribute advisory is inherited through Tauri/plist runtime metadata handling and rfd/wayland-scanner build-time bindings; BandScope's user audio, YouTube, project, export, and rehearsal data paths do not parse attacker-supplied XML through these owners. Current compatible upstream crates do not yet allow quick-xml >=0.41.0; scripts/checks/verify_supply_chain.py keeps this owner-chain exception narrow until GitHub issue #542 tracks the upstream refresh and removal."
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0195"
-reason = "quick-xml 0.39.4 namespace-allocation advisory is inherited through the same Tauri/plist runtime metadata handling and rfd/wayland-scanner build-time owner chain as RUSTSEC-2026-0194; GitHub issue #542 tracks removal once compatible upstream crates move to quick-xml >=0.41.0."
