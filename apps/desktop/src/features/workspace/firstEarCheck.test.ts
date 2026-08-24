@@ -180,7 +180,7 @@ describe("resolveFirstEarCheck", () => {
     const resolved = resolveFirstEarCheck(song);
     expect(resolved?.section.id).toBe("verse-ear-check");
     expect(resolved?.holdingRole).toBeNull();
-    expect(resolved?.hint).toBe("Watch the slide into the turnaround.");
+    expect(resolved?.hint).toBe("Section-level notes should not invent a clash.");
   });
 
   it("skips an ear check whose rehearsal window is unbounded", () => {
