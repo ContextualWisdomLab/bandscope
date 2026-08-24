@@ -151,7 +151,7 @@ def test_read_bounded_job_file_binary_mode(
 
     def mock_open(path: str, flags: int, *args: object, **kwargs: object) -> int:
         open_calls.append((path, flags))
-        return original_open(path, flags, *args, **kwargs)
+        return original_open(path, flags, *args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(os, "open", mock_open)
 
