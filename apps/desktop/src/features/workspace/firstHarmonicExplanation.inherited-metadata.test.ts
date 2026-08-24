@@ -37,6 +37,20 @@ describe("resolveFirstHarmonicExplanation inherited metadata", () => {
     expect(resolveFirstHarmonicExplanation(song)).toBeNull();
   });
 
+  it("rejects a non-object owned rehearsal window", () => {
+    const { song, section } = songWithHarmonicExplanation();
+    (section as unknown as { timeRange: unknown }).timeRange = null;
+
+    expect(resolveFirstHarmonicExplanation(song)).toBeNull();
+  });
+
+  it("rejects a non-array owned role collection", () => {
+    const { song, section } = songWithHarmonicExplanation();
+    (section as unknown as { roles: unknown }).roles = {};
+
+    expect(resolveFirstHarmonicExplanation(song)).toBeNull();
+  });
+
   it("contains exceptions from own runtime accessors instead of trusting them", () => {
     const { song, section } = songWithHarmonicExplanation();
     Object.defineProperty(section.roles[0]!, "harmonicExplanation", {
@@ -83,6 +97,40 @@ describe("resolveFirstHarmonicExplanation inherited metadata", () => {
     const node = section.partGraph[0]!;
     section.partGraph = [Object.create(node) as typeof node];
     expect(resolveFirstHarmonicExplanation(song)).toBeNull();
+  });
+
+  it("fails closed when an explanation descriptor changes after role qualification", () => {
+    const { song, section } = songWithHarmonicExplanation();
+    const role = section.roles[0]!;
+    let explanationDescriptorReads = 0;
+    const unstableRole = new Proxy(role, {
+      getOwnPropertyDescriptor(target, property) {
+        const descriptor = Reflect.getOwnPropertyDescriptor(target, property);
+        if (property !== "harmonicExplanation" || descriptor === undefined) {
+          return descriptor;
+        }
+        explanationDescriptorReads += 1;
+        return explanationDescriptorReads === 1 ? descriptor : { ...descriptor, value: "" };
+      }
+    });
+    section.roles = [unstableRole];
+
+    expect(resolveFirstHarmonicExplanation(song)).toBeNull();
+  });
+
+  it("contains a descriptor trap at the outer resolver boundary", () => {
+    const { song } = songWithHarmonicExplanation();
+    const hostileSong = new Proxy(song, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === "sections") {
+          throw new Error("hostile sections descriptor trap");
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      }
+    });
+
+    expect(() => resolveFirstHarmonicExplanation(hostileSong)).not.toThrow();
+    expect(resolveFirstHarmonicExplanation(hostileSong)).toBeNull();
   });
 
   it("rejects arrays masquerading as section records", () => {
