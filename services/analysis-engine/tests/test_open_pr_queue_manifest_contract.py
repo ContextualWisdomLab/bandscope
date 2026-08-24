@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -21,7 +22,7 @@ def _load_verifier() -> ModuleType:
     return module
 
 
-def _manifest() -> dict[str, object]:
+def _manifest() -> dict[str, Any]:
     """Return the smallest valid queue manifest used by authority regressions."""
     return {
         "schema_version": "1.0.0",
