@@ -431,7 +431,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /try the demo/i }));
 
     await waitFor(() => {
-      expect(tauriInvoke).toHaveBeenCalledWith("select_demo_audio_source");
+      expect(tauriInvoke).toHaveBeenCalledWith("select_demo_audio_source", undefined);
       expect(screen.getByText(/start analysis to open tonight's first cue/i)).toBeTruthy();
     });
   });
