@@ -76,7 +76,7 @@ describe("licensed demo provenance", () => {
     expect(() => parseDemoProvenanceManifest(withoutAudio)).toThrow(/assets/);
   });
 
-  it("rejects traversal paths, non-hex hashes, and malformed assets", () => {
+  it("rejects traversal paths, dot segments, non-hex hashes, and malformed assets", () => {
     const manifest = bundledManifest();
     const [audio, license, annotations] = manifest.assets;
     expect(() =>
@@ -85,6 +85,14 @@ describe("licensed demo provenance", () => {
         assets: [{ ...audio, path: "../secret.wav" }, license, annotations]
       })
     ).toThrow(/assets\[0\]\.path/);
+    for (const dotSegment of [".", ".."]) {
+      expect(() =>
+        parseDemoProvenanceManifest({
+          ...manifest,
+          assets: [{ ...audio, path: dotSegment }, license, annotations]
+        })
+      ).toThrow(/assets\[0\]\.path/);
+    }
     expect(() =>
       parseDemoProvenanceManifest({
         ...manifest,
