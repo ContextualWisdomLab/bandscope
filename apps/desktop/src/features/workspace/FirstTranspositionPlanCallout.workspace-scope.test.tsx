@@ -58,4 +58,50 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
       behavior: "smooth"
     });
   });
+
+  it("preserves the opened action when the same named section moves to a new renderer index", () => {
+    const song = createDemoRehearsalSong();
+    const namedSection = song.sections[0]!;
+    const { container, rerender } = render(
+      <div>
+        <FirstTranspositionPlanCallout song={song} />
+        <div data-testid="song-structure-grid">
+          <div data-section-index="0" />
+        </div>
+      </div>
+    );
+    const firstTarget = container.querySelector<HTMLElement>('[data-section-index="0"]')!;
+    Object.defineProperty(firstTarget, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn()
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar transpose at 0:10" }));
+    expect(
+      screen.getByText(/Lock that transpose on Bass Guitar at 0:10 before the room starts./)
+    ).toBeTruthy();
+
+    const precedingSection = {
+      ...namedSection,
+      id: "count-in-section",
+      label: "intro" as const,
+      timeRange: { start: 0, end: 5 },
+      roles: namedSection.roles.map((role) => ({ ...role, transpositionPlan: "" }))
+    };
+    rerender(
+      <div>
+        <FirstTranspositionPlanCallout
+          song={{ ...song, sections: [precedingSection, namedSection] }}
+        />
+        <div data-testid="song-structure-grid">
+          <div data-section-index="0" />
+          <div data-section-index="1" />
+        </div>
+      </div>
+    );
+
+    expect(
+      screen.getByText(/Lock that transpose on Bass Guitar at 0:10 before the room starts./)
+    ).toBeTruthy();
+  });
 });
