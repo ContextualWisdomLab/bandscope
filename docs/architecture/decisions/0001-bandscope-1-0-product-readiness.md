@@ -57,7 +57,7 @@ Existing canonical accuracy, resource, handoff, supply-chain, and platform issue
 
 ### 3. Process work as dependency-aware merge trains
 
-Each open PR must belong to exactly one initial train:
+Each reviewed open PR must belong to exactly one initial train:
 
 - `T0` dependency, toolchain, workflow, and quality base;
 - `T1` local input, filesystem authority, resource admission, and cancellation;
@@ -67,6 +67,8 @@ Each open PR must belong to exactly one initial train:
 - `T5` activation, UI system, Storybook, and accessibility;
 - `T6` diagnostics, redaction, security evidence, and supportability;
 - `T7` signed commercial release and updater.
+
+A live refresh may place newly discovered PRs in `T8`, a **triage-only temporary train** owned by issue #966. `T8` is inventory evidence, not an actionable merge train: every `T8` PR must be reviewed and reclassified to exactly one of `T0`–`T7` before any source/ref mutation, merge-readiness decision, auto-merge, or merge action is taken for that PR.
 
 The initial routing is an investigation aid. Issue #966 must refresh the live exact head, checks, reviews, unresolved threads, dependencies, and succession before any action.
 
