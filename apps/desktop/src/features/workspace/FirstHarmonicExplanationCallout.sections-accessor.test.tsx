@@ -26,4 +26,23 @@ describe("FirstHarmonicExplanationCallout sections access", () => {
       screen.getByRole("button", { name: "Open Bass Guitar explanation at 0:10" })
     ).toBeTruthy();
   });
+
+  it("contains a hostile song-id descriptor trap without losing the resolved explanation", () => {
+    const song = createDemoRehearsalSong();
+    const hostileSong = new Proxy(song, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === "id") {
+          throw new Error("hostile song id descriptor trap");
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      }
+    });
+
+    expect(() =>
+      render(<FirstHarmonicExplanationCallout song={hostileSong as RehearsalSong} />)
+    ).not.toThrow();
+    expect(
+      screen.getByRole("button", { name: "Open Bass Guitar explanation at 0:10" })
+    ).toBeTruthy();
+  });
 });
