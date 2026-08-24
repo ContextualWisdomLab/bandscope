@@ -118,7 +118,7 @@ describe("i18n", () => {
     it("keeps Korean first-ear-check next-action copy particle-safe", () => {
       const t = createTranslator("ko");
       expect(t("firstEarCheckOpenAction")).toBe("{at} {role} 귀 확인 위치 열기");
-      expect(t("firstEarCheckBody")).toBe("{at} {section}에서 {role} 파트를 귀로 확인하세요.");
+      expect(t("firstEarCheckBody")).toBe("{at} {section}에서 {role} 파트는 아직 귀 확인이 필요합니다.");
       expect(t("firstEarCheckArmed")).toBe("{at}에서 {role} 파트를 귀로 확인한 다음 합주를 시작하세요.");
     });
   });
