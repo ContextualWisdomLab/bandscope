@@ -169,7 +169,9 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
               {t("scoreListTitle")}
             </h3>
             {attachments.length === 0 ? (
-              <p className="text-sm text-slate-400">{t("scoreListEmpty")}</p>
+              <p className="text-sm text-slate-300" role="status">
+                {t("scoreListEmpty")}
+              </p>
             ) : (
               <ul className="flex flex-col gap-2">
                 {attachments.map((attachment) => (

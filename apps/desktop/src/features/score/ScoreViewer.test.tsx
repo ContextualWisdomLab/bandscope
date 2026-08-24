@@ -11,7 +11,8 @@ vi.mock("./pdfjs", () => ({
 vi.mock("../../i18n", () => ({
   createTranslator: () => (key: string) =>
     ({
-      scoreViewerEmpty: "No score PDF attached. Attach a validated score PDF to view it here.",
+      scoreViewerEmpty: "No score is open. Add a score above, then open it to read during rehearsal.",
+      scoreViewerEmptyTitle: "No score is open",
       scoreViewerLoading: "Loading score PDF...",
       scoreViewerFailedTitle: "Could not display the score",
       scoreViewerRetry: "Retry",
@@ -90,8 +91,9 @@ describe("ScoreViewer", () => {
     const onStatusChange = vi.fn();
     render(<ScoreViewer data={null} onStatusChange={onStatusChange} />);
 
+    expect(screen.getByRole("heading", { name: "No score is open" })).toBeInTheDocument();
     expect(
-      screen.getByText("No score PDF attached. Attach a validated score PDF to view it here.")
+      screen.getByText("No score is open. Add a score above, then open it to read during rehearsal.")
     ).toBeInTheDocument();
     expect(loadScorePdf).not.toHaveBeenCalled();
     expect(onStatusChange).not.toHaveBeenCalled();
