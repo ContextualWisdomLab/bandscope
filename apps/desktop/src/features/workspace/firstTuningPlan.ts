@@ -79,12 +79,16 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Return a bounded own tuning plan, or null when it cannot be shown. */
+/** Return a bounded snapshotted own tuning plan, or null when it cannot be shown. */
 function ownedTuningPlan(role: unknown): string | null {
-  if (!isRuntimeObject(role) || !hasOwnData(role, "tuningPlan")) {
+  if (!isRuntimeObject(role)) {
     return null;
   }
-  const tuningPlan = (role as { tuningPlan?: unknown }).tuningPlan;
+  const descriptor = Object.getOwnPropertyDescriptor(role, "tuningPlan");
+  if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+    return null;
+  }
+  const tuningPlan = descriptor.value;
   if (typeof tuningPlan !== "string") {
     return null;
   }
