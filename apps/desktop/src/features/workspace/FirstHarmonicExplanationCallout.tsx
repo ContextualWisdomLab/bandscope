@@ -21,7 +21,6 @@ type HarmonicExplanationCopyValues = Readonly<Record<"role" | "section" | "at", 
 type OpenedHarmonicExplanation = Readonly<{
   songIdentity: unknown;
   sectionId: string;
-  sectionIndex: number;
   holdingRoleId: string;
   explanation: string;
   atSeconds: number;
@@ -99,7 +98,6 @@ export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanati
     setOpenedHarmonicExplanation(null);
   }, [
     songIdentity,
-    namedSectionIndex,
     named?.section.id,
     named?.holdingRole.id,
     named?.explanation,
@@ -125,7 +123,6 @@ export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanati
     openedHarmonicExplanation !== null &&
     openedHarmonicExplanation.songIdentity === songIdentity &&
     openedHarmonicExplanation.sectionId === named.section.id &&
-    openedHarmonicExplanation.sectionIndex === namedSectionIndex &&
     openedHarmonicExplanation.holdingRoleId === named.holdingRole.id &&
     openedHarmonicExplanation.explanation === named.explanation &&
     openedHarmonicExplanation.atSeconds === named.atSeconds;
@@ -171,7 +168,6 @@ export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanati
           setOpenedHarmonicExplanation({
             songIdentity,
             sectionId: named.section.id,
-            sectionIndex: namedSectionIndex,
             holdingRoleId: named.holdingRole.id,
             explanation: named.explanation,
             atSeconds: named.atSeconds
