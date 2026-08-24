@@ -40,6 +40,34 @@ PULL_REQUEST_FIELDS = frozenset(
         "head_sha_status",
     }
 )
+ALLOWED_INITIAL_DISPOSITIONS = frozenset(
+    {
+        "analysis_failure_next_action_copy",
+        "canonical_audio_resource_policy",
+        "canonical_dependency_security_base",
+        "canonical_local_audio_resource_policy",
+        "canonical_python_branch_coverage_base",
+        "figma_contract_inventory_drift_check",
+        "first_run_analyze_entry",
+        "first_run_own_song_action",
+        "help_next_action_copy",
+        "inbound_handoff_reanalysis_slice",
+        "licensed_demo_first_run_activation",
+        "local_intake_failure_next_action_copy",
+        "observation_probability_vectorization",
+        "outbound_naruon_handoff_contract",
+        "player_first_section_loop",
+        "product_readiness_baseline_program",
+        "project_atomic_publication",
+        "project_save_load_failure_next_action_copy",
+        "real_audio_accuracy_slice_under_issue_770",
+        "storybook_design_inventory_slice",
+        "support_manifest_boundary",
+        "triage_required",
+        "workspace_rehearsal_map_slice",
+        "youtube_import_failure_next_action_copy",
+    }
+)
 
 
 class ManifestError(ValueError):
@@ -143,9 +171,15 @@ def validate_manifest(manifest: object) -> None:
         train_name = _require_non_empty_string(pr.get("initial_train"), f"{prefix}.initial_train")
         if train_name not in trains:
             _fail(f"{prefix}.initial_train references unknown train: {train_name}")
-        _require_non_empty_string(pr.get("initial_disposition"), f"{prefix}.initial_disposition")
+        disposition = _require_non_empty_string(
+            pr.get("initial_disposition"), f"{prefix}.initial_disposition"
+        )
+        if disposition not in ALLOWED_INITIAL_DISPOSITIONS:
+            _fail(f"{prefix}.initial_disposition is unsupported: {disposition}")
 
-        head_sha = pr.get("head_sha")
+        if "head_sha" not in pr:
+            _fail(f"{prefix}.head_sha is required")
+        head_sha = pr["head_sha"]
         head_status = pr.get("head_sha_status")
         if head_sha is None:
             if head_status != "refresh_required_before_action":
