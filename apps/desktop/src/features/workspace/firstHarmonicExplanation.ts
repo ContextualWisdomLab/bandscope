@@ -17,6 +17,11 @@ export type FirstHarmonicExplanation = {
   atSeconds: number;
 };
 
+type BoundedTimeRange = {
+  start: number;
+  end: number;
+};
+
 /** Format a non-negative harmonic-explanation time as m:ss for rehearsal copy. */
 export function formatHarmonicExplanationTime(totalSeconds: number): string {
   const safeSeconds = Number.isFinite(totalSeconds) && totalSeconds >= 0 ? totalSeconds : 0;
@@ -127,26 +132,29 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   );
 }
 
-/** Return whether a section owns a bounded, positive-length integer rehearsal window. */
-function hasBoundedTimeRange(section: RehearsalSection): boolean {
-  if (!hasOwnData(section, "timeRange")) {
-    return false;
-  }
-  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
-  if (!isRuntimeObject(timeRange) || !hasOwnData(timeRange, "start") || !hasOwnData(timeRange, "end")) {
-    return false;
+/** Snapshot a bounded positive-length integer rehearsal window from owned data properties. */
+function ownedBoundedTimeRange(section: RehearsalSection): BoundedTimeRange | null {
+  const timeRange = ownDataValue(section, "timeRange");
+  if (!isRuntimeObject(timeRange)) {
+    return null;
   }
 
-  const start = timeRange.start ?? -1;
-  const end = timeRange.end ?? -1;
-  return (
-    Number.isInteger(start) &&
-    start >= 0 &&
-    start <= MAX_SECTION_TIME_SECONDS &&
-    Number.isInteger(end) &&
-    end > start &&
-    end <= MAX_SECTION_TIME_SECONDS
-  );
+  const start = ownDataValue(timeRange, "start");
+  const end = ownDataValue(timeRange, "end");
+  if (typeof start !== "number" || typeof end !== "number") {
+    return null;
+  }
+  if (
+    !Number.isInteger(start) ||
+    start < 0 ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    !Number.isInteger(end) ||
+    end <= start ||
+    end > MAX_SECTION_TIME_SECONDS
+  ) {
+    return null;
+  }
+  return { start, end };
 }
 
 /** Return safe identities that appear more than once in one section-local collection. */
@@ -241,16 +249,20 @@ function resolveSafeFirstHarmonicExplanation(song: RehearsalSong): FirstHarmonic
   }
 
   const candidates = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        hasKnownSectionLabel(section) &&
-        hasOwnData(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
-    )
     .flatMap((section) => {
+      if (
+        !isRuntimeObject(section) ||
+        !hasKnownSectionLabel(section) ||
+        !hasOwnData(section, "id") ||
+        typeof section.id !== "string" ||
+        section.id.trim().length === 0
+      ) {
+        return [];
+      }
+      const timeRange = ownedBoundedTimeRange(section);
+      if (!timeRange) {
+        return [];
+      }
       const holdingRole = pickHoldingRole(
         rankedActiveRoles(section).filter((role) => ownedHarmonicExplanation(role) !== null)
       );
@@ -266,7 +278,7 @@ function resolveSafeFirstHarmonicExplanation(song: RehearsalSong): FirstHarmonic
           section,
           holdingRole,
           explanation,
-          atSeconds: section.timeRange.start
+          atSeconds: timeRange.start
         }
       ];
     })
