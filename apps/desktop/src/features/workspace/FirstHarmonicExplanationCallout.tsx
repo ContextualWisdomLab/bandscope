@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,7 +87,7 @@ export function FirstHarmonicExplanationCallout({ song }: FirstHarmonicExplanati
   const t = createTranslator(locale);
   const songIdentity = stableHarmonicExplanationSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const named = resolveFirstHarmonicExplanation(song);
+  const named = useMemo(() => resolveFirstHarmonicExplanation(song), [song]);
   const namedSectionIndex =
     named && Array.isArray(runtimeSong?.sections)
       ? runtimeSong.sections.indexOf(named.section)
