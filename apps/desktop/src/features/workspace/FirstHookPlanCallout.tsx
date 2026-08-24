@@ -81,21 +81,16 @@ export function FirstHookPlanCallout({ song }: FirstHookPlanCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableHookPlanSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = useMemo(() => resolveFirstHookPlan(song), [song]);
-  const namedSectionIndex =
-    named && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(named.section)
-      : -1;
   const [openedHookPlan, setOpenedHookPlan] = useState<OpenedHookPlan | null>(null);
 
   useEffect(() => {
     setOpenedHookPlan(null);
   }, [
     songIdentity,
-    namedSectionIndex,
-    named?.section.id,
-    named?.holdingRole.id,
+    named?.sectionIndex,
+    named?.sectionId,
+    named?.holdingRoleId,
     named?.hookPlan,
     named?.atSeconds
   ]);
@@ -118,15 +113,15 @@ export function FirstHookPlanCallout({ song }: FirstHookPlanCalloutProps) {
   const opened =
     openedHookPlan !== null &&
     openedHookPlan.songIdentity === songIdentity &&
-    openedHookPlan.sectionId === named.section.id &&
-    openedHookPlan.sectionIndex === namedSectionIndex &&
-    openedHookPlan.holdingRoleId === named.holdingRole.id &&
+    openedHookPlan.sectionId === named.sectionId &&
+    openedHookPlan.sectionIndex === named.sectionIndex &&
+    openedHookPlan.holdingRoleId === named.holdingRoleId &&
     openedHookPlan.hookPlan === named.hookPlan &&
     openedHookPlan.atSeconds === named.atSeconds;
   const at = formatHookPlanTime(named.atSeconds);
   const copyValues: HookPlanCopyValues = {
-    role: named.holdingRole.name,
-    section: translateSectionFormLabel(locale, named.section.label),
+    role: named.holdingRoleName,
+    section: translateSectionFormLabel(locale, named.sectionLabel),
     at
   };
   const actionLabel = formatHookPlanCopy(t("firstHookPlanOpenAction"), copyValues);
@@ -150,9 +145,9 @@ export function FirstHookPlanCallout({ song }: FirstHookPlanCalloutProps) {
         onClick={(event) => {
           const renderer = resolveHookPlanRenderer(event.currentTarget);
           const target =
-            namedSectionIndex >= 0
+            named.sectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(
-                  `[data-section-index="${namedSectionIndex}"]`
+                  `[data-section-index="${named.sectionIndex}"]`
                 ) ?? null)
               : null;
           if (typeof target?.scrollIntoView !== "function") {
@@ -164,9 +159,9 @@ export function FirstHookPlanCallout({ song }: FirstHookPlanCalloutProps) {
           });
           setOpenedHookPlan({
             songIdentity,
-            sectionId: named.section.id,
-            sectionIndex: namedSectionIndex,
-            holdingRoleId: named.holdingRole.id,
+            sectionId: named.sectionId,
+            sectionIndex: named.sectionIndex,
+            holdingRoleId: named.holdingRoleId,
             hookPlan: named.hookPlan,
             atSeconds: named.atSeconds
           });
