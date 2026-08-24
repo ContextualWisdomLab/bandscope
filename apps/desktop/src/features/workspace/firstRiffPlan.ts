@@ -13,6 +13,7 @@ const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 /** Tonight's first riff plan: the earliest labeled section and the part that owns it. */
 export type FirstRiffPlan = {
   section: RehearsalSection;
+  sectionIndex: number;
   holdingRole: RehearsalRole;
   riffPlan: string;
   atSeconds: number;
@@ -48,6 +49,14 @@ function isRuntimeObject(value: unknown): value is object {
 function hasOwnData(value: object, key: PropertyKey): boolean {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
   return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
+}
+
+/** Snapshot one owned data-property value without invoking a getter or Proxy get trap. */
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor.value
+    : undefined;
 }
 
 /** Return whether every numeric index is an own data element in a bounded runtime array. */
@@ -233,13 +242,19 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 
 /** Resolve a riff plan after the runtime root has passed its structural boundary checks. */
 function resolveSafeFirstRiffPlan(song: RehearsalSong): FirstRiffPlan | null {
-  if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+  if (!isRuntimeObject(song)) {
     return null;
   }
+  const sectionsValue = ownDataValue(song, "sections");
+  if (!isDenseRuntimeArray(sectionsValue)) {
+    return null;
+  }
+  const sections = sectionsValue as RehearsalSection[];
 
-  const candidates = song.sections
+  const candidates = sections
+    .map((section, sectionIndex) => ({ section, sectionIndex }))
     .filter(
-      (section) =>
+      ({ section }) =>
         isRuntimeObject(section) &&
         hasSupportedSectionLabel(section) &&
         hasOwnData(section, "id") &&
@@ -247,7 +262,7 @@ function resolveSafeFirstRiffPlan(song: RehearsalSong): FirstRiffPlan | null {
         section.id.trim().length > 0 &&
         hasBoundedTimeRange(section)
     )
-    .flatMap((section) => {
+    .flatMap(({ section, sectionIndex }) => {
       const holdingRole = pickHoldingRole(
         rankedActiveRoles(section).filter((role) => ownedRiffPlan(role) !== null)
       );
@@ -261,6 +276,7 @@ function resolveSafeFirstRiffPlan(song: RehearsalSong): FirstRiffPlan | null {
       return [
         {
           section,
+          sectionIndex,
           holdingRole,
           riffPlan,
           atSeconds: section.timeRange.start
