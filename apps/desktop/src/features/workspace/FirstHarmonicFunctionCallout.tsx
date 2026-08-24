@@ -101,7 +101,7 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
     songIdentity,
     namedSectionIndex,
     named?.section.id,
-    named?.holdingRole.id,
+    named?.holdingRoleId,
     named?.functionLabel,
     named?.atSeconds
   ]);
@@ -126,12 +126,12 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
     openedHarmonicFunction.songIdentity === songIdentity &&
     openedHarmonicFunction.sectionId === named.section.id &&
     openedHarmonicFunction.sectionIndex === namedSectionIndex &&
-    openedHarmonicFunction.holdingRoleId === named.holdingRole.id &&
+    openedHarmonicFunction.holdingRoleId === named.holdingRoleId &&
     openedHarmonicFunction.functionLabel === named.functionLabel &&
     openedHarmonicFunction.atSeconds === named.atSeconds;
   const at = formatHarmonicFunctionTime(named.atSeconds);
   const copyValues: HarmonicFunctionCopyValues = {
-    role: named.holdingRole.name,
+    role: named.holdingRoleName,
     section: translateSectionFormLabel(locale, named.section.label),
     at
   };
@@ -172,7 +172,7 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
             songIdentity,
             sectionId: named.section.id,
             sectionIndex: namedSectionIndex,
-            holdingRoleId: named.holdingRole.id,
+            holdingRoleId: named.holdingRoleId,
             functionLabel: named.functionLabel,
             atSeconds: named.atSeconds
           });
