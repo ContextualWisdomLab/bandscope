@@ -111,7 +111,7 @@ export function parseDemoProvenanceManifest(payload: unknown): DemoProvenanceMan
       }
     }
     const assetPath = asNonEmptyString(asset.path, `assets[${index}].path`);
-    if (!RELATIVE_FILE_PATTERN.test(assetPath)) {
+    if (assetPath === "." || assetPath === ".." || !RELATIVE_FILE_PATTERN.test(assetPath)) {
       throw new Error(`Invalid demo provenance field 'assets[${index}].path'`);
     }
     const sha256 = asNonEmptyString(asset.sha256, `assets[${index}].sha256`);
