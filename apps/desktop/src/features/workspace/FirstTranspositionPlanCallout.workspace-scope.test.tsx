@@ -27,7 +27,7 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
     );
 
     const callouts = screen.getAllByRole("complementary", {
-      name: "Tonight's first transposition plan"
+      name: "Tonight's first transpose plan"
     });
     expect(callouts).toHaveLength(2);
     expect(callouts.every((callout) => callout.id.length > 0)).toBe(true);
