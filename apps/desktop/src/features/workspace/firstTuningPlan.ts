@@ -10,10 +10,22 @@ const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_TUNING_PLAN_CHARACTERS = 180;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
+type RankedRoleMetadata = Readonly<{
+  role: RehearsalRole;
+  id: string;
+  name: string;
+  rehearsalPriority: keyof typeof PRIORITY_RANK;
+}>;
+
 /** Tonight's first tuning plan: the earliest labeled section and the part that owns it. */
 export type FirstTuningPlan = {
   section: RehearsalSection;
+  sectionId: string;
+  sectionLabel: RehearsalSection["label"];
+  sectionIndex: number;
   holdingRole: RehearsalRole;
+  holdingRoleId: string;
+  holdingRoleName: string;
   tuningPlan: string;
   atSeconds: number;
 };
@@ -50,21 +62,31 @@ function hasOwnData(value: object, key: PropertyKey): boolean {
   return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
 }
 
-/** Return whether every numeric index is an own data element in a bounded runtime array. */
-function isDenseRuntimeArray(value: unknown): value is unknown[] {
+/** Snapshot one owned data-property value without invoking a getter or Proxy get trap. */
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor.value
+    : undefined;
+}
+
+/** Snapshot every numeric own data element from a bounded runtime array. */
+function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
   if (!Array.isArray(value)) {
-    return false;
+    return null;
   }
-  const length = Number(value.length);
-  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
-    return false;
+  const length = ownDataValue(value, "length");
+  if (!Number.isSafeInteger(length) || (length as number) < 0 || (length as number) > 0xffffffff) {
+    return null;
   }
-  for (let index = 0; index < length; index += 1) {
+  const items: unknown[] = [];
+  for (let index = 0; index < (length as number); index += 1) {
     if (!hasOwnData(value, index)) {
-      return false;
+      return null;
     }
+    items.push(ownDataValue(value, index));
   }
-  return true;
+  return items;
 }
 
 /** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
@@ -86,11 +108,7 @@ function ownedTuningPlan(role: unknown): string | null {
   if (!isRuntimeObject(role)) {
     return null;
   }
-  const descriptor = Object.getOwnPropertyDescriptor(role, "tuningPlan");
-  if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
-    return null;
-  }
-  const tuningPlan = descriptor.value;
+  const tuningPlan = ownDataValue(role, "tuningPlan");
   if (typeof tuningPlan !== "string") {
     return null;
   }
@@ -101,40 +119,55 @@ function ownedTuningPlan(role: unknown): string | null {
   return truncateCodePoints(trimmed, MAX_TUNING_PLAN_CHARACTERS);
 }
 
-/** Return true when the role has safe owned identity/copy and ranked rehearsal priority. */
-function hasRankedPriority(role: RehearsalRole): boolean {
-  return (
-    hasOwnData(role, "id") &&
-    typeof role.id === "string" &&
-    role.id.trim().length > 0 &&
-    hasOwnData(role, "name") &&
-    typeof role.name === "string" &&
-    role.name.trim().length > 0 &&
-    hasOwnData(role, "rehearsalPriority") &&
-    Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
-  );
+/** Snapshot trusted role identity, display name, and priority without Proxy get authority. */
+function ownedRankedRoleMetadata(role: unknown): RankedRoleMetadata | null {
+  if (!isRuntimeObject(role)) {
+    return null;
+  }
+  const id = ownDataValue(role, "id");
+  const name = ownDataValue(role, "name");
+  const rehearsalPriority = ownDataValue(role, "rehearsalPriority");
+  if (
+    typeof id !== "string" ||
+    id.trim().length === 0 ||
+    typeof name !== "string" ||
+    name.trim().length === 0 ||
+    typeof rehearsalPriority !== "string" ||
+    !Object.prototype.hasOwnProperty.call(PRIORITY_RANK, rehearsalPriority)
+  ) {
+    return null;
+  }
+  return {
+    role: role as RehearsalRole,
+    id,
+    name,
+    rehearsalPriority: rehearsalPriority as keyof typeof PRIORITY_RANK
+  };
 }
 
-/** Return whether a section owns a bounded, positive-length integer rehearsal window. */
-function hasBoundedTimeRange(section: RehearsalSection): boolean {
-  if (!hasOwnData(section, "timeRange")) {
-    return false;
+/** Snapshot a section's bounded positive-length integer rehearsal window. */
+function ownedBoundedTimeRange(
+  section: RehearsalSection
+): RehearsalSection["timeRange"] | null {
+  const timeRange = ownDataValue(section, "timeRange");
+  if (!isRuntimeObject(timeRange)) {
+    return null;
   }
-  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
-  if (!isRuntimeObject(timeRange) || !hasOwnData(timeRange, "start") || !hasOwnData(timeRange, "end")) {
-    return false;
+  const start = ownDataValue(timeRange, "start");
+  const end = ownDataValue(timeRange, "end");
+  if (
+    typeof start !== "number" ||
+    !Number.isInteger(start) ||
+    start < 0 ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    typeof end !== "number" ||
+    !Number.isInteger(end) ||
+    end <= start ||
+    end > MAX_SECTION_TIME_SECONDS
+  ) {
+    return null;
   }
-
-  const start = timeRange.start ?? -1;
-  const end = timeRange.end ?? -1;
-  return (
-    Number.isInteger(start) &&
-    start >= 0 &&
-    start <= MAX_SECTION_TIME_SECONDS &&
-    Number.isInteger(end) &&
-    end > start &&
-    end <= MAX_SECTION_TIME_SECONDS
-  );
+  return { start, end };
 }
 
 /** Return safe identities that appear more than once in one section-local collection. */
@@ -152,13 +185,14 @@ function repeatedIds(ids: string[]): Set<string> {
 }
 
 /** Prefer the earlier ranked role, then rehearsal priority, then a locale-independent id. */
-function pickHoldingRole(roles: RehearsalRole[]): RehearsalRole | null {
+function pickHoldingRole(roles: RankedRoleMetadata[]): RankedRoleMetadata | null {
   if (roles.length === 0) {
     return null;
   }
   return (
     [...roles].sort((left, right) => {
-      const priorityDelta = PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
+      const priorityDelta =
+        PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
       if (priorityDelta !== 0) {
         return priorityDelta;
       }
@@ -168,95 +202,104 @@ function pickHoldingRole(roles: RehearsalRole[]): RehearsalRole | null {
 }
 
 /** Return ranked roles whose unique graph node is explicitly active. */
-function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
-  if (
-    !hasOwnData(section, "roles") ||
-    !hasOwnData(section, "partGraph") ||
-    !isDenseRuntimeArray(section.roles) ||
-    !isDenseRuntimeArray(section.partGraph)
-  ) {
+function rankedActiveRoles(section: RehearsalSection): RankedRoleMetadata[] {
+  const roles = ownedDenseRuntimeArray(ownDataValue(section, "roles"));
+  const partGraph = ownedDenseRuntimeArray(ownDataValue(section, "partGraph"));
+  if (!roles || !partGraph) {
     return [];
   }
 
-  const safeRoleIds = section.roles
-    .filter(
-      (role) =>
-        isRuntimeObject(role) &&
-        hasOwnData(role, "id") &&
-        typeof role.id === "string" &&
-        role.id.trim().length > 0
-    )
-    .map((role) => role.id);
-  const safeGraphRoleIds = section.partGraph
-    .filter(
-      (node) =>
-        isRuntimeObject(node) &&
-        hasOwnData(node, "role_id") &&
-        typeof node.role_id === "string" &&
-        node.role_id.trim().length > 0
-    )
-    .map((node) => node.role_id);
+  const safeRoleIds = roles.flatMap((role) => {
+    if (!isRuntimeObject(role)) {
+      return [];
+    }
+    const id = ownDataValue(role, "id");
+    return typeof id === "string" && id.trim().length > 0 ? [id] : [];
+  });
+  const safeGraphRoleIds = partGraph.flatMap((node) => {
+    if (!isRuntimeObject(node)) {
+      return [];
+    }
+    const roleId = ownDataValue(node, "role_id");
+    return typeof roleId === "string" && roleId.trim().length > 0 ? [roleId] : [];
+  });
   const repeatedRoleIds = repeatedIds(safeRoleIds);
   const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
   const activeIds = new Set(
-    section.partGraph
-      .filter(
-        (node) =>
-          isRuntimeObject(node) &&
-          hasOwnData(node, "is_active") &&
-          node.is_active === true &&
-          hasOwnData(node, "role_id") &&
-          typeof node.role_id === "string" &&
-          node.role_id.trim().length > 0 &&
-          !repeatedGraphRoleIds.has(node.role_id)
-      )
-      .map((node) => node.role_id)
+    partGraph.flatMap((node) => {
+      if (!isRuntimeObject(node) || ownDataValue(node, "is_active") !== true) {
+        return [];
+      }
+      const roleId = ownDataValue(node, "role_id");
+      return typeof roleId === "string" &&
+        roleId.trim().length > 0 &&
+        !repeatedGraphRoleIds.has(roleId)
+        ? [roleId]
+        : [];
+    })
   );
 
-  return section.roles.filter(
-    (role) =>
-      isRuntimeObject(role) &&
-      hasRankedPriority(role) &&
-      !repeatedRoleIds.has(role.id) &&
-      activeIds.has(role.id)
-  );
+  return roles.flatMap((role) => {
+    const metadata = ownedRankedRoleMetadata(role);
+    return metadata !== null &&
+      !repeatedRoleIds.has(metadata.id) &&
+      activeIds.has(metadata.id)
+      ? [metadata]
+      : [];
+  });
 }
 
 /** Resolve a tuning plan after the runtime root has passed its structural boundary checks. */
 function resolveSafeFirstTuningPlan(song: RehearsalSong): FirstTuningPlan | null {
-  if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+  if (!isRuntimeObject(song)) {
+    return null;
+  }
+  const sections = ownedDenseRuntimeArray(ownDataValue(song, "sections"));
+  if (!sections) {
     return null;
   }
 
-  const candidates = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        hasOwnData(section, "label") &&
-        typeof section.label === "string" &&
-        SECTION_FORM_LABEL_SET.has(section.label) &&
-        hasOwnData(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
-    )
-    .flatMap((section) => {
+  const candidates = sections
+    .flatMap((section, sectionIndex) => {
+      if (!isRuntimeObject(section)) {
+        return [];
+      }
+      const sectionId = ownDataValue(section, "id");
+      const sectionLabel = ownDataValue(section, "label");
+      const timeRange = ownedBoundedTimeRange(section as RehearsalSection);
+      if (
+        typeof sectionId !== "string" ||
+        sectionId.trim().length === 0 ||
+        typeof sectionLabel !== "string" ||
+        !SECTION_FORM_LABEL_SET.has(sectionLabel) ||
+        timeRange === null
+      ) {
+        return [];
+      }
+
       const holdingRole = pickHoldingRole(
-        rankedActiveRoles(section).filter((role) => ownedTuningPlan(role) !== null)
+        rankedActiveRoles(section as RehearsalSection).filter(
+          (metadata) => ownedTuningPlan(metadata.role) !== null
+        )
       );
       if (!holdingRole) {
         return [];
       }
-      const tuningPlan = ownedTuningPlan(holdingRole);
+      const tuningPlan = ownedTuningPlan(holdingRole.role);
       if (!tuningPlan) {
         return [];
       }
       return [
         {
-          section,
-          holdingRole,
+          section: section as RehearsalSection,
+          sectionId,
+          sectionLabel: sectionLabel as RehearsalSection["label"],
+          sectionIndex,
+          holdingRole: holdingRole.role,
+          holdingRoleId: holdingRole.id,
+          holdingRoleName: holdingRole.name,
           tuningPlan,
-          atSeconds: section.timeRange.start
+          atSeconds: timeRange.start
         }
       ];
     })
@@ -264,7 +307,7 @@ function resolveSafeFirstTuningPlan(song: RehearsalSong): FirstTuningPlan | null
       if (left.atSeconds !== right.atSeconds) {
         return left.atSeconds - right.atSeconds;
       }
-      return compareStableId(left.section.id, right.section.id);
+      return compareStableId(left.sectionId, right.sectionId);
     });
 
   return candidates[0] ?? null;
