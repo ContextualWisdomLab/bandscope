@@ -10,10 +10,22 @@ const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_DYNAMICS_PLAN_CHARACTERS = 180;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
+type RankedRoleMetadata = Readonly<{
+  role: RehearsalRole;
+  id: string;
+  name: string;
+  rehearsalPriority: keyof typeof PRIORITY_RANK;
+}>;
+
 /** Tonight's first dynamics plan: the earliest labeled section and the part that owns it. */
 export type FirstDynamicsPlan = {
   section: RehearsalSection;
+  sectionId: string;
+  sectionLabel: RehearsalSection["label"];
+  sectionIndex: number;
   holdingRole: RehearsalRole;
+  holdingRoleId: string;
+  holdingRoleName: string;
   dynamicsPlan: string;
   atSeconds: number;
 };
@@ -30,12 +42,8 @@ export function formatDynamicsPlanTime(totalSeconds: number): string {
 
 /** Compare opaque ids by Unicode code units so tie-breaking never depends on host locale. */
 function compareStableId(left: string, right: string): number {
-  if (left < right) {
-    return -1;
-  }
-  if (left > right) {
-    return 1;
-  }
+  if (left < right) return -1;
+  if (left > right) return 1;
   return 0;
 }
 
@@ -50,21 +58,32 @@ function hasOwnData(value: object, key: PropertyKey): boolean {
   return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
 }
 
-/** Return whether every numeric index is an own data element in a bounded runtime array. */
-function isDenseRuntimeArray(value: unknown): value is unknown[] {
-  if (!Array.isArray(value)) {
-    return false;
+/** Snapshot one owned data-property value without invoking an accessor or Proxy get trap. */
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor.value
+    : undefined;
+}
+
+/** Snapshot every numeric own data element from a bounded runtime array. */
+function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
+  if (!Array.isArray(value)) return null;
+  const length = ownDataValue(value, "length");
+  if (
+    typeof length !== "number" ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > 0xffffffff
+  ) {
+    return null;
   }
-  const length = Number(value.length);
-  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
-    return false;
-  }
+  const items: unknown[] = [];
   for (let index = 0; index < length; index += 1) {
-    if (!hasOwnData(value, index)) {
-      return false;
-    }
+    if (!hasOwnData(value, index)) return null;
+    items.push(ownDataValue(value, index));
   }
-  return true;
+  return items;
 }
 
 /** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
@@ -72,9 +91,7 @@ function truncateCodePoints(value: string, maximum: number): string {
   let codePoints = 0;
   let endIndex = 0;
   for (const character of value) {
-    if (codePoints >= maximum) {
-      break;
-    }
+    if (codePoints >= maximum) break;
     endIndex += character.length;
     codePoints += 1;
   }
@@ -83,67 +100,57 @@ function truncateCodePoints(value: string, maximum: number): string {
 
 /** Return a bounded snapshotted own dynamics plan, or null when it cannot be shown. */
 function ownedDynamicsPlan(role: unknown): string | null {
-  if (!isRuntimeObject(role)) {
-    return null;
-  }
-  const descriptor = Object.getOwnPropertyDescriptor(role, "dynamicsPlan");
-  if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
-    return null;
-  }
-  const dynamicsPlan = descriptor.value;
-  if (typeof dynamicsPlan !== "string") {
-    return null;
-  }
+  if (!isRuntimeObject(role)) return null;
+  const dynamicsPlan = ownDataValue(role, "dynamicsPlan");
+  if (typeof dynamicsPlan !== "string") return null;
   const trimmed = dynamicsPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
-    return null;
-  }
+  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) return null;
   return truncateCodePoints(trimmed, MAX_DYNAMICS_PLAN_CHARACTERS);
 }
 
-/** Return true when the role has safe owned identity/copy and ranked rehearsal priority. */
-function hasRankedPriority(role: RehearsalRole): boolean {
-  return (
-    hasOwnData(role, "id") &&
-    typeof role.id === "string" &&
-    role.id.trim().length > 0 &&
-    hasOwnData(role, "name") &&
-    typeof role.name === "string" &&
-    role.name.trim().length > 0 &&
-    hasOwnData(role, "rehearsalPriority") &&
-    Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
-  );
+/** Snapshot trusted role identity, display name, and priority without Proxy get authority. */
+function ownedRankedRoleMetadata(role: unknown): RankedRoleMetadata | null {
+  if (!isRuntimeObject(role)) return null;
+  const id = ownDataValue(role, "id");
+  const name = ownDataValue(role, "name");
+  const rehearsalPriority = ownDataValue(role, "rehearsalPriority");
+  if (
+    typeof id !== "string" ||
+    id.trim().length === 0 ||
+    typeof name !== "string" ||
+    name.trim().length === 0 ||
+    typeof rehearsalPriority !== "string" ||
+    !Object.prototype.hasOwnProperty.call(PRIORITY_RANK, rehearsalPriority)
+  ) {
+    return null;
+  }
+  return {
+    role: role as RehearsalRole,
+    id,
+    name,
+    rehearsalPriority: rehearsalPriority as keyof typeof PRIORITY_RANK
+  };
 }
 
-/** Return whether a section owns a canonical form label from the shared contract. */
-function hasSupportedSectionLabel(section: RehearsalSection): boolean {
-  return (
-    hasOwnData(section, "label") &&
-    typeof section.label === "string" &&
-    SECTION_FORM_LABEL_SET.has(section.label)
-  );
-}
-
-/** Return whether a section owns a bounded, positive-length integer rehearsal window. */
-function hasBoundedTimeRange(section: RehearsalSection): boolean {
-  if (!hasOwnData(section, "timeRange")) {
-    return false;
+/** Snapshot a section's bounded positive-length integer rehearsal window. */
+function ownedBoundedTimeRange(section: RehearsalSection): RehearsalSection["timeRange"] | null {
+  const timeRange = ownDataValue(section, "timeRange");
+  if (!isRuntimeObject(timeRange)) return null;
+  const start = ownDataValue(timeRange, "start");
+  const end = ownDataValue(timeRange, "end");
+  if (
+    typeof start !== "number" ||
+    !Number.isInteger(start) ||
+    start < 0 ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    typeof end !== "number" ||
+    !Number.isInteger(end) ||
+    end <= start ||
+    end > MAX_SECTION_TIME_SECONDS
+  ) {
+    return null;
   }
-  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
-  if (!isRuntimeObject(timeRange) || !hasOwnData(timeRange, "start") || !hasOwnData(timeRange, "end")) {
-    return false;
-  }
-
-  const start = timeRange.start ?? -1;
-  const end = timeRange.end ?? -1;
-  return (
-    Number.isInteger(start) &&
-    start >= 0 &&
-    start <= MAX_SECTION_TIME_SECONDS &&
-    Number.isInteger(end) &&
-    end > start &&
-    end <= MAX_SECTION_TIME_SECONDS
-  );
+  return { start, end };
 }
 
 /** Return safe identities that appear more than once in one section-local collection. */
@@ -151,128 +158,113 @@ function repeatedIds(ids: string[]): Set<string> {
   const seen = new Set<string>();
   const repeated = new Set<string>();
   for (const id of ids) {
-    if (seen.has(id)) {
-      repeated.add(id);
-    } else {
-      seen.add(id);
-    }
+    if (seen.has(id)) repeated.add(id);
+    else seen.add(id);
   }
   return repeated;
 }
 
 /** Prefer the earlier ranked role, then rehearsal priority, then a locale-independent id. */
-function pickHoldingRole(roles: RehearsalRole[]): RehearsalRole | null {
-  if (roles.length === 0) {
-    return null;
-  }
+function pickHoldingRole(roles: RankedRoleMetadata[]): RankedRoleMetadata | null {
+  if (roles.length === 0) return null;
   return (
     [...roles].sort((left, right) => {
-      const priorityDelta = PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
-      if (priorityDelta !== 0) {
-        return priorityDelta;
-      }
-      return compareStableId(left.id, right.id);
+      const priorityDelta =
+        PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
+      return priorityDelta !== 0 ? priorityDelta : compareStableId(left.id, right.id);
     })[0] ?? null
   );
 }
 
 /** Return ranked roles whose unique graph node is explicitly active. */
-function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
-  if (
-    !hasOwnData(section, "roles") ||
-    !hasOwnData(section, "partGraph") ||
-    !isDenseRuntimeArray(section.roles) ||
-    !isDenseRuntimeArray(section.partGraph)
-  ) {
-    return [];
-  }
+function rankedActiveRoles(section: RehearsalSection): RankedRoleMetadata[] {
+  const roles = ownedDenseRuntimeArray(ownDataValue(section, "roles"));
+  const partGraph = ownedDenseRuntimeArray(ownDataValue(section, "partGraph"));
+  if (!roles || !partGraph) return [];
 
-  const safeRoleIds = section.roles
-    .filter(
-      (role) =>
-        isRuntimeObject(role) &&
-        hasOwnData(role, "id") &&
-        typeof role.id === "string" &&
-        role.id.trim().length > 0
-    )
-    .map((role) => role.id);
-  const safeGraphRoleIds = section.partGraph
-    .filter(
-      (node) =>
-        isRuntimeObject(node) &&
-        hasOwnData(node, "role_id") &&
-        typeof node.role_id === "string" &&
-        node.role_id.trim().length > 0
-    )
-    .map((node) => node.role_id);
+  const safeRoleIds = roles.flatMap((role) => {
+    if (!isRuntimeObject(role)) return [];
+    const id = ownDataValue(role, "id");
+    return typeof id === "string" && id.trim().length > 0 ? [id] : [];
+  });
+  const safeGraphRoleIds = partGraph.flatMap((node) => {
+    if (!isRuntimeObject(node)) return [];
+    const roleId = ownDataValue(node, "role_id");
+    return typeof roleId === "string" && roleId.trim().length > 0 ? [roleId] : [];
+  });
   const repeatedRoleIds = repeatedIds(safeRoleIds);
   const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
   const activeIds = new Set(
-    section.partGraph
-      .filter(
-        (node) =>
-          isRuntimeObject(node) &&
-          hasOwnData(node, "is_active") &&
-          node.is_active === true &&
-          hasOwnData(node, "role_id") &&
-          typeof node.role_id === "string" &&
-          node.role_id.trim().length > 0 &&
-          !repeatedGraphRoleIds.has(node.role_id)
-      )
-      .map((node) => node.role_id)
+    partGraph.flatMap((node) => {
+      if (!isRuntimeObject(node) || ownDataValue(node, "is_active") !== true) return [];
+      const roleId = ownDataValue(node, "role_id");
+      return typeof roleId === "string" &&
+        roleId.trim().length > 0 &&
+        !repeatedGraphRoleIds.has(roleId)
+        ? [roleId]
+        : [];
+    })
   );
 
-  return section.roles.filter(
-    (role) =>
-      isRuntimeObject(role) &&
-      hasRankedPriority(role) &&
-      !repeatedRoleIds.has(role.id) &&
-      activeIds.has(role.id)
-  );
+  return roles.flatMap((role) => {
+    const metadata = ownedRankedRoleMetadata(role);
+    return metadata !== null &&
+      !repeatedRoleIds.has(metadata.id) &&
+      activeIds.has(metadata.id)
+      ? [metadata]
+      : [];
+  });
 }
 
 /** Resolve a dynamics plan after the runtime root has passed its structural boundary checks. */
 function resolveSafeFirstDynamicsPlan(song: RehearsalSong): FirstDynamicsPlan | null {
-  if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
-    return null;
-  }
+  if (!isRuntimeObject(song)) return null;
+  const sections = ownedDenseRuntimeArray(ownDataValue(song, "sections"));
+  if (!sections) return null;
 
-  const candidates = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        hasSupportedSectionLabel(section) &&
-        hasOwnData(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
-    )
-    .flatMap((section) => {
+  const candidates = sections
+    .flatMap((section, sectionIndex) => {
+      if (!isRuntimeObject(section)) return [];
+      const sectionId = ownDataValue(section, "id");
+      const sectionLabel = ownDataValue(section, "label");
+      const timeRange = ownedBoundedTimeRange(section as RehearsalSection);
+      if (
+        typeof sectionId !== "string" ||
+        sectionId.trim().length === 0 ||
+        typeof sectionLabel !== "string" ||
+        !SECTION_FORM_LABEL_SET.has(sectionLabel) ||
+        timeRange === null
+      ) {
+        return [];
+      }
+
       const holdingRole = pickHoldingRole(
-        rankedActiveRoles(section).filter((role) => ownedDynamicsPlan(role) !== null)
+        rankedActiveRoles(section as RehearsalSection).filter(
+          (metadata) => ownedDynamicsPlan(metadata.role) !== null
+        )
       );
-      if (!holdingRole) {
-        return [];
-      }
-      const dynamicsPlan = ownedDynamicsPlan(holdingRole);
-      if (!dynamicsPlan) {
-        return [];
-      }
+      if (!holdingRole) return [];
+      const dynamicsPlan = ownedDynamicsPlan(holdingRole.role);
+      if (!dynamicsPlan) return [];
       return [
         {
-          section,
-          holdingRole,
+          section: section as RehearsalSection,
+          sectionId,
+          sectionLabel: sectionLabel as RehearsalSection["label"],
+          sectionIndex,
+          holdingRole: holdingRole.role,
+          holdingRoleId: holdingRole.id,
+          holdingRoleName: holdingRole.name,
           dynamicsPlan,
-          atSeconds: section.timeRange.start
+          atSeconds: timeRange.start
         }
       ];
     })
-    .sort((left, right) => {
-      if (left.atSeconds !== right.atSeconds) {
-        return left.atSeconds - right.atSeconds;
-      }
-      return compareStableId(left.section.id, right.section.id);
-    });
+    .sort((left, right) =>
+      left.atSeconds !== right.atSeconds
+        ? left.atSeconds - right.atSeconds
+        : compareStableId(left.sectionId, right.sectionId)
+    );
 
   return candidates[0] ?? null;
 }
