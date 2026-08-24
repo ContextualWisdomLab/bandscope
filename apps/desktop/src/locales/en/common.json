@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstRiffPlanLabel": "Tonight's first riff plan",
+  "firstRiffPlanOpenAction": "Open {role} riff at {at}",
+  "firstRiffPlanBody": "{role} still has a riff plan in the {section} at {at}.",
+  "firstRiffPlanArmed": "Lock that riff on {role} at {at} before the room starts.",
+  "firstRiffPlanUnavailable": "No riff plan is available. Stay on tonight's map for the next rehearsal cue."
 }

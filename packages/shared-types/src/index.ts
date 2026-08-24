@@ -139,6 +139,7 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  riffPlan?: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -473,6 +474,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           rehearsalPriority: "high",
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
+          riffPlan: "Bass locks the verse riff on the open fifth; keep it dry before the chorus lift.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           manualOverrides: [],
           overlapWarnings: [
@@ -1497,6 +1499,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "transpositionPlan",
+      "riffPlan",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1551,6 +1554,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.riffPlan !== undefined && typeof value.riffPlan !== "string") {
+    return invalidField(`${path}.riffPlan`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);
