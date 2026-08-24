@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,23 +23,58 @@ type OpenedEarCheck = Readonly<{
   atSeconds: number;
 }>;
 
+/** Bound the identity fingerprint so hostile or oversized songs cannot stall a render. */
+const MAX_EAR_CHECK_FINGERPRINT_SECTIONS = 32;
+
+/** Summarize owned song content so distinct songs sharing an id stop sharing armed guidance. */
+function earCheckSongFingerprint(song: RehearsalSong): string | null {
+  try {
+    const sections = Array.isArray(song.sections) ? song.sections : [];
+    return JSON.stringify({
+      title: song.title,
+      sectionCount: sections.length,
+      sections: sections.slice(0, MAX_EAR_CHECK_FINGERPRINT_SECTIONS).map((section) => ({
+        id: section?.id,
+        start: section?.timeRange?.start,
+        end: section?.timeRange?.end
+      }))
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
-function stableEarCheckSongIdentity(song: RehearsalSong): unknown {
+function stableEarCheckSongId(song: RehearsalSong): string | null {
   if (song === null || typeof song !== "object" || Array.isArray(song)) {
-    return song;
+    return null;
   }
   let descriptor: PropertyDescriptor | undefined;
   try {
     descriptor = Object.getOwnPropertyDescriptor(song, "id");
   } catch {
-    return song;
+    return null;
   }
   return descriptor !== undefined &&
     Object.prototype.hasOwnProperty.call(descriptor, "value") &&
     typeof descriptor.value === "string" &&
     descriptor.value.trim().length > 0
     ? descriptor.value
-    : song;
+    : null;
+}
+
+/**
+ * Build the armed-guidance identity from the owned id plus a content fingerprint. Two distinct
+ * songs that share an id string therefore stop sharing armed state when their content differs,
+ * while immutable copies of one song keep their armed guidance.
+ */
+function stableEarCheckSongIdentity(song: RehearsalSong): unknown {
+  const songId = stableEarCheckSongId(song);
+  if (songId === null) {
+    return song;
+  }
+  const fingerprint = earCheckSongFingerprint(song);
+  return fingerprint === null ? song : `${songId}\u0000${fingerprint}`;
 }
 
 /** Interpolate ear-check placeholders once so rehearsal data is never rescanned as template syntax. */
@@ -58,33 +93,103 @@ function preferredEarCheckScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
-/** Resolve the song-structure renderer owned by this workspace, failing closed on ambiguous mounts. */
-function resolveEarCheckRenderer(origin: HTMLElement): HTMLElement | null {
-  const selector = '[data-testid="song-structure-grid"]';
-  const localScope = origin.closest("aside")?.parentElement ?? null;
-  const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
-  if (localRenderers.length === 1) {
-    return localRenderers[0] ?? null;
+/** Accessible surfaces that own rendered section cells, matched structurally rather than by name. */
+const EAR_CHECK_REGION_CELLS_SELECTOR = "[role='region'] [data-section-index]";
+const EAR_CHECK_REGION_SELECTOR = "[role='region']";
+/** Legacy song-structure hook kept as the last-resort renderer tier for older markup. */
+const EAR_CHECK_LEGACY_RENDERER_SELECTOR = '[data-testid="song-structure-grid"]';
+
+/**
+ * Return unique accessibility-scoped song-structure surfaces that own rendered section cells.
+ * Matching is structural (`role="region"`) and never depends on an accessible-name string, so
+ * localized labels cannot break navigation.
+ */
+function earCheckRegionSurfaces(scope: ParentNode): HTMLElement[] {
+  const surfaces = new Set<HTMLElement>();
+  for (const cell of scope.querySelectorAll<HTMLElement>(EAR_CHECK_REGION_CELLS_SELECTOR)) {
+    const surface = cell.closest<HTMLElement>(EAR_CHECK_REGION_SELECTOR);
+    if (surface !== null && scope.contains(surface)) {
+      surfaces.add(surface);
+    }
   }
-  if (localRenderers.length > 1) {
+  return [...surfaces];
+}
+
+/** Return every legacy test-hook renderer inside a scope. */
+function earCheckLegacySurfaces(scope: ParentNode): HTMLElement[] {
+  return [...scope.querySelectorAll<HTMLElement>(EAR_CHECK_LEGACY_RENDERER_SELECTOR)];
+}
+
+/**
+ * Return the song-structure surfaces a scope owns, collapsing nested identifications of the same
+ * map (for example a legacy hook inside its accessibility region) into the outermost surface.
+ * Only disjoint surfaces remain, so genuine ambiguity is what fails closed.
+ */
+function earCheckOwnedSurfaces(scope: ParentNode): HTMLElement[] {
+  const candidates = new Set<HTMLElement>([
+    ...earCheckRegionSurfaces(scope),
+    ...earCheckLegacySurfaces(scope)
+  ]);
+  return [...candidates].filter(
+    (surface) =>
+      ![...candidates].some((other) => other !== surface && other.contains(surface))
+  );
+}
+
+/**
+ * Resolve the song-structure renderer owned by this workspace for map navigation.
+ *
+ * Scoping contract (fail closed):
+ * 1. Surfaces are identified structurally first: accessibility regions that own rendered section
+ *    cells, with the legacy `[data-testid]` hook accepted only as an additional identification of
+ *    the same map, never as the preferred signal.
+ * 2. Exactly one surface inside the callout's parent subtree wins; several disjoint local
+ *    surfaces abort navigation instead of guessing.
+ * 3. Only when the local subtree owns no surface does resolution consider the document, and only
+ *    when exactly one global surface exists there. Ambiguous global mounts (for example two
+ *    concurrently mounted workspaces whose renderers sit outside the local subtree) therefore
+ *    no-op deterministically instead of scrolling an arbitrary surface.
+ */
+function resolveEarCheckRenderer(origin: HTMLElement): HTMLElement | null {
+  const aside = origin.closest("aside");
+  if (aside === null || aside.parentElement === null) {
     return null;
   }
 
-  const globalRenderers = document.querySelectorAll<HTMLElement>(selector);
-  return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
+  const localSurfaces = earCheckOwnedSurfaces(aside.parentElement);
+  if (localSurfaces.length > 1) {
+    return null;
+  }
+  if (localSurfaces.length === 1) {
+    return localSurfaces[0] ?? null;
+  }
+
+  const globalSurfaces = earCheckOwnedSurfaces(document);
+  if (globalSurfaces.length > 1) {
+    return null;
+  }
+  if (globalSurfaces.length === 1) {
+    return globalSurfaces[0] ?? null;
+  }
+  return null;
 }
 
 /** Name tonight's first ear check and open the matching rendered map section. */
 export function FirstEarCheckCallout({ song }: FirstEarCheckCalloutProps) {
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
-  const songIdentity = stableEarCheckSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const earCheck = resolveFirstEarCheck(song);
-  const earCheckSectionIndex =
-    earCheck && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(earCheck.section)
-      : -1;
+  // Match the surrounding workspace pattern: locale detection and translation are mount-scoped.
+  const [locale] = useState(() => detectPreferredLocale());
+  const t = useMemo(() => createTranslator(locale), [locale]);
+  const resolution = useMemo(() => {
+    const songIdentity = stableEarCheckSongIdentity(song);
+    const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
+    const earCheck = resolveFirstEarCheck(song);
+    const earCheckSectionIndex =
+      earCheck && Array.isArray(runtimeSong?.sections)
+        ? runtimeSong.sections.indexOf(earCheck.section)
+        : -1;
+    return { songIdentity, earCheck, earCheckSectionIndex } as const;
+  }, [song]);
+  const { songIdentity, earCheck, earCheckSectionIndex } = resolution;
   const [openedEarCheck, setOpenedEarCheck] = useState<OpenedEarCheck | null>(null);
 
   useEffect(() => {

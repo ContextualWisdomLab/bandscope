@@ -244,15 +244,17 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
   );
 }
 
-/** Return whether a section has owned low/medium confidence on itself or any role. */
+/**
+ * Return whether a section carries an actionable ear check: uncertainty owned by the section
+ * itself, or uncertainty owned by a provably active ranked part. Uncertainty that lives only on
+ * inactive or unrankable parts never claims tonight's ear check — band-wide copy is reserved for
+ * sections whose own confidence carries it.
+ */
 function sectionHasEarCheck(section: RehearsalSection): boolean {
   if (ownedEarCheckLevel(section) !== null) {
     return true;
   }
-  if (!hasOwnData(section, "roles") || !isDenseRuntimeArray(section.roles)) {
-    return false;
-  }
-  return section.roles.some((role) => isRuntimeObject(role) && ownedEarCheckLevel(role) !== null);
+  return rankedActiveRoles(section).some((role) => ownedEarCheckLevel(role) !== null);
 }
 
 /** Return notes owned by the named holding part, else notes owned by the section itself. */

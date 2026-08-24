@@ -92,15 +92,29 @@ describe("resolveFirstEarCheck inherited metadata", () => {
     expect(resolveFirstEarCheck(song)).toBeNull();
   });
 
-  it("does not let inherited role or graph metadata establish the holding part", () => {
+  it("fails the ear check closed when inherited role or graph metadata cannot prove activity", () => {
     const { song, section } = songWithEarCheck();
     const node = section.partGraph[0]!;
     section.partGraph = [Object.create(node) as typeof node];
 
+    expect(resolveFirstEarCheck(song)).toBeNull();
+  });
+
+  it("keeps a section-owned ear check band-wide without trusting inherited graph metadata", () => {
+    const { song, section } = songWithEarCheck();
+    const node = section.partGraph[0]!;
+    section.partGraph = [Object.create(node) as typeof node];
+    section.confidence = {
+      level: "medium",
+      source: "model",
+      notes: "Section-level notes carry tonight's guidance."
+    };
+
     const resolved = resolveFirstEarCheck(song);
+
     expect(resolved?.section.id).toBe("ear-check-own");
     expect(resolved?.holdingRole).toBeNull();
-    expect(resolved?.hint).toBe("");
+    expect(resolved?.hint).toBe("Section-level notes carry tonight's guidance.");
   });
 
   it("rejects arrays masquerading as section records", () => {

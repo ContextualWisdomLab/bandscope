@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveFirstEarCheck } from "./firstEarCheck";
 
 describe("resolveFirstEarCheck inactive-role hint ownership", () => {
-  it("does not surface notes owned only by an inactive role in a band-wide ear check", () => {
+  function songWithInactiveOnlyUncertainty() {
     const song = createDemoRehearsalSong();
     const section = song.sections[0]!;
     const role = section.roles[0]!;
@@ -28,10 +28,26 @@ describe("resolveFirstEarCheck inactive-role hint ownership", () => {
       }
     ];
     song.sections = [section];
+    return song;
+  }
+
+  it("skips a section whose only uncertainty belongs to an inactive part", () => {
+    expect(resolveFirstEarCheck(songWithInactiveOnlyUncertainty())).toBeNull();
+  });
+
+  it("reports a band-wide ear check from section uncertainty without surfacing inactive-part notes", () => {
+    const song = songWithInactiveOnlyUncertainty();
+    const section = song.sections[0]!;
+    section.confidence = {
+      level: "medium",
+      source: "model",
+      notes: "Section-level notes carry tonight's guidance."
+    };
 
     const resolved = resolveFirstEarCheck(song);
 
+    expect(resolved?.section.id).toBe(section.id);
     expect(resolved?.holdingRole).toBeNull();
-    expect(resolved?.hint).toBe("");
+    expect(resolved?.hint).toBe("Section-level notes carry tonight's guidance.");
   });
 });
