@@ -5,7 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { FirstTranspositionPlanCallout } from "./FirstTranspositionPlanCallout";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -41,6 +41,7 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
 }
 
 type Translator = ReturnType<typeof createTranslator>;
+type WorkspaceLocale = ReturnType<typeof detectPreferredLocale>;
 
 /** Documented. */
 function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
@@ -72,7 +73,7 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 }
 
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({ sections, t, locale }: { sections: RehearsalSong["sections"]; t: Translator; locale: WorkspaceLocale }) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -98,7 +99,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
               className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0"
             >
               <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                {translateSectionFormLabel(locale, section.label)} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
               </p>
               <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
             </div>
@@ -125,7 +126,8 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
-  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -338,7 +340,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <FirstTranspositionPlanCallout song={song} />
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure sections={song.sections} t={t} locale={locale} />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
