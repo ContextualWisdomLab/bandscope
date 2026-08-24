@@ -19,7 +19,6 @@ const mockLoadProject = vi.fn();
 const mockSaveProject = vi.fn();
 const mockSubscribeToAnalysisJobUpdates = vi.fn();
 let mockLocalAudioSelectionResult: Record<string, unknown> | null = null;
-let mockDemoAudioSelectionResult: Record<string, unknown> | null = null;
 let mockImportYoutubeUrlError = false;
 let latestStatusSubscription: ((payload: Record<string, unknown>) => void) | null = null;
 
@@ -47,7 +46,7 @@ vi.mock("./lib/analysis", async (importActual) => {
       roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
     }),
     selectLocalAudioSource: async () => mockLocalAudioSelectionResult ?? actual.selectLocalAudioSource(),
-    selectDemoAudioSource: async () => mockDemoAudioSelectionResult ?? actual.selectDemoAudioSource(),
+    selectDemoAudioSource: () => actual.selectDemoAudioSource(),
     subscribeToAnalysisJobUpdates: (...args: Parameters<typeof mockSubscribeToAnalysisJobUpdates>) =>
       mockSubscribeToAnalysisJobUpdates(...args),
     loadProject: () => mockLoadProject(),
@@ -193,7 +192,6 @@ describe("App", () => {
     mockSaveProject.mockReset();
     mockSubscribeToAnalysisJobUpdates.mockReset();
     mockLocalAudioSelectionResult = null;
-    mockDemoAudioSelectionResult = null;
     mockImportYoutubeUrlError = false;
     latestStatusSubscription = null;
     mockSubscribeToAnalysisJobUpdates.mockImplementation(
