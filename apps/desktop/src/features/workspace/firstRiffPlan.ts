@@ -145,12 +145,12 @@ function ownedBoundedTimeRange(
   const start = ownDataValue(timeRange, "start");
   const end = ownDataValue(timeRange, "end");
   if (
-    !Number.isInteger(start) ||
     typeof start !== "number" ||
+    !Number.isInteger(start) ||
     start < 0 ||
     start > MAX_SECTION_TIME_SECONDS ||
-    !Number.isInteger(end) ||
     typeof end !== "number" ||
+    !Number.isInteger(end) ||
     end <= start ||
     end > MAX_SECTION_TIME_SECONDS
   ) {
