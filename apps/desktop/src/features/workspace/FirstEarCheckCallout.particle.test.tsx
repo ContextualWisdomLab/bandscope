@@ -85,7 +85,7 @@ describe("FirstEarCheckCallout Korean role copy", () => {
 
     render(<FirstEarCheckCallout song={song} />);
 
-    expect(screen.getByText("0:10 벌스에서 귀로 한 번 더 확인하세요.")).toBeTruthy();
+    expect(screen.getByText("0:10 벌스에서 아직 귀 확인이 필요합니다.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "0:10 첫 귀 확인 위치 열기" }));
     expect(screen.getByText("0:10 벌스에서 귀로 확인한 다음 합주를 시작하세요.")).toBeTruthy();
 
