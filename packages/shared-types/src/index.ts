@@ -139,6 +139,7 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  /** Rehearsal-facing hook guidance owned by this role when runtime graph evidence corroborates it. */
   hookPlan?: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
@@ -1689,7 +1690,6 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
       return roleError;
     }
   }
-
   if (!isDenseArray(value.partGraph)) {
     return invalidField(`${path}.partGraph`);
   }
