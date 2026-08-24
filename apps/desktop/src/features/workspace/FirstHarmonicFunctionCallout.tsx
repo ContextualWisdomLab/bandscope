@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -87,6 +87,7 @@ function resolveHarmonicFunctionRenderer(origin: HTMLElement): HTMLElement | nul
 
 /** Name tonight's first harmonic function and open the matching rendered map section. */
 export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCalloutProps) {
+  const calloutId = useId();
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableHarmonicFunctionSongIdentity(song);
@@ -108,9 +109,9 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
   if (!named) {
     return (
       <aside
-        id="workspace-surface-harmonic-function"
+        id={`workspace-surface-harmonic-function-${calloutId}`}
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
-        aria-label={t("firstHarmonicFunctionUnavailable")}
+        aria-label={t("firstHarmonicFunctionLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
           {t("firstHarmonicFunctionLabel")}
@@ -140,7 +141,7 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
 
   return (
     <aside
-      id="workspace-surface-harmonic-function"
+      id={`workspace-surface-harmonic-function-${calloutId}`}
       className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
       aria-label={t("firstHarmonicFunctionLabel")}
     >
