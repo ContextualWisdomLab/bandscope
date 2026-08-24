@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +77,7 @@ function resolveTranspositionPlanRenderer(origin: HTMLElement): HTMLElement | nu
 
 /** Name tonight's first transposition plan and open the matching rendered map section. */
 export function FirstTranspositionPlanCallout({ song }: FirstTranspositionPlanCalloutProps) {
+  const calloutId = useId();
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableTranspositionPlanSongIdentity(song);
@@ -102,7 +103,7 @@ export function FirstTranspositionPlanCallout({ song }: FirstTranspositionPlanCa
   if (!named) {
     return (
       <aside
-        id="workspace-surface-transposition-plan"
+        id={`workspace-surface-transposition-plan-${calloutId}`}
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
         aria-label={t("firstTranspositionPlanUnavailable")}
       >
@@ -134,7 +135,7 @@ export function FirstTranspositionPlanCallout({ song }: FirstTranspositionPlanCa
 
   return (
     <aside
-      id="workspace-surface-transposition-plan"
+      id={`workspace-surface-transposition-plan-${calloutId}`}
       className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
       aria-label={t("firstTranspositionPlanLabel")}
     >
