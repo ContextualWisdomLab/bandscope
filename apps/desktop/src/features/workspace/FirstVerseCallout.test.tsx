@@ -175,7 +175,7 @@ describe("FirstVerseCallout", () => {
 
     render(<FirstVerseCallout song={song} />);
 
-    expect(screen.getByText("리드 보컬이 0:10 벌스에서 첫 소절을 잡습니다.")).toBeTruthy();
+    expect(screen.getByText("0:10 벌스에서 리드 보컬 파트가 첫 소절을 잡습니다.")).toBeTruthy();
     expect(screen.queryByText(/verse에서/)).toBeNull();
   });
 });
