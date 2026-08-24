@@ -103,7 +103,7 @@ export function FirstTranspositionPlanCallout({ song }: FirstTranspositionPlanCa
       <aside
         id={`workspace-surface-transposition-plan-${calloutId}`}
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
-        aria-label={t("firstTranspositionPlanUnavailable")}
+        aria-label={t("firstTranspositionPlanLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
           {t("firstTranspositionPlanLabel")}
