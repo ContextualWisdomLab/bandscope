@@ -26,14 +26,17 @@ type OpenedEarCheck = Readonly<{
 /** Bound the identity fingerprint so hostile or oversized songs cannot stall a render. */
 const MAX_EAR_CHECK_FINGERPRINT_SECTIONS = 32;
 
-/** Summarize owned song content so distinct songs sharing an id stop sharing armed guidance. */
+/** Summarize bounded owned song content so distinct songs sharing an id do not share armed guidance. */
 function earCheckSongFingerprint(song: RehearsalSong): string | null {
   try {
     const sections = Array.isArray(song.sections) ? song.sections : [];
+    if (sections.length > MAX_EAR_CHECK_FINGERPRINT_SECTIONS) {
+      return null;
+    }
     return JSON.stringify({
       title: song.title,
       sectionCount: sections.length,
-      sections: sections.slice(0, MAX_EAR_CHECK_FINGERPRINT_SECTIONS).map((section) => ({
+      sections: sections.map((section) => ({
         id: section?.id,
         start: section?.timeRange?.start,
         end: section?.timeRange?.end
@@ -64,9 +67,10 @@ function stableEarCheckSongId(song: RehearsalSong): string | null {
 }
 
 /**
- * Build the armed-guidance identity from the owned id plus a content fingerprint. Two distinct
- * songs that share an id string therefore stop sharing armed state when their content differs,
- * while immutable copies of one song keep their armed guidance.
+ * Build the armed-guidance identity from the owned id plus a bounded content fingerprint. Two
+ * distinct songs that share an id string therefore stop sharing armed state when their bounded
+ * content differs. Oversized or hostile songs fall back to object identity instead of trusting a
+ * truncated fingerprint, while immutable copies of ordinary bounded songs keep their guidance.
  */
 function stableEarCheckSongIdentity(song: RehearsalSong): unknown {
   const songId = stableEarCheckSongId(song);
