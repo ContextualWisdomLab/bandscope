@@ -76,11 +76,16 @@ function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
     return null;
   }
   const length = ownDataValue(value, "length");
-  if (!Number.isSafeInteger(length) || (length as number) < 0 || (length as number) > 0xffffffff) {
+  if (
+    typeof length !== "number" ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > 0xffffffff
+  ) {
     return null;
   }
   const items: unknown[] = [];
-  for (let index = 0; index < (length as number); index += 1) {
+  for (let index = 0; index < length; index += 1) {
     if (!hasOwnData(value, index)) {
       return null;
     }
