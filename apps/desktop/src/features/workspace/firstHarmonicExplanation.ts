@@ -49,6 +49,14 @@ function hasOwnData(value: object, key: PropertyKey): boolean {
   return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
 }
 
+/** Snapshot one owned data-property value without invoking a getter or Proxy get trap. */
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor.value
+    : undefined;
+}
+
 /** Return whether a runtime section owns a label from the shared canonical form vocabulary. */
 function hasKnownSectionLabel(section: RehearsalSection): boolean {
   return (
@@ -89,12 +97,12 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Return a bounded own harmonic explanation, or null when it cannot be shown. */
+/** Return a bounded snapshotted own harmonic explanation, or null when it cannot be shown. */
 function ownedHarmonicExplanation(role: unknown): string | null {
-  if (!isRuntimeObject(role) || !hasOwnData(role, "harmonicExplanation")) {
+  if (!isRuntimeObject(role)) {
     return null;
   }
-  const explanation = (role as { harmonicExplanation?: unknown }).harmonicExplanation;
+  const explanation = ownDataValue(role, "harmonicExplanation");
   if (typeof explanation !== "string") {
     return null;
   }
