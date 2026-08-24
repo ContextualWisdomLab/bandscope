@@ -80,21 +80,16 @@ export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableTuningPlanSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = useMemo(() => resolveFirstTuningPlan(song), [song]);
-  const namedSectionIndex =
-    named && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(named.section)
-      : -1;
   const [openedTuningPlan, setOpenedTuningPlan] = useState<OpenedTuningPlan | null>(null);
 
   useEffect(() => {
     setOpenedTuningPlan(null);
   }, [
     songIdentity,
-    namedSectionIndex,
-    named?.section.id,
-    named?.holdingRole.id,
+    named?.sectionIndex,
+    named?.sectionId,
+    named?.holdingRoleId,
     named?.tuningPlan,
     named?.atSeconds
   ]);
@@ -117,15 +112,15 @@ export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
   const opened =
     openedTuningPlan !== null &&
     openedTuningPlan.songIdentity === songIdentity &&
-    openedTuningPlan.sectionId === named.section.id &&
-    openedTuningPlan.sectionIndex === namedSectionIndex &&
-    openedTuningPlan.holdingRoleId === named.holdingRole.id &&
+    openedTuningPlan.sectionId === named.sectionId &&
+    openedTuningPlan.sectionIndex === named.sectionIndex &&
+    openedTuningPlan.holdingRoleId === named.holdingRoleId &&
     openedTuningPlan.tuningPlan === named.tuningPlan &&
     openedTuningPlan.atSeconds === named.atSeconds;
   const at = formatTuningPlanTime(named.atSeconds);
   const copyValues: TuningPlanCopyValues = {
-    role: named.holdingRole.name,
-    section: translateSectionFormLabel(locale, named.section.label),
+    role: named.holdingRoleName,
+    section: translateSectionFormLabel(locale, named.sectionLabel),
     at
   };
   const actionLabel = formatTuningPlanCopy(t("firstTuningPlanOpenAction"), copyValues);
@@ -149,9 +144,9 @@ export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
         onClick={(event) => {
           const renderer = resolveTuningPlanRenderer(event.currentTarget);
           const target =
-            namedSectionIndex >= 0
+            named.sectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(
-                  `[data-section-index="${namedSectionIndex}"]`
+                  `[data-section-index="${named.sectionIndex}"]`
                 ) ?? null)
               : null;
           if (typeof target?.scrollIntoView !== "function") {
@@ -163,9 +158,9 @@ export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
           });
           setOpenedTuningPlan({
             songIdentity,
-            sectionId: named.section.id,
-            sectionIndex: namedSectionIndex,
-            holdingRoleId: named.holdingRole.id,
+            sectionId: named.sectionId,
+            sectionIndex: named.sectionIndex,
+            holdingRoleId: named.holdingRoleId,
             tuningPlan: named.tuningPlan,
             atSeconds: named.atSeconds
           });
