@@ -148,5 +148,11 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstHookPlanLabel": "Tonight's first hook plan",
+  "firstHookPlanOpenAction": "Open {role} hook at {at}",
+  "firstHookPlanBody": "{role} still has a hook plan in the {section} at {at}.",
+  "firstHookPlanArmed": "Lock that hook on {role} at {at} before the room starts.",
+  "firstHookPlanUnavailable": "No hook plan is available. Stay on tonight's map for the next rehearsal cue."
 }
+
