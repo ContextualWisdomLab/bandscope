@@ -81,12 +81,8 @@ export function FirstFillPlanCallout({ song }: FirstFillPlanCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableFillPlanSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = useMemo(() => resolveFirstFillPlan(song), [song]);
-  const namedSectionIndex =
-    named && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(named.section)
-      : -1;
+  const namedSectionIndex = named?.sectionIndex ?? -1;
   const [openedFillPlan, setOpenedFillPlan] = useState<OpenedFillPlan | null>(null);
 
   useEffect(() => {
