@@ -152,6 +152,7 @@
   "tryTheDemo": "데모 써 보기",
   "useMyOwnSong": "내 곡 사용",
   "demoSelectedNextAction": "분석을 시작해 오늘 첫 큐를 여세요.",
+  "localSelectedNextAction": "분석을 시작해 첫 큐를 여세요.",
   "demoUnavailable": "라이선스 데모 곡을 불러올 수 없습니다. 내 곡으로 오늘 합주를 시작하세요.",
   "demoLimitation": "데모는 평가용 오리지널 BandScope 오디오이며 상업 음원이 아닙니다.",
   "chooseDifferentSong": "다른 곡 선택"

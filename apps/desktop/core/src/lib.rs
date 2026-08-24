@@ -666,11 +666,6 @@ pub fn validate_score_pdf_source(path: &Path) -> Result<(PathBuf, String, u64), 
     Ok((canonical, file_name, file_size_bytes))
 }
 
-/// Security Notes: reads and deletes never accept an arbitrary path from the
-/// WebView. The path is rebuilt server-side from validated ids, symlinks are
-/// refused, and the canonicalized result must still live under the
-/// canonicalized app-owned scores root (path-traversal guard).
-
 /// Validate the bundled licensed demo WAV before it reuses local-audio bootstrap.
 pub fn validate_demo_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, String> {
     let link_metadata = std::fs::symlink_metadata(path)
@@ -708,11 +703,8 @@ pub fn validate_demo_audio_source(path: &Path) -> Result<LocalAudioSourcePayload
         return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
     }
 
-    let mut header = [0u8; 12];
-    std::fs::File::open(&canonical)
-        .and_then(|mut file| file.read_exact(&mut header))
-        .map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
-    if &header[0..4] != WAV_RIFF_MAGIC || &header[8..12] != WAV_WAVE_MAGIC {
+    let data = std::fs::read(&canonical).map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+    if !is_valid_demo_wav(&data) {
         return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
     }
 
@@ -724,6 +716,78 @@ pub fn validate_demo_audio_source(path: &Path) -> Result<LocalAudioSourcePayload
     })
 }
 
+fn is_valid_demo_wav(data: &[u8]) -> bool {
+    if data.len() < 44
+        || &data[0..4] != WAV_RIFF_MAGIC
+        || &data[8..12] != WAV_WAVE_MAGIC
+        || u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize != data.len() - 8
+    {
+        return false;
+    }
+
+    let mut offset = 12usize;
+    let mut has_format = false;
+    let mut has_data = false;
+    while offset < data.len() {
+        let header_end = match offset.checked_add(8) {
+            Some(value) if value <= data.len() => value,
+            _ => return false,
+        };
+        let chunk_size = u32::from_le_bytes([
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
+        ]) as usize;
+        let chunk_end = match header_end.checked_add(chunk_size) {
+            Some(value) if value <= data.len() => value,
+            _ => return false,
+        };
+        let next_offset = match chunk_end.checked_add(chunk_size % 2) {
+            Some(value) if value <= data.len() => value,
+            _ => return false,
+        };
+
+        match &data[offset..offset + 4] {
+            b"fmt " if chunk_size >= 16 => {
+                let format = u16::from_le_bytes([data[header_end], data[header_end + 1]]);
+                let channels = u16::from_le_bytes([data[header_end + 2], data[header_end + 3]]);
+                let sample_rate = u32::from_le_bytes([
+                    data[header_end + 4],
+                    data[header_end + 5],
+                    data[header_end + 6],
+                    data[header_end + 7],
+                ]);
+                let byte_rate = u32::from_le_bytes([
+                    data[header_end + 8],
+                    data[header_end + 9],
+                    data[header_end + 10],
+                    data[header_end + 11],
+                ]);
+                let block_align = u16::from_le_bytes([data[header_end + 12], data[header_end + 13]]);
+                let bits_per_sample =
+                    u16::from_le_bytes([data[header_end + 14], data[header_end + 15]]);
+                has_format = format == 1
+                    && channels > 0
+                    && sample_rate > 0
+                    && byte_rate > 0
+                    && block_align > 0
+                    && bits_per_sample > 0;
+            }
+            b"data" if chunk_size > 0 => has_data = true,
+            _ => {}
+        }
+
+        offset = next_offset;
+    }
+
+    offset == data.len() && has_format && has_data
+}
+
+/// Security Notes: reads and deletes never accept an arbitrary path from the
+/// WebView. The path is rebuilt server-side from validated ids, symlinks are
+/// refused, and the canonicalized result must still live under the
+/// canonicalized app-owned scores root (path-traversal guard).
 pub fn resolve_existing_score_pdf(scores_root: &Path, score_id: &str) -> Result<PathBuf, String> {
     if !is_valid_score_id(score_id) {
         return Err("Score was not found.".to_string());
@@ -1348,11 +1412,21 @@ mod tests {
 
     fn write_sized_demo_wav(path: &Path, bytes: u64, riff: bool, wave: bool) {
         let mut data = vec![0u8; bytes as usize];
-        if riff && data.len() >= 4 {
+        if riff && wave && data.len() >= 44 {
+            let data_len = data.len() as u32;
             data[0..4].copy_from_slice(b"RIFF");
-        }
-        if wave && data.len() >= 12 {
+            data[4..8].copy_from_slice(&(data_len - 8).to_le_bytes());
             data[8..12].copy_from_slice(b"WAVE");
+            data[12..16].copy_from_slice(b"fmt ");
+            data[16..20].copy_from_slice(&16u32.to_le_bytes());
+            data[20..22].copy_from_slice(&1u16.to_le_bytes());
+            data[22..24].copy_from_slice(&1u16.to_le_bytes());
+            data[24..28].copy_from_slice(&44_100u32.to_le_bytes());
+            data[28..32].copy_from_slice(&88_200u32.to_le_bytes());
+            data[32..34].copy_from_slice(&2u16.to_le_bytes());
+            data[34..36].copy_from_slice(&16u16.to_le_bytes());
+            data[36..40].copy_from_slice(b"data");
+            data[40..44].copy_from_slice(&(data_len - 44).to_le_bytes());
         }
         std::fs::write(path, data).expect("demo fixture should be written");
     }
@@ -1381,6 +1455,12 @@ mod tests {
 
         let wrong_size = root.join(DEMO_AUDIO_FILE_NAME);
         write_sized_demo_wav(&wrong_size, 12, true, true);
+        assert!(validate_demo_audio_source(&wrong_size).is_err());
+
+        write_sized_demo_wav(&wrong_size, DEMO_AUDIO_BYTES, true, true);
+        let mut malformed = std::fs::read(&wrong_size).expect("valid demo fixture should be readable");
+        malformed[4..8].copy_from_slice(&(DEMO_AUDIO_BYTES as u32).to_le_bytes());
+        std::fs::write(&wrong_size, malformed).expect("malformed fixture should be writable");
         assert!(validate_demo_audio_source(&wrong_size).is_err());
 
         write_sized_demo_wav(&wrong_size, DEMO_AUDIO_BYTES, false, true);

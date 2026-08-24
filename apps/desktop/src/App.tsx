@@ -259,6 +259,8 @@ export function App() {
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [selectedSourceKind, setSelectedSourceKind] = useState<"demo" | "local" | null>(null);
+  const [isSelectingDemo, setIsSelectingDemo] = useState(false);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
@@ -266,6 +268,7 @@ export function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
+  const demoSelectionInFlightRef = useRef(false);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
@@ -416,7 +419,7 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
-    if (analysisInFlight || isStarting || isImporting) {
+    if (analysisInFlight || isStarting || isImporting || isSelectingDemo) {
       return;
     }
 
@@ -425,10 +428,12 @@ export function App() {
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setSelectedBootstrap(selection.bootstrap);
+      setSelectedSourceKind("local");
       return;
     }
 
     setSelectedBootstrap(null);
+    setSelectedSourceKind(null);
     setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
     setSelectionErrorSource("local");
     setJobStatus(null);
@@ -436,22 +441,31 @@ export function App() {
 
   /** Validate the bundled licensed demo through the same local-audio bootstrap. */
   const handleTryDemo = async () => {
-    if (analysisInFlight || isStarting || isImporting) {
+    if (analysisInFlight || isStarting || isImporting || demoSelectionInFlightRef.current) {
       return;
     }
 
+    demoSelectionInFlightRef.current = true;
+    setIsSelectingDemo(true);
     setSelectionError(null);
     setSelectionErrorSource(null);
-    const selection = await selectDemoAudioSource();
-    if (selection.ok) {
-      setSelectedBootstrap(selection.bootstrap);
-      return;
-    }
+    try {
+      const selection = await selectDemoAudioSource();
+      if (selection.ok) {
+        setSelectedBootstrap(selection.bootstrap);
+        setSelectedSourceKind("demo");
+        return;
+      }
 
-    setSelectedBootstrap(null);
-    setSelectionError(safeErrorDetail(selection.error.message, t("demoUnavailable")));
-    setSelectionErrorSource("local");
-    setJobStatus(null);
+      setSelectedBootstrap(null);
+      setSelectedSourceKind(null);
+      setSelectionError(safeErrorDetail(selection.error.message, t("demoUnavailable")));
+      setSelectionErrorSource("local");
+      setJobStatus(null);
+    } finally {
+      demoSelectionInFlightRef.current = false;
+      setIsSelectingDemo(false);
+    }
   };
 
   /** Documented. */
@@ -542,7 +556,8 @@ export function App() {
     return (
       <EmptyState
         selectedLabel={selectedBootstrap?.source.fileName ?? null}
-        disabled={analysisInFlight || isStarting || isImporting}
+        selectedKind={selectedSourceKind}
+        disabled={isImporting || isSelectingDemo}
         onTryDemo={handleTryDemo}
         onUseOwnSong={handleChooseLocalAudio}
       />

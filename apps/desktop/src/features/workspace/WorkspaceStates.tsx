@@ -5,6 +5,7 @@ import { Loader2, Music, AlertCircle } from "lucide-react";
 
 interface EmptyStateProps {
   selectedLabel?: string | null;
+  selectedKind?: "demo" | "local" | null;
   disabled?: boolean;
   onTryDemo?: () => void;
   onUseOwnSong?: () => void;
@@ -13,6 +14,7 @@ interface EmptyStateProps {
 /** First-run empty workspace: try the licensed demo or use a local song. */
 export function EmptyState({
   selectedLabel = null,
+  selectedKind = null,
   disabled = false,
   onTryDemo,
   onUseOwnSong
@@ -28,7 +30,11 @@ export function EmptyState({
         </div>
         <h3 className="mb-2 text-xl font-black text-white">{t("workspaceReadyToAnalyzeTitle")}</h3>
         <p className="max-w-sm text-slate-400">
-          {hasSelection ? t("demoSelectedNextAction") : t("workspaceEmptyState")}
+          {hasSelection
+            ? selectedKind === "local"
+              ? t("localSelectedNextAction")
+              : t("demoSelectedNextAction")
+            : t("workspaceEmptyState")}
         </p>
         {hasSelection ? null : (
           <p className="mt-2 max-w-sm text-xs text-slate-500">{t("demoLimitation")}</p>

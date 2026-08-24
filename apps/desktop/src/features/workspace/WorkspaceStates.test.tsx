@@ -31,6 +31,20 @@ describe("workspace first-run states", () => {
     expect(screen.getByRole("button", { name: /choose a different song/i })).toBeTruthy();
   });
 
+  it("uses general next-step copy for a locally selected song", () => {
+    render(
+      <EmptyState
+        selectedLabel="my-song.wav"
+        selectedKind="local"
+        onTryDemo={vi.fn()}
+        onUseOwnSong={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/start analysis to open your first cue/i)).toBeTruthy();
+    expect(screen.queryByText(/tonight's first cue/i)).toBeNull();
+  });
+
   it("does not fire empty-card actions while intake is disabled", () => {
     const onTryDemo = vi.fn();
     const onUseOwnSong = vi.fn();

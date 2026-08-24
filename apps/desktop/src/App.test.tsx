@@ -436,6 +436,28 @@ describe("App", () => {
     });
   });
 
+  it("does not issue duplicate demo selection requests while intake is pending", async () => {
+    let resolveSelection: ((value: unknown) => void) | null = null;
+    tauriInvoke.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveSelection = resolve;
+      })
+    );
+
+    render(<App />);
+
+    const tryDemo = screen.getByRole("button", { name: /try the demo/i });
+    fireEvent.click(tryDemo);
+    fireEvent.click(tryDemo);
+
+    expect(tauriInvoke).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveSelection?.(bootstrapResponse());
+      await Promise.resolve();
+    });
+    expect(await screen.findByText(/start analysis to open tonight's first cue/i)).toBeTruthy();
+  });
+
   it("names using your own song when the licensed demo cannot load", async () => {
     tauriInvoke.mockRejectedValueOnce(
       new Error("The licensed demo song could not be loaded. Use your own song to start tonight.")

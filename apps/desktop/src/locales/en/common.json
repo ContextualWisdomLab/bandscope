@@ -152,6 +152,7 @@
   "tryTheDemo": "Try the demo",
   "useMyOwnSong": "Use my own song",
   "demoSelectedNextAction": "Start analysis to open tonight's first cue.",
+  "localSelectedNextAction": "Start analysis to open your first cue.",
   "demoUnavailable": "The licensed demo song could not be loaded. Use your own song to start tonight.",
   "demoLimitation": "The demo is original BandScope audio for evaluation, not a commercial track.",
   "chooseDifferentSong": "Choose a different song"
