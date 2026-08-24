@@ -1,5 +1,6 @@
 import {
   MAX_SECTION_TIME_SECONDS,
+  SECTION_FORM_LABELS,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -7,6 +8,7 @@ import {
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_TUNING_PLAN_CHARACTERS = 180;
+const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
 /** Tonight's first tuning plan: the earliest labeled section and the part that owns it. */
 export type FirstTuningPlan = {
@@ -232,7 +234,7 @@ function resolveSafeFirstTuningPlan(song: RehearsalSong): FirstTuningPlan | null
         isRuntimeObject(section) &&
         hasOwnData(section, "label") &&
         typeof section.label === "string" &&
-        section.label.trim().length > 0 &&
+        SECTION_FORM_LABEL_SET.has(section.label) &&
         hasOwnData(section, "id") &&
         typeof section.id === "string" &&
         section.id.trim().length > 0 &&
