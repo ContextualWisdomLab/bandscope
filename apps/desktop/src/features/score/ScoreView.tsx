@@ -149,7 +149,10 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
           </div>
 
           {!projectId && (
-            <p className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100">
+            <p
+              className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100"
+              role="status"
+            >
               {t("scoreRequiresProject")}
             </p>
           )}
@@ -169,9 +172,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
               {t("scoreListTitle")}
             </h3>
             {attachments.length === 0 ? (
-              <p className="text-sm text-slate-300" role="status">
-                {t("scoreListEmpty")}
-              </p>
+              projectId ? (
+                <p className="text-sm text-slate-300" role="status">
+                  {t("scoreListEmpty")}
+                </p>
+              ) : null
             ) : (
               <ul className="flex flex-col gap-2">
                 {attachments.map((attachment) => (
@@ -212,21 +217,23 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
         </CardContent>
       </Card>
 
-      {isOpening ? (
-        <Card
-          className="border-cyan-300/20 bg-slate-950/75 backdrop-blur-xl"
-          role="status"
-          aria-live="polite"
-          aria-busy="true"
-        >
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Loader2 className="mb-4 size-10 animate-spin text-cyan-300" aria-hidden="true" />
-            <p className="animate-pulse text-slate-400">{t("scoreOpening")}</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <ScoreViewer data={pdfBytes} fileName={selected?.fileName} />
-      )}
+      {projectId ? (
+        isOpening ? (
+          <Card
+            className="border-cyan-300/20 bg-slate-950/75 backdrop-blur-xl"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <Loader2 className="mb-4 size-10 animate-spin text-cyan-300" aria-hidden="true" />
+              <p className="animate-pulse text-slate-400">{t("scoreOpening")}</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <ScoreViewer data={pdfBytes} fileName={selected?.fileName} />
+        )
+      ) : null}
     </section>
   );
 }
