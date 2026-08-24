@@ -81,21 +81,16 @@ export function FirstDynamicsPlanCallout({ song }: FirstDynamicsPlanCalloutProps
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableDynamicsPlanSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = useMemo(() => resolveFirstDynamicsPlan(song), [song]);
-  const namedSectionIndex =
-    named && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(named.section)
-      : -1;
   const [openedDynamicsPlan, setOpenedDynamicsPlan] = useState<OpenedDynamicsPlan | null>(null);
 
   useEffect(() => {
     setOpenedDynamicsPlan(null);
   }, [
     songIdentity,
-    namedSectionIndex,
-    named?.section.id,
-    named?.holdingRole.id,
+    named?.sectionIndex,
+    named?.sectionId,
+    named?.holdingRoleId,
     named?.dynamicsPlan,
     named?.atSeconds
   ]);
@@ -118,15 +113,15 @@ export function FirstDynamicsPlanCallout({ song }: FirstDynamicsPlanCalloutProps
   const opened =
     openedDynamicsPlan !== null &&
     openedDynamicsPlan.songIdentity === songIdentity &&
-    openedDynamicsPlan.sectionId === named.section.id &&
-    openedDynamicsPlan.sectionIndex === namedSectionIndex &&
-    openedDynamicsPlan.holdingRoleId === named.holdingRole.id &&
+    openedDynamicsPlan.sectionId === named.sectionId &&
+    openedDynamicsPlan.sectionIndex === named.sectionIndex &&
+    openedDynamicsPlan.holdingRoleId === named.holdingRoleId &&
     openedDynamicsPlan.dynamicsPlan === named.dynamicsPlan &&
     openedDynamicsPlan.atSeconds === named.atSeconds;
   const at = formatDynamicsPlanTime(named.atSeconds);
   const copyValues: DynamicsPlanCopyValues = {
-    role: named.holdingRole.name,
-    section: translateSectionFormLabel(locale, named.section.label),
+    role: named.holdingRoleName,
+    section: translateSectionFormLabel(locale, named.sectionLabel),
     at
   };
   const actionLabel = formatDynamicsPlanCopy(t("firstDynamicsPlanOpenAction"), copyValues);
@@ -150,9 +145,9 @@ export function FirstDynamicsPlanCallout({ song }: FirstDynamicsPlanCalloutProps
         onClick={(event) => {
           const renderer = resolveDynamicsPlanRenderer(event.currentTarget);
           const target =
-            namedSectionIndex >= 0
+            named.sectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(
-                  `[data-section-index="${namedSectionIndex}"]`
+                  `[data-section-index="${named.sectionIndex}"]`
                 ) ?? null)
               : null;
           if (typeof target?.scrollIntoView !== "function") {
@@ -164,9 +159,9 @@ export function FirstDynamicsPlanCallout({ song }: FirstDynamicsPlanCalloutProps
           });
           setOpenedDynamicsPlan({
             songIdentity,
-            sectionId: named.section.id,
-            sectionIndex: namedSectionIndex,
-            holdingRoleId: named.holdingRole.id,
+            sectionId: named.sectionId,
+            sectionIndex: named.sectionIndex,
+            holdingRoleId: named.holdingRoleId,
             dynamicsPlan: named.dynamicsPlan,
             atSeconds: named.atSeconds
           });
