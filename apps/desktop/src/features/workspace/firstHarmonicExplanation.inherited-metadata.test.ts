@@ -91,4 +91,11 @@ describe("resolveFirstHarmonicExplanation inherited metadata", () => {
     song.sections = [arraySection];
     expect(resolveFirstHarmonicExplanation(song)).toBeNull();
   });
+
+  it("rejects an out-of-contract section label from untrusted runtime data", () => {
+    const { song, section } = songWithHarmonicExplanation();
+    (section as unknown as { label: string }).label = "verse-legacy";
+
+    expect(resolveFirstHarmonicExplanation(song)).toBeNull();
+  });
 });
