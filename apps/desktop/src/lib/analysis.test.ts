@@ -152,7 +152,7 @@ describe("analysis bridge", () => {
         message: "Analysis engine is unavailable."
       }
     });
-    expect(status.result).toBeNull();
+    expect(status.result).toBeUndefined();
   });
 
   it("ignores a non-function Tauri v1 invoke shim", async () => {
