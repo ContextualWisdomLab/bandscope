@@ -81,12 +81,8 @@ export function FirstRiffPlanCallout({ song }: FirstRiffPlanCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableRiffPlanSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = useMemo(() => resolveFirstRiffPlan(song), [song]);
-  const namedSectionIndex =
-    named && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(named.section)
-      : -1;
+  const namedSectionIndex = named?.sectionIndex ?? -1;
   const [openedRiffPlan, setOpenedRiffPlan] = useState<OpenedRiffPlan | null>(null);
 
   useEffect(() => {
