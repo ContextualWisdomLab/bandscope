@@ -139,6 +139,8 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  /** Rehearsal-facing pad guidance owned by this role when runtime graph evidence corroborates it. */
+  padPlan?: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -474,6 +476,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
+          padPlan: "Drop to a two-bar pad so the Keyboard 1 Right Hand run can land.",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1497,6 +1500,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "transpositionPlan",
+      "padPlan",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1551,6 +1555,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.padPlan !== undefined && typeof value.padPlan !== "string") {
+    return invalidField(`${path}.padPlan`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);

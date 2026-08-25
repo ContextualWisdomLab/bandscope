@@ -83,6 +83,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Keep UI and analysis engine decoupled through shared contracts.
 - Prefer minimal, test-first changes for production code.
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
+- Name tonight's first pad plan with the owning part when an active role is corroborated, the owned `padPlan` copy, the labeled section, and the time so the next action is obvious. Do not invent that copy from groove, cue, simplification, overlap, range, chord labels, function labels, setup notes, transposition plans, fill plans, tuning plans, dynamics plans, articulation plans, hook plans, solo plans, confirmed overrides, harmonic explanations, or confidence notes.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
 

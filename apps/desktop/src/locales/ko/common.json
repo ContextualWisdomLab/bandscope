@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstPadPlanLabel": "오늘 첫 패드 계획",
+  "firstPadPlanOpenAction": "{at} {role} 패드 열기",
+  "firstPadPlanBody": "{at} {section}에서 {role} 파트의 패드 계획이 있습니다.",
+  "firstPadPlanArmed": "{at}에서 {role} 파트의 패드를 맞춘 다음 합주를 시작하세요.",
+  "firstPadPlanUnavailable": "사용 가능한 패드 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
 }

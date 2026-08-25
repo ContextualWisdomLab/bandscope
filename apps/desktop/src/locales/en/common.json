@@ -148,5 +148,10 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstPadPlanLabel": "Tonight's first pad plan",
+  "firstPadPlanOpenAction": "Open {role} pad at {at}",
+  "firstPadPlanBody": "{role} still has a pad plan in the {section} at {at}.",
+  "firstPadPlanArmed": "Lock that pad on {role} at {at} before the room starts.",
+  "firstPadPlanUnavailable": "No pad plan is available. Stay on tonight's map for the next rehearsal cue."
 }
