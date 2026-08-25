@@ -9,11 +9,16 @@ const EMPTY_NOTES: TranscriptionNote[] = [];
 interface GrooveMapProps {
   notes?: TranscriptionNote[];
   isLoading?: boolean;
+  regionLabel?: string;
+  emptyMessage?: string;
 }
 
 /** Documented. */
-function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
+function GrooveMapComponent({ notes, isLoading, regionLabel, emptyMessage }: GrooveMapProps) {
   const renderedNotes = notes ?? EMPTY_NOTES;
+  const mapLabel = regionLabel ?? "Bass transcription groove map";
+  const emptyCopy =
+    emptyMessage ?? "No bass line transcription yet. Use it when you want to check the groove before rehearsal.";
 
   // Find max offset to determine timeline width
   const maxTime = useMemo(() => {
@@ -56,19 +61,24 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
   if (renderedNotes.length === 0) {
     return (
       <div
-        className="mt-4 rounded-lg border border-dashed border-cyan-200/15 bg-slate-950/60 p-6 text-center text-sm text-slate-400"
+        id="workspace-groove-map"
+        role="region"
+        tabIndex={-1}
+        aria-label={mapLabel}
+        className="mt-4 rounded-lg border border-dashed border-cyan-200/15 bg-slate-950/60 p-6 text-center text-sm text-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       >
-        No bass line transcription yet. Use it when you want to check the groove before rehearsal.
+        {emptyCopy}
       </div>
     );
   }
 
   return (
     <div
+      id="workspace-groove-map"
       className="relative mt-4 overflow-x-auto rounded-lg border border-cyan-200/15 bg-slate-950/80 p-4 shadow-inner shadow-cyan-950/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       role="region"
       tabIndex={0}
-      aria-label="Bass transcription groove map"
+      aria-label={mapLabel}
     >
       <div className="sr-only">
         Transcription complete. {renderedNotes.length} notes analyzed.

@@ -40,6 +40,7 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
 }
 
 type Translator = ReturnType<typeof createTranslator>;
+type TranscriptionNote = NonNullable<RehearsalRole["transcription"]>[number];
 
 /** Documented. */
 function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
@@ -55,6 +56,70 @@ function formatStatusLabel(status: string): string {
 function nonBlankText(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+/** Fill rehearsal copy with named placeholders. */
+function fillCopy(template: string, values: Record<string, string>): string {
+  return Object.entries(values).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, value),
+    template
+  );
+}
+
+/** Accept only finite, forward-moving analyzed notes that are safe to rank and render. */
+function isUsableTranscriptionNote(note: unknown): note is TranscriptionNote {
+  if (!note || typeof note !== "object") {
+    return false;
+  }
+
+  const candidate = note as Partial<TranscriptionNote>;
+  return (
+    typeof candidate.pitch === "string" &&
+    nonBlankText(candidate.pitch) !== undefined &&
+    typeof candidate.onset === "number" &&
+    Number.isFinite(candidate.onset) &&
+    candidate.onset >= 0 &&
+    typeof candidate.offset === "number" &&
+    Number.isFinite(candidate.offset) &&
+    candidate.offset > candidate.onset &&
+    typeof candidate.velocity === "number" &&
+    Number.isFinite(candidate.velocity) &&
+    candidate.velocity >= 0 &&
+    candidate.velocity <= 1
+  );
+}
+
+/** Return the earliest analyzed note so tonight starts on the first attack. */
+function firstTranscriptionNote(notes: RehearsalRole["transcription"]): TranscriptionNote | undefined {
+  if (!notes || notes.length === 0) {
+    return undefined;
+  }
+
+  let earliest = notes[0]!;
+  for (const note of notes) {
+    if (note.onset < earliest.onset) {
+      earliest = note;
+    }
+  }
+  return earliest;
+}
+
+/** Use immediate scrolling when the operating system requests reduced motion. */
+function preferredGrooveScrollBehavior(): ScrollBehavior {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? "auto"
+    : "smooth";
+}
+
+/** Scroll and focus the groove map that already holds tonight's notes. */
+function focusGrooveMap(): void {
+  const node = document.getElementById("workspace-groove-map");
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  node.scrollIntoView({ behavior: preferredGrooveScrollBehavior(), block: "nearest" });
+  node.focus();
 }
 
 /** Documented. */
@@ -120,6 +185,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [openedNotesRoleId, setOpenedNotesRoleId] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -149,7 +215,28 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     if (!activeRole) return undefined;
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
-  const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
+  const activeRoleTranscription = useMemo(() => {
+    if (!activeRole) return undefined;
+    const notes: TranscriptionNote[] = [];
+    for (const section of song.sections) {
+      for (const role of section.roles) {
+        if (role.id !== activeRole || !Array.isArray(role.transcription)) continue;
+        for (const note of role.transcription) {
+          if (isUsableTranscriptionNote(note)) {
+            notes.push(note);
+          }
+        }
+      }
+    }
+    if (notes.length === 0) return undefined;
+    notes.sort((left, right) => left.onset - right.onset);
+    return notes;
+  }, [activeRole, song.sections]);
+  const firstNote = firstTranscriptionNote(activeRoleTranscription);
+  const roleRangeLow = nonBlankText(activeRoleDetails?.range.lowestNote);
+  const roleRangeHigh = nonBlankText(activeRoleDetails?.range.highestNote);
+  const roleCue = nonBlankText(activeRoleDetails?.cue.value);
+  const canOpenTonightNotes = Boolean(firstNote || (roleRangeLow && roleRangeHigh));
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -212,6 +299,72 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const roleName = nonBlankText(activeRoleDetails?.name) ?? t("workspaceThisRole");
+  const notesActionLabel = firstNote
+    ? fillCopy(t("workspaceOpenNotesAction"), {
+        role: roleName,
+        pitch: firstNote.pitch,
+        start: formatTimelineTime(firstNote.onset)
+      })
+    : roleRangeLow && roleRangeHigh
+      ? fillCopy(t("workspaceOpenRangeAction"), {
+          role: roleName,
+          low: roleRangeLow,
+          high: roleRangeHigh
+        })
+      : t("workspaceOpenNotesUnavailable");
+  const notesAriaLabel = firstNote
+    ? fillCopy(t("workspaceOpenNotesAria"), {
+        role: roleName,
+        pitch: firstNote.pitch,
+        start: formatTimelineTime(firstNote.onset)
+      })
+    : roleRangeLow && roleRangeHigh
+      ? fillCopy(t("workspaceOpenRangeAria"), {
+          role: roleName,
+          low: roleRangeLow,
+          high: roleRangeHigh
+        })
+      : t("workspaceOpenNotesUnavailable");
+  const notesStatus = firstNote
+    ? fillCopy(t("workspaceOpenNotesArmed"), {
+        role: roleName,
+        pitch: firstNote.pitch,
+        start: formatTimelineTime(firstNote.onset)
+      })
+    : roleRangeLow && roleRangeHigh
+      ? fillCopy(t("workspaceOpenRangeArmed"), {
+          role: roleName,
+          low: roleRangeLow,
+          high: roleRangeHigh
+        })
+      : t("workspaceOpenNotesUnavailable");
+  const grooveEmptyMessage = firstNote
+    ? fillCopy(t("workspaceGrooveMapReady"), { count: String(activeRoleTranscription?.length ?? 0) })
+    : roleRangeLow && roleRangeHigh
+      ? fillCopy(t("workspaceGrooveMapRangeEmpty"), {
+          role: roleName,
+          low: roleRangeLow,
+          high: roleRangeHigh,
+          cue: roleCue ?? t("workspaceGrooveMapCueFallback")
+        })
+      : fillCopy(t("workspaceGrooveMapEmpty"), { role: roleName });
+  const grooveRegionLabel = fillCopy(t("workspaceGrooveMapRegion"), { role: roleName });
+
+  /** Open tonight's first notes or range on the groove map without inventing transcription. */
+  const openTonightNotes = (): void => {
+    if (!activeRole || !canOpenTonightNotes) {
+      return;
+    }
+    setOpenedNotesRoleId(activeRole);
+    focusGrooveMap();
+  };
+
+  /** Keep the role board and opened-notes status on the same selected part. */
+  const handleRoleChange = (roleId: string | null): void => {
+    setActiveRole(roleId);
+    setOpenedNotesRoleId(null);
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -332,7 +485,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           </div>
 
           <SongStructure sections={song.sections} t={t} />
-
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -342,7 +494,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               <RoleSwitcher
                 roles={allRoles}
                 activeRole={activeRole}
-                onRoleChange={setActiveRole}
+                onRoleChange={handleRoleChange}
                 />
             </div>
 
@@ -384,25 +536,28 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   >
                     Solo / mute others
                   </Button>
-                  {canTranscribeBass ? (
+                  {canOpenTonightNotes ? (
                     <Button
                       type="button"
-                      title="Transcribe part"
+                      title={notesAriaLabel}
+                      aria-label={notesAriaLabel}
+                      onClick={openTonightNotes}
                       variant="outline"
-                      className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
+                      className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 hover:bg-emerald-300/20 hover:text-white"
                     >
-                      Transcribe Bass
+                      {notesActionLabel}
                     </Button>
                   ) : (
                     <Button
                       type="button"
                       aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
+                      aria-label={t("workspaceOpenNotesUnavailable")}
+                      title={t("workspaceOpenNotesUnavailable")}
                       onClick={preventUnavailableAction}
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
                     >
-                      Transcribe Bass
+                      {t("workspaceOpenNotesUnavailable")}
                     </Button>
                   )}
                 </div>
@@ -476,7 +631,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </div>
                 )}
                 <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
-                <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
+                {openedNotesRoleId === activeRole ? (
+                  <p className="mt-3 text-sm font-semibold text-emerald-100" role="status" aria-live="polite">
+                    {notesStatus}
+                  </p>
+                ) : null}
+                <GrooveMap
+                  notes={activeRoleTranscription}
+                  isLoading={false}
+                  regionLabel={grooveRegionLabel}
+                  emptyMessage={grooveEmptyMessage}
+                />
               </div>
             )}
 
