@@ -2,11 +2,8 @@ import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
 import { resolveFirstSoloPlan } from "./firstSoloPlan";
 
-const DEMO_SOLO_PLAN =
-  "Hold the verse solo; everyone else drops to a two-bar pad so the run can land.";
-
-describe("resolveFirstSoloPlan own-data authority", () => {
-  it("uses the snapshotted own-data solo plan instead of a Proxy get trap", () => {
+describe("resolveFirstSoloPlan runtime authority", () => {
+  it("fails closed when a Proxy get trap can substitute solo-plan copy", () => {
     const song = createDemoRehearsalSong();
     const section = song.sections.find((candidate) => candidate.id === "verse-1");
     const roleIndex = section?.roles.findIndex((role) => role.id === "keys-right") ?? -1;
@@ -26,10 +23,10 @@ describe("resolveFirstSoloPlan own-data authority", () => {
       }
     });
 
-    expect(resolveFirstSoloPlan(song)?.soloPlan).toBe(DEMO_SOLO_PLAN);
+    expect(resolveFirstSoloPlan(song)).toBeNull();
   });
 
-  it("uses the snapshotted own-data time range instead of a Proxy get trap", () => {
+  it("fails closed when a Proxy get trap can substitute the time range", () => {
     const song = createDemoRehearsalSong();
     const section = song.sections.find((candidate) => candidate.id === "verse-1");
     expect(section).toBeDefined();
@@ -46,10 +43,10 @@ describe("resolveFirstSoloPlan own-data authority", () => {
       }
     });
 
-    expect(resolveFirstSoloPlan(song)?.atSeconds).toBe(expectedStart);
+    expect(resolveFirstSoloPlan(song)).toBeNull();
   });
 
-  it("uses snapshotted role identity and display copy instead of Proxy get values", () => {
+  it("fails closed when a Proxy get trap can substitute role identity or display copy", () => {
     const song = createDemoRehearsalSong();
     const section = song.sections.find((candidate) => candidate.id === "verse-1");
     const roleIndex = section?.roles.findIndex((role) => role.id === "keys-right") ?? -1;
@@ -59,8 +56,6 @@ describe("resolveFirstSoloPlan own-data authority", () => {
     if (!section || !role || roleIndex < 0) {
       throw new Error("Demo solo-plan fixture is missing the expected Keyboard 1 Right Hand role.");
     }
-    const expectedId = role.id;
-    const expectedName = role.name;
     section.roles[roleIndex] = new Proxy(role, {
       get(target, property, receiver) {
         if (property === "id") {
@@ -73,15 +68,7 @@ describe("resolveFirstSoloPlan own-data authority", () => {
       }
     });
 
-    const resolved = resolveFirstSoloPlan(song) as
-      | (ReturnType<typeof resolveFirstSoloPlan> & {
-          holdingRoleId?: string;
-          holdingRoleName?: string;
-        })
-      | null;
-    expect(resolved?.soloPlan).toBe(DEMO_SOLO_PLAN);
-    expect(resolved?.holdingRoleId).toBe(expectedId);
-    expect(resolved?.holdingRoleName).toBe(expectedName);
+    expect(resolveFirstSoloPlan(song)).toBeNull();
   });
 
   it("fails closed when a Proxy descriptor trap fabricates solo-plan authority", () => {
