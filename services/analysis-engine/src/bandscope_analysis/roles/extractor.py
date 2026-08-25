@@ -366,7 +366,9 @@ class RoleExtractor:
         )
         if target_role_name is None:
             return None
-        return f"Keep this part going until {target_role_name} enters in the next section."
+        return (
+            f"Keep this part going until {target_role_name} enters in the next section."
+        )
 
     def _build_activity_topology(
         self,
