@@ -62,6 +62,37 @@ function ownDataValue(value: object, key: PropertyKey): unknown {
   }
 }
 
+/** Snapshot an ordinary array through owned numeric data properties only. */
+function ownedDenseArray(value: unknown): unknown[] | null {
+  try {
+    if (!Array.isArray(value)) {
+      return null;
+    }
+    const length = ownDataValue(value, "length");
+    if (
+      typeof length !== "number" ||
+      !Number.isSafeInteger(length) ||
+      length < 0
+    ) {
+      return null;
+    }
+    const items: unknown[] = [];
+    for (let index = 0; index < length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, index);
+      if (
+        descriptor === undefined ||
+        !Object.prototype.hasOwnProperty.call(descriptor, "value")
+      ) {
+        return null;
+      }
+      items.push(descriptor.value);
+    }
+    return items;
+  } catch {
+    return null;
+  }
+}
+
 /** Snapshot one playable section before any value can become transport authority. */
 function playableSectionSnapshot(
   section: RehearsalSection | undefined | null,
@@ -164,17 +195,33 @@ export function createLoopWindow(
   };
 }
 
+/** Snapshot every playable loop window from one untrusted song record. */
+export function resolveLoopWindows(
+  song: RehearsalSong | null | undefined,
+): RehearsalLoopWindow[] {
+  if (!song || typeof song !== "object") {
+    return [];
+  }
+  const sections = ownedDenseArray(ownDataValue(song, "sections"));
+  if (!sections) {
+    return [];
+  }
+  const tempo = ownDataValue(song, "tempo");
+  return sections.flatMap((section) => {
+    if (!section || typeof section !== "object") {
+      return [];
+    }
+    const window = createLoopWindow(section as RehearsalSection, tempo);
+    return window ? [window] : [];
+  });
+}
+
 /** Resolve the requested section, or the first valid section, as a loop window. */
 export function resolveLoopWindow(
   song: RehearsalSong | null | undefined,
   sectionId?: string | null,
 ): RehearsalLoopWindow | null {
-  const sections = Array.isArray(song?.sections) ? song.sections : [];
-  const tempo = song?.tempo;
-  const windows = sections.flatMap((section) => {
-    const window = createLoopWindow(section, tempo);
-    return window ? [window] : [];
-  });
+  const windows = resolveLoopWindows(song);
   if (typeof sectionId === "string" && sectionId.trim()) {
     const requestedWindow = windows.find(
       (window) => window.sectionId === sectionId,
