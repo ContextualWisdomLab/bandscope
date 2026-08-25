@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +66,7 @@ function preferredTransitionScrollBehavior(): ScrollBehavior {
 export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const landmarkId = useId();
   const resolution = useMemo(() => {
     const songIdentity = stableSongIdentity(song);
     const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
@@ -95,7 +96,7 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
   if (!transition) {
     return (
       <aside
-        id="workspace-surface-transition"
+        id={`workspace-surface-transition-${landmarkId}`}
         className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4"
         aria-label={t("firstTransitionUnavailable")}
       >
@@ -136,7 +137,7 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
 
   return (
     <aside
-      id="workspace-surface-transition"
+      id={`workspace-surface-transition-${landmarkId}`}
       className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4"
       aria-label={t("firstTransitionLabel")}
     >
