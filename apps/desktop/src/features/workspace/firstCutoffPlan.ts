@@ -221,8 +221,8 @@ function repeatedIds(ids: string[]): Set<string> {
   return repeated;
 }
 
-/** Prefer the earlier ranked role, then rehearsal priority, then a locale-independent id. */
-function pickLandingRole(roles: RankedRoleMetadata[]): RankedRoleMetadata | null {
+/** Prefer rehearsal priority, then a locale-independent stable id. */
+function pickLandingRole<Role extends RankedRoleMetadata>(roles: Role[]): Role | null {
   if (roles.length === 0) {
     return null;
   }
@@ -315,15 +315,12 @@ function resolveSafeFirstCutoffPlan(song: RehearsalSong): FirstCutoffPlan | null
       }
 
       const landingRole = pickLandingRole(
-        rankedActiveRoles(section as RehearsalSection).filter(
-          (metadata) => ownedCutoffPlan(metadata.role) !== null
-        )
+        rankedActiveRoles(section as RehearsalSection).flatMap((metadata) => {
+          const cutoffPlan = ownedCutoffPlan(metadata.role);
+          return cutoffPlan === null ? [] : [{ ...metadata, cutoffPlan }];
+        })
       );
       if (!landingRole) {
-        return [];
-      }
-      const cutoffPlan = ownedCutoffPlan(landingRole.role);
-      if (!cutoffPlan) {
         return [];
       }
       return [
@@ -335,7 +332,7 @@ function resolveSafeFirstCutoffPlan(song: RehearsalSong): FirstCutoffPlan | null
           landingRole: landingRole.role,
           landingRoleId: landingRole.id,
           landingRoleName: landingRole.name,
-          cutoffPlan,
+          cutoffPlan: landingRole.cutoffPlan,
           atSeconds: timeRange.end
         }
       ];
