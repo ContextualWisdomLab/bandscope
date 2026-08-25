@@ -98,4 +98,24 @@ describe("resolveFirstSoloPlan runtime authority", () => {
 
     expect(resolveFirstSoloPlan(song)).toBeNull();
   });
+
+  it("fails closed when an exotic Map instance carries otherwise valid role metadata", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections.find((candidate) => candidate.id === "verse-1");
+    const roleIndex = section?.roles.findIndex((role) => role.id === "keys-right") ?? -1;
+    expect(section).toBeDefined();
+    if (!section || roleIndex < 0) {
+      throw new Error("Demo solo-plan fixture is missing the expected Keyboard 1 Right Hand role.");
+    }
+
+    const exoticRole = Object.assign(new Map<string, string>(), {
+      id: "keys-right",
+      name: "Keyboard 1 Right Hand",
+      rehearsalPriority: "high" as const,
+      soloPlan: "Hold the owned solo before the room returns."
+    });
+    section.roles[roleIndex] = exoticRole as unknown as (typeof section.roles)[number];
+
+    expect(resolveFirstSoloPlan(song)).toBeNull();
+  });
 });
