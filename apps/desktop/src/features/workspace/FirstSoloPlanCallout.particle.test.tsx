@@ -28,7 +28,7 @@ describe("FirstSoloPlanCallout Korean role copy", () => {
     grid.setAttribute("role", "region");
     grid.setAttribute("aria-label", "Scrollable song structure timeline");
     const target = document.createElement("div");
-    target.dataset.sectionIndex = "0";
+    target.dataset.sectionId = seed.id;
     Object.defineProperty(target, "scrollIntoView", {
       configurable: true,
       value: vi.fn()
