@@ -23,6 +23,7 @@ describe("FirstSoloPlanCallout Korean role copy", () => {
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
 
+    const { container } = render(<FirstSoloPlanCallout song={song} />);
     const grid = document.createElement("div");
     grid.dataset.testid = "song-structure-grid";
     grid.setAttribute("role", "region");
@@ -33,10 +34,7 @@ describe("FirstSoloPlanCallout Korean role copy", () => {
       configurable: true,
       value: vi.fn()
     });
-    grid.appendChild(target);
-    document.body.appendChild(grid);
-
-    render(<FirstSoloPlanCallout song={song} />);
+    container.append(grid, target);
 
     expect(screen.getByText("0:10 벌스에서 피아노 파트의 솔로 계획이 있습니다.")).toBeTruthy();
     expect(screen.queryByText(/피아노이/)).toBeNull();
@@ -46,7 +44,5 @@ describe("FirstSoloPlanCallout Korean role copy", () => {
 
     expect(screen.getByText("0:10에서 피아노 파트의 솔로를 맞춘 다음 합주를 시작하세요.")).toBeTruthy();
     expect(screen.queryByText(/피아노과/)).toBeNull();
-
-    grid.remove();
   });
 });
