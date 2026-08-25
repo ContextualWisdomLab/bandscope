@@ -81,20 +81,15 @@ export function FirstVoicingPlanCallout({ song }: FirstVoicingPlanCalloutProps) 
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableVoicingPlanSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = useMemo(() => resolveFirstVoicingPlan(song), [song]);
-  const namedSectionIndex =
-    named && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(named.section)
-      : -1;
   const [openedVoicingPlan, setOpenedVoicingPlan] = useState<OpenedVoicingPlan | null>(null);
 
   useEffect(() => {
     setOpenedVoicingPlan(null);
   }, [
     songIdentity,
-    namedSectionIndex,
-    named?.section.id,
+    named?.sectionIndex,
+    named?.sectionId,
     named?.holdingRoleId,
     named?.voicingPlan,
     named?.atSeconds
@@ -118,15 +113,15 @@ export function FirstVoicingPlanCallout({ song }: FirstVoicingPlanCalloutProps) 
   const opened =
     openedVoicingPlan !== null &&
     openedVoicingPlan.songIdentity === songIdentity &&
-    openedVoicingPlan.sectionId === named.section.id &&
-    openedVoicingPlan.sectionIndex === namedSectionIndex &&
+    openedVoicingPlan.sectionId === named.sectionId &&
+    openedVoicingPlan.sectionIndex === named.sectionIndex &&
     openedVoicingPlan.holdingRoleId === named.holdingRoleId &&
     openedVoicingPlan.voicingPlan === named.voicingPlan &&
     openedVoicingPlan.atSeconds === named.atSeconds;
   const at = formatVoicingPlanTime(named.atSeconds);
   const copyValues: VoicingPlanCopyValues = {
     role: named.holdingRoleName,
-    section: translateSectionFormLabel(locale, named.section.label),
+    section: translateSectionFormLabel(locale, named.sectionLabel),
     at
   };
   const actionLabel = formatVoicingPlanCopy(t("firstVoicingPlanOpenAction"), copyValues);
@@ -150,11 +145,9 @@ export function FirstVoicingPlanCallout({ song }: FirstVoicingPlanCalloutProps) 
         onClick={(event) => {
           const renderer = resolveVoicingPlanRenderer(event.currentTarget);
           const target =
-            namedSectionIndex >= 0
-              ? (renderer?.querySelector<HTMLElement>(
-                  `[data-section-index="${namedSectionIndex}"]`
-                ) ?? null)
-              : null;
+            renderer?.querySelector<HTMLElement>(
+              `[data-section-index="${named.sectionIndex}"]`
+            ) ?? null;
           if (typeof target?.scrollIntoView !== "function") {
             return;
           }
@@ -164,8 +157,8 @@ export function FirstVoicingPlanCallout({ song }: FirstVoicingPlanCalloutProps) 
           });
           setOpenedVoicingPlan({
             songIdentity,
-            sectionId: named.section.id,
-            sectionIndex: namedSectionIndex,
+            sectionId: named.sectionId,
+            sectionIndex: named.sectionIndex,
             holdingRoleId: named.holdingRoleId,
             voicingPlan: named.voicingPlan,
             atSeconds: named.atSeconds
