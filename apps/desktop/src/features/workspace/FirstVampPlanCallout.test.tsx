@@ -185,6 +185,37 @@ describe("FirstVampPlanCallout", () => {
     grid.remove();
   });
 
+  it("fails closed when one workspace owns more than one song-structure renderer", () => {
+    const firstScroll = vi.fn();
+    const secondScroll = vi.fn();
+    const { container } = render(
+      <div>
+        <FirstVampPlanCallout song={songWithVampPlan()} />
+        <div data-testid="song-structure-grid">
+          <div data-section-index="0" />
+        </div>
+        <div data-testid="song-structure-grid">
+          <div data-section-index="0" />
+        </div>
+      </div>
+    );
+    const targets = container.querySelectorAll<HTMLElement>('[data-section-index="0"]');
+    Object.defineProperty(targets[0], "scrollIntoView", {
+      configurable: true,
+      value: firstScroll
+    });
+    Object.defineProperty(targets[1], "scrollIntoView", {
+      configurable: true,
+      value: secondScroll
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar vamp at 0:10" }));
+
+    expect(firstScroll).not.toHaveBeenCalled();
+    expect(secondScroll).not.toHaveBeenCalled();
+    expect(screen.getByText("Bass Guitar still has a vamp plan in the verse at 0:10.")).toBeTruthy();
+  });
+
   it("fails closed when more than one song-structure renderer is mounted globally", () => {
     const first = appendSongStructureTarget();
     const second = appendSongStructureTarget();
