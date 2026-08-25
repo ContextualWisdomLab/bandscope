@@ -49,7 +49,7 @@ describe("resolveFirstSoloPlan own-data authority", () => {
     expect(resolveFirstSoloPlan(song)?.atSeconds).toBe(expectedStart);
   });
 
-  it("returns snapshotted role identity and display copy instead of Proxy get values", () => {
+  it("uses snapshotted role identity and display copy instead of Proxy get values", () => {
     const song = createDemoRehearsalSong();
     const section = song.sections.find((candidate) => candidate.id === "verse-1");
     const roleIndex = section?.roles.findIndex((role) => role.id === "keys-right") ?? -1;
@@ -63,6 +63,9 @@ describe("resolveFirstSoloPlan own-data authority", () => {
     const expectedName = role.name;
     section.roles[roleIndex] = new Proxy(role, {
       get(target, property, receiver) {
+        if (property === "id") {
+          return "injected-proxy-id";
+        }
         if (property === "name") {
           return "Injected proxy role";
         }
@@ -79,5 +82,33 @@ describe("resolveFirstSoloPlan own-data authority", () => {
     expect(resolved?.soloPlan).toBe(DEMO_SOLO_PLAN);
     expect(resolved?.holdingRoleId).toBe(expectedId);
     expect(resolved?.holdingRoleName).toBe(expectedName);
+  });
+
+  it("fails closed when a Proxy descriptor trap fabricates solo-plan authority", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections.find((candidate) => candidate.id === "verse-1");
+    const roleIndex = section?.roles.findIndex((role) => role.id === "keys-right") ?? -1;
+    const role = roleIndex >= 0 ? section?.roles[roleIndex] : undefined;
+    expect(section).toBeDefined();
+    expect(role).toBeDefined();
+    if (!section || !role || roleIndex < 0) {
+      throw new Error("Demo solo-plan fixture is missing the expected Keyboard 1 Right Hand role.");
+    }
+
+    section.roles[roleIndex] = new Proxy(role, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === "soloPlan") {
+          return {
+            configurable: true,
+            enumerable: true,
+            writable: true,
+            value: "Injected descriptor solo."
+          };
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      }
+    });
+
+    expect(resolveFirstSoloPlan(song)).toBeNull();
   });
 });
