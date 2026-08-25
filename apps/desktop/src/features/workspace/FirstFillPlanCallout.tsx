@@ -78,8 +78,8 @@ function resolveFillPlanRenderer(origin: HTMLElement): HTMLElement | null {
 /** Name tonight's first fill plan and open the matching rendered map section. */
 export function FirstFillPlanCallout({ song }: FirstFillPlanCalloutProps) {
   const calloutId = `workspace-surface-fill-plan-${useId()}`;
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableFillPlanSongIdentity(song);
   const named = useMemo(() => resolveFirstFillPlan(song), [song]);
   const [openedFillPlan, setOpenedFillPlan] = useState<OpenedFillPlan | null>(null);
