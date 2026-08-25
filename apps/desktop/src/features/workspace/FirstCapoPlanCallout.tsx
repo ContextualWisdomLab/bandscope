@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +77,7 @@ function resolveCapoPlanRenderer(origin: HTMLElement): HTMLElement | null {
 
 /** Name tonight's first capo plan and open the matching rendered map section. */
 export function FirstCapoPlanCallout({ song }: FirstCapoPlanCalloutProps) {
+  const calloutId = `workspace-surface-capo-plan-${useId()}`;
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const songIdentity = stableCapoPlanSongIdentity(song);
@@ -102,7 +103,7 @@ export function FirstCapoPlanCallout({ song }: FirstCapoPlanCalloutProps) {
   if (!named) {
     return (
       <aside
-        id="workspace-surface-capo-plan"
+        id={calloutId}
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
         aria-label={t("firstCapoPlanLabel")}
       >
@@ -134,7 +135,7 @@ export function FirstCapoPlanCallout({ song }: FirstCapoPlanCalloutProps) {
 
   return (
     <aside
-      id="workspace-surface-capo-plan"
+      id={calloutId}
       className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
       aria-label={t("firstCapoPlanLabel")}
     >
