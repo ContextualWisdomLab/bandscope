@@ -10,14 +10,17 @@ function songWithSoloPlan() {
   return createDemoRehearsalSong();
 }
 
-function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeline") {
+function appendSongStructureTarget(
+  sectionId = "verse-1",
+  ariaLabel = "Scrollable song structure timeline"
+) {
   const timeline = document.createElement("div");
   timeline.setAttribute("role", "region");
   timeline.setAttribute("aria-label", ariaLabel);
   const grid = document.createElement("div");
   grid.dataset.testid = "song-structure-grid";
   const target = document.createElement("div");
-  target.dataset.sectionIndex = "0";
+  target.dataset.sectionId = sectionId;
   const scrollIntoView = vi.fn();
   Object.defineProperty(target, "scrollIntoView", {
     configurable: true,
@@ -42,53 +45,62 @@ describe("FirstSoloPlanCallout", () => {
     ).toBeTruthy();
   });
 
-  it("contains a hostile song identity accessor instead of crashing the callout", () => {
+  it("fails closed on an accessor-backed runtime graph without invoking the getter", () => {
     const song = songWithSoloPlan();
+    const readIdentity = vi.fn(() => {
+      throw new Error("hostile song id getter");
+    });
     Object.defineProperty(song, "id", {
       configurable: true,
       enumerable: true,
-      get() {
-        throw new Error("hostile song id getter");
-      }
+      get: readIdentity
     });
 
     expect(() => render(<FirstSoloPlanCallout song={song} />)).not.toThrow();
-    expect(screen.getByRole("button", { name: "Open Keyboard 1 Right Hand solo at 0:10" })).toBeTruthy();
+    expect(readIdentity).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("No solo plan is available. Stay on tonight's map for the next rehearsal cue.")
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Open .* solo at/ })).toBeNull();
   });
 
-  it("resets armed guidance when accessor-id songs change with the same solo signature", () => {
+  it("keeps accessor-backed replacement songs unavailable without invoking either getter", () => {
     const firstSong = songWithSoloPlan();
     const nextSong = songWithSoloPlan();
-    for (const song of [firstSong, nextSong]) {
-      Object.defineProperty(song, "id", {
-        configurable: true,
-        enumerable: true,
-        get() {
-          throw new Error("hostile song id getter");
-        }
-      });
-    }
-    const { grid } = appendSongStructureTarget();
-    const { rerender } = render(<FirstSoloPlanCallout song={firstSong} />);
+    const firstRead = vi.fn(() => {
+      throw new Error("first hostile song id getter");
+    });
+    const nextRead = vi.fn(() => {
+      throw new Error("next hostile song id getter");
+    });
+    Object.defineProperty(firstSong, "id", {
+      configurable: true,
+      enumerable: true,
+      get: firstRead
+    });
+    Object.defineProperty(nextSong, "id", {
+      configurable: true,
+      enumerable: true,
+      get: nextRead
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Keyboard 1 Right Hand solo at 0:10" }));
+    const { rerender } = render(<FirstSoloPlanCallout song={firstSong} />);
     expect(
-      screen.getByText(/Lock that solo on Keyboard 1 Right Hand at 0:10 before the room starts./)
+      screen.getByText("No solo plan is available. Stay on tonight's map for the next rehearsal cue.")
     ).toBeTruthy();
 
     rerender(<FirstSoloPlanCallout song={nextSong} />);
 
-    expect(screen.getByText("Keyboard 1 Right Hand still has a solo plan in the verse at 0:10.")).toBeTruthy();
+    expect(firstRead).not.toHaveBeenCalled();
+    expect(nextRead).not.toHaveBeenCalled();
     expect(
-      screen.queryByText(/Lock that solo on Keyboard 1 Right Hand at 0:10 before the room starts./)
-    ).toBeNull();
-
-    grid.remove();
+      screen.getByText("No solo plan is available. Stay on tonight's map for the next rehearsal cue.")
+    ).toBeTruthy();
   });
 
   it("preserves armed guidance across immutable edits of the same owned song", () => {
     const song = songWithSoloPlan();
-    const { grid } = appendSongStructureTarget();
+    const { grid } = appendSongStructureTarget(song.sections[0]!.id);
     const { rerender } = render(<FirstSoloPlanCallout song={song} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Keyboard 1 Right Hand solo at 0:10" }));
@@ -128,9 +140,10 @@ describe("FirstSoloPlanCallout", () => {
   });
 
   it("names the first solo plan as map navigation, scrolls to its rendered section, and arms that action", () => {
-    const { grid, scrollIntoView } = appendSongStructureTarget();
+    const song = songWithSoloPlan();
+    const { grid, scrollIntoView } = appendSongStructureTarget(song.sections[0]!.id);
 
-    render(<FirstSoloPlanCallout song={songWithSoloPlan()} />);
+    render(<FirstSoloPlanCallout song={song} />);
 
     expect(screen.getByText(DEMO_SOLO_PLAN)).toBeTruthy();
     const action = screen.getByRole("button", {
@@ -147,9 +160,13 @@ describe("FirstSoloPlanCallout", () => {
   });
 
   it("keeps map navigation stable when the renderer accessible name is localized", () => {
-    const { grid, scrollIntoView } = appendSongStructureTarget("스크롤 가능한 곡 구조 타임라인");
+    const song = songWithSoloPlan();
+    const { grid, scrollIntoView } = appendSongStructureTarget(
+      song.sections[0]!.id,
+      "스크롤 가능한 곡 구조 타임라인"
+    );
 
-    render(<FirstSoloPlanCallout song={songWithSoloPlan()} />);
+    render(<FirstSoloPlanCallout song={song} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Keyboard 1 Right Hand solo at 0:10" }));
 
@@ -172,10 +189,10 @@ describe("FirstSoloPlanCallout", () => {
     ).toBeNull();
   });
 
-  it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
+  it("navigates by exact stable section identity without interpolating the id into a selector", () => {
     const song = songWithSoloPlan();
-    song.sections[0]!.id = "analysis section / duplicate";
-    const { grid, scrollIntoView } = appendSongStructureTarget();
+    song.sections[0]!.id = 'analysis section / [data-test="hostile"]';
+    const { grid, scrollIntoView } = appendSongStructureTarget(song.sections[0]!.id);
 
     render(<FirstSoloPlanCallout song={song} />);
 
@@ -186,10 +203,11 @@ describe("FirstSoloPlanCallout", () => {
   });
 
   it("fails closed when more than one song-structure renderer is mounted globally", () => {
-    const first = appendSongStructureTarget();
-    const second = appendSongStructureTarget();
+    const song = songWithSoloPlan();
+    const first = appendSongStructureTarget(song.sections[0]!.id);
+    const second = appendSongStructureTarget(song.sections[0]!.id);
 
-    render(<FirstSoloPlanCallout song={songWithSoloPlan()} />);
+    render(<FirstSoloPlanCallout song={song} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Keyboard 1 Right Hand solo at 0:10" }));
 
     expect(first.scrollIntoView).not.toHaveBeenCalled();
