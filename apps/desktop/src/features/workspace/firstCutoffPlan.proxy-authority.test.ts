@@ -70,12 +70,7 @@ describe("resolveFirstCutoffPlan own-data authority", () => {
       }
     });
 
-    const resolved = resolveFirstCutoffPlan(song) as
-      | (ReturnType<typeof resolveFirstCutoffPlan> & {
-          landingRoleId?: string;
-          landingRoleName?: string;
-        })
-      | null;
+    const resolved = resolveFirstCutoffPlan(song);
     expect(resolved?.cutoffPlan).toBe(DEMO_CUTOFF_PLAN);
     expect(resolved?.landingRoleId).toBe(expectedId);
     expect(resolved?.landingRoleName).toBe(expectedName);
