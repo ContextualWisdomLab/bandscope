@@ -49,4 +49,29 @@ describe("FirstVampPlanCallout Korean role copy", () => {
 
     grid.remove();
   });
+
+  it("localizes the analysis-engine vamp template instead of exposing English guidance", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    const seed = song.sections[0]!;
+    seed.roles = [
+      {
+        ...seed.roles[2]!,
+        id: "piano",
+        name: "피아노",
+        rehearsalPriority: "high",
+        vampPlan: "Keep this part going until Lead Vocal enters in the next section."
+      }
+    ];
+    seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
+
+    render(<FirstVampPlanCallout song={song} />);
+
+    expect(
+      screen.getByText("다음 섹션에서 Lead Vocal 파트가 들어올 때까지 이 파트를 유지하세요.")
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("Keep this part going until Lead Vocal enters in the next section.")
+    ).toBeNull();
+  });
 });
