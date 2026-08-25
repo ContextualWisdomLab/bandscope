@@ -61,13 +61,22 @@ function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Accept only ordinary structured-data containers, never built-in or class-instance exotics. */
+function hasPlainStructuredPrototype(value: object): boolean {
+  const prototype = Object.getPrototypeOf(value);
+  if (Array.isArray(value)) {
+    return prototype === Array.prototype;
+  }
+  return prototype === Object.prototype || prototype === null;
+}
+
 /**
- * Verify that a structured-data graph contains only own data properties before cloning it.
+ * Verify that a structured-data graph contains only plain containers and own data properties.
  *
- * Descriptor inspection avoids executing application getters. The subsequent HTML structured
- * clone probe rejects Proxy exotic objects, so a Proxy cannot manufacture trusted descriptors
- * for buyer-visible rehearsal guidance. The property budget also keeps this untrusted boundary
- * finite before the resolver walks it.
+ * Descriptor inspection avoids executing application getters. Prototype checks reject built-in
+ * and class-instance exotic objects before their attached properties can become buyer-visible
+ * authority. The subsequent HTML structured-clone probe rejects Proxy exotic objects, and the
+ * property budget keeps this untrusted boundary finite before the resolver walks it.
  */
 function hasSafeStructuredDataDescriptors(
   value: unknown,
@@ -84,7 +93,7 @@ function hasSafeStructuredDataDescriptors(
   ) {
     return true;
   }
-  if (typeof value !== "object") {
+  if (typeof value !== "object" || !hasPlainStructuredPrototype(value)) {
     return false;
   }
   if (seen.has(value)) {
@@ -114,7 +123,7 @@ function hasSafeStructuredDataDescriptors(
   return true;
 }
 
-/** Fail closed unless the entire runtime graph is descriptor-only and structured-clone compatible. */
+/** Fail closed unless the entire runtime graph is plain, descriptor-only, and clone compatible. */
 function hasSafeStructuredRuntimeGraph(value: unknown): boolean {
   if (typeof structuredClone !== "function") {
     return false;
