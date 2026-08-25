@@ -114,6 +114,24 @@ describe("resolveFirstTransition", () => {
     expect(resolveFirstTransition(song)?.section.id).toBe("z-change");
   });
 
+  it("uses the owned section-id snapshot when a Proxy get trap substitutes a different tie-break id", () => {
+    const song = withTransitionRole({ id: "a-change", start: 46, end: 54 });
+    const first = song.sections[1]!;
+    const proxiedFirst = new Proxy(first, {
+      get(target, property, receiver) {
+        if (property === "id") {
+          return "z-change";
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    const second = structuredClone(first);
+    second.id = "m-change";
+    song.sections = [song.sections[0]!, proxiedFirst, second];
+
+    expect(resolveFirstTransition(song)?.section).toBe(proxiedFirst);
+  });
+
   it("breaks equal-priority role ties with locale-independent id ordering", () => {
     const song = withTransitionRole({ roleId: "ä-role", roleName: "Umlaut role", priority: "high" });
     const section = song.sections[1]!;
