@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -15,6 +15,7 @@ function setNavigatorLanguage(language: string) {
 describe("SectionRoadmap", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -71,5 +72,98 @@ describe("SectionRoadmap", () => {
     expect(card).toBeTruthy();
     expect(card?.getAttribute("tabindex")).toBe("-1");
     expect(card?.id).not.toContain(song.sections[0].id);
+  });
+
+  it("names tonight's count-in on the first section card", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const countIn = screen.getByRole("button", {
+      name: "Count in verse from 0:10 to 0:30 at tonight's tempo"
+    });
+    expect(countIn).toBeTruthy();
+    expect((countIn as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByText("Count in verse · 0:10–0:30")).toBeTruthy();
+  });
+
+  it("counts four beats at the analyzed tempo then names the first pass", () => {
+    vi.useFakeTimers();
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Count in verse from 0:10 to 0:30 at tonight's tempo" })
+    );
+
+    expect(screen.getByLabelText("Count-in beat 1 of 4")).toBeTruthy();
+    expect(screen.getByText("Counting in verse · 1")).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByLabelText("Count-in beat 2 of 4")).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByLabelText("Count-in beat 3 of 4")).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByLabelText("Count-in beat 4 of 4")).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByText("Counted in verse · 0:10–0:30. Start the first pass.")).toBeTruthy();
+  });
+
+  it("fails closed when tonight's song has no tempo", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.tempo;
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const countIn = screen.getByRole("button", { name: "Add a tempo before counting in tonight." });
+    expect((countIn as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(countIn);
+    expect(screen.queryByText(/Counting in/)).toBeNull();
+  });
+
+  it("counts in the renderer-selected section even when analysis ids collide", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections.push({
+      ...song.sections[0]!,
+      id: song.sections[0]!.id,
+      label: "chorus",
+      timeRange: { start: 30, end: 50 }
+    });
+
+    render(<SectionRoadmap song={song} activeRole={null} loopedSectionIndex={1} />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Count in chorus from 0:30 to 0:50 at tonight's tempo"
+      })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Count in verse from 0:10 to 0:30 at tonight's tempo" })
+    ).toBeNull();
+  });
+
+  it("localizes tonight's count-in action", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getByRole("button", { name: "오늘 템포로 verse 0:10부터 0:30까지 카운트인" })).toBeTruthy();
+    expect(screen.getByText("verse · 0:10–0:30 카운트인")).toBeTruthy();
   });
 });

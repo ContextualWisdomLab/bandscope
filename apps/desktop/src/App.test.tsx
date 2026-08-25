@@ -313,10 +313,10 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Song Structure/i })).toBeTruthy();
     });
-    expect(screen.getByText(/verse · 0:10–0:30/i)).toBeTruthy();
+    const timelineRegion = screen.getByRole("region", { name: /scrollable song structure timeline/i });
+    expect(within(timelineRegion).getByText(/verse · 0:10–0:30/i)).toBeTruthy();
     expect(screen.getByText(/Rehearsal timeline/i)).toBeTruthy();
     expect(screen.queryByText(/Mock-board/i)).toBeNull();
-    const timelineRegion = screen.getByRole("region", { name: /scrollable song structure timeline/i });
     expect(timelineRegion.className).toContain("overflow-x-auto");
     expect(timelineRegion.getAttribute("tabindex")).toBe("0");
     expect(screen.queryByLabelText(/decorative waveform overview/i)).toBeNull();
