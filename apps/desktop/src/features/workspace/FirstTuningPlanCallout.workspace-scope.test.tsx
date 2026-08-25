@@ -51,4 +51,23 @@ describe("FirstTuningPlanCallout workspace scope", () => {
       behavior: "smooth"
     });
   });
+
+  it("publishes a unique landmark id for each mounted tuning-plan callout", () => {
+    const firstSong = createDemoRehearsalSong();
+    const secondSong = createDemoRehearsalSong();
+    secondSong.id = "second-workspace-song";
+
+    render(
+      <>
+        <FirstTuningPlanCallout song={firstSong} />
+        <FirstTuningPlanCallout song={secondSong} />
+      </>
+    );
+
+    const regions = screen.getAllByRole("complementary", { name: "Tonight's first tuning plan" });
+    expect(regions).toHaveLength(2);
+    const ids = regions.map((region) => region.id);
+    expect(ids.every((id) => id.startsWith("workspace-surface-tuning-plan-"))).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
 });
