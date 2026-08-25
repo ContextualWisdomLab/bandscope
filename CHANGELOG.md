@@ -4,6 +4,7 @@
 
 ### Added
 
+- Name tonight's first hit plan in the mounted rehearsal workspace so parts that land a shared hit together can be named on the map; real analyzed songs now receive this guidance only when section-level stem activity shows at least two distinct sources becoming active together after a previous section, while mixed simultaneous activation is the evidence and heuristic-only topology remains unavailable. Open moves to the matching rendered map section, and inherited, accessor-backed, or Proxy-substituted runtime metadata remains guidance-only instead of becoming copy, identity, timing, or navigation authority.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
