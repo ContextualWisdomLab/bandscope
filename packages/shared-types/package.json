@@ -2,7 +2,10 @@
   "name": "@bandscope/shared-types",
   "version": "0.1.0",
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./naruon": "./src/naruon.ts"
+  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
