@@ -193,7 +193,7 @@ describe("Workspace", () => {
     });
 
     render(<Workspace song={song} sourceBootstrap={sourceBootstrap} />);
-    fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Share a handoff file" }));
 
     const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
     const payload = JSON.parse(await blob.text());
@@ -222,7 +222,7 @@ describe("Workspace", () => {
     });
 
     render(<Workspace song={song} sourceBootstrap={invalidSourceBootstrap} />);
-    fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Share a handoff file" }));
 
     const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
     const payload = JSON.parse(await blob.text());
@@ -269,5 +269,104 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("names rehearsal-first export and priority actions after analysis", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText("Print the cue sheet or send the handoff before you leave.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Share a handoff file" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save a compact chart" })).toBeTruthy();
+    expect(screen.getByText("Start with verse — that is tonight's first lock-in.")).toBeTruthy();
+    expect(screen.getByText("Stems are not ready yet. Start with tonight's cue sheet.")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Download tonight's cue sheet" }).length).toBe(2);
+  });
+
+  it("localizes ready-workspace export and priority actions", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText("나가기 전에 큐시트를 출력하거나 핸드오프를 보내세요.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "다음 연습용 핸드오프 보내기" })).toBeTruthy();
+    expect(screen.getByText("오늘은 verse부터 잠그세요.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "이 구간 열기" })).toBeTruthy();
+    expect(screen.getByText("스템은 아직 준비되지 않았습니다. 오늘 큐시트로 먼저 시작하세요.")).toBeTruthy();
+  });
+
+  it("opens the first rehearsal-priority section from the priorities card", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open this section" }));
+
+    const card = document.getElementById("workspace-section-verse-1");
+    expect(card).toBeTruthy();
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(document.activeElement).toBe(card);
+  });
+
+  it("lets the stems card download tonight's cue sheet when stems are not ready", async () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const createObjectUrl = vi.fn(() => "blob:cuesheet");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    render(<Workspace song={song} />);
+    const stemsCard = document.getElementById("workspace-stems-card");
+    expect(stemsCard).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: "Download tonight's cue sheet" })[1]!);
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    expect(blob.type).toContain("text/csv");
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:cuesheet");
+  });
+
+  it("keeps the priority action disabled when no section can be opened", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: []
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText("Start with first pass — that is tonight's first lock-in.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Open this section" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("matches a rehearsal-priority section by id when the label is not the stored key", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.exportSummary = {
+      ...song.exportSummary,
+      focusSections: ["verse-1"]
+    };
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+    expect(screen.getByText("Start with verse — that is tonight's first lock-in.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Open this section" }));
+    expect(document.activeElement).toBe(document.getElementById("workspace-section-verse-1"));
   });
 });

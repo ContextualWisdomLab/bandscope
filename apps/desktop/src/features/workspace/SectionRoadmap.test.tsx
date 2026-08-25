@@ -60,4 +60,14 @@ describe("SectionRoadmap", () => {
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
+
+  it("exposes a focusable id for each rehearsal section card", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const card = document.getElementById("workspace-section-verse-1");
+    expect(card).toBeTruthy();
+    expect(card?.getAttribute("tabindex")).toBe("-1");
+  });
 });
