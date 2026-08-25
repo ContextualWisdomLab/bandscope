@@ -24,9 +24,28 @@ type VoicingRoleSnapshot = RankedRoleSnapshot &
     voicingPlan: string;
   }>;
 
+type GraphNodeSnapshot = Readonly<{
+  roleId: string;
+  isActive: boolean;
+}>;
+
+type SectionSnapshot = Readonly<{
+  section: RehearsalSection;
+  sectionIndex: number;
+  id: string;
+  label: RehearsalSection["label"];
+  start: number;
+  end: number;
+  roles: unknown[];
+  partGraph: unknown[];
+}>;
+
 /** Tonight's first voicing plan: the earliest labeled section and the part that owns it. */
 export type FirstVoicingPlan = {
   section: RehearsalSection;
+  sectionIndex: number;
+  sectionId: string;
+  sectionLabel: RehearsalSection["label"];
   holdingRole: RehearsalRole;
   holdingRoleId: string;
   holdingRoleName: string;
@@ -68,11 +87,6 @@ function ownDataDescriptor(value: object, key: PropertyKey): PropertyDescriptor 
     : null;
 }
 
-/** Return whether a runtime record owns a stable data property rather than inherited/accessor state. */
-function hasOwnData(value: object, key: PropertyKey): boolean {
-  return ownDataDescriptor(value, key) !== null;
-}
-
 /** Snapshot one non-blank owned string without consulting a Proxy get trap. */
 function ownedNonBlankString(value: unknown, key: PropertyKey): string | null {
   if (!isRuntimeObject(value)) {
@@ -85,21 +99,25 @@ function ownedNonBlankString(value: unknown, key: PropertyKey): string | null {
   return descriptor.value.trim().length > 0 ? descriptor.value : null;
 }
 
-/** Return whether every numeric index is an own data element in a bounded runtime array. */
-function isDenseRuntimeArray(value: unknown): value is unknown[] {
+/** Snapshot a bounded dense array through own descriptors without later index reads. */
+function snapshotDenseRuntimeArray(value: unknown): unknown[] | null {
   if (!Array.isArray(value)) {
-    return false;
+    return null;
   }
-  const length = Number(value.length);
+  const lengthDescriptor = ownDataDescriptor(value, "length");
+  const length = lengthDescriptor?.value;
   if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
-    return false;
+    return null;
   }
+  const items: unknown[] = [];
   for (let index = 0; index < length; index += 1) {
-    if (!hasOwnData(value, index)) {
-      return false;
+    const descriptor = ownDataDescriptor(value, index);
+    if (descriptor === null) {
+      return null;
     }
+    items.push(descriptor.value);
   }
-  return true;
+  return items;
 }
 
 /** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
@@ -163,35 +181,58 @@ function snapshotVoicingRole(role: RankedRoleSnapshot): VoicingRoleSnapshot | nu
   return voicingPlan === null ? null : { ...role, voicingPlan };
 }
 
-/** Return whether a section owns a canonical form label from the shared contract. */
-function hasSupportedSectionLabel(section: RehearsalSection): boolean {
-  return (
-    hasOwnData(section, "label") &&
-    typeof section.label === "string" &&
-    SECTION_FORM_LABEL_SET.has(section.label)
-  );
+/** Snapshot one graph node's role identity and activity flag through own descriptors. */
+function snapshotGraphNode(node: unknown): GraphNodeSnapshot | null {
+  if (!isRuntimeObject(node)) {
+    return null;
+  }
+  const roleId = ownedNonBlankString(node, "role_id");
+  const isActive = ownDataDescriptor(node, "is_active")?.value;
+  return roleId !== null && typeof isActive === "boolean" ? { roleId, isActive } : null;
 }
 
-/** Return whether a section owns a bounded, positive-length integer rehearsal window. */
-function hasBoundedTimeRange(section: RehearsalSection): boolean {
-  if (!hasOwnData(section, "timeRange")) {
-    return false;
+/** Snapshot one section's buyer/navigation authority without later untrusted property reads. */
+function snapshotSection(section: unknown, sectionIndex: number): SectionSnapshot | null {
+  if (!isRuntimeObject(section)) {
+    return null;
   }
-  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
-  if (!isRuntimeObject(timeRange) || !hasOwnData(timeRange, "start") || !hasOwnData(timeRange, "end")) {
-    return false;
+  const id = ownedNonBlankString(section, "id");
+  const label = ownDataDescriptor(section, "label")?.value;
+  const timeRange = ownDataDescriptor(section, "timeRange")?.value;
+  const roles = snapshotDenseRuntimeArray(ownDataDescriptor(section, "roles")?.value);
+  const partGraph = snapshotDenseRuntimeArray(ownDataDescriptor(section, "partGraph")?.value);
+  if (
+    id === null ||
+    typeof label !== "string" ||
+    !SECTION_FORM_LABEL_SET.has(label) ||
+    !isRuntimeObject(timeRange) ||
+    roles === null ||
+    partGraph === null
+  ) {
+    return null;
   }
-
-  const start = timeRange.start ?? -1;
-  const end = timeRange.end ?? -1;
-  return (
-    Number.isInteger(start) &&
-    start >= 0 &&
-    start <= MAX_SECTION_TIME_SECONDS &&
-    Number.isInteger(end) &&
-    end > start &&
-    end <= MAX_SECTION_TIME_SECONDS
-  );
+  const start = ownDataDescriptor(timeRange, "start")?.value;
+  const end = ownDataDescriptor(timeRange, "end")?.value;
+  if (
+    !Number.isInteger(start) ||
+    start < 0 ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    !Number.isInteger(end) ||
+    end <= start ||
+    end > MAX_SECTION_TIME_SECONDS
+  ) {
+    return null;
+  }
+  return {
+    section: section as RehearsalSection,
+    sectionIndex,
+    id,
+    label: label as RehearsalSection["label"],
+    start,
+    end,
+    roles,
+    partGraph
+  };
 }
 
 /** Return safe identities that appear more than once in one section-local collection. */
@@ -226,65 +267,45 @@ function pickHoldingRole(roles: VoicingRoleSnapshot[]): VoicingRoleSnapshot | nu
 }
 
 /** Return snapshotted ranked roles whose unique graph node is explicitly active. */
-function rankedActiveRoles(section: RehearsalSection): RankedRoleSnapshot[] {
-  if (
-    !hasOwnData(section, "roles") ||
-    !hasOwnData(section, "partGraph") ||
-    !isDenseRuntimeArray(section.roles) ||
-    !isDenseRuntimeArray(section.partGraph)
-  ) {
-    return [];
-  }
-
-  const safeRoleIds = section.roles.flatMap((role) => {
-    const id = ownedNonBlankString(role, "id");
-    return id === null ? [] : [id];
+function rankedActiveRoles(section: SectionSnapshot): RankedRoleSnapshot[] {
+  const roleSnapshots = section.roles.flatMap((role) => {
+    const snapshot = snapshotRankedRole(role);
+    return snapshot === null ? [] : [snapshot];
   });
-  const safeGraphRoleIds = section.partGraph.flatMap((node) => {
-    const roleId = ownedNonBlankString(node, "role_id");
-    return roleId === null ? [] : [roleId];
+  const graphSnapshots = section.partGraph.flatMap((node) => {
+    const snapshot = snapshotGraphNode(node);
+    return snapshot === null ? [] : [snapshot];
   });
-  const repeatedRoleIds = repeatedIds(safeRoleIds);
-  const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
+  const repeatedRoleIds = repeatedIds(roleSnapshots.map((role) => role.id));
+  const repeatedGraphRoleIds = repeatedIds(graphSnapshots.map((node) => node.roleId));
   const activeIds = new Set(
-    section.partGraph.flatMap((node) => {
-      if (!isRuntimeObject(node)) {
-        return [];
-      }
-      const roleId = ownedNonBlankString(node, "role_id");
-      const isActive = ownDataDescriptor(node, "is_active")?.value;
-      return roleId !== null && isActive === true && !repeatedGraphRoleIds.has(roleId)
-        ? [roleId]
-        : [];
-    })
+    graphSnapshots.flatMap((node) =>
+      node.isActive && !repeatedGraphRoleIds.has(node.roleId) ? [node.roleId] : []
+    )
   );
 
-  return section.roles.flatMap((role) => {
-    const snapshot = snapshotRankedRole(role);
-    return snapshot !== null && !repeatedRoleIds.has(snapshot.id) && activeIds.has(snapshot.id)
-      ? [snapshot]
-      : [];
-  });
+  return roleSnapshots.filter(
+    (role) => !repeatedRoleIds.has(role.id) && activeIds.has(role.id)
+  );
 }
 
 /** Resolve a voicing plan after the runtime root has passed its structural boundary checks. */
 function resolveSafeFirstVoicingPlan(song: RehearsalSong): FirstVoicingPlan | null {
-  if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+  if (!isRuntimeObject(song)) {
+    return null;
+  }
+  const sections = snapshotDenseRuntimeArray(ownDataDescriptor(song, "sections")?.value);
+  if (sections === null) {
     return null;
   }
 
-  const candidates = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        hasSupportedSectionLabel(section) &&
-        hasOwnData(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
-    )
-    .flatMap((section) => {
-      const voicingRoles = rankedActiveRoles(section).flatMap((role) => {
+  const candidates = sections
+    .flatMap((section, sectionIndex) => {
+      const sectionSnapshot = snapshotSection(section, sectionIndex);
+      if (sectionSnapshot === null) {
+        return [];
+      }
+      const voicingRoles = rankedActiveRoles(sectionSnapshot).flatMap((role) => {
         const candidate = snapshotVoicingRole(role);
         return candidate === null ? [] : [candidate];
       });
@@ -294,12 +315,15 @@ function resolveSafeFirstVoicingPlan(song: RehearsalSong): FirstVoicingPlan | nu
       }
       return [
         {
-          section,
+          section: sectionSnapshot.section,
+          sectionIndex: sectionSnapshot.sectionIndex,
+          sectionId: sectionSnapshot.id,
+          sectionLabel: sectionSnapshot.label,
           holdingRole: holdingRole.role,
           holdingRoleId: holdingRole.id,
           holdingRoleName: holdingRole.name,
           voicingPlan: holdingRole.voicingPlan,
-          atSeconds: section.timeRange.start
+          atSeconds: sectionSnapshot.start
         }
       ];
     })
@@ -307,7 +331,7 @@ function resolveSafeFirstVoicingPlan(song: RehearsalSong): FirstVoicingPlan | nu
       if (left.atSeconds !== right.atSeconds) {
         return left.atSeconds - right.atSeconds;
       }
-      return compareStableId(left.section.id, right.section.id);
+      return compareStableId(left.sectionId, right.sectionId);
     });
 
   return candidates[0] ?? null;
