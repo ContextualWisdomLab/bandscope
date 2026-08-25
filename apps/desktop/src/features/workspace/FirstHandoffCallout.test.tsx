@@ -30,7 +30,7 @@ function songWithHandoff() {
   return song;
 }
 
-function appendSongStructureTarget() {
+function appendSongStructureTarget(parent: HTMLElement = document.body) {
   const grid = document.createElement("div");
   grid.dataset.testid = "song-structure-grid";
   const first = document.createElement("div");
@@ -42,7 +42,7 @@ function appendSongStructureTarget() {
   });
   grid.appendChild(first);
   grid.appendChild(target);
-  document.body.appendChild(grid);
+  parent.appendChild(grid);
   return { grid, scrollIntoView };
 }
 
@@ -65,6 +65,28 @@ describe("FirstHandoffCallout", () => {
     expect(screen.getByText(/Catch Lead Vocal's pass at 0:22. Take the next part./)).toBeTruthy();
 
     grid.remove();
+  });
+
+  it("scopes map navigation to the callout's owning workspace when two workspaces are mounted", () => {
+    const firstScope = document.createElement("div");
+    const secondScope = document.createElement("div");
+    document.body.append(firstScope, secondScope);
+
+    render(<FirstHandoffCallout song={songWithHandoff()} />, { container: firstScope });
+    const firstTarget = appendSongStructureTarget(firstScope);
+    render(<FirstHandoffCallout song={songWithHandoff()} />, { container: secondScope });
+    const secondTarget = appendSongStructureTarget(secondScope);
+
+    const actions = screen.getAllByRole("button", {
+      name: "Open Lead Vocal handoff at 0:22"
+    });
+    fireEvent.click(actions[1]!);
+
+    expect(firstTarget.scrollIntoView).not.toHaveBeenCalled();
+    expect(secondTarget.scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+
+    firstScope.remove();
+    secondScope.remove();
   });
 
   it("does not claim map navigation completed when the rendered section target is missing", () => {
