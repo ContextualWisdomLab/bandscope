@@ -9,7 +9,7 @@
 
 ### Changed
 
-- Updated every CodeQL Action phase and SARIF uploader together to the reviewed immutable `v4.37.7` revision, with a regression contract that prevents mixed `init`, `autobuild`, `analyze`, and `upload-sarif` versions.
+- Updated every CodeQL Action phase and SARIF uploader together to the reviewed immutable `v4.37.8` revision, with a regression contract that prevents mixed `init`, `autobuild`, `analyze`, and `upload-sarif` versions.
 
 ## [0.1.3] - 2026-04-29
 
