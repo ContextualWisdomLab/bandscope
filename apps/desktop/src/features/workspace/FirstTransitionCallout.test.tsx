@@ -71,7 +71,7 @@ describe("FirstTransitionCallout", () => {
 
     rerender(<FirstTransitionCallout song={nextSong} />);
 
-    expect(screen.getByText("Bass Guitar catches the change at 0:10.")).toBeTruthy();
+    expect(screen.getByText("Bass Guitar catches the change in the verse at 0:10.")).toBeTruthy();
     expect(
       screen.queryByText("Catch the change with Bass Guitar at 0:10. Stay together through it.")
     ).toBeNull();
@@ -118,7 +118,7 @@ describe("FirstTransitionCallout", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar transition at 0:10" }));
 
-    expect(screen.getByText("Bass Guitar catches the change at 0:10.")).toBeTruthy();
+    expect(screen.getByText("Bass Guitar catches the change in the verse at 0:10.")).toBeTruthy();
     expect(
       screen.queryByText("Catch the change with Bass Guitar at 0:10. Stay together through it.")
     ).toBeNull();
@@ -172,7 +172,7 @@ describe("FirstTransitionCallout", () => {
     nextSong.id = "next-song";
     nextSong.sections[0]!.timeRange = { start: 70, end: 90 };
     rerender(<FirstTransitionCallout song={nextSong} />);
-    expect(screen.getByText("Bass Guitar catches the change at 1:10.")).toBeTruthy();
+    expect(screen.getByText("Bass Guitar catches the change in the verse at 1:10.")).toBeTruthy();
 
     grid.remove();
   });
@@ -196,7 +196,7 @@ describe("FirstTransitionCallout", () => {
     }
     render(<FirstTransitionCallout song={song} />);
     expect(screen.getByRole("button", { name: "Open the first transition at 0:10" })).toBeTruthy();
-    expect(screen.getByText("The band catches the change at 0:10.")).toBeTruthy();
+    expect(screen.getByText("The band catches the change in the verse at 0:10.")).toBeTruthy();
   });
 
   it("renders the owned cue as a text node instead of rescanning it as template syntax", () => {
