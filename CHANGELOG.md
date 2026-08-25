@@ -40,6 +40,7 @@
 - Resolve npm audit vulnerabilities
 - Fix ruff import sorting and formatting errors
 - Add missing docstrings to tests
+- Fix test configuration and typing issues
 
 ## [0.1.0] - 2026-03-27
 
