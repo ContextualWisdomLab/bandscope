@@ -37,25 +37,71 @@ export type RehearsalTransportEvent =
   | { type: "pause" }
   | { type: "stop" };
 
+type PlayableSectionSnapshot = Readonly<{
+  id: string;
+  label: string;
+  startSeconds: number;
+  endSeconds: number;
+}>;
+
 /** Return true only for finite numeric values greater than or equal to zero. */
 export function isFiniteNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/** Read one own data-property value without activating accessors or Proxy get traps. */
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor !== undefined &&
+      Object.prototype.hasOwnProperty.call(descriptor, "value")
+      ? descriptor.value
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Snapshot one playable section before any value can become transport authority. */
+function playableSectionSnapshot(
+  section: RehearsalSection | undefined | null,
+): PlayableSectionSnapshot | null {
+  if (!section || typeof section !== "object") {
+    return null;
+  }
+  const id = ownDataValue(section, "id");
+  const label = ownDataValue(section, "label");
+  const timeRange = ownDataValue(section, "timeRange");
+  if (
+    typeof id !== "string" ||
+    id.trim() === "" ||
+    !timeRange ||
+    typeof timeRange !== "object"
+  ) {
+    return null;
+  }
+  const start = ownDataValue(timeRange, "start");
+  const end = ownDataValue(timeRange, "end");
+  if (
+    !isFiniteNonNegativeNumber(start) ||
+    !isFiniteNonNegativeNumber(end) ||
+    end <= start
+  ) {
+    return null;
+  }
+  return {
+    id,
+    label: typeof label === "string" && label.trim() ? label : id,
+    startSeconds: start,
+    endSeconds: end,
+  };
 }
 
 /** Return whether a section exposes a usable closed loop window. */
 export function isPlayableLoopSection(
   section: RehearsalSection | undefined | null,
 ): boolean {
-  if (!section || typeof section.id !== "string" || section.id.trim() === "") {
-    return false;
-  }
-  const start = section.timeRange?.start;
-  const end = section.timeRange?.end;
-  return (
-    isFiniteNonNegativeNumber(start) &&
-    isFiniteNonNegativeNumber(end) &&
-    end > start
-  );
+  return playableSectionSnapshot(section) !== null;
 }
 
 /** Admit a published tempo or fall back to the labeled rehearsal default. */
@@ -97,23 +143,21 @@ export function formatRehearsalClock(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
-/** Build a loop window from one section plus the song tempo. */
+/** Build a loop window from one snapshotted section plus the song tempo. */
 export function createLoopWindow(
   section: RehearsalSection,
   tempo: unknown,
 ): RehearsalLoopWindow | null {
-  if (!isPlayableLoopSection(section)) {
+  const snapshot = playableSectionSnapshot(section);
+  if (!snapshot) {
     return null;
   }
   const { tempoBpm, tempoAssumed } = resolveRehearsalTempo(tempo);
   return {
-    sectionId: section.id,
-    sectionLabel:
-      typeof section.label === "string" && section.label.trim()
-        ? section.label
-        : section.id,
-    startSeconds: section.timeRange.start,
-    endSeconds: section.timeRange.end,
+    sectionId: snapshot.id,
+    sectionLabel: snapshot.label,
+    startSeconds: snapshot.startSeconds,
+    endSeconds: snapshot.endSeconds,
     tempoBpm,
     tempoAssumed,
     countInBeats: DEFAULT_COUNT_IN_BEATS,
@@ -126,24 +170,20 @@ export function resolveLoopWindow(
   sectionId?: string | null,
 ): RehearsalLoopWindow | null {
   const sections = Array.isArray(song?.sections) ? song.sections : [];
+  const tempo = song?.tempo;
+  const windows = sections.flatMap((section) => {
+    const window = createLoopWindow(section, tempo);
+    return window ? [window] : [];
+  });
   if (typeof sectionId === "string" && sectionId.trim()) {
-    const requested = sections.find(
-      (section) => isPlayableLoopSection(section) && section.id === sectionId,
+    const requestedWindow = windows.find(
+      (window) => window.sectionId === sectionId,
     );
-    const requestedWindow = requested
-      ? createLoopWindow(requested, song?.tempo)
-      : null;
     if (requestedWindow) {
       return requestedWindow;
     }
   }
-  for (const section of sections) {
-    const window = createLoopWindow(section, song?.tempo);
-    if (window) {
-      return window;
-    }
-  }
-  return null;
+  return windows[0] ?? null;
 }
 
 /** Return the idle transport snapshot. */
