@@ -79,6 +79,6 @@ jobs:
           python3 trusted-scorecard-scripts/scripts/checks/normalize_scorecard_sarif.py
           scorecard-sarif/results.sarif
           normalized-scorecard-results.sarif
-      - uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7; immutable SHA pinning retained as supply-chain attack mitigation.
+      - uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8; immutable SHA pinning retained as supply-chain attack mitigation.
         with:
           sarif_file: normalized-scorecard-results.sarif
