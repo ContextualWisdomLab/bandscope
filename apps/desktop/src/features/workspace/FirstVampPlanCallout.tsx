@@ -24,6 +24,9 @@ type OpenedVampPlan = Readonly<{
   atSeconds: number;
 }>;
 
+const GENERATED_ACTIVITY_VAMP_PLAN =
+  /^Keep this part going until (.+) enters in the next section\.$/u;
+
 /** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
 function stableVampPlanSongIdentity(song: RehearsalSong): unknown {
   if (song === null || typeof song !== "object" || Array.isArray(song)) {
@@ -49,6 +52,16 @@ function formatVampPlanCopy(template: string, values: VampPlanCopyValues): strin
     const key = placeholder.slice(1, -1) as keyof VampPlanCopyValues;
     return values[key] ?? placeholder;
   });
+}
+
+/** Localize the analysis-engine-owned vamp sentence while preserving custom role-owned guidance verbatim. */
+function localizedVampPlan(vampPlan: string, generatedTemplate: string): string {
+  const match = GENERATED_ACTIVITY_VAMP_PLAN.exec(vampPlan);
+  const targetRole = match?.[1]?.trim() ?? "";
+  if (targetRole.length === 0) {
+    return vampPlan;
+  }
+  return generatedTemplate.replace("{target}", () => targetRole);
 }
 
 /** Use immediate scrolling when the operating system requests reduced motion. */
@@ -127,6 +140,7 @@ export function FirstVampPlanCallout({ song }: FirstVampPlanCalloutProps) {
   const actionLabel = formatVampPlanCopy(t("firstVampPlanOpenAction"), copyValues);
   const body = formatVampPlanCopy(t("firstVampPlanBody"), copyValues);
   const armed = formatVampPlanCopy(t("firstVampPlanArmed"), copyValues);
+  const vampPlan = localizedVampPlan(named.vampPlan, t("firstVampPlanGeneratedGuidance"));
 
   return (
     <aside
@@ -138,7 +152,7 @@ export function FirstVampPlanCallout({ song }: FirstVampPlanCalloutProps) {
         {t("firstVampPlanLabel")}
       </p>
       <p className="mt-2 text-sm leading-6 text-slate-300">{opened ? armed : body}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-400">{named.vampPlan}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-400">{vampPlan}</p>
       <Button
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-cyan-300 to-emerald-300 font-black text-slate-950"
