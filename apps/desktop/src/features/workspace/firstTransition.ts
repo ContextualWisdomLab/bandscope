@@ -16,6 +16,7 @@ type BoundedTimeRange = Readonly<{
 /** Tonight's first owned transition cue: the earliest change and the part that holds it. */
 export type FirstTransition = {
   section: RehearsalSection;
+  sectionLabel: string;
   holdingRole: RehearsalRole | null;
   atSeconds: number;
   cue: string;
@@ -245,14 +246,20 @@ function resolveSafeFirstTransition(song: RehearsalSong): FirstTransition | null
 
   const transitionSections: Array<{
     section: RehearsalSection;
+    sectionLabel: string;
     timeRange: BoundedTimeRange;
   }> = [];
   for (const section of song.sections) {
+    if (!isRuntimeObject(section)) {
+      continue;
+    }
+    const sectionId = ownDataValue(section, "id");
+    const sectionLabel = ownDataValue(section, "label");
     if (
-      !isRuntimeObject(section) ||
-      !hasOwnData(section, "id") ||
-      typeof section.id !== "string" ||
-      section.id.trim().length === 0
+      typeof sectionId !== "string" ||
+      sectionId.trim().length === 0 ||
+      typeof sectionLabel !== "string" ||
+      sectionLabel.trim().length === 0
     ) {
       continue;
     }
@@ -260,7 +267,7 @@ function resolveSafeFirstTransition(song: RehearsalSong): FirstTransition | null
     if (timeRange === null || transitionRoles(section).length === 0) {
       continue;
     }
-    transitionSections.push({ section, timeRange });
+    transitionSections.push({ section, sectionLabel, timeRange });
   }
   transitionSections.sort((left, right) => {
     if (left.timeRange.start !== right.timeRange.start) {
@@ -288,6 +295,7 @@ function resolveSafeFirstTransition(song: RehearsalSong): FirstTransition | null
 
   return {
     section,
+    sectionLabel: candidate.sectionLabel,
     holdingRole,
     atSeconds: candidate.timeRange.start,
     cue
