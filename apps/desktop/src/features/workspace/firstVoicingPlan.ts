@@ -10,10 +10,26 @@ const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_VOICING_PLAN_CHARACTERS = 180;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
+type RehearsalPriority = keyof typeof PRIORITY_RANK;
+
+type RankedRoleSnapshot = Readonly<{
+  role: RehearsalRole;
+  id: string;
+  name: string;
+  rehearsalPriority: RehearsalPriority;
+}>;
+
+type VoicingRoleSnapshot = RankedRoleSnapshot &
+  Readonly<{
+    voicingPlan: string;
+  }>;
+
 /** Tonight's first voicing plan: the earliest labeled section and the part that owns it. */
 export type FirstVoicingPlan = {
   section: RehearsalSection;
   holdingRole: RehearsalRole;
+  holdingRoleId: string;
+  holdingRoleName: string;
   voicingPlan: string;
   atSeconds: number;
 };
@@ -44,10 +60,29 @@ function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Return an own data-property descriptor, rejecting inherited or accessor state. */
+function ownDataDescriptor(value: object, key: PropertyKey): PropertyDescriptor | null {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor
+    : null;
+}
+
 /** Return whether a runtime record owns a stable data property rather than inherited/accessor state. */
 function hasOwnData(value: object, key: PropertyKey): boolean {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
+  return ownDataDescriptor(value, key) !== null;
+}
+
+/** Snapshot one non-blank owned string without consulting a Proxy get trap. */
+function ownedNonBlankString(value: unknown, key: PropertyKey): string | null {
+  if (!isRuntimeObject(value)) {
+    return null;
+  }
+  const descriptor = ownDataDescriptor(value, key);
+  if (descriptor === null || typeof descriptor.value !== "string") {
+    return null;
+  }
+  return descriptor.value.trim().length > 0 ? descriptor.value : null;
 }
 
 /** Return whether every numeric index is an own data element in a bounded runtime array. */
@@ -86,33 +121,46 @@ function ownedVoicingPlan(role: unknown): string | null {
   if (!isRuntimeObject(role)) {
     return null;
   }
-  const descriptor = Object.getOwnPropertyDescriptor(role, "voicingPlan");
-  if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+  const descriptor = ownDataDescriptor(role, "voicingPlan");
+  if (descriptor === null || typeof descriptor.value !== "string") {
     return null;
   }
-  const voicingPlan = descriptor.value;
-  if (typeof voicingPlan !== "string") {
-    return null;
-  }
-  const trimmed = voicingPlan.trim();
+  const trimmed = descriptor.value.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
   return truncateCodePoints(trimmed, MAX_VOICING_PLAN_CHARACTERS);
 }
 
-/** Return true when the role has safe owned identity/copy and ranked rehearsal priority. */
-function hasRankedPriority(role: RehearsalRole): boolean {
-  return (
-    hasOwnData(role, "id") &&
-    typeof role.id === "string" &&
-    role.id.trim().length > 0 &&
-    hasOwnData(role, "name") &&
-    typeof role.name === "string" &&
-    role.name.trim().length > 0 &&
-    hasOwnData(role, "rehearsalPriority") &&
-    Object.prototype.hasOwnProperty.call(PRIORITY_RANK, role.rehearsalPriority)
-  );
+/** Snapshot owned role identity and priority without later untrusted property reads. */
+function snapshotRankedRole(role: unknown): RankedRoleSnapshot | null {
+  if (!isRuntimeObject(role)) {
+    return null;
+  }
+  const id = ownedNonBlankString(role, "id");
+  const name = ownedNonBlankString(role, "name");
+  const priorityDescriptor = ownDataDescriptor(role, "rehearsalPriority");
+  const rehearsalPriority = priorityDescriptor?.value;
+  if (
+    id === null ||
+    name === null ||
+    typeof rehearsalPriority !== "string" ||
+    !Object.prototype.hasOwnProperty.call(PRIORITY_RANK, rehearsalPriority)
+  ) {
+    return null;
+  }
+  return {
+    role: role as RehearsalRole,
+    id,
+    name,
+    rehearsalPriority: rehearsalPriority as RehearsalPriority
+  };
+}
+
+/** Attach one snapshotted owned voicing plan to an already validated role snapshot. */
+function snapshotVoicingRole(role: RankedRoleSnapshot): VoicingRoleSnapshot | null {
+  const voicingPlan = ownedVoicingPlan(role.role);
+  return voicingPlan === null ? null : { ...role, voicingPlan };
 }
 
 /** Return whether a section owns a canonical form label from the shared contract. */
@@ -160,14 +208,15 @@ function repeatedIds(ids: string[]): Set<string> {
   return repeated;
 }
 
-/** Prefer the earlier ranked role, then rehearsal priority, then a locale-independent id. */
-function pickHoldingRole(roles: RehearsalRole[]): RehearsalRole | null {
+/** Prefer rehearsal priority, then a locale-independent stable role id. */
+function pickHoldingRole(roles: VoicingRoleSnapshot[]): VoicingRoleSnapshot | null {
   if (roles.length === 0) {
     return null;
   }
   return (
     [...roles].sort((left, right) => {
-      const priorityDelta = PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
+      const priorityDelta =
+        PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
       if (priorityDelta !== 0) {
         return priorityDelta;
       }
@@ -176,8 +225,8 @@ function pickHoldingRole(roles: RehearsalRole[]): RehearsalRole | null {
   );
 }
 
-/** Return ranked roles whose unique graph node is explicitly active. */
-function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
+/** Return snapshotted ranked roles whose unique graph node is explicitly active. */
+function rankedActiveRoles(section: RehearsalSection): RankedRoleSnapshot[] {
   if (
     !hasOwnData(section, "roles") ||
     !hasOwnData(section, "partGraph") ||
@@ -187,48 +236,35 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
     return [];
   }
 
-  const safeRoleIds = section.roles
-    .filter(
-      (role) =>
-        isRuntimeObject(role) &&
-        hasOwnData(role, "id") &&
-        typeof role.id === "string" &&
-        role.id.trim().length > 0
-    )
-    .map((role) => role.id);
-  const safeGraphRoleIds = section.partGraph
-    .filter(
-      (node) =>
-        isRuntimeObject(node) &&
-        hasOwnData(node, "role_id") &&
-        typeof node.role_id === "string" &&
-        node.role_id.trim().length > 0
-    )
-    .map((node) => node.role_id);
+  const safeRoleIds = section.roles.flatMap((role) => {
+    const id = ownedNonBlankString(role, "id");
+    return id === null ? [] : [id];
+  });
+  const safeGraphRoleIds = section.partGraph.flatMap((node) => {
+    const roleId = ownedNonBlankString(node, "role_id");
+    return roleId === null ? [] : [roleId];
+  });
   const repeatedRoleIds = repeatedIds(safeRoleIds);
   const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
   const activeIds = new Set(
-    section.partGraph
-      .filter(
-        (node) =>
-          isRuntimeObject(node) &&
-          hasOwnData(node, "is_active") &&
-          node.is_active === true &&
-          hasOwnData(node, "role_id") &&
-          typeof node.role_id === "string" &&
-          node.role_id.trim().length > 0 &&
-          !repeatedGraphRoleIds.has(node.role_id)
-      )
-      .map((node) => node.role_id)
+    section.partGraph.flatMap((node) => {
+      if (!isRuntimeObject(node)) {
+        return [];
+      }
+      const roleId = ownedNonBlankString(node, "role_id");
+      const isActive = ownDataDescriptor(node, "is_active")?.value;
+      return roleId !== null && isActive === true && !repeatedGraphRoleIds.has(roleId)
+        ? [roleId]
+        : [];
+    })
   );
 
-  return section.roles.filter(
-    (role) =>
-      isRuntimeObject(role) &&
-      hasRankedPriority(role) &&
-      !repeatedRoleIds.has(role.id) &&
-      activeIds.has(role.id)
-  );
+  return section.roles.flatMap((role) => {
+    const snapshot = snapshotRankedRole(role);
+    return snapshot !== null && !repeatedRoleIds.has(snapshot.id) && activeIds.has(snapshot.id)
+      ? [snapshot]
+      : [];
+  });
 }
 
 /** Resolve a voicing plan after the runtime root has passed its structural boundary checks. */
@@ -248,21 +284,21 @@ function resolveSafeFirstVoicingPlan(song: RehearsalSong): FirstVoicingPlan | nu
         hasBoundedTimeRange(section)
     )
     .flatMap((section) => {
-      const holdingRole = pickHoldingRole(
-        rankedActiveRoles(section).filter((role) => ownedVoicingPlan(role) !== null)
-      );
+      const voicingRoles = rankedActiveRoles(section).flatMap((role) => {
+        const candidate = snapshotVoicingRole(role);
+        return candidate === null ? [] : [candidate];
+      });
+      const holdingRole = pickHoldingRole(voicingRoles);
       if (!holdingRole) {
-        return [];
-      }
-      const voicingPlan = ownedVoicingPlan(holdingRole);
-      if (!voicingPlan) {
         return [];
       }
       return [
         {
           section,
-          holdingRole,
-          voicingPlan,
+          holdingRole: holdingRole.role,
+          holdingRoleId: holdingRole.id,
+          holdingRoleName: holdingRole.name,
+          voicingPlan: holdingRole.voicingPlan,
           atSeconds: section.timeRange.start
         }
       ];
