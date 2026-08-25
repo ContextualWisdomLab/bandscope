@@ -40,7 +40,9 @@ def test_every_codeql_action_step_uses_the_same_reviewed_revision() -> None:
     references = _codeql_action_references()
 
     assert references
-    assert {revision_ref for _, _, revision_ref, _ in references} == {_EXPECTED_CODEQL_ACTION_SHA}
+    assert {
+        revision_ref for _, _, revision_ref, _ in references
+    } == {_EXPECTED_CODEQL_ACTION_SHA}
     expected_version = f"# {_EXPECTED_CODEQL_ACTION_VERSION}"
     assert all(expected_version in suffix for _, _, _, suffix in references)
 
