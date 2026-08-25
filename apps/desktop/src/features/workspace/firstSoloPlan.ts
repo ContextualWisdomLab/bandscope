@@ -8,6 +8,7 @@ import {
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_SOLO_PLAN_CHARACTERS = 180;
+const MAX_RUNTIME_GRAPH_PROPERTIES = 100_000;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
 type RankedRoleMetadata = Readonly<{
@@ -16,6 +17,10 @@ type RankedRoleMetadata = Readonly<{
   name: string;
   rehearsalPriority: keyof typeof PRIORITY_RANK;
 }>;
+
+type RuntimeGraphBudget = {
+  properties: number;
+};
 
 /** Tonight's first solo plan: the earliest labeled section and the part that owns it. */
 export type FirstSoloPlan = {
@@ -57,29 +62,71 @@ function isRuntimeObject(value: unknown): value is object {
 }
 
 /**
- * Fail closed on Proxy or otherwise non-cloneable data boundaries.
+ * Verify that a structured-data graph contains only own data properties before cloning it.
  *
- * The HTML structured-serialization algorithm rejects Proxy exotic objects with
- * DataCloneError. Ordinary accessor failures may still be tolerated because all
- * authoritative reads below use own data-property descriptors and never invoke
- * application getters.
+ * Descriptor inspection avoids executing application getters. The subsequent HTML structured
+ * clone probe rejects Proxy exotic objects, so a Proxy cannot manufacture trusted descriptors
+ * for buyer-visible rehearsal guidance. The property budget also keeps this untrusted boundary
+ * finite before the resolver walks it.
  */
-function rejectsStructuredDataBoundary(value: unknown): boolean {
-  if (value === null || typeof value !== "object") {
-    return false;
-  }
-  if (typeof structuredClone !== "function") {
+function hasSafeStructuredDataDescriptors(
+  value: unknown,
+  seen: Set<object>,
+  budget: RuntimeGraphBudget
+): boolean {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "undefined" ||
+    typeof value === "bigint"
+  ) {
     return true;
   }
-  try {
-    structuredClone(value);
+  if (typeof value !== "object") {
     return false;
-  } catch (error) {
-    return (
-      typeof DOMException !== "undefined" &&
-      error instanceof DOMException &&
-      error.name === "DataCloneError"
-    );
+  }
+  if (seen.has(value)) {
+    return true;
+  }
+  seen.add(value);
+
+  const keys = Reflect.ownKeys(value);
+  budget.properties += keys.length;
+  if (budget.properties > MAX_RUNTIME_GRAPH_PROPERTIES) {
+    return false;
+  }
+
+  for (const key of keys) {
+    if (typeof key === "symbol") {
+      return false;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (
+      descriptor === undefined ||
+      !Object.prototype.hasOwnProperty.call(descriptor, "value") ||
+      !hasSafeStructuredDataDescriptors(descriptor.value, seen, budget)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Fail closed unless the entire runtime graph is descriptor-only and structured-clone compatible. */
+function hasSafeStructuredRuntimeGraph(value: unknown): boolean {
+  if (typeof structuredClone !== "function") {
+    return false;
+  }
+  try {
+    if (!hasSafeStructuredDataDescriptors(value, new Set<object>(), { properties: 0 })) {
+      return false;
+    }
+    structuredClone(value);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -99,7 +146,7 @@ function ownDataValue(value: object, key: PropertyKey): unknown {
 
 /** Snapshot every numeric own data element from a bounded runtime array. */
 function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
-  if (!Array.isArray(value) || rejectsStructuredDataBoundary(value)) {
+  if (!Array.isArray(value)) {
     return null;
   }
   const length = ownDataValue(value, "length");
@@ -137,7 +184,7 @@ function truncateCodePoints(value: string, maximum: number): string {
 
 /** Return a bounded snapshotted own solo plan, or null when it cannot be shown. */
 function ownedSoloPlan(role: unknown): string | null {
-  if (!isRuntimeObject(role) || rejectsStructuredDataBoundary(role)) {
+  if (!isRuntimeObject(role)) {
     return null;
   }
   const soloPlan = ownDataValue(role, "soloPlan");
@@ -153,7 +200,7 @@ function ownedSoloPlan(role: unknown): string | null {
 
 /** Snapshot trusted role identity, display name, and priority without accessor authority. */
 function ownedRankedRoleMetadata(role: unknown): RankedRoleMetadata | null {
-  if (!isRuntimeObject(role) || rejectsStructuredDataBoundary(role)) {
+  if (!isRuntimeObject(role)) {
     return null;
   }
   const id = ownDataValue(role, "id");
@@ -182,7 +229,7 @@ function ownedBoundedTimeRange(
   section: RehearsalSection
 ): RehearsalSection["timeRange"] | null {
   const timeRange = ownDataValue(section, "timeRange");
-  if (!isRuntimeObject(timeRange) || rejectsStructuredDataBoundary(timeRange)) {
+  if (!isRuntimeObject(timeRange)) {
     return null;
   }
   const start = ownDataValue(timeRange, "start");
@@ -242,14 +289,14 @@ function rankedActiveRoles(section: RehearsalSection): RankedRoleMetadata[] {
   }
 
   const safeRoleIds = roles.flatMap((role) => {
-    if (!isRuntimeObject(role) || rejectsStructuredDataBoundary(role)) {
+    if (!isRuntimeObject(role)) {
       return [];
     }
     const id = ownDataValue(role, "id");
     return typeof id === "string" && id.trim().length > 0 ? [id] : [];
   });
   const safeGraphRoleIds = partGraph.flatMap((node) => {
-    if (!isRuntimeObject(node) || rejectsStructuredDataBoundary(node)) {
+    if (!isRuntimeObject(node)) {
       return [];
     }
     const roleId = ownDataValue(node, "role_id");
@@ -259,11 +306,7 @@ function rankedActiveRoles(section: RehearsalSection): RankedRoleMetadata[] {
   const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
   const activeIds = new Set(
     partGraph.flatMap((node) => {
-      if (
-        !isRuntimeObject(node) ||
-        rejectsStructuredDataBoundary(node) ||
-        ownDataValue(node, "is_active") !== true
-      ) {
+      if (!isRuntimeObject(node) || ownDataValue(node, "is_active") !== true) {
         return [];
       }
       const roleId = ownDataValue(node, "role_id");
@@ -287,7 +330,7 @@ function rankedActiveRoles(section: RehearsalSection): RankedRoleMetadata[] {
 
 /** Resolve a solo plan after the runtime root has passed its structural boundary checks. */
 function resolveSafeFirstSoloPlan(song: RehearsalSong): FirstSoloPlan | null {
-  if (!isRuntimeObject(song) || rejectsStructuredDataBoundary(song)) {
+  if (!isRuntimeObject(song) || !hasSafeStructuredRuntimeGraph(song)) {
     return null;
   }
   const sections = ownedDenseRuntimeArray(ownDataValue(song, "sections"));
@@ -297,7 +340,7 @@ function resolveSafeFirstSoloPlan(song: RehearsalSong): FirstSoloPlan | null {
 
   const candidates = sections
     .flatMap((section, sectionIndex) => {
-      if (!isRuntimeObject(section) || rejectsStructuredDataBoundary(section)) {
+      if (!isRuntimeObject(section)) {
         return [];
       }
       const sectionId = ownDataValue(section, "id");
