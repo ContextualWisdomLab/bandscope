@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 
 class RoleType(str, Enum):
@@ -81,6 +81,7 @@ class RehearsalRole(TypedDict):
     rehearsalPriority: RehearsalPriority
     simplification: str
     setupNote: str
+    vampPlan: NotRequired[str]
     manualOverrides: list[ManualOverride]
     overlapWarnings: list[str]
 
