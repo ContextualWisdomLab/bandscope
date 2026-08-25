@@ -8,6 +8,11 @@ import {
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_VAMP_PLAN_CHARACTERS = 180;
+const GENERATED_ACTIVITY_VAMP_PLAN_PREFIX = "Keep this part going until ";
+const GENERATED_ACTIVITY_VAMP_PLAN_SUFFIX = " enters in the next section.";
+const GENERATED_ACTIVITY_VAMP_PLAN_FIXED_CHARACTERS = Array.from(
+  GENERATED_ACTIVITY_VAMP_PLAN_PREFIX + GENERATED_ACTIVITY_VAMP_PLAN_SUFFIX
+).length;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
 type RankedRoleMetadata = Readonly<{
@@ -108,6 +113,30 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
+/** Keep a bounded engine-owned vamp sentence structurally recognizable for localization. */
+function boundedGeneratedActivityVampPlan(value: string): string | null {
+  if (
+    !value.startsWith(GENERATED_ACTIVITY_VAMP_PLAN_PREFIX) ||
+    !value.endsWith(GENERATED_ACTIVITY_VAMP_PLAN_SUFFIX)
+  ) {
+    return null;
+  }
+  const target = value
+    .slice(
+      GENERATED_ACTIVITY_VAMP_PLAN_PREFIX.length,
+      value.length - GENERATED_ACTIVITY_VAMP_PLAN_SUFFIX.length
+    )
+    .trim();
+  if (target.length === 0) {
+    return null;
+  }
+  const boundedTarget = truncateCodePoints(
+    target,
+    MAX_VAMP_PLAN_CHARACTERS - GENERATED_ACTIVITY_VAMP_PLAN_FIXED_CHARACTERS
+  );
+  return `${GENERATED_ACTIVITY_VAMP_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_VAMP_PLAN_SUFFIX}`;
+}
+
 /** Return a bounded snapshotted own vamp plan, or null when it cannot be shown. */
 function ownedVampPlan(role: unknown): string | null {
   if (!isRuntimeObject(role)) {
@@ -121,7 +150,10 @@ function ownedVampPlan(role: unknown): string | null {
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
-  return truncateCodePoints(trimmed, MAX_VAMP_PLAN_CHARACTERS);
+  return (
+    boundedGeneratedActivityVampPlan(trimmed) ??
+    truncateCodePoints(trimmed, MAX_VAMP_PLAN_CHARACTERS)
+  );
 }
 
 /** Snapshot trusted role identity, display name, and priority without Proxy get authority. */
