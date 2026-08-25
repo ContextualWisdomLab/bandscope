@@ -277,7 +277,10 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    const firstSectionId = song.sections[0]!.id;
+    const target = Array.from(document.querySelectorAll<HTMLElement>("[data-section-id]")).find(
+      (candidate) => candidate.dataset.sectionId === firstSectionId
+    );
     expect(target).toBeTruthy();
     const scrollIntoView = vi.fn();
     Object.defineProperty(target!, "scrollIntoView", {
