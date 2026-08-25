@@ -58,20 +58,15 @@ function preferredSoloPlanScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
-/** Resolve this workspace's map scope, failing closed when its structure renderer is ambiguous. */
+/** Resolve only this callout's local workspace scope; never borrow a renderer from another workspace. */
 function resolveSoloPlanWorkspaceScope(origin: HTMLElement): HTMLElement | null {
   const selector = '[data-testid="song-structure-grid"]';
   const localScope = origin.closest("aside")?.parentElement ?? null;
-  const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
-  if (localRenderers.length === 1) {
-    return localScope;
-  }
-  if (localRenderers.length > 1) {
+  if (!localScope) {
     return null;
   }
-
-  const globalRenderers = document.querySelectorAll<HTMLElement>(selector);
-  return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
+  const localRenderers = localScope.querySelectorAll<HTMLElement>(selector);
+  return localRenderers.length === 1 ? localScope : null;
 }
 
 /** Resolve exactly one rendered map section by stable identity without selector interpolation. */
