@@ -148,5 +148,13 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstGrooveLabel": "Tonight's first groove",
+  "firstGrooveOpenAction": "Open {role} groove at {at}",
+  "firstGrooveOpenActionBand": "Open the first groove at {at}",
+  "firstGrooveBody": "{role} locks the {section} groove at {at}.",
+  "firstGrooveBodyBand": "The band locks the {section} groove at {at}.",
+  "firstGrooveArmed": "Lock the groove with {role} at {at}. Feel it together.",
+  "firstGrooveArmedBand": "Lock the groove at {at}. Feel it together.",
+  "firstGrooveUnavailable": "No groove yet. Stay on tonight's map until a section names the feel."
 }

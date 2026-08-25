@@ -269,5 +269,30 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText(/벌스 · 0:10–0:40/)).toBeTruthy();
+    expect(screen.queryByText(/verse · 0:10–0:40/i)).toBeNull();
+  });
+
+  it("names tonight's first groove as workspace navigation", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    expect(screen.getAllByText("Straight eighths with a late snare feel").length).toBeGreaterThan(0);
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar groove at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText(/Lock the groove with Bass Guitar at 0:10. Feel it together./)).toBeTruthy();
   });
 });
