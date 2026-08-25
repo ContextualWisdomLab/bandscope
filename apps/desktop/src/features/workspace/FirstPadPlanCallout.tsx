@@ -145,11 +145,9 @@ export function FirstPadPlanCallout({ song }: FirstPadPlanCalloutProps) {
         onClick={(event) => {
           const renderer = resolvePadPlanRenderer(event.currentTarget);
           const target =
-            named.sectionIndex >= 0
-              ? (renderer?.querySelector<HTMLElement>(
-                  `[data-section-index="${named.sectionIndex}"]`
-                ) ?? null)
-              : null;
+            renderer?.querySelector<HTMLElement>(
+              `[data-section-index="${named.sectionIndex}"]`
+            ) ?? null;
           if (typeof target?.scrollIntoView !== "function") {
             return;
           }
