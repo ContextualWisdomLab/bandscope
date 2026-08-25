@@ -16,6 +16,7 @@ type BoundedTimeRange = Readonly<{
 /** Tonight's first owned transition cue: the earliest change and the part that holds it. */
 export type FirstTransition = {
   section: RehearsalSection;
+  sectionId: string;
   sectionLabel: string;
   holdingRole: RehearsalRole | null;
   atSeconds: number;
@@ -246,6 +247,7 @@ function resolveSafeFirstTransition(song: RehearsalSong): FirstTransition | null
 
   const transitionSections: Array<{
     section: RehearsalSection;
+    sectionId: string;
     sectionLabel: string;
     timeRange: BoundedTimeRange;
   }> = [];
@@ -267,13 +269,13 @@ function resolveSafeFirstTransition(song: RehearsalSong): FirstTransition | null
     if (timeRange === null || transitionRoles(section).length === 0) {
       continue;
     }
-    transitionSections.push({ section, sectionLabel, timeRange });
+    transitionSections.push({ section, sectionId, sectionLabel, timeRange });
   }
   transitionSections.sort((left, right) => {
     if (left.timeRange.start !== right.timeRange.start) {
       return left.timeRange.start - right.timeRange.start;
     }
-    return compareStableId(left.section.id, right.section.id);
+    return compareStableId(left.sectionId, right.sectionId);
   });
 
   const candidate = transitionSections[0];
@@ -295,6 +297,7 @@ function resolveSafeFirstTransition(song: RehearsalSong): FirstTransition | null
 
   return {
     section,
+    sectionId: candidate.sectionId,
     sectionLabel: candidate.sectionLabel,
     holdingRole,
     atSeconds: candidate.timeRange.start,
