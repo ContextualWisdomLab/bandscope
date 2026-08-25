@@ -148,5 +148,12 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstCutoffPlanLabel": "Tonight's first cutoff plan",
+  "firstCutoffPlanOpenAction": "Open {role} cutoff at {at}",
+  "firstCutoffPlanBody": "{role} has a shared cutoff in the {section} at {at}.",
+  "firstCutoffPlanArmed": "Cut that off on {role} at {at} before the room starts.",
+  "firstCutoffPlanGeneratedGuidance": "Cut this off with {target}; don't linger past the last beat.",
+  "firstCutoffPlanGeneratedBandGuidance": "Cut this off with the rest of the band; don't linger past the last beat.",
+  "firstCutoffPlanUnavailable": "No cutoff plan is available. Stay on tonight's map for the next rehearsal cue."
 }
