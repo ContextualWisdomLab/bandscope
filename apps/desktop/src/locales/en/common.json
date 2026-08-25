@@ -152,8 +152,8 @@
   "firstTransitionLabel": "Tonight's first transition",
   "firstTransitionOpenAction": "Open {role} transition at {at}",
   "firstTransitionOpenActionBand": "Open the first transition at {at}",
-  "firstTransitionBody": "{role} catches the change at {at}.",
-  "firstTransitionBodyBand": "The band catches the change at {at}.",
+  "firstTransitionBody": "{role} catches the change in the {section} at {at}.",
+  "firstTransitionBodyBand": "The band catches the change in the {section} at {at}.",
   "firstTransitionArmed": "Catch the change with {role} at {at}. Stay together through it.",
   "firstTransitionArmedBand": "Catch the change at {at}. Stay together through it.",
   "firstTransitionUnavailable": "No transition cue yet. Stay on tonight's map until a change is named."
