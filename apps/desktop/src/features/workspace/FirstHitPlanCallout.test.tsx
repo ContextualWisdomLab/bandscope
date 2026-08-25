@@ -5,6 +5,7 @@ import { FirstHitPlanCallout } from "./FirstHitPlanCallout";
 
 const DEMO_HIT_PLAN =
   "Land this hit with Lead Vocal on the verse downbeat; don't drift past the pickup.";
+const appendedSongStructureTargets = new Set<HTMLElement>();
 
 function songWithHitPlan() {
   return createDemoRehearsalSong();
@@ -26,11 +27,16 @@ function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeli
   grid.appendChild(target);
   timeline.appendChild(grid);
   document.body.appendChild(timeline);
+  appendedSongStructureTargets.add(timeline);
   return { grid: timeline, scrollIntoView };
 }
 
 describe("FirstHitPlanCallout", () => {
   afterEach(() => {
+    for (const timeline of appendedSongStructureTargets) {
+      timeline.remove();
+    }
+    appendedSongStructureTargets.clear();
     vi.unstubAllGlobals();
   });
 
