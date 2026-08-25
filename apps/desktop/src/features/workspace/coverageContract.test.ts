@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { DESKTOP_OWNED_PRODUCTION_COVERAGE } from "../../../vite.config";
+import desktopViteConfig, { DESKTOP_OWNED_PRODUCTION_COVERAGE } from "../../../vite.config";
 
 describe("desktop owned production coverage", () => {
   it("keeps the first solo-plan resolver and callout inside the coverage gate", () => {
@@ -13,7 +12,12 @@ describe("desktop owned production coverage", () => {
   });
 
   it("wires the owned production list into Vitest coverage", () => {
-    const viteConfigSource = readFileSync(new URL("../../../vite.config.ts", import.meta.url), "utf8");
-    expect(viteConfigSource).toMatch(/include:\s*DESKTOP_OWNED_PRODUCTION_COVERAGE\b/);
+    expect(desktopViteConfig).toMatchObject({
+      test: {
+        coverage: {
+          include: DESKTOP_OWNED_PRODUCTION_COVERAGE
+        }
+      }
+    });
   });
 });
