@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,11 +78,11 @@ function resolveVoicingPlanRenderer(origin: HTMLElement): HTMLElement | null {
 /** Name tonight's first voicing plan and open the matching rendered map section. */
 export function FirstVoicingPlanCallout({ song }: FirstVoicingPlanCalloutProps) {
   const calloutId = `workspace-surface-voicing-plan-${useId()}`;
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableVoicingPlanSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const named = resolveFirstVoicingPlan(song);
+  const named = useMemo(() => resolveFirstVoicingPlan(song), [song]);
   const namedSectionIndex =
     named && Array.isArray(runtimeSong?.sections)
       ? runtimeSong.sections.indexOf(named.section)
