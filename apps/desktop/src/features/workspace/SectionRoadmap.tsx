@@ -106,6 +106,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         {song.sections.map((section) => (
           <Card
             key={section.id}
+            data-section-id={section.id}
             className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
               section.confidence.level === "low" ? "border-rose-300/30 bg-rose-950/30" : "border-white/10 bg-slate-950/80"
             }`}
