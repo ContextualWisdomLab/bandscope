@@ -56,9 +56,9 @@
 - Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
 - Issue #28: Delivered practical rehearsal workspace UI
 - Issue #27: Supported manual overrides, provenance tracking, and local project persistence
-- Issue #36: Added rehearsal priority calculation and cue-sheet/chart summary exports
-- Issue #30: Added YouTube import with policy-constrained browser fallback and local project ingestion
-- Issue #26: Added release safety gates and cross-platform build verification
+- Issue #36: Implemented rehearsal priority calculation and cue-sheet (CSV) / chart (JSON) exports
+- Issue #30: Added policy-constrained YouTube import with local fallback
+- Issue #26: Finalized roadmap and prepared application for initial release
 
 ## [0.1.4] - 2026-05-15
 
