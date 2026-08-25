@@ -99,8 +99,8 @@ function resolveHitPlanRenderer(origin: HTMLElement): HTMLElement | null {
 /** Name tonight's first hit plan and open the matching rendered map section. */
 export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
   const calloutId = `workspace-surface-hit-plan-${useId()}`;
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableHitPlanSongIdentity(song);
   const named = useMemo(() => resolveFirstHitPlan(song), [song]);
   const [openedHitPlan, setOpenedHitPlan] = useState<OpenedHitPlan | null>(null);
