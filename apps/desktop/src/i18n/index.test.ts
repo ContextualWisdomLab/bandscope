@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -76,10 +76,50 @@ describe("i18n", () => {
     });
   });
 
+  describe("translateSectionFormLabel", () => {
+    it("localizes every supported section form label for Korean rehearsal copy", () => {
+      expect(
+        [
+          "intro",
+          "verse",
+          "pre-chorus",
+          "chorus",
+          "bridge",
+          "outro",
+          "tag",
+          "pickup",
+          "stop",
+          "handoff"
+        ].map((label) => translateSectionFormLabel("ko", label))
+      ).toEqual([
+        "인트로",
+        "벌스",
+        "프리코러스",
+        "코러스",
+        "브리지",
+        "아웃트로",
+        "태그",
+        "픽업",
+        "스톱",
+        "핸드오프"
+      ]);
+    });
+
+    it("preserves supported English section form labels", () => {
+      expect(translateSectionFormLabel("en", "verse")).toBe("verse");
+      expect(translateSectionFormLabel("en", "outro")).toBe("outro");
+    });
+
+    it("preserves unknown owned section labels literally instead of inheriting object keys", () => {
+      expect(translateSectionFormLabel("ko", "toString")).toBe("toString");
+      expect(translateSectionFormLabel("ko", "verse-legacy")).toBe("verse-legacy");
+    });
+  });
+
   it("keeps Korean first-transition next-action copy particle-safe", () => {
     const t = createTranslator("ko");
     expect(t("firstTransitionOpenAction")).toBe("{at} {role} 전환 위치 열기");
-    expect(t("firstTransitionBody")).toBe("{at}에서 {role} 파트가 전환을 잡습니다.");
+    expect(t("firstTransitionBody")).toBe("{at} {section}에서 {role} 파트가 전환을 잡습니다.");
     expect(t("firstTransitionArmed")).toBe("{at}에서 {role} 파트와 함께 전환을 잡으세요. 같이 넘기세요.");
   });
 });
