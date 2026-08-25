@@ -4,7 +4,7 @@
 
 ### Added
 
-- Tonight's rehearsal map now arms the first valid section loop, runs a tempo count-in, and names the next play, pause, or choose-local-song action instead of a coming-soon control.
+- Tonight's rehearsal map now arms the first valid section map-clock loop, runs a tempo count-in, and names the next start, pause, stop, or choose-local-song action without claiming decoded audio playback; admitted section timing and picker copy use the same descriptor-snapshotted transport window.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
@@ -56,9 +56,9 @@
 - Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
 - Issue #28: Delivered practical rehearsal workspace UI
 - Issue #27: Supported manual overrides, provenance tracking, and local project persistence
-- Issue #36: Implemented rehearsal priority calculation and cue-sheet (CSV) / chart (JSON) exports
-- Issue #30: Added policy-constrained YouTube import with local fallback
-- Issue #26: Finalized roadmap and prepared application for initial release
+- Issue #36: Added rehearsal priority calculation and cue-sheet/chart summary exports
+- Issue #30: Added YouTube import with policy-constrained browser fallback and local project ingestion
+- Issue #26: Added release safety gates and cross-platform build verification
 
 ## [0.1.4] - 2026-05-15
 
