@@ -22,6 +22,9 @@ from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
 
+_OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
+_OTHER_STEM_ENTRANCE_LABEL = "Accompaniment"
+
 
 class RoleExtractor:
     """Extracts roles and builds the part graph for song sections."""
@@ -340,9 +343,10 @@ class RoleExtractor:
         """Return bounded vamp guidance only for an unambiguous upcoming entrance.
 
         A vamp plan is emitted only when real stem activity shows that this role
-        stays active across the next structural boundary and exactly one other
-        role becomes active there. Ambiguous multi-role entrances and heuristic
-        fallback topology intentionally produce no plan.
+        stays active across the next structural boundary and either one distinct
+        role or the canonical shared accompaniment stem becomes active there.
+        Mixed-source entrances and heuristic fallback topology intentionally
+        produce no plan.
         """
         if (
             next_role_activity is None
@@ -356,14 +360,19 @@ class RoleExtractor:
             for candidate_id, is_active in next_role_activity.items()
             if is_active and not role_activity.get(candidate_id, False)
         ]
-        if len(activating_role_ids) != 1:
+        if len(activating_role_ids) == 1:
+            target_role_id = activating_role_ids[0]
+            target_role_name = next(
+                (role["name"] for role in roles.values() if role["id"] == target_role_id),
+                None,
+            )
+        elif frozenset(activating_role_ids) == _OTHER_STEM_ROLE_IDS:
+            # The source separator exposes keys/guitar as one shared `other` stem.
+            # Name only that coarse evidence instead of inventing a specific instrument.
+            target_role_name = _OTHER_STEM_ENTRANCE_LABEL
+        else:
             return None
 
-        target_role_id = activating_role_ids[0]
-        target_role_name = next(
-            (role["name"] for role in roles.values() if role["id"] == target_role_id),
-            None,
-        )
         if target_role_name is None:
             return None
         return (
