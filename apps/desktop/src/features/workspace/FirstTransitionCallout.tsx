@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import {
+  createTranslator,
+  detectPreferredLocale,
+  translateSectionFormLabel
+} from "../../i18n";
 import { formatTransitionTime, resolveFirstTransition } from "./firstTransition";
 
 /** Props for the first-transition rehearsal callout. */
@@ -9,12 +13,13 @@ export interface FirstTransitionCalloutProps {
   song: RehearsalSong;
 }
 
-type TransitionCopyValues = Readonly<Record<"role" | "at", string>>;
+type TransitionCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 
 type OpenedTransition = Readonly<{
   songIdentity: unknown;
   sectionId: string;
   sectionIndex: number;
+  sectionLabel: string;
   holdingRoleId: string | null;
   atSeconds: number;
   cue: string;
@@ -22,7 +27,7 @@ type OpenedTransition = Readonly<{
 
 /** Interpolate transition placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatTransitionCopy(template: string, values: TransitionCopyValues): string {
-  return template.replace(/\{(role|at)\}/g, (placeholder) => {
+  return template.replace(/\{(role|section|at)\}/g, (placeholder) => {
     const key = placeholder.slice(1, -1) as keyof TransitionCopyValues;
     return values[key] ?? placeholder;
   });
@@ -76,6 +81,7 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
     songIdentity,
     transitionSectionIndex,
     transition?.section.id,
+    transition?.sectionLabel,
     transition?.holdingRole?.id,
     transition?.atSeconds,
     transition?.cue
@@ -99,12 +105,14 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
     openedTransition.songIdentity === songIdentity &&
     openedTransition.sectionId === transition.section.id &&
     openedTransition.sectionIndex === transitionSectionIndex &&
+    openedTransition.sectionLabel === transition.sectionLabel &&
     openedTransition.holdingRoleId === (transition.holdingRole?.id ?? null) &&
     openedTransition.atSeconds === transition.atSeconds &&
     openedTransition.cue === transition.cue;
   const at = formatTransitionTime(transition.atSeconds);
   const copyValues: TransitionCopyValues = {
     role: transition.holdingRole?.name ?? "",
+    section: translateSectionFormLabel(locale, transition.sectionLabel),
     at
   };
   const hasRole = transition.holdingRole !== null;
@@ -152,6 +160,7 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
             songIdentity,
             sectionId: transition.section.id,
             sectionIndex: transitionSectionIndex,
+            sectionLabel: transition.sectionLabel,
             holdingRoleId: transition.holdingRole?.id ?? null,
             atSeconds: transition.atSeconds,
             cue: transition.cue
