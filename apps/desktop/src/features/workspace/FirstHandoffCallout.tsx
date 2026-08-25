@@ -41,6 +41,23 @@ function preferredHandoffScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
+/** Resolve only the song-structure grid owned by this callout's workspace, with an unambiguous single-grid fallback. */
+function resolveHandoffGrid(action: HTMLElement): Element | null {
+  const localScope = action.closest("aside")?.parentElement;
+  if (localScope) {
+    const localGrids = localScope.querySelectorAll('[data-testid="song-structure-grid"]');
+    if (localGrids.length === 1) {
+      return localGrids.item(0);
+    }
+    if (localGrids.length > 1) {
+      return null;
+    }
+  }
+
+  const globalGrids = document.querySelectorAll('[data-testid="song-structure-grid"]');
+  return globalGrids.length === 1 ? globalGrids.item(0) : null;
+}
+
 /** Name tonight's first labeled handoff and offer only an action that the current surface can execute. */
 export function FirstHandoffCallout({
   song,
@@ -121,13 +138,13 @@ export function FirstHandoffCallout({
         <Button
           type="button"
           className="mt-3 min-h-11 bg-gradient-to-r from-sky-300 to-emerald-300 font-black text-slate-950"
-          onClick={() => {
+          onClick={(event) => {
             if (actionMode === "callback-only") {
               onHearHandoff!(handoff.atSeconds);
               markHandoffActionComplete();
               return;
             }
-            const grid = document.querySelector('[data-testid="song-structure-grid"]');
+            const grid = resolveHandoffGrid(event.currentTarget);
             const target = handoffSectionIndex >= 0 ? grid?.children.item(handoffSectionIndex) : null;
             if (typeof target?.scrollIntoView !== "function") {
               return;
