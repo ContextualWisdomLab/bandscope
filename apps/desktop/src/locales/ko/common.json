@@ -153,5 +153,6 @@
   "firstVampPlanOpenAction": "{at} {role} 뱀프 열기",
   "firstVampPlanBody": "{at} {section}에서 {role} 파트의 뱀프 계획이 있습니다.",
   "firstVampPlanArmed": "{at}에서 {role} 파트의 뱀프를 맞춘 다음 합주를 시작하세요.",
+  "firstVampPlanGeneratedGuidance": "다음 섹션에서 {target} 파트가 들어올 때까지 이 파트를 유지하세요.",
   "firstVampPlanUnavailable": "사용 가능한 뱀프 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
 }
