@@ -95,7 +95,7 @@ export function FirstVoicingPlanCallout({ song }: FirstVoicingPlanCalloutProps) 
     songIdentity,
     namedSectionIndex,
     named?.section.id,
-    named?.holdingRole.id,
+    named?.holdingRoleId,
     named?.voicingPlan,
     named?.atSeconds
   ]);
@@ -120,12 +120,12 @@ export function FirstVoicingPlanCallout({ song }: FirstVoicingPlanCalloutProps) 
     openedVoicingPlan.songIdentity === songIdentity &&
     openedVoicingPlan.sectionId === named.section.id &&
     openedVoicingPlan.sectionIndex === namedSectionIndex &&
-    openedVoicingPlan.holdingRoleId === named.holdingRole.id &&
+    openedVoicingPlan.holdingRoleId === named.holdingRoleId &&
     openedVoicingPlan.voicingPlan === named.voicingPlan &&
     openedVoicingPlan.atSeconds === named.atSeconds;
   const at = formatVoicingPlanTime(named.atSeconds);
   const copyValues: VoicingPlanCopyValues = {
-    role: named.holdingRole.name,
+    role: named.holdingRoleName,
     section: translateSectionFormLabel(locale, named.section.label),
     at
   };
@@ -166,7 +166,7 @@ export function FirstVoicingPlanCallout({ song }: FirstVoicingPlanCalloutProps) 
             songIdentity,
             sectionId: named.section.id,
             sectionIndex: namedSectionIndex,
-            holdingRoleId: named.holdingRole.id,
+            holdingRoleId: named.holdingRoleId,
             voicingPlan: named.voicingPlan,
             atSeconds: named.atSeconds
           });
