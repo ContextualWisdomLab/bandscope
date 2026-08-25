@@ -80,7 +80,7 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
   }, [
     songIdentity,
     transitionSectionIndex,
-    transition?.section.id,
+    transition?.sectionId,
     transition?.sectionLabel,
     transition?.holdingRole?.id,
     transition?.atSeconds,
@@ -103,7 +103,7 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
   const opened =
     openedTransition !== null &&
     openedTransition.songIdentity === songIdentity &&
-    openedTransition.sectionId === transition.section.id &&
+    openedTransition.sectionId === transition.sectionId &&
     openedTransition.sectionIndex === transitionSectionIndex &&
     openedTransition.sectionLabel === transition.sectionLabel &&
     openedTransition.holdingRoleId === (transition.holdingRole?.id ?? null) &&
@@ -158,7 +158,7 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
           });
           setOpenedTransition({
             songIdentity,
-            sectionId: transition.section.id,
+            sectionId: transition.sectionId,
             sectionIndex: transitionSectionIndex,
             sectionLabel: transition.sectionLabel,
             holdingRoleId: transition.holdingRole?.id ?? null,
