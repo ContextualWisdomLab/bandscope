@@ -66,13 +66,18 @@ function preferredTransitionScrollBehavior(): ScrollBehavior {
 export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
-  const songIdentity = stableSongIdentity(song);
-  const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const transition = resolveFirstTransition(song);
-  const transitionSectionIndex =
-    transition && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(transition.section)
-      : -1;
+  const resolution = useMemo(() => {
+    const songIdentity = stableSongIdentity(song);
+    const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
+    const transition = resolveFirstTransition(song);
+    const transitionSectionIndex =
+      transition && Array.isArray(runtimeSong?.sections)
+        ? runtimeSong.sections.indexOf(transition.section)
+        : -1;
+
+    return { songIdentity, transition, transitionSectionIndex } as const;
+  }, [song]);
+  const { songIdentity, transition, transitionSectionIndex } = resolution;
   const [openedTransition, setOpenedTransition] = useState<OpenedTransition | null>(null);
 
   useEffect(() => {
