@@ -140,7 +140,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 ## 6. UML 보완점
 
-현재 docs 전역에서 Mermaid/sequence/class diagram이 하나도 존재하지 않는다(grep 확인). 아래 두 다이어그램이 최소 필수다.
+Protected base `develop@acdbea6344fe1231c39535b575f4de35e4c607c9`의 `docs/`와 `ARCHITECTURE.md`에는 Mermaid `sequenceDiagram`/`classDiagram`/`flowchart`가 없다. 이 PR이 아래 다이어그램을 처음 추가하므로 현재 PR checkout 자체를 검색하면 이 파일이 매치되는 것이 정상이다.
 
 ### 6.1 import -> analyze -> workspace render happy path
 
@@ -161,7 +161,7 @@ sequenceDiagram
     P->>N: checkerboard_novelty, viterbi_decode
     N-->>P: kernels result (parity-guaranteed)
     P-->>T: RehearsalSong JSON (schema-validated)
-    T-->>UI: jobResult event
+    T-->>UI: analysis-job-updated
     UI->>UI: render Workspace/GrooveMap/Roles
 ```
 
@@ -201,7 +201,7 @@ flowchart TD
 - 프로젝트 save/load/migration 흐름(crash-safe 포맷 설계 선행 다이어그램)
 - manual override <-> 재분석 round-trip(provenance 보존) 시퀀스
 - export(cue-sheet/chart) 파이프라인과 sanitize 지점 다이어그램
-- state machine: analysis job(idle/running/done/failed) 상태 전이
+- state machine: analysis job(`queued`/`running`/`succeeded`/`failed`) 상태 전이
 - class diagram: shared-types 도메인(song/section/role/confidence/provenance) 정식 클래스 뷰
 
 ## 7. 우선순위가 매겨진 Gap Backlog (Prioritized Gap Backlog)
@@ -253,7 +253,7 @@ flowchart TD
 
 ## 8. APA 7th 참고문헌 (References)
 
-본 문서에서 실제 인용한 개념(MIR novelty kernel, HMM/Viterbi 디코딩, 소스 분리 평가, librosa, 접근성 표준)에 한정한다.
+본 문서에서 실제 인용한 개념(MIR novelty kernel, chord-recognition 연구 맥락, Viterbi 디코딩, 소스 분리 평가, librosa, 접근성 표준)에 한정한다.
 
 Boulanger-Lewandowski, N., Bengio, Y., & Vincent, P. (2013). Audio chord recognition with recurrent neural networks. In Proceedings of the 14th International Society for Music Information Retrieval Conference (ISMIR 2013) (pp. 335–340). ISMIR.
 
@@ -271,16 +271,17 @@ Viterbi, A. J. (1967). Error bounds for convolutional codes and an asymptoticall
 
 W3C. (2023). Web Content Accessibility Guidelines (WCAG) 2.2. World Wide Web Consortium. https://www.w3.org/TR/WCAG22/
 
-참고: 위 항목 중 DOI가 확실치 않은 항목은 DOI 없이 plain APA로 기술했다(조작 금지 원칙). 코드 내 개념 대응: Foote(1999)=checkerboard novelty, Viterbi(1967)/Boulanger-Lewandowski et al.(2013)=HMM 코드 디코딩 prior, Défossez et al.(2019)=Demucs htdemucs, Le Roux et al.(2019)=SI-SDR(audio_separator.py 주석 언급), Müller(2015)/McFee et al.(2015)=섹션/코드/음역 분석 기반 라이브러리.
+참고: 위 항목 중 DOI가 확실치 않은 항목은 DOI 없이 plain APA로 기술했다(조작 금지 원칙). 코드 내 개념 대응: Foote(1999)=checkerboard novelty, Viterbi(1967)=Viterbi 디코딩 알고리즘, Boulanger-Lewandowski et al.(2013)=오디오 화음 인식 연구 맥락(현재 hand-set transition prior 수치의 근거는 아님), Défossez et al.(2019)=Demucs htdemucs, Le Roux et al.(2019)=SI-SDR(audio_separator.py 주석 언급), Müller(2015)/McFee et al.(2015)=섹션/코드/음역 분석 기반 라이브러리. 현재 transition prior 수치의 문헌·교정 데이터 근거가 없는 점은 5장 (c) 및 P2-11의 미해결 Gap으로 유지한다.
 
 ## 9. 검증 방법 (Verification Method)
 
-각 절의 근거와 재실행 명령.
+각 절의 근거와 재실행 명령. 아래 명령은 저장소 루트에서 실행한다.
 
-- Repo root: `git rev-parse --show-toplevel` -> `/Users/seonghobae/bandscope`
+- Repo root: `git rev-parse --show-toplevel` -> `<repo-root>`
 - 문서 소스 read: `ARCHITECTURE.md`, `AGENTS.md`, `docs/brand-story.md`, `docs/security/app-security.md`, `docs/workflow/one-day-delivery-plan.md`, `docs/engineering/acceptance-criteria.md`, `docs/plans/2026-03-27-bandscope-roadmap-completion.md`
 - Open PR inventory:
   ```bash
+  mkdir -p /tmp/opencode
   gh pr list --state open --limit 200 --json number,title,isDraft,headRefName \
     --jq 'sort_by(-.number) | .[] | "\(.number)\t\(.isDraft)\t\(.title)"' > /tmp/opencode/open_prs_full.txt
   wc -l /tmp/opencode/open_prs_full.txt   # 130
@@ -290,14 +291,14 @@ W3C. (2023). Web Content Accessibility Guidelines (WCAG) 2.2. World Wide Web Con
 - 코드 검증 grep/glob (요지):
   - `grep -rn "padPlan\|PadPlan" apps/desktop/src packages/shared-types/src` -> 0건(시리즈 미착지 확인)
   - `find services/analysis-engine -name "*.py"` -> 모듈 목록(chords/sections/roles/ranges/temporal/separation/transcription/youtube/exports)
-  - `sed -n '70,110p' .../chords/chord_recognizer.py` -> hand-set transition prior 확인
-  - `sed -n '1,40p' .../_native.py` -> bandscope_numeric 커널/parity 확인
-  - `ls services/analysis-engine/rust` + `grep maturin rust/pyproject.toml` -> Rust 커널 위치 확인
-  - `head -30 separation/model_weights/bandsplit-v1.json` -> 휴리스틱 manifest 확인
+  - `sed -n '70,110p' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py` -> hand-set transition prior 확인
+  - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
+  - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
+  - `head -30 services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json` -> 휴리스틱 manifest 확인
   - `grep -rn "aria-" apps/desktop/src/features/workspace/*.tsx | wc -l` -> 52
   - `grep -rln "RehearsalAssignment\|RehearsalCollaboration" apps/desktop/src` -> 0건(UI 미구현 확인)
   - `grep -rn "loop" apps/desktop/src/features/player/index.tsx` -> 0건(loop 미구현 확인)
   - `ls CHANGELOG.md VERSION .github/workflows` -> 릴리스 자산 확인
   - `grep -n thresholds apps/desktop/vite.config.ts packages/shared-types/vitest.config.ts` -> JS 90% 확인
-  - `grep -n "cov-fail-under" AGENTS.md docs` -> Python 100% gate 확인
-  - Mermaid 존재 여부: `grep -rln "sequenceDiagram\|classDiagram\|flowchart" docs ARCHITECTURE.md` -> 0건(6장 전제 확인)
+  - `grep -rn "cov-fail-under" AGENTS.md docs` -> Python 100% gate 확인
+  - Protected-base Mermaid 존재 여부: `git grep -n -E 'sequenceDiagram|classDiagram|flowchart' acdbea6344fe1231c39535b575f4de35e4c607c9 -- docs ARCHITECTURE.md || true` -> 0건(6장 전제 확인)
