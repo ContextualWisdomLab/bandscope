@@ -8,6 +8,11 @@ import {
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_TRANSITION_CUE_CODE_POINTS = 180;
 
+type BoundedTimeRange = Readonly<{
+  start: number;
+  end: number;
+}>;
+
 /** Tonight's first owned transition cue: the earliest change and the part that holds it. */
 export type FirstTransition = {
   section: RehearsalSection;
@@ -42,10 +47,17 @@ function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Return an owned data-property value without invoking a getter or ordinary property read. */
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor.value
+    : undefined;
+}
+
 /** Return whether a runtime record owns a stable data property rather than inherited/accessor state. */
 function hasOwnData(value: object, key: PropertyKey): boolean {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
+  return ownDataValue(value, key) !== undefined;
 }
 
 /** Return whether every numeric index is an own data element in a bounded runtime array. */
@@ -79,30 +91,29 @@ function hasRankedPriority(role: RehearsalRole): boolean {
   );
 }
 
-/** Return whether a section owns a bounded, positive-length integer rehearsal window. */
-function hasBoundedTimeRange(section: RehearsalSection): boolean {
-  if (!hasOwnData(section, "timeRange")) {
-    return false;
-  }
-  const timeRange = section.timeRange as Partial<RehearsalSection["timeRange"]> | null;
-  if (
-    !isRuntimeObject(timeRange) ||
-    !hasOwnData(timeRange, "start") ||
-    !hasOwnData(timeRange, "end")
-  ) {
-    return false;
+/** Snapshot a bounded, positive-length integer rehearsal window from owned data properties. */
+function boundedTimeRange(section: RehearsalSection): BoundedTimeRange | null {
+  const timeRange = ownDataValue(section, "timeRange");
+  if (!isRuntimeObject(timeRange)) {
+    return null;
   }
 
-  const start = timeRange.start ?? -1;
-  const end = timeRange.end ?? -1;
-  return (
-    Number.isInteger(start) &&
-    start >= 0 &&
-    start <= MAX_SECTION_TIME_SECONDS &&
-    Number.isInteger(end) &&
-    end > start &&
-    end <= MAX_SECTION_TIME_SECONDS
-  );
+  const start = ownDataValue(timeRange, "start");
+  const end = ownDataValue(timeRange, "end");
+  if (
+    typeof start !== "number" ||
+    !Number.isInteger(start) ||
+    start < 0 ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    typeof end !== "number" ||
+    !Number.isInteger(end) ||
+    end <= start ||
+    end > MAX_SECTION_TIME_SECONDS
+  ) {
+    return null;
+  }
+
+  return { start, end };
 }
 
 /** Return the owned transition cue text, or null when lyric/count/empty/overlong values cannot be trusted. */
@@ -232,27 +243,37 @@ function resolveSafeFirstTransition(song: RehearsalSong): FirstTransition | null
     return null;
   }
 
-  const transitionSections = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        hasOwnData(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section) &&
-        transitionRoles(section).length > 0
-    )
-    .sort((left, right) => {
-      if (left.timeRange.start !== right.timeRange.start) {
-        return left.timeRange.start - right.timeRange.start;
-      }
-      return compareStableId(left.id, right.id);
-    });
+  const transitionSections: Array<{
+    section: RehearsalSection;
+    timeRange: BoundedTimeRange;
+  }> = [];
+  for (const section of song.sections) {
+    if (
+      !isRuntimeObject(section) ||
+      !hasOwnData(section, "id") ||
+      typeof section.id !== "string" ||
+      section.id.trim().length === 0
+    ) {
+      continue;
+    }
+    const timeRange = boundedTimeRange(section);
+    if (timeRange === null || transitionRoles(section).length === 0) {
+      continue;
+    }
+    transitionSections.push({ section, timeRange });
+  }
+  transitionSections.sort((left, right) => {
+    if (left.timeRange.start !== right.timeRange.start) {
+      return left.timeRange.start - right.timeRange.start;
+    }
+    return compareStableId(left.section.id, right.section.id);
+  });
 
-  const section = transitionSections[0];
-  if (!section) {
+  const candidate = transitionSections[0];
+  if (!candidate) {
     return null;
   }
+  const section = candidate.section;
 
   const holdingRole = pickHighestPriorityRole(
     rankedActiveRoles(section).filter((role) => ownedTransitionCue(role) !== null)
@@ -268,7 +289,7 @@ function resolveSafeFirstTransition(song: RehearsalSong): FirstTransition | null
   return {
     section,
     holdingRole,
-    atSeconds: section.timeRange.start,
+    atSeconds: candidate.timeRange.start,
     cue
   };
 }
