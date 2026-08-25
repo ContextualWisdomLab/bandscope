@@ -9,13 +9,12 @@ import {
 import {
   beatDurationMs,
   createIdleTransportState,
-  createLoopWindow,
   fillRehearsalCopy,
   formatRehearsalClock,
-  isPlayableLoopSection,
   nextActionTemplateKey,
   nextActionValues,
   reduceRehearsalTransport,
+  resolveLoopWindows,
   type RehearsalLoopWindow,
   type RehearsalTransportState,
 } from "./rehearsalTransport";
@@ -28,7 +27,7 @@ interface RehearsalPlayerProps {
 
 const PLAYHEAD_TICK_SECONDS = 0.1;
 
-/** Documented. */
+/** Return the displayed map-clock progress for the current loop. */
 function loopProgressPercent(state: RehearsalTransportState): number {
   if (!state.loop) {
     return 0;
@@ -67,31 +66,21 @@ export function RehearsalPlayer({
   startNonce = 0,
 }: RehearsalPlayerProps): ReactElement {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const playableSections = useMemo(
-    () =>
-      Array.isArray(song.sections)
-        ? song.sections.filter((section) => isPlayableLoopSection(section))
-        : [],
-    [song],
-  );
+  const playableLoops = useMemo(() => resolveLoopWindows(song), [song]);
   const [selectedSectionIndex, setSelectedSectionIndex] = useState(0);
-  const selectedRendererIndex = playableSections[selectedSectionIndex]
+  const selectedRendererIndex = playableLoops[selectedSectionIndex]
     ? selectedSectionIndex
     : 0;
-  const [transport, setTransport] = useState<RehearsalTransportState>(() => {
-    const firstSection = playableSections[0];
-    return reduceRehearsalTransport(createIdleTransportState(), {
+  const [transport, setTransport] = useState<RehearsalTransportState>(() =>
+    reduceRehearsalTransport(createIdleTransportState(), {
       type: "arm",
-      loop: firstSection ? createLoopWindow(firstSection, song.tempo) : null,
-    });
-  });
+      loop: playableLoops[0] ?? null,
+    }),
+  );
   const lastHandledStartNonce = useRef(0);
 
   useEffect(() => {
-    const selectedSection = playableSections[selectedRendererIndex];
-    const nextLoop = selectedSection
-      ? createLoopWindow(selectedSection, song.tempo)
-      : null;
+    const nextLoop = playableLoops[selectedRendererIndex] ?? null;
     setTransport((current) => {
       if (
         current.loop &&
@@ -108,7 +97,7 @@ export function RehearsalPlayer({
       }
       return reduceRehearsalTransport(current, { type: "arm", loop: nextLoop });
     });
-  }, [playableSections, selectedRendererIndex, song.tempo]);
+  }, [playableLoops, selectedRendererIndex]);
 
   useEffect(() => {
     if (startNonce <= lastHandledStartNonce.current) {
@@ -119,24 +108,16 @@ export function RehearsalPlayer({
       return;
     }
     setTransport((current) => {
-      const selectedSection = playableSections[selectedRendererIndex];
+      const selectedLoop = playableLoops[selectedRendererIndex] ?? null;
       const armed = current.loop
         ? current
         : reduceRehearsalTransport(current, {
             type: "arm",
-            loop: selectedSection
-              ? createLoopWindow(selectedSection, song.tempo)
-              : null,
+            loop: selectedLoop,
           });
       return reduceRehearsalTransport(armed, { type: "start" });
     });
-  }, [
-    startNonce,
-    hasLocalAudio,
-    playableSections,
-    selectedRendererIndex,
-    song.tempo,
-  ]);
+  }, [startNonce, hasLocalAudio, playableLoops, selectedRendererIndex]);
 
   useEffect(() => {
     if (hasLocalAudio) {
@@ -208,13 +189,13 @@ export function RehearsalPlayer({
       >
         {nextAction}
       </p>
-      {playableSections.length > 0 ? (
+      {playableLoops.length > 0 ? (
         <div
           className="mt-3 flex flex-wrap gap-2"
           role="group"
           aria-label={t("workspaceLoopSectionPickerLabel")}
         >
-          {playableSections.map((section, index) => {
+          {playableLoops.map((loop, index) => {
             const selected = index === selectedRendererIndex;
             return (
               <Button
@@ -230,11 +211,11 @@ export function RehearsalPlayer({
                 }
                 onClick={() => setSelectedSectionIndex(index)}
               >
-                <span>{section.label}</span>
+                <span>{loop.sectionLabel}</span>
                 <span> · </span>
                 <span>
-                  {formatRehearsalClock(section.timeRange.start)}–
-                  {formatRehearsalClock(section.timeRange.end)}
+                  {formatRehearsalClock(loop.startSeconds)}–
+                  {formatRehearsalClock(loop.endSeconds)}
                 </span>
               </Button>
             );
