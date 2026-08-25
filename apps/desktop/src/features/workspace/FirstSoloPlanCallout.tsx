@@ -18,7 +18,6 @@ type SoloPlanCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 type OpenedSoloPlan = Readonly<{
   songIdentity: unknown;
   sectionId: string;
-  sectionIndex: number;
   holdingRoleId: string;
   soloPlan: string;
   atSeconds: number;
@@ -75,6 +74,18 @@ function resolveSoloPlanRenderer(origin: HTMLElement): HTMLElement | null {
   return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
 }
 
+/** Resolve a rendered section by exact stable identity without selector interpolation. */
+function resolveSoloPlanSectionTarget(renderer: HTMLElement | null, sectionId: string): HTMLElement | null {
+  if (!renderer || sectionId.trim().length === 0) {
+    return null;
+  }
+  return (
+    Array.from(renderer.querySelectorAll<HTMLElement>("[data-section-id]")).find(
+      (candidate) => candidate.dataset.sectionId === sectionId
+    ) ?? null
+  );
+}
+
 /** Name tonight's first solo plan and open the matching rendered map section. */
 export function FirstSoloPlanCallout({ song }: FirstSoloPlanCalloutProps) {
   const calloutId = `workspace-surface-solo-plan-${useId()}`;
@@ -88,7 +99,6 @@ export function FirstSoloPlanCallout({ song }: FirstSoloPlanCalloutProps) {
     setOpenedSoloPlan(null);
   }, [
     songIdentity,
-    named?.sectionIndex,
     named?.sectionId,
     named?.holdingRoleId,
     named?.soloPlan,
@@ -114,7 +124,6 @@ export function FirstSoloPlanCallout({ song }: FirstSoloPlanCalloutProps) {
     openedSoloPlan !== null &&
     openedSoloPlan.songIdentity === songIdentity &&
     openedSoloPlan.sectionId === named.sectionId &&
-    openedSoloPlan.sectionIndex === named.sectionIndex &&
     openedSoloPlan.holdingRoleId === named.holdingRoleId &&
     openedSoloPlan.soloPlan === named.soloPlan &&
     openedSoloPlan.atSeconds === named.atSeconds;
@@ -144,12 +153,7 @@ export function FirstSoloPlanCallout({ song }: FirstSoloPlanCalloutProps) {
         className="mt-3 min-h-11 bg-gradient-to-r from-cyan-300 to-emerald-300 font-black text-slate-950"
         onClick={(event) => {
           const renderer = resolveSoloPlanRenderer(event.currentTarget);
-          const target =
-            named.sectionIndex >= 0
-              ? (renderer?.querySelector<HTMLElement>(
-                  `[data-section-index="${named.sectionIndex}"]`
-                ) ?? null)
-              : null;
+          const target = resolveSoloPlanSectionTarget(renderer, named.sectionId);
           if (typeof target?.scrollIntoView !== "function") {
             return;
           }
@@ -160,7 +164,6 @@ export function FirstSoloPlanCallout({ song }: FirstSoloPlanCalloutProps) {
           setOpenedSoloPlan({
             songIdentity,
             sectionId: named.sectionId,
-            sectionIndex: named.sectionIndex,
             holdingRoleId: named.holdingRoleId,
             soloPlan: named.soloPlan,
             atSeconds: named.atSeconds
