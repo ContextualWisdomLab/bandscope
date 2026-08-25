@@ -1,6 +1,6 @@
 # BandScope Product-Technical Gap Baseline
 
-Last updated: 2026-08-25
+Last updated: 2026-08-26
 Base revision: `develop@acdbea63` (fix(security): projectId path guard, npm HIGH CVEs, Foote novelty sign)
 
 ## 1. 목적과 범위 (Purpose & Scope)
@@ -37,7 +37,7 @@ flowchart LR
     subgraph Engine["services/analysis-engine (Python)"]
         CLI["cli.py / api.py<br/>stdin/stdout JSON IPC"]
         Mods["chords / sections / roles /<br/>ranges / temporal / separation /<br/>transcription / exports"]
-        Sep["separation/audio_separator.py<br/>Demucs htdemucs (CPU)<br/>bandsplit-v1.json 폴백"]
+        Sep["separation/audio_separator.py<br/>Demucs htdemucs (CPU default)<br/>configurable device passthrough<br/>bandsplit-v1.json 폴백"]
     end
     Rust["services/analysis-engine/rust<br/>bandscope_numeric (PyO3/maturin)<br/>checkerboard_novelty + viterbi_decode"]
     Types["packages/shared-types<br/>song-section-role 계약<br/>confidence/provenance/cue/export"]
@@ -57,7 +57,8 @@ flowchart LR
 - 로컬 오케스트레이션은 loopback HTTP가 아닌 typed Tauri IPC + stdin/stdout JSON 서브프로세스 방식이다 (`ARCHITECTURE.md`, `src-tauri/main.rs`)
 - `apps/desktop/core`(Rust)는 분석 연산이 아니라 입력 검증(YouTube URL, project payload, score PDF source, 경로 가드) 담당이다 (`apps/desktop/core/src/lib.rs`)
 - 무거운 수치 커널 중 checkerboard novelty와 Viterbi 디코딩만 `bandscope_numeric`(Rust/PyO3)으로 포팅되어 있고, 나머지는 Python/NumPy 참조 구현이며 `tests/test_numeric_parity.py`로 f64 parity를 잠근다 (`_native.py`)
-- 스템 분리는 Demucs `htdemucs`를 CPU로 돌리고 플랫폼 게이트(demucs/torch 미설치 플랫폼은 불가)이며, 주파수 컷오프만 정의한 `bandsplit-v1.json` 휴리스틱 밴드스플릿 manifest가 별도로 존재한다 (`separation/audio_separator.py`, `separation/model_weights/bandsplit-v1.json`)
+- 스템 분리는 Demucs `htdemucs`를 기본 `AudioSeparationConfig.device="cpu"`로 실행한다. `_apply_model`은 구성된 `device`를 Demucs `apply_model(..., device=...)`에 전달하므로 비-CPU 장치 경로 자체는 존재하지만, BandScope가 CUDA/MPS를 독립적으로 admission·parity·performance·release gate한 증거는 아직 없다 (`separation/audio_separator.py`)
+- 주파수 컷오프만 정의한 `bandsplit-v1.json` 휴리스틱 밴드스플릿 manifest가 별도로 존재한다 (`separation/model_weights/bandsplit-v1.json`)
 - 협업 타입(assignments/comments/approvals)은 `packages/shared-types`에 정의만 되어 있고 UI 참조가 전혀 없다 (grep 확인)
 
 ## 3. 기능 명세 및 요구사항 도출 (Functional Spec Derivation)
@@ -68,7 +69,7 @@ flowchart LR
 |---|---|---|
 | 로컬 오디오 임포트(Rust 검증 + app-owned 루트) | `apps/desktop/src-tauri/src/main.rs`, `apps/desktop/core/src/lib.rs` | 구현됨 |
 | YouTube 임포트(정책 제약, 실패 폴백) | `services/analysis-engine/src/bandscope_analysis/youtube.py` | 부분구현 (DRM/로그인 우회 없음, 실패 시 안내 카드는 PR 진행 중) |
-| 스템 분리 | `separation/audio_separator.py` (htdemucs CPU), `bandsplit-v1.json` | 부분구현 (플랫폼 게이트, x86 macOS 미지원, GPU 없음) |
+| 스템 분리 | `separation/audio_separator.py` (htdemucs; CPU default), `bandsplit-v1.json` | 부분구현 (플랫폼 게이트, x86 macOS 미지원; configurable device passthrough는 있으나 비-CPU 가속은 아직 BandScope release-qualified가 아님) |
 | 섹션 세그먼테이션(checkerboard novelty) | `sections/segmenter.py` + `bandscope_numeric::checkerboard_novelty` | 구현됨 |
 | 섹션별 화성(HMM + Viterbi) | `chords/chord_recognizer.py`, `chords/section_harmony.py` | 구현됨 (hand-tuned prior 수준, 4장 참조) |
 | 화성 기능 라벨/설명 | `chords/function_analyzer.py`, `RehearsalRole.harmonicExplanation?` | 부분구현 |
@@ -107,7 +108,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 | D. 협업 최소면 (assignment/comment/approval/blocked/pending/open comment/export-priority actions/ready board) | #996, #997, #998, #1000, #900, #901 | shared-types의 collaboration 타입에 처음으로 UI가 붙음 | 동기화(syncMode local_only/planned_cloud), crash-safe 프로젝트 포맷(Issue #962), 권한 모델 |
 | E. First-run/activation/실패 복구 (first-run card/license demo song/local intake 실패/import 실패/analysis 실패/save 실패/help) | #974, #1009, #981, #982, #976, #984, #972, #898 | 빈 상태/오류 상태의 next-action 카피 완성 | 라이선싱 백엔드, 데모곡 번들 정책, 오프라인 활성화 |
 | F. 보안/신뢰경계 (log redaction x4, quick-xml RustSec, filesystem authority, canonical audio policy, CSV NUL/전각 우회 차단, credential drop, PDF bound reads, npm baseline) | #956, #951, #950, #949, #948, #858, #985/#781, #941, #894, #865, #783 | app-security.md 규칙의 코드 반영 마무리 | Issue #852(경계 재구축), #542(예외 추적), 모델 artifact checksum/signature 파이프라인 |
-| G. 성능 (Bolt 시리즈: 관측 확률 벡터화, GrooveMap maxTime O(1), chart dedupe O(N), chord change count O(1), checkerboard/HMM 벡터화) | #999, #859, #849, #834, #746, #732 | 핫패스 최적화. Rust 커널 포팅과 같은 방향의 Python 측 보완 | Demucs GPU/offload, 대용량 파일 스트리밍, UI 가상화 |
+| G. 성능 (Bolt 시리즈: 관측 확률 벡터화, GrooveMap maxTime O(1), chart dedupe O(N), chord change count O(1), checkerboard/HMM 벡터화) | #999, #859, #849, #834, #746, #732 | 핫패스 최적화. Rust 커널 포팅과 같은 방향의 Python 측 보완 | Demucs 가속 admission/parity/performance qualification, 대용량 파일 스트리밍, UI 가상화 |
 | H. 접근성/디자인 시스템 (tooltip aria-disabled, icon tooltip, Storybook tokens, Figma drift check) | #833, #731, #897, #969 | WCAG 대응 시작점 | Issue #965(Figma/Storybook/shipped UI 정합 + WCAG 2.2 AA gate) 전체 |
 | I. 테스트 현실성 (decoded WAV acceptance, known-take chord recovery, real YouTube known-stem benchmark, branch coverage) | #892, #891, #828, #861 | synthetic fixture에서 실오디오 기반 acceptance로 이동 시작 | Issue #770(실오디오 MIR accuracy benchmark) 체계화, RMSE/SI-SDR 임계값 정책 |
 | J. 의존성/빌드 위생 (react, storybook, base-ui, lucide, sonner, codeql-action, setup-uv, uv group, numba, uuid, time, rust pinning, node floor, orphaned Actions identity) | #920, #942, #922, #921, #926, #927, #924, #931, #936, #919, #918, #754, #944, #896, #895 | 공급망/런타임 최신화 유지 | Dependabot train 정리(Issue #966), jsdom 30 전환 완료 |
@@ -118,27 +119,27 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 문서 vs 코드 대조로 확인한 구체적 Gap.
 
-(a) **Rust compute layer 활용 범위** — 분석 핫패스 중 checkerboard novelty와 Viterbi decode만 Rust(`bandscope_numeric`)에 있다. 스템 분리(Demucs)는 Python/torch CPU 경로이고 GPU/CUDA/Metal 경로가 없으며, transcription은 에너지 마스크 휴리스틱(`transcription/api.py`)으로 ML 모델이 아니다. 데스크톱 단일 곡 처리 기준 CPU로도 실용적일 수 있으나, 긴 곡/다중 분석에서 병목이며 `docs/plans/2026-04-25-v2-transcription.md`가 v2 계획으로 존재한다.
+(a) **Rust compute layer 활용 범위** — 분석 핫패스 중 checkerboard novelty와 Viterbi decode만 Rust(`bandscope_numeric`)에 있다. 스템 분리(Demucs)는 Python/torch이며 `AudioSeparationConfig.device` 기본값은 `cpu`다. `_apply_model`은 구성된 device를 `demucs.apply.apply_model(..., device=...)`에 그대로 전달하므로 비-CPU 장치 경로는 존재한다. 다만 BandScope의 현재 protected/release evidence에는 CUDA/MPS 경로의 장치 admission, CPU 대비 수치 parity, 성능 기준, 플랫폼별 release qualification이 없다. 따라서 Gap은 "GPU 경로 부재"가 아니라 **가속 경로의 검증·지원 계약 부재**다. transcription은 에너지 마스크 휴리스틱(`transcription/api.py`)으로 ML 모델이 아니다. 데스크톱 단일 곡 처리 기준 CPU로도 실용적일 수 있으나, 긴 곡/다중 분석에서 병목이며 `docs/plans/2026-04-25-v2-transcription.md`가 v2 계획으로 존재한다.
 
 (b) **다층/계층·시간 모델링** — `song -> section -> role` 계약과 sections/roles/temporal 모듈은 존재하지만, role-level harmony는 `bandsplit-v1.json`의 고정 주파수 컷오프 휴리스틱에 의존한다. 학습된 multilevel 모델(예: role-conditioned chord/voicing 모델)과 section 경계의 temporal 일관성 학습은 없다. `docs/plans/2026-03-28-ml-engine-integration.md`가 관련 계획 문서다.
 
-(c)**임의 가중치 vs 문헌 기반 값** — `chord_recognizer._build_transition_matrix()`는 `self_prob=0.8`, `related_prob=0.03`, uniform baseline `0.01/n` 등 hand-set 상수를 쓴다("Encodes musical priors" 주석). 방향성(fifth/fourth/relative/parallel)은 음악 이론에 근거하지만 수치는 문헌 교정(calibration)되어 있지 않다. `roles/priority.py`는 숫자 가중치 없는 if-then 규칙이다. PR #732(relative-key prior correction)처럼 사후 수정이 발생해왔다. 교정 방향: 주석 코퍼스(예: Burgoyne et al., 2011의 McGill Billboard)에서 전이 행렬을 최대우도로 추정하고, HMM prior 민감도(Logan & Chu, 2000; Pauwels & Peeters, 2013; Boulanger-Lewandowski et al., 2013 참조)와 tonal pitch space 거리 기반 스무딩(Harte, 2010)으로 현재 hand-set 값과의 코드 복원 RMSE/accuracy 차이를 정량 비교한 뒤, 우세한 값을 상수가 아닌 데이터 산출물로 고정한다.
+(c) **임의 가중치 vs 문헌 기반 값** — `chord_recognizer._build_transition_matrix()`는 `self_prob=0.8`, `related_prob=0.03`, uniform baseline `0.01/n` 등 hand-set 상수를 쓴다("Encodes musical priors" 주석). 방향성(fifth/fourth/relative/parallel)은 음악 이론에 근거하지만 수치는 문헌 교정(calibration)되어 있지 않다. `roles/priority.py`는 숫자 가중치 없는 if-then 규칙이다. PR #732(relative-key prior correction)처럼 사후 수정이 발생해왔다. 교정 방향은 주석 코퍼스(예: Burgoyne et al., 2011의 McGill Billboard)에서 전이 행렬을 최대우도로 추정하고, 관련 HMM/화음인식 문헌(Logan & Chu, 2000; Pauwels & Peeters, 2013; Boulanger-Lewandowski et al., 2013)은 모델링 맥락으로만 사용하며 현재 transition 수치의 parameter source로 간주하지 않는 것이다. tonal pitch space 거리 기반 스무딩(Harte, 2010) 등 대안과 현재 hand-set 값의 코드 복원 RMSE/accuracy 차이를 정량 비교한 뒤, 우세한 값을 상수가 아닌 데이터 산출물로 고정한다.
 
-(d) **테스트 현실성** — `test_numeric_parity.py`(Rust-Python parity), `test_api.py` 등은 합성 입력 기반이고, tests 디렉터리에 .wav/.mp3 실오디오 fixture가 없다(find 확인). 실오디오 acceptance는 PR #892(decoded WAV C major), #891(known take verse/chorus recovery)이 열려 있고, 실 YouTube known-stem benchmark는 draft PR #828 + Issue #770 상태다. RMSE/SI-SDR 스타일 정량 임계값 acceptance gate는 아직 없다.
+(d) **테스트 현실성** — `test_numeric_parity.py`(Rust-Python parity), `test_api.py` 등은 합성 입력 기반이다. 현재 PR checkout의 Git tree 및 9장 `find` 검증 기준 test 경로에 `.wav`/`.mp3` 실오디오 fixture가 없다. 실오디오 acceptance는 PR #892(decoded WAV C major), #891(known take verse/chorus recovery)이 열려 있고, 실 YouTube known-stem benchmark는 draft PR #828 + Issue #770 상태다. RMSE/SI-SDR 스타일 정량 임계값 acceptance gate는 아직 없다.
 
-(e) **커버리지/docstring 100%** — Python은 `--cov-fail-under=100` + Ruff D100-D107 docstring 100%가 gate로 작동한다(AGENTS.md, roadmap-completion 문서). JS workspace는 2026-08-25 실측에서 desktop(469 stmts/357 branches/105 funcs)과 shared-types(717 stmts/643 branches/59 funcs) 모두 statements/branches/functions/lines **실측 100%**를 유지한다. 그러나 gate threshold(`vite.config.ts`, `vitest.config.ts`)는 90으로 Python보다 낮아, 리그레션 시 90~99% 구간이 무단 통과될 수 있다. Gate 상향은 Backlog #10.
+(e) **커버리지/docstring 100%** — Python은 `--cov-fail-under=100` + Ruff D100-D107 docstring 100%가 gate로 작동한다(AGENTS.md, roadmap-completion 문서). JS workspace의 **2026-08-25 snapshot 실측**은 desktop(469 stmts/357 branches/105 funcs)과 shared-types(717 stmts/643 branches/59 funcs) 모두 statements/branches/functions/lines 100%였다. 이 수치는 현재 영구 gate를 뜻하지 않는다. gate threshold(`vite.config.ts`, `vitest.config.ts`)는 90으로 Python보다 낮아, 리그레션 시 90~99% 구간이 무단 통과될 수 있다. Gate 상향은 Backlog #10.
 
 (f) **보안 체크리스트 잔여 항목** — 구현된 것: allowlisted stdin/stdout subprocess, Tauri CSP, path guards(#727 착지), CSV escape/sanitize, shell=False. 열린 것: canonical audio resource budget(#985 draft, Issue #781), filesystem path containment 재구축(Issue #852, #858 진행), native PDF read bounding(#865, #750), quick-xml RustSec 예외(#948, Issue #542), npm/PDF.js/nanoid/undici baseline(#783). 모델 artifact(Demucs checkpoint) checksum/signature 검증 파이프라인은 문서(app-security.md "Models") 요구 대비 미구현.
 
-(k) **운영 관측(2026-08-25 strix 공급자 장애)** — 중앙 Strix 게이트가 NVIDIA NIM 소진 시 최종 폴백 `openai-direct/gpt-5.4`를 NIM 엣지 API base로 라우팅해 `404 page not found`로 실패 닫기(fail-closed)하여 전 조직 PR 큐가 정체했다. 근본 원인 수정은 ContextualWisdomLab/.github#1324(openai-direct 폴백 전용 API base 라우팅 + 회귀 계약 테스트)로 추적했고, bandscope 의존성 CVE(pdfjs-dist CVE-2026-16633 등)는 canonical owner #783으로 일원화했다. 운영 교훈: required 스캐너의 공급자 장애는 repo 단위 우회가 아니라 중앙 게이트 계약 수정으로만 풀어야 한다.
+(g) **운영 관측(2026-08-25 strix 공급자 장애)** — 중앙 Strix 게이트가 NVIDIA NIM 소진 시 최종 폴백 `openai-direct/gpt-5.4`를 NIM 엣지 API base로 라우팅해 `404 page not found`로 실패 닫기(fail-closed)하여 전 조직 PR 큐가 정체했다. 근본 원인 수정은 ContextualWisdomLab/.github#1324(openai-direct 폴백 전용 API base 라우팅 + 회귀 계약 테스트)로 추적했고, bandscope 의존성 CVE(pdfjs-dist CVE-2026-16633 등)는 canonical owner #783으로 일원화했다. 운영 교훈: required 스캐너의 공급자 장애는 repo 단위 우회가 아니라 중앙 게이트 계약 수정으로만 풀어야 한다.
 
-(g) **i18n/현지화** — `src/i18n` + `locales/en`, `locales/ko` 존재, 하드코딩 한국어 문자열 미탐지(workspace tsx grep 0건), interpolation hardening PR #744 진행. en/ko 2개 언어뿐이며, PR 시리즈가 추가할 다수의 카피 키가 locales에 아직 없다.
+(h) **i18n/현지화** — `src/i18n` + `locales/en`, `locales/ko` 존재, 하드코딩 한국어 문자열 미탐지(workspace tsx grep 0건), interpolation hardening PR #744 진행. en/ko 2개 언어뿐이며, PR 시리즈가 추가할 다수의 카피 키가 locales에 아직 없다.
 
-(h) **접근성** — workspace 컴포넌트에 aria-* 속성 52건 존재. 그러나 WCAG 2.2 AA gate는 Issue #965로 열려 있고, Figma/Storybook/shipped UI 정합 점검도 미완이다. tooltip/a11y PR(#833, #731)이 진행 중.
+(i) **접근성** — 2026-08-25 snapshot에서 workspace 컴포넌트의 `aria-`가 포함된 matching line은 52개였다. 이는 고유 attribute token 수가 아니다. WCAG 2.2 AA gate는 Issue #965로 열려 있고, Figma/Storybook/shipped UI 정합 점검도 미완이다. tooltip/a11y PR(#833, #731)이 진행 중.
 
-(i) **Design token/Storybook** — shadcn/ui 프리미티브 중 stories는 button/checkbox/dialog 3개뿐이고, rehearsal 도메인 컴포넌트(GrooveMap, SectionRoadmap, RoleSwitcher 등) stories는 없다. Storybook token PR #897이 진행 중.
+(j) **Design token/Storybook** — shadcn/ui 프리미티브 중 stories는 button/checkbox/dialog 3개뿐이고, rehearsal 도메인 컴포넌트(GrooveMap, SectionRoadmap, RoleSwitcher 등) stories는 없다. Storybook token PR #897이 진행 중.
 
-(j) **패키징/릴리스 준비** — `CHANGELOG.md`, `VERSION`, `release.yml`, `build-baseline.yml` 존재. Windows/macOS amd64+arm64 build gate가 protected branch 요건이다(ARCHITECTURE.md). 남는 Gap: 서명/공증/자동 업데이트 롤백 증적(Issue #960), crash-safe project format/autosave/migration(Issue #962), redacted diagnostics/support bundle(Issue #963).
+(k) **패키징/릴리스 준비** — `CHANGELOG.md`, `VERSION`, `release.yml`, `build-baseline.yml` 존재. Windows/macOS amd64+arm64 build gate가 protected branch 요건이다(ARCHITECTURE.md). 남는 Gap: 서명/공증/자동 업데이트 롤백 증적(Issue #960), crash-safe project format/autosave/migration(Issue #962), redacted diagnostics/support bundle(Issue #963).
 
 ## 6. UML 보완점
 
@@ -159,7 +160,7 @@ sequenceDiagram
     T->>C: validate path/format/project id
     C-->>T: validated reference (no copy)
     T->>P: spawn allowlisted subprocess (stdin/stdout JSON)
-    P->>P: separate stems (Demucs CPU) / segment / chords
+    P->>P: separate stems (Demucs; CPU default) / segment / chords
     P->>N: checkerboard_novelty, viterbi_decode
     N-->>P: kernels result (parity-guaranteed)
     P-->>T: RehearsalSong JSON (schema-validated)
@@ -234,7 +235,7 @@ flowchart TD
 7. **crash-safe project format + autosave (Issue #962)**
    - Acceptance: 버전 필드를 가진 프로젝트 포맷, 저장 실패 시 known-good 보존(PRx #970 방향), migration 테스트.
 8. **Demucs 플랫폼 커버리지 + 모델 artifact 검증**
-   - Acceptance: x86 macOS 폴백 경로가 명시되고(현재 demucs 미설치 시 불가), 모델 checkpoint checksum 검증이 intake pipeline에 있다.
+   - Acceptance: x86 macOS 폴백 경로가 명시되고(현재 demucs 미설치 시 불가), CPU-default 경로와 선택 가능한 비-CPU device 경로의 admission/parity/performance 지원 범위가 명문화·검증되며, 모델 checkpoint checksum 검증이 intake pipeline에 있다.
 9. **WCAG 2.2 AA gate (Issue #965) + rehearsal 컴포넌트 Storybook tokens (PR #897)**
    - Acceptance: axe 기반 자동 점검이 CI에 있고, GrooveMap/SectionRoadmap/RoleSwitcher stories가 token 기반으로 존재한다.
 10. **JS coverage 90% -> 100% 상향 또는 Python과 동일한 기준 명문화**
@@ -301,11 +302,12 @@ W3C. (2023). Web Content Accessibility Guidelines (WCAG) 2.2. World Wide Web Con
 - 코드 검증 grep/glob (요지):
   - `grep -rn "padPlan\|PadPlan" apps/desktop/src packages/shared-types/src` -> 0건(시리즈 미착지 확인)
   - `find services/analysis-engine -name "*.py"` -> 모듈 목록(chords/sections/roles/ranges/temporal/separation/transcription/youtube/exports)
+  - `find . -type f \( -path '*/tests/*' -o -path '*/test/*' \) \( -iname '*.wav' -o -iname '*.mp3' \) -not -path './.git/*'` -> 0건(현재 PR checkout에서 test 실오디오 fixture 부재 확인)
   - `sed -n '70,110p' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py` -> hand-set transition prior 확인
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
   - `head -30 services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json` -> 휴리스틱 manifest 확인
-  - `grep -rn "aria-" apps/desktop/src/features/workspace/*.tsx | wc -l` -> 52
+  - `grep -rn "aria-" apps/desktop/src/features/workspace/*.tsx | wc -l` -> 52 matching lines (2026-08-25 snapshot; 고유 aria-* attribute token 수가 아님)
   - `grep -rln "RehearsalAssignment\|RehearsalCollaboration" apps/desktop/src` -> 0건(UI 미구현 확인)
   - `grep -rn "loop" apps/desktop/src/features/player/index.tsx` -> 0건(loop 미구현 확인)
   - `ls CHANGELOG.md VERSION .github/workflows` -> 릴리스 자산 확인
