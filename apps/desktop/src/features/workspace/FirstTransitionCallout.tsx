@@ -128,7 +128,7 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
       <aside
         id={`workspace-surface-transition-${landmarkId}`}
         className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4"
-        aria-label={t("firstTransitionUnavailable")}
+        aria-label={t("firstTransitionLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("firstTransitionLabel")}</p>
         <p className="mt-2 text-sm leading-6 text-slate-300">{t("firstTransitionUnavailable")}</p>
