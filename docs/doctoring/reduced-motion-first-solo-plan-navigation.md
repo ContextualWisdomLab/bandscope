@@ -9,14 +9,32 @@ The first-solo callout may name a rehearsal plan only when the current runtime s
 `resolveFirstSoloPlan` treats the incoming song as untrusted runtime data. Before any buyer-visible solo guidance is selected, the graph must satisfy all of these conditions:
 
 - the graph is finite under the repository's bounded property budget;
+- only ordinary arrays and plain objects are accepted as structured-data containers; built-in exotics and class instances are rejected;
 - every traversed own property is a data property, so application getters are never executed to establish rehearsal authority;
 - symbol/function and accessor-backed authority is rejected;
 - the graph is compatible with the HTML structured clone algorithm; and
-- Proxy/exotic objects fail closed rather than supplying fabricated own-property descriptors.
+- Proxy objects fail closed rather than supplying fabricated own-property descriptors.
 
-This last guard is standards-backed: the HTML Living Standard requires structured serialization to throw `DataCloneError` for unsupported exotic objects and explicitly gives a proxy object as an example. The resolver therefore performs descriptor-only preflight before the structured-clone probe: ordinary getters are not invoked, while a Proxy cannot become buyer-visible authority merely by trapping `getOwnPropertyDescriptor` (WHATWG, 2026).
+The plain-container check prevents `Map`, `Set`, `Date`, typed arrays, or class instances with attached rehearsal-looking properties from becoming product authority. The structured-clone probe remains a second boundary for Proxy/exotic behavior: the HTML Living Standard requires structured serialization to throw `DataCloneError` for unsupported exotic objects and explicitly gives a proxy object as an example. Descriptor-only preflight therefore avoids executing ordinary getters, while the clone probe prevents a Proxy from becoming buyer-visible authority merely by trapping `getOwnPropertyDescriptor` (WHATWG, 2026).
 
 The resolver continues to require owned role identity, display name, rehearsal priority, bounded section time, unique active graph identity, and a bounded single-line `soloPlan`. Groove, cue, chord, simplification, overlap, setup, fill, tuning, dynamics, articulation, hook, transposition, override, harmonic explanation, and confidence text do not substitute for an owned solo plan.
+
+### Logging and privacy
+
+Rejected rehearsal metadata is not diagnostic payload. The resolver and navigation path do not log buyer-provided `soloPlan` text, role identifiers, section identifiers, or rejected graph contents. A safe failure returns guidance-only state and does not echo the rejected value, path, or object shape into logs. This keeps local rehearsal content on-device and prevents malformed runtime metadata from becoming an observability side channel.
+
+### Validation and test points
+
+The executable regression boundary covers:
+
+- own accessors and Proxy `get` / `getOwnPropertyDescriptor` substitution attempts;
+- built-in exotic containers, including a `Map` carrying otherwise valid role metadata;
+- malformed, sparse, duplicated, inherited, or unbounded runtime graph data;
+- missing and duplicate rendered navigation targets, which must remain unarmed;
+- stable `data-section-id` navigation when rendered order changes; and
+- `prefers-reduced-motion: reduce`, which must use immediate (`auto`) scrolling.
+
+These checks belong to `resolveFirstSoloPlan`, `FirstSoloPlanCallout`, and the Workspace navigation regressions. New authority paths must extend those executable boundaries rather than relying on prose-only assurance.
 
 ## Stable map navigation
 
