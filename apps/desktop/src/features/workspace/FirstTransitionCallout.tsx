@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,8 +64,8 @@ function preferredTransitionScrollBehavior(): ScrollBehavior {
 
 /** Name tonight's first owned transition cue and open the matching rendered map section. */
 export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const transition = resolveFirstTransition(song);
