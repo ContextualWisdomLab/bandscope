@@ -46,7 +46,8 @@ import {
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
-import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { EmptyState, ErrorState, FirstRunState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { roleFocusForFirstRun, type FirstRunRoleId } from "./features/workspace/firstRunRoles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -258,6 +259,7 @@ export function App() {
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [firstRunRoleId, setFirstRunRoleId] = useState<FirstRunRoleId>("whole-band");
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
@@ -273,7 +275,7 @@ export function App() {
         sourceKind: "local_audio",
         projectId: selectedBootstrap.projectId,
         sourceLabel: selectedBootstrap.source.fileName,
-        roleFocus: defaultRequest.roleFocus
+        roleFocus: roleFocusForFirstRun(firstRunRoleId)
       }
     : defaultRequest;
 
@@ -420,6 +422,7 @@ export function App() {
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setSelectedBootstrap(selection.bootstrap);
+      setFirstRunRoleId("whole-band");
       return;
     }
 
@@ -451,6 +454,7 @@ export function App() {
       const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
         setSelectedBootstrap(selection.bootstrap);
+        setFirstRunRoleId("whole-band");
         setYoutubeUrl("");
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
@@ -513,6 +517,22 @@ export function App() {
     }
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
+    }
+    if (selectedBootstrap) {
+      return (
+        <FirstRunState
+          fileName={selectedBootstrap.source.fileName}
+          selectedRoleId={firstRunRoleId}
+          onSelectRole={setFirstRunRoleId}
+          onStartAnalysis={() => {
+            void handleStartAnalysis();
+          }}
+          onChooseDifferentFile={() => {
+            void handleChooseLocalAudio();
+          }}
+          analysisDisabled={analysisInFlight || isStarting || isImporting}
+        />
+      );
     }
     return <EmptyState />;
   };
