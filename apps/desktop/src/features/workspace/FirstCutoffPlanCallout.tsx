@@ -99,8 +99,8 @@ function resolveCutoffPlanRenderer(origin: HTMLElement): HTMLElement | null {
 /** Name tonight's first cutoff plan and open the matching rendered map section. */
 export function FirstCutoffPlanCallout({ song }: FirstCutoffPlanCalloutProps) {
   const calloutId = `workspace-surface-cutoff-plan-${useId()}`;
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableCutoffPlanSongIdentity(song);
   const named = useMemo(() => resolveFirstCutoffPlan(song), [song]);
   const [openedCutoffPlan, setOpenedCutoffPlan] = useState<OpenedCutoffPlan | null>(null);
