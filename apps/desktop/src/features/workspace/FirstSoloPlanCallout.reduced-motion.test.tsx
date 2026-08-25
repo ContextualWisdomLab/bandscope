@@ -21,6 +21,7 @@ describe("FirstSoloPlanCallout reduced motion", () => {
     }));
 
     const song = createDemoRehearsalSong();
+    const { container } = render(<FirstSoloPlanCallout song={song} />);
     const grid = document.createElement("div");
     grid.dataset.testid = "song-structure-grid";
     grid.setAttribute("role", "region");
@@ -32,13 +33,9 @@ describe("FirstSoloPlanCallout reduced motion", () => {
       configurable: true,
       value: scrollIntoView
     });
-    grid.appendChild(target);
-    document.body.appendChild(grid);
+    container.append(grid, target);
 
-    render(<FirstSoloPlanCallout song={song} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Keyboard 1 Right Hand solo at 0:10" }));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "auto" });
-
-    grid.remove();
   });
 });
