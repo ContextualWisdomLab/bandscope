@@ -58,13 +58,13 @@ function preferredSoloPlanScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
-/** Resolve the song-structure renderer owned by this workspace, failing closed on ambiguous mounts. */
-function resolveSoloPlanRenderer(origin: HTMLElement): HTMLElement | null {
+/** Resolve this workspace's map scope, failing closed when its structure renderer is ambiguous. */
+function resolveSoloPlanWorkspaceScope(origin: HTMLElement): HTMLElement | null {
   const selector = '[data-testid="song-structure-grid"]';
   const localScope = origin.closest("aside")?.parentElement ?? null;
   const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
   if (localRenderers.length === 1) {
-    return localRenderers[0] ?? null;
+    return localScope;
   }
   if (localRenderers.length > 1) {
     return null;
@@ -74,16 +74,15 @@ function resolveSoloPlanRenderer(origin: HTMLElement): HTMLElement | null {
   return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
 }
 
-/** Resolve a rendered section by exact stable identity without selector interpolation. */
-function resolveSoloPlanSectionTarget(renderer: HTMLElement | null, sectionId: string): HTMLElement | null {
-  if (!renderer || sectionId.trim().length === 0) {
+/** Resolve exactly one rendered map section by stable identity without selector interpolation. */
+function resolveSoloPlanSectionTarget(scope: HTMLElement | null, sectionId: string): HTMLElement | null {
+  if (!scope || sectionId.trim().length === 0) {
     return null;
   }
-  return (
-    Array.from(renderer.querySelectorAll<HTMLElement>("[data-section-id]")).find(
-      (candidate) => candidate.dataset.sectionId === sectionId
-    ) ?? null
+  const matches = Array.from(scope.querySelectorAll<HTMLElement>("[data-section-id]")).filter(
+    (candidate) => candidate.dataset.sectionId === sectionId
   );
+  return matches.length === 1 ? (matches[0] ?? null) : null;
 }
 
 /** Name tonight's first solo plan and open the matching rendered map section. */
@@ -152,8 +151,8 @@ export function FirstSoloPlanCallout({ song }: FirstSoloPlanCalloutProps) {
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-cyan-300 to-emerald-300 font-black text-slate-950"
         onClick={(event) => {
-          const renderer = resolveSoloPlanRenderer(event.currentTarget);
-          const target = resolveSoloPlanSectionTarget(renderer, named.sectionId);
+          const scope = resolveSoloPlanWorkspaceScope(event.currentTarget);
+          const target = resolveSoloPlanSectionTarget(scope, named.sectionId);
           if (typeof target?.scrollIntoView !== "function") {
             return;
           }
