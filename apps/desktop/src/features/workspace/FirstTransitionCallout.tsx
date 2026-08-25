@@ -62,6 +62,36 @@ function preferredTransitionScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
+/** Return renderer surfaces owned by one DOM scope. */
+function transitionOwnedSurfaces(scope: ParentNode): HTMLElement[] {
+  return Array.from(scope.querySelectorAll<HTMLElement>('[data-testid="song-structure-grid"]'));
+}
+
+/** Resolve the transition renderer without crossing into an ambiguous co-mounted workspace. */
+function resolveTransitionRenderer(origin: HTMLElement): HTMLElement | null {
+  const aside = origin.closest("aside");
+  if (aside === null || aside.parentElement === null) {
+    return null;
+  }
+
+  const localSurfaces = transitionOwnedSurfaces(aside.parentElement);
+  if (localSurfaces.length > 1) {
+    return null;
+  }
+  if (localSurfaces.length === 1) {
+    return localSurfaces[0] ?? null;
+  }
+
+  const globalSurfaces = transitionOwnedSurfaces(document);
+  if (globalSurfaces.length > 1) {
+    return null;
+  }
+  if (globalSurfaces.length === 1) {
+    return globalSurfaces[0] ?? null;
+  }
+  return null;
+}
+
 /** Name tonight's first owned transition cue and open the matching rendered map section. */
 export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
   const locale = useMemo(() => detectPreferredLocale(), []);
@@ -147,8 +177,8 @@ export function FirstTransitionCallout({ song }: FirstTransitionCalloutProps) {
       <Button
         type="button"
         className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-rose-300 font-black text-slate-950"
-        onClick={() => {
-          const renderer = document.querySelector<HTMLElement>('[data-testid="song-structure-grid"]');
+        onClick={(event) => {
+          const renderer = resolveTransitionRenderer(event.currentTarget);
           const target =
             transitionSectionIndex >= 0
               ? (renderer?.querySelector<HTMLElement>(
