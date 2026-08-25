@@ -20,12 +20,13 @@ describe("FirstSoloPlanCallout reduced motion", () => {
       dispatchEvent: vi.fn()
     }));
 
+    const song = createDemoRehearsalSong();
     const grid = document.createElement("div");
     grid.dataset.testid = "song-structure-grid";
     grid.setAttribute("role", "region");
     grid.setAttribute("aria-label", "Scrollable song structure timeline");
     const target = document.createElement("div");
-    target.dataset.sectionIndex = "0";
+    target.dataset.sectionId = song.sections[0]!.id;
     const scrollIntoView = vi.fn();
     Object.defineProperty(target, "scrollIntoView", {
       configurable: true,
@@ -34,7 +35,7 @@ describe("FirstSoloPlanCallout reduced motion", () => {
     grid.appendChild(target);
     document.body.appendChild(grid);
 
-    render(<FirstSoloPlanCallout song={createDemoRehearsalSong()} />);
+    render(<FirstSoloPlanCallout song={song} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Keyboard 1 Right Hand solo at 0:10" }));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "auto" });
 
