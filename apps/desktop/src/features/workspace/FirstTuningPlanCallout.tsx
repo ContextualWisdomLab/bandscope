@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +77,7 @@ function resolveTuningPlanRenderer(origin: HTMLElement): HTMLElement | null {
 
 /** Name tonight's first tuning plan and open the matching rendered map section. */
 export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
+  const calloutId = `workspace-surface-tuning-plan-${useId()}`;
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableTuningPlanSongIdentity(song);
@@ -97,7 +98,7 @@ export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
   if (!named) {
     return (
       <aside
-        id="workspace-surface-tuning-plan"
+        id={calloutId}
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
         aria-label={t("firstTuningPlanLabel")}
       >
@@ -129,7 +130,7 @@ export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
 
   return (
     <aside
-      id="workspace-surface-tuning-plan"
+      id={calloutId}
       className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
       aria-label={t("firstTuningPlanLabel")}
     >
