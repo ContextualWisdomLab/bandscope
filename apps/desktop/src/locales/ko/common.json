@@ -152,8 +152,8 @@
   "firstTransitionLabel": "오늘 첫 전환",
   "firstTransitionOpenAction": "{at} {role} 전환 위치 열기",
   "firstTransitionOpenActionBand": "{at} 첫 전환 위치 열기",
-  "firstTransitionBody": "{at}에서 {role} 파트가 전환을 잡습니다.",
-  "firstTransitionBodyBand": "밴드가 {at}에서 전환을 잡습니다.",
+  "firstTransitionBody": "{at} {section}에서 {role} 파트가 전환을 잡습니다.",
+  "firstTransitionBodyBand": "{at} {section}에서 밴드가 전환을 잡습니다.",
   "firstTransitionArmed": "{at}에서 {role} 파트와 함께 전환을 잡으세요. 같이 넘기세요.",
   "firstTransitionArmedBand": "{at}에서 전환을 잡으세요. 같이 넘기세요.",
   "firstTransitionUnavailable": "아직 전환 큐가 없습니다. 전환이 표시될 때까지 오늘 지도에 머무르세요."
