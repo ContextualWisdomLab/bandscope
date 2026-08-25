@@ -27,7 +27,6 @@ export type FirstSoloPlan = {
   section: RehearsalSection;
   sectionId: string;
   sectionLabel: RehearsalSection["label"];
-  sectionIndex: number;
   holdingRole: RehearsalRole;
   holdingRoleId: string;
   holdingRoleName: string;
@@ -348,7 +347,7 @@ function resolveSafeFirstSoloPlan(song: RehearsalSong): FirstSoloPlan | null {
   }
 
   const candidates = sections
-    .flatMap((section, sectionIndex) => {
+    .flatMap((section) => {
       if (!isRuntimeObject(section)) {
         return [];
       }
@@ -382,7 +381,6 @@ function resolveSafeFirstSoloPlan(song: RehearsalSong): FirstSoloPlan | null {
           section: section as RehearsalSection,
           sectionId,
           sectionLabel: sectionLabel as RehearsalSection["label"],
-          sectionIndex,
           holdingRole: holdingRole.role,
           holdingRoleId: holdingRole.id,
           holdingRoleName: holdingRole.name,
