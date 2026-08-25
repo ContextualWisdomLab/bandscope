@@ -127,4 +127,36 @@ describe("FirstSoloPlanCallout workspace scope", () => {
     expect(secondScrollIntoView).not.toHaveBeenCalled();
     expect(screen.getByText("Keyboard 1 Right Hand still has a solo plan in the verse at 0:10.")).toBeTruthy();
   });
+
+  it("does not navigate through a renderer owned by another workspace", () => {
+    const song = createDemoRehearsalSong();
+    const sectionId = song.sections[0]!.id;
+    const { container } = render(
+      <>
+        <div data-testid="isolated-callout">
+          <FirstSoloPlanCallout song={song} />
+        </div>
+        <div data-testid="other-workspace">
+          <div data-testid="song-structure-grid">
+            <div data-section-id={sectionId} />
+          </div>
+        </div>
+      </>
+    );
+
+    const target = container.querySelector<HTMLElement>("[data-section-id]");
+    expect(target).not.toBeNull();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open Keyboard 1 Right Hand solo at 0:10" })
+    );
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(screen.getByText("Keyboard 1 Right Hand still has a solo plan in the verse at 0:10.")).toBeTruthy();
+  });
 });
