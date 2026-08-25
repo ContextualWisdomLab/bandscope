@@ -1,0 +1,21 @@
+import { render, screen } from "@testing-library/react";
+import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { expect, it } from "vitest";
+import { FirstSoloPlanCallout } from "./FirstSoloPlanCallout";
+
+it("gives co-mounted solo-plan callouts distinct DOM identities", () => {
+  render(
+    <>
+      <FirstSoloPlanCallout song={createDemoRehearsalSong()} />
+      <FirstSoloPlanCallout song={createDemoRehearsalSong()} />
+    </>
+  );
+
+  const callouts = screen.getAllByRole("complementary", {
+    name: "Tonight's first solo plan"
+  });
+  const ids = callouts.map((callout) => callout.id);
+
+  expect(ids.every((id) => id.length > 0)).toBe(true);
+  expect(new Set(ids).size).toBe(callouts.length);
+});
