@@ -39,7 +39,7 @@ describe("FirstTransitionCallout Korean role copy", () => {
 
     render(<FirstTransitionCallout song={song} />);
 
-    expect(screen.getByText("0:10에서 피아노 파트가 전환을 잡습니다.")).toBeTruthy();
+    expect(screen.getByText("0:10 벌스에서 피아노 파트가 전환을 잡습니다.")).toBeTruthy();
     expect(screen.queryByText(/피아노이/)).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "0:10 피아노 전환 위치 열기" }));
