@@ -14,8 +14,6 @@ describe("FirstTurnaroundPlanCallout navigation failure", () => {
         "Could not open this turnaround on the song map. Use the map below to find the section."
       )
     ).toBeTruthy();
-    expect(
-      screen.getByText(/Turn those last bars on Bass Guitar at 0:30 before the next section lands./)
-    ).toBeTruthy();
+    expect(screen.getByText("Bass Guitar has a shared turnaround in the verse at 0:30.")).toBeTruthy();
   });
 });
