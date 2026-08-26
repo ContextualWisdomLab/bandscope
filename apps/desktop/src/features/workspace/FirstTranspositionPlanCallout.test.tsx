@@ -6,8 +6,15 @@ import { FirstTranspositionPlanCallout } from "./FirstTranspositionPlanCallout";
 const DEMO_TRANSPOSITION_PLAN =
   "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.";
 
+const appendedRoots: HTMLElement[] = [];
+
 function songWithTranspositionPlan() {
   return createDemoRehearsalSong();
+}
+
+function appendTrackedRoot(element: HTMLElement) {
+  document.body.appendChild(element);
+  appendedRoots.push(element);
 }
 
 function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeline") {
@@ -25,13 +32,16 @@ function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeli
   });
   grid.appendChild(target);
   timeline.appendChild(grid);
-  document.body.appendChild(timeline);
-  return { grid: timeline, scrollIntoView };
+  appendTrackedRoot(timeline);
+  return { timeline, scrollIntoView };
 }
 
 describe("FirstTranspositionPlanCallout", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    while (appendedRoots.length > 0) {
+      appendedRoots.pop()?.remove();
+    }
   });
 
   it("contains a malformed runtime song root instead of crashing the callout", () => {
@@ -70,7 +80,7 @@ describe("FirstTranspositionPlanCallout", () => {
         }
       });
     }
-    const { grid } = appendSongStructureTarget();
+    appendSongStructureTarget();
     const { rerender } = render(<FirstTranspositionPlanCallout song={firstSong} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar transpose at 0:10" }));
@@ -84,13 +94,11 @@ describe("FirstTranspositionPlanCallout", () => {
     expect(
       screen.queryByText(/Lock that transpose on Bass Guitar at 0:10 before the room starts./)
     ).toBeNull();
-
-    grid.remove();
   });
 
   it("preserves armed guidance across immutable edits of the same owned song", () => {
     const song = songWithTranspositionPlan();
-    const { grid } = appendSongStructureTarget();
+    appendSongStructureTarget();
     const { rerender } = render(<FirstTranspositionPlanCallout song={song} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar transpose at 0:10" }));
@@ -104,8 +112,6 @@ describe("FirstTranspositionPlanCallout", () => {
       screen.getByText(/Lock that transpose on Bass Guitar at 0:10 before the room starts./)
     ).toBeTruthy();
     expect(screen.queryByText("Bass Guitar still has a transpose plan in the verse at 0:10.")).toBeNull();
-
-    grid.remove();
   });
 
   it("does not show another part's transposition plan under the named holding part", () => {
@@ -126,7 +132,7 @@ describe("FirstTranspositionPlanCallout", () => {
   });
 
   it("names the first transposition plan as map navigation, scrolls to its rendered section, and arms that action", () => {
-    const { grid, scrollIntoView } = appendSongStructureTarget();
+    const { scrollIntoView } = appendSongStructureTarget();
 
     render(<FirstTranspositionPlanCallout song={songWithTranspositionPlan()} />);
 
@@ -140,12 +146,10 @@ describe("FirstTranspositionPlanCallout", () => {
     expect(
       screen.getByText(/Lock that transpose on Bass Guitar at 0:10 before the room starts./)
     ).toBeTruthy();
-
-    grid.remove();
   });
 
   it("keeps map navigation stable when the renderer accessible name is localized", () => {
-    const { grid, scrollIntoView } = appendSongStructureTarget("스크롤 가능한 곡 구조 타임라인");
+    const { scrollIntoView } = appendSongStructureTarget("스크롤 가능한 곡 구조 타임라인");
 
     render(<FirstTranspositionPlanCallout song={songWithTranspositionPlan()} />);
 
@@ -155,8 +159,6 @@ describe("FirstTranspositionPlanCallout", () => {
     expect(
       screen.getByText(/Lock that transpose on Bass Guitar at 0:10 before the room starts./)
     ).toBeTruthy();
-
-    grid.remove();
   });
 
   it("does not claim map navigation completed when the rendered section target is missing", () => {
@@ -173,14 +175,12 @@ describe("FirstTranspositionPlanCallout", () => {
   it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
     const song = songWithTranspositionPlan();
     song.sections[0]!.id = "analysis section / duplicate";
-    const { grid, scrollIntoView } = appendSongStructureTarget();
+    const { scrollIntoView } = appendSongStructureTarget();
 
     render(<FirstTranspositionPlanCallout song={song} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar transpose at 0:10" }));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
-
-    grid.remove();
   });
 
   it("scopes map navigation to the song-structure renderer when another surface reuses an index", () => {
@@ -191,8 +191,8 @@ describe("FirstTranspositionPlanCallout", () => {
       configurable: true,
       value: decoyScrollIntoView
     });
-    document.body.appendChild(decoy);
-    const { grid, scrollIntoView } = appendSongStructureTarget();
+    appendTrackedRoot(decoy);
+    const { scrollIntoView } = appendSongStructureTarget();
 
     render(<FirstTranspositionPlanCallout song={songWithTranspositionPlan()} />);
 
@@ -200,14 +200,11 @@ describe("FirstTranspositionPlanCallout", () => {
 
     expect(decoyScrollIntoView).not.toHaveBeenCalled();
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
-
-    decoy.remove();
-    grid.remove();
   });
 
   it("shows fresh guidance when the first transposition plan changes or returns later", () => {
     const initialSong = songWithTranspositionPlan();
-    const { grid } = appendSongStructureTarget();
+    appendSongStructureTarget();
     const { rerender } = render(<FirstTranspositionPlanCallout song={initialSong} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar transpose at 0:10" }));
     expect(
@@ -219,8 +216,6 @@ describe("FirstTranspositionPlanCallout", () => {
     nextSong.sections[0]!.timeRange = { start: 20, end: 40 };
     rerender(<FirstTranspositionPlanCallout song={nextSong} />);
     expect(screen.getByText("Bass Guitar still has a transpose plan in the verse at 0:20.")).toBeTruthy();
-
-    grid.remove();
   });
 
   it("keeps an unavailable transposition plan guidance-only", () => {
