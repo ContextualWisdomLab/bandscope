@@ -156,6 +156,7 @@
   "firstTurnaroundPlanGeneratedGuidance": "{target} 파트와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.",
   "firstTurnaroundPlanGeneratedBandGuidance": "나머지 밴드와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.",
   "firstTurnaroundPlanUnavailable": "사용 가능한 턴어라운드 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요.",
+  "firstTurnaroundPlanNavigationFailed": "곡 맵에서 이 턴어라운드를 열 수 없습니다. 아래 맵에서 해당 구간을 찾아주세요.",
   "workspaceFirstRangeTitle": "오늘 먼저 볼 음역",
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
