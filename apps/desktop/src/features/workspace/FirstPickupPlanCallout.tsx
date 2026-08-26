@@ -6,7 +6,11 @@ import {
   detectPreferredLocale,
   translateSectionFormLabel
 } from "../../i18n";
-import { formatPickupPlanTime, resolveFirstPickupPlan } from "./firstPickupPlan";
+import {
+  formatPickupPlanTime,
+  resolveFirstPickupPlan,
+  type PickupPlanGuidance
+} from "./firstPickupPlan";
 
 /** Props for the first pickup-plan rehearsal callout. */
 export interface FirstPickupPlanCalloutProps {
@@ -23,12 +27,10 @@ type OpenedPickupPlan = Readonly<{
   landingRoleId: string;
   pickupPlan: string;
   pickupPlanSource: PickupPlanSource | null;
+  pickupPlanGuidanceKind: PickupPlanGuidance["kind"] | null;
+  pickupPlanTargetRoleName: string | null;
   atSeconds: number;
 }>;
-
-const GENERATED_ACTIVITY_PICKUP_PLAN =
-  /^Play this pickup with (.+); land the downbeat together\.$/u;
-const GENERATED_ACTIVITY_PICKUP_PLAN_BAND_TARGET = "the rest of the band";
 
 /** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
 function stablePickupPlanSongIdentity(song: RehearsalSong): unknown {
@@ -57,25 +59,20 @@ function formatPickupPlanCopy(template: string, values: PickupPlanCopyValues): s
   });
 }
 
-/** Localize only explicit model-owned engine guidance; preserve user and legacy guidance verbatim. */
+/** Localize model pickup guidance from structured landing topology, never from display-copy grammar. */
 function localizedPickupPlan(
   pickupPlan: string,
   pickupPlanSource: PickupPlanSource | null,
+  guidance: PickupPlanGuidance | null,
   generatedTemplate: string,
   generatedBandTemplate: string
 ): string {
-  if (pickupPlanSource !== "model") {
+  if (pickupPlanSource !== "model" || guidance === null) {
     return pickupPlan;
   }
-  const match = GENERATED_ACTIVITY_PICKUP_PLAN.exec(pickupPlan);
-  const targetRole = match?.[1]?.trim() ?? "";
-  if (targetRole.length === 0) {
-    return pickupPlan;
-  }
-  if (targetRole === GENERATED_ACTIVITY_PICKUP_PLAN_BAND_TARGET) {
-    return generatedBandTemplate;
-  }
-  return generatedTemplate.replace("{target}", () => targetRole);
+  return guidance.kind === "band"
+    ? generatedBandTemplate
+    : generatedTemplate.replace("{target}", () => guidance.targetRoleName);
 }
 
 /** Use immediate scrolling when the operating system requests reduced motion. */
@@ -111,6 +108,11 @@ export function FirstPickupPlanCallout({ song }: FirstPickupPlanCalloutProps) {
   const named = useMemo(() => resolveFirstPickupPlan(song), [song]);
   const [openedPickupPlan, setOpenedPickupPlan] = useState<OpenedPickupPlan | null>(null);
   const [navigationFailed, setNavigationFailed] = useState(false);
+  const guidanceKind = named?.pickupPlanGuidance?.kind ?? null;
+  const guidanceTargetRoleName =
+    named?.pickupPlanGuidance?.kind === "role"
+      ? named.pickupPlanGuidance.targetRoleName
+      : null;
 
   useEffect(() => {
     setOpenedPickupPlan(null);
@@ -122,6 +124,8 @@ export function FirstPickupPlanCallout({ song }: FirstPickupPlanCalloutProps) {
     named?.landingRoleId,
     named?.pickupPlan,
     named?.pickupPlanSource,
+    guidanceKind,
+    guidanceTargetRoleName,
     named?.atSeconds
   ]);
 
@@ -148,6 +152,8 @@ export function FirstPickupPlanCallout({ song }: FirstPickupPlanCalloutProps) {
     openedPickupPlan.landingRoleId === named.landingRoleId &&
     openedPickupPlan.pickupPlan === named.pickupPlan &&
     openedPickupPlan.pickupPlanSource === named.pickupPlanSource &&
+    openedPickupPlan.pickupPlanGuidanceKind === guidanceKind &&
+    openedPickupPlan.pickupPlanTargetRoleName === guidanceTargetRoleName &&
     openedPickupPlan.atSeconds === named.atSeconds;
   const at = formatPickupPlanTime(named.atSeconds);
   const copyValues: PickupPlanCopyValues = {
@@ -161,6 +167,7 @@ export function FirstPickupPlanCallout({ song }: FirstPickupPlanCalloutProps) {
   const pickupPlan = localizedPickupPlan(
     named.pickupPlan,
     named.pickupPlanSource,
+    named.pickupPlanGuidance,
     t("firstPickupPlanGeneratedGuidance"),
     t("firstPickupPlanGeneratedBandGuidance")
   );
@@ -201,6 +208,8 @@ export function FirstPickupPlanCallout({ song }: FirstPickupPlanCalloutProps) {
             landingRoleId: named.landingRoleId,
             pickupPlan: named.pickupPlan,
             pickupPlanSource: named.pickupPlanSource,
+            pickupPlanGuidanceKind: guidanceKind,
+            pickupPlanTargetRoleName: guidanceTargetRoleName,
             atSeconds: named.atSeconds
           });
         }}
