@@ -8,11 +8,6 @@ import {
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_PICKUP_PLAN_CHARACTERS = 180;
-const GENERATED_ACTIVITY_PICKUP_PLAN_PREFIX = "Play this pickup with ";
-const GENERATED_ACTIVITY_PICKUP_PLAN_SUFFIX = "; land the downbeat together.";
-const GENERATED_ACTIVITY_PICKUP_PLAN_FIXED_CHARACTERS = Array.from(
-  GENERATED_ACTIVITY_PICKUP_PLAN_PREFIX + GENERATED_ACTIVITY_PICKUP_PLAN_SUFFIX
-).length;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 const ACCOMPANIMENT_SOURCE_ROLE_IDS = new Set([
   "keys-left",
@@ -20,8 +15,13 @@ const ACCOMPANIMENT_SOURCE_ROLE_IDS = new Set([
   "acoustic-guitar"
 ]);
 const ACCOMPANIMENT_SOURCE_ID = "other";
+const ACCOMPANIMENT_SOURCE_LABEL = "Keys / guitar";
 
 type PickupPlanSource = "model" | "user";
+
+export type PickupPlanGuidance =
+  | Readonly<{ kind: "role"; targetRoleName: string }>
+  | Readonly<{ kind: "band" }>;
 
 type RankedRoleMetadata = Readonly<{
   role: RehearsalRole;
@@ -46,6 +46,7 @@ export type FirstPickupPlan = {
   landingRoleName: string;
   pickupPlan: string;
   pickupPlanSource: PickupPlanSource | null;
+  pickupPlanGuidance: PickupPlanGuidance | null;
   atSeconds: number;
 };
 
@@ -127,30 +128,6 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Keep a bounded engine-owned pickup sentence structurally recognizable for localization. */
-function boundedGeneratedActivityPickupPlan(value: string): string | null {
-  if (
-    !value.startsWith(GENERATED_ACTIVITY_PICKUP_PLAN_PREFIX) ||
-    !value.endsWith(GENERATED_ACTIVITY_PICKUP_PLAN_SUFFIX)
-  ) {
-    return null;
-  }
-  const target = value
-    .slice(
-      GENERATED_ACTIVITY_PICKUP_PLAN_PREFIX.length,
-      value.length - GENERATED_ACTIVITY_PICKUP_PLAN_SUFFIX.length
-    )
-    .trim();
-  if (target.length === 0) {
-    return null;
-  }
-  const boundedTarget = truncateCodePoints(
-    target,
-    MAX_PICKUP_PLAN_CHARACTERS - GENERATED_ACTIVITY_PICKUP_PLAN_FIXED_CHARACTERS
-  );
-  return `${GENERATED_ACTIVITY_PICKUP_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_PICKUP_PLAN_SUFFIX}`;
-}
-
 /** Return a bounded snapshotted own pickup plan and its explicit provenance, or null when malformed. */
 function ownedPickupPlan(role: unknown): OwnedPickupPlan | null {
   if (!isRuntimeObject(role)) {
@@ -172,14 +149,9 @@ function ownedPickupPlan(role: unknown): OwnedPickupPlan | null {
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
-  const source = pickupPlanSource ?? null;
   return {
-    text:
-      source === "model"
-        ? (boundedGeneratedActivityPickupPlan(trimmed) ??
-          truncateCodePoints(trimmed, MAX_PICKUP_PLAN_CHARACTERS))
-        : truncateCodePoints(trimmed, MAX_PICKUP_PLAN_CHARACTERS),
-    source
+    text: truncateCodePoints(trimmed, MAX_PICKUP_PLAN_CHARACTERS),
+    source: pickupPlanSource ?? null
   };
 }
 
@@ -268,6 +240,40 @@ function pickLandingRole<Role extends RankedRoleMetadata>(roles: Role[]): Role |
       return compareStableId(left.id, right.id);
     })[0] ?? null
   );
+}
+
+/** Derive model localization guidance from the same structured landing topology that proves a pickup. */
+function pickupPlanGuidance(
+  activeRoles: RankedRoleMetadata[],
+  landingRole: RankedRoleMetadata & { pickupPlanSource: PickupPlanSource | null },
+  landingSourceCount: number
+): PickupPlanGuidance | null {
+  if (landingRole.pickupPlanSource !== "model") {
+    return null;
+  }
+  if (landingSourceCount >= 3) {
+    return { kind: "band" };
+  }
+  const landingSourceId = pickupSourceId(landingRole.id);
+  const targetSourceIds = new Set(
+    activeRoles
+      .map((metadata) => pickupSourceId(metadata.id))
+      .filter((sourceId) => sourceId !== landingSourceId)
+  );
+  if (targetSourceIds.size !== 1) {
+    return null;
+  }
+  const targetSourceId = [...targetSourceIds][0];
+  if (targetSourceId === undefined) {
+    return null;
+  }
+  if (targetSourceId === ACCOMPANIMENT_SOURCE_ID) {
+    return { kind: "role", targetRoleName: ACCOMPANIMENT_SOURCE_LABEL };
+  }
+  const targetRoles = activeRoles.filter((metadata) => pickupSourceId(metadata.id) === targetSourceId);
+  return targetRoles.length === 1
+    ? { kind: "role", targetRoleName: targetRoles[0]!.name }
+    : null;
 }
 
 /** Return ranked roles whose unique graph node is explicitly active. */
@@ -421,6 +427,7 @@ function resolveSafeFirstPickupPlan(song: RehearsalSong): FirstPickupPlan | null
           landingRoleName: landingRole.name,
           pickupPlan: landingRole.pickupPlan,
           pickupPlanSource: landingRole.pickupPlanSource,
+          pickupPlanGuidance: pickupPlanGuidance(activeRoles, landingRole, landingSourceCount),
           atSeconds: timeRange.start
         }
       ];
