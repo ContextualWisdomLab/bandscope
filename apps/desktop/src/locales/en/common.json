@@ -117,7 +117,7 @@
   "helpChooseLocalAction": "Choose a local song",
   "helpStartAnalysisBody": "The file is ready. Start analysis to get tonight's first cues.",
   "helpStartAnalysisAction": "Start analysis",
-  "helpWaitBody": "Analysis is running. Stay on this screen until the rehearsal map appears.",
+  "helpWaitBody": "Analysis is running. Wait for this step to finish and stay on this screen until the rehearsal map appears.",
   "helpRetryBody": "That analysis did not finish. Choose another local song and try again.",
   "helpRetryAction": "Choose another song",
   "helpReadyBody": "Tonight's rehearsal map is ready. Start with the first priority section, then export a cue sheet for the room.",

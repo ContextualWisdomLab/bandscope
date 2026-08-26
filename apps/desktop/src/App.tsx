@@ -276,7 +276,9 @@ export function App() {
   const helpPhase = resolveRehearsalHelpPhase({
     hasLocalSource: selectedBootstrap !== null,
     analysisInFlight: analysisInFlight || isStarting || isImporting,
-    hasSong: jobResult !== null,
+    // The workspace hides the map behind ErrorState while jobError is set,
+    // so help must not offer it as ready in that state.
+    hasSong: jobResult !== null && jobError === null,
     hasError: analysisFailed,
   });
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
@@ -925,7 +927,12 @@ export function App() {
         }}
         onShowMap={() => {
           setActiveView("workspace");
-          document.getElementById("main-content")?.focus();
+          /** Focus now for synchronous callers, again after unmount resets focus to <body>. */
+          const focusMainContent = () => {
+            document.getElementById("main-content")?.focus();
+          };
+          focusMainContent();
+          window.setTimeout(focusMainContent, 0);
         }}
       />
       <Toaster />

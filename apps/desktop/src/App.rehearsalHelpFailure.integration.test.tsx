@@ -86,7 +86,7 @@ describe("App rehearsal-help failure recovery", () => {
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
     expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
       /choose a local song first/i,
@@ -121,7 +121,7 @@ describe("App rehearsal-help failure recovery", () => {
       expect(screen.getByRole("alert").textContent).toMatch(/analysis engine is unavailable/i);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     let helpDialog = screen.getByTestId("rehearsal-help-dialog");
     expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
       /choose another local song and try again/i,
@@ -129,7 +129,7 @@ describe("App rehearsal-help failure recovery", () => {
     fireEvent.click(within(helpDialog).getByRole("button", { name: /choose another song/i }));
 
     await waitFor(() => expect(screen.getByText(/fresh-song\.wav/i)).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     helpDialog = screen.getByTestId("rehearsal-help-dialog");
 
     expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
@@ -168,7 +168,7 @@ describe("App rehearsal-help failure recovery", () => {
     fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
     await waitFor(() => expect(screen.getByText(/fresh-song\.wav/i)).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
     expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
       /start analysis to get tonight's first cues/i,
@@ -247,7 +247,7 @@ describe("App rehearsal-help failure recovery", () => {
     fireEvent.click(screen.getByRole("button", { name: /import youtube/i }));
     await waitFor(() => expect(screen.getByText(/imported-song\.m4a/i)).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
     expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
       /start analysis to get tonight's first cues/i,
@@ -282,7 +282,7 @@ describe("App rehearsal-help failure recovery", () => {
       expect(screen.getByRole("button", { name: /import youtube/i }).textContent).toMatch(/importing/i);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
 
     expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
@@ -324,7 +324,7 @@ describe("App rehearsal-help failure recovery", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /^score$/i })[0]!);
     await waitFor(() => expect(screen.getByTestId("score-view")).toBeTruthy());
 
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
     fireEvent.click(within(helpDialog).getByRole("button", { name: /show the rehearsal map/i }));
 

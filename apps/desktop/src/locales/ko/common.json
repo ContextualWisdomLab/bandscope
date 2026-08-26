@@ -118,7 +118,7 @@
   "helpChooseLocalAction": "로컬 곡 고르기",
   "helpStartAnalysisBody": "파일이 준비됐습니다. 분석을 시작해 오늘 밤 첫 큐를 받으세요.",
   "helpStartAnalysisAction": "분석 시작",
-  "helpWaitBody": "분석을 진행 중입니다. 합주 지도가 나올 때까지 이 화면에 머무르세요.",
+  "helpWaitBody": "분석을 진행 중입니다. 이 단계가 끝날 때까지 기다리고, 합주 지도가 나올 때까지 이 화면에 머무르세요.",
   "helpRetryBody": "분석이 끝나지 않았습니다. 다른 로컬 곡을 고르고 다시 시도하세요.",
   "helpRetryAction": "다른 곡 고르기",
   "helpReadyBody": "오늘 밤 합주 지도가 준비됐습니다. 우선 구간부터 보고, 큐시트를 내보내 방에 나눠 주세요.",

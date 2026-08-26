@@ -218,7 +218,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
     expect(fireEvent.click(screen.getByRole("button", { name: /settings coming soon/i }))).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     expect(screen.getByTestId("rehearsal-help-next-action").textContent).toMatch(
       /Choose a local song first/i,
     );
@@ -1382,7 +1382,7 @@ describe("App", () => {
     });
     expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
     expect(within(helpDialog).getByRole("button", { name: /show the rehearsal map/i })).toBeTruthy();
   });
@@ -1561,7 +1561,7 @@ describe("App", () => {
   it("starts local-file intake from rehearsal help before a song is loaded", async () => {
     tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     fireEvent.click(screen.getByRole("button", { name: /Choose a local song/i }));
     await waitFor(() => {
       expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
@@ -1583,7 +1583,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
     });
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     const helpDialog = screen.getByTestId("rehearsal-help-dialog");
     expect(within(helpDialog).getByTestId("rehearsal-help-next-action").textContent).toMatch(
       /Start analysis to get tonight's first cues/i,
@@ -1601,7 +1601,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
     });
-    fireEvent.click(screen.getByRole("button", { name: /open rehearsal help/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Open rehearsal help" }));
     fireEvent.click(screen.getByRole("button", { name: /Show the rehearsal map/i }));
     expect(document.getElementById("main-content")).toBe(document.activeElement);
   });
