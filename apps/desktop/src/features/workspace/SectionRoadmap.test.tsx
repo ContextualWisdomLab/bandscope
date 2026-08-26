@@ -106,4 +106,16 @@ describe("SectionRoadmap", () => {
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
+
+  it("keeps focus target ids renderer-owned for arbitrary analysis section ids", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0].id = " verse 1 ";
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const card = document.getElementById("workspace-section-card-0");
+    expect(card).toBeTruthy();
+    expect(card?.getAttribute("tabindex")).toBe("-1");
+    expect(card?.id).not.toContain(song.sections[0].id);
+  });
 });

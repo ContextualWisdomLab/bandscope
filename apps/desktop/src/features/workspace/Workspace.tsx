@@ -40,6 +40,61 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
   URL.revokeObjectURL(url);
 }
 
+/** Return the renderer-owned position of the first section this player should loop tonight. */
+function firstLoopSectionIndex(
+  song: RehearsalSong,
+  activeRole: string | null
+): number | undefined {
+  if (activeRole) {
+    const forRoleIndex = song.sections.findIndex((section) =>
+      section.roles.some((role) => role.id === activeRole)
+    );
+    if (forRoleIndex !== -1) {
+      return forRoleIndex;
+    }
+  }
+
+  const requested = song.exportSummary?.focusSections?.[0]?.trim();
+  if (requested) {
+    const requestedIndex = song.sections.findIndex(
+      (section) => section.label === requested || section.id === requested
+    );
+    if (requestedIndex !== -1) {
+      return requestedIndex;
+    }
+  }
+
+  return song.sections.length > 0 ? 0 : undefined;
+}
+
+/** Scroll and focus one renderer-owned section card on the rehearsal roadmap. */
+function focusWorkspaceSection(sectionIndex: number): void {
+  const node = document.getElementById(`workspace-section-card-${sectionIndex}`);
+  if (!(node instanceof HTMLElement)) {
+    return;
+  }
+  const prefersReducedMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  node.scrollIntoView({
+    behavior: prefersReducedMotion ? "auto" : "smooth",
+    block: "nearest",
+    inline: "center"
+  });
+  node.focus();
+}
+
+/** Fill loop copy with a section label and its start–end window. */
+function loopCopy(
+  template: string,
+  section: RehearsalSong["sections"][number]
+): string {
+  return template
+    .replace("{label}", section.label)
+    .replace("{start}", formatTimelineTime(section.timeRange.start))
+    .replace("{end}", formatTimelineTime(section.timeRange.end));
+}
+
 type Translator = ReturnType<typeof createTranslator>;
 
 /** Documented. */
@@ -72,7 +127,17 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 }
 
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({
+  sections,
+  t,
+  loopedSectionIndex,
+  onLoopSection
+}: {
+  sections: RehearsalSong["sections"];
+  t: Translator;
+  loopedSectionIndex: number | null;
+  onLoopSection: (sectionIndex: number) => void;
+}) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -84,19 +149,32 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
         role="region"
         tabIndex={0}
         className="overflow-x-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,35,0.96),rgba(2,6,23,0.98))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-        aria-label="Scrollable song structure timeline"
+        aria-label={t("workspaceSongStructureTimelineRegionAria")}
       >
         <div
           className="grid min-w-[720px]"
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
-              <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
-              </p>
-              <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
+          {sections.map((section, sectionIndex) => (
+            <div
+              key={`${section.id}-${sectionIndex}`}
+              className={`border-r border-white/10 px-3 py-3 last:border-r-0 ${
+                loopedSectionIndex === sectionIndex ? "bg-cyan-300/15" : "bg-cyan-300/[0.05]"
+              }`}
+            >
+              <button
+                type="button"
+                className="w-full rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                aria-label={loopCopy(t("workspaceLoopTimelineAria"), section)}
+                aria-pressed={loopedSectionIndex === sectionIndex}
+                onClick={() => onLoopSection(sectionIndex)}
+              >
+                <p className="text-sm font-black text-white">
+                  {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
+              </button>
             </div>
           ))}
         </div>
@@ -121,6 +199,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [loopedSectionIndex, setLoopedSectionIndex] = useState<number | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -225,6 +304,18 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const loopSectionIndex = firstLoopSectionIndex(song, activeRole);
+  const loopSection = loopSectionIndex === undefined ? undefined : song.sections[loopSectionIndex];
+  const loopedSection = loopedSectionIndex === null ? null : (song.sections[loopedSectionIndex] ?? null);
+
+  /** Arm a rehearsal loop and move focus to the matching renderer-owned roadmap card. */
+  const armSectionLoop = (sectionIndex: number): void => {
+    if (!Number.isSafeInteger(sectionIndex) || sectionIndex < 0 || sectionIndex >= song.sections.length) {
+      return;
+    }
+    setLoopedSectionIndex(sectionIndex);
+    focusWorkspaceSection(sectionIndex);
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -353,7 +444,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure
+            sections={song.sections}
+            t={t}
+            loopedSectionIndex={loopedSectionIndex}
+            onLoopSection={armSectionLoop}
+          />
+          {loopedSection ? (
+            <p className="text-sm font-semibold text-cyan-100" role="status" aria-live="polite">
+              {loopCopy(t("workspaceLoopArmed"), loopedSection)}
+            </p>
+          ) : null}
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -376,8 +477,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Play stem coming soon"
-                    title="Play stem coming soon"
+                    aria-label={t("workspacePlayStemUnavailable")}
+                    title={t("workspacePlayStemUnavailable")}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
@@ -386,20 +487,34 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </Button>
                   <Button
                     type="button"
-                    aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
-                    onClick={preventUnavailableAction}
+                    disabled={loopSectionIndex === undefined || !loopSection}
+                    aria-label={
+                      loopSection
+                        ? loopCopy(t("workspaceLoopSectionAria"), loopSection)
+                        : t("workspaceLoopUnavailable")
+                    }
+                    title={
+                      loopSection
+                        ? loopCopy(t("workspaceLoopSectionAria"), loopSection)
+                        : t("workspaceLoopUnavailable")
+                    }
+                    onClick={() => {
+                      if (loopSectionIndex !== undefined && loopSection) {
+                        armSectionLoop(loopSectionIndex);
+                      }
+                    }}
                     variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
+                    className="min-h-11 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-400"
                   >
-                    Loop section
+                    {loopSection
+                      ? loopCopy(t("workspaceLoopSectionAction"), loopSection)
+                      : t("workspaceLoopUnavailable")}
                   </Button>
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Solo / mute others coming soon"
-                    title="Solo / mute others coming soon"
+                    aria-label={t("workspaceSoloUnavailable")}
+                    title={t("workspaceSoloUnavailable")}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
@@ -506,6 +621,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             song={song}
             activeRole={activeRole}
             onSongUpdate={onSongUpdate}
+            loopedSectionIndex={loopedSectionIndex}
           />
           </section>
         </CardContent>
