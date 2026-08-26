@@ -61,6 +61,6 @@ describe("resolveFirstPickupPlan user provenance", () => {
 
     expect(resolved?.pickupPlanSource).toBe("user");
     expect(resolved?.pickupPlan).toBe(expected);
-    expect(resolved?.pickupPlan).not.toEndWith(GENERATED_SUFFIX);
+    expect(resolved?.pickupPlan?.endsWith(GENERATED_SUFFIX)).toBe(false);
   });
 });
