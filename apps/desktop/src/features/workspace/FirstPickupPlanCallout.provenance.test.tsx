@@ -5,22 +5,26 @@ import { FirstPickupPlanCallout } from "./FirstPickupPlanCallout";
 
 function songWithKoreanPickup(
   pickupPlan: string,
-  pickupPlanSource?: "model" | "user"
+  pickupPlanSource?: "model" | "user",
+  pickupPlanKind?: "activity-boundary-role" | "activity-boundary-band",
+  pickupPlanTargetRole?: string
 ) {
   const song = createDemoRehearsalSong();
   const verse = song.sections[0]!;
   const companion = verse.roles.find((role) => role.id === "bass-guitar")!;
-  verse.roles = [
-    {
-      ...verse.roles[2]!,
-      id: "piano",
-      name: "피아노",
-      rehearsalPriority: "high",
-      pickupPlan,
-      ...(pickupPlanSource ? { pickupPlanSource } : {})
-    },
-    companion
-  ];
+  const landingRole = {
+    ...verse.roles[2]!,
+    id: "piano",
+    name: "피아노",
+    rehearsalPriority: "high" as const,
+    pickupPlan,
+    ...(pickupPlanSource ? { pickupPlanSource } : {})
+  };
+  Object.assign(landingRole, {
+    ...(pickupPlanKind ? { pickupPlanKind } : {}),
+    ...(pickupPlanTargetRole ? { pickupPlanTargetRole } : {})
+  });
+  verse.roles = [landingRole, companion];
   verse.partGraph = [
     { role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] },
     { role_id: "bass-guitar", is_active: true, handoff_to: [], handoff_from: [] }
@@ -33,6 +37,12 @@ function songWithKoreanPickup(
     const clone = { ...role };
     delete clone.pickupPlan;
     delete clone.pickupPlanSource;
+    const mutableClone = clone as typeof clone & {
+      pickupPlanKind?: string;
+      pickupPlanTargetRole?: string;
+    };
+    delete mutableClone.pickupPlanKind;
+    delete mutableClone.pickupPlanTargetRole;
     return clone;
   });
   intro.partGraph = intro.partGraph.map((node) => ({
@@ -74,16 +84,32 @@ describe("FirstPickupPlanCallout pickup-plan provenance", () => {
     ).toBeNull();
   });
 
-  it("localizes the engine template only when model provenance is explicit", () => {
+  it("localizes model guidance from structured role provenance instead of display sentence wording", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
-    const generatedPlan = "Play this pickup with Lead Vocal; land the downbeat together.";
-    const song = songWithKoreanPickup(generatedPlan, "model");
+    const changedDisplayCopy = "Pickup display wording changed upstream.";
+    const song = songWithKoreanPickup(
+      changedDisplayCopy,
+      "model",
+      "activity-boundary-role",
+      "Lead Vocal"
+    );
 
     render(<FirstPickupPlanCallout song={song} />);
 
     expect(
       screen.getByText("Lead Vocal 파트와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.")
     ).toBeTruthy();
-    expect(screen.queryByText(generatedPlan)).toBeNull();
+    expect(screen.queryByText(changedDisplayCopy)).toBeNull();
+  });
+
+  it("localizes band pickup guidance from its structured provenance kind", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const changedDisplayCopy = "Three-source pickup display copy changed upstream.";
+    const song = songWithKoreanPickup(changedDisplayCopy, "model", "activity-boundary-band");
+
+    render(<FirstPickupPlanCallout song={song} />);
+
+    expect(screen.getByText("나머지 밴드와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.")).toBeTruthy();
+    expect(screen.queryByText(changedDisplayCopy)).toBeNull();
   });
 });
