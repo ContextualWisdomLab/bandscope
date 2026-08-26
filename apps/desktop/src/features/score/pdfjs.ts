@@ -25,9 +25,5 @@ export function configureScorePdfWorker(): void {
  */
 export function loadScorePdf(data: Uint8Array): PDFDocumentLoadingTask {
   configureScorePdfWorker();
-  return getDocument({
-    data: new Uint8Array(data),
-    enableXfa: false,
-    useWorkerFetch: false
-  });
+  return getDocument({ data: new Uint8Array(data) });
 }

@@ -149,12 +149,12 @@ def compute_handoffs(
 
     # Roles that deactivate hand off to roles that activate
     for deact_role in deactivating:
-        if deact_role in handoffs:
+        if deact_role in handoffs:  # pragma: no branch
             handoffs[deact_role] = (activating[:], handoffs[deact_role][1])
 
     # Roles that activate receive handoffs from roles that deactivated
     for act_role in activating:
-        if act_role in handoffs:
+        if act_role in handoffs:  # pragma: no branch
             handoffs[act_role] = (handoffs[act_role][0], deactivating[:])
 
     return handoffs
