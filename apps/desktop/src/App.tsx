@@ -493,6 +493,7 @@ export function App() {
       setSelectedBootstrap(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
+      setRequestedSurface(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
