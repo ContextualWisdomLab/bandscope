@@ -319,6 +319,10 @@ function resolveSafeFirstTurnaroundPlan(song: RehearsalSong): FirstTurnaroundPla
       if (!isRuntimeObject(section)) {
         return [];
       }
+      const nextSection = sections[sectionIndex + 1];
+      if (!isRuntimeObject(nextSection)) {
+        return [];
+      }
       const sectionId = ownDataValue(section, "id");
       const sectionLabel = ownDataValue(section, "label");
       const timeRange = ownedBoundedTimeRange(section as RehearsalSection);
@@ -332,8 +336,14 @@ function resolveSafeFirstTurnaroundPlan(song: RehearsalSong): FirstTurnaroundPla
         return [];
       }
 
+      const continuingRoleIds = new Set(
+        rankedActiveRoles(nextSection as RehearsalSection).map((metadata) => metadata.id)
+      );
       const landingRole = pickLandingRole(
         rankedActiveRoles(section as RehearsalSection).flatMap((metadata) => {
+          if (!continuingRoleIds.has(metadata.id)) {
+            return [];
+          }
           const turnaroundPlan = ownedTurnaroundPlan(metadata.role);
           return turnaroundPlan === null
             ? []
