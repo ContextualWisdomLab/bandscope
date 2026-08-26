@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +77,7 @@ function resolvePartHandoffRenderer(origin: HTMLElement): HTMLElement | null {
 
 /** Name tonight's first part handoff and open the matching rendered map section. */
 export function FirstPartHandoffCallout({ song }: FirstPartHandoffCalloutProps) {
+  const calloutId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stablePartHandoffSongIdentity(song);
@@ -102,7 +103,7 @@ export function FirstPartHandoffCallout({ song }: FirstPartHandoffCalloutProps) 
   if (!named) {
     return (
       <aside
-        id="workspace-surface-part-handoff"
+        id={`workspace-surface-part-handoff-${calloutId}`}
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
         aria-label={t("firstPartHandoffLabel")}
       >
@@ -135,7 +136,7 @@ export function FirstPartHandoffCallout({ song }: FirstPartHandoffCalloutProps) 
 
   return (
     <aside
-      id="workspace-surface-part-handoff"
+      id={`workspace-surface-part-handoff-${calloutId}`}
       className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
       aria-label={t("firstPartHandoffLabel")}
     >
