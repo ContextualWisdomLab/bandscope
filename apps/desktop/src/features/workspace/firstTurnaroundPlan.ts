@@ -14,6 +14,12 @@ const GENERATED_ACTIVITY_TURNAROUND_PLAN_FIXED_CHARACTERS = Array.from(
   GENERATED_ACTIVITY_TURNAROUND_PLAN_PREFIX + GENERATED_ACTIVITY_TURNAROUND_PLAN_SUFFIX
 ).length;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
+const ACCOMPANIMENT_SOURCE_ROLE_IDS = new Set([
+  "keys-left",
+  "keys-right",
+  "acoustic-guitar"
+]);
+const ACCOMPANIMENT_SOURCE_ID = "other";
 
 type TurnaroundPlanSource = "model" | "user";
 
@@ -239,6 +245,11 @@ function repeatedIds(ids: string[]): Set<string> {
   return repeated;
 }
 
+/** Map canonical accompaniment roles back to their shared source-separation stem. */
+function turnaroundSourceId(roleId: string): string {
+  return ACCOMPANIMENT_SOURCE_ROLE_IDS.has(roleId) ? ACCOMPANIMENT_SOURCE_ID : roleId;
+}
+
 /** Prefer rehearsal priority, then a locale-independent stable id. */
 function pickLandingRole<Role extends RankedRoleMetadata>(roles: Role[]): Role | null {
   if (roles.length === 0) {
@@ -336,11 +347,22 @@ function resolveSafeFirstTurnaroundPlan(song: RehearsalSong): FirstTurnaroundPla
         return [];
       }
 
-      const continuingRoleIds = new Set(
+      const activeRoles = rankedActiveRoles(section as RehearsalSection);
+      const nextActiveRoleIds = new Set(
         rankedActiveRoles(nextSection as RehearsalSection).map((metadata) => metadata.id)
       );
+      const continuingRoleIds = new Set(
+        activeRoles.filter((metadata) => nextActiveRoleIds.has(metadata.id)).map((metadata) => metadata.id)
+      );
+      const continuingSourceCount = new Set(
+        [...continuingRoleIds].map((roleId) => turnaroundSourceId(roleId))
+      ).size;
+      if (continuingSourceCount < 2) {
+        return [];
+      }
+
       const landingRole = pickLandingRole(
-        rankedActiveRoles(section as RehearsalSection).flatMap((metadata) => {
+        activeRoles.flatMap((metadata) => {
           if (!continuingRoleIds.has(metadata.id)) {
             return [];
           }
