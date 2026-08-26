@@ -162,5 +162,11 @@
   "workspaceLoopArmedWithAudio": "{section} 구간 {start}–{end}의 합주 시계를 준비했습니다. 카운트인을 시작하세요.",
   "workspaceLoopCountingIn": "{tempo} BPM으로 {beats}박 카운트인한 다음 합주 시계가 {section} 구간을 반복합니다.",
   "workspaceLoopPlaying": "합주 시계가 {section} 구간 {start}–{end}를 반복 중입니다. 입구가 잡히면 일시정지하세요.",
-  "workspaceLoopPaused": "{section} 구간 합주 시계가 멈춰 있습니다. 준비되면 이어 가세요."
+  "workspaceLoopPaused": "{section} 구간 합주 시계가 멈춰 있습니다. 준비되면 이어 가세요.",
+  "workspaceFirstRangeTitle": "오늘 먼저 볼 음역",
+  "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
+  "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
+  "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "sectionRangeLabel": "음역",
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
