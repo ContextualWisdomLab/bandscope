@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,8 +77,10 @@ function resolveTranspositionPlanRenderer(origin: HTMLElement): HTMLElement | nu
 /** Name tonight's first transposition plan and open the matching rendered map section. */
 export function FirstTranspositionPlanCallout({ song }: FirstTranspositionPlanCalloutProps) {
   const calloutId = useId();
-  const locale = detectPreferredLocale();
-  const t = createTranslator(locale);
+  // Memoized to match the surrounding Workspace/SectionRoadmap conventions:
+  // the locale snapshot and translator are stable for the component lifetime.
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableTranspositionPlanSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const named = resolveFirstTranspositionPlan(song);
