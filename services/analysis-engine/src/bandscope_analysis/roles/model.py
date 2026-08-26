@@ -84,6 +84,7 @@ class RehearsalRole(TypedDict):
     manualOverrides: list[ManualOverride]
     overlapWarnings: list[str]
     turnaroundPlan: NotRequired[str]
+    turnaroundPlanSource: NotRequired[Literal["model", "user"]]
 
 
 class PartGraphNode(TypedDict):

@@ -14,6 +14,7 @@ export interface FirstTurnaroundPlanCalloutProps {
 }
 
 type TurnaroundPlanCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
+type TurnaroundPlanSource = "model" | "user";
 
 type OpenedTurnaroundPlan = Readonly<{
   songIdentity: unknown;
@@ -21,6 +22,7 @@ type OpenedTurnaroundPlan = Readonly<{
   sectionIndex: number;
   landingRoleId: string;
   turnaroundPlan: string;
+  turnaroundPlanSource: TurnaroundPlanSource | null;
   atSeconds: number;
 }>;
 
@@ -55,12 +57,16 @@ function formatTurnaroundPlanCopy(template: string, values: TurnaroundPlanCopyVa
   });
 }
 
-/** Localize the analysis-engine-owned turnaround sentence while preserving custom role-owned guidance verbatim. */
+/** Localize only explicit model-owned engine guidance; preserve user and legacy guidance verbatim. */
 function localizedTurnaroundPlan(
   turnaroundPlan: string,
+  turnaroundPlanSource: TurnaroundPlanSource | null,
   generatedTemplate: string,
   generatedBandTemplate: string
 ): string {
+  if (turnaroundPlanSource !== "model") {
+    return turnaroundPlan;
+  }
   const match = GENERATED_ACTIVITY_TURNAROUND_PLAN.exec(turnaroundPlan);
   const targetRole = match?.[1]?.trim() ?? "";
   if (targetRole.length === 0) {
@@ -113,6 +119,7 @@ export function FirstTurnaroundPlanCallout({ song }: FirstTurnaroundPlanCalloutP
     named?.sectionId,
     named?.landingRoleId,
     named?.turnaroundPlan,
+    named?.turnaroundPlanSource,
     named?.atSeconds
   ]);
 
@@ -138,6 +145,7 @@ export function FirstTurnaroundPlanCallout({ song }: FirstTurnaroundPlanCalloutP
     openedTurnaroundPlan.sectionIndex === named.sectionIndex &&
     openedTurnaroundPlan.landingRoleId === named.landingRoleId &&
     openedTurnaroundPlan.turnaroundPlan === named.turnaroundPlan &&
+    openedTurnaroundPlan.turnaroundPlanSource === named.turnaroundPlanSource &&
     openedTurnaroundPlan.atSeconds === named.atSeconds;
   const at = formatTurnaroundPlanTime(named.atSeconds);
   const copyValues: TurnaroundPlanCopyValues = {
@@ -150,6 +158,7 @@ export function FirstTurnaroundPlanCallout({ song }: FirstTurnaroundPlanCalloutP
   const armed = formatTurnaroundPlanCopy(t("firstTurnaroundPlanArmed"), copyValues);
   const turnaroundPlan = localizedTurnaroundPlan(
     named.turnaroundPlan,
+    named.turnaroundPlanSource,
     t("firstTurnaroundPlanGeneratedGuidance"),
     t("firstTurnaroundPlanGeneratedBandGuidance")
   );
@@ -187,6 +196,7 @@ export function FirstTurnaroundPlanCallout({ song }: FirstTurnaroundPlanCalloutP
             sectionIndex: named.sectionIndex,
             landingRoleId: named.landingRoleId,
             turnaroundPlan: named.turnaroundPlan,
+            turnaroundPlanSource: named.turnaroundPlanSource,
             atSeconds: named.atSeconds
           });
         }}

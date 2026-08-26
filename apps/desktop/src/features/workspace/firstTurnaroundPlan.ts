@@ -15,11 +15,18 @@ const GENERATED_ACTIVITY_TURNAROUND_PLAN_FIXED_CHARACTERS = Array.from(
 ).length;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
+type TurnaroundPlanSource = "model" | "user";
+
 type RankedRoleMetadata = Readonly<{
   role: RehearsalRole;
   id: string;
   name: string;
   rehearsalPriority: keyof typeof PRIORITY_RANK;
+}>;
+
+type OwnedTurnaroundPlan = Readonly<{
+  text: string;
+  source: TurnaroundPlanSource | null;
 }>;
 
 /** Tonight's first turnaround plan: the earliest labeled section and the part that carries it into the next section. */
@@ -32,6 +39,7 @@ export type FirstTurnaroundPlan = {
   landingRoleId: string;
   landingRoleName: string;
   turnaroundPlan: string;
+  turnaroundPlanSource: TurnaroundPlanSource | null;
   atSeconds: number;
 };
 
@@ -137,23 +145,33 @@ function boundedGeneratedActivityTurnaroundPlan(value: string): string | null {
   return `${GENERATED_ACTIVITY_TURNAROUND_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_TURNAROUND_PLAN_SUFFIX}`;
 }
 
-/** Return a bounded snapshotted own turnaround plan, or null when it cannot be shown. */
-function ownedTurnaroundPlan(role: unknown): string | null {
+/** Return a bounded snapshotted own turnaround plan and its explicit provenance, or null when malformed. */
+function ownedTurnaroundPlan(role: unknown): OwnedTurnaroundPlan | null {
   if (!isRuntimeObject(role)) {
     return null;
   }
   const turnaroundPlan = ownDataValue(role, "turnaroundPlan");
+  const turnaroundPlanSource = ownDataValue(role, "turnaroundPlanSource");
   if (typeof turnaroundPlan !== "string") {
+    return null;
+  }
+  if (
+    turnaroundPlanSource !== undefined &&
+    turnaroundPlanSource !== "model" &&
+    turnaroundPlanSource !== "user"
+  ) {
     return null;
   }
   const trimmed = turnaroundPlan.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
-  return (
-    boundedGeneratedActivityTurnaroundPlan(trimmed) ??
-    truncateCodePoints(trimmed, MAX_TURNAROUND_PLAN_CHARACTERS)
-  );
+  return {
+    text:
+      boundedGeneratedActivityTurnaroundPlan(trimmed) ??
+      truncateCodePoints(trimmed, MAX_TURNAROUND_PLAN_CHARACTERS),
+    source: turnaroundPlanSource ?? null
+  };
 }
 
 /** Snapshot trusted role identity, display name, and priority without Proxy get authority. */
@@ -317,7 +335,13 @@ function resolveSafeFirstTurnaroundPlan(song: RehearsalSong): FirstTurnaroundPla
       const landingRole = pickLandingRole(
         rankedActiveRoles(section as RehearsalSection).flatMap((metadata) => {
           const turnaroundPlan = ownedTurnaroundPlan(metadata.role);
-          return turnaroundPlan === null ? [] : [{ ...metadata, turnaroundPlan }];
+          return turnaroundPlan === null
+            ? []
+            : [{
+                ...metadata,
+                turnaroundPlan: turnaroundPlan.text,
+                turnaroundPlanSource: turnaroundPlan.source
+              }];
         })
       );
       if (!landingRole) {
@@ -333,6 +357,7 @@ function resolveSafeFirstTurnaroundPlan(song: RehearsalSong): FirstTurnaroundPla
           landingRoleId: landingRole.id,
           landingRoleName: landingRole.name,
           turnaroundPlan: landingRole.turnaroundPlan,
+          turnaroundPlanSource: landingRole.turnaroundPlanSource,
           atSeconds: timeRange.end
         }
       ];
