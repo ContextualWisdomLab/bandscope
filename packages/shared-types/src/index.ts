@@ -1723,6 +1723,9 @@ function validateExportSummary(value: unknown, path: string): string | null {
   if (extraKey) {
     return extraKey;
   }
+  if (!isOneOf(EXPORT_FORMATS, value.format)) {
+    return invalidField(`${path}.format`);
+  }
   if (typeof value.headline !== "string") {
     return invalidField(`${path}.headline`);
   }
