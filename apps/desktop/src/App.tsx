@@ -533,6 +533,9 @@ export function App() {
       setJobResultBootstrap(null);
       setJobError(null);
       setSelectedBootstrap(null);
+      setSelectedSourceKind(null);
+      setSelectionError(null);
+      setSelectionErrorSource(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
