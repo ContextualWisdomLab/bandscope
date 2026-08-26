@@ -40,12 +40,12 @@ const BROWSER_PROGRESS_STEPS = [
   progressPercent: number;
 }[];
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
-const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
-  UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
-  "Could not read the selected audio file.",
-  "Could not prepare the local project workspace.",
-  "Could not prepare the local cache workspace.",
-  "Could not prepare the local temp workspace."
+const SAFE_LOCAL_AUDIO_MESSAGE_KEYS = new Map<string, TranslationKey>([
+  [UNSUPPORTED_LOCAL_AUDIO_MESSAGE, "unsupportedLocalAudio"],
+  ["Could not read the selected audio file.", "localAudioReadFailed"],
+  ["Could not prepare the local project workspace.", "localProjectWorkspaceFailed"],
+  ["Could not prepare the local cache workspace.", "localCacheWorkspaceFailed"],
+  ["Could not prepare the local temp workspace.", "localTempWorkspaceFailed"]
 ]);
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
@@ -62,12 +62,13 @@ function analysisMessage(key: TranslationKey): string {
   return createTranslator(detectPreferredLocale())(key);
 }
 
-/** Map bridge-safe local-audio failures to localized customer guidance. */
+/** Map bridge-safe local-audio failures to localized customer guidance without exposing unknown details. */
 function localAudioSelectionMessage(error: unknown): string {
-  if (error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)) {
-    return error.message === UNSUPPORTED_LOCAL_AUDIO_MESSAGE
-      ? analysisMessage("unsupportedLocalAudio")
-      : analysisMessage("analysisCouldNotStart");
+  if (error instanceof Error) {
+    const messageKey = SAFE_LOCAL_AUDIO_MESSAGE_KEYS.get(error.message);
+    if (messageKey) {
+      return analysisMessage(messageKey);
+    }
   }
   return analysisMessage("unsupportedLocalAudio");
 }
@@ -161,7 +162,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
         state: "failed",
         error: {
           code: "not_found",
-          message: analysisMessage("analysisStateFailed")
+          message: analysisMessage("analysisJobNotFound")
         }
       });
     }
