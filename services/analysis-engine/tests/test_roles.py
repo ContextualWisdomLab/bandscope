@@ -134,18 +134,23 @@ def test_role_extractor_falls_back_when_activity_detection_fails() -> None:
     assert result["topologies"][0]["section_id"] == "verse-1"
     assert result["topologies"][0]["part_graph"][0]["role_id"] == "bass-guitar"
 
+
 def _extract_with_activity(
     stem_activity: list[dict[str, bool]],
     section_ids: list[str] | None = None,
 ) -> dict[str, dict[str, object]]:
     """Run RoleExtractor against a patched stem-activity map."""
     extractor = RoleExtractor()
-    sections = [{"id": section_id} for section_id in (section_ids or ["verse-1", "chorus-1"])]
+    sections = [
+        {"id": section_id}
+        for section_id in (section_ids or ["verse-1", "chorus-1"])
+    ]
     audio_features = {
         "stems": {"bass": np.ones(200, dtype=np.float32)},
         "sr": 10,
         "boundaries": [
-            (float(index * 10), float((index + 1) * 10)) for index in range(len(sections))
+            (float(index * 10), float((index + 1) * 10))
+            for index in range(len(sections))
         ],
     }
     with (
