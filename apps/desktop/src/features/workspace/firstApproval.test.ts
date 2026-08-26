@@ -230,4 +230,26 @@ describe("resolveFirstApproval", () => {
     ];
     expect(resolveFirstApproval(song)?.approval.id).toBe("a-early");
   });
+
+  it("drops a duplicated approval id even when only one side stays actionable", () => {
+    const song = withApproval({ approvalId: "dup-1", scope: "Verse harmony pass" });
+    song.collaboration!.approvals = [
+      song.collaboration!.approvals[0]!,
+      { ...song.collaboration!.approvals[0]!, status: "approved" }
+    ];
+
+    expect(resolveFirstApproval(song)).toBeNull();
+  });
+
+  it("matches labels on the full scope and bounds only the reported copy", () => {
+    const song = withApproval({
+      // 179 chars then " verseline": truncation before matching would
+      // manufacture a "verse" token boundary that never existed.
+      scope: `${"a".repeat(174)} verseline`
+    });
+
+    const resolved = resolveFirstApproval(song);
+    expect(resolved?.section).toBeNull();
+    expect(Array.from(resolved?.scope ?? "")).toHaveLength(180);
+  });
 });

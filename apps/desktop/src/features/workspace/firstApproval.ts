@@ -9,7 +9,6 @@ import {
 } from "@bandscope/shared-types";
 
 const ACTIONABLE_STATUS_RANK = { changes_requested: 0, pending: 1 } as const;
-const MAX_APPROVAL_SCOPE_CHARACTERS = 180;
 const FORM_LABELS_BY_LENGTH = [...SECTION_FORM_LABELS].sort((left, right) => right.length - left.length);
 
 /** Tonight's first named approval: the earliest owned sign-off and the unique section it names. */
@@ -69,6 +68,8 @@ function isDenseRuntimeArray(value: unknown): value is unknown[] {
   return true;
 }
 
+const MAX_APPROVAL_SCOPE_CHARACTERS = 180;
+
 /** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
 function truncateCodePoints(value: string, maximum: number): string {
   let codePoints = 0;
@@ -83,7 +84,7 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Return a bounded owned approval scope, or null when the field cannot be shown. */
+/** Return the approval's own trimmed scope for label matching, or null when unusable. */
 function ownedApprovalScope(approval: RehearsalApproval): string | null {
   if (!hasOwnData(approval, "scope") || typeof approval.scope !== "string") {
     return null;
@@ -92,7 +93,7 @@ function ownedApprovalScope(approval: RehearsalApproval): string | null {
   if (scope.length === 0) {
     return null;
   }
-  return truncateCodePoints(scope, MAX_APPROVAL_SCOPE_CHARACTERS);
+  return scope;
 }
 
 /** Return true when the approval owns identity, owner, status, and a named scope. */
@@ -244,12 +245,14 @@ function resolveSafeFirstApproval(song: RehearsalSong): FirstApproval | null {
   }
 
   const sections = uniqueReadySections(song);
+  // Deduplicate ids before status filtering: duplicated ids are not authority,
+  // so a duplicate pair must vanish even when only one side is actionable.
   const uniqueApprovals = uniqueOwnedById(
-    song.collaboration.approvals.filter((approval) => isActionableApproval(approval)),
+    song.collaboration.approvals.filter((approval) => isRuntimeObject(approval)),
     (approval) => (hasOwnData(approval, "id") && typeof approval.id === "string" ? approval.id : null)
   );
 
-  const candidates = [...uniqueApprovals.values()]
+  const candidates = [...uniqueApprovals.values()].filter((approval) => isActionableApproval(approval as RehearsalApproval))
     .flatMap((approval) => {
       const scope = ownedApprovalScope(approval);
       if (scope === null) {
@@ -261,7 +264,7 @@ function resolveSafeFirstApproval(song: RehearsalSong): FirstApproval | null {
           section,
           approval,
           atSeconds: section ? section.timeRange.start : null,
-          scope
+          scope: truncateCodePoints(scope, MAX_APPROVAL_SCOPE_CHARACTERS)
         }
       ];
     })
