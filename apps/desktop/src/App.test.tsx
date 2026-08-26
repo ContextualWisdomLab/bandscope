@@ -506,6 +506,21 @@ describe("App", () => {
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
   });
 
+  it("disables the source-bar local-audio button while a selection is pending", async () => {
+    let resolveSelection!: (value: unknown) => void;
+    mockLocalAudioSelectionResult = new Promise((resolve) => {
+      resolveSelection = resolve;
+    });
+    render(<App />);
+
+    const sourceBarButton = screen.getByRole("button", { name: "Choose local audio" });
+    fireEvent.click(sourceBarButton);
+    await waitFor(() => expect(sourceBarButton).toBeDisabled());
+
+    resolveSelection({ ok: false, error: { code: "invalid_request", message: "" } });
+    await waitFor(() => expect(sourceBarButton).toBeEnabled());
+  });
+
   it("falls back to generic local-audio error copy when selection omits a message", async () => {
     mockLocalAudioSelectionResult = {
       ok: false,

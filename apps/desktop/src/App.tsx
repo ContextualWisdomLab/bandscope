@@ -745,7 +745,7 @@ export function App() {
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
                   onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting}
+                  disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal}
                   variant="secondary"
                   className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
                   aria-label={t("chooseLocalAudio")}
@@ -765,7 +765,7 @@ export function App() {
                         value={youtubeUrl}
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
-                        disabled={analysisInFlight || isStarting || isImporting}
+                        disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
                         aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
