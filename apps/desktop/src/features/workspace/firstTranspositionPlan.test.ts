@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SECTION_TIME_SECONDS, createDemoRehearsalSong } from "@bandscope/shared-types";
+import {
+  MAX_SECTION_TIME_SECONDS,
+  createDemoRehearsalSong,
+  type RehearsalPriority,
+  type SectionFormLabel
+} from "@bandscope/shared-types";
 import { formatTranspositionPlanTime, resolveFirstTranspositionPlan } from "./firstTranspositionPlan";
 
 const DEMO_TRANSPOSITION_PLAN =
@@ -11,10 +16,10 @@ function withTranspositionSection(
     start?: number;
     end?: number;
     transpositionPlan?: string;
-    label?: "intro" | "verse" | "pre-chorus" | "chorus" | "bridge" | "outro" | "tag" | "pickup" | "stop" | "handoff";
+    label?: SectionFormLabel;
     roleId?: string;
     roleName?: string;
-    priority?: "low" | "medium" | "high";
+    priority?: RehearsalPriority;
     isActive?: boolean;
     functionLabel?: string;
   } = {}
