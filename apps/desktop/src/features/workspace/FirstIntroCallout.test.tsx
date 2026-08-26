@@ -59,6 +59,40 @@ describe("FirstIntroCallout", () => {
     ).toBeTruthy();
   });
 
+  it("contains a throwing own sections accessor instead of crashing the callout", () => {
+    const song = songWithIntro();
+    Object.defineProperty(song, "sections", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("sections getter must stay data");
+      }
+    });
+
+    expect(() => render(<FirstIntroCallout song={song} />)).not.toThrow();
+    expect(
+      screen.getByText("No intro yet. Stay on tonight's map until the start is labeled.")
+    ).toBeTruthy();
+  });
+
+  it("contains a song Proxy that throws on sections access instead of crashing the callout", () => {
+    const song = songWithIntro();
+    const proxiedSong = new Proxy(song, {
+      get(target, key, receiver) {
+        if (key === "sections") {
+          throw new Error("sections get trap");
+        }
+        return Reflect.get(target, key, receiver);
+      }
+    });
+
+    // Descriptor-based reads forward past get traps by design, so the intro still
+    // resolves safely instead of the render crashing on a direct sections read.
+    expect(() => render(<FirstIntroCallout song={proxiedSong} />)).not.toThrow();
+    expect(screen.getByLabelText("Tonight's first intro")).toBeTruthy();
+    expect(screen.queryByText(/No intro yet/i)).toBeNull();
+  });
+
   it("names the first intro as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 

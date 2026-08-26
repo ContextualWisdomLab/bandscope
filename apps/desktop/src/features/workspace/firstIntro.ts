@@ -214,6 +214,25 @@ function rankedActiveRoles(section: RehearsalSection): RankedRoleCandidate[] {
   );
 }
 
+/** Locate a resolved intro's section inside the song's own-data sections array, failing closed to -1. */
+export function resolveFirstIntroSectionIndex(
+  song: RehearsalSong,
+  section: RehearsalSection
+): number {
+  try {
+    if (!isRuntimeObject(song)) {
+      return -1;
+    }
+    const sections = readOwnDataProperty(song, "sections");
+    if (!isDenseRuntimeArray(sections)) {
+      return -1;
+    }
+    return sections.indexOf(section);
+  } catch {
+    return -1;
+  }
+}
+
 /** Return the first labeled intro, or null when no safe start remains. */
 export function resolveFirstIntro(song: RehearsalSong): FirstIntro | null {
   try {

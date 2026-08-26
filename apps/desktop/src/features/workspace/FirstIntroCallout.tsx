@@ -6,7 +6,7 @@ import {
   detectPreferredLocale,
   translateSectionFormLabel
 } from "../../i18n";
-import { formatIntroTime, resolveFirstIntro } from "./firstIntro";
+import { formatIntroTime, resolveFirstIntro, resolveFirstIntroSectionIndex } from "./firstIntro";
 
 /** Props for the first-intro rehearsal callout. */
 export interface FirstIntroCalloutProps {
@@ -50,12 +50,18 @@ export function FirstIntroCallout({
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const songId = typeof runtimeSong?.id === "string" ? runtimeSong.id : "";
+  let songId = "";
+  try {
+    const idDescriptor = runtimeSong
+      ? Object.getOwnPropertyDescriptor(runtimeSong, "id")
+      : undefined;
+    const rawId = idDescriptor && "value" in idDescriptor ? idDescriptor.value : undefined;
+    songId = typeof rawId === "string" ? rawId : "";
+  } catch {
+    songId = "";
+  }
   const intro = resolveFirstIntro(song);
-  const introSectionIndex =
-    intro && Array.isArray(runtimeSong?.sections)
-      ? runtimeSong.sections.indexOf(intro.section)
-      : -1;
+  const introSectionIndex = intro ? resolveFirstIntroSectionIndex(song, intro.section) : -1;
   const [heardIntro, setHeardIntro] = useState<HeardIntro | null>(null);
 
   useEffect(() => {
