@@ -156,6 +156,7 @@
   "firstTurnaroundPlanGeneratedGuidance": "Turn these last bars with {target}; land the downbeat together.",
   "firstTurnaroundPlanGeneratedBandGuidance": "Turn these last bars with the rest of the band; land the downbeat together.",
   "firstTurnaroundPlanUnavailable": "No turnaround plan is available. Stay on tonight's map for the next rehearsal cue.",
+  "firstTurnaroundPlanNavigationFailed": "Could not open this turnaround on the song map. Use the map below to find the section.",
   "workspaceFirstRangeTitle": "Tonight's first range",
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
