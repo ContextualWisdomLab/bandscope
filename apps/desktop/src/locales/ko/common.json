@@ -151,7 +151,6 @@
   "increasePracticeProgressLabel": "진척도 증가",
   "firstApprovalLabel": "오늘 첫 승인",
   "firstApprovalOpenAction": "{at} {section} 승인 위치 열기",
-  "firstApprovalOpenActionBand": "첫 승인 위치 열기",
   "firstApprovalBody": "{owner}님이 {at} {section}의 {scope} 승인을 기다리고 있습니다.",
   "firstApprovalBodyBand": "{owner}님이 {scope} 승인을 기다리고 있습니다.",
   "firstApprovalBodyChanges": "{owner}님이 {at} {section}의 {scope}를 다시 봐 달라고 했습니다.",

@@ -151,7 +151,6 @@
   "increasePracticeProgressLabel": "Increase progress",
   "firstApprovalLabel": "Tonight's first approval",
   "firstApprovalOpenAction": "Open {section} approval at {at}",
-  "firstApprovalOpenActionBand": "Open the first approval",
   "firstApprovalBody": "{owner} still needs to sign off on {scope} in the {section} at {at}.",
   "firstApprovalBodyBand": "{owner} still needs to sign off on {scope}.",
   "firstApprovalBodyChanges": "{owner} asked for another pass on {scope} in the {section} at {at}.",
