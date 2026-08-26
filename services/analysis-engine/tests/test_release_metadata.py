@@ -62,6 +62,16 @@ def test_changelog_contains_root_package_release_entry() -> None:
     assert f"## [{root_package_version()}]" in changelog
 
 
+def test_changelog_preserves_dependency_security_baseline_as_fixed() -> None:
+    """Keep the shipped dependency-security repair classified as a fix in Unreleased."""
+    changelog = (repo_root() / "CHANGELOG.md").read_text(encoding="utf-8")
+    unreleased = changelog.split("## [0.1.3]", maxsplit=1)[0]
+    fixed = unreleased.split("### Fixed", maxsplit=1)[1]
+    security_fix = "Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108"
+
+    assert security_fix in fixed
+
+
 def test_changelog_level_three_headings_are_surrounded_by_blank_lines() -> None:
     """Ensure changelog subsections stay compatible with Markdown heading lint."""
     lines = (repo_root() / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
