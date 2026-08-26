@@ -374,7 +374,10 @@ class RoleExtractor:
         if source_count < 2:
             return None
         if source_count >= 3:
-            return f"{_TURNAROUND_PLAN_PREFIX}{_TURNAROUND_PLAN_BAND_TARGET}{_TURNAROUND_PLAN_SUFFIX}"
+            return (
+                f"{_TURNAROUND_PLAN_PREFIX}{_TURNAROUND_PLAN_BAND_TARGET}"
+                f"{_TURNAROUND_PLAN_SUFFIX}"
+            )
 
         partner_ids = [candidate_id for candidate_id in named_source_ids if candidate_id != role_id]
         other_name: str | None = None
