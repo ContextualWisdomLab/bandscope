@@ -76,7 +76,7 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 ### Workspace States
 
 - Figma page `34 Workspace State Matrix` maps `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates.
-- `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace`, otherwise `EmptyState`.
+- `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace` (a project save-failure recovery banner renders above `Workspace` while analyzed content stays visible), a load-only `projectError` -> `ProjectPersistenceError` recovery card, otherwise `EmptyState`.
 - `LoadingState` keeps `role="status"`, `aria-live="polite"`, `aria-atomic="true"`, and `aria-busy="true"`.
 - `ErrorState` keeps `role="alert"`, `aria-live="assertive"`, and visible safe error detail copy.
 - `EmptyState` must remain an actionable state card, not a blank placeholder panel.
