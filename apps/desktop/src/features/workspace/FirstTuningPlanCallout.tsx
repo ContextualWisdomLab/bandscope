@@ -144,12 +144,12 @@ export function FirstTuningPlanCallout({ song }: FirstTuningPlanCalloutProps) {
         className="mt-3 min-h-11 bg-gradient-to-r from-cyan-300 to-emerald-300 font-black text-slate-950"
         onClick={(event) => {
           const renderer = resolveTuningPlanRenderer(event.currentTarget);
+          // named.sectionIndex is a flatMap position over song.sections, so it
+          // is always non-negative; only the renderer lookup can fail closed.
           const target =
-            named.sectionIndex >= 0
-              ? (renderer?.querySelector<HTMLElement>(
-                  `[data-section-index="${named.sectionIndex}"]`
-                ) ?? null)
-              : null;
+            renderer?.querySelector<HTMLElement>(
+              `[data-section-index="${named.sectionIndex}"]`
+            ) ?? null;
           if (typeof target?.scrollIntoView !== "function") {
             return;
           }
