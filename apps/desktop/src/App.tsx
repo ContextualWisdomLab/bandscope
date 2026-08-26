@@ -520,6 +520,21 @@ export function App() {
     setJobResult(updatedSong);
   };
 
+  /**
+   * Shared persistence-recovery banner so a failed save or load stays visible
+   * in every view that keeps the persistence controls reachable, including the
+   * Score view where renderWorkspaceState is bypassed.
+   */
+  const persistenceErrorBanner = projectError ? (
+    <div className="mb-4">
+      <ProjectPersistenceError
+        kind={projectError.kind}
+        detail={projectError.message}
+        onRetry={projectError.kind === "save" ? handleSaveProject : handleLoadProject}
+      />
+    </div>
+  ) : null;
+
   /** Documented. */
   const renderWorkspaceState = () => {
     if (jobError) {
@@ -531,15 +546,7 @@ export function App() {
     if (jobResult) {
       return (
         <>
-          {projectError ? (
-            <div className="mb-4">
-              <ProjectPersistenceError
-                kind={projectError.kind}
-                detail={projectError.message}
-                onRetry={projectError.kind === "save" ? handleSaveProject : handleLoadProject}
-              />
-            </div>
-          ) : null}
+          {persistenceErrorBanner}
           <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />
         </>
       );
@@ -882,11 +889,14 @@ export function App() {
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
             {currentView === "score" && jobResult ? (
-              <ScoreView
-                song={jobResult}
-                projectId={jobResultBootstrap?.projectId ?? null}
-                onSongUpdate={handleSongUpdate}
-              />
+              <>
+                {persistenceErrorBanner}
+                <ScoreView
+                  song={jobResult}
+                  projectId={jobResultBootstrap?.projectId ?? null}
+                  onSongUpdate={handleSongUpdate}
+                />
+              </>
             ) : (
               renderWorkspaceState()
             )}

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createDemoRehearsalSong } from "@bandscope/shared-types";
 
 import { App } from "./App";
 
@@ -84,5 +85,34 @@ describe("project persistence recovery", () => {
 
     expect(screen.queryByText(/An error occurred during analysis/i)).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent(/Failed to load project: Corrupt file/i);
+  });
+
+  it("keeps a failed save visible in the Score view where the Save control stays reachable", async () => {
+    mocks.selectLocalAudioSource.mockResolvedValue({ ok: true, bootstrap: localBootstrap });
+    mocks.startAnalysisJob.mockResolvedValue({
+      jobId: "job-1",
+      state: "succeeded",
+      result: createDemoRehearsalSong()
+    });
+    mocks.saveProject.mockRejectedValue(new Error("disk full"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/rehearsal\.wav/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^Score$/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/Failed to save project: disk full/i);
+    });
   });
 });
