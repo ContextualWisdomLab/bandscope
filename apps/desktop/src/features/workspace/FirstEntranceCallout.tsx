@@ -60,13 +60,19 @@ function preferredEntranceScrollBehavior(): ScrollBehavior {
 
 /** Resolve the renderer-owned song-structure grid without depending on test-only markers. */
 function resolveSongStructureGrid(): Element | null {
-  const stableGrid = document.getElementById("workspace-song-structure-grid");
-  if (stableGrid) {
-    return stableGrid;
+  const stableGrids = document.querySelectorAll("#workspace-song-structure-grid");
+  if (stableGrids.length > 1) {
+    return null;
+  }
+  if (stableGrids.length === 1) {
+    return stableGrids.item(0);
   }
 
-  const cueSurface = document.getElementById("workspace-surface-cues");
-  const songStructure = cueSurface?.nextElementSibling;
+  const cueSurfaces = document.querySelectorAll("#workspace-surface-cues");
+  if (cueSurfaces.length !== 1) {
+    return null;
+  }
+  const songStructure = cueSurfaces.item(0).nextElementSibling;
   const timelineRegion = songStructure?.querySelector('[role="region"]');
   return timelineRegion?.firstElementChild ?? null;
 }
