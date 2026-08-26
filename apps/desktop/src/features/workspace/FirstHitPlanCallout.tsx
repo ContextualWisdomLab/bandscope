@@ -27,6 +27,11 @@ type OpenedHitPlan = Readonly<{
 const GENERATED_ACTIVITY_HIT_PLAN =
   /^Land this hit with (.+); don't drift past the downbeat\.$/u;
 const GENERATED_ACTIVITY_HIT_PLAN_BAND_TARGET = "the rest of the band";
+/** Engine-owned source labels that can appear as targets without being section lineup names. */
+const GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS = new Set<string>([
+  GENERATED_ACTIVITY_HIT_PLAN_BAND_TARGET,
+  "Accompaniment"
+]);
 
 /** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
 function stableHitPlanSongIdentity(song: RehearsalSong): unknown {
@@ -69,6 +74,9 @@ function localizedHitPlan(
   }
   if (targetRole === GENERATED_ACTIVITY_HIT_PLAN_BAND_TARGET) {
     return generatedBandTemplate;
+  }
+  if (GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS.has(targetRole)) {
+    return generatedTemplate.replace("{target}", () => targetRole);
   }
   // The engine only ever names a part from this section's lineup or the whole
   // band. A shaped sentence naming an absent part is role-owned copy and must

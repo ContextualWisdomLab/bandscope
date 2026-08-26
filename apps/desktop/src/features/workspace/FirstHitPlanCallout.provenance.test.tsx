@@ -50,4 +50,22 @@ describe("FirstHitPlanCallout hit-plan provenance", () => {
     ).toBeTruthy();
     expect(screen.queryByText(engineLikePlan)).toBeNull();
   });
+
+  it("localizes the engine's Accompaniment source label even without a lineup match", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    const section = song.sections[0]!;
+    for (const role of section.roles) {
+      role.hitPlan = "";
+    }
+    section.roles[1]!.hitPlan =
+      "Land this hit with Accompaniment; don't drift past the downbeat.";
+
+    render(<FirstHitPlanCallout song={song} />);
+
+    expect(
+      screen.getByText("Accompaniment 파트와 이 히트를 맞추세요. 다운비트 뒤로 밀리지 마세요.")
+    ).toBeTruthy();
+    expect(screen.queryByText(/Land this hit with Accompaniment/)).toBeNull();
+  });
 });
