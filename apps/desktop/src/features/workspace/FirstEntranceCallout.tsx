@@ -58,6 +58,19 @@ function preferredEntranceScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
+/** Resolve the renderer-owned song-structure grid without depending on test-only markers. */
+function resolveSongStructureGrid(): Element | null {
+  const stableGrid = document.getElementById("workspace-song-structure-grid");
+  if (stableGrid) {
+    return stableGrid;
+  }
+
+  const cueSurface = document.getElementById("workspace-surface-cues");
+  const songStructure = cueSurface?.nextElementSibling;
+  const timelineRegion = songStructure?.querySelector('[role="region"]');
+  return timelineRegion?.firstElementChild ?? null;
+}
+
 /** Name tonight's first entrance and offer only an action that the current surface can execute. */
 export function FirstEntranceCallout({
   song,
@@ -154,7 +167,7 @@ export function FirstEntranceCallout({
               markEntranceActionComplete();
               return;
             }
-            const grid = document.querySelector('[data-testid="song-structure-grid"]');
+            const grid = resolveSongStructureGrid();
             const target = entranceSectionIndex >= 0 ? grid?.children.item(entranceSectionIndex) : null;
             if (typeof target?.scrollIntoView !== "function") {
               return;
