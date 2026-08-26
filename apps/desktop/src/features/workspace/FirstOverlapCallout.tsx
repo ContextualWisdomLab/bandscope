@@ -31,6 +31,22 @@ function formatOverlapCopy(template: string, values: OverlapCopyValues): string 
   });
 }
 
+/** Keep logical song identity stable across immutable edits without invoking an untrusted id accessor. */
+function overlapSongIdentity(song: unknown): unknown {
+  if ((typeof song !== "object" && typeof song !== "function") || song === null) {
+    return song;
+  }
+
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(song, "id");
+    return descriptor && "value" in descriptor && typeof descriptor.value === "string"
+      ? descriptor.value
+      : song;
+  } catch {
+    return song;
+  }
+}
+
 /** Use immediate scrolling when the operating system requests reduced motion. */
 function preferredOverlapScrollBehavior(): ScrollBehavior {
   return typeof window.matchMedia === "function" &&
@@ -43,7 +59,7 @@ function preferredOverlapScrollBehavior(): ScrollBehavior {
 export function FirstOverlapCallout({ song }: FirstOverlapCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
-  const songIdentity: unknown = song;
+  const songIdentity = overlapSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
   const overlap = resolveFirstOverlap(song);
   const overlapSectionIndex =
