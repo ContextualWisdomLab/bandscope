@@ -85,6 +85,16 @@ describe("Workspace", () => {
     expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
+  it("localizes the rehearsal priorities focus line like the other surfaces", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText(/Focus: 벌스\./)).toBeTruthy();
+    expect(screen.queryByText(/Focus: verse\./)).toBeNull();
+  });
+
   it("enables bass transcription from selected role metadata rather than role id text", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {

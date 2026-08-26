@@ -1,5 +1,5 @@
 import { useState, useMemo, memo, type MouseEvent } from "react";
-import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
+import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole, type SectionFormLabel } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
@@ -128,6 +128,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  // Rehearsal priorities focus copy localizes section form labels like every
+  // other surface; unknown focus strings fall back to their raw value.
+  const focusSummary = song.exportSummary?.focusSections?.length
+    ? song.exportSummary.focusSections
+        .map((label) => translateSectionFormLabel(locale, label as SectionFormLabel))
+        .join(", ")
+    : song.sections[0]
+      ? translateSectionFormLabel(locale, song.sections[0].label)
+      : "first pass";
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -333,7 +342,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
+                Focus: {focusSummary}.
               </p>
             </section>
           </div>
