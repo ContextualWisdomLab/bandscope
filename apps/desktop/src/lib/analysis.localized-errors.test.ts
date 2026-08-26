@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { importYoutubeUrl, loadProject } from "./analysis";
+import { importYoutubeUrl, loadProject, selectLocalAudioSource } from "./analysis";
 
 const originalLanguage = navigator.language;
 const originalInternals = window.__TAURI_INTERNALS__;
@@ -28,6 +28,41 @@ describe("analysis buyer-visible fallback localization", () => {
       expect(result.error.message).toBe(
         "표준 유튜브 영상 링크(youtube.com/watch 또는 youtu.be)를 사용해 주세요."
       );
+    }
+  });
+
+  it("maps allowlisted local preparation errors to Korean next-action guidance", async () => {
+    setNavigatorLanguage("ko-KR");
+    window.__TAURI_INTERNALS__ = undefined;
+    window.__TAURI_INVOKE__ = async () => {
+      throw new Error("Could not read the selected audio file.");
+    };
+
+    const result = await selectLocalAudioSource();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe(
+        "분석을 시작할 수 없습니다. 선택한 오디오나 유튜브 링크를 확인한 뒤 다시 시도해 주세요."
+      );
+    }
+  });
+
+  it("does not surface unknown local bridge errors in Korean UI", async () => {
+    setNavigatorLanguage("ko-KR");
+    window.__TAURI_INTERNALS__ = undefined;
+    window.__TAURI_INVOKE__ = async () => {
+      throw new Error("sensitive implementation detail");
+    };
+
+    const result = await selectLocalAudioSource();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe(
+        "분석을 시작하려면 WAV, MP3, FLAC 또는 M4A 파일을 선택하세요."
+      );
+      expect(result.error.message).not.toContain("sensitive implementation detail");
     }
   });
 
