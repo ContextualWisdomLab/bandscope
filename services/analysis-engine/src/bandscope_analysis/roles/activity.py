@@ -147,16 +147,12 @@ def compute_handoffs(
     # Find roles that activate in the next section
     activating = [r for r in next_roles if next_roles[r] and not current_roles.get(r, False)]
 
-    # Every deactivating role comes from current_roles, so it is guaranteed to
-    # have been initialized in handoffs above. Keeping a second membership test
-    # only creates an unreachable branch and obscures the current-section output
-    # invariant.
+    # Roles that deactivate hand off to roles that activate
     for deact_role in deactivating:
-        handoffs[deact_role] = (activating[:], handoffs[deact_role][1])
+        if deact_role in handoffs:
+            handoffs[deact_role] = (activating[:], handoffs[deact_role][1])
 
-    # Roles that already existed but become active receive handoffs from roles
-    # that deactivated. Roles introduced only in the next section are not part
-    # of the current section's output mapping.
+    # Roles that activate receive handoffs from roles that deactivated
     for act_role in activating:
         if act_role in handoffs:
             handoffs[act_role] = (handoffs[act_role][0], deactivating[:])
