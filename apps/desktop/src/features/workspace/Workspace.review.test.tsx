@@ -65,6 +65,9 @@ describe("Workspace review regressions", () => {
 
     const setupButton = screen.getByRole("button", { name: /then start in C#2–E3/i });
     expect(setupButton).toBeEnabled();
+    const visibleLabel = setupButton.textContent?.trim() ?? "";
+    expect(visibleLabel).not.toBe("");
+    expect(setupButton.getAttribute("aria-label")).toContain(visibleLabel);
   });
 
   it("keeps placeholder-looking role names literal in setup copy", () => {
