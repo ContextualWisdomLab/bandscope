@@ -50,6 +50,27 @@ describe("FirstEntranceCallout", () => {
     expect(screen.queryByText(/Start on Bass Guitar in the verse at 0:10/)).toBeNull();
   });
 
+  it("fails closed when multiple renderer-owned song-structure grids are mounted", () => {
+    const first = appendSongStructureTarget();
+    const second = appendSongStructureTarget();
+
+    render(<FirstEntranceCallout song={createDemoRehearsalSong()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Bass Guitar entrance in the verse at 0:10"
+      })
+    );
+
+    expect(first.scrollIntoView).not.toHaveBeenCalled();
+    expect(second.scrollIntoView).not.toHaveBeenCalled();
+    expect(screen.getByText(/^Bass Guitar enters the verse at 0:10\./)).toBeTruthy();
+    expect(screen.queryByText(/Start on Bass Guitar in the verse at 0:10/)).toBeNull();
+
+    first.grid.remove();
+    second.grid.remove();
+  });
+
   it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.id = "analysis section / duplicate";
