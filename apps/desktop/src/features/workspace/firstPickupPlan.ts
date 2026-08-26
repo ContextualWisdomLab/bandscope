@@ -172,11 +172,14 @@ function ownedPickupPlan(role: unknown): OwnedPickupPlan | null {
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
+  const source = pickupPlanSource ?? null;
   return {
     text:
-      boundedGeneratedActivityPickupPlan(trimmed) ??
-      truncateCodePoints(trimmed, MAX_PICKUP_PLAN_CHARACTERS),
-    source: pickupPlanSource ?? null
+      source === "model"
+        ? (boundedGeneratedActivityPickupPlan(trimmed) ??
+          truncateCodePoints(trimmed, MAX_PICKUP_PLAN_CHARACTERS))
+        : truncateCodePoints(trimmed, MAX_PICKUP_PLAN_CHARACTERS),
+    source
   };
 }
 
