@@ -440,13 +440,13 @@ export function App() {
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
     if (!normalizedUrl) {
-      setSelectionError(t("youtubeImportFailed"));
+      setSelectionError(t("youtubeLinkGuidance"));
       setSelectionErrorSource("youtube");
       return;
     }
 
     if (!isSupportedYoutubeUrl(normalizedUrl)) {
-      setSelectionError(t("youtubeImportFailed"));
+      setSelectionError(t("youtubeLinkGuidance"));
       setSelectionErrorSource("youtube");
       return;
     }
