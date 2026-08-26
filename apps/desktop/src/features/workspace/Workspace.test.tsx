@@ -101,6 +101,26 @@ describe("Workspace", () => {
     expect(transcribeButton.title).toBe("Show this part's bass notes on the groove map.");
   });
 
+  it("labels unavailable transcription for the selected non-bass role instead of bass", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      id: "lead-vocal",
+      name: "Lead Vocal"
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    const pendingButton = screen.getByRole("button", { name: "Lead Vocal · Coming soon" });
+    expect(pendingButton.textContent).toBe("Lead Vocal · Coming soon");
+    expect(pendingButton.textContent).not.toContain("Map bass notes");
+    expect(pendingButton.getAttribute("title")).toBe(
+      "Lead Vocal part is coming soon — bass is ready first."
+    );
+  });
+
   it("renders bass transcription in the dark rehearsal cockpit system", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
