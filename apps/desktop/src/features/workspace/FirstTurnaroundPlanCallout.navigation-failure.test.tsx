@@ -15,7 +15,7 @@ describe("FirstTurnaroundPlanCallout navigation failure", () => {
       )
     ).toBeTruthy();
     expect(
-      screen.queryByText(/Turn those last bars on Bass Guitar at 0:30 before the next section lands./)
-    ).toBeNull();
+      screen.getByText(/Turn those last bars on Bass Guitar at 0:30 before the next section lands./)
+    ).toBeTruthy();
   });
 });
