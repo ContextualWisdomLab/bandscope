@@ -100,6 +100,18 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
       </div>
     );
 
+    const movedTarget = container.querySelector<HTMLElement>('[data-section-index="1"]')!;
+    const movedScrollIntoView = vi.fn();
+    Object.defineProperty(movedTarget, "scrollIntoView", {
+      configurable: true,
+      value: movedScrollIntoView
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar transpose at 0:10" }));
+
+    expect(movedScrollIntoView).toHaveBeenCalledWith({
+      block: "nearest",
+      behavior: "smooth"
+    });
     expect(
       screen.getByText(/Lock that transpose on Bass Guitar at 0:10 before the room starts./)
     ).toBeTruthy();
