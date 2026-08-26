@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-### Changed
-
-- Lock rehearsal metric authority: Le Roux SI-SDR primary, Odekerken/MIREX WCSR, Chiu 2025 ±70 ms beat F-measure, Schreiber/Urbano/Müller Acc1+Acc2 with Acc2-alone forbidden, and Raffel 2014 not cited as an Acc1/Acc2 source. Tempo has no single primary metric; beat/onset admits F-measure only inside the 70 ms window.
-
 ### Added
 
 - Added an opt-in real-YouTube/Demucs benchmark that verifies vocal separation against a
@@ -20,6 +16,11 @@
   blockers.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
+
+### Changed
+
+- Lock rehearsal metric authority: Le Roux SI-SDR primary, Odekerken/MIREX WCSR, Chiu 2025 ±70 ms beat F-measure, Schreiber/Urbano/Müller Acc1+Acc2 with Acc2-alone forbidden, and Raffel 2014 not cited as an Acc1/Acc2 source. Tempo has no single primary metric; beat/onset admits F-measure only inside the 70 ms window.
+- Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
 
 ### Fixed
 
@@ -41,6 +42,7 @@
 - Routed root npm/quickcheck Python entry points through a shared Node launcher that selects
   `py -3`, `python3`, or `python` in a deterministic platform-specific order without masking
   interpreter failures.
+- Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ### Security Notes
 
@@ -62,10 +64,11 @@
   supply-chain verification, and the exact provisioned-model smoke test before merge.
 - Dependency and supply chain: no production dependency is added by this benchmark slice;
   documentation policy checks pin `markdown-it-py 4.0.0` as a direct development dependency so
-  rendered Markdown—not lexical lookalikes—defines headings and tables. The shared JavaScript
-  dependency-security baseline remains owned by canonical #783 and is a prerequisite gate for this
-  branch; the supplemental inventory separately binds yt-dlp, ffmpeg/ffprobe, and htdemucs to their
-  declared delivery and integrity contracts.
+  rendered Markdown—not lexical lookalikes—defines headings and tables. Canonical #783 is now
+  protected `develop` shipped truth; this branch inherits that JavaScript baseline rather than
+  duplicating or suppressing it. The supplemental inventory separately binds yt-dlp, ffmpeg/ffprobe,
+  and htdemucs to their declared delivery and integrity contracts.
+
 
 ## [0.1.3] - 2026-04-29
 
@@ -125,4 +128,4 @@
 
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
 - `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
-- 신규 UI 요소에 대한 100% 테스트 커버리지를 보장하는 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
+- 신규 UI 요소에 대한 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
