@@ -125,6 +125,9 @@ def test_internal_failure_returns_payload_safe_default(
         and record.getMessage().startswith("Articulation analysis failed; returning safe default")
     ]
     assert len(matching_records) == 1
+    assert matching_records[0].getMessage() == (
+        "Articulation analysis failed; returning safe default (RuntimeError)"
+    )
     assert matching_records[0].exc_info is None
 
 
