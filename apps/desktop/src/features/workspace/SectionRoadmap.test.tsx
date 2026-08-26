@@ -33,6 +33,16 @@ describe("SectionRoadmap", () => {
     expect(screen.getByText("사용자")).toBeTruthy();
   });
 
+  it("localizes section card headers like the timeline instead of rendering raw labels", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getByText("벌스")).toBeTruthy();
+    expect(screen.queryByText("verse")).toBeNull();
+  });
+
   it("uses localized copy for chord edit prompts and control labels", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
@@ -41,7 +51,7 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 벌스 코드 수정, 현재 C#m7" }));
 
     expect(promptSpy).toHaveBeenCalledWith("새 코드 입력:", "C#m7");
     expect(screen.getAllByTitle("코드 수정").length).toBeGreaterThan(0);
