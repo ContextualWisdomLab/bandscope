@@ -154,5 +154,11 @@
   "firstVampPlanBody": "{role} still has a vamp plan in the {section} at {at}.",
   "firstVampPlanArmed": "Lock that vamp on {role} at {at} before the room starts.",
   "firstVampPlanGeneratedGuidance": "Keep this part going until {target} enters in the next section.",
-  "firstVampPlanUnavailable": "No vamp plan is available. Stay on tonight's map for the next rehearsal cue."
+  "firstVampPlanUnavailable": "No vamp plan is available. Stay on tonight's map for the next rehearsal cue.",
+  "workspaceFirstRangeTitle": "Tonight's first range",
+  "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
+  "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
+  "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "sectionRangeLabel": "Range",
+  "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
