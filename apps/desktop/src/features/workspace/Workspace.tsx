@@ -137,7 +137,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         .join(", ")
     : song.sections[0]
       ? translateSectionFormLabel(locale, song.sections[0].label)
-      : "first pass";
+      : t("workspaceFocusFallback");
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
