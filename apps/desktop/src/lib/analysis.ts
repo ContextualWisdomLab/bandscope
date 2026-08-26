@@ -15,6 +15,7 @@ import {
   type RehearsalSong
 } from "@bandscope/shared-types";
 import { listen } from "@tauri-apps/api/event";
+import { createTranslator, detectPreferredLocale, type TranslationKey } from "../i18n";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -29,13 +30,16 @@ declare global {
 
 const browserJobStore = new Map<string, AnalysisJobStatus>();
 const BROWSER_PROGRESS_STEPS = [
-  { progressLabel: "Reading your track", progressStage: "decode", progressPercent: 20 },
-  { progressLabel: "Separating stems", progressStage: "separate", progressPercent: 45 },
-  { progressLabel: "Building rehearsal cues", progressStage: "analyze", progressPercent: 70 },
-  { progressLabel: "Preparing results for next time", progressStage: "persist", progressPercent: 90 }
-] as const;
+  { progressLabelKey: "analysisProgressReadingTrack", progressStage: "decode", progressPercent: 20 },
+  { progressLabelKey: "analysisProgressSeparatingStems", progressStage: "separate", progressPercent: 45 },
+  { progressLabelKey: "analysisProgressBuildingCues", progressStage: "analyze", progressPercent: 70 },
+  { progressLabelKey: "analysisProgressPreparingResults", progressStage: "persist", progressPercent: 90 }
+] as const satisfies readonly {
+  progressLabelKey: TranslationKey;
+  progressStage: string;
+  progressPercent: number;
+}[];
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
-const YOUTUBE_LINK_GUIDANCE_MESSAGE = "Use a standard YouTube video link (youtube.com/watch or youtu.be).";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   "Could not read the selected audio file.",
@@ -52,6 +56,21 @@ export { MAX_YOUTUBE_URL_LENGTH };
 export type LocalAudioSelectionResult =
   | { ok: true; bootstrap: ProjectBootstrapSummary }
   | { ok: false; error: AnalysisJobError };
+
+/** Resolve a buyer-visible analysis message in the currently selected locale. */
+function analysisMessage(key: TranslationKey): string {
+  return createTranslator(detectPreferredLocale())(key);
+}
+
+/** Map bridge-safe local-audio failures to localized customer guidance. */
+function localAudioSelectionMessage(error: unknown): string {
+  if (error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)) {
+    return error.message === UNSUPPORTED_LOCAL_AUDIO_MESSAGE
+      ? analysisMessage("unsupportedLocalAudio")
+      : analysisMessage("analysisCouldNotStart");
+  }
+  return analysisMessage("unsupportedLocalAudio");
+}
 
 /** Documented. */
 function getInvoke(): TauriInvoke | null {
@@ -120,7 +139,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     const queued = createAnalysisJobStatus({
       jobId,
       state: "queued",
-      progressLabel: "Queued for analysis",
+      progressLabel: analysisMessage("analysisStateQueued"),
       progressStage: "queued",
       progressPercent: 0,
       cacheStatus: "disabled"
@@ -142,7 +161,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
         state: "failed",
         error: {
           code: "not_found",
-          message: "Analysis job was not found."
+          message: analysisMessage("analysisStateFailed")
         }
       });
     }
@@ -154,7 +173,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
           jobId,
           state: "running",
           requestedAt: existing.requestedAt,
-          progressLabel: nextStep.progressLabel,
+          progressLabel: analysisMessage(nextStep.progressLabelKey),
           progressStage: nextStep.progressStage,
           progressPercent: nextStep.progressPercent,
           cacheStatus: "disabled"
@@ -166,7 +185,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     const succeeded = createAnalysisJobStatus({
       jobId,
       state: "succeeded",
-      progressLabel: "Analysis ready",
+      progressLabel: analysisMessage("analysisStateSucceeded"),
       progressStage: "ready",
       progressPercent: 100,
       cacheStatus: "disabled",
@@ -183,7 +202,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
 
   if (command === "import_youtube_url") {
     if (!isSupportedYoutubeUrl(args?.url)) {
-      throw new Error(YOUTUBE_LINK_GUIDANCE_MESSAGE);
+      throw new Error(analysisMessage("youtubeLinkGuidance"));
     }
 
     const projectId = "browser-youtube-project";
@@ -202,10 +221,10 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   }
 
   if (command === "load_project") {
-    throw new Error("Projects open in the BandScope desktop app.");
+    throw new Error(analysisMessage("projectsDesktopOnly"));
   }
 
-  throw new Error("This action is not available right now.");
+  throw new Error(analysisMessage("actionUnavailable"));
 }
 
 /** Documented. */
@@ -236,10 +255,7 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
       ok: false,
       error: {
         code: "invalid_request",
-        message:
-          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
-            ? error.message
-            : UNSUPPORTED_LOCAL_AUDIO_MESSAGE
+        message: localAudioSelectionMessage(error)
       }
     };
   }
@@ -320,7 +336,7 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       ok: false,
       error: {
         code: "invalid_request",
-        message: YOUTUBE_LINK_GUIDANCE_MESSAGE
+        message: analysisMessage("youtubeLinkGuidance")
       }
     };
   }
@@ -331,13 +347,12 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       ok: true,
       bootstrap: parseProjectBootstrapSummary(response)
     };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : (typeof error === "string" ? error : "YouTube import failed.");
+  } catch {
     return {
       ok: false,
       error: {
         code: "invalid_request",
-        message
+        message: analysisMessage("youtubeImportFailed")
       }
     };
   }
