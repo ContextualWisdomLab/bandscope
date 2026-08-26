@@ -103,7 +103,7 @@
   "youtubePlaceholder": "YouTube URL...",
   "importYoutube": "Import YouTube",
   "importingYoutube": "Importing...",
-  "youtubeImportFailed": "Failed to import YouTube URL. Check that it is a standard YouTube video link, then try again.",
+  "youtubeImportFailed": "Failed to import YouTube URL. Check your connection and make sure the video is available, then try again.",
   "youtubeLinkGuidance": "Use a standard YouTube video link (youtube.com/watch or youtu.be).",
   "brandMarkAriaLabel": "BandScope circular equalizer mark",
   "rehearsalCockpit": "Rehearsal cockpit",
