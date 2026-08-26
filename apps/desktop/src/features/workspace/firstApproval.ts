@@ -160,19 +160,22 @@ function uniqueOwnedById<T extends object>(
 
 /** Collect canonical form labels that appear as whole tokens in an owned scope. */
 function matchedFormLabels(scope: string): Set<SectionFormLabel> {
-  const normalized = scope.toLowerCase();
+  // Hyphens and whitespace are equivalent token separators, so free-text
+  // scopes like "pre chorus" still reach the canonical "pre-chorus" label.
+  const normalized = scope.toLowerCase().replace(/[-\s]+/g, " ");
   const occupied = Array.from({ length: normalized.length }, () => false);
   const matched = new Set<SectionFormLabel>();
 
   for (const label of FORM_LABELS_BY_LENGTH) {
+    const key = label.replace(/-/g, " ");
     let from = 0;
-    while (from <= normalized.length - label.length) {
-      const index = normalized.indexOf(label, from);
+    while (from <= normalized.length - key.length) {
+      const index = normalized.indexOf(key, from);
       if (index === -1) {
         break;
       }
       const beforeOk = index === 0 || /[^a-z]/.test(normalized[index - 1] ?? "");
-      const afterIndex = index + label.length;
+      const afterIndex = index + key.length;
       const afterOk = afterIndex === normalized.length || /[^a-z]/.test(normalized[afterIndex] ?? "");
       let alreadyOccupied = false;
       for (let cursor = index; cursor < afterIndex; cursor += 1) {

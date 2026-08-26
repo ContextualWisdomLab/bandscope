@@ -173,6 +173,24 @@ describe("resolveFirstApproval", () => {
     expect(resolved?.atSeconds).toBe(24);
   });
 
+  it("treats a space as a token separator so 'pre chorus' names the pre-chorus section", () => {
+    const song = withApproval({
+      scope: "pre chorus lift pass",
+      label: "pre-chorus",
+      start: 24,
+      end: 32
+    });
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 56 };
+    song.sections = [song.sections[0]!, chorus];
+
+    const resolved = resolveFirstApproval(song);
+    expect(resolved?.section?.id).toBe("verse-approve");
+    expect(resolved?.section?.label).toBe("pre-chorus");
+  });
+
   it("keeps the approval band-wide when two verse sections share the named form", () => {
     const song = withApproval({ scope: "Verse harmony pass" });
     const second = structuredClone(song.sections[0]!);
