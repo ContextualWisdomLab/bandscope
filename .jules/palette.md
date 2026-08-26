@@ -1,6 +1,6 @@
-## 2024-05-19 - Replace HTML disabled with aria-disabled="true" for Accessible Tooltips
-**Learning:** Native HTML `disabled` attributes completely hide elements from screen readers and block all pointer/hover events, preventing tooltips from functioning for disabled elements.
-**Action:** Replace `disabled` with `aria-disabled="true"`, enforce block click handlers via `e.preventDefault()`, and add a title tooltip directly to the element to maintain full tooltip accessibility and keyboard focus support for visually impaired and mouse users.
+## 2024-05-19 - Native disabled and aria-disabled serve different accessibility needs
+**Learning:** Native HTML `disabled` controls are not focusable and leave the tab order, and user activation such as clicks is suppressed. They are not correctly described as completely hidden from assistive technology, and pointer/hover behavior should not be generalized across browsers and event types. `aria-disabled="true"` keeps disabled semantics without changing focusability or suppressing behavior automatically.
+**Action:** Prefer native `disabled` for native form controls when the action should be unavailable. Use `aria-disabled="true"` only when a disabled action intentionally needs to remain discoverable in keyboard navigation, and then suppress activation in application code and provide a real accessible explanation; do not rely on `title` alone for screen-reader guidance.
 
 ## 2024-05-18 - Added focus visible styles for keyboard navigation
 **Learning:** Interactive inline buttons (like the chord editor) and scrollable regions with `tabIndex={0}` do not automatically get focus visible styles, meaning keyboard users tabbing through won't know they are focused on them. Unlike central `<Button />` components which bake focus states in, these custom inline interactive elements need explicit focus styling.
@@ -26,9 +26,9 @@
 **Learning:** Standard HTML `title` attributes used as tooltips do not render on elements that use Tailwind's `pointer-events-none` class, which is often applied to `disabled:` variants in Base UI and styled components.
 **Action:** Do not rely on native `title` attributes for explaining disabled states on buttons with `pointer-events-none`. Instead, either use a custom tooltip component or ensure focus/interactive styles are preserved if an explanation is strictly required.
 
-## 2024-06-29 - 비활성화된 네이티브 버튼의 툴팁 차단
-**Learning:** 네이티브 `<button>` 요소에 `disabled` 속성을 사용하면 마우스 호버 이벤트를 포함한 포인터 이벤트가 완전히 차단되어 표준 HTML `title` 속성이 툴팁으로 표시되지 않으며, 키보드 탭 순서(tab order)에서도 제외됩니다.
-**Action:** "출시 예정" 등 설명 툴팁이 필요한 비활성화된 액션 버튼의 경우, `title`을 버튼에 직접 붙이는 대신 포커스 가능한 `span` (`<span tabIndex={0} title={...} role="button" aria-disabled="true">`)으로 버튼을 감싸서 시각적 및 스크린 리더 접근성을 모두 보장해야 합니다.
+## 2024-06-29 - 비활성화된 네이티브 버튼의 설명 제공
+**Learning:** 네이티브 `<button disabled>`는 포커스를 받을 수 없어 키보드 탭 순서에서 제외되고 사용자 활성화가 차단됩니다. 보조기술에는 disabled 상태로 전달될 수 있으며, `title` 툴팁이나 포인터/호버 동작은 브라우저와 이벤트 종류에 따라 달라질 수 있으므로 모든 포인터 이벤트가 차단된다고 일반화하지 않습니다.
+**Action:** 비활성 액션의 이유가 모든 사용자에게 필요하면 `title`만 의존하지 말고 화면에 보이는 설명 또는 `sr-only` 등 실제 접근 가능한 텍스트를 제공하세요. 툴팁을 위해 네이티브 버튼을 wrapper로 감싸야 하더라도 wrapper에 `role="button"`을 부여해 중첩 버튼 의미를 만들지 마세요. disabled 액션을 의도적으로 탭 순서에 남겨야 하는 경우에만 `aria-disabled="true"` 패턴을 사용하고, 애플리케이션 코드에서 활성화를 직접 차단하세요.
 
 ## 2024-07-01 - Testing components with focusable disabled button wrappers
 **Learning:** When native disabled buttons are wrapped in a focusable `span` to provide accessible tooltips, tests that previously found and clicked the `button` (by temporarily removing the `disabled` attribute) may fail or become overly complex. It is cleaner and more accurate to query the wrapper element (e.g. via its `title`) and fire events on it, reflecting the actual accessible DOM structure.
