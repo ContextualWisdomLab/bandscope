@@ -439,6 +439,8 @@ export function App() {
       setSelectedBootstrap(null);
       setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
       setSelectionErrorSource("local");
+      // Recovery lives on the workspace surface; leave Score so the failure is never silent.
+      setActiveView("workspace");
       setJobStatus(null);
     } finally {
       setIsChoosingLocalAudio(false);

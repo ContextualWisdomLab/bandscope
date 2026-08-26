@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import enCommon from "../../locales/en/common.json";
 import { EmptyState, ErrorState, LoadingState } from "./WorkspaceStates";
 
 const originalLanguage = window.navigator.language;
@@ -20,19 +21,19 @@ describe("WorkspaceStates local selection failure", () => {
     const onAction = vi.fn();
     render(
       <ErrorState
-        title="That file can't start tonight"
-        error="Choose a WAV, MP3, FLAC, or M4A file to start analysis."
-        guidance="Choose a WAV, MP3, FLAC, or M4A file on this device. BandScope keeps the file local."
-        actionLabel="Choose another song"
+        title={enCommon.localSelectionFailureTitle}
+        error={enCommon.unsupportedLocalAudio}
+        guidance={enCommon.localSelectionFailureGuidance}
+        actionLabel={enCommon.chooseAnotherSong}
         onAction={onAction}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Choose another song" }));
+    fireEvent.click(screen.getByRole("button", { name: enCommon.chooseAnotherSong }));
 
     expect(onAction).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("heading", { name: "That file can't start tonight" })).toBeTruthy();
-    expect(screen.getByText(/keeps the file local/i)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: enCommon.localSelectionFailureTitle })).toBeTruthy();
+    expect(screen.getByText(enCommon.localSelectionFailureGuidance)).toBeTruthy();
   });
 
   it("disables the next action while intake is already running", () => {

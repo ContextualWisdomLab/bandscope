@@ -1747,6 +1747,29 @@ describe("App", () => {
     expect(screen.queryByText(/Song Timeline/i)).toBeNull();
   });
 
+  it("surfaces a local intake failure from the Score view by returning to the workspace", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^Score$/i })[0]!);
+    await waitFor(() => expect(screen.getByRole("region", { name: "Score" })).toBeTruthy());
+
+    mockLocalAudioSelectionResult = {
+      ok: false,
+      error: { code: "invalid_request", message: "" }
+    };
+    fireEvent.click(screen.getByRole("button", { name: "Choose local audio" }));
+
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Score" })).toBeNull());
+    expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Choose another song" })).toBeTruthy();
+  });
+
   it("switches to the Score view from the compact mobile navigation", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
