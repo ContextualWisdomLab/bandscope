@@ -160,3 +160,20 @@ def test_job_file_open_requests_binary_mode_when_supported(
     assert len(open_calls) == 1
     _, flags = open_calls[0]
     assert flags & 0x8000 == 0x8000
+
+
+def test_cli_reports_invalid_utf8_for_file_backed_job(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    """A non-UTF-8 job file must use the same stable diagnostic as other input modes."""
+    path = tmp_path / "job.json"
+    path.write_bytes(b"\xff")
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(path)])
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+
+    assert cli.main() == 1
+    response = json.loads(stdout.getvalue())
+    assert response["state"] == "failed"
+    assert response["error"]["message"] == "Job input must be valid UTF-8"
