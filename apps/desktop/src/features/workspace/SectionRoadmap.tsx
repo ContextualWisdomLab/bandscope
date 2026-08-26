@@ -192,7 +192,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                               {validatedRange.lowestNote} — {validatedRange.highestNote}
                             </span>
                             <p className="mt-1 text-xs font-medium text-slate-400">
-                              {fillRangeCopy(t("sectionRangeNextAction"), { sectionLabel: section.label })}
+                              {fillRangeCopy(t("sectionRangeNextAction"), { sectionLabel: translateSectionFormLabel(locale, section.label) })}
                             </p>
                           </div>
                         ) : null}

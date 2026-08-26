@@ -173,9 +173,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         t(firstRange.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
         {
           roleName: firstRange.roleName,
-          lowestNote: firstRange.lowestNote,
-          highestNote: firstRange.highestNote,
-          sectionLabel: firstRange.sectionLabel
+            lowestNote: firstRange.lowestNote,
+            highestNote: firstRange.highestNote,
+            sectionLabel: translateSectionFormLabel(locale, firstRange.sectionLabel)
         }
       )
     : t("workspaceFirstRangeMissing");

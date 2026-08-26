@@ -33,7 +33,7 @@ describe("SectionRoadmap", () => {
     expect(screen.getByText("사용자")).toBeTruthy();
     expect(screen.getAllByText("음역").length).toBeGreaterThan(0);
     expect(screen.getByText("C#2 — E3")).toBeTruthy();
-    expect(screen.getAllByText("verse 들어가기 전에 이 음역을 악기로 확인해 보세요.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("벌스 들어가기 전에 이 음역을 악기로 확인해 보세요.").length).toBeGreaterThan(0);
   });
 
   it("omits the range row when both notes are unnamed", () => {
