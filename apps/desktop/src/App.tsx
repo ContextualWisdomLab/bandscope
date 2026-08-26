@@ -55,6 +55,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 const MAX_ERROR_DETAIL_LENGTH = 220;
+const SOURCE_CONTROLS_REGION_ID = "source-controls-region";
 const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:Users|home|var|tmp|private|Volumes)\/[^\s"'<>]+)/g;
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
@@ -581,7 +582,12 @@ export function App() {
     if (item.surface === "import") {
       setRequestedSurface("import");
       window.setTimeout(() => {
-        document.getElementById(SOURCE_CONTROLS_FOCUS_ID)?.focus();
+        const chooseLocalAudio = document.getElementById(SOURCE_CONTROLS_FOCUS_ID);
+        if (chooseLocalAudio instanceof HTMLButtonElement && chooseLocalAudio.disabled) {
+          document.getElementById(SOURCE_CONTROLS_REGION_ID)?.focus();
+          return;
+        }
+        chooseLocalAudio?.focus();
       }, 0);
       return;
     }
@@ -737,7 +743,12 @@ export function App() {
             })}
           </nav>
 
-          <section aria-label={t("sourceControlsAriaLabel")} className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+          <section
+            id={SOURCE_CONTROLS_REGION_ID}
+            tabIndex={-1}
+            aria-label={t("sourceControlsAriaLabel")}
+            className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl"
+          >
             <div className="grid gap-4 2xl:grid-cols-[1.4fr_minmax(0,1fr)_auto] 2xl:items-center">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.26em] text-cyan-300">
