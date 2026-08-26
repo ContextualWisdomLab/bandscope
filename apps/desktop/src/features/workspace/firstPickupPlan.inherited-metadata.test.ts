@@ -91,15 +91,16 @@ describe("resolveFirstPickupPlan inherited metadata", () => {
 
   it("does not let inherited pickup plans establish the named copy", () => {
     const { song, section } = songWithPickupPlan();
+    const companion = { ...section.roles[1]! };
     const inheritedRole = Object.create({
       pickupPlan: "Inherited pickup plan"
     }) as (typeof section.roles)[0];
     Object.defineProperties(inheritedRole, {
-      id: { configurable: true, enumerable: true, value: "lead-vocal" },
-      name: { configurable: true, enumerable: true, value: "Lead Vocal" },
+      id: { configurable: true, enumerable: true, value: "bass-guitar" },
+      name: { configurable: true, enumerable: true, value: "Bass Guitar" },
       rehearsalPriority: { configurable: true, enumerable: true, value: "high" }
     });
-    section.roles = [inheritedRole];
+    section.roles = [inheritedRole, companion];
     expect(resolveFirstPickupPlan(song)).toBeNull();
   });
 
