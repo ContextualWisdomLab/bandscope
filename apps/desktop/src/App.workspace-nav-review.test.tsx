@@ -128,4 +128,32 @@ describe("workspace navigation review regressions", () => {
       expect(document.getElementById("workspace-surface-transpose")).toHaveFocus();
     });
   });
+
+  it("clears the previous workspace surface when a different project is opened", async () => {
+    mockLoadProject
+      .mockResolvedValueOnce(reviewSong())
+      .mockResolvedValueOnce({ ...reviewSong(), id: "replacement-song", title: "Replacement Song" });
+    render(<App />);
+
+    const openProjectButton = screen.getByRole("button", { name: /open project/i });
+    fireEvent.click(openProjectButton);
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Lead Vocal" })).toBeTruthy();
+    });
+
+    const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
+    const workspaceButton = within(primaryNav).getByRole("button", { name: "Workspace" });
+    const transposeButton = within(primaryNav).getByRole("button", { name: "Transpose" });
+
+    fireEvent.click(transposeButton);
+    await waitFor(() => {
+      expect(transposeButton).toHaveAttribute("aria-current", "page");
+    });
+
+    fireEvent.click(openProjectButton);
+    await waitFor(() => {
+      expect(workspaceButton).toHaveAttribute("aria-current", "page");
+      expect(transposeButton).not.toHaveAttribute("aria-current");
+    });
+  });
 });
