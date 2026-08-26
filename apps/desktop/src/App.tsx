@@ -547,6 +547,10 @@ export function App() {
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  // Cockpit next actions scroll to surfaces that only exist inside the mounted
+  // Workspace, so the affordances are suppressed in the Score view instead of
+  // rendering visible buttons whose click would be a silent no-op.
+  const cockpitActionsAvailable = currentView === "workspace";
   const readySongId = typeof jobResult?.id === "string" ? jobResult.id : "";
   const tonightTempo = resolveTonightTempo(jobResult);
   const tonightChord = resolveTonightStartingChord(jobResult);
@@ -903,10 +907,10 @@ export function App() {
                   : t("metricTempoPendingDetail")
               }
               actionLabel={
-                tonightTempo ? formatMetricCopy(t("metricTempoAction"), { bpm: String(tonightTempo.bpm) }) : undefined
+                tonightTempo && cockpitActionsAvailable ? formatMetricCopy(t("metricTempoAction"), { bpm: String(tonightTempo.bpm) }) : undefined
               }
               onAction={
-                tonightTempo
+                tonightTempo && cockpitActionsAvailable
                   ? () => handleCockpitMetricAction("tempo", [WORKSPACE_SURFACE_TEMPO])
                   : undefined
               }
@@ -925,7 +929,7 @@ export function App() {
                   : t("metricKeyPendingDetail")
               }
               actionLabel={
-                tonightChord
+                tonightChord && cockpitActionsAvailable
                   ? formatMetricCopy(t("metricKeyAction"), {
                       chord: tonightChord.chord,
                       role: tonightChord.roleName
@@ -933,7 +937,7 @@ export function App() {
                   : undefined
               }
               onAction={
-                tonightChord
+                tonightChord && cockpitActionsAvailable
                   ? () => handleCockpitMetricAction("key", [WORKSPACE_SURFACE_HARMONY])
                   : undefined
               }
@@ -952,12 +956,12 @@ export function App() {
                   : t("metricTransposePendingDetail")
               }
               actionLabel={
-                tonightTranspose
+                tonightTranspose && cockpitActionsAvailable
                   ? formatMetricCopy(t("metricTransposeAction"), { role: tonightTranspose.roleName })
                   : undefined
               }
               onAction={
-                tonightTranspose
+                tonightTranspose && cockpitActionsAvailable
                   ? () =>
                       handleCockpitMetricAction("transpose", [
                         WORKSPACE_SURFACE_TRANSPOSE,

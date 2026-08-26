@@ -1676,6 +1676,26 @@ describe("App", () => {
     expect(screen.queryByText(/Song Timeline/i)).toBeNull();
   });
 
+  it("hides cockpit next actions in the Score view and restores them back in the Workspace", async () => {
+    mockLoadProject.mockResolvedValueOnce(createDemoRehearsalSong());
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open tonight's count-in" })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^Score$/i })[0]);
+    expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open tonight's count-in" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open tonight's first chord" })).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^Workspace$/i })[0]);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open tonight's count-in" })).toBeTruthy();
+    });
+  });
+
   it("switches to the Score view from the compact mobile navigation", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     render(<App />);
