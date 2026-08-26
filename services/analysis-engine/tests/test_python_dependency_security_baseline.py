@@ -26,6 +26,17 @@ def _locked_version(package_name: str) -> str:
     return version
 
 
+def _project_dependencies() -> list[str]:
+    """Return validated direct analysis-engine dependency requirements."""
+    pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    project = pyproject.get("project")
+    assert isinstance(project, dict)
+    dependencies = project.get("dependencies")
+    assert isinstance(dependencies, list)
+    assert all(isinstance(requirement, str) for requirement in dependencies)
+    return dependencies
+
+
 def _active_exceptions(policy: str) -> str:
     """Return the policy's controlled-exception section and fail on schema drift."""
     _prefix, start, remainder = policy.partition("Current controlled exceptions:")
@@ -46,15 +57,15 @@ def test_python_security_baseline_keeps_patched_versions() -> None:
 
 def test_torch_security_policy_matches_supported_platform_contract() -> None:
     """Retire obsolete torch exceptions while preserving macOS Intel exclusion."""
-    pyproject = PYPROJECT.read_text(encoding="utf-8")
+    dependencies = _project_dependencies()
     policy = DEPENDENCY_POLICY.read_text(encoding="utf-8")
     active_exceptions = _active_exceptions(policy)
     expected_demucs_requirement = (
-        "\"demucs>=4.0.1 ; sys_platform != 'darwin' "
-        "or platform_machine == 'arm64'\""
+        "demucs>=4.0.1 ; sys_platform != 'darwin' or platform_machine == 'arm64'"
     )
 
-    assert expected_demucs_requirement in pyproject
+    assert expected_demucs_requirement in dependencies
+    assert not any(requirement.lower().startswith("torch") for requirement in dependencies)
     assert "GHSA-53q9-r3pm-6pq6" not in active_exceptions
     assert "GHSA-rrmf-rvhw-rf47" not in active_exceptions
     assert "torch 2.2.2" not in active_exceptions
