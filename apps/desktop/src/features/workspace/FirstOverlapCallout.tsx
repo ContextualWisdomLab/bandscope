@@ -77,7 +77,7 @@ export function FirstOverlapCallout({ song }: FirstOverlapCalloutProps) {
       <aside
         id="workspace-surface-overlap"
         className="rounded-2xl border border-rose-300/20 bg-rose-300/[0.06] p-4"
-        aria-label={t("firstOverlapUnavailable")}
+        aria-label={t("firstOverlapLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-rose-200">{t("firstOverlapLabel")}</p>
         <p className="mt-2 text-sm leading-6 text-slate-300">{t("firstOverlapUnavailable")}</p>
