@@ -57,8 +57,15 @@ function notePitchValue(note: string): number | null {
   return (octave + 1) * 12 + NATURAL_PITCH_CLASS[letter] + ACCIDENTAL_OFFSET[match[2]];
 }
 
-/** Return a complete, ordered scientific-pitch range or fail closed. */
-function playableRange(
+/**
+ * Return a complete, ordered scientific-pitch range or fail closed.
+ *
+ * Shared by the first-range callout and the section roadmap so both surfaces
+ * only present spans that parse as scientific pitch labels in low-to-high
+ * order; malformed or inverted evidence is rejected instead of being shown
+ * as playable-range guidance.
+ */
+export function playableRange(
   lowestNoteValue: unknown,
   highestNoteValue: unknown
 ): Pick<FirstRangeSqueeze, "lowestNote" | "highestNote"> | null {

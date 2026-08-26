@@ -2,7 +2,7 @@ import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
-import { fillRangeCopy, meaningfulRangeText } from "./firstRangeSqueeze";
+import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -125,7 +125,9 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
             <CardContent className="p-4 space-y-4">
               {section.roles
                 .filter(role => !activeRole || role.id === activeRole)
-                .map(role => (
+                .map(role => {
+                  const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
+                  return (
                   <div
                     key={role.id}
                     className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
@@ -183,11 +185,11 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           {role.cue.value}
                         </div>
 
-                        {meaningfulRangeText(role.range.lowestNote) && meaningfulRangeText(role.range.highestNote) ? (
+                        {validatedRange ? (
                           <div className="text-sm font-medium leading-snug text-slate-200">
                             <span className="mb-0.5 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionRangeLabel")}</span>
                             <span>
-                              {meaningfulRangeText(role.range.lowestNote)} — {meaningfulRangeText(role.range.highestNote)}
+                              {validatedRange.lowestNote} — {validatedRange.highestNote}
                             </span>
                             <p className="mt-1 text-xs font-medium text-slate-400">
                               {fillRangeCopy(t("sectionRangeNextAction"), { sectionLabel: section.label })}
@@ -222,7 +224,8 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                       </div>
                     </div>
                   </div>
-              ))}
+                  );
+                })}
             </CardContent>
           </Card>
         ))}

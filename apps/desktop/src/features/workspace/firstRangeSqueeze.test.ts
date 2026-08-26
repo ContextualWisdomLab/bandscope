@@ -1,6 +1,6 @@
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
-import { fillRangeCopy, firstRangeSqueeze, meaningfulRangeText } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeSqueeze, meaningfulRangeText, playableRange } from "./firstRangeSqueeze";
 
 function blankRoleRange(song: RehearsalSong): RehearsalSong {
   return {
@@ -24,6 +24,25 @@ describe("meaningfulRangeText", () => {
     expect(meaningfulRangeText("none")).toBeUndefined();
     expect(meaningfulRangeText("NONE")).toBeUndefined();
     expect(meaningfulRangeText(" C#2 ")).toBe("C#2");
+  });
+});
+
+describe("playableRange", () => {
+  it("returns the trimmed ordered span for a valid scientific-pitch range", () => {
+    expect(playableRange(" C#2 ", "E3")).toEqual({ lowestNote: "C#2", highestNote: "E3" });
+    expect(playableRange("E3", "E3")).toEqual({ lowestNote: "E3", highestNote: "E3" });
+  });
+
+  it("fails closed on blank, none, non-pitch, or inverted spans", () => {
+    for (const [lowestNote, highestNote] of [
+      ["", ""],
+      ["none", "E3"],
+      ["not-a-note", "E3"],
+      ["E3", "not-a-note"],
+      ["E3", "C#2"]
+    ]) {
+      expect(playableRange(lowestNote, highestNote)).toBeNull();
+    }
   });
 });
 

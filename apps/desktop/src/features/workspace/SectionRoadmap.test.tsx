@@ -50,6 +50,35 @@ describe("SectionRoadmap", () => {
     expect(screen.queryByText(/Check this span on your instrument/i)).toBeNull();
   });
 
+  it("omits the range row when the span is inverted instead of presenting it as valid", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      range: { lowestNote: "E3", highestNote: "C#2" }
+    };
+
+    render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
+
+    expect(screen.queryByText("Range")).toBeNull();
+    expect(screen.queryByText(/Check this span on your instrument/i)).toBeNull();
+    expect(screen.queryByText(/E3 — C#2/)).toBeNull();
+  });
+
+  it("omits the range row when a note is not a scientific-pitch label", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      range: { lowestNote: "low-ish", highestNote: "E3" }
+    };
+
+    render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
+
+    expect(screen.queryByText("Range")).toBeNull();
+    expect(screen.queryByText(/Check this span on your instrument/i)).toBeNull();
+  });
+
   it("uses localized copy for chord edit prompts and control labels", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
