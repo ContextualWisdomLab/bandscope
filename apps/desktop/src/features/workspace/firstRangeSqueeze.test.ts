@@ -158,4 +158,10 @@ describe("fillRangeCopy", () => {
       })
     ).toBe("Bass $& {sectionLabel} in verse.");
   });
+
+  it("does not satisfy tokens with inherited object members", () => {
+    expect(
+      fillRangeCopy("Check {toString} before {missingToken}.", { sectionLabel: "verse" })
+    ).toBe("Check {toString} before {missingToken}.");
+  });
 });

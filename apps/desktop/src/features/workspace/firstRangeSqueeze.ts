@@ -165,6 +165,8 @@ export function firstRangeSqueeze(
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
 export function fillRangeCopy(template: string, values: Record<string, string>): string {
   return template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (placeholder, token: string) => {
-    return values[token] ?? placeholder;
+    // Own-property lookup only: inherited members such as `toString` must
+    // never satisfy a token, or the raw function source would be rendered.
+    return Object.prototype.hasOwnProperty.call(values, token) ? values[token] : placeholder;
   });
 }
