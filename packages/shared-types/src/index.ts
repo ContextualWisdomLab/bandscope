@@ -140,6 +140,7 @@ export type RehearsalRole = {
   setupNote: string;
   transpositionPlan?: string;
   turnaroundPlan?: string;
+  turnaroundPlanSource?: ProvenanceSource;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -1500,6 +1501,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "setupNote",
       "transpositionPlan",
       "turnaroundPlan",
+      "turnaroundPlanSource",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1557,6 +1559,15 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.turnaroundPlan !== undefined && typeof value.turnaroundPlan !== "string") {
     return invalidField(`${path}.turnaroundPlan`);
+  }
+  if (
+    value.turnaroundPlanSource !== undefined &&
+    !isOneOf(PROVENANCE_SOURCES, value.turnaroundPlanSource)
+  ) {
+    return invalidField(`${path}.turnaroundPlanSource`);
+  }
+  if (value.turnaroundPlanSource !== undefined && value.turnaroundPlan === undefined) {
+    return invalidField(`${path}.turnaroundPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);
@@ -1711,9 +1722,6 @@ function validateExportSummary(value: unknown, path: string): string | null {
   const extraKey = unexpectedKey(value, ["format", "headline", "focusSections"], path);
   if (extraKey) {
     return extraKey;
-  }
-  if (!isOneOf(EXPORT_FORMATS, value.format)) {
-    return invalidField(`${path}.format`);
   }
   if (typeof value.headline !== "string") {
     return invalidField(`${path}.headline`);
