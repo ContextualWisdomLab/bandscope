@@ -125,7 +125,7 @@ export type ManualOverride =
     source: "user";
   };
 
-/** Documented. */
+/** An active rehearsal role on one section of tonight's map, carrying optional activity-backed guidance metadata. */
 export type RehearsalRole = {
   id: string;
   name: string;
