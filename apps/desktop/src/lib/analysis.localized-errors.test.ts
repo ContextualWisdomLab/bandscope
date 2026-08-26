@@ -36,6 +36,18 @@ describe("analysis buyer-visible fallback localization", () => {
     }
   });
 
+  it("describes an invalid English YouTube URL as a format problem before import", async () => {
+    setNavigatorLanguage("en-US");
+    const result = await importYoutubeUrl("https://example.com/not-youtube");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe(
+        "Use a standard YouTube video link (youtube.com/watch or youtu.be)."
+      );
+    }
+  });
+
   it.each([
     ["Could not read the selected audio file.", "선택한 오디오 파일을 읽을 수 없습니다. 파일을 다시 선택해 주세요."],
     ["Could not prepare the local project workspace.", "프로젝트 작업 공간을 준비할 수 없습니다. 저장 위치를 확인한 뒤 다시 시도해 주세요."],
