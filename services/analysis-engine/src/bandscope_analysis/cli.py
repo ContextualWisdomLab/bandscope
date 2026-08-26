@@ -281,6 +281,9 @@ def main() -> int:
                         )
                         return 1
                     input_data = input_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    json.dump(failed_cli_response("Job input must be valid UTF-8"), sys.stdout)
+                    return 1
                 except Exception:
                     json.dump(failed_cli_response("Failed to read job file"), sys.stdout)
                     return 1
