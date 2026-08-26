@@ -125,7 +125,7 @@ export type ManualOverride =
     source: "user";
   };
 
-/** Documented. */
+/** An active rehearsal role on one section of tonight's map, carrying optional activity-backed guidance metadata. */
 export type RehearsalRole = {
   id: string;
   name: string;
@@ -139,6 +139,8 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  pickupPlan?: string;
+  pickupPlanSource?: ProvenanceSource;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -474,6 +476,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
+          pickupPlan: "Play this pickup with Lead Vocal; land the downbeat together.",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1497,6 +1500,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "transpositionPlan",
+      "pickupPlan",
+      "pickupPlanSource",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1551,6 +1556,18 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.pickupPlan !== undefined && typeof value.pickupPlan !== "string") {
+    return invalidField(`${path}.pickupPlan`);
+  }
+  if (
+    value.pickupPlanSource !== undefined &&
+    !isOneOf(PROVENANCE_SOURCES, value.pickupPlanSource)
+  ) {
+    return invalidField(`${path}.pickupPlanSource`);
+  }
+  if (value.pickupPlanSource !== undefined && value.pickupPlan === undefined) {
+    return invalidField(`${path}.pickupPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);

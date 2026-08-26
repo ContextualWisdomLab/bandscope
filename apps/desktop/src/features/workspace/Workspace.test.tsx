@@ -326,4 +326,48 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first pickup plan as workspace navigation", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    const intro = structuredClone(verse);
+    intro.id = "intro-1";
+    intro.label = "intro";
+    intro.timeRange = { start: 0, end: verse.timeRange.start };
+    intro.roles = intro.roles.map((role) => {
+      const clone = { ...role };
+      delete clone.pickupPlan;
+      delete clone.pickupPlanSource;
+      return clone;
+    });
+    intro.partGraph = intro.partGraph.map((node) => ({
+      ...node,
+      is_active: node.role_id !== "bass-guitar"
+    }));
+    song.sections = [intro, verse];
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(1);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    expect(
+      screen.getAllByText("Play this pickup with Lead Vocal; land the downbeat together.").length
+    ).toBeGreaterThan(0);
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar pickup at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(
+      screen.getByText(/Play that pickup on Bass Guitar at 0:10 before the downbeat lands./)
+    ).toBeTruthy();
+  });
 });
