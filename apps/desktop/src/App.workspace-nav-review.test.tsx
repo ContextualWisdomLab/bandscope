@@ -12,12 +12,19 @@ vi.mock("./features/score/pdfjs", () => ({
 }));
 
 const mockLoadProject = vi.fn();
+const mockSelectLocalAudioSource = vi.fn();
+const mockStartAnalysisJob = vi.fn();
+const mockGetAnalysisJobStatus = vi.fn();
 
 vi.mock("./lib/analysis", async (importActual) => {
   const actual = await importActual<typeof import("./lib/analysis")>();
   return {
     ...actual,
-    loadProject: () => mockLoadProject()
+    loadProject: () => mockLoadProject(),
+    selectLocalAudioSource: () => mockSelectLocalAudioSource(),
+    startAnalysisJob: (...args: unknown[]) => mockStartAnalysisJob(...args),
+    getAnalysisJobStatus: (...args: unknown[]) => mockGetAnalysisJobStatus(...args),
+    subscribeToAnalysisJobUpdates: async () => () => undefined
   };
 });
 
@@ -80,9 +87,38 @@ function reviewSong(): RehearsalSong {
   };
 }
 
+function runningBootstrap() {
+  return {
+    projectId: "running-project",
+    sourceMode: "reference",
+    projectRoot: "/tmp/bandscope/projects/running-project",
+    cacheRoot: "/tmp/bandscope/cache/running-project",
+    tempRoot: "/tmp/bandscope/temp/running-project",
+    source: {
+      sourcePath: "/tmp/running.wav",
+      fileName: "running.wav",
+      extension: "wav",
+      fileSizeBytes: 1024
+    }
+  };
+}
+
+function runningStatus() {
+  return {
+    jobId: "running-job",
+    state: "running" as const,
+    requestedAt: "2026-08-26T00:00:00.000Z",
+    updatedAt: "2026-08-26T00:00:01.000Z",
+    progressLabel: "Separating stems..."
+  };
+}
+
 describe("workspace navigation review regressions", () => {
   beforeEach(() => {
     mockLoadProject.mockReset();
+    mockSelectLocalAudioSource.mockReset();
+    mockStartAnalysisJob.mockReset();
+    mockGetAnalysisJobStatus.mockReset();
   });
 
   it("associates disabled navigation with its recovery description", () => {
@@ -154,6 +190,33 @@ describe("workspace navigation review regressions", () => {
     await waitFor(() => {
       expect(workspaceButton).toHaveAttribute("aria-current", "page");
       expect(transposeButton).not.toHaveAttribute("aria-current");
+    });
+  });
+
+  it("focuses the source-controls region when Import is selected during analysis", async () => {
+    mockSelectLocalAudioSource.mockResolvedValueOnce({ ok: true, bootstrap: runningBootstrap() });
+    mockStartAnalysisJob.mockResolvedValueOnce(runningStatus());
+    mockGetAnalysisJobStatus.mockResolvedValue(runningStatus());
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => {
+      expect(screen.getByText("running.wav")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/separating stems/i)).toBeTruthy();
+    });
+
+    const chooseLocalAudio = screen.getByRole("button", { name: /choose local audio/i });
+    expect(chooseLocalAudio).toBeDisabled();
+
+    const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
+    fireEvent.click(within(primaryNav).getByRole("button", { name: "Import" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Source controls")).toHaveFocus();
     });
   });
 });
