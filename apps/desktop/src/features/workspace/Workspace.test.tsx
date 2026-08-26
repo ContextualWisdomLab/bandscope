@@ -142,6 +142,62 @@ describe("Workspace", () => {
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
+  it("names tonight's first playable range and the next instrument check", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-range-squeeze");
+    expect(callout).toHaveTextContent("Tonight's first range");
+    expect(callout).toHaveTextContent(
+      "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
+    );
+  });
+
+  it("asks for an ear check when the selected part has no named span", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      range: { lowestNote: "", highestNote: "none" },
+      overlapWarnings: []
+    }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
+      "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section."
+    );
+  });
+
+  it("limits the range callout to the selected role", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
+      "Lead Vocal sits G#3–C#5 in verse. Hear that clash on your instrument before the verse."
+    );
+  });
+
+  it("asks the player to check a named span when no clash is present", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      overlapWarnings: []
+    }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
+      "Bass Guitar sits C#2–E3 in verse. Check that span on your instrument before the verse."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

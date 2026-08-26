@@ -2,6 +2,7 @@ import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -131,7 +132,9 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
             <CardContent className="p-4 space-y-4">
               {section.roles
                 .filter(role => !activeRole || role.id === activeRole)
-                .map(role => (
+                .map(role => {
+                  const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
+                  return (
                   <div
                     key={role.id}
                     className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
@@ -189,6 +192,18 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
                           {role.cue.value}
                         </div>
 
+                        {validatedRange ? (
+                          <div className="text-sm font-medium leading-snug text-slate-200">
+                            <span className="mb-0.5 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionRangeLabel")}</span>
+                            <span>
+                              {validatedRange.lowestNote} — {validatedRange.highestNote}
+                            </span>
+                            <p className="mt-1 text-xs font-medium text-slate-400">
+                              {fillRangeCopy(t("sectionRangeNextAction"), { sectionLabel: section.label })}
+                            </p>
+                          </div>
+                        ) : null}
+
                         {role.setupNote && (
                           <div className="flex items-start gap-2 rounded-md border border-amber-300/20 bg-amber-300/[0.08] p-2 text-xs font-medium text-amber-100">
                             <Lightbulb className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
@@ -216,7 +231,8 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
                       </div>
                     </div>
                   </div>
-              ))}
+                  );
+                })}
             </CardContent>
           </Card>
         ))}
