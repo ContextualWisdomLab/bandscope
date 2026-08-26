@@ -6,6 +6,7 @@ describe("resolveFirstTranspositionPlan section-label authority", () => {
   it("fails closed when runtime metadata supplies a label outside the shared SectionFormLabel contract", () => {
     const song = createDemoRehearsalSong();
     const section = song.sections[0]!;
+    expect(resolveFirstTranspositionPlan(song)?.section.id).toBe(section.id);
 
     (section as unknown as { label: string }).label = "verse-legacy";
 
