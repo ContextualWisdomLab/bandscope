@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FileMusic, FilePlus2, Loader2, Trash2 } from "lucide-react";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
@@ -46,6 +46,14 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const readRequestRef = useRef(0);
+
+  useEffect(() => {
+    readRequestRef.current += 1;
+    setSelected(null);
+    setPdfBytes(null);
+    setIsOpening(false);
+    setError(null);
+  }, [projectId]);
 
   /**
    * Load the stored PDF bytes for an attachment into the viewer. Callers pass
