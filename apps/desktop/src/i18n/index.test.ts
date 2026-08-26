@@ -1,3 +1,4 @@
+import { SECTION_FORM_LABELS } from "@bandscope/shared-types";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
@@ -78,20 +79,7 @@ describe("i18n", () => {
 
   describe("translateSectionFormLabel", () => {
     it("localizes every supported Korean section form label", () => {
-      expect(
-        [
-          "intro",
-          "verse",
-          "pre-chorus",
-          "chorus",
-          "bridge",
-          "outro",
-          "tag",
-          "pickup",
-          "stop",
-          "handoff"
-        ].map((label) => translateSectionFormLabel("ko", label as never))
-      ).toEqual([
+      expect(SECTION_FORM_LABELS.map((label) => translateSectionFormLabel("ko", label))).toEqual([
         "인트로",
         "벌스",
         "프리코러스",
