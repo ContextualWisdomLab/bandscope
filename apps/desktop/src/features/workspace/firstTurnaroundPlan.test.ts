@@ -62,7 +62,26 @@ function withTurnaroundSection(
       handoff_from: []
     }
   ];
-  song.sections = [section];
+
+  const continuation = structuredClone(section);
+  continuation.id = `${section.id}-continuation`;
+  continuation.label = "chorus";
+  const continuationStart =
+    Number.isInteger(section.timeRange.end) &&
+    section.timeRange.end >= 0 &&
+    section.timeRange.end < MAX_SECTION_TIME_SECONDS
+      ? section.timeRange.end
+      : 30;
+  continuation.timeRange = { start: continuationStart, end: continuationStart + 1 };
+  continuation.roles = continuation.roles.map((role) => {
+    const clone = { ...role };
+    delete clone.turnaroundPlan;
+    delete clone.turnaroundPlanSource;
+    return clone;
+  });
+  continuation.partGraph = continuation.partGraph.map((node) => ({ ...node, is_active: true }));
+
+  song.sections = [section, continuation];
   return song;
 }
 
@@ -165,7 +184,16 @@ describe("resolveFirstTurnaroundPlan", () => {
     ];
     earlier.timeRange = { start: 8, end: 24 };
     earlier.partGraph = [{ role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: [] }];
-    song.sections = [song.sections[0]!, earlier];
+    const continuation = structuredClone(earlier);
+    continuation.id = "chorus-after-early-turnaround";
+    continuation.timeRange = { start: 24, end: 25 };
+    continuation.roles = continuation.roles.map((role) => {
+      const clone = { ...role };
+      delete clone.turnaroundPlan;
+      delete clone.turnaroundPlanSource;
+      return clone;
+    });
+    song.sections = [song.sections[0]!, earlier, continuation];
 
     const resolved = resolveFirstTurnaroundPlan(song);
     expect(resolved?.section.id).toBe("verse-early");
@@ -178,7 +206,8 @@ describe("resolveFirstTurnaroundPlan", () => {
     const song = withTurnaroundSection({ id: "ä-turnaround", start: 10, end: 26 });
     const ascii = structuredClone(song.sections[0]!);
     ascii.id = "z-turnaround";
-    song.sections = [song.sections[0]!, ascii];
+    const continuation = song.sections[1]!;
+    song.sections = [song.sections[0]!, ascii, continuation];
 
     expect(resolveFirstTurnaroundPlan(song)?.section.id).toBe("z-turnaround");
   });
@@ -203,6 +232,14 @@ describe("resolveFirstTurnaroundPlan", () => {
       { role_id: "keys-right", is_active: true, handoff_to: [], handoff_from: [] },
       { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: [] }
     ];
+    const continuation = song.sections[1]!;
+    continuation.roles = section.roles.map((role) => {
+      const clone = { ...role };
+      delete clone.turnaroundPlan;
+      delete clone.turnaroundPlanSource;
+      return clone;
+    });
+    continuation.partGraph = section.partGraph.map((node) => ({ ...node }));
 
     expect(resolveFirstTurnaroundPlan(song)?.landingRole.id).toBe("lead-vocal");
     expect(resolveFirstTurnaroundPlan(song)?.turnaroundPlan).toBe("High-priority turnaround.");
@@ -222,6 +259,14 @@ describe("resolveFirstTurnaroundPlan", () => {
       { role_id: "ä-role", is_active: true, handoff_to: [], handoff_from: [] },
       { role_id: "z-role", is_active: true, handoff_to: [], handoff_from: [] }
     ];
+    const continuation = song.sections[1]!;
+    continuation.roles = section.roles.map((role) => {
+      const clone = { ...role };
+      delete clone.turnaroundPlan;
+      delete clone.turnaroundPlanSource;
+      return clone;
+    });
+    continuation.partGraph = section.partGraph.map((node) => ({ ...node }));
 
     expect(resolveFirstTurnaroundPlan(song)?.landingRole.id).toBe("z-role");
     expect(resolveFirstTurnaroundPlan(song)?.turnaroundPlan).toBe("ASCII turnaround.");
