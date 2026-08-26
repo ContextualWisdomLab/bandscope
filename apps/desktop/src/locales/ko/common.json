@@ -159,5 +159,11 @@
   "firstHandoffArmed": "{at}에서 {role} 패스를 받으세요. 다음 파트를 잡으세요.",
   "firstHandoffArmedBand": "{at}에서 패스를 받으세요. 다음 파트를 잡으세요.",
   "firstHandoffUnavailable": "아직 핸드오프가 없습니다. 패스가 표시될 때까지 오늘 지도에 머무르세요.",
-  "firstHandoffNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 핸드오프를 들으세요."
+  "firstHandoffNeedsSong": "먼저 오늘 곡을 분석한 다음, 이 플레이어에서 첫 핸드오프를 들으세요.",
+  "workspaceFirstRangeTitle": "오늘 먼저 볼 음역",
+  "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
+  "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
+  "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "sectionRangeLabel": "음역",
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
