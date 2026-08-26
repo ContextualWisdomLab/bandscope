@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SECTION_TIME_SECONDS, createDemoRehearsalSong } from "@bandscope/shared-types";
+import {
+  MAX_SECTION_TIME_SECONDS,
+  createDemoRehearsalSong,
+  type SectionFormLabel
+} from "@bandscope/shared-types";
 import { formatVampPlanTime, resolveFirstVampPlan } from "./firstVampPlan";
 
 const DEMO_VAMP_PLAN =
@@ -11,7 +15,7 @@ function withVampSection(
     start?: number;
     end?: number;
     vampPlan?: string;
-    label?: "intro" | "verse" | "pre-chorus" | "chorus" | "bridge" | "outro" | "tag" | "pickup" | "stop" | "handoff";
+    label?: SectionFormLabel;
     roleId?: string;
     roleName?: string;
     priority?: "low" | "medium" | "high";
