@@ -69,6 +69,11 @@ describe("export sanitization", () => {
 
       expect(escapeCsvField("\x00=1+2")).toBe("'\x00=1+2");
       expect(escapeCsvField(" \x00@cmd")).toBe("' \x00@cmd");
+
+      // Form feed and vertical tab are dangerous spreadsheet tokens, not
+      // ignorable whitespace: they must trigger the quote prefix.
+      expect(escapeCsvField("\f=1+2")).toBe("'\f=1+2");
+      expect(escapeCsvField("\v=1+2")).toBe("'\v=1+2");
     });
 
     it("treats leading spreadsheet control tokens as dangerous on their own", () => {
@@ -77,6 +82,8 @@ describe("export sanitization", () => {
       expect(escapeCsvField("\rSAFE")).toBe("\"'\rSAFE\"");
       expect(escapeCsvField("\nSAFE")).toBe("\"'\nSAFE\"");
       expect(escapeCsvField("\x00SAFE")).toBe("'\x00SAFE");
+      expect(escapeCsvField("\fSAFE")).toBe("'\fSAFE");
+      expect(escapeCsvField("\vSAFE")).toBe("'\vSAFE");
     });
 
     it("prevents full-width spreadsheet formula-prefix bypasses", () => {

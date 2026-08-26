@@ -14,10 +14,11 @@ import {
 // 2. CSV formula injection prevention (fields starting with spreadsheet formula operators must be prefixed with a single quote).
 
 // Skip only Unicode spacing separators and BOM while locating the first effective
-// spreadsheet token. TAB/CR/LF/NUL are themselves dangerous prefixes and must not
-// be consumed as ordinary whitespace before the final trigger check.
+// spreadsheet token. TAB/CR/LF/FF/VT/NUL are themselves dangerous spreadsheet
+// prefixes and must not be consumed as ordinary whitespace before the final
+// trigger check.
 // eslint-disable-next-line no-control-regex
-const DANGEROUS_CSV_PREFIX = /^[\p{Zs}\uFEFF]*[=+\-@＝＋－＠\t\r\n\x00]/u;
+const DANGEROUS_CSV_PREFIX = /^[\p{Zs}\uFEFF]*[=+\-@＝＋－＠\t\r\n\f\v\x00]/u;
 
 /** Documented. */
 export function sanitizeFilename(title: string): string {
