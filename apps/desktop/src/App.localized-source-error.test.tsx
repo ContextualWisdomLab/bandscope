@@ -1,6 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+
+// App mounts the Score surface, whose pdf.js bridge depends on browser canvas
+// globals such as DOMMatrix that jsdom does not provide. This regression only
+// exercises source-selection localization, so isolate that unrelated boundary
+// exactly as the canonical App suite does.
+vi.mock("./features/score/pdfjs", () => ({
+  configureScorePdfWorker: vi.fn(),
+  loadScorePdf: vi.fn(() => ({
+    promise: Promise.resolve({ numPages: 1, getPage: vi.fn() }),
+    destroy: vi.fn(() => Promise.resolve())
+  }))
+}));
 
 const originalLanguage = navigator.language;
 const originalInternals = window.__TAURI_INTERNALS__;
