@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import json
 import os
-import pathlib
 import stat
 
 import pytest
@@ -139,24 +138,26 @@ def test_job_file_open_requests_nonblocking_mode_when_supported(
 
 
 def test_job_file_open_requests_binary_mode_when_supported(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
-    """Ensure O_BINARY is requested where available to prevent silent CRLF translation."""
-    monkeypatch.setattr(os, "O_BINARY", 0x8000, raising=False)
-    file_path = tmp_path / "job.json"
-    file_path.write_text("{}")
+    """Windows-style file authority must request binary descriptor semantics."""
+    binary_mode = 1 << 29
+    path = tmp_path / "job.json"
+    expected = b'{"jobId":"job","request":{}}'
+    path.write_bytes(expected)
+    observed_flags: int | None = None
+    original_os_open = cli.os.open
 
-    open_calls = []
-    original_open = os.open
+    def tracking_os_open(path_value: str, flags: int, mode: int = 0o777) -> int:
+        """Capture modeled Windows flags without passing the synthetic bit to this host."""
+        nonlocal observed_flags
+        observed_flags = flags
+        return original_os_open(path_value, flags & ~binary_mode, mode)
 
-    def mock_open(path: str, flags: int, *args: object, **kwargs: object) -> int:
-        open_calls.append((path, flags))
-        return original_open(path, flags, *args, **kwargs)  # type: ignore[arg-type,misc,unused-ignore]
+    monkeypatch.setattr(cli.os, "O_BINARY", binary_mode, raising=False)
+    monkeypatch.setattr(cli.os, "open", tracking_os_open)
 
-    monkeypatch.setattr(os, "open", mock_open)
-
-    cli._read_bounded_job_file(str(file_path))
-
-    assert len(open_calls) == 1
-    _, flags = open_calls[0]
-    assert flags & 0x8000 == 0x8000
+    assert cli._read_bounded_job_file(str(path)) == expected
+    assert observed_flags is not None
+    assert observed_flags & binary_mode == binary_mode
