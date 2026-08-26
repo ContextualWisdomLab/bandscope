@@ -5,7 +5,7 @@ import { FirstEntranceCallout } from "./FirstEntranceCallout";
 
 function appendSongStructureTarget() {
   const grid = document.createElement("div");
-  grid.dataset.testid = "song-structure-grid";
+  grid.id = "workspace-song-structure-grid";
   const target = document.createElement("div");
   const scrollIntoView = vi.fn();
   Object.defineProperty(target, "scrollIntoView", {
