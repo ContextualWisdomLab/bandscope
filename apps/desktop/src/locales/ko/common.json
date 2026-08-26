@@ -148,5 +148,12 @@
   "practiceProgressRegionLabel": "연습 진척도",
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
-  "increasePracticeProgressLabel": "진척도 증가"
+  "increasePracticeProgressLabel": "진척도 증가",
+  "firstTurnaroundPlanLabel": "오늘 첫 턴어라운드 계획",
+  "firstTurnaroundPlanOpenAction": "{at} {role} 턴어라운드 열기",
+  "firstTurnaroundPlanBody": "{at} {section}에서 {role} 파트의 턴어라운드 계획이 있습니다.",
+  "firstTurnaroundPlanArmed": "{at}에서 {role} 파트의 턴어라운드를 맞춘 다음 합주를 시작하세요.",
+  "firstTurnaroundPlanGeneratedGuidance": "{target} 파트와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.",
+  "firstTurnaroundPlanGeneratedBandGuidance": "나머지 밴드와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.",
+  "firstTurnaroundPlanUnavailable": "사용 가능한 턴어라운드 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
 }

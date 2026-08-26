@@ -148,5 +148,12 @@
   "practiceProgressRegionLabel": "Practice Progress",
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
-  "increasePracticeProgressLabel": "Increase progress"
+  "increasePracticeProgressLabel": "Increase progress",
+  "firstTurnaroundPlanLabel": "Tonight's first turnaround plan",
+  "firstTurnaroundPlanOpenAction": "Open {role} turnaround at {at}",
+  "firstTurnaroundPlanBody": "{role} has a shared turnaround in the {section} at {at}.",
+  "firstTurnaroundPlanArmed": "Turn those last bars on {role} at {at} before the next section lands.",
+  "firstTurnaroundPlanGeneratedGuidance": "Turn these last bars with {target}; land the downbeat together.",
+  "firstTurnaroundPlanGeneratedBandGuidance": "Turn these last bars with the rest of the band; land the downbeat together.",
+  "firstTurnaroundPlanUnavailable": "No turnaround plan is available. Stay on tonight's map for the next rehearsal cue."
 }
