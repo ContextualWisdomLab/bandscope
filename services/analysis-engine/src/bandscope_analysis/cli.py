@@ -197,9 +197,7 @@ def main() -> int:
                     json.dump(failed_cli_response("Job input must be valid UTF-8"), sys.stdout)
                     return 1
                 if len(input_bytes) > MAX_JSON_FILE_SIZE:
-                    logger.warning(
-                        "Security: rejected input exceeding maximum size limit: %s", "cli_arg"
-                    )
+                    logger.warning("Security: rejected oversized input: %s", "cli_arg")
                     json.dump(
                         failed_cli_response("Job input exceeds maximum size limit"), sys.stdout
                     )
@@ -208,10 +206,7 @@ def main() -> int:
                 try:
                     input_bytes = _read_bounded_job_file(input_data)
                     if len(input_bytes) > MAX_JSON_FILE_SIZE:
-                        logger.warning(
-                            "Security: rejected job file exceeding maximum size limit: %s",
-                            input_data,
-                        )
+                        logger.warning("Security: rejected oversized file: %s", input_data)
                         json.dump(
                             failed_cli_response("Job file exceeds maximum size limit"),
                             sys.stdout,
