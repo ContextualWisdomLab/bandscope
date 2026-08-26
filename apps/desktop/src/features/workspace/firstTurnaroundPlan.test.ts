@@ -27,6 +27,10 @@ function withTurnaroundSection(
   section.groove = "Straight eighths with a late snare feel";
   section.timeRange = { start: overrides.start ?? 10, end: overrides.end ?? 30 };
   const roleId = overrides.roleId ?? "lead-vocal";
+  const companionRoleId = roleId === "bass-guitar" ? "lead-vocal" : "bass-guitar";
+  const companionRole = structuredClone(verse.roles.find((role) => role.id === companionRoleId)!);
+  delete companionRole.turnaroundPlan;
+  delete companionRole.turnaroundPlanSource;
   section.roles = [
     {
       ...verse.roles[2]!,
@@ -52,12 +56,19 @@ function withTurnaroundSection(
       },
       turnaroundPlan: overrides.turnaroundPlan ?? DEMO_TURNAROUND_PLAN,
       manualOverrides: []
-    }
+    },
+    companionRole
   ];
   section.partGraph = [
     {
       role_id: roleId,
       is_active: overrides.isActive ?? true,
+      handoff_to: [],
+      handoff_from: []
+    },
+    {
+      role_id: companionRole.id,
+      is_active: true,
       handoff_to: [],
       handoff_from: []
     }
@@ -172,6 +183,9 @@ describe("resolveFirstTurnaroundPlan", () => {
       turnaroundPlan: "Late turnaround."
     });
     const earlier = structuredClone(song.sections[0]!);
+    const earlierCompanion = structuredClone(earlier.roles[1]!);
+    delete earlierCompanion.turnaroundPlan;
+    delete earlierCompanion.turnaroundPlanSource;
     earlier.id = "verse-early";
     earlier.roles = [
       {
@@ -180,10 +194,14 @@ describe("resolveFirstTurnaroundPlan", () => {
         name: "Lead Vocal",
         rehearsalPriority: "low",
         turnaroundPlan: "Earlier turnaround."
-      }
+      },
+      earlierCompanion
     ];
     earlier.timeRange = { start: 8, end: 24 };
-    earlier.partGraph = [{ role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: [] }];
+    earlier.partGraph = [
+      { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: [] },
+      { role_id: earlierCompanion.id, is_active: true, handoff_to: [], handoff_from: [] }
+    ];
     const continuation = structuredClone(earlier);
     continuation.id = "chorus-after-early-turnaround";
     continuation.timeRange = { start: 24, end: 25 };
@@ -305,8 +323,16 @@ describe("resolveFirstTurnaroundPlan", () => {
 
   it("skips non-object roles and graph nodes without inventing a landing part", () => {
     const song = withTurnaroundSection();
-    song.sections[0]!.roles = [null as never, song.sections[0]!.roles[0]!];
-    song.sections[0]!.partGraph = [null as never, song.sections[0]!.partGraph[0]!];
+    song.sections[0]!.roles = [
+      null as never,
+      song.sections[0]!.roles[0]!,
+      song.sections[0]!.roles[1]!
+    ];
+    song.sections[0]!.partGraph = [
+      null as never,
+      song.sections[0]!.partGraph[0]!,
+      song.sections[0]!.partGraph[1]!
+    ];
     expect(resolveFirstTurnaroundPlan(song)?.landingRole.id).toBe("lead-vocal");
   });
 
