@@ -91,8 +91,8 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByText(/Focus: 벌스\./)).toBeTruthy();
-    expect(screen.queryByText(/Focus: verse\./)).toBeNull();
+    expect(screen.getByText(/집중: 벌스\./)).toBeTruthy();
+    expect(screen.queryByText(/Focus: 벌스\./)).toBeNull();
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {

@@ -49,6 +49,7 @@
   "workspaceTranspositionLabel": "전조 / 단순화",
   "workspaceStemsLabel": "스템",
   "workspaceRehearsalPrioritiesLabel": "합주 우선순위",
+  "workspaceRehearsalPrioritiesFocusPrefix": "집중:",
   "workspaceRolesHarmonyLabel": "역할과 화성",
   "sectionRoadmapTitle": "구간 흐름",
   "sectionRoadmapScrollHint": "더 많은 구간은 옆으로 스크롤하세요 →",

@@ -342,7 +342,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {focusSummary}.
+                {t("workspaceRehearsalPrioritiesFocusPrefix")} {focusSummary}.
               </p>
             </section>
           </div>

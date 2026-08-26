@@ -39,7 +39,7 @@ describe("FirstTranspositionPlanCallout", () => {
 
     expect(
       screen.getByText(
-        "Nothing still has a transpose plan. Stay on tonight's map until a part owns rehearsal-facing transpose copy."
+        "No part has a transpose plan yet. Keep working from tonight's map until one appears."
       )
     ).toBeTruthy();
   });
@@ -232,7 +232,7 @@ describe("FirstTranspositionPlanCallout", () => {
     expect(screen.queryByRole("button")).toBeNull();
     expect(
       screen.getByText(
-        "Nothing still has a transpose plan. Stay on tonight's map until a part owns rehearsal-facing transpose copy."
+        "No part has a transpose plan yet. Keep working from tonight's map until one appears."
       )
     ).toBeTruthy();
   });

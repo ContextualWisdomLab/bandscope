@@ -49,6 +49,7 @@
   "workspaceTranspositionLabel": "Transpose / simplify",
   "workspaceStemsLabel": "Stems",
   "workspaceRehearsalPrioritiesLabel": "Rehearsal Priorities",
+  "workspaceRehearsalPrioritiesFocusPrefix": "Focus:",
   "workspaceRolesHarmonyLabel": "Roles & Harmony",
   "sectionRoadmapTitle": "Section Roadmap",
   "sectionRoadmapScrollHint": "Scroll for more sections →",
@@ -153,5 +154,5 @@
   "firstTranspositionPlanOpenAction": "Open {role} transpose at {at}",
   "firstTranspositionPlanBody": "{role} still has a transpose plan in the {section} at {at}.",
   "firstTranspositionPlanArmed": "Lock that transpose on {role} at {at} before the room starts.",
-  "firstTranspositionPlanUnavailable": "Nothing still has a transpose plan. Stay on tonight's map until a part owns rehearsal-facing transpose copy."
+  "firstTranspositionPlanUnavailable": "No part has a transpose plan yet. Keep working from tonight's map until one appears."
 }
