@@ -242,3 +242,20 @@ def test_role_extractor_keeps_mixed_entrances_vamp_plan_ambiguous() -> None:
 
     verse_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
     assert "vampPlan" not in verse_roles["bass-guitar"]
+
+
+def test_activity_vamp_plan_rejects_unknown_activating_role() -> None:
+    """Fail closed when activity names a role absent from the rehearsal role catalog."""
+    extractor = RoleExtractor()
+    empty_range = {"lowestNote": "", "highestNote": ""}
+    roles = extractor._build_roles("", empty_range, "", empty_range)
+
+    assert (
+        extractor._activity_vamp_plan(
+            "bass-guitar",
+            roles,
+            {"bass-guitar": True, "unmodeled-role": False},
+            {"bass-guitar": True, "unmodeled-role": True},
+        )
+        is None
+    )
