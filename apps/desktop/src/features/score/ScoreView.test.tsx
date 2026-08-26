@@ -33,6 +33,8 @@ vi.mock("../../i18n", () => ({
       scoreAttachFailed: "Could not attach the score PDF.",
       scoreReadFailed: "Could not open the score PDF.",
       scoreRemoveFailed: "Could not remove the score PDF.",
+      scoreDesktopOnly: "Score PDFs are only available in the desktop app.",
+      scoreInvalidResponse: "The score could not be prepared. Try adding it again.",
       scoreRequiresProject: "Scores attach to the active analysis project."
     })[key] ?? key,
   detectPreferredLocale: () => "en"
