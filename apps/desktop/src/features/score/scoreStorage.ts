@@ -15,7 +15,7 @@ type TauriBridgeWindow = Window & {
 export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
-const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
+const INVALID_RESPONSE_MESSAGE = "The score could not be prepared. Try adding it again.";
 
 /**
  * Resolve the desktop invoke bridge following the same detection rules as

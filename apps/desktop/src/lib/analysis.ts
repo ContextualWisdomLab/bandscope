@@ -29,12 +29,13 @@ declare global {
 
 const browserJobStore = new Map<string, AnalysisJobStatus>();
 const BROWSER_PROGRESS_STEPS = [
-  { progressLabel: "Decoding audio", progressStage: "decode", progressPercent: 20 },
-  { progressLabel: "Separating stems... (45%)", progressStage: "separate", progressPercent: 45 },
+  { progressLabel: "Reading your track", progressStage: "decode", progressPercent: 20 },
+  { progressLabel: "Separating stems", progressStage: "separate", progressPercent: 45 },
   { progressLabel: "Building rehearsal cues", progressStage: "analyze", progressPercent: 70 },
-  { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
+  { progressLabel: "Preparing results for next time", progressStage: "persist", progressPercent: 90 }
 ] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
+const YOUTUBE_LINK_GUIDANCE_MESSAGE = "Use a standard YouTube video link (youtube.com/watch or youtu.be).";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   "Could not read the selected audio file.",
@@ -182,7 +183,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
 
   if (command === "import_youtube_url") {
     if (!isSupportedYoutubeUrl(args?.url)) {
-      throw new Error("Only standard YouTube URLs are supported.");
+      throw new Error(YOUTUBE_LINK_GUIDANCE_MESSAGE);
     }
 
     const projectId = "browser-youtube-project";
@@ -201,10 +202,10 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   }
 
   if (command === "load_project") {
-    throw new Error("Local load not supported in browser");
+    throw new Error("Projects open in the BandScope desktop app.");
   }
 
-  throw new Error(`Unknown analysis bridge command: ${command}`);
+  throw new Error("This action is not available right now.");
 }
 
 /** Documented. */
@@ -319,7 +320,7 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       ok: false,
       error: {
         code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
+        message: YOUTUBE_LINK_GUIDANCE_MESSAGE
       }
     };
   }

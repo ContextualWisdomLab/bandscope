@@ -210,6 +210,11 @@ function sectionCountDetail(t: ReturnType<typeof createTranslator>, sectionCount
 function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnType<typeof createTranslator> }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
+  const confidenceShortKeys = {
+    low: "confidenceShortLow",
+    medium: "confidenceShortMedium",
+    high: "confidenceShortHigh"
+  } as const satisfies Record<RehearsalSong["sections"][number]["confidence"]["level"], TranslationKey>;
 
   // Performance: Avoid O(N) array scan with .reduce() to find minimum confidence.
   // Instead use a for loop that can early exit (O(K)) as soon as the lowest bound ("low") is hit.
@@ -224,7 +229,7 @@ function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnTy
       }
     }
   }
-  const confidence = lowestConfidence ? `${lowestConfidence[0].toUpperCase()}${lowestConfidence.slice(1)}` : t("metricConfidenceReady");
+  const confidence = lowestConfidence ? t(confidenceShortKeys[lowestConfidence]) : t("metricConfidenceReady");
   const detail = sectionCountDetail(t, sectionCount);
 
   return (

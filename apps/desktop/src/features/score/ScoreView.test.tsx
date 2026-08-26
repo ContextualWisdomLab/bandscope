@@ -153,7 +153,7 @@ describe("ScoreView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add score" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid score bridge response");
+    expect(await screen.findByRole("alert")).toHaveTextContent("The score could not be prepared. Try adding it again.");
   });
 
   it("opens an existing attachment through the read command", async () => {
@@ -216,7 +216,7 @@ describe("ScoreView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not open the score PDF. Invalid score bridge response"
+      "Could not open the score PDF. The score could not be prepared. Try adding it again."
     );
   });
 
@@ -289,7 +289,7 @@ describe("ScoreView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid score bridge response");
+    expect(await screen.findByRole("alert")).toHaveTextContent("The score could not be prepared. Try adding it again.");
   });
 
   it("fails closed when no desktop bridge is available", async () => {

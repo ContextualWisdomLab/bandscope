@@ -299,7 +299,7 @@ describe("App", () => {
       expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
     });
     expect(screen.getByText(/Roles & Harmony/i)).toBeTruthy();
-    expect(screen.getByText(/Stems/i)).toBeTruthy();
+    expect(screen.getByText("Stems")).toBeTruthy();
     expect(screen.getByText(/Rehearsal Priorities/i)).toBeTruthy();
     expect(screen.getByText(/Export Cue Sheet/i)).toBeTruthy();
   });
@@ -644,7 +644,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert").textContent).toMatch(/analysis could not start/i);
     });
-    expect(screen.getAllByRole("status").some((status) => /analysis failed during execution/i.test(status.textContent ?? ""))).toBe(true);
+    expect(screen.getAllByRole("status").some((status) => /stopped partway through/i.test(status.textContent ?? ""))).toBe(true);
   });
 
   it("holds a terminal progress value immediately for pushed failed statuses", async () => {
