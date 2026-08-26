@@ -44,7 +44,7 @@ function stableArticulationPlanSongIdentity(song: RehearsalSong): unknown {
 }
 
 /** Interpolate articulation-plan placeholders once so rehearsal data is never rescanned as template syntax. */
-function formatArticulationPlanCopy(template: string, values: ArticulationPlanCopyValues): string {
+export function formatArticulationPlanCopy(template: string, values: ArticulationPlanCopyValues): string {
   return template.replace(/\{(role|section|at)\}/g, (placeholder) => {
     const key = placeholder.slice(1, -1) as keyof ArticulationPlanCopyValues;
     return values[key] ?? placeholder;

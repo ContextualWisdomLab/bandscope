@@ -40,4 +40,35 @@ describe("FirstArticulationPlanCallout reduced motion", () => {
 
     grid.remove();
   });
+
+  it("keeps smooth scrolling when matchMedia exists but motion is not reduced", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
+
+    const grid = document.createElement("div");
+    grid.dataset.testid = "song-structure-grid";
+    const target = document.createElement("div");
+    target.dataset.sectionIndex = "0";
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+    grid.appendChild(target);
+    document.body.appendChild(grid);
+
+    render(<FirstArticulationPlanCallout song={createDemoRehearsalSong()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar articulation at 0:10" }));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+
+    grid.remove();
+  });
 });
