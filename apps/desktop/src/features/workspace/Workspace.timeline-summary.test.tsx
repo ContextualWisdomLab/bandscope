@@ -17,7 +17,7 @@ describe("Workspace song timeline summary", () => {
     setNavigatorLanguage(originalLanguage);
   });
 
-  it("uses singular English copy for a one-section song", () => {
+  it("uses cardinal-safe English copy for a one-section song", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections = song.sections.slice(0, 1);
@@ -25,7 +25,9 @@ describe("Workspace song timeline summary", () => {
     render(<Workspace song={song} />);
 
     expect(
-      screen.getByText("1 section mapped with groove, role cues, and chord confidence notes.")
+      screen.getByText(
+        "Sections mapped: 1. Use the groove, role cues, and chord confidence notes to plan the first pass."
+      )
     ).toBeTruthy();
   });
 });
