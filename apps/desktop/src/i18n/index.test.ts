@@ -91,5 +91,18 @@ describe("i18n", () => {
       expect(t("firstApprovalBody")).toBe("{owner}님이 {at} {section}의 {scope} 승인을 기다리고 있습니다.");
       expect(t("firstApprovalArmed")).toBe("{at} {section}에서 {scope} 승인을 이어서 하세요.");
     });
+
+    it("never attaches the Korean object particle directly to the free-text approval scope", () => {
+      const t = createTranslator("ko");
+      // The scope is owner-supplied free text whose final character can end in
+      // either a vowel or a consonant, so object particles attach to a fixed
+      // Korean noun instead of the interpolated scope.
+      expect(t("firstApprovalBodyChanges")).toBe(
+        "{owner}님이 {at} {section}의 {scope} 부분을 다시 봐 달라고 했습니다."
+      );
+      expect(t("firstApprovalBodyChangesBand")).toBe(
+        "{owner}님이 {scope} 부분을 다시 봐 달라고 했습니다."
+      );
+    });
   });
 });
