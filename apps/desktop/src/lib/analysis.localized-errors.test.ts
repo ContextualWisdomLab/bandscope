@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { importYoutubeUrl, loadProject, selectLocalAudioSource } from "./analysis";
+import {
+  getAnalysisJobStatus,
+  importYoutubeUrl,
+  loadProject,
+  selectLocalAudioSource
+} from "./analysis";
 
 const originalLanguage = navigator.language;
 const originalInternals = window.__TAURI_INTERNALS__;
@@ -31,20 +36,23 @@ describe("analysis buyer-visible fallback localization", () => {
     }
   });
 
-  it("maps allowlisted local preparation errors to Korean next-action guidance", async () => {
+  it.each([
+    ["Could not read the selected audio file.", "선택한 오디오 파일을 읽을 수 없습니다. 파일을 다시 선택해 주세요."],
+    ["Could not prepare the local project workspace.", "프로젝트 작업 공간을 준비할 수 없습니다. 저장 위치를 확인한 뒤 다시 시도해 주세요."],
+    ["Could not prepare the local cache workspace.", "분석 캐시를 준비할 수 없습니다. 잠시 후 다시 시도해 주세요."],
+    ["Could not prepare the local temp workspace.", "분석 임시 공간을 준비할 수 없습니다. 잠시 후 다시 시도해 주세요."]
+  ])("preserves distinct Korean next actions for safe local failure %s", async (bridgeMessage, expected) => {
     setNavigatorLanguage("ko-KR");
     window.__TAURI_INTERNALS__ = undefined;
     window.__TAURI_INVOKE__ = async () => {
-      throw new Error("Could not read the selected audio file.");
+      throw new Error(bridgeMessage);
     };
 
     const result = await selectLocalAudioSource();
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.message).toBe(
-        "분석을 시작할 수 없습니다. 선택한 오디오나 유튜브 링크를 확인한 뒤 다시 시도해 주세요."
-      );
+      expect(result.error.message).toBe(expected);
     }
   });
 
@@ -64,6 +72,20 @@ describe("analysis buyer-visible fallback localization", () => {
       );
       expect(result.error.message).not.toContain("sensitive implementation detail");
     }
+  });
+
+  it("describes an unknown browser analysis job as not found", async () => {
+    setNavigatorLanguage("ko-KR");
+    window.__TAURI_INTERNALS__ = undefined;
+    window.__TAURI_INVOKE__ = undefined;
+
+    const status = await getAnalysisJobStatus("missing-job");
+
+    expect(status.state).toBe("failed");
+    expect(status.error?.code).toBe("not_found");
+    expect(status.error?.message).toBe(
+      "해당 분석 작업을 찾을 수 없습니다. 분석을 다시 시작해 주세요."
+    );
   });
 
   it("keeps the browser project fallback in Korean", async () => {
