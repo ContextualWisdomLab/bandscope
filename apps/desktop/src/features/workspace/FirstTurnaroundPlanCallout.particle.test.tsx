@@ -60,7 +60,8 @@ describe("FirstTurnaroundPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        turnaroundPlan: "Turn these last bars with Lead Vocal; land the downbeat together."
+        turnaroundPlan: "Turn these last bars with Lead Vocal; land the downbeat together.",
+        turnaroundPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -68,7 +69,7 @@ describe("FirstTurnaroundPlanCallout Korean role copy", () => {
     render(<FirstTurnaroundPlanCallout song={song} />);
 
     expect(
-      screen.getByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 마지막 박 뒤로 남기지 마세요.")
+      screen.getByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.")
     ).toBeTruthy();
     expect(
       screen.queryByText("Turn these last bars with Lead Vocal; land the downbeat together.")
@@ -85,7 +86,8 @@ describe("FirstTurnaroundPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        turnaroundPlan: "Turn these last bars with the rest of the band; land the downbeat together."
+        turnaroundPlan: "Turn these last bars with the rest of the band; land the downbeat together.",
+        turnaroundPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -93,7 +95,7 @@ describe("FirstTurnaroundPlanCallout Korean role copy", () => {
     render(<FirstTurnaroundPlanCallout song={song} />);
 
     expect(
-      screen.getByText("나머지 밴드와 이 턴어라운드를 맞추세요. 마지막 박 뒤로 남기지 마세요.")
+      screen.getByText("나머지 밴드와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.")
     ).toBeTruthy();
     expect(
       screen.queryByText("Turn these last bars with the rest of the band; land the downbeat together.")
@@ -111,7 +113,8 @@ describe("FirstTurnaroundPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        turnaroundPlan: `Turn these last bars with ${targetRole}; land the downbeat together.`
+        turnaroundPlan: `Turn these last bars with ${targetRole}; land the downbeat together.`,
+        turnaroundPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -122,7 +125,7 @@ describe("FirstTurnaroundPlanCallout Korean role copy", () => {
     expect(
       screen.getByText(
         (content) =>
-          content.startsWith("Lead-") && content.endsWith("파트와 이 턴어라운드를 맞추세요. 마지막 박 뒤로 남기지 마세요.")
+          content.startsWith("Lead-") && content.endsWith("파트와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.")
       )
     ).toBeTruthy();
   });

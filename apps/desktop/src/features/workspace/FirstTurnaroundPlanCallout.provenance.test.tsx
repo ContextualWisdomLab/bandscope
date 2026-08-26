@@ -29,7 +29,7 @@ describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
 
     expect(screen.getByText(customPlan)).toBeTruthy();
     expect(
-      screen.queryByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 마지막 박 뒤로 남기지 마세요.")
+      screen.queryByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.")
     ).toBeNull();
   });
 
@@ -53,7 +53,7 @@ describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
 
     expect(screen.getByText(legacyPlan)).toBeTruthy();
     expect(
-      screen.queryByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 마지막 박 뒤로 남기지 마세요.")
+      screen.queryByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.")
     ).toBeNull();
   });
 
@@ -77,7 +77,7 @@ describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
     render(<FirstTurnaroundPlanCallout song={song} />);
 
     expect(
-      screen.getByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 마지막 박 뒤로 남기지 마세요.")
+      screen.getByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.")
     ).toBeTruthy();
     expect(screen.queryByText(generatedPlan)).toBeNull();
   });
