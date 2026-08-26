@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_SHA = "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28"
 EXPECTED_VERSION = "v4.37.8"
