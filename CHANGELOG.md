@@ -7,8 +7,13 @@
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
+### Changed
+
+- Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
+
 ### Fixed
 
+- Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 - Stage and sync new project saves before non-clobbering publication, and enforce the existing 5 MiB project limit during the file read itself so a selected project cannot grow past a metadata preflight into an unbounded load allocation.
 - Reject directly selected project symlinks before reading so a chosen `.bscope` path cannot silently redirect the loader to different file content.
 - Reject a symlinked/reparse-point save parent before staging so a selected project path cannot redirect new project publication into a different directory.
@@ -59,3 +64,17 @@
 - Issue #33: Implemented secure local audio intake and project bootstrap
 - Issue #35: Engineered section, form, and cue anchor extraction pipeline
 - Issue #34: Implemented role extraction targets and part graph
+- Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
+- Issue #28: Delivered practical rehearsal workspace UI
+- Issue #27: Supported manual overrides, provenance tracking, and local project persistence
+- Issue #36: Implemented rehearsal priority calculation and cue-sheet (CSV) / chart (JSON) exports
+- Issue #30: Added policy-constrained YouTube import with local fallback
+- Issue #26: Finalized roadmap and prepared application for initial release
+
+## [0.1.4] - 2026-05-15
+
+### 추가됨 (Added)
+
+- `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
+- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
+- 신규 UI 요소에 대한 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
