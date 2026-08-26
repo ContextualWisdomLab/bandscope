@@ -402,7 +402,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
                     >
-                      {t("transcribeBassLabel")}
+                      {`${activeRoleDetails?.name ?? activeRole} · ${t("comingSoon")}`}
                     </Button>
                   )}
                 </div>
