@@ -90,7 +90,7 @@ describe("Workspace review regressions", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "Set up {low}: Tune down a whole step. Then start in C#2–E3 on tonight's map"
+        name: "Set up {low} · then start in C#2–E3. Setup: Tune down a whole step. Use tonight's map"
       })
     ).toBeEnabled();
   });
