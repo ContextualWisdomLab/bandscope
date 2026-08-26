@@ -103,7 +103,7 @@
   "youtubePlaceholder": "유튜브 URL...",
   "importYoutube": "유튜브 가져오기",
   "importingYoutube": "가져오는 중...",
-  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다. 표준 유튜브 영상 주소인지 확인한 뒤 다시 시도해 주세요.",
+  "youtubeImportFailed": "유튜브 URL 가져오기에 실패했습니다. 네트워크 연결과 영상 이용 가능 여부를 확인한 뒤 다시 시도해 주세요.",
   "youtubeLinkGuidance": "표준 유튜브 영상 링크(youtube.com/watch 또는 youtu.be)를 사용해 주세요.",
   "brandMarkAriaLabel": "BandScope 원형 이퀄라이저 마크",
   "rehearsalCockpit": "합주 컨트롤룸",
