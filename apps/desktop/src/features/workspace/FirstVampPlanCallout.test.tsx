@@ -15,7 +15,7 @@ function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeli
   timeline.setAttribute("role", "region");
   timeline.setAttribute("aria-label", ariaLabel);
   const grid = document.createElement("div");
-  grid.dataset.testid = "song-structure-grid";
+  grid.id = "workspace-song-structure-grid";
   const target = document.createElement("div");
   target.dataset.sectionIndex = "0";
   const scrollIntoView = vi.fn();
@@ -191,10 +191,10 @@ describe("FirstVampPlanCallout", () => {
     const { container } = render(
       <div>
         <FirstVampPlanCallout song={songWithVampPlan()} />
-        <div data-testid="song-structure-grid">
+        <div id="workspace-song-structure-grid">
           <div data-section-index="0" />
         </div>
-        <div data-testid="song-structure-grid">
+        <div id="workspace-song-structure-grid">
           <div data-section-index="0" />
         </div>
       </div>
