@@ -2000,7 +2000,7 @@ def cargo_lock_has_named_dependency_path(
             next_matched_count += 1
             if next_matched_count == len(package_names):
                 return True
-        next_seen = seen | {current}
+        next_seen = seen | frozenset([current])
         for dependency in package_dependencies.get(current, []):
             pending.append((dependency, next_matched_count, next_seen))
     return False
