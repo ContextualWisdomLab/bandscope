@@ -61,9 +61,18 @@ describe("FirstHitPlanCallout Korean role copy", () => {
         name: "피아노",
         rehearsalPriority: "high",
         hitPlan: "Land this hit with Lead Vocal; don't drift past the downbeat."
+      },
+      {
+        ...seed.roles[2]!,
+        id: "lead-vocal",
+        name: "Lead Vocal",
+        rehearsalPriority: "medium"
       }
     ];
-    seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
+    seed.partGraph = [
+      { role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] },
+      { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: [] }
+    ];
 
     render(<FirstHitPlanCallout song={song} />);
 
@@ -112,9 +121,18 @@ describe("FirstHitPlanCallout Korean role copy", () => {
         name: "피아노",
         rehearsalPriority: "high",
         hitPlan: `Land this hit with ${targetRole}; don't drift past the downbeat.`
+      },
+      {
+        ...seed.roles[2]!,
+        id: "long-part",
+        name: targetRole,
+        rehearsalPriority: "medium"
       }
     ];
-    seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
+    seed.partGraph = [
+      { role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] },
+      { role_id: "long-part", is_active: true, handoff_to: [], handoff_from: [] }
+    ];
 
     render(<FirstHitPlanCallout song={song} />);
 

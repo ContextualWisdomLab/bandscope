@@ -125,7 +125,7 @@ export type ManualOverride =
     source: "user";
   };
 
-/** Documented. */
+/** An active rehearsal role as surfaced on one section of tonight's map. */
 export type RehearsalRole = {
   id: string;
   name: string;
@@ -143,6 +143,7 @@ export type RehearsalRole = {
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
   practiceProgress?: number;
+  /** Optional activity-backed guidance shown for this role in this section; absent when the engine has no hitPlan for it. */
   hitPlan?: string;
 };
 
