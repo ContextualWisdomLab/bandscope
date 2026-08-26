@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
+import tomllib
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -37,8 +37,12 @@ def test_torch_security_policy_matches_supported_platform_contract() -> None:
     """Retire the obsolete torch exception while preserving macOS Intel exclusion."""
     pyproject = PYPROJECT.read_text(encoding="utf-8")
     policy = DEPENDENCY_POLICY.read_text(encoding="utf-8")
+    expected_demucs_requirement = (
+        "\"demucs>=4.0.1 ; sys_platform != 'darwin' "
+        "or platform_machine == 'arm64'\""
+    )
 
-    assert '"demucs>=4.0.1 ; sys_platform != \'darwin\' or platform_machine == \'arm64\'"' in pyproject
+    assert expected_demucs_requirement in pyproject
     assert "GHSA-rrmf-rvhw-rf47" in policy
     assert "torch 2.2.2" not in policy
     assert ".github/workflows/dependency-review.yml" not in policy
