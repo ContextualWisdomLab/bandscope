@@ -78,6 +78,7 @@ def _read_bounded_stdin() -> tuple[str | None, int]:
     else:
         raw_bytes = binary_stdin.read(MAX_JSON_FILE_SIZE + 1)
     if len(raw_bytes) > MAX_JSON_FILE_SIZE:
+        logger.warning("Security: rejected input exceeding maximum size limit: %s", "stdin")
         json.dump(failed_cli_response("Job input exceeds maximum size limit"), sys.stdout)
         return None, 1
     try:
@@ -196,6 +197,9 @@ def main() -> int:
                     json.dump(failed_cli_response("Job input must be valid UTF-8"), sys.stdout)
                     return 1
                 if len(input_bytes) > MAX_JSON_FILE_SIZE:
+                    logger.warning(
+                        "Security: rejected input exceeding maximum size limit: %s", "cli_arg"
+                    )
                     json.dump(
                         failed_cli_response("Job input exceeds maximum size limit"), sys.stdout
                     )
@@ -204,6 +208,10 @@ def main() -> int:
                 try:
                     input_bytes = _read_bounded_job_file(input_data)
                     if len(input_bytes) > MAX_JSON_FILE_SIZE:
+                        logger.warning(
+                            "Security: rejected job file exceeding maximum size limit: %s",
+                            input_data,
+                        )
                         json.dump(
                             failed_cli_response("Job file exceeds maximum size limit"),
                             sys.stdout,
