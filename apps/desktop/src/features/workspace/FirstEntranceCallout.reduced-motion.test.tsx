@@ -5,13 +5,13 @@ import { FirstEntranceCallout } from "./FirstEntranceCallout";
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  document.querySelector('[data-testid="song-structure-grid"]')?.remove();
+  document.querySelector("#workspace-song-structure-grid")?.remove();
 });
 
 /** Mount the renderer-owned song-structure target used by workspace navigation. */
 function appendSongStructureTarget() {
   const grid = document.createElement("div");
-  grid.dataset.testid = "song-structure-grid";
+  grid.id = "workspace-song-structure-grid";
   const target = document.createElement("div");
   const scrollIntoView = vi.fn();
   Object.defineProperty(target, "scrollIntoView", {
