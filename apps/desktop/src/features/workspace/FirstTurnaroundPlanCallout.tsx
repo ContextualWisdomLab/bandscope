@@ -110,9 +110,11 @@ export function FirstTurnaroundPlanCallout({ song }: FirstTurnaroundPlanCalloutP
   const songIdentity = stableTurnaroundPlanSongIdentity(song);
   const named = useMemo(() => resolveFirstTurnaroundPlan(song), [song]);
   const [openedTurnaroundPlan, setOpenedTurnaroundPlan] = useState<OpenedTurnaroundPlan | null>(null);
+  const [navigationFailed, setNavigationFailed] = useState(false);
 
   useEffect(() => {
     setOpenedTurnaroundPlan(null);
+    setNavigationFailed(false);
   }, [
     songIdentity,
     named?.sectionIndex,
@@ -184,8 +186,10 @@ export function FirstTurnaroundPlanCallout({ song }: FirstTurnaroundPlanCalloutP
               `[data-section-index="${named.sectionIndex}"]`
             ) ?? null;
           if (typeof target?.scrollIntoView !== "function") {
+            setNavigationFailed(true);
             return;
           }
+          setNavigationFailed(false);
           target.scrollIntoView({
             block: "nearest",
             behavior: preferredTurnaroundPlanScrollBehavior()
@@ -203,6 +207,11 @@ export function FirstTurnaroundPlanCallout({ song }: FirstTurnaroundPlanCalloutP
       >
         {actionLabel}
       </Button>
+      {navigationFailed ? (
+        <p role="status" className="mt-2 text-sm leading-6 text-amber-200">
+          {t("firstTurnaroundPlanNavigationFailed")}
+        </p>
+      ) : null}
     </aside>
   );
 }
