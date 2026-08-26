@@ -428,6 +428,7 @@ class RoleExtractor:
                 if turnaround_plan is not None:
                     role = role.copy()
                     role["turnaroundPlan"] = turnaround_plan
+                    role["turnaroundPlanSource"] = "model"
                 active_roles.append(role)
 
             part_graph.append(
