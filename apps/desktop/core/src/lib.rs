@@ -191,6 +191,10 @@ pub struct RehearsalRolePayload {
     setup_note: String,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    drop_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    drop_plan_source: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
