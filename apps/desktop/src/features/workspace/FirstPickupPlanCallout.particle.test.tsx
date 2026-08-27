@@ -5,11 +5,13 @@ import { FirstPickupPlanCallout } from "./FirstPickupPlanCallout";
 
 function songWithKoreanPickup(
   pickupPlan: string,
-  pickupPlanSource?: "model" | "user"
+  pickupPlanSource?: "model" | "user",
+  includeBandPartner = false
 ) {
   const song = createDemoRehearsalSong();
   const verse = song.sections[0]!;
   const companion = verse.roles.find((role) => role.id === "bass-guitar")!;
+  const bandPartner = verse.roles.find((role) => role.id === "lead-vocal")!;
   verse.roles = [
     {
       ...verse.roles[2]!,
@@ -19,11 +21,15 @@ function songWithKoreanPickup(
       pickupPlan,
       ...(pickupPlanSource ? { pickupPlanSource } : {})
     },
-    companion
+    companion,
+    ...(includeBandPartner ? [bandPartner] : [])
   ];
   verse.partGraph = [
     { role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] },
-    { role_id: "bass-guitar", is_active: true, handoff_to: [], handoff_from: [] }
+    { role_id: "bass-guitar", is_active: true, handoff_to: [], handoff_from: [] },
+    ...(includeBandPartner
+      ? [{ role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: [] }]
+      : [])
   ];
   const intro = structuredClone(verse);
   intro.id = "intro-1";
@@ -81,38 +87,30 @@ describe("FirstPickupPlanCallout Korean role copy", () => {
     grid.remove();
   });
 
-  it("localizes the analysis-engine pickup template instead of exposing English guidance", () => {
+  it("localizes model pickup guidance from topology instead of the stored English target", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
-    const song = songWithKoreanPickup(
-      "Play this pickup with Lead Vocal; land the downbeat together.",
-      "model"
-    );
+    const storedPlan = "Play this pickup with Lead Vocal; land the downbeat together.";
+    const song = songWithKoreanPickup(storedPlan, "model");
 
     render(<FirstPickupPlanCallout song={song} />);
 
     expect(
-      screen.getByText("Lead Vocal 파트와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.")
+      screen.getByText("Bass Guitar 파트와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.")
     ).toBeTruthy();
-    expect(
-      screen.queryByText("Play this pickup with Lead Vocal; land the downbeat together.")
-    ).toBeNull();
+    expect(screen.queryByText(storedPlan)).toBeNull();
   });
 
   it("localizes the rest-of-band pickup template instead of exposing English guidance", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
-    const song = songWithKoreanPickup(
-      "Play this pickup with the rest of the band; land the downbeat together.",
-      "model"
-    );
+    const storedPlan = "Play this pickup with the rest of the band; land the downbeat together.";
+    const song = songWithKoreanPickup(storedPlan, "model", true);
 
     render(<FirstPickupPlanCallout song={song} />);
 
     expect(
       screen.getByText("나머지 밴드와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.")
     ).toBeTruthy();
-    expect(
-      screen.queryByText("Play this pickup with the rest of the band; land the downbeat together.")
-    ).toBeNull();
+    expect(screen.queryByText(storedPlan)).toBeNull();
   });
 
   it("preserves the generated template shape when long target names are bounded", () => {
