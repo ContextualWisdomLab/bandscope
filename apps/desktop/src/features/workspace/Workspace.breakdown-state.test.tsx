@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
+
+const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollIntoView"
+);
 
 function analyzedSongWithBreakdownPlan(): RehearsalSong {
   const song = createDemoRehearsalSong();
@@ -30,6 +35,21 @@ function analyzedSongWithBreakdownPlan(): RehearsalSong {
 }
 
 describe("Workspace breakdown state authority", () => {
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn()
+    });
+  });
+
+  afterEach(() => {
+    if (originalScrollIntoView) {
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+  });
+
   it("keeps an opened breakdown armed after an immutable practice-progress update", () => {
     const song = analyzedSongWithBreakdownPlan();
     let updatedSong: RehearsalSong | null = null;
