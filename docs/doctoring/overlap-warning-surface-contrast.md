@@ -18,9 +18,14 @@ The light warning foreground/background pair is chosen to satisfy WCAG 2.2 Succe
 
 ## Design authority status
 
-A fresh metadata read of the configured BandScope Figma file on 2026-08-28 returned only the top-level `00 Cover` page. Historical component nodes referenced by this branch, including `19:239`, are therefore not treated as current Figma evidence. The runtime/Storybook contrast repair is valid and executable, but this UI branch must remain unmerged until the shared Figma component/state authority is restored and verified against both dark and light surfaces.
+The configured BandScope Figma file was freshly re-verified and repaired on 2026-08-28. Page `45:86` (`31 Component Contract Catalog`) now contains a reusable `Overlap Warning List` component set at node `252:19` with `Surface=Dark` and `Surface=Light` variants. Review board `252:2` renders real instances of both variants against the dark rehearsal surface and white Ranges-card surface, and records the exact runtime tokens, accessible list semantics, decorative icon treatment, responsive wrapping, duplicate-warning behavior, and the intentional empty/no-node state.
 
-No Code Connect or Figma publishing requirement is added to CI; the repository design contract remains the executable code/Storybook boundary while Figma drift is repaired in its own design authority.
+The Figma values match the runtime/Storybook contract:
+
+- Dark: background `rgb(251 113 133 / 0.08)`, border `rgb(253 164 175 / 0.2)`, foreground `#FFE4E6`.
+- Light: background `#FFF1F2`, border `#FECDD3`, foreground `#9F1239`.
+
+Older component node references in the broader BandScope catalog remain historical traceability unless their specific node is freshly verified. No Code Connect or Figma publishing requirement is added to CI; Storybook remains the executable design-review boundary and Figma remains the visual/component authority.
 
 ## Verification
 
@@ -29,10 +34,10 @@ Before merge, verify the unchanged exact head with:
 - focused `OverlapWarningList` component tests;
 - Storybook rendering for dark, light, and empty states;
 - the repository's configured Storybook accessibility checks;
-- current live Figma metadata/screenshots for the restored shared warning component; and
+- current live Figma metadata and screenshot evidence for nodes `252:19` and `252:2`; and
 - every required repository and organization check plus qualifying independent human review.
 
-Queued, stale, predecessor-head, model-only, or synthetic evidence is not sufficient.
+Queued, skipped-required, stale, predecessor-head, model-only, self/author, synthetic, or administrative-bypass evidence is not sufficient.
 
 ## Reference
 
