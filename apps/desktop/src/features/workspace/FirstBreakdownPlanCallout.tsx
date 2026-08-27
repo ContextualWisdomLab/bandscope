@@ -15,6 +15,7 @@ import {
 /** Props for the first breakdown-plan rehearsal callout. */
 export interface FirstBreakdownPlanCalloutProps {
   song: RehearsalSong;
+  workspaceInstanceKey?: unknown;
 }
 
 type BreakdownPlanCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
@@ -32,9 +33,12 @@ type OpenedBreakdownPlan = Readonly<{
   atSeconds: number;
 }>;
 
-/** Use the loaded song object as UI-state authority because engine ids can be reused across projects. */
-function stableBreakdownPlanSongIdentity(song: RehearsalSong): unknown {
-  return song;
+/** Prefer the owning workspace instance while preserving direct-call compatibility. */
+function stableBreakdownPlanSongIdentity(
+  song: RehearsalSong,
+  workspaceInstanceKey: unknown
+): unknown {
+  return workspaceInstanceKey ?? song;
 }
 
 /** Interpolate breakdown-plan placeholders once so rehearsal data is never rescanned as template syntax. */
@@ -86,11 +90,14 @@ function resolveBreakdownPlanRenderer(origin: HTMLElement): HTMLElement | null {
 }
 
 /** Name tonight's first breakdown plan and open the matching rendered map section. */
-export function FirstBreakdownPlanCallout({ song }: FirstBreakdownPlanCalloutProps) {
+export function FirstBreakdownPlanCallout({
+  song,
+  workspaceInstanceKey
+}: FirstBreakdownPlanCalloutProps) {
   const calloutId = `workspace-surface-breakdown-plan-${useId()}`;
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
-  const songIdentity = stableBreakdownPlanSongIdentity(song);
+  const songIdentity = stableBreakdownPlanSongIdentity(song, workspaceInstanceKey);
   const named = useMemo(() => resolveFirstBreakdownPlan(song), [song]);
   const [openedBreakdownPlan, setOpenedBreakdownPlan] = useState<OpenedBreakdownPlan | null>(null);
   const [navigationFailed, setNavigationFailed] = useState(false);
