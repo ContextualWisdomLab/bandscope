@@ -4,7 +4,7 @@ This contract connects the BandScope Figma design system to production React com
 
 Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 
-The component links below preserve the last reviewed catalog mapping for traceability. A fresh Figma metadata read on 2026-08-28 returned only the top-level `00 Cover` page, so historical nodes such as `19:239` and the former `31 Component Contract Catalog` are not current design authority. UI changes must keep executable Storybook/component contracts intact and remain unmerged until the shared Figma component/state authority is restored and verified.
+The live design-system authority was re-verified on 2026-08-28. Page `45:86` (`31 Component Contract Catalog`) contains the component-to-code catalog and the current reusable `Overlap Warning List` component set at node `252:19`, with `Surface=Dark` and `Surface=Light` variants. The review board at node `252:2` shows both variants against their intended host surfaces and records exact token values, accessibility semantics, responsive wrapping, duplicate-evidence behavior, and the empty state. Older component links below remain traceability unless their specific node is freshly verified.
 
 ## Canonical Components
 
@@ -27,7 +27,7 @@ The component links below preserve the last reviewed catalog mapping for traceab
 | BandScope Mark | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-163 | `apps/desktop/src/App.tsx` | Feature-local `BandScopeMark()` currently has no props; Figma size variants are visual guidance only. |
 | Metric Card | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-216 | `apps/desktop/src/App.tsx` | Feature-local `MetricCard({ icon, label, value, detail, accent? })`. Metrics follow source controls on mobile. |
 | Confidence Badge | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-239 | `apps/desktop/src/features/workspace/ConfidenceBadge.tsx` | Use `level: ConfidenceLevel` plus optional `size` (`"compact"` or `"default"`); the compact size remains the backward-compatible default. No `score` or `label` prop exists. |
-| Overlap Warning List | extracted from Section Roadmap + Ranges | `apps/desktop/src/features/workspace/OverlapWarningList.tsx` | Shared clash list for Roadmap and Ranges; pass `warnings` and select `surface="light"` only on light cards. |
+| Overlap Warning List | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=252-19 | `apps/desktop/src/features/workspace/OverlapWarningList.tsx` | Current reusable component set. Pass `warnings`; default dark surface is for Roadmap and `surface="light"` is required on light cards such as Ranges. |
 | Rehearsal Callout | workspace next-action pattern | `apps/desktop/src/features/workspace/RehearsalCallout.tsx` | First practice action after analysis; keep a visible button. |
 | Status Pill | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-283 | `apps/desktop/src/features/workspace/Workspace.tsx` | Design pattern only. Current code uses `formatStatusLabel(status)` inside local badge-like markup. |
 | Role Switcher | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-337 | `apps/desktop/src/features/workspace/RoleSwitcher.tsx` | Use `roles`, `activeRole`, and `onRoleChange`; `null` means all roles. |
@@ -59,7 +59,7 @@ The component links below preserve the last reviewed catalog mapping for traceab
 ### Badge And Confidence
 
 - Use `Badge` for general metadata and `ConfidenceBadge` for confidence status.
-- Historical Figma node `19:239` had six variants: `Level=Low|Medium|High` crossed with `Size=Compact|Default`; re-verify these states when Figma authority is restored.
+- Historical Figma node `19:239` had six variants: `Level=Low|Medium|High` crossed with `Size=Compact|Default`; re-verify that node before using it as current evidence.
 - Use `ConfidenceBadge` with `level` from shared types only: `low`, `medium`, `high`.
 - Omit `size` to preserve the existing compact rendering; pass `size="default"` when the 26 px state is required. Compact and default heights are workspace tokens corresponding to the prior 22 px and 26 px Figma variants at the default root font size.
 - Do not pass `score` or `label` to `ConfidenceBadge`; those props do not exist in the runtime component.
@@ -80,23 +80,25 @@ The component links below preserve the last reviewed catalog mapping for traceab
 
 ### Overlap Warnings
 
+- Current Figma authority is component set `252:19` on page `45:86`; review board `252:2` is the exact-value and state handoff.
 - `OverlapWarningList` defaults to `surface="dark"` so Section Roadmap keeps the established dark-workspace token set.
 - Ranges cards have a white background and must pass `surface="light"` so compact warning copy uses the dedicated light-surface tokens.
 - Storybook must retain both dark and light populated states plus the empty state; do not copy the warning markup into a feature-specific implementation.
-- Accessibility rationale and the current Figma-authority gap are recorded in `docs/doctoring/overlap-warning-surface-contrast.md`.
+- Figma and Storybook both show the two surface states. Runtime empty state intentionally renders no node.
+- Accessibility rationale and current exact-value mapping are recorded in `docs/doctoring/overlap-warning-surface-contrast.md`.
 
 ### Workspace States
 
-- The historical Figma page `34 Workspace State Matrix` mapped `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates. Re-verify the matrix when the Figma design-system pages are restored.
+- Historical Figma page `34 Workspace State Matrix` mapped `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates. Re-verify that specific state authority before changing workspace routing.
 - `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace`, otherwise `EmptyState`.
 - `LoadingState` keeps `role="status"`, `aria-live="polite"`, `aria-atomic="true"`, and `aria-busy="true"`.
 - `ErrorState` keeps `role="alert"`, `aria-live="assertive"`, and visible safe error detail copy.
 - `EmptyState` must remain an actionable state card, not a blank placeholder panel.
-- If a new workspace state is added in code, update the restored Figma state authority before merging.
+- If a new workspace state is added in code, update current Figma state authority before merging.
 
 ## Pattern Backlog
 
-These historical Figma patterns remain valid implementation traceability but must be re-verified after the design-system pages are restored. Use the existing feature markup and open a follow-up extraction task when reuse appears twice.
+Historical Figma patterns remain implementation traceability unless freshly verified. Use existing feature markup and open a follow-up extraction task when reuse appears twice.
 
 | Figma pattern | Current implementation home | Extraction trigger |
 | --- | --- | --- |
