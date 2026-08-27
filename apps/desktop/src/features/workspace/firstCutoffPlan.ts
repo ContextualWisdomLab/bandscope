@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  type ProvenanceSource,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -22,6 +23,11 @@ type RankedRoleMetadata = Readonly<{
   rehearsalPriority: keyof typeof PRIORITY_RANK;
 }>;
 
+type OwnedCutoffPlan = Readonly<{
+  cutoffPlan: string;
+  cutoffPlanSource?: ProvenanceSource;
+}>;
+
 /** Tonight's first cutoff plan: the earliest labeled section and the part that leaves it. */
 export type FirstCutoffPlan = {
   section: RehearsalSection;
@@ -32,6 +38,7 @@ export type FirstCutoffPlan = {
   landingRoleId: string;
   landingRoleName: string;
   cutoffPlan: string;
+  cutoffPlanSource?: ProvenanceSource;
   atSeconds: number;
 };
 
@@ -137,8 +144,8 @@ function boundedGeneratedActivityCutoffPlan(value: string): string | null {
   return `${GENERATED_ACTIVITY_CUTOFF_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_CUTOFF_PLAN_SUFFIX}`;
 }
 
-/** Return a bounded snapshotted own cutoff plan, or null when it cannot be shown. */
-function ownedCutoffPlan(role: unknown): string | null {
+/** Return a bounded snapshotted own cutoff plan and explicit source, or null when it cannot be shown. */
+function ownedCutoffPlan(role: unknown): OwnedCutoffPlan | null {
   if (!isRuntimeObject(role)) {
     return null;
   }
@@ -150,10 +157,19 @@ function ownedCutoffPlan(role: unknown): string | null {
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
-  return (
-    boundedGeneratedActivityCutoffPlan(trimmed) ??
-    truncateCodePoints(trimmed, MAX_CUTOFF_PLAN_CHARACTERS)
-  );
+
+  const source = ownDataValue(role, "cutoffPlanSource");
+  const cutoffPlanSource: ProvenanceSource | undefined =
+    source === "model" || source === "user" ? source : undefined;
+  const boundedPlan =
+    cutoffPlanSource === "model"
+      ? boundedGeneratedActivityCutoffPlan(trimmed) ??
+        truncateCodePoints(trimmed, MAX_CUTOFF_PLAN_CHARACTERS)
+      : truncateCodePoints(trimmed, MAX_CUTOFF_PLAN_CHARACTERS);
+
+  return cutoffPlanSource === undefined
+    ? { cutoffPlan: boundedPlan }
+    : { cutoffPlan: boundedPlan, cutoffPlanSource };
 }
 
 /** Snapshot trusted role identity, display name, and priority without Proxy get authority. */
@@ -316,8 +332,8 @@ function resolveSafeFirstCutoffPlan(song: RehearsalSong): FirstCutoffPlan | null
 
       const landingRole = pickLandingRole(
         rankedActiveRoles(section as RehearsalSection).flatMap((metadata) => {
-          const cutoffPlan = ownedCutoffPlan(metadata.role);
-          return cutoffPlan === null ? [] : [{ ...metadata, cutoffPlan }];
+          const cutoff = ownedCutoffPlan(metadata.role);
+          return cutoff === null ? [] : [{ ...metadata, ...cutoff }];
         })
       );
       if (!landingRole) {
@@ -333,6 +349,9 @@ function resolveSafeFirstCutoffPlan(song: RehearsalSong): FirstCutoffPlan | null
           landingRoleId: landingRole.id,
           landingRoleName: landingRole.name,
           cutoffPlan: landingRole.cutoffPlan,
+          ...(landingRole.cutoffPlanSource === undefined
+            ? {}
+            : { cutoffPlanSource: landingRole.cutoffPlanSource }),
           atSeconds: timeRange.end
         }
       ];
