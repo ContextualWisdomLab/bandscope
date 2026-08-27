@@ -23,6 +23,7 @@ from .tuning import get_setup_note
 logger = logging.getLogger(__name__)
 
 _OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
+_OTHER_STEM_SOURCE_LABEL = "Accompaniment"
 _BREAKDOWN_PLAN_SOLO = "Hold this breakdown; keep it sparse until the drop."
 _BREAKDOWN_PLAN_PREFIX = "Hold this breakdown with "
 _BREAKDOWN_PLAN_SUFFIX = "; keep it sparse until the drop."
@@ -369,13 +370,17 @@ class RoleExtractor:
         previous section had three or more distinct sources, and the current
         section holds one or two. New entrances are not breakdowns. Heuristic
         fallback topology and first-section (no previous activity) produce no
-        plan. A full stop is not a breakdown.
+        plan. A full stop is not a breakdown. The shared ``other`` stem may
+        corroborate density but never proves which keyboard or guitar part owns
+        the hold.
         """
         if previous_role_activity is None:
             return None
         previous_active = self._active_role_ids(previous_role_activity)
         current_active = self._active_role_ids(role_activity)
         if role_id not in current_active or role_id not in previous_active:
+            return None
+        if role_id in _OTHER_STEM_ROLE_IDS:
             return None
         if current_active - previous_active:
             return None
@@ -389,16 +394,17 @@ class RoleExtractor:
             return _BREAKDOWN_PLAN_SOLO
 
         own_source = self._source_id(role_id)
-        partner_ids = sorted(
-            candidate_id
-            for candidate_id in current_active
-            if self._source_id(candidate_id) != own_source
+        partner_sources = sorted(
+            {self._source_id(candidate_id) for candidate_id in current_active} - {own_source}
         )
-        other_name: str | None = None
-        if partner_ids:
-            other_id = partner_ids[0]
+        if len(partner_sources) != 1:
+            return None
+        partner_source = partner_sources[0]
+        if partner_source == "other":
+            other_name = _OTHER_STEM_SOURCE_LABEL
+        else:
             other_name = next(
-                (role["name"] for role in roles.values() if role["id"] == other_id),
+                (role["name"] for role in roles.values() if role["id"] == partner_source),
                 None,
             )
         if other_name is None:
