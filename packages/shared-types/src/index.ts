@@ -140,6 +140,8 @@ export type RehearsalRole = {
   setupNote: string;
   transpositionPlan?: string;
   cutoffPlan?: string;
+  /** Identifies whether cutoffPlan came from the analysis model or a user. */
+  cutoffPlanSource?: ProvenanceSource;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -1500,6 +1502,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "setupNote",
       "transpositionPlan",
       "cutoffPlan",
+      "cutoffPlanSource",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1557,6 +1560,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.cutoffPlan !== undefined && typeof value.cutoffPlan !== "string") {
     return invalidField(`${path}.cutoffPlan`);
+  }
+  if (value.cutoffPlanSource !== undefined && !isOneOf(PROVENANCE_SOURCES, value.cutoffPlanSource)) {
+    return invalidField(`${path}.cutoffPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);
