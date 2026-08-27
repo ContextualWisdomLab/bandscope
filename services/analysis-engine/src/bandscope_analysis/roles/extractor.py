@@ -23,7 +23,6 @@ from .tuning import get_setup_note
 logger = logging.getLogger(__name__)
 
 _OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
-_OTHER_STEM_SOURCE_LABEL = "Accompaniment"
 _DROP_PLAN_SOLO = "Hit this drop; come in together when the texture fills."
 _DROP_PLAN_PREFIX = "Hit this drop with "
 _DROP_PLAN_SUFFIX = "; come in together when the texture fills."
