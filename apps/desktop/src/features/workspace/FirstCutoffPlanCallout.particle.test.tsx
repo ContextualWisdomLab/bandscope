@@ -60,7 +60,8 @@ describe("FirstCutoffPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        cutoffPlan: "Cut this off with Lead Vocal; don't linger past the last beat."
+        cutoffPlan: "Cut this off with Lead Vocal; don't linger past the last beat.",
+        cutoffPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -85,7 +86,8 @@ describe("FirstCutoffPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        cutoffPlan: "Cut this off with the rest of the band; don't linger past the last beat."
+        cutoffPlan: "Cut this off with the rest of the band; don't linger past the last beat.",
+        cutoffPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -111,7 +113,8 @@ describe("FirstCutoffPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        cutoffPlan: `Cut this off with ${targetRole}; don't linger past the last beat.`
+        cutoffPlan: `Cut this off with ${targetRole}; don't linger past the last beat.`,
+        cutoffPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
