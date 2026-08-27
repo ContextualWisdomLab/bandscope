@@ -245,11 +245,11 @@ def test_extract_emits_breakdown_across_real_stem_boundaries() -> None:
 def test_activity_breakdown_stays_unnamed_when_partner_has_no_display_name() -> None:
     """A two-source hold without a named partner stays unnamed."""
     extractor = RoleExtractor()
-    incomplete = {key: value for key, value in _roles(extractor).items() if key != "keys_right"}
+    incomplete = {key: value for key, value in _roles(extractor).items() if key != "vocal"}
     plan = extractor._activity_breakdown_plan(
         "bass-guitar",
         incomplete,
-        _activity(bass=True, keys_right=True, vocal=False),
+        _activity(bass=True, keys_right=False, vocal=True),
         _activity(bass=True, keys_right=True, vocal=True),
     )
     assert plan is None
