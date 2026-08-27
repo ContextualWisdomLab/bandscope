@@ -71,7 +71,7 @@ describe("FirstDropPlanCallout Korean role copy", () => {
     fireEvent.click(screen.getByRole("button", { name: "0:30 피아노 드롭 열기" }));
 
     expect(
-      screen.getByText("0:30에서 피아노 파트로 함께 드롭하세요. 텍스처가 채워질 때 들어오십시오.")
+      screen.getByText("0:30에서 피아노 파트로 함께 드롭하세요. 텍스처가 채워질 때 들어오세요.")
     ).toBeTruthy();
     expect(screen.queryByText(/피아노과/)).toBeNull();
     expect(screen.queryByText(/피아노을/)).toBeNull();
