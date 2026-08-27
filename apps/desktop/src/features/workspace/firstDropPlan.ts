@@ -384,7 +384,10 @@ function resolveSafeFirstDropPlan(song: RehearsalSong): FirstDropPlan | null {
 
       const landingRole = pickLandingRole(
         rankedActiveRoles(section as RehearsalSection).flatMap((metadata) => {
-          if (previousActiveIds.has(metadata.id)) {
+          if (
+            previousActiveIds.has(metadata.id) ||
+            ACCOMPANIMENT_SOURCE_ROLE_IDS.has(metadata.id)
+          ) {
             return [];
           }
           const dropPlan = ownedDropPlan(metadata.role);
