@@ -319,9 +319,9 @@ function rankedActiveRoles(section: RehearsalSection): RankedRoleMetadata[] {
   });
 }
 
-/** Count distinct source-separation stems that are explicitly active. */
-function activeSourceCount(activeIds: Set<string>): number {
-  return new Set([...activeIds].map((roleId) => dropSourceId(roleId))).size;
+/** Return distinct source-separation stems that are explicitly active. */
+function activeSourceIds(activeIds: Set<string>): Set<string> {
+  return new Set([...activeIds].map((roleId) => dropSourceId(roleId)));
 }
 
 /** Resolve a drop plan after the runtime root has passed its structural boundary checks. */
@@ -361,19 +361,19 @@ function resolveSafeFirstDropPlan(song: RehearsalSong): FirstDropPlan | null {
 
       const previousActiveIds = rankedGraphRoleIds(previousSection as RehearsalSection, true);
       const currentActiveIds = rankedGraphRoleIds(section as RehearsalSection, true);
-      const previousSourceCount = activeSourceCount(previousActiveIds);
-      const currentSourceCount = activeSourceCount(currentActiveIds);
-      if (previousSourceCount < 1 || previousSourceCount > 2 || currentSourceCount < 3) {
+      const previousSourceIds = activeSourceIds(previousActiveIds);
+      const currentSourceIds = activeSourceIds(currentActiveIds);
+      if (previousSourceIds.size < 1 || previousSourceIds.size > 2 || currentSourceIds.size < 3) {
         return [];
       }
-      for (const roleId of previousActiveIds) {
-        if (!currentActiveIds.has(roleId)) {
+      for (const sourceId of previousSourceIds) {
+        if (!currentSourceIds.has(sourceId)) {
           return [];
         }
       }
       let entered = false;
-      for (const roleId of currentActiveIds) {
-        if (!previousActiveIds.has(roleId)) {
+      for (const sourceId of currentSourceIds) {
+        if (!previousSourceIds.has(sourceId)) {
           entered = true;
           break;
         }
