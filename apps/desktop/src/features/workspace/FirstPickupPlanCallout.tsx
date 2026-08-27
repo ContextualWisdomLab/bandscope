@@ -20,6 +20,8 @@ export interface FirstPickupPlanCalloutProps {
 type PickupPlanCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 type PickupPlanSource = "model" | "user";
 
+const MAX_LOCALIZED_PICKUP_TARGET_CHARACTERS = 129;
+
 type OpenedPickupPlan = Readonly<{
   songIdentity: unknown;
   sectionId: string;
@@ -51,6 +53,20 @@ function stablePickupPlanSongIdentity(song: RehearsalSong): unknown {
     : song;
 }
 
+/** Bound localized model target text by Unicode code points without splitting a surrogate pair. */
+function boundedPickupTargetRoleName(value: string): string {
+  let codePoints = 0;
+  let endIndex = 0;
+  for (const character of value) {
+    if (codePoints >= MAX_LOCALIZED_PICKUP_TARGET_CHARACTERS) {
+      break;
+    }
+    endIndex += character.length;
+    codePoints += 1;
+  }
+  return endIndex === value.length ? value : value.slice(0, endIndex);
+}
+
 /** Interpolate pickup-plan placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatPickupPlanCopy(template: string, values: PickupPlanCopyValues): string {
   return template.replace(/\{(role|section|at)\}/g, (placeholder) => {
@@ -72,7 +88,9 @@ function localizedPickupPlan(
   }
   return guidance.kind === "band"
     ? generatedBandTemplate
-    : generatedTemplate.replace("{target}", () => guidance.targetRoleName);
+    : generatedTemplate.replace("{target}", () =>
+        boundedPickupTargetRoleName(guidance.targetRoleName)
+      );
 }
 
 /** Use immediate scrolling when the operating system requests reduced motion. */
