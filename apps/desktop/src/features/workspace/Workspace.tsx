@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useRef, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -127,6 +127,18 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const localSongUpdateRef = useRef<RehearsalSong | null>(null);
+  const workspaceInstanceRef = useRef<unknown>(song);
+  const previousSongRef = useRef(song);
+
+  if (song !== previousSongRef.current) {
+    const isLocalWorkspaceUpdate = song === localSongUpdateRef.current;
+    if (!isLocalWorkspaceUpdate) {
+      workspaceInstanceRef.current = song;
+    }
+    localSongUpdateRef.current = null;
+    previousSongRef.current = song;
+  }
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -169,6 +181,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       )
     : t("workspaceFirstRangeMissing");
 
+  /** Preserve workspace-instance authority for immutable edits emitted by this workspace. */
+  const commitSongUpdate = (nextSong: RehearsalSong) => {
+    if (!onSongUpdate) return;
+    localSongUpdateRef.current = nextSong;
+    onSongUpdate(nextSong);
+  };
+
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
     if (!activeRole || !onSongUpdate) return;
@@ -193,7 +212,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       })
     };
 
-    onSongUpdate(nextSong);
+    commitSongUpdate(nextSong);
   };
   const collaborationAssignments = useMemo(
     () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
@@ -315,7 +334,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
           </section>
 
-          <FirstBreakdownPlanCallout song={song} />
+          <FirstBreakdownPlanCallout song={song} workspaceInstanceKey={workspaceInstanceRef.current} />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
@@ -512,7 +531,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SectionRoadmap
             song={song}
             activeRole={activeRole}
-            onSongUpdate={onSongUpdate}
+            onSongUpdate={onSongUpdate ? commitSongUpdate : undefined}
           />
           </section>
         </CardContent>
