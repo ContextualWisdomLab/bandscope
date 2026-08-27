@@ -180,9 +180,11 @@ def test_role_extractor_emits_activity_corroborated_cutoff_plan() -> None:
     assert verse_roles["bass-guitar"]["cutoffPlan"] == (
         "Cut this off with Lead Vocal; don't linger past the last beat."
     )
+    assert verse_roles["bass-guitar"]["cutoffPlanSource"] == "model"
     assert verse_roles["lead-vocal"]["cutoffPlan"] == (
         "Cut this off with Bass Guitar; don't linger past the last beat."
     )
+    assert verse_roles["lead-vocal"]["cutoffPlanSource"] == "model"
 
 
 def test_role_extractor_groups_shared_other_stem_deactivation_for_cutoff_plan() -> None:
@@ -196,9 +198,11 @@ def test_role_extractor_groups_shared_other_stem_deactivation_for_cutoff_plan() 
     assert verse_roles["bass-guitar"]["cutoffPlan"] == (
         "Cut this off with Accompaniment; don't linger past the last beat."
     )
+    assert verse_roles["bass-guitar"]["cutoffPlanSource"] == "model"
     assert verse_roles["keys-right"]["cutoffPlan"] == (
         "Cut this off with Bass Guitar; don't linger past the last beat."
     )
+    assert verse_roles["keys-right"]["cutoffPlanSource"] == "model"
 
 
 def test_role_extractor_keeps_mixed_deactivations_as_shared_cutoff_evidence() -> None:
@@ -212,12 +216,15 @@ def test_role_extractor_keeps_mixed_deactivations_as_shared_cutoff_evidence() ->
     assert verse_roles["bass-guitar"]["cutoffPlan"] == (
         "Cut this off with the rest of the band; don't linger past the last beat."
     )
+    assert verse_roles["bass-guitar"]["cutoffPlanSource"] == "model"
     assert verse_roles["lead-vocal"]["cutoffPlan"] == (
         "Cut this off with the rest of the band; don't linger past the last beat."
     )
+    assert verse_roles["lead-vocal"]["cutoffPlanSource"] == "model"
     assert verse_roles["acoustic-guitar"]["cutoffPlan"] == (
         "Cut this off with the rest of the band; don't linger past the last beat."
     )
+    assert verse_roles["acoustic-guitar"]["cutoffPlanSource"] == "model"
 
 
 def test_role_extractor_keeps_single_exit_cutoff_plan_unnamed() -> None:
@@ -229,7 +236,9 @@ def test_role_extractor_keeps_single_exit_cutoff_plan_unnamed() -> None:
         ]
     )
     assert "cutoffPlan" not in verse_roles["bass-guitar"]
+    assert "cutoffPlanSource" not in verse_roles["bass-guitar"]
     assert "cutoffPlan" not in verse_roles["lead-vocal"]
+    assert "cutoffPlanSource" not in verse_roles["lead-vocal"]
 
 
 def test_role_extractor_keeps_last_section_cutoff_plan_unnamed() -> None:
@@ -260,6 +269,7 @@ def test_role_extractor_keeps_last_section_cutoff_plan_unnamed() -> None:
         result = extractor.extract(sections, audio_features)
     outro_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
     assert "cutoffPlan" not in outro_roles["bass-guitar"]
+    assert "cutoffPlanSource" not in outro_roles["bass-guitar"]
 
 
 def test_role_extractor_keeps_heuristic_cutoff_plan_unnamed() -> None:
@@ -269,7 +279,9 @@ def test_role_extractor_keeps_heuristic_cutoff_plan_unnamed() -> None:
     intro_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
     verse_roles = {role["id"]: role for role in result["topologies"][1]["active_roles"]}
     assert all("cutoffPlan" not in role for role in intro_roles.values())
+    assert all("cutoffPlanSource" not in role for role in intro_roles.values())
     assert all("cutoffPlan" not in role for role in verse_roles.values())
+    assert all("cutoffPlanSource" not in role for role in verse_roles.values())
 
 
 def test_activity_cutoff_plan_fails_closed_without_a_named_partner() -> None:
