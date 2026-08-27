@@ -77,3 +77,34 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 - Use `Progress value={number}` for status progress.
 - Tone-specific colors belong on `ProgressIndicator` or scoped child selectors.
 - Provide adjacent live text when progress reflects an active asynchronous job.
+
+### Workspace States
+
+- Figma page `34 Workspace State Matrix` maps `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates.
+- `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace`, otherwise `EmptyState`.
+- `LoadingState` keeps `role="status"`, `aria-live="polite"`, `aria-atomic="true"`, and `aria-busy="true"`.
+- `ErrorState` keeps `role="alert"`, `aria-live="assertive"`, and visible safe error detail copy.
+- `EmptyState` must remain an actionable state card, not a blank placeholder panel.
+- If a new workspace state is added in code, update Figma page 34 and page 33 audit evidence before merging.
+
+## Pattern Backlog
+
+These Figma patterns are valid visual guidance but are not yet extracted as standalone code components. Use the existing feature markup and open a follow-up extraction task when reuse appears twice.
+
+| Figma pattern | Current implementation home | Extraction trigger |
+| --- | --- | --- |
+| Source Control Stack | `apps/desktop/src/App.tsx` source controls section | Extract when another intake surface needs the same local audio, YouTube URL import, project, and analysis actions. |
+| Navigation Item | `apps/desktop/src/App.tsx` shell navigation | Extract when navigation appears outside the app shell. |
+| Metric Card | `apps/desktop/src/App.tsx` `MetricCard` | Extract when metrics move into feature pages or dashboards. |
+| Status Pill | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when assignment/comment/approval status UI is reused. |
+| Song Structure Timeline | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when timeline editing or playback controls are added. |
+| Export Action Group | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when export controls are reused outside the workspace header. |
+
+## PR Review Rules
+
+- New UI should cite the matching Figma node and code path in the PR description when it implements a design-system component.
+- A new component variant must update this file, the relevant component tests, and the Figma component notes.
+- A new Figma-only pattern must enter the Pattern Backlog before being reused.
+- Any deliberate visual divergence from Figma should state whether the repo contract or accessibility requirement caused it.
+- Workspace state changes must cite page `34 Workspace State Matrix` or explain why Figma was updated first.
+- Do not add Code Connect, Figma token, or Figma publish requirements to CI.
