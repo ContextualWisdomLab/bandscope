@@ -110,7 +110,7 @@ export function FirstEntranceCallout({
       <aside
         id="workspace-surface-cues"
         className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4"
-        aria-label={t("firstEntranceUnavailable")}
+        aria-label={t("firstEntranceLabel")}
       >
         <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">{t("firstEntranceLabel")}</p>
         <p className="mt-2 text-sm leading-6 text-slate-300">{t("firstEntranceUnavailable")}</p>
