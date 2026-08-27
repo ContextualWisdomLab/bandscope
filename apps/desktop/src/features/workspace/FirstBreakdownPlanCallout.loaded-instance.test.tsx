@@ -49,18 +49,37 @@ describe("FirstBreakdownPlanCallout loaded song identity", () => {
     vi.unstubAllGlobals();
   });
 
-  it("resets opened state when a distinct analyzed song instance reuses the engine id", () => {
+  it("resets opened state when a distinct workspace instance reuses the engine id", () => {
     const firstSong = analyzedSongWithBreakdownPlan();
     const nextSong = analyzedSongWithBreakdownPlan();
     appendSongStructureTarget();
-    const { rerender } = render(<FirstBreakdownPlanCallout song={firstSong} />);
+    const { rerender } = render(
+      <FirstBreakdownPlanCallout song={firstSong} workspaceInstanceKey="project-a" />
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar breakdown at 0:30" }));
     expect(screen.getByText(/Keep Bass Guitar sparse at 0:30 until the drop\./)).toBeTruthy();
 
-    rerender(<FirstBreakdownPlanCallout song={nextSong} />);
+    rerender(<FirstBreakdownPlanCallout song={nextSong} workspaceInstanceKey="project-b" />);
 
     expect(screen.getByText("Bass Guitar holds the chorus breakdown at 0:30.")).toBeTruthy();
     expect(screen.queryByText(/Keep Bass Guitar sparse at 0:30 until the drop\./)).toBeNull();
+  });
+
+  it("preserves opened state across immutable edits inside one workspace instance", () => {
+    const firstSong = analyzedSongWithBreakdownPlan();
+    const updatedSong = structuredClone(firstSong);
+    updatedSong.sections[1]!.roles[0]!.practiceProgress = 25;
+    appendSongStructureTarget();
+    const { rerender } = render(
+      <FirstBreakdownPlanCallout song={firstSong} workspaceInstanceKey="project-a" />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar breakdown at 0:30" }));
+    expect(screen.getByText(/Keep Bass Guitar sparse at 0:30 until the drop\./)).toBeTruthy();
+
+    rerender(<FirstBreakdownPlanCallout song={updatedSong} workspaceInstanceKey="project-a" />);
+
+    expect(screen.getByText(/Keep Bass Guitar sparse at 0:30 until the drop\./)).toBeTruthy();
   });
 });
