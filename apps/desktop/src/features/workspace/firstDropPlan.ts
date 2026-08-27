@@ -171,10 +171,7 @@ function ownedDropPlan(role: unknown): OwnedDropPlan | null {
     return null;
   }
   if (dropPlanSource === "model") {
-    const generatedPlan = boundedGeneratedDropPlan(trimmed);
-    if (generatedPlan !== null) {
-      return generatedPlan;
-    }
+    return boundedGeneratedDropPlan(trimmed);
   }
   return {
     text: truncateCodePoints(trimmed, MAX_DROP_PLAN_CHARACTERS),
