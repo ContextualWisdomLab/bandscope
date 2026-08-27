@@ -65,11 +65,23 @@ def test_activity_breakdown_emits_solo_plan_for_a_three_to_one_drop() -> None:
     )
 
 
-def test_activity_breakdown_names_the_remaining_partner_on_a_three_to_two_drop() -> None:
-    """Two staying sources name each other as the sparse hold partners."""
+def test_activity_breakdown_names_ambiguous_accompaniment_without_assigning_a_part() -> None:
+    """A shared other stem may corroborate a partner source but not a named part owner."""
     extractor = RoleExtractor()
-    previous = _activity(bass=True, keys_right=True, vocal=True)
-    current = _activity(bass=True, keys_right=True, vocal=False)
+    previous = _activity(
+        bass=True,
+        keys_right=True,
+        vocal=True,
+        keys_left=True,
+        guitar=True,
+    )
+    current = _activity(
+        bass=True,
+        keys_right=True,
+        vocal=False,
+        keys_left=True,
+        guitar=True,
+    )
 
     topology = extractor._build_activity_topology(
         "chorus-1",
@@ -78,10 +90,39 @@ def test_activity_breakdown_names_the_remaining_partner_on_a_three_to_two_drop()
         None,
         previous,
     )
-    bass = next(role for role in topology["active_roles"] if role["id"] == "bass-guitar")
-    keys = next(role for role in topology["active_roles"] if role["id"] == "keys-right")
-    assert bass["breakdownPlan"] == f"{_PREFIX}Keyboard 1 Right Hand{_SUFFIX}"
-    assert keys["breakdownPlan"] == f"{_PREFIX}Bass Guitar{_SUFFIX}"
+    roles_by_id = {role["id"]: role for role in topology["active_roles"]}
+    assert roles_by_id["bass-guitar"]["breakdownPlan"] == f"{_PREFIX}Accompaniment{_SUFFIX}"
+    for ambiguous_role_id in ("keys-left", "keys-right", "acoustic-guitar"):
+        assert "breakdownPlan" not in roles_by_id[ambiguous_role_id]
+
+
+def test_activity_breakdown_stays_unnamed_when_only_ambiguous_other_source_holds() -> None:
+    """The shared other stem cannot prove which keyboard or guitar part owns the hold."""
+    extractor = RoleExtractor()
+    previous = _activity(
+        bass=True,
+        keys_right=True,
+        vocal=True,
+        keys_left=True,
+        guitar=True,
+    )
+    current = _activity(
+        bass=False,
+        keys_right=True,
+        vocal=False,
+        keys_left=True,
+        guitar=True,
+    )
+
+    topology = extractor._build_activity_topology(
+        "chorus-1",
+        _roles(extractor),
+        current,
+        None,
+        previous,
+    )
+    assert topology["active_roles"]
+    assert all("breakdownPlan" not in role for role in topology["active_roles"])
 
 
 def test_activity_breakdown_stays_unnamed_without_previous_activity() -> None:
