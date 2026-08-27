@@ -38,7 +38,7 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
                 <div style={{ fontSize: "0.85em", color: "#333" }}>
                   🎵 {role.range.lowestNote} — {role.range.highestNote}
                 </div>
-                <OverlapWarningList warnings={role.overlapWarnings} />
+                <OverlapWarningList warnings={role.overlapWarnings} surface="light" />
                 {role.transcription && role.transcription.length > 0 && (
                   <div style={{ marginTop: "8px", fontSize: "0.8em", color: "#08979c", backgroundColor: "#e6fffb", padding: "4px 6px", borderRadius: "4px" }}>
                     <strong>Transcription available:</strong> {role.transcription.length} notes
