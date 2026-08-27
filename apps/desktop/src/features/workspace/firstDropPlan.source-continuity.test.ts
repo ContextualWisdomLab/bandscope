@@ -10,7 +10,9 @@ describe("resolveFirstDropPlan source continuity", () => {
     const seed = song.sections[0]!;
     const bass = structuredClone(seed.roles.find((role) => role.id === "bass-guitar")!);
     const keys = structuredClone(seed.roles.find((role) => role.id === "keys-right")!);
-    const guitar = structuredClone(seed.roles.find((role) => role.id === "acoustic-guitar")!);
+    const guitar = structuredClone(keys);
+    guitar.id = "acoustic-guitar";
+    guitar.name = "Acoustic Guitar";
     const vocal = structuredClone(seed.roles.find((role) => role.id === "lead-vocal")!);
 
     for (const role of [bass, keys, guitar, vocal]) {
