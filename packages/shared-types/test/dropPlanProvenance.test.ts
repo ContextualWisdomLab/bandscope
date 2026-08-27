@@ -25,4 +25,12 @@ describe("dropPlan provenance", () => {
     role.dropPlanSource = "model";
     expect(() => parseRehearsalSong(song)).toThrow(/dropPlanSource/);
   });
+
+  it.each(["", "   "])("rejects a drop plan source with blank copy %j", (dropPlan) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.dropPlan = dropPlan;
+    role.dropPlanSource = "model";
+    expect(() => parseRehearsalSong(song)).toThrow(/dropPlan/);
+  });
 });
