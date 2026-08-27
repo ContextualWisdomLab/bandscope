@@ -32,23 +32,9 @@ type OpenedBreakdownPlan = Readonly<{
   atSeconds: number;
 }>;
 
-/** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
+/** Use the loaded song object as UI-state authority because engine ids can be reused across projects. */
 function stableBreakdownPlanSongIdentity(song: RehearsalSong): unknown {
-  if (song === null || typeof song !== "object" || Array.isArray(song)) {
-    return song;
-  }
-  let descriptor: PropertyDescriptor | undefined;
-  try {
-    descriptor = Object.getOwnPropertyDescriptor(song, "id");
-  } catch {
-    return song;
-  }
-  return descriptor !== undefined &&
-    Object.prototype.hasOwnProperty.call(descriptor, "value") &&
-    typeof descriptor.value === "string" &&
-    descriptor.value.trim().length > 0
-    ? descriptor.value
-    : song;
+  return song;
 }
 
 /** Interpolate breakdown-plan placeholders once so rehearsal data is never rescanned as template syntax. */
