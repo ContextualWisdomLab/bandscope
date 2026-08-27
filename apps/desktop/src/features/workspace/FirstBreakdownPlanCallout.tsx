@@ -181,7 +181,9 @@ export function FirstBreakdownPlanCallout({ song }: FirstBreakdownPlanCalloutPro
       <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
         {t("firstBreakdownPlanLabel")}
       </p>
-      <p className="mt-2 text-sm leading-6 text-slate-300">{opened ? armed : body}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-300">
+        {opened && named.breakdownPlanSource === "model" ? armed : body}
+      </p>
       <p className="mt-1 text-sm leading-6 text-slate-400">{breakdownPlan}</p>
       <Button
         type="button"
