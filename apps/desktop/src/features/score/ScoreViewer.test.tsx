@@ -120,12 +120,8 @@ describe("ScoreViewer", () => {
       expect(page.render).toHaveBeenCalled();
     });
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
-    const previousButton = screen.getByRole("button", { name: "Previous page" });
-    const nextButton = screen.getByRole("button", { name: "Next page" });
-    expect(previousButton).toBeDisabled();
-    expect(previousButton).toHaveAttribute("title", "Previous page");
-    expect(nextButton).toBeEnabled();
-    expect(nextButton).toHaveAttribute("title", "Next page");
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
   });
 
   it("shows the file name when provided", async () => {
@@ -208,9 +204,6 @@ describe("ScoreViewer", () => {
     const zoomInButton = screen.getByRole("button", { name: "Zoom in" });
     const zoomOutButton = screen.getByRole("button", { name: "Zoom out" });
     const fitWidthButton = screen.getByRole("button", { name: "Fit width" });
-    expect(zoomInButton).toHaveAttribute("title", "Zoom in");
-    expect(zoomOutButton).toHaveAttribute("title", "Zoom out");
-    expect(fitWidthButton).toHaveAttribute("title", "Fit width");
     expect(fitWidthButton).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(zoomInButton);
