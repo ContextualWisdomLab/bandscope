@@ -428,6 +428,7 @@ class RoleExtractor:
                 if cutoff_plan is not None:
                     role = role.copy()
                     role["cutoffPlan"] = cutoff_plan
+                    role["cutoffPlanSource"] = "model"
                 active_roles.append(role)
 
             part_graph.append(
