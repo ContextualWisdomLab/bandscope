@@ -99,3 +99,15 @@ fn project_contract_rejects_drop_plan_source_without_drop_plan() {
         "native persisted contract must reject provenance without the value it describes"
     );
 }
+
+#[test]
+fn project_contract_rejects_unknown_drop_plan_source() {
+    let mut payload = song_with_drop_plan();
+    payload["sections"][0]["roles"][0]["dropPlanSource"] = json!("legacy");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(
+        project_payload_from_content(&content).is_err(),
+        "native persisted contract must reject provenance outside model/user"
+    );
+}
