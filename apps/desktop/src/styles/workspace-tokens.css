@@ -27,6 +27,9 @@
   --bandscope-overlap-bg: rgb(251 113 133 / 0.08);
   --bandscope-overlap-border: rgb(253 164 175 / 0.2);
   --bandscope-overlap-fg: rgb(255 228 230);
+  --bandscope-overlap-light-bg: #fff1f2;
+  --bandscope-overlap-light-border: #fecdd3;
+  --bandscope-overlap-light-fg: #9f1239;
   --bandscope-callout-bg: rgb(34 211 238 / 0.08);
   --bandscope-callout-border: rgb(34 211 238 / 0.25);
   --bandscope-callout-fg: rgb(207 250 254);
