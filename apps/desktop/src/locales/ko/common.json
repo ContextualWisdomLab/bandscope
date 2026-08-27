@@ -158,9 +158,9 @@
   "firstDropPlanLabel": "오늘 첫 드롭 계획",
   "firstDropPlanOpenAction": "{at} {role} 드롭 열기",
   "firstDropPlanBody": "{at} {section}에서 {role} 파트가 드롭을 맞습니다.",
-  "firstDropPlanArmed": "{at}에서 {role} 파트로 함께 드롭하세요. 텍스처가 채워질 때 들어오십시오.",
-  "firstDropPlanGeneratedGuidance": "{target} 파트와 이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오십시오.",
-  "firstDropPlanGeneratedSoloGuidance": "이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오십시오.",
+  "firstDropPlanArmed": "{at}에서 {role} 파트로 함께 드롭하세요. 텍스처가 채워질 때 들어오세요.",
+  "firstDropPlanGeneratedGuidance": "{target} 파트와 이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요.",
+  "firstDropPlanGeneratedSoloGuidance": "이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요.",
   "firstDropPlanUnavailable": "사용 가능한 드롭 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요.",
   "firstDropPlanNavigationFailed": "곡 맵에서 이 드롭을 열 수 없습니다. 아래 맵에서 해당 구간을 찾아주세요."
 }
