@@ -24,6 +24,7 @@ describe("FirstVampPlanCallout Korean role copy", () => {
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
 
     const grid = document.createElement("div");
+    grid.id = "workspace-song-structure-grid";
     grid.dataset.testid = "song-structure-grid";
     grid.setAttribute("role", "region");
     grid.setAttribute("aria-label", "Scrollable song structure timeline");
