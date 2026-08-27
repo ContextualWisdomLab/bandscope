@@ -19,6 +19,7 @@ const ACCOMPANIMENT_SOURCE_LABEL = "Keys / guitar";
 
 type PickupPlanSource = "model" | "user";
 
+/** Structured localization guidance for model-generated pickup-plan copy. */
 export type PickupPlanGuidance =
   | Readonly<{ kind: "role"; targetRoleName: string }>
   | Readonly<{ kind: "band" }>;
