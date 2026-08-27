@@ -116,6 +116,44 @@ describe("FirstDropPlanCallout", () => {
     expect(screen.queryByText(/Land Lead Vocal together at 0:30 when the texture fills./)).toBeNull();
   });
 
+  it("resets armed guidance when the landing role name changes in the same workspace", () => {
+    const firstSong = songWithDropPlan();
+    const nextSong = structuredClone(firstSong);
+    nextSong.sections[1]!.roles.find((role) => role.id === "lead-vocal")!.name = "Lead Singer";
+    const workspaceInstanceKey = {};
+    appendSongStructureTarget();
+    const { rerender } = render(
+      <FirstDropPlanCallout song={firstSong} workspaceInstanceKey={workspaceInstanceKey} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal drop at 0:30" }));
+    expect(screen.getByText(/Land Lead Vocal together at 0:30 when the texture fills./)).toBeTruthy();
+
+    rerender(<FirstDropPlanCallout song={nextSong} workspaceInstanceKey={workspaceInstanceKey} />);
+
+    expect(screen.getByText("Lead Singer lands the chorus drop at 0:30.")).toBeTruthy();
+    expect(screen.queryByText(/Land Lead Singer together at 0:30 when the texture fills./)).toBeNull();
+  });
+
+  it("resets armed guidance when the section label changes in the same workspace", () => {
+    const firstSong = songWithDropPlan();
+    const nextSong = structuredClone(firstSong);
+    nextSong.sections[1]!.label = "bridge";
+    const workspaceInstanceKey = {};
+    appendSongStructureTarget();
+    const { rerender } = render(
+      <FirstDropPlanCallout song={firstSong} workspaceInstanceKey={workspaceInstanceKey} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal drop at 0:30" }));
+    expect(screen.getByText(/Land Lead Vocal together at 0:30 when the texture fills./)).toBeTruthy();
+
+    rerender(<FirstDropPlanCallout song={nextSong} workspaceInstanceKey={workspaceInstanceKey} />);
+
+    expect(screen.getByText("Lead Vocal lands the bridge drop at 0:30.")).toBeTruthy();
+    expect(screen.queryByText(/Land Lead Vocal together at 0:30 when the texture fills./)).toBeNull();
+  });
+
   it("opens the named drop on the rendered map", () => {
     const { scrollIntoView } = appendSongStructureTarget();
     render(<FirstDropPlanCallout song={songWithDropPlan()} />);
