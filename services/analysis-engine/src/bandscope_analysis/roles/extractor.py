@@ -381,12 +381,8 @@ class RoleExtractor:
             return None
         if role_id in _OTHER_STEM_ROLE_IDS:
             return None
-        previous_source_ids = {
-            self._source_id(candidate_id) for candidate_id in previous_active
-        }
-        current_source_ids = {
-            self._source_id(candidate_id) for candidate_id in current_active
-        }
+        previous_source_ids = {self._source_id(candidate_id) for candidate_id in previous_active}
+        current_source_ids = {self._source_id(candidate_id) for candidate_id in current_active}
         if previous_source_ids - current_source_ids:
             return None
         entered = current_active - previous_active
