@@ -395,6 +395,7 @@ describe("resolveFirstPickupPlan", () => {
     const song = withPickupSection({
       pickupPlan: `Play this pickup with ${target}; land the downbeat together.`
     });
+    song.sections[1]!.roles[0]!.pickupPlanSource = "model";
     const resolved = resolveFirstPickupPlan(song);
     expect(resolved?.pickupPlan.startsWith("Play this pickup with Lead-")).toBe(true);
     expect(resolved?.pickupPlan.endsWith("; land the downbeat together.")).toBe(true);
