@@ -337,16 +337,27 @@ def _as_float_array(values: object) -> AudioStemArray:
 
 def _read_verified_model_artifact(path: Path, artifact: _ModelArtifactSpec) -> bytes:
     """Read one exact regular cache file and verify its full artifact identity."""
-    descriptor: int | None = None
     try:
         cache_metadata = path.lstat()
-        if stat.S_ISLNK(cache_metadata.st_mode):
-            raise ModelArtifactError("Stem separation model cache entry is a symlink")
-        if not stat.S_ISREG(cache_metadata.st_mode):
-            raise ModelArtifactError("Stem separation model cache entry is not a regular file")
+    except FileNotFoundError:
+        raise ModelArtifactError("Stem separation model is not provisioned") from None
+    except OSError:
+        raise ModelArtifactError("Stem separation model could not be opened securely") from None
 
-        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    if stat.S_ISLNK(cache_metadata.st_mode):
+        raise ModelArtifactError("Stem separation model cache entry is a symlink")
+    if not stat.S_ISREG(cache_metadata.st_mode):
+        raise ModelArtifactError("Stem separation model cache entry is not a regular file")
+
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
         descriptor = os.open(path, flags)
+    except FileNotFoundError:
+        raise ModelArtifactError("Stem separation model is not provisioned") from None
+    except OSError:
+        raise ModelArtifactError("Stem separation model could not be opened securely") from None
+
+    try:
         opened_metadata = os.fstat(descriptor)
         if not stat.S_ISREG(opened_metadata.st_mode):
             raise ModelArtifactError("Stem separation model cache entry is not a regular file")
@@ -354,15 +365,12 @@ def _read_verified_model_artifact(path: Path, artifact: _ModelArtifactSpec) -> b
             raise ModelArtifactError("Stem separation model does not match inventoried byte size")
         with os.fdopen(descriptor, "rb", closefd=False) as fileobj:
             payload = fileobj.read(artifact.size_bytes + 1)
-    except FileNotFoundError:
-        raise ModelArtifactError("Stem separation model is not provisioned") from None
     except ModelArtifactError:
         raise
     except OSError:
         raise ModelArtifactError("Stem separation model could not be opened securely") from None
     finally:
-        if descriptor is not None:
-            os.close(descriptor)
+        os.close(descriptor)
 
     if hashlib.sha256(payload).hexdigest() != artifact.sha256:
         raise ModelArtifactError("Stem separation model does not match inventoried SHA-256")

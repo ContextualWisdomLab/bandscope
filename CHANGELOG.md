@@ -33,6 +33,8 @@
   byte size, and full SHA-256, rejects filesystem identity races, and deserializes the verified
   bytes with PyTorch's restricted `weights_only` loader, an exact reviewed global allowlist, strict
   model construction, and serialized one-time caching rather than downloading a missing checkpoint.
+  Pre-open `lstat` and `open` failures stay redacted and close every obtained descriptor without a
+  None-check fallthrough, so a raced-away cache entry cannot skip the close or leak a path.
 - Verified exact platform-native sibling ffmpeg/ffprobe executable names and identities before any
   live fixture access or yt-dlp invocation.
 - Isolated Numba's native-code cache for repository analysis commands so a stale or concurrently

@@ -7,6 +7,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
+from pathlib import Path
 from threading import Event, Lock
 from types import ModuleType, SimpleNamespace
 
@@ -547,6 +548,89 @@ def test_audio_stem_separator_redacts_model_cache_open_errors(
     with pytest.raises(ValueError, match="could not be opened securely") as error:
         separator._load_model()
     assert str(tmp_path) not in str(error.value)
+
+
+def test_audio_stem_separator_redacts_model_cache_lstat_errors(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Redact cache paths when pre-open metadata lookup fails closed."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    artifact_path = tmp_path / filename
+    artifact_path.write_bytes(payload)
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    _install_fake_verified_model_deserializer(monkeypatch)
+    original_lstat = Path.lstat
+
+    def fail_lstat(self: Path) -> os.stat_result:
+        if self == artifact_path:
+            raise PermissionError(f"permission denied under {tmp_path}")
+        return original_lstat(self)
+
+    monkeypatch.setattr(Path, "lstat", fail_lstat)
+
+    def forbidden_open(*args: object, **kwargs: object) -> int:
+        raise AssertionError("failed lstat reached os.open")
+
+    monkeypatch.setattr(audio_separator_module.os, "open", forbidden_open)
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=tmp_path))
+
+    with pytest.raises(ValueError, match="could not be opened securely") as error:
+        separator._load_model()
+    assert str(tmp_path) not in str(error.value)
+
+
+def test_audio_stem_separator_treats_open_toctou_as_unprovisioned(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep a raced-away checkpoint fail-closed as not provisioned after lstat."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    (tmp_path / filename).write_bytes(payload)
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    _install_fake_verified_model_deserializer(monkeypatch)
+
+    def vanish_on_open(*args: object, **kwargs: object) -> int:
+        raise FileNotFoundError("checkpoint vanished after lstat")
+
+    monkeypatch.setattr(audio_separator_module.os, "open", vanish_on_open)
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=tmp_path))
+
+    with pytest.raises(ValueError, match="not provisioned"):
+        separator._load_model()
+
+
+def test_audio_stem_separator_redacts_model_cache_fstat_errors(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Close the descriptor and redact paths when post-open fstat fails."""
+    payload = b"verified-model-package"
+    filename = "test-signature-deadbeef.th"
+    (tmp_path / filename).write_bytes(payload)
+    _patch_model_spec(monkeypatch, filename=filename, payload=payload)
+    _install_fake_verified_model_deserializer(monkeypatch)
+    close_count = 0
+    original_close = audio_separator_module.os.close
+
+    def counted_close(descriptor: int) -> None:
+        nonlocal close_count
+        close_count += 1
+        original_close(descriptor)
+
+    def fail_fstat(_descriptor: int) -> os.stat_result:
+        raise OSError(f"fstat failed under {tmp_path}")
+
+    monkeypatch.setattr(audio_separator_module.os, "fstat", fail_fstat)
+    monkeypatch.setattr(audio_separator_module.os, "close", counted_close)
+    separator = AudioStemSeparator(AudioSeparationConfig(model_cache_directory=tmp_path))
+
+    with pytest.raises(ValueError, match="could not be opened securely") as error:
+        separator._load_model()
+    assert str(tmp_path) not in str(error.value)
+    assert close_count == 1
 
 
 def test_audio_stem_separator_redacts_default_cache_location_errors(
