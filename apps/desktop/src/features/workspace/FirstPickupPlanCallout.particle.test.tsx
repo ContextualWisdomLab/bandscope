@@ -118,6 +118,7 @@ describe("FirstPickupPlanCallout Korean role copy", () => {
   it("preserves the generated template shape when long target names are bounded", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const targetRole = `Lead-${"A".repeat(180)}`;
+    const boundedTargetRole = `Lead-${"A".repeat(124)}`;
     const song = songWithKoreanPickup(
       `Play this pickup with ${targetRole}; land the downbeat together.`,
       "model"
@@ -129,11 +130,10 @@ describe("FirstPickupPlanCallout Korean role copy", () => {
 
     expect(screen.queryByText(/^Play this pickup with /)).toBeNull();
     expect(
-      screen.getByText(
-        (content) =>
-          content.startsWith("Lead-") &&
-          content.endsWith("파트와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.")
-      )
+      screen.getByText(`${boundedTargetRole} 파트와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.`)
     ).toBeTruthy();
+    expect(
+      screen.queryByText(`${targetRole} 파트와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.`)
+    ).toBeNull();
   });
 });
