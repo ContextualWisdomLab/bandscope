@@ -35,7 +35,7 @@ describe("resolveFirstBreakdownPlan landing authority", () => {
     expect(resolveFirstBreakdownPlan(song)).toBeNull();
   });
 
-  it("keeps an engine-authored breakdown available when adjacent section windows leave a gap", () => {
+  it("does not name a breakdown when the rest and landing windows leave a gap", () => {
     const song = createDemoRehearsalSong();
     const verse = structuredClone(song.sections[0]!);
     verse.roles[0]!.breakdownPlan = DEMO_BREAKDOWN_PLAN;
@@ -56,9 +56,6 @@ describe("resolveFirstBreakdownPlan landing authority", () => {
     intro.partGraph = intro.partGraph.map((node) => ({ ...node, is_active: true }));
     song.sections = [intro, verse];
 
-    const plan = resolveFirstBreakdownPlan(song);
-    expect(plan).not.toBeNull();
-    expect(plan?.sectionId).toBe(verse.id);
-    expect(plan?.atSeconds).toBe(verse.timeRange.start);
+    expect(resolveFirstBreakdownPlan(song)).toBeNull();
   });
 });

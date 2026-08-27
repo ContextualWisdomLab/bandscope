@@ -358,12 +358,15 @@ function resolveSafeFirstBreakdownPlan(song: RehearsalSong): FirstBreakdownPlan 
       const sectionId = ownDataValue(section, "id");
       const sectionLabel = ownDataValue(section, "label");
       const timeRange = ownedBoundedTimeRange(section as RehearsalSection);
+      const previousTimeRange = ownedBoundedTimeRange(previousSection as RehearsalSection);
       if (
         typeof sectionId !== "string" ||
         sectionId.trim().length === 0 ||
         typeof sectionLabel !== "string" ||
         !SECTION_FORM_LABEL_SET.has(sectionLabel) ||
-        timeRange === null
+        timeRange === null ||
+        previousTimeRange === null ||
+        previousTimeRange.end !== timeRange.start
       ) {
         return [];
       }
