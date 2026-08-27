@@ -18,7 +18,7 @@ The light warning foreground/background pair is chosen to satisfy WCAG 2.2 Succe
 
 ## Design authority status
 
-The configured BandScope Figma file was freshly re-verified and repaired on 2026-08-28. Page `45:86` (`31 Component Contract Catalog`) now contains a reusable `Overlap Warning List` component set at node `252:19` with `Surface=Dark` and `Surface=Light` variants. Review board `252:2` renders real instances of both variants against the dark rehearsal surface and white Ranges-card surface, and records the exact runtime tokens, accessible list semantics, decorative icon treatment, responsive wrapping, duplicate-warning behavior, and the intentional empty/no-node state.
+The configured BandScope Figma file was freshly re-verified and repaired on 2026-08-28. Page `45:86` (`31 Component Contract Catalog`) now contains the reusable `OverlapWarningItem` component set at node `254:81` with `Surface=Dark` and `Surface=Light` variants. Contract frame `254:82` renders real instances of the same component set against the dark rehearsal surface (`254:85`) and white Ranges-card surface (`254:96`), while `254:107` records the intentional `NoClashes` state in which the runtime renders no warning list. The page also records the exact implementation-head token values and keeps repeated web objects as component instances rather than duplicated feature markup.
 
 The Figma values match the runtime/Storybook contract:
 
@@ -34,7 +34,7 @@ Before merge, verify the unchanged exact head with:
 - focused `OverlapWarningList` component tests;
 - Storybook rendering for dark, light, and empty states;
 - the repository's configured Storybook accessibility checks;
-- current live Figma metadata and screenshot evidence for nodes `252:19` and `252:2`; and
+- current live Figma metadata and screenshot evidence for component set `254:81`, contract frame `254:82`, dark preview `254:85`, light preview `254:96`, and empty-state note `254:107`; and
 - every required repository and organization check plus qualifying independent human review.
 
 Queued, skipped-required, stale, predecessor-head, model-only, self/author, synthetic, or administrative-bypass evidence is not sufficient.
