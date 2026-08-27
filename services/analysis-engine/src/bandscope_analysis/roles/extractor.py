@@ -22,6 +22,11 @@ from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
 
+_OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
+_BREAKDOWN_PLAN_SOLO = "Hold this breakdown; keep it sparse until the drop."
+_BREAKDOWN_PLAN_PREFIX = "Hold this breakdown with "
+_BREAKDOWN_PLAN_SUFFIX = "; keep it sparse until the drop."
+
 
 class RoleExtractor:
     """Extracts roles and builds the part graph for song sections."""
@@ -71,8 +76,13 @@ class RoleExtractor:
                 # Real activity-based topology
                 current_activity = activity_maps[i]
                 next_activity = activity_maps[i + 1] if i + 1 < len(activity_maps) else None
+                previous_activity = activity_maps[i - 1] if i > 0 else None
                 topology = self._build_activity_topology(
-                    section_id, roles, current_activity, next_activity
+                    section_id,
+                    roles,
+                    current_activity,
+                    next_activity,
+                    previous_activity,
                 )
             else:
                 # Fallback to heuristic-based topology
@@ -330,12 +340,78 @@ class RoleExtractor:
             "acoustic_guitar": acoustic_guitar_role,
         }
 
+    @staticmethod
+    def _source_id(role_id: str) -> str:
+        """Collapse accompaniment stems onto one rehearsal source."""
+        return "other" if role_id in _OTHER_STEM_ROLE_IDS else role_id
+
+    @staticmethod
+    def _active_role_ids(role_activity: dict[str, bool]) -> set[str]:
+        """Return role ids whose activity flag is explicitly true."""
+        return {role_id for role_id, is_active in role_activity.items() if is_active}
+
+    @classmethod
+    def _source_count(cls, role_ids: set[str]) -> int:
+        """Count distinct source-separation stems among the given roles."""
+        return len({cls._source_id(role_id) for role_id in role_ids})
+
+    def _activity_breakdown_plan(
+        self,
+        role_id: str,
+        roles: dict[str, RehearsalRole],
+        role_activity: dict[str, bool],
+        previous_role_activity: dict[str, bool] | None,
+    ) -> str | None:
+        """Return bounded breakdown guidance only for a corroborated density drop.
+
+        A breakdown plan is emitted only when real stem activity shows this role
+        remaining active after at least one other distinct source drops out, the
+        previous section had three or more distinct sources, and the current
+        section holds one or two. New entrances are not breakdowns. Heuristic
+        fallback topology and first-section (no previous activity) produce no
+        plan. A full stop is not a breakdown.
+        """
+        if previous_role_activity is None:
+            return None
+        previous_active = self._active_role_ids(previous_role_activity)
+        current_active = self._active_role_ids(role_activity)
+        if role_id not in current_active or role_id not in previous_active:
+            return None
+        if current_active - previous_active:
+            return None
+        if not (previous_active - current_active):
+            return None
+        previous_sources = self._source_count(previous_active)
+        current_sources = self._source_count(current_active)
+        if previous_sources < 3 or current_sources < 1 or current_sources > 2:
+            return None
+        if current_sources == 1:
+            return _BREAKDOWN_PLAN_SOLO
+
+        own_source = self._source_id(role_id)
+        partner_ids = sorted(
+            candidate_id
+            for candidate_id in current_active
+            if self._source_id(candidate_id) != own_source
+        )
+        other_name: str | None = None
+        if partner_ids:
+            other_id = partner_ids[0]
+            other_name = next(
+                (role["name"] for role in roles.values() if role["id"] == other_id),
+                None,
+            )
+        if other_name is None:
+            return None
+        return f"{_BREAKDOWN_PLAN_PREFIX}{other_name}{_BREAKDOWN_PLAN_SUFFIX}"
+
     def _build_activity_topology(
         self,
         section_id: str,
         roles: dict[str, RehearsalRole],
         role_activity: dict[str, bool],
         next_role_activity: dict[str, bool] | None,
+        previous_role_activity: dict[str, bool] | None = None,
     ) -> SectionRoleTopology:
         """Build topology from real stem activity detection."""
         handoffs = compute_handoffs(role_activity, next_role_activity)
@@ -357,7 +433,18 @@ class RoleExtractor:
             handoff_to, handoff_from = handoffs.get(role_id, ([], []))
 
             if is_active:
-                active_roles.append(roles[role_key])
+                role = roles[role_key]
+                breakdown_plan = self._activity_breakdown_plan(
+                    role_id,
+                    roles,
+                    role_activity,
+                    previous_role_activity,
+                )
+                if breakdown_plan is not None:
+                    role = role.copy()
+                    role["breakdownPlan"] = breakdown_plan
+                    role["breakdownPlanSource"] = "model"
+                active_roles.append(role)
 
             part_graph.append(
                 {
