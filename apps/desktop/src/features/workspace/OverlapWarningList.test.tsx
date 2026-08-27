@@ -15,6 +15,16 @@ describe("OverlapWarningList", () => {
     expect(screen.getByText("Keys cover the guitar hook")).toBeTruthy();
   });
 
+  it("uses dedicated readable tokens when rendered on a light card", () => {
+    render(<OverlapWarningList warnings={["Bass and vocal share C3"]} surface="light" />);
+
+    const warning = screen.getByText("Bass and vocal share C3").closest("li");
+    expect(warning).not.toBeNull();
+    expect(warning?.className).toContain("border-[color:var(--bandscope-overlap-light-border)]");
+    expect(warning?.className).toContain("bg-[var(--bandscope-overlap-light-bg)]");
+    expect(warning?.className).toContain("text-[color:var(--bandscope-overlap-light-fg)]");
+  });
+
   it("keeps repeated clash evidence distinct without duplicate React keys", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
