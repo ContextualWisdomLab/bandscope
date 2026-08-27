@@ -9,7 +9,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Shared clash list extracted from Section Roadmap and Ranges. Uses workspace overlap tokens so both surfaces show the same next-player warning.",
+          "Shared clash list extracted from Section Roadmap and Ranges. Select the dark or light surface contract so the same next-player warning remains readable in both contexts.",
       },
     },
   },
@@ -22,6 +22,18 @@ export const SharedClashes: Story = {
   args: {
     warnings: ["Bass and vocal share C3", "Keys cover the guitar hook"],
   },
+};
+
+export const LightCard: Story = {
+  args: {
+    warnings: ["Bass and vocal share C3", "Keys cover the guitar hook"],
+    surface: "light",
+  },
+  render: (args) => (
+    <div style={{ background: "#fff", padding: "12px", maxWidth: "360px" }}>
+      <OverlapWarningList {...args} />
+    </div>
+  ),
 };
 
 export const NoClashes: Story = {
