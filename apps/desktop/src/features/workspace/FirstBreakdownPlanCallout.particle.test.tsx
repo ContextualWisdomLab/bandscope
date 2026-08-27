@@ -45,7 +45,8 @@ describe("FirstBreakdownPlanCallout Korean role copy", () => {
   it("keeps vowel-ending role names particle-safe before and after the breakdown action", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = songWithKoreanBreakdown(
-      "Hold this breakdown; keep it sparse until the drop."
+      "Hold this breakdown; keep it sparse until the drop.",
+      "model"
     );
 
     const grid = document.createElement("div");
