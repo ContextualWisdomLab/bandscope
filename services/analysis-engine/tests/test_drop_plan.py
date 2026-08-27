@@ -68,6 +68,23 @@ def test_activity_drop_emits_solo_plan_for_a_two_to_three_fill() -> None:
     )
 
 
+def test_activity_drop_keeps_shared_accompaniment_source_across_role_swap() -> None:
+    """A role swap inside the shared other stem does not invent a source dropout."""
+    extractor = RoleExtractor()
+    previous = _activity(bass=True, keys_right=True, vocal=False)
+    current = _activity(bass=True, keys_right=False, vocal=True, guitar=True)
+
+    topology = extractor._build_activity_topology(
+        "chorus-1",
+        _roles(extractor),
+        current,
+        None,
+        previous,
+    )
+    vocal = next(role for role in topology["active_roles"] if role["id"] == "lead-vocal")
+    assert vocal["dropPlan"] == _SOLO_PLAN
+
+
 def test_activity_drop_names_two_named_entrances_as_partners() -> None:
     """Two named parts entering together point at each other."""
     extractor = RoleExtractor()
