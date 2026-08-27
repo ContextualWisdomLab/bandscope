@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import type { ProvenanceSource, RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
   createTranslator,
@@ -21,6 +21,7 @@ type OpenedCutoffPlan = Readonly<{
   sectionIndex: number;
   landingRoleId: string;
   cutoffPlan: string;
+  cutoffPlanSource?: ProvenanceSource;
   atSeconds: number;
 }>;
 
@@ -113,6 +114,7 @@ export function FirstCutoffPlanCallout({ song }: FirstCutoffPlanCalloutProps) {
     named?.sectionId,
     named?.landingRoleId,
     named?.cutoffPlan,
+    named?.cutoffPlanSource,
     named?.atSeconds
   ]);
 
@@ -138,6 +140,7 @@ export function FirstCutoffPlanCallout({ song }: FirstCutoffPlanCalloutProps) {
     openedCutoffPlan.sectionIndex === named.sectionIndex &&
     openedCutoffPlan.landingRoleId === named.landingRoleId &&
     openedCutoffPlan.cutoffPlan === named.cutoffPlan &&
+    openedCutoffPlan.cutoffPlanSource === named.cutoffPlanSource &&
     openedCutoffPlan.atSeconds === named.atSeconds;
   const at = formatCutoffPlanTime(named.atSeconds);
   const copyValues: CutoffPlanCopyValues = {
@@ -148,11 +151,14 @@ export function FirstCutoffPlanCallout({ song }: FirstCutoffPlanCalloutProps) {
   const actionLabel = formatCutoffPlanCopy(t("firstCutoffPlanOpenAction"), copyValues);
   const body = formatCutoffPlanCopy(t("firstCutoffPlanBody"), copyValues);
   const armed = formatCutoffPlanCopy(t("firstCutoffPlanArmed"), copyValues);
-  const cutoffPlan = localizedCutoffPlan(
-    named.cutoffPlan,
-    t("firstCutoffPlanGeneratedGuidance"),
-    t("firstCutoffPlanGeneratedBandGuidance")
-  );
+  const cutoffPlan =
+    named.cutoffPlanSource === "model"
+      ? localizedCutoffPlan(
+          named.cutoffPlan,
+          t("firstCutoffPlanGeneratedGuidance"),
+          t("firstCutoffPlanGeneratedBandGuidance")
+        )
+      : named.cutoffPlan;
 
   return (
     <aside
@@ -187,6 +193,9 @@ export function FirstCutoffPlanCallout({ song }: FirstCutoffPlanCalloutProps) {
             sectionIndex: named.sectionIndex,
             landingRoleId: named.landingRoleId,
             cutoffPlan: named.cutoffPlan,
+            ...(named.cutoffPlanSource === undefined
+              ? {}
+              : { cutoffPlanSource: named.cutoffPlanSource }),
             atSeconds: named.atSeconds
           });
         }}
