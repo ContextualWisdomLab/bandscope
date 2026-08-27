@@ -195,7 +195,7 @@ def test_role_extractor_groups_shared_other_stem_landing_for_pickup_plan() -> No
         ]
     )
     assert topologies[1]["bass-guitar"]["pickupPlan"] == (
-        "Play this pickup with Accompaniment; land the downbeat together."
+        "Play this pickup with Keys / guitar; land the downbeat together."
     )
 
 
