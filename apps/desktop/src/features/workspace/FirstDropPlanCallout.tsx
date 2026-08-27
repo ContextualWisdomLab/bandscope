@@ -25,7 +25,9 @@ type OpenedDropPlan = Readonly<{
   songIdentity: unknown;
   sectionId: string;
   sectionIndex: number;
+  sectionLabel: string;
   landingRoleId: string;
+  landingRoleName: string;
   dropPlan: string;
   dropPlanSource: DropPlanSource | null;
   dropPlanGuidanceKind: DropPlanGuidance["kind"] | null;
@@ -106,7 +108,9 @@ export function FirstDropPlanCallout({ song, workspaceInstanceKey }: FirstDropPl
     songIdentity,
     named?.sectionIndex,
     named?.sectionId,
+    named?.sectionLabel,
     named?.landingRoleId,
+    named?.landingRoleName,
     named?.dropPlan,
     named?.dropPlanSource,
     guidanceKind,
@@ -134,7 +138,9 @@ export function FirstDropPlanCallout({ song, workspaceInstanceKey }: FirstDropPl
     openedDropPlan.songIdentity === songIdentity &&
     openedDropPlan.sectionId === named.sectionId &&
     openedDropPlan.sectionIndex === named.sectionIndex &&
+    openedDropPlan.sectionLabel === named.sectionLabel &&
     openedDropPlan.landingRoleId === named.landingRoleId &&
+    openedDropPlan.landingRoleName === named.landingRoleName &&
     openedDropPlan.dropPlan === named.dropPlan &&
     openedDropPlan.dropPlanSource === named.dropPlanSource &&
     openedDropPlan.dropPlanGuidanceKind === guidanceKind &&
@@ -192,7 +198,9 @@ export function FirstDropPlanCallout({ song, workspaceInstanceKey }: FirstDropPl
             songIdentity,
             sectionId: named.sectionId,
             sectionIndex: named.sectionIndex,
+            sectionLabel: named.sectionLabel,
             landingRoleId: named.landingRoleId,
+            landingRoleName: named.landingRoleName,
             dropPlan: named.dropPlan,
             dropPlanSource: named.dropPlanSource,
             dropPlanGuidanceKind: guidanceKind,
