@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import { ScoreViewer } from "./ScoreViewer";
@@ -41,9 +41,7 @@ describe("ScoreViewer disabled control tooltips", () => {
 
     render(<ScoreViewer data={SAMPLE_BYTES} />);
 
-    await act(async () => {
-      expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
-    });
+    expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
 
     const previous = screen.getByRole("button", { name: "Previous page" });
     const next = screen.getByRole("button", { name: "Next page" });
