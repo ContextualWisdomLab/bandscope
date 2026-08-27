@@ -116,14 +116,19 @@ describe("i18n", () => {
       expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
     });
 
-    it("keeps Korean first-drop-plan next-action copy particle-safe", () => {
+    it("keeps Korean first-drop-plan next-action copy particle-safe and tonally consistent", () => {
       const t = createTranslator("ko");
       expect(t("firstDropPlanOpenAction")).toBe("{at} {role} 드롭 열기");
       expect(t("firstDropPlanBody")).toBe("{at} {section}에서 {role} 파트가 드롭을 맞습니다.");
       expect(t("firstDropPlanArmed")).toBe(
-        "{at}에서 {role} 파트로 함께 드롭하세요. 텍스처가 채워질 때 들어오십시오."
+        "{at}에서 {role} 파트로 함께 드롭하세요. 텍스처가 채워질 때 들어오세요."
+      );
+      expect(t("firstDropPlanGeneratedGuidance")).toBe(
+        "{target} 파트와 이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요."
+      );
+      expect(t("firstDropPlanGeneratedSoloGuidance")).toBe(
+        "이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요."
       );
     });
   });
 });
-
