@@ -400,6 +400,7 @@ class RoleExtractor:
         if len(partner_sources) != 1:
             return None
         partner_source = partner_sources[0]
+        other_name: str | None
         if partner_source == "other":
             other_name = _OTHER_STEM_SOURCE_LABEL
         else:
