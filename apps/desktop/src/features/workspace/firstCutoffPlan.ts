@@ -120,7 +120,7 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Preserve the canonical cutoff sentence shape while bounding text; provenance separately controls authority. */
+/** Preserve the canonical model cutoff sentence shape while bounding its generated target text. */
 function boundedGeneratedActivityCutoffPlan(value: string): string | null {
   if (
     !value.startsWith(GENERATED_ACTIVITY_CUTOFF_PLAN_PREFIX) ||
@@ -162,8 +162,10 @@ function ownedCutoffPlan(role: unknown): OwnedCutoffPlan | null {
   const cutoffPlanSource: ProvenanceSource | undefined =
     source === "model" || source === "user" ? source : undefined;
   const boundedPlan =
-    boundedGeneratedActivityCutoffPlan(trimmed) ??
-    truncateCodePoints(trimmed, MAX_CUTOFF_PLAN_CHARACTERS);
+    cutoffPlanSource === "model"
+      ? (boundedGeneratedActivityCutoffPlan(trimmed) ??
+        truncateCodePoints(trimmed, MAX_CUTOFF_PLAN_CHARACTERS))
+      : truncateCodePoints(trimmed, MAX_CUTOFF_PLAN_CHARACTERS);
 
   return cutoffPlanSource === undefined
     ? { cutoffPlan: boundedPlan }
