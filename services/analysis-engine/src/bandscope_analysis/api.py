@@ -282,8 +282,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     # projectId cannot escape app-owned roots if joined into filesystem paths.
     # Allow identifiers that merely contain ".." as a substring (e.g. "my..id").
     if project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
-        path = repr(project_id)
-        logger.warning("Security: path traversal in projectId: %s", path)
+        logger.warning("Security: path traversal detected in projectId")
         raise ValueError("Invalid analysis job request: path traversal detected in 'projectId'")
     if local_source is None:
         raise ValueError("Invalid analysis job request: invalid field 'localSource'")
@@ -326,16 +325,14 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         if not isinstance(cache_root, str) or not cache_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
         if ".." in cache_root.replace("\\", "/").split("/"):
-            path = repr(cache_root)
-            logger.warning("Security: path traversal in cacheRoot: %s", path)
+            logger.warning("Security: path traversal detected in cacheRoot")
             raise ValueError("Invalid analysis job request: path traversal detected in 'cacheRoot'")
         normalized["cacheRoot"] = cache_root
     if temp_root is not None:
         if not isinstance(temp_root, str) or not temp_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
         if ".." in temp_root.replace("\\", "/").split("/"):
-            path = repr(temp_root)
-            logger.warning("Security: path traversal in tempRoot: %s", path)
+            logger.warning("Security: path traversal detected in tempRoot")
             raise ValueError("Invalid analysis job request: path traversal detected in 'tempRoot'")
         normalized["tempRoot"] = temp_root
 
