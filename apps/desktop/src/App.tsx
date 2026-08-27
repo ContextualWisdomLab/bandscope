@@ -44,6 +44,7 @@ import {
   startAnalysisJob
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
+import { PlayerFeature } from "./features/player";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
@@ -58,10 +59,11 @@ const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:User
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
-type RehearsalView = "workspace" | "score";
+type RehearsalView = "workspace" | "player" | "score";
 
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
+  { labelKey: "navPlayer", icon: Play, view: "player" },
   { labelKey: "navImport", icon: Upload, view: null },
   { labelKey: "navExport", icon: Save, view: null },
   { labelKey: "navSections", icon: ListMusic, view: null },
@@ -517,16 +519,16 @@ export function App() {
     return <EmptyState />;
   };
 
-  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  const currentView: RehearsalView = jobResult ? activeView : "workspace";
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
-    const enabled = item.view === "workspace" || (item.view === "score" && jobResult !== null);
+    const enabled = item.view === "workspace" || ((item.view === "player" || item.view === "score") && jobResult !== null);
     return {
       label: t(item.labelKey),
       enabled,
       active: enabled && item.view === currentView,
-      title: enabled ? undefined : item.view === "score" ? t("scoreNavDisabledHint") : t("comingSoon")
+      title: enabled ? undefined : item.view === "player" || item.view === "score" ? t("scoreNavDisabledHint") : t("comingSoon")
     };
   };
 
@@ -848,6 +850,8 @@ export function App() {
                 projectId={jobResultBootstrap?.projectId ?? null}
                 onSongUpdate={handleSongUpdate}
               />
+            ) : currentView === "player" && jobResult ? (
+              <PlayerFeature title={t("navPlayer")} song={jobResult} />
             ) : (
               renderWorkspaceState()
             )}
