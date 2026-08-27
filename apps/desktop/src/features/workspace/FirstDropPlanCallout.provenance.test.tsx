@@ -50,7 +50,7 @@ describe("FirstDropPlanCallout drop-plan provenance", () => {
     render(<FirstDropPlanCallout song={song} />);
 
     expect(screen.getByText(customPlan)).toBeTruthy();
-    expect(screen.queryByText("이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오십시오.")).toBeNull();
+    expect(screen.queryByText("이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요.")).toBeNull();
   });
 
   it("does not infer model authority when persisted drop guidance has no source", () => {
@@ -61,7 +61,7 @@ describe("FirstDropPlanCallout drop-plan provenance", () => {
     render(<FirstDropPlanCallout song={song} />);
 
     expect(screen.getByText(legacyPlan)).toBeTruthy();
-    expect(screen.queryByText("이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오십시오.")).toBeNull();
+    expect(screen.queryByText("이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요.")).toBeNull();
   });
 
   it("localizes model guidance from structured landing topology instead of display sentence wording", () => {
@@ -75,7 +75,7 @@ describe("FirstDropPlanCallout drop-plan provenance", () => {
 
     expect(
       screen.getByText(
-        "Keyboard 1 Right Hand 파트와 이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오십시오."
+        "Keyboard 1 Right Hand 파트와 이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요."
       )
     ).toBeTruthy();
     expect(
