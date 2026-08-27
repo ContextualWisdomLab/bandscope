@@ -122,6 +122,8 @@ describe("FirstPickupPlanCallout Korean role copy", () => {
       `Play this pickup with ${targetRole}; land the downbeat together.`,
       "model"
     );
+    const landing = song.sections[1]!;
+    landing.roles[1] = { ...landing.roles[1]!, name: targetRole };
 
     render(<FirstPickupPlanCallout song={song} />);
 
