@@ -23,7 +23,7 @@ from .tuning import get_setup_note
 logger = logging.getLogger(__name__)
 
 _OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
-_OTHER_STEM_SOURCE_LABEL = "Accompaniment"
+_OTHER_STEM_SOURCE_LABEL = "Keys / guitar"
 _PICKUP_PLAN_PREFIX = "Play this pickup with "
 _PICKUP_PLAN_SUFFIX = "; land the downbeat together."
 _PICKUP_PLAN_BAND_TARGET = "the rest of the band"
