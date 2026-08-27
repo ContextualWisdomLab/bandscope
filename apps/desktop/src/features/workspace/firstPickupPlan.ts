@@ -15,9 +15,9 @@ const ACCOMPANIMENT_SOURCE_ROLE_IDS = new Set([
   "acoustic-guitar"
 ]);
 const ACCOMPANIMENT_SOURCE_ID = "other";
+const ACCOMPANIMENT_SOURCE_LABEL = "Keys / guitar";
 const PICKUP_PLAN_PREFIX = "Play this pickup with ";
 const PICKUP_PLAN_SUFFIX = "; land the downbeat together.";
-const PICKUP_PLAN_BAND_TARGET = "the rest of the band";
 
 type PickupPlanSource = "model" | "user";
 
@@ -36,7 +36,6 @@ type RankedRoleMetadata = Readonly<{
 type OwnedPickupPlan = Readonly<{
   text: string;
   source: PickupPlanSource | null;
-  guidance: PickupPlanGuidance | null;
 }>;
 
 /** Tonight's first pickup plan: the earliest labeled downbeat a resting part leads into. */
@@ -132,7 +131,7 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Preserve the engine pickup template while bounding its model-owned target and localization guidance. */
+/** Preserve the engine pickup template while bounding its model-owned target. */
 function boundedGeneratedPickupPlan(value: string): OwnedPickupPlan | null {
   if (!value.startsWith(PICKUP_PLAN_PREFIX) || !value.endsWith(PICKUP_PLAN_SUFFIX)) {
     return null;
@@ -145,11 +144,7 @@ function boundedGeneratedPickupPlan(value: string): OwnedPickupPlan | null {
   const boundedTarget = truncateCodePoints(target, MAX_PICKUP_PLAN_CHARACTERS - fixedLength);
   return {
     text: `${PICKUP_PLAN_PREFIX}${boundedTarget}${PICKUP_PLAN_SUFFIX}`,
-    source: "model",
-    guidance:
-      target === PICKUP_PLAN_BAND_TARGET
-        ? { kind: "band" }
-        : { kind: "role", targetRoleName: boundedTarget }
+    source: "model"
   };
 }
 
@@ -182,8 +177,7 @@ function ownedPickupPlan(role: unknown): OwnedPickupPlan | null {
   }
   return {
     text: truncateCodePoints(trimmed, MAX_PICKUP_PLAN_CHARACTERS),
-    source: pickupPlanSource ?? null,
-    guidance: null
+    source: pickupPlanSource ?? null
   };
 }
 
@@ -255,6 +249,37 @@ function repeatedIds(ids: string[]): Set<string> {
 /** Map canonical accompaniment roles back to their shared source-separation stem. */
 function pickupSourceId(roleId: string): string {
   return ACCOMPANIMENT_SOURCE_ROLE_IDS.has(roleId) ? ACCOMPANIMENT_SOURCE_ID : roleId;
+}
+
+/** Reconstruct model localization guidance from sanitized landing topology, never display wording. */
+function modelPickupPlanGuidance(
+  activeRoles: RankedRoleMetadata[],
+  landingRoleId: string,
+  landingSourceCount: number
+): PickupPlanGuidance | null {
+  if (landingSourceCount >= 3) {
+    return { kind: "band" };
+  }
+
+  const landingSourceId = pickupSourceId(landingRoleId);
+  const partnerSourceIds = [
+    ...new Set(activeRoles.map((metadata) => pickupSourceId(metadata.id)))
+  ].filter((sourceId) => sourceId !== landingSourceId);
+  if (partnerSourceIds.length !== 1) {
+    return null;
+  }
+
+  const partnerSourceId = partnerSourceIds[0]!;
+  if (partnerSourceId === ACCOMPANIMENT_SOURCE_ID) {
+    return { kind: "role", targetRoleName: ACCOMPANIMENT_SOURCE_LABEL };
+  }
+
+  const partnerRoles = activeRoles.filter(
+    (metadata) => pickupSourceId(metadata.id) === partnerSourceId
+  );
+  return partnerRoles.length === 1
+    ? { kind: "role", targetRoleName: partnerRoles[0]!.name }
+    : null;
 }
 
 /** Prefer rehearsal priority, then a locale-independent stable id. */
@@ -406,13 +431,19 @@ function resolveSafeFirstPickupPlan(song: RehearsalSong): FirstPickupPlan | null
                 {
                   ...metadata,
                   pickupPlan: pickupPlan.text,
-                  pickupPlanSource: pickupPlan.source,
-                  pickupPlanGuidance: pickupPlan.guidance
+                  pickupPlanSource: pickupPlan.source
                 }
               ];
         })
       );
       if (!landingRole) {
+        return [];
+      }
+      const pickupPlanGuidance =
+        landingRole.pickupPlanSource === "model"
+          ? modelPickupPlanGuidance(activeRoles, landingRole.id, landingSourceCount)
+          : null;
+      if (landingRole.pickupPlanSource === "model" && pickupPlanGuidance === null) {
         return [];
       }
       return [
@@ -426,7 +457,7 @@ function resolveSafeFirstPickupPlan(song: RehearsalSong): FirstPickupPlan | null
           landingRoleName: landingRole.name,
           pickupPlan: landingRole.pickupPlan,
           pickupPlanSource: landingRole.pickupPlanSource,
-          pickupPlanGuidance: landingRole.pickupPlanGuidance,
+          pickupPlanGuidance,
           atSeconds: timeRange.start
         }
       ];
