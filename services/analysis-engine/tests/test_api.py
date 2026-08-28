@@ -582,7 +582,7 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             ("succeeded", "ready", 100),
         ]
         assert updates[-1]["cacheStatus"] == "stored"
-        cache_files = list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))
+        cache_files = list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
         assert len([path for path in cache_files if not path.name.endswith(".features.json")]) == 1
         assert len([path for path in cache_files if path.name.endswith(".features.json")]) == 1
 
