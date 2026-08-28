@@ -1,11 +1,11 @@
 # BandScope Product-Technical Gap Baseline
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 Base revision: `develop@749511c3ad4000090048718f685c6bee6b3d2c25` (feat(workspace): name tonight's first playable range on the map, #957)
 
 ## 1. 목적과 범위 (Purpose & Scope)
 
-이 문서는 ADR/설계 문서(`ARCHITECTURE.md`, `docs/plans/*`), 브랜드 소스(`docs/brand-story.md`), 보안 소스(`docs/security/app-security.md`), 그리고 현재 저장소 상태(코드, 열린 PR 약 130건, 열린 이슈)를 대조하여 다음을 한 곳에 모은 baseline이다.
+이 문서는 ADR/설계 문서(`ARCHITECTURE.md`, `docs/plans/*`), 브랜드 소스(`docs/brand-story.md`), 보안 소스(`docs/security/app-security.md`), 그리고 현재 저장소 상태(코드, 열린 PR 133건, 열린 이슈)를 대조하여 다음을 한 곳에 모은 baseline이다.
 
 - 기능 명세(functional spec)와 PRD/TRD로 승격되지 않은 요구사항의 공백
 - 구현된 코드와 문서가 선언하는 제품 범위 사이의 기술 Gap
@@ -94,40 +94,28 @@ flowchart LR
 
 ## 4. 현재 열린 PR 기반 Gap 분석 (Open-PR Gap Analysis)
 
-현재 open PR은 130건이다(2026-08-28 REST inventory 기준). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
+현재 open PR은 133건이다(2026-08-29 Asia/Seoul 기준 REST inventory). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
 
-### 4.1 2026-08-28 exact-head 운영 snapshot
+### 4.1 2026-08-29 exact-head 운영 snapshot
 
 아래 표는 protected base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`에 대해 GitHub REST API로 다시 읽은 대표 PR의 current head와 그 head의 Checks/review 상태다. 아래 재실행 명령은 capture 시각의 open PR 전체에 대해 각 current head, 동일 SHA의 check-runs, reviews, protected base를 JSON으로 묶는다. 이전 SHA의 Checks는 현재 증적으로 재사용하지 않았다.
 
 | PR | current head | current 상태와 traceability |
 |---|---|---|
-| #1040 | `eb7432c124ccf667eca8db0656ed09273e51e5c7` | drop-plan copy/provenance 양방향 검증을 shared-types와 native parser에 보강; 15 hosted Checks success, 11 pending, failure 없음; qualifying independent approval 없음 |
-| #1045 | `88c2c741ab0d62033b3d9c330d67e8ac90010c57` | swell-plan copy/provenance 양방향 검증 보강; 새 current-head workflow 21개 pending, failure 없음; qualifying independent approval 없음 |
-| #1046 | `c8b5e391cec704e599ff75fe00f5a0b2016a6eca` | fade-plan copy/provenance 양방향 검증 보강; 새 current-head workflow 21개 pending, failure 없음; qualifying independent approval 없음 |
-| #1047 | `bac0d90d1f1ae88141c93dd50483eebb63ed1e85` | ritardando plan 누락 JSDoc·copy/provenance 양방향 검증과 `ritardando.py` mypy 타입 계약을 보강; 관련 desktop 23 tests, mypy/ruff pass, Python 전체 697 passed/24 skipped이나 torch child segfault로 coverage 0 산출되어 100%로 주장하지 않음; hosted current check-runs failure 0, pending 21, qualifying approval 없음 |
+| #1040 | `191189d52f25486028425f1266de9bc6dcb71c93` | drop-plan copy/provenance 양방향 검증을 shared-types와 native parser에 보강; current Checks 32 pass, 2 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
+| #1045 | `995e3fc5475f47117c9eb15f3eb1e0a6dbd249c0` | swell-plan copy/provenance 양방향 검증과 feature-cache schema 분리를 보강하고 role payload TypedDict를 정렬; current Checks 32 pass, 1 failure, 1 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
+| #1046 | `5c655995664c9d1faba60c0ae9ff896ea11c0c57` | fade-plan copy/provenance 양방향 검증과 외부 song 교체 identity reset을 보강; current Checks 32 pass, 2 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
+| #1047 | `bc63d8a0235ed72566e557681abd6b3958ed714e` | ritardando plan 누락 JSDoc·copy/provenance 양방향 검증과 `ritardando.py` mypy 타입 계약을 보강; 관련 Python/desktop 검증 완료; current Checks 32 pass, 2 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
+| #1048 | `28038721b473c1f64b6914312f48704d64e09c6a` | accelerando plan copy/provenance 양방향 검증과 beat-grid 경계 계약을 보강; current Checks 32 pass, 1 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
+| #1049 | `c34480961bd66485f59122f4d15c5948e8d95ac6` | fermata plan 작업 중인 Draft PR; current Checks 32 pass, 1 failure, 0 pending; `DRAFT/BLOCKED`, qualifying independent approval 없음 |
 | #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | source/coverage/security/build/release 및 `opencode-review`/`strix` terminal success; reviews는 COMMENTED뿐이며 qualifying approval 없음 |
 | #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
-| #1041 | `164995d3a3c056bdbb4fc293226d0c31c062104e` | ScoreView/ScoreViewer tooltip 변경 current head; coverage/build/security Checks 일부 queued/in-progress; qualifying approval 없음 |
-| #910 | `b6bcecb8649796dc13a54c39d70ca05977b0ac4c` | source/coverage/security/build/release terminal success이나 current `opencode-review` failure; current-head qualifying approval 없음 |
-| #943 | `ff5e47d5cff84194e457c05e4bfbe26a30ea69a8` | first-intro player/workspace current head; Proxy metadata fail-closed fix 포함; 28 hosted Checks success, macOS amd64 진행 중, `opencode-review` failure; qualifying approval 없음 |
-| #947 | `38ed1c8f4dc5f020db43536596aa401c454db55c` | first-verse workspace/player current head; CHANGELOG heading spacing fix 포함; 28 hosted Checks success, macOS amd64 진행 중, `opencode-review` failure; qualifying approval 없음 |
-| #955 | `4058e5094bff94f9ed2df0f635313ff244f225a6` | first-pre-chorus workspace/player current head; CHANGELOG heading spacing fix 포함; 27 hosted Checks success, Rust/macOS amd64 진행 중, `opencode-review` failure; qualifying approval 없음 |
-| #1002 | `607994004c43a084c28d2d137ec5543be903eec6` | confirmed-harmony 한국어 action contract를 feature UI 계약에 맞춰 정렬하고 case-collision을 기준 blob으로 복원; desktop 23 files/263 tests와 100% coverage, typecheck/lint/build local pass; push 후 27 hosted check-runs 중 failure 0, pending 21, `REVIEW_REQUIRED/BLOCKED`, qualifying approval 없음 |
-| #1016 | `a4948df82ad075a0b743e92b985992aa04815565` | first-fill plan current head; local `uv sync --project services/analysis-engine --group dev --frozen` pass로 macOS arm64의 이전 hatchling null-byte 오류는 재현되지 않음; 재실행 후 macOS arm64 build와 `coverage-evidence`/`opencode-review` success, `strix` failure, hosted non-cancelled checks 22 success·0 pending, qualifying approval 없음 |
-| #980 | `bc922359725d5b7d8eba515fb1ad4756f5bf8ec9` | local picker가 source selection을 소유하는 동안 YouTube clear action도 숨겨 동시성 계약을 완성; targeted 2 tests, typecheck/lint/build local pass; 전체 desktop 223 tests 중 219 pass 및 기존/자원경합성 4 timeout, coverage 재실행은 실패하여 100%로 주장하지 않음; hosted current check-runs 20 success, 0 pending, `strix`/`opencode-review` failure, qualifying approval 없음 |
-| #982 | `821ae34a75a4d60c39dd919b4502e8a694b76ad4` | YouTube 실패 사유가 field description과 recovery alert에 중복 표시되는 계약에 맞춰 9개 stale 단일 조회 assertion을 multiplicity-safe로 정렬; App.test 65 pass와 affected visibility 10 pass, typecheck/lint/build local pass; 전체 desktop 234 tests 중 231 pass 및 기존/자원경합성 3 timeout, coverage 재실행은 100%로 주장하지 않음; hosted current check-runs 14 success, 8 pending, `opencode-review` failure, qualifying approval 없음 |
-| #1006 | `c4d50327917e2f20ee96d6b2b0ad883e4078571a` | first-range next-action의 runtime section label을 shared `SectionFormLabel` set으로 fail-closed 검증해 번역 helper typecheck를 복구; 관련 15 tests, typecheck/lint local pass; hosted current check-runs failure 0, pending 21, qualifying approval 없음 |
-| #929 | `aac5e3becb3349c8e320c5bccd459567a6d30665` | `@testing-library/jest-dom` 7.0.1 업데이트에 맞춰 package-lock의 workspace dependency tree를 재생성; clean `npm ci`, `npm ls`, npm runtime/typecheck/lint/build와 targeted test pass; 전체 desktop 216 tests 중 215 pass 및 기존 Workspace 1 timeout으로 coverage를 주장하지 않음; hosted current check-runs failure 0, pending 21, qualifying approval 없음 |
-| #926 | `5b3f7288874e375f97d0f80066709e7bb6f5c086` | `apps/desktop/package.json`에 남은 literal merge markers를 제거하고 lucide 1.31.0 의도와 develop의 PDF.js 6.2.108을 보존하도록 lockfile 재생성; clean `npm ci`, `npm ls`, npm runtime/typecheck/lint/build local pass; hosted non-cancelled checks 22 success·0 pending, `opencode-review` failure, qualifying current-head approval 없음 |
-| #925 | `d08fb6f5924021905f741ef57e3241e6cd9b9021` | `typescript-eslint` 8.67.0 lockfile 누락을 복구하고 루트 ESLint config의 직접 import를 root devDependency로 명시; clean `npm ci`, `npm ls`, npm runtime/typecheck/lint/build local pass; hosted non-cancelled checks 23 success·0 pending, `opencode-review` failure, qualifying current-head approval 없음 |
-| #923 | `d396f17ffb6ddf00e7c5b7e8dc36f5d8058360c4` | `@storybook/react-vite` 10.5.8 업데이트에 필요한 Storybook 10.5.10·oxc-resolver·플랫폼 optional dependency tree를 lockfile에 재생성; clean `npm ci`, `npm ls`, npm runtime/typecheck/lint/build local pass; hosted non-cancelled checks 24 success·0 pending, `opencode-review` failure, qualifying current-head approval 없음 |
-| #922 | `0a677db0cc43aaff3934b4692d1882b9b0f57769` | Storybook 10.5.8 업데이트에 필요한 Storybook 10.5.10·oxc-resolver·플랫폼 optional dependency tree를 lockfile에 재생성; clean `npm ci`, `npm ls`, npm runtime/typecheck/lint/build local pass; hosted non-cancelled checks 21 success·0 pending, `strix`/`opencode-review` failure, qualifying current-head approval 없음 |
-| #859 | `62fd665968dff9032e58a2c58141355b65f264d0` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 1 hosted Check success, 27 pending, failure 없음, qualifying approval 없음 |
-| #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `9bbd706aad5d9b9a37e6add3266ee476dffa2cd1` | 이 문서 PR의 current head이며 base는 `749511c3ad4000090048718f685c6bee6b3d2c25`; hosted current check-runs는 hard failure 1건(`opencode-review`), pending 0, `coverage-evidence`/`coverage-source-tree`/`strix`/보안·플랫폼·빌드 gate success; `MERGEABLE/BLOCKED`, qualifying approval 없음 |
+| #1025 | `29136fbb794264b2a2c587eaccb061248cf3b96e` | 이 문서 PR의 current head이며 base는 `749511c3ad4000090048718f685c6bee6b3d2c25`; current Checks 33 pass, 1 failure(`opencode-review`), 0 pending; `MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
+| #970 | `0bab0e8fbb80b3acd83773e0dddf636570df3ecc` | atomic project publication과 긴 파일명 staging 경계 수정; base가 `7ad56cf0065d068ec6463d92726de4855a6e201d`로 현재 develop보다 뒤처져 `BEHIND`; current Checks 27 pass, 1 failure, 3 pending; qualifying independent approval 없음 |
 
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
+
+현재 merge blocker의 권위 있는 설정도 함께 확인했다. active ruleset `18156473`은 `develop`에 승인 1개, review thread resolution, 16개 required status context를 요구한다. branch-protection REST 응답의 `required_approving_review_count=0`보다 ruleset의 더 엄격한 승인 규칙이 우선하므로, `MERGEABLE`만으로 merge-ready라고 판단하지 않는다. 승인·필수 Checks·thread resolution이 모두 현재 head에 대해 충족될 때만 병합한다.
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
@@ -154,7 +142,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 | I. 테스트 현실성 (decoded WAV acceptance, known-take chord recovery, real YouTube known-stem benchmark, branch coverage) | #892, #891, #828, #861 | synthetic fixture에서 실오디오 기반 acceptance로 이동 시작 | Issue #770(실오디오 MIR accuracy benchmark) 체계화, RMSE/SI-SDR 임계값 정책 |
 | J. 의존성/빌드 위생 (react, storybook, base-ui, lucide, sonner, codeql-action, setup-uv, uv group, numba, uuid, time, rust pinning, node floor, orphaned Actions identity) | #920, #942, #922, #921, #926, #927, #924, #931, #936, #919, #918, #754, #944, #896, #895 | 공급망/런타임 최신화 유지 | Dependabot train 정리(Issue #966), jsdom 30 전환 완료 |
 
-시리즈 전체에 대한 종합 판단: 이 시리즈는 "계약(contract) 필드 추가 + 첫 노출" 단계다. 착지해도 (1) plan 값의 생성 로직, (2) plan들 사이 우선순위/중복 정책, (3) 재분석 시 override 보존 round-trip, (4) 협업 영속화는 여전히 Gap으로 남는다. 또한 130건이 develop 기준으로부터 장기간 분기되어 있어 rebase 비용과 exact-head CI 증적 요구(PR 본문 명시)로 인한 merge train 정체가 자체적으로 기술 위험이다(Issue #966).
+시리즈 전체에 대한 종합 판단: 이 시리즈는 "계약(contract) 필드 추가 + 첫 노출" 단계다. 착지해도 (1) plan 값의 생성 로직, (2) plan들 사이 우선순위/중복 정책, (3) 재분석 시 override 보존 round-trip, (4) 협업 영속화는 여전히 Gap으로 남는다. 또한 133건이 develop 기준으로부터 장기간 분기되어 있어 rebase 비용과 exact-head CI 증적 요구(PR 본문 명시)로 인한 merge train 정체가 자체적으로 기술 위험이다(Issue #966).
 
 ## 5. 기술 Gap 목록 (Technical Gaps)
 
@@ -176,7 +164,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 (h) **i18n/현지화** — `src/i18n` + `locales/en`, `locales/ko` 존재, 하드코딩 한국어 문자열 미탐지(workspace tsx grep 0건), interpolation hardening PR #744 진행. en/ko 2개 언어뿐이며, PR 시리즈가 추가할 다수의 카피 키가 locales에 아직 없다.
 
-(i) **접근성** — 2026-08-28 current checkout에서 workspace 컴포넌트의 `aria-*` attribute token은 56개였다. WCAG 2.2 AA gate는 Issue #965로 열려 있고, Figma/Storybook/shipped UI 정합 점검도 미완이다. tooltip/a11y PR(#833, #731)이 진행 중.
+(i) **접근성** — 2026-08-29 current checkout에서 workspace 컴포넌트의 `aria-*` attribute token은 56개였다. WCAG 2.2 AA gate는 Issue #965로 열려 있고, Figma/Storybook/shipped UI 정합 점검도 미완이다. tooltip/a11y PR(#833, #731)이 진행 중.
 
 (j) **Design token/Storybook** — shadcn/ui 프리미티브 중 stories는 button/checkbox/dialog 3개뿐이고, rehearsal 도메인 컴포넌트(GrooveMap, SectionRoadmap, RoleSwitcher 등) stories는 없다. Storybook token PR #897이 진행 중.
 
@@ -261,7 +249,7 @@ flowchart TD
    - Why: 대용량/악성 파일로 인한 메모리 폭주는 첫 사용 경험을 깬다. 보안 gate이자 안정성 gate다.
    - Acceptance: 파일 크기/길이 상한이 intake에서 강제되고, 초과 입력은 안전 실패 카피로 거부된다. quickcheck 통과.
 3. **merge train 정리 (Issue #966)**
-   - Why: 130개 open PR의 exact-head CI 요구는 모든 후속 기능을 정체시킨다.
+   - Why: 133개 open PR의 exact-head CI 요구는 모든 후속 기능을 정체시킨다.
    - Acceptance: dependency-aware train 정의 후 open PR이 cluster A-J 단위로 수렴하고, 중복 PR이 canonical PR로 link된다.
 4. **filesystem path containment 재구축 (Issue #852, PR #858)**
    - Why: 로컬 데스크톱 앱의 최상위 신뢰경계. 우회 시 임의 파일 접근으로 이어진다.
@@ -299,7 +287,7 @@ flowchart TD
 
 본 문서에서 실제 인용한 개념(MIR novelty kernel, chord-recognition 연구 맥락, Viterbi 디코딩, 소스 분리 평가, librosa, 접근성 표준)에 한정한다.
 
-2026-08-28 최신성 점검: WCAG 2.2는 현재 W3C Recommendation이며 2025년에 ISO/IEC 40500:2025로 승인되었다. 보안 개발 수명주기에는 NIST SSDF 1.1을 기준으로 삼고, MIR acceptance 설계에는 ISMIR 2024의 구조 분석·notewise source-separation 평가·다중 stem 연구를 보조 근거로 반영한다. 이 문헌은 기존 휴리스틱을 자동으로 정답으로 취급하지 않으며, 실제 오디오 benchmark와 provenance·재현성 증적을 요구하는 근거로만 사용한다.
+2026-08-29 최신성 점검: [WCAG 2.2](https://www.w3.org/TR/2024/REC-WCAG22-20241212/)는 W3C Recommendation이며, W3C는 2025년 ISO/IEC 40500:2025 승인 사실과 최신 WCAG 2.2 사용을 안내한다. 보안 개발 수명주기에는 [NIST SSDF 1.1](https://csrc.nist.gov/pubs/sp/800/218/final)을 기준으로 삼고, MIR acceptance 설계에는 [ISMIR 2024 proceedings](https://ismir.net/conferences/ismir-2024/)의 구조 분석·notewise source-separation 평가·다중 stem 연구를 보조 근거로 반영한다. 이 문헌은 기존 휴리스틱을 자동으로 정답으로 취급하지 않으며, 실제 오디오 benchmark와 provenance·재현성 증적을 요구하는 근거로만 사용한다.
 
 Boulanger-Lewandowski, N., Bengio, Y., & Vincent, P. (2013). Audio chord recognition with recurrent neural networks. In Proceedings of the 14th International Society for Music Information Retrieval Conference (ISMIR 2013) (pp. 335–340). ISMIR.
 
@@ -347,7 +335,7 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   ```bash
   mkdir -p /tmp/opencode
   gh api --paginate 'repos/ContextualWisdomLab/bandscope/pulls?state=open&per_page=100' \
-    --jq '.[].number' | wc -l   # 130
+    --jq '.[].number' | wc -l   # 133
   gh pr view 1021 --json title,body       # 시리즈 패턴 샘플
   ```
 - Exact-head PR snapshot (capture time, protected base, current head, same-head Checks and reviews):
@@ -382,7 +370,7 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
   - `head -30 services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json` -> 휴리스틱 manifest 확인
-  - `find apps/desktop/src/features/workspace -type f -name '*.tsx' -print0 | xargs -0 grep -hEo 'aria-[[:alnum:]_-]+' | wc -l` -> 56 attribute tokens (2026-08-28 current checkout)
+  - `find apps/desktop/src/features/workspace -type f -name '*.tsx' -print0 | xargs -0 grep -hEo 'aria-[[:alnum:]_-]+' | wc -l` -> 56 attribute tokens (2026-08-29 current checkout)
   - `grep -rln "RehearsalAssignment\|RehearsalCollaboration" apps/desktop/src` -> 0건(UI 미구현 확인)
   - `grep -rn "loop" apps/desktop/src/features/player/index.tsx` -> 0건(loop 미구현 확인)
   - `ls CHANGELOG.md VERSION .github/workflows` -> 릴리스 자산 확인
