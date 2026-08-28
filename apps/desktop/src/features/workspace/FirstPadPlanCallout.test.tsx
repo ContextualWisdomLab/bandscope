@@ -15,6 +15,7 @@ function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeli
   timeline.setAttribute("role", "region");
   timeline.setAttribute("aria-label", ariaLabel);
   const grid = document.createElement("div");
+  grid.id = "workspace-song-structure-grid";
   grid.dataset.testid = "song-structure-grid";
   const target = document.createElement("div");
   target.dataset.sectionIndex = "0";

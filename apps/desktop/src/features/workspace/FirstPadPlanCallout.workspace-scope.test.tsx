@@ -13,13 +13,13 @@ describe("FirstPadPlanCallout workspace scope", () => {
       <>
         <div data-testid="workspace-one">
           <FirstPadPlanCallout song={firstSong} />
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid" data-testid="song-structure-grid">
             <div data-section-index="0" />
           </div>
         </div>
         <div data-testid="workspace-two">
           <FirstPadPlanCallout song={secondSong} />
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid" data-testid="song-structure-grid">
             <div data-section-index="0" />
           </div>
         </div>
