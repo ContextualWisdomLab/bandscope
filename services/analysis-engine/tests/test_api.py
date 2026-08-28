@@ -534,6 +534,11 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
     assert success["state"] == "succeeded"
     assert success["progressLabel"] == "Analysis ready for late-night-set.wav"
     assert success["result"]["tempo"] == 120
+    separator.assert_called_once()
+    assert separator.call_args.args == ("/Users/test/Music/late-night-set.wav",)
+    temporal_analyzer.return_value.analyze.assert_called_once_with(
+        "/Users/test/Music/late-night-set.wav"
+    )
 
 
 def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:

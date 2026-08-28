@@ -158,8 +158,8 @@
   "firstRitardandoPlanLabel": "오늘 첫 리타르단도 계획",
   "firstRitardandoPlanOpenAction": "{at} {role} 리타르단도 열기",
   "firstRitardandoPlanBody": "{at} {section}에서 {role} 파트가 리타르단도합니다.",
-  "firstRitardandoPlanArmed": "{at}에서 {role} 파트로 함께 늦추세요. 더 느린 착지가 들리도록 당기세요.",
-  "firstRitardandoPlanGeneratedGuidance": "이 파트를 {from} BPM에서 {to} BPM으로 늦추세요. 다음 다운비트까지 당기세요.",
+  "firstRitardandoPlanArmed": "{at}에서 {role} 파트와 함께 늦추세요. 더 느린 착지가 들리도록 맞추세요.",
+  "firstRitardandoPlanGeneratedGuidance": "이 파트를 {from} BPM에서 {to} BPM으로 늦추세요. 다음 다운비트가 더 늦게 오도록 맞추세요.",
   "firstRitardandoPlanUnavailable": "사용 가능한 리타르단도 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요.",
   "firstRitardandoPlanNavigationFailed": "곡 맵에서 이 리타르단도를 열 수 없습니다. 아래 맵에서 해당 구간을 찾아주세요."
 }

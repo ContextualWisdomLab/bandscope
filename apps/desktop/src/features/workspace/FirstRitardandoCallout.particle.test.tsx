@@ -55,7 +55,7 @@ describe("FirstRitardandoCallout Korean role copy", () => {
     fireEvent.click(screen.getByRole("button", { name: "0:10 피아노 리타르단도 열기" }));
 
     expect(
-      screen.getByText("0:10에서 피아노 파트로 함께 늦추세요. 더 느린 착지가 들리도록 당기세요.")
+      screen.getByText("0:10에서 피아노 파트와 함께 늦추세요. 더 느린 착지가 들리도록 맞추세요.")
     ).toBeTruthy();
     expect(screen.queryByText(/피아노과/)).toBeNull();
     expect(screen.queryByText(/피아노을/)).toBeNull();

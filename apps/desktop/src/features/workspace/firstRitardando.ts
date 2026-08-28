@@ -138,6 +138,9 @@ function truncateCodePoints(value: string, maximum: number): string {
 
 /** Preserve the engine ritardando template while enforcing the engine's slowing semantics. */
 function boundedGeneratedRitardandoPlan(value: string): OwnedRitardandoPlan | null {
+  if (value.length > MAX_RITARDANDO_PLAN_CHARACTERS) {
+    return null;
+  }
   if (
     !value.startsWith(RITARDANDO_PLAN_PREFIX) ||
     !value.endsWith(RITARDANDO_PLAN_SUFFIX) ||

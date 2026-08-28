@@ -170,6 +170,16 @@ describe("resolveFirstRitardandoPlan", () => {
     );
   });
 
+  it("rejects oversized generated copy before parsing tempo tokens", () => {
+    expect(
+      resolveFirstRitardandoPlan(
+        withRitardandoSection({
+          ritardandoPlan: `Ease this part from ${"0".repeat(180)}120 BPM into 80 BPM; let the next downbeat land later.`
+        })
+      )
+    ).toBeNull();
+  });
+
   it("admits bounded user copy without requiring the engine template", () => {
     const resolved = resolveFirstRitardandoPlan(
       withRitardandoSection({

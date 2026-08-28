@@ -37,7 +37,7 @@ describe("Workspace ritardando state authority", () => {
     }
   });
 
-  it("keeps an opened rit armed after an immutable practice-progress update", () => {
+  it("keeps an opened rit armed after an immutable edit and role switch", () => {
     const song = analyzedSongWithRitardandoPlan();
     let updatedSong: RehearsalSong | null = null;
     const onSongUpdate = vi.fn((nextSong: RehearsalSong) => {
@@ -59,5 +59,26 @@ describe("Workspace ritardando state authority", () => {
     expect(
       screen.getByText(/Ease Lead Vocal together at 0:10 so the slower landing is audible\./)
     ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(
+      screen.getByText(/Ease Lead Vocal together at 0:10 so the slower landing is audible\./)
+    ).toBeTruthy();
+  });
+
+  it("resets armed guidance when a new song arrives", () => {
+    const song = analyzedSongWithRitardandoPlan();
+    const nextSong = structuredClone(song);
+    const { rerender } = render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal rit at 0:10" }));
+    expect(
+      screen.getByText(/Ease Lead Vocal together at 0:10 so the slower landing is audible\./)
+    ).toBeTruthy();
+
+    rerender(<Workspace song={nextSong} />);
+
+    expect(screen.getByText("Lead Vocal eases the verse at 0:10.")).toBeTruthy();
   });
 });

@@ -113,9 +113,13 @@ def test_cli_passes_empty_local_source_to_job_runner(monkeypatch: pytest.MonkeyP
         cli,
         "run_analysis_job",
         return_value={"jobId": "job-empty-source", "state": "failed"},
-    ):
+    ) as run_analysis_job:
         assert cli.main() == 0
 
+    run_analysis_job.assert_called_once()
+    call = run_analysis_job.call_args
+    assert call.args[:2] == (payload["jobId"], payload["request"])
+    assert isinstance(call.args[2], str)
     assert json.loads(stdout.getvalue())["jobId"] == "job-empty-source"
 
 
