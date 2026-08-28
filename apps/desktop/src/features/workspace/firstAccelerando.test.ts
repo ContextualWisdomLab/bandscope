@@ -148,6 +148,28 @@ describe("resolveFirstAccelerandoPlan", () => {
     ).toBeNull();
   });
 
+  it("rejects model copy that is not a genuine non-double-time speeding", () => {
+    expect(
+      resolveFirstAccelerandoPlan(
+        withAccelerandoSection({
+          accelerandoPlan:
+            "Push this part from 120 BPM into 80 BPM; let the next downbeat arrive sooner."
+        })
+      )
+    ).toBeNull();
+    expect(
+      resolveFirstAccelerandoPlan(
+        withAccelerandoSection({
+          accelerandoPlan:
+            "Push this part from 60 BPM into 120 BPM; let the next downbeat arrive sooner."
+        })
+      )
+    ).toBeNull();
+    expect(resolveFirstAccelerandoPlan(withAccelerandoSection())?.accelerandoPlan).toBe(
+      DEMO_ACCELERANDO_PLAN
+    );
+  });
+
   it("admits bounded user copy without requiring the engine template", () => {
     const resolved = resolveFirstAccelerandoPlan(
       withAccelerandoSection({
