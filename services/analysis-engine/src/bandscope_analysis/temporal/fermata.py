@@ -112,8 +112,6 @@ def first_fermata(beat_times: Sequence[float] | None) -> FermataHold | None:
     intervals = [times[index + 1] - times[index] for index in range(len(times) - 1)]
     ordered = sorted(intervals)
     median = ordered[len(ordered) // 2]
-    if median <= 0 or not isfinite(median):
-        return None
     try:
         stability = analyze_tempo_stability(times)
         change_times = [
@@ -127,8 +125,6 @@ def first_fermata(beat_times: Sequence[float] | None) -> FermataHold | None:
     except (TypeError, ValueError, KeyError, AttributeError):
         change_times = []
     for index, interval in enumerate(intervals):
-        if not isfinite(interval) or interval <= 0:
-            continue
         ratio = interval / median
         if ratio < FERMATA_RATIO_MIN or ratio > FERMATA_RATIO_MAX:
             continue
