@@ -111,9 +111,9 @@ flowchart LR
 | #943 | `ff5e47d5cff84194e457c05e4bfbe26a30ea69a8` | first-intro player/workspace current head; Proxy metadata fail-closed fix 포함; 28 hosted Checks success, macOS amd64 진행 중, `opencode-review` failure; qualifying approval 없음 |
 | #947 | `38ed1c8f4dc5f020db43536596aa401c454db55c` | first-verse workspace/player current head; CHANGELOG heading spacing fix 포함; 28 hosted Checks success, macOS amd64 진행 중, `opencode-review` failure; qualifying approval 없음 |
 | #955 | `4058e5094bff94f9ed2df0f635313ff244f225a6` | first-pre-chorus workspace/player current head; CHANGELOG heading spacing fix 포함; 27 hosted Checks success, Rust/macOS amd64 진행 중, `opencode-review` failure; qualifying approval 없음 |
-| #859 | `0de77e21b6d20d7b21cf44c71a95d8d8c759cf63` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 27 hosted Checks pending, failure 없음, qualifying approval 없음 |
+| #859 | `62fd665968dff9032e58a2c58141355b65f264d0` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 27 hosted Checks pending, failure 없음, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `262ca769c98fcae60e39ec91f68cb6e4dbc2c668` | 이 문서 PR의 current head; docs snapshot 갱신 후 27 hosted Checks queued/in-progress; qualifying approval 없음 |
+| #1025 | `976ca371d3172c354fffbe900797ed4c1dc70051` | 이 문서 PR의 current head; docs snapshot 갱신 후 27 hosted Checks queued/in-progress; qualifying approval 없음 |
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
