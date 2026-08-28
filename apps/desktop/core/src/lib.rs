@@ -553,6 +553,9 @@ fn validate_ritardando_plan_provenance(
             if role.ritardando_plan.is_none() && role.ritardando_plan_source.is_some() {
                 return Err("Invalid project file format".to_string());
             }
+            if role.ritardando_plan.is_some() && role.ritardando_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
         }
     }
     Ok(payload)

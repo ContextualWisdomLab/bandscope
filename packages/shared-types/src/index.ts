@@ -1610,6 +1610,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   if (value.ritardandoPlanSource !== undefined && value.ritardandoPlan === undefined) {
     return invalidField(`${path}.ritardandoPlanSource`);
   }
+  if (value.ritardandoPlan !== undefined && value.ritardandoPlanSource === undefined) {
+    return invalidField(`${path}.ritardandoPlanSource`);
+  }
 
   return null;
 }

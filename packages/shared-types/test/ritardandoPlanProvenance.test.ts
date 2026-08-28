@@ -29,6 +29,14 @@ describe("ritardandoPlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlanSource/);
   });
 
+  it("rejects ritardando plan copy without provenance", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = DEMO_RITARDANDO_PLAN;
+    delete role.ritardandoPlanSource;
+    expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlanSource/);
+  });
+
   it.each(["", "   ", "ease here\nthen hold", "ease here\rthen hold"])(
     "rejects a ritardando plan source with blank or multiline copy %j",
     (ritardandoPlan) => {

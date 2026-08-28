@@ -101,6 +101,21 @@ fn project_contract_rejects_ritardando_plan_source_without_ritardando_plan() {
 }
 
 #[test]
+fn project_contract_rejects_ritardando_plan_without_source() {
+    let mut payload = song_with_ritardando_plan();
+    payload["sections"][0]["roles"][0]
+        .as_object_mut()
+        .expect("role fixture should be an object")
+        .remove("ritardandoPlanSource");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(
+        project_payload_from_content(&content).is_err(),
+        "native persisted contract must reject ritardando-plan copy without provenance"
+    );
+}
+
+#[test]
 fn project_contract_rejects_invalid_ritardando_plan_copy_with_source() {
     for ritardando_plan in ["", "   ", "ease here\nthen hold", "ease here\rthen hold"] {
         let mut payload = song_with_ritardando_plan();

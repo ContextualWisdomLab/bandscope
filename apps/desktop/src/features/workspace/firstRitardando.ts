@@ -257,6 +257,7 @@ function repeatedIds(ids: string[]): Set<string> {
   return repeated;
 }
 
+/** Rank vocal roles before instrumental roles. */
 function vocalRank(role: RankedRoleMetadata): number {
   return role.isVocal ? 0 : 1;
 }
