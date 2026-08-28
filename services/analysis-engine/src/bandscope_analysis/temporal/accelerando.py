@@ -262,8 +262,17 @@ def apply_accelerando_plan(song: Mapping[str, Any], beat_times: Sequence[float] 
             landing = _pick_landing_role(section)
             if landing is None:
                 return
-            landing["accelerandoPlan"] = copy
-            landing["accelerandoPlanSource"] = "model"
+            roles = section.get("roles")
+            if not isinstance(roles, list):
+                return
+            for index, role in enumerate(roles):
+                if role is not landing:
+                    continue
+                stamped = dict(landing)
+                stamped["accelerandoPlan"] = copy
+                stamped["accelerandoPlanSource"] = "model"
+                roles[index] = stamped
+                return
             return
     except (TypeError, ValueError, KeyError, AttributeError):
         return
