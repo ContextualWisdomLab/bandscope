@@ -127,6 +127,18 @@ fn project_contract_round_trips_optional_shared_role_fields() {
 }
 
 #[test]
+fn project_contract_rejects_practice_progress_outside_shared_range() {
+    let mut payload = song_with_drop_plan();
+    payload["sections"][0]["roles"][0]["practiceProgress"] = json!(101);
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(
+        project_payload_from_content(&content).is_err(),
+        "native persisted contract must enforce the shared 0..=100 practice-progress range"
+    );
+}
+
+#[test]
 fn project_contract_rejects_drop_plan_source_without_drop_plan() {
     let mut payload = song_with_drop_plan();
     payload["sections"][0]["roles"][0]
