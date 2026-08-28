@@ -166,7 +166,7 @@
   "exportCueSheetButton": "Export Cue Sheet (CSV)",
   "exportChartButton": "Export Chart (JSON)",
   "exportHandoffButton": "Export Handoff (JSON)",
-  "songTimelineSummary": "Sections mapped: {count}. Use the groove, role cues, and chord confidence notes to plan the first pass.",
+  "songTimelineSummary": "{count} {section} mapped. Use the groove, role cues, and chord confidence notes to plan the first pass.",
   "stemsEmptyHint": "Part audio (stems) will show up here as soon as it's ready — play it on repeat while practicing.",
   "rolesHarmonyHint": "Filter the board by player or vocal role without losing the full form context.",
   "stemPlayerTitle": "Stem Player",

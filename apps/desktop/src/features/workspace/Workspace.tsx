@@ -225,6 +225,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const sectionCount = song.sections.length;
+  const sectionLabel = t(sectionCount === 1 ? "metricConfidenceSectionSingular" : "metricConfidenceSectionPlural");
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -314,7 +316,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">{t("workspaceSongTimelineLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                {t("songTimelineSummary").replace("{count}", String(song.sections.length))}
+                {t("songTimelineSummary")
+                  .replace("{count}", String(sectionCount))
+                  .replace("{section}", sectionLabel)}
               </p>
             </section>
 

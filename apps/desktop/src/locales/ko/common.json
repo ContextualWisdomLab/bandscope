@@ -166,7 +166,7 @@
   "exportCueSheetButton": "큐시트 내보내기(CSV)",
   "exportChartButton": "차트 내보내기(JSON)",
   "exportHandoffButton": "인계 노트 내보내기(JSON)",
-  "songTimelineSummary": "{count}개 구간을 그루브·역할 큐·코드 확신도와 함께 정리했어요.",
+  "songTimelineSummary": "{count}개 {section}을 그루브·역할 큐·코드 확신도와 함께 정리했어요.",
   "stemsEmptyHint": "파트 소리(스템)가 준비되는 대로 이곳에 표시돼요. 반복해서 들으며 연습에 바로 쓸 수 있어요.",
   "rolesHarmonyHint": "연주자나 보컬 역할별로 골라 보세요. 곡 전체 흐름은 그대로 유지돼요.",
   "stemPlayerTitle": "스템 플레이어",

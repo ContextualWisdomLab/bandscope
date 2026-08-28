@@ -1201,7 +1201,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
   });
 
@@ -1213,7 +1213,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
   });
 
@@ -1225,7 +1225,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
   });
 
@@ -1237,7 +1237,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });
@@ -1250,7 +1250,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });
@@ -1263,7 +1263,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });

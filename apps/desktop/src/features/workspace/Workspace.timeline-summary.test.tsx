@@ -26,7 +26,7 @@ describe("Workspace song timeline summary", () => {
 
     expect(
       screen.getByText(
-        "Sections mapped: 1. Use the groove, role cues, and chord confidence notes to plan the first pass."
+        "1 section mapped. Use the groove, role cues, and chord confidence notes to plan the first pass."
       )
     ).toBeTruthy();
   });
