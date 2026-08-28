@@ -44,7 +44,7 @@ fn remove_stage(path: &Path) {
 }
 
 #[cfg(windows)]
-fn open_project_file(target: &Path) -> std::io::Result<File> {
+pub(crate) fn open_project_file(target: &Path) -> std::io::Result<File> {
     use std::os::windows::fs::OpenOptionsExt;
 
     let mut options = fs::OpenOptions::new();
@@ -55,7 +55,7 @@ fn open_project_file(target: &Path) -> std::io::Result<File> {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-fn open_project_file(target: &Path) -> std::io::Result<File> {
+pub(crate) fn open_project_file(target: &Path) -> std::io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt;
 
     let mut options = fs::OpenOptions::new();
@@ -65,11 +65,8 @@ fn open_project_file(target: &Path) -> std::io::Result<File> {
     options.open(target)
 }
 
-#[cfg(all(
-    unix,
-    not(any(target_os = "linux", target_os = "macos"))
-))]
-fn open_project_file(_target: &Path) -> std::io::Result<File> {
+#[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
+pub(crate) fn open_project_file(_target: &Path) -> std::io::Result<File> {
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
         "project loading requires no-follow handle acquisition on this platform",
@@ -77,7 +74,7 @@ fn open_project_file(_target: &Path) -> std::io::Result<File> {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn open_project_file(_target: &Path) -> std::io::Result<File> {
+pub(crate) fn open_project_file(_target: &Path) -> std::io::Result<File> {
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
         "project loading is unsupported on this platform",
