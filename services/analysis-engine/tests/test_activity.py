@@ -5,6 +5,8 @@ import numpy as np
 from bandscope_analysis.roles.activity import (
     compute_handoffs,
     detect_stem_activity,
+    detect_stem_energy,
+    map_stems_to_role_energy,
     map_stems_to_roles,
 )
 
@@ -116,3 +118,40 @@ def test_compute_handoffs_no_changes_means_no_handoffs() -> None:
 
     for role_id in current:
         assert handoffs[role_id] == ([], [])
+
+
+def test_detect_stem_energy_returns_segment_rms() -> None:
+    """Energy maps expose per-section RMS so a fade can be corroborated."""
+    sr = 8
+    vocals = np.concatenate(
+        [np.full(sr, 0.8, dtype=np.float32), np.full(sr, 0.2, dtype=np.float32)]
+    )
+    bass = np.full(sr * 2, 0.4, dtype=np.float32)
+    energy = detect_stem_energy(
+        {"vocals": vocals, "bass": bass},
+        [(0.0, 1.0), (1.0, 2.0)],
+        sr,
+    )
+    assert energy[0]["vocals"] > energy[1]["vocals"] * 1.8
+    assert abs(energy[0]["bass"] - energy[1]["bass"]) < 1e-6
+
+
+def test_detect_stem_energy_fails_closed_for_empty_slices() -> None:
+    """Unusable slices must not invent fade energy."""
+    stems = {
+        "vocals": np.array([], dtype=np.float32),
+        "bass": np.ones(10, dtype=np.float32),
+    }
+    energy = detect_stem_energy(stems, [(1.0, 2.0)], 10)
+    assert energy == [{"vocals": 0.0, "bass": 0.0}]
+
+
+def test_map_stems_to_role_energy_shares_other_without_drums() -> None:
+    """Accompaniment roles share other energy; drums never land a fade."""
+    mapped = map_stems_to_role_energy({"vocals": 0.2, "bass": 0.4, "other": 0.9, "drums": 1.0})
+    assert mapped["lead-vocal"] == 0.2
+    assert mapped["bass-guitar"] == 0.4
+    assert mapped["keys-left"] == 0.9
+    assert mapped["keys-right"] == 0.9
+    assert mapped["acoustic-guitar"] == 0.9
+    assert "drums" not in mapped

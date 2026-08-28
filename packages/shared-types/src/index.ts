@@ -143,6 +143,8 @@ export type RehearsalRole = {
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
   practiceProgress?: number;
+  fadePlan?: string;
+  fadePlanSource?: ProvenanceSource;
 };
 
 /** Documented. */
@@ -1500,7 +1502,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "manualOverrides",
       "overlapWarnings",
       "transcription",
-      "practiceProgress"
+      "practiceProgress",
+      "fadePlan",
+      "fadePlanSource"
     ],
     path
   );
@@ -1586,6 +1590,27 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     if (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100) {
       return invalidField(`${path}.practiceProgress`);
     }
+  }
+
+  if (
+    value.fadePlan !== undefined &&
+    (
+      typeof value.fadePlan !== "string" ||
+      value.fadePlan.trim().length === 0 ||
+      value.fadePlan.includes("\n") ||
+      value.fadePlan.includes("\r")
+    )
+  ) {
+    return invalidField(`${path}.fadePlan`);
+  }
+  if (
+    value.fadePlanSource !== undefined &&
+    !isOneOf(PROVENANCE_SOURCES, value.fadePlanSource)
+  ) {
+    return invalidField(`${path}.fadePlanSource`);
+  }
+  if (value.fadePlanSource !== undefined && value.fadePlan === undefined) {
+    return invalidField(`${path}.fadePlanSource`);
   }
 
   return null;
