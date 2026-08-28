@@ -19,13 +19,8 @@
     "@tauri-apps/api": "^2.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-<<<<<<< HEAD
     "lucide-react": "^1.31.0",
-    "pdfjs-dist": "6.1.200",
-=======
-    "lucide-react": "^1.24.0",
     "pdfjs-dist": "6.2.108",
->>>>>>> origin/develop
     "react": "^19.2.4",
     "react-dom": "^19.2.7",
     "sonner": "^2.0.7",
