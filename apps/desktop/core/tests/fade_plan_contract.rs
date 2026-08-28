@@ -101,6 +101,21 @@ fn project_contract_rejects_fade_plan_source_without_fade_plan() {
 }
 
 #[test]
+fn project_contract_rejects_fade_plan_without_source() {
+    let mut payload = song_with_fade_plan();
+    payload["sections"][0]["roles"][0]
+        .as_object_mut()
+        .expect("role fixture should be an object")
+        .remove("fadePlanSource");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(
+        project_payload_from_content(&content).is_err(),
+        "native persisted contract must reject fade-plan copy without provenance"
+    );
+}
+
+#[test]
 fn project_contract_rejects_invalid_fade_plan_copy_with_source() {
     for fade_plan in ["", "   ", "fade here\nthen hold", "fade here\rthen hold"] {
         let mut payload = song_with_fade_plan();
