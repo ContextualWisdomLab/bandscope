@@ -35,7 +35,7 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedSwellPlan = Readonly<{
   text: string;
-  source: SwellPlanSource | null;
+  source: SwellPlanSource;
   guidance: SwellPlanGuidance | null;
 }>;
 
@@ -49,7 +49,7 @@ export type FirstSwellPlan = {
   landingRoleId: string;
   landingRoleName: string;
   swellPlan: string;
-  swellPlanSource: SwellPlanSource | null;
+  swellPlanSource: SwellPlanSource;
   swellPlanGuidance: SwellPlanGuidance | null;
   atSeconds: number;
 };
@@ -163,7 +163,7 @@ function ownedSwellPlan(role: unknown): OwnedSwellPlan | null {
   if (typeof swellPlan !== "string") {
     return null;
   }
-  if (swellPlanSource !== undefined && swellPlanSource !== "model" && swellPlanSource !== "user") {
+  if (swellPlanSource !== "model" && swellPlanSource !== "user") {
     return null;
   }
   const trimmed = swellPlan.trim();
@@ -175,7 +175,7 @@ function ownedSwellPlan(role: unknown): OwnedSwellPlan | null {
   }
   return {
     text: truncateCodePoints(trimmed, MAX_SWELL_PLAN_CHARACTERS),
-    source: swellPlanSource ?? null,
+    source: swellPlanSource,
     guidance: null
   };
 }

@@ -11,6 +11,7 @@ function withSwellSection(
     end?: number;
     previousStart?: number;
     swellPlan?: string;
+    swellPlanSource?: "model" | "user";
     label?:
       | "intro"
       | "verse"
@@ -56,7 +57,8 @@ function withSwellSection(
           ? "Bass Guitar"
           : "Lead Vocal"),
     rehearsalPriority: overrides.priority ?? "high",
-    swellPlan: overrides.swellPlan ?? DEMO_SWELL_PLAN
+    swellPlan: overrides.swellPlan ?? DEMO_SWELL_PLAN,
+    swellPlanSource: overrides.swellPlanSource ?? "user"
   };
 
   const current = structuredClone(verse);
@@ -219,7 +221,8 @@ describe("resolveFirstSwellPlan", () => {
         id: "lead-vocal",
         name: "Lead Vocal",
         rehearsalPriority: "low",
-        swellPlan: "Earlier swell."
+        swellPlan: "Earlier swell.",
+        swellPlanSource: "user"
       },
       ...earlier.roles.filter((role) => role.id !== "lead-vocal")
     ];
@@ -263,7 +266,8 @@ describe("resolveFirstSwellPlan", () => {
       id: "lead-vocal",
       name: "Lead Vocal",
       rehearsalPriority: "high" as const,
-      swellPlan: "High-priority swell."
+      swellPlan: "High-priority swell.",
+      swellPlanSource: "user"
     };
     section.roles = [...section.roles.filter((role) => role.id !== "lead-vocal"), highRole];
     section.partGraph = [

@@ -29,7 +29,7 @@ type OpenedSwellPlan = Readonly<{
   landingRoleId: string;
   landingRoleName: string;
   swellPlan: string;
-  swellPlanSource: SwellPlanSource | null;
+  swellPlanSource: SwellPlanSource;
   swellPlanGuidanceKind: SwellPlanGuidance["kind"] | null;
   swellPlanTargetRoleName: string | null;
   atSeconds: number;
@@ -51,7 +51,7 @@ function formatSwellPlanCopy(template: string, values: SwellPlanCopyValues): str
 /** Localize model swell guidance from structured landing topology, never from display-copy grammar. */
 function localizedSwellPlan(
   swellPlan: string,
-  swellPlanSource: SwellPlanSource | null,
+  swellPlanSource: SwellPlanSource,
   guidance: SwellPlanGuidance | null,
   generatedTemplate: string,
   generatedSoloTemplate: string

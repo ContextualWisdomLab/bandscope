@@ -53,14 +53,19 @@ describe("FirstSwellPlanCallout swell-plan provenance", () => {
     expect(screen.queryByText("이 파트를 스웰하세요. 다음 다운비트까지 키우세요.")).toBeNull();
   });
 
-  it("does not infer model authority when persisted swell guidance has no source", () => {
+  it("fails closed when persisted swell guidance has no source", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const legacyPlan = "Swell this part; grow into the next downbeat.";
     const song = songWithKoreanSwell(legacyPlan);
 
     render(<FirstSwellPlanCallout song={song} />);
 
-    expect(screen.getByText(legacyPlan)).toBeTruthy();
+    expect(
+      screen.getByText(
+        "사용 가능한 스웰 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText(legacyPlan)).toBeNull();
     expect(screen.queryByText("이 파트를 스웰하세요. 다음 다운비트까지 키우세요.")).toBeNull();
   });
 

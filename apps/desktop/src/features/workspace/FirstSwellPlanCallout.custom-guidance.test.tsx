@@ -71,12 +71,17 @@ describe("FirstSwellPlanCallout custom guidance", () => {
     expect(screen.queryByText(/Swell Lead Vocal together at 0:30 so the lift is audible./)).toBeNull();
   });
 
-  it("preserves custom copy without model provenance instead of rewriting it", () => {
+  it("fails closed for custom copy without provenance", () => {
     render(
       <FirstSwellPlanCallout
         song={songWithCustomSwellPlan(undefined, "Stack the last bar and grow together.")}
       />
     );
-    expect(screen.getByText("Stack the last bar and grow together.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "No swell plan is available. Stay on tonight's map for the next rehearsal cue."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText("Stack the last bar and grow together.")).toBeNull();
   });
 });
