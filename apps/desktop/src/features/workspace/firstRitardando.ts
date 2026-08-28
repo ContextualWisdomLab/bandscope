@@ -190,6 +190,9 @@ function ownedRitardandoPlan(role: unknown): OwnedRitardandoPlan | null {
   ) {
     return null;
   }
+  if (ritardandoPlanSource === undefined) {
+    return null;
+  }
   const trimmed = ritardandoPlan.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
@@ -199,7 +202,7 @@ function ownedRitardandoPlan(role: unknown): OwnedRitardandoPlan | null {
   }
   return {
     text: truncateCodePoints(trimmed, MAX_RITARDANDO_PLAN_CHARACTERS),
-    source: ritardandoPlanSource ?? null,
+    source: ritardandoPlanSource,
     guidance: null
   };
 }

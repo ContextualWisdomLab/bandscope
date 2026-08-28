@@ -95,10 +95,8 @@ def test_chord_segment_builder_handles_zero_frames_without_final_segment() -> No
     assert result == []
 
 
-def test_cli_skips_temporal_probe_when_local_source_path_is_empty(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Do not invoke the temporary temporal probe for an empty local source path."""
+def test_cli_passes_empty_local_source_to_job_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pass local requests through without a duplicate temporal probe."""
     payload = {
         "jobId": "job-empty-source",
         "request": {
@@ -111,17 +109,13 @@ def test_cli_skips_temporal_probe_when_local_source_path_is_empty(
     monkeypatch.setattr(cli.sys, "stdin", io.StringIO(json.dumps(payload)))
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
-    with (
-        patch.object(cli, "TemporalAnalyzer") as temporal_analyzer,
-        patch.object(
-            cli,
-            "run_analysis_job",
-            return_value={"jobId": "job-empty-source", "state": "failed"},
-        ),
+    with patch.object(
+        cli,
+        "run_analysis_job",
+        return_value={"jobId": "job-empty-source", "state": "failed"},
     ):
         assert cli.main() == 0
 
-    temporal_analyzer.assert_not_called()
     assert json.loads(stdout.getvalue())["jobId"] == "job-empty-source"
 
 

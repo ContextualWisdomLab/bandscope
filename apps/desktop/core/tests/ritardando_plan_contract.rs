@@ -26,6 +26,7 @@ fn song_with_ritardando_plan() -> Value {
                             "functionLabel": "vi landing",
                             "source": "model"
                         },
+                        "harmonicExplanation": "The landing keeps the tonal floor clear.",
                         "cue": {
                             "kind": "transition",
                             "value": "Let the next downbeat land later."
@@ -42,8 +43,16 @@ fn song_with_ritardando_plan() -> Value {
                         "rehearsalPriority": "high",
                         "simplification": "Hold the landing syllable.",
                         "setupNote": "Keep the attack short.",
+                        "transpositionPlan": "Keep the landing shape a whole step lower if needed.",
                         "manualOverrides": [],
                         "overlapWarnings": [],
+                        "transcription": [{
+                            "pitch": "C#4",
+                            "onset": 1.0,
+                            "offset": 1.5,
+                            "velocity": 0.8
+                        }],
+                        "practiceProgress": 50,
                         "ritardandoPlan": "Ease this part from 120 BPM into 80 BPM; let the next downbeat land later.",
                         "ritardandoPlanSource": "model"
                     }
@@ -73,7 +82,8 @@ fn project_contract_round_trips_ritardando_plan_provenance() {
 
     let parsed = project_payload_from_content(&content)
         .expect("native project contract must accept shared ritardando-plan fields");
-    let serialized = serde_json::to_value(parsed).expect("native project contract should serialize");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
 
     assert_eq!(
         serialized["sections"][0]["roles"][0]["ritardandoPlan"],

@@ -181,6 +181,12 @@ describe("resolveFirstRitardandoPlan", () => {
     expect(resolved?.ritardandoPlanSource).toBe("user");
   });
 
+  it("rejects plan copy without explicit provenance", () => {
+    const song = withRitardandoSection();
+    delete song.sections[0]!.roles.find((role) => role.id === "lead-vocal")!.ritardandoPlanSource;
+    expect(resolveFirstRitardandoPlan(song)).toBeNull();
+  });
+
   it("fails closed on a malformed runtime song root", () => {
     expect(resolveFirstRitardandoPlan(null as never)).toBeNull();
   });

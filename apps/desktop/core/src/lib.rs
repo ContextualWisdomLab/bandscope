@@ -177,6 +177,15 @@ pub struct ManualOverridePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TranscriptionNotePayload {
+    pitch: String,
+    onset: f64,
+    offset: f64,
+    velocity: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum RitardandoPlanSourcePayload {
     Model,
@@ -190,14 +199,22 @@ pub struct RehearsalRolePayload {
     name: String,
     role_type: String,
     harmony: HarmonyPayload,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    harmonic_explanation: Option<String>,
     cue: CuePayload,
     range: RangePayload,
     confidence: ConfidencePayload,
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transposition_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transcription: Option<Vec<TranscriptionNotePayload>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    practice_progress: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ritardando_plan: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -543,11 +560,15 @@ fn validate_ritardando_plan_provenance(
 ) -> Result<RehearsalSongPayload, String> {
     for section in &payload.sections {
         for role in &section.roles {
-            if role.ritardando_plan.as_ref().is_some_and(|ritardando_plan| {
-                ritardando_plan.trim().is_empty()
-                    || ritardando_plan.contains('\n')
-                    || ritardando_plan.contains('\r')
-            }) {
+            if role
+                .ritardando_plan
+                .as_ref()
+                .is_some_and(|ritardando_plan| {
+                    ritardando_plan.trim().is_empty()
+                        || ritardando_plan.contains('\n')
+                        || ritardando_plan.contains('\r')
+                })
+            {
                 return Err("Invalid project file format".to_string());
             }
             if role.ritardando_plan.is_none() && role.ritardando_plan_source.is_some() {

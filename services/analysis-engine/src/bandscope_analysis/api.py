@@ -19,12 +19,13 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal import TemporalAnalyzer
 from bandscope_analysis.temporal.ritardando import apply_ritardando_plan, derive_beat_times
 
 logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
-ANALYSIS_CACHE_SCHEMA_VERSION = 1
+ANALYSIS_CACHE_SCHEMA_VERSION = 2
 FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
@@ -540,6 +541,18 @@ def _coerce_beat_times(audio_features: dict[str, Any] | None) -> list[float] | N
     return times
 
 
+def _temporal_features_for_request(request: AnalysisJobRequest) -> dict[str, Any]:
+    """Return original-audio temporal features, or an empty safe fallback."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return {}
+    try:
+        features = TemporalAnalyzer().analyze(request["localSource"]["sourcePath"])
+        return {"bpm": features["bpm"], "beat_times": features["beat_times"]}
+    except Exception:
+        logger.warning("Temporal analysis unavailable; continuing with fallback cues.")
+        return {}
+
+
 def _apply_ritardando(
     song: RehearsalSong,
     mix: Any,
@@ -648,7 +661,7 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
+    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
@@ -1214,6 +1227,11 @@ def run_analysis_job_updates(
                 )
             )
             return updates
+
+    if audio_features is not None:
+        temporal_features = _temporal_features_for_request(request)
+        if temporal_features:
+            audio_features = {**audio_features, **temporal_features}
 
     updates.append(
         _build_job_status(
