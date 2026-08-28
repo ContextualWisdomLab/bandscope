@@ -1592,7 +1592,15 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     }
   }
 
-  if (value.dropPlan !== undefined && typeof value.dropPlan !== "string") {
+  if (
+    value.dropPlan !== undefined &&
+    (
+      typeof value.dropPlan !== "string" ||
+      value.dropPlan.trim().length === 0 ||
+      value.dropPlan.includes("\n") ||
+      value.dropPlan.includes("\r")
+    )
+  ) {
     return invalidField(`${path}.dropPlan`);
   }
   if (
