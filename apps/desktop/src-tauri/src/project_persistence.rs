@@ -169,37 +169,15 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
     read_project_file_with_opener(target, open_project_file)
 }
 
-fn write_first_project_exclusively(target: &Path, content: &[u8]) -> Result<(), String> {
-    let mut published = match fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(target)
-    {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            return Err(PROJECT_EXISTS_ERROR.to_string());
-        }
-        Err(_) => return Err(PROJECT_PUBLISH_ERROR.to_string()),
-    };
-
-    if published.write_all(content).is_err() || published.sync_all().is_err() {
-        // Do not remove `target` by path after publication begins: another actor could replace the
-        // directory entry between this handle write and cleanup. There was no previous known-good
-        // target in this fallback path, so fail without introducing a path-based delete race.
-        return Err(PROJECT_PUBLISH_ERROR.to_string());
-    }
-    Ok(())
-}
-
 /// Publishes a selected project only after its complete bounded bytes are staged and synced.
 ///
 /// The directly selected parent must itself be a real directory rather than a symlink/reparse point
 /// before any staging artifact is created. `File::create_new` makes staging non-clobbering. A new
 /// destination first uses a hard link to the synced staging inode, preserving no-clobber publication
-/// where hard links are available. Filesystems without hard-link support fall back to an exclusive
-/// `create_new` target and a second bounded write, which remains race-safe against another writer but
-/// is not claimed to provide atomic first-save visibility. If the save dialog selected an existing
-/// regular file, the synced staging file is atomically renamed over that directory entry;
+/// where hard links are available. Filesystems without hard-link support fail closed because a
+/// direct first-save write could leave a partial destination after a disk or sync failure. If the
+/// save dialog selected an existing regular file, the synced staging file is atomically renamed over
+/// that directory entry;
 /// symlink/reparse/special targets fail closed. Ancestor-handle binding, parent-directory durability,
 /// concurrent-writer serialization, backup rotation, migration, and recovery remain separate
 /// project-format work under #962.
@@ -268,9 +246,8 @@ where
             remove_stage(&stage);
             return Err(PROJECT_EXISTS_ERROR.to_string());
         }
-        let fallback = write_first_project_exclusively(target, content);
         remove_stage(&stage);
-        return fallback;
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
     }
 
     // Both names reference the already-synced inode at this point. Cleanup failure does not make the

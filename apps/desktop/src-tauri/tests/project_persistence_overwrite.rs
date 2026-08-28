@@ -49,12 +49,12 @@ fn confirmed_existing_project_is_replaced_after_new_bytes_are_staged() {
 }
 
 #[test]
-fn new_project_falls_back_to_exclusive_create_when_hard_links_are_unsupported() {
+fn new_project_fails_closed_when_hard_links_are_unsupported() {
     let root = test_dir("no-hard-link");
     let target = root.join("setlist.bscope");
     let content = br#"{\"id\":\"portable-new-save\"}"#;
 
-    project_persistence::publish_new_project_file_with_linker(
+    let error = project_persistence::publish_new_project_file_with_linker(
         &target,
         content,
         |_stage, _target| {
@@ -64,17 +64,15 @@ fn new_project_falls_back_to_exclusive_create_when_hard_links_are_unsupported() 
             ))
         },
     )
-    .expect("a filesystem without hard links must still support a first save");
+    .expect_err("a filesystem without hard links must fail before direct publication");
 
-    assert_eq!(
-        fs::read(&target).expect("fallback project should be readable"),
-        content
-    );
+    assert_eq!(error, "Could not publish the project safely.");
+    assert!(!target.exists());
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
 
 #[test]
-fn hard_link_fallback_never_clobbers_a_target_that_appears_concurrently() {
+fn new_project_never_clobbers_a_target_that_appears_concurrently() {
     let root = test_dir("no-hard-link-race");
     let target = root.join("setlist.bscope");
     let content = br#"{\"id\":\"candidate\"}"#;
@@ -86,12 +84,12 @@ fn hard_link_fallback_never_clobbers_a_target_that_appears_concurrently() {
         |_stage, target| {
             fs::write(target, racer)?;
             Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "fixture filesystem has no hard links",
+                io::ErrorKind::AlreadyExists,
+                "racer won the target name",
             ))
         },
     )
-    .expect_err("fallback must fail closed when another writer wins the target name");
+    .expect_err("publication must fail closed when another writer wins the target name");
 
     assert_eq!(
         error,

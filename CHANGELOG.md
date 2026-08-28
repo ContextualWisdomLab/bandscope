@@ -20,6 +20,7 @@
 - Reject a symlinked/reparse-point save parent before staging so a selected project path cannot redirect new project publication into a different directory.
 - Fail closed when a selected `.bscope` path changes file identity between preflight and handle acquisition; Windows also opens reparse points without following them before validation.
 - Refuse last-component symlink following during Linux/macOS project handle acquisition and make that acquisition non-blocking so a preflight-to-open path swap cannot redirect the loader or stall it on a special file.
+- Fail closed on first-save filesystems without hard-link support instead of directly writing a destination that could remain partial after a disk or sync failure.
 
 ## [0.1.3] - 2026-04-29
 
