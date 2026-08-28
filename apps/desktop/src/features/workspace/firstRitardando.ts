@@ -13,6 +13,8 @@ const NAMED_RITARDANDO_ROLE_IDS = new Set(["bass-guitar", "lead-vocal"]);
 const RITARDANDO_PLAN_PREFIX = "Ease this part from ";
 const RITARDANDO_PLAN_MIDDLE = " BPM into ";
 const RITARDANDO_PLAN_SUFFIX = " BPM; let the next downbeat land later.";
+const HALF_TIME_RATIO_MIN = 0.45;
+const HALF_TIME_RATIO_MAX = 0.55;
 
 type RitardandoPlanSource = "model" | "user";
 
@@ -130,7 +132,7 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Preserve the engine ritardando template while bounding its model-owned tempo tokens. */
+/** Preserve the engine ritardando template while enforcing the engine's slowing semantics. */
 function boundedGeneratedRitardandoPlan(value: string): OwnedRitardandoPlan | null {
   if (
     !value.startsWith(RITARDANDO_PLAN_PREFIX) ||
@@ -147,6 +149,21 @@ function boundedGeneratedRitardandoPlan(value: string): OwnedRitardandoPlan | nu
   const fromBpm = inner.slice(0, middleIndex);
   const toBpm = inner.slice(middleIndex + RITARDANDO_PLAN_MIDDLE.length);
   if (!/^\d+(?:\.\d+)?$/u.test(fromBpm) || !/^\d+(?:\.\d+)?$/u.test(toBpm)) {
+    return null;
+  }
+  const fromBpmValue = Number(fromBpm);
+  const toBpmValue = Number(toBpm);
+  if (
+    !Number.isFinite(fromBpmValue) ||
+    !Number.isFinite(toBpmValue) ||
+    fromBpmValue <= 0 ||
+    toBpmValue <= 0 ||
+    toBpmValue >= fromBpmValue
+  ) {
+    return null;
+  }
+  const ratio = toBpmValue / fromBpmValue;
+  if (ratio >= HALF_TIME_RATIO_MIN && ratio <= HALF_TIME_RATIO_MAX) {
     return null;
   }
   return {
