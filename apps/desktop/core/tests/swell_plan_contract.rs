@@ -101,6 +101,21 @@ fn project_contract_rejects_swell_plan_source_without_swell_plan() {
 }
 
 #[test]
+fn project_contract_rejects_swell_plan_without_source() {
+    let mut payload = song_with_swell_plan();
+    payload["sections"][0]["roles"][0]
+        .as_object_mut()
+        .expect("role fixture should be an object")
+        .remove("swellPlanSource");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(
+        project_payload_from_content(&content).is_err(),
+        "native persisted contract must reject swell-plan copy without provenance"
+    );
+}
+
+#[test]
 fn project_contract_rejects_invalid_swell_plan_copy_with_source() {
     for swell_plan in ["", "   ", "swell here\nthen hold", "swell here\rthen hold"] {
         let mut payload = song_with_swell_plan();
