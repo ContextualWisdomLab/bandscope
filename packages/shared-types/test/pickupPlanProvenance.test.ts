@@ -36,4 +36,16 @@ describe("pickup plan provenance", () => {
 
     expect(() => parseRehearsalSong(song)).toThrow(/pickupPlanSource/);
   });
+
+  it.each(["", " \t ", "first line\nsecond line", "first line\rsecond line"])(
+    "rejects persisted pickup plans that the native loader cannot safely accept: %j",
+    (pickupPlan) => {
+      const song = createDemoRehearsalSong();
+      const role = song.sections[0]!.roles[0]!;
+      role.pickupPlan = pickupPlan;
+      role.pickupPlanSource = "model";
+
+      expect(() => parseRehearsalSong(song)).toThrow(/pickupPlan/);
+    }
+  );
 });
