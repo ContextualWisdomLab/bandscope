@@ -189,6 +189,8 @@ pub struct RehearsalRolePayload {
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    capo_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
 }
@@ -529,7 +531,7 @@ pub fn is_youtube_video_id(value: &str) -> bool {
 
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
-        return Ok(parsed);
+        return validate_capo_plan(parsed);
     }
 
     let payload = serde_json::from_str::<Value>(content)
@@ -547,7 +549,22 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         }
     }
 
-    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+    let parsed =
+        serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())?;
+    validate_capo_plan(parsed)
+}
+
+fn validate_capo_plan(payload: RehearsalSongPayload) -> Result<RehearsalSongPayload, String> {
+    for section in &payload.sections {
+        for role in &section.roles {
+            if role.capo_plan.as_ref().is_some_and(|capo_plan| {
+                capo_plan.trim().is_empty() || capo_plan.contains('\n') || capo_plan.contains('\r')
+            }) {
+                return Err("Invalid project file format".to_string());
+            }
+        }
+    }
+    Ok(payload)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -752,6 +769,7 @@ mod tests {
                             "rehearsalPriority": "high",
                             "simplification": "Stay on roots if the chorus entrance gets muddy.",
                             "setupNote": "Keep the attack short so the verse breathes.",
+                            "capoPlan": "Capo 2 in standard tuning so the verse fingers G shapes while the room still sounds in A.",
                             "manualOverrides": [],
                             "overlapWarnings": [
                                 "Density warning: competing with Keyboard Left Hand in low register."
@@ -784,6 +802,10 @@ mod tests {
             .expect("shared rehearsal song contract should deserialize in Tauri");
 
         assert_eq!(parsed.sections[0].id, "verse-1");
+        assert_eq!(
+            parsed.sections[0].roles[0].capo_plan.as_deref(),
+            Some("Capo 2 in standard tuning so the verse fingers G shapes while the room still sounds in A.")
+        );
     }
 
     #[test]
@@ -867,6 +889,17 @@ mod tests {
             .expect("current shared contract should parse directly");
 
         assert_eq!(parsed.title, "Late Night Set");
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_invalid_capo_plan() {
+        for capo_plan in ["", "   ", "capo here\nthen move", "capo here\rthen move"] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["sections"][0]["roles"][0]["capoPlan"] = json!(capo_plan);
+            let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+            assert!(project_payload_from_content(&content).is_err());
+        }
     }
 
     #[test]
