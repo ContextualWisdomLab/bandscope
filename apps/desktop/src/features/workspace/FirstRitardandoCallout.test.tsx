@@ -98,6 +98,23 @@ describe("FirstRitardandoCallout", () => {
     expect(screen.getByText(DEMO_RITARDANDO_PLAN)).toBeTruthy();
   });
 
+  it("shows armed confirmation for user-sourced plans without rewriting user copy", () => {
+    const song = songWithRitardandoPlan();
+    const userPlan = "Ease here exactly as our band agreed.";
+    const vocal = song.sections[0]!.roles.find((role) => role.id === "lead-vocal")!;
+    vocal.ritardandoPlan = userPlan;
+    vocal.ritardandoPlanSource = "user";
+    appendSongStructureTarget();
+    render(<FirstRitardandoCallout song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal rit at 0:10" }));
+
+    expect(
+      screen.getByText(/Ease Lead Vocal together at 0:10 so the slower landing is audible./)
+    ).toBeTruthy();
+    expect(screen.getByText(userPlan)).toBeTruthy();
+  });
+
   it("reports when the map section cannot be opened", () => {
     render(<FirstRitardandoCallout song={songWithRitardandoPlan()} />);
 
