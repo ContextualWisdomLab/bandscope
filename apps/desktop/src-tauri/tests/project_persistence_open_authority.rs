@@ -1,13 +1,5 @@
-#[cfg(unix)]
-mod project_persistence {
-    include!("../src/project_persistence.rs");
-
-    pub(crate) fn open_for_authority_test(
-        target: &std::path::Path,
-    ) -> std::io::Result<std::fs::File> {
-        open_project_file(target)
-    }
-}
+#[path = "../src/project_persistence.rs"]
+mod project_persistence;
 
 #[cfg(unix)]
 #[test]
@@ -33,7 +25,7 @@ fn unix_project_opener_refuses_symlink_at_handle_acquisition() {
         .expect("external fixture should be written");
     symlink(&external, &selected).expect("fixture symlink should be created");
 
-    let opened = project_persistence::open_for_authority_test(&selected);
+    let opened = project_persistence::open_project_file(&selected);
 
     assert!(
         opened.is_err(),
