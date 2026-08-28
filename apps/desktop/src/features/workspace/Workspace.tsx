@@ -223,7 +223,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const hasPlayableRange = Boolean(roleRangeLow && roleRangeHigh);
   const hasStartEvidence = Boolean(firstNote || hasPlayableRange);
   const canArmTonightSetup = Boolean(setupCue && hasStartEvidence);
-  const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
   const firstRange = useMemo(() => firstRangeSqueeze(song, activeRole), [activeRole, song]);
   const firstRangeCopy = firstRange
     ? fillRangeCopy(

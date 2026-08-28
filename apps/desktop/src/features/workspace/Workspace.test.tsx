@@ -100,7 +100,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     const setupButton = screen.getByRole("button", {
-      name: /Set up Bass Guitar: Keep the attack short so the verse breathes/i
+      name: /Set up Bass Guitar · then start in C#2–E3\. Setup: Keep the attack short so the verse breathes/i
     }) as HTMLButtonElement;
     expect(setupButton.disabled).toBe(false);
     expect(screen.queryByRole("button", { name: "Transcribe Bass" })).toBeNull();
@@ -358,7 +358,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: /Then start on A2 from 0:42 on tonight's groove map/i
+        name: /Set up Bass Guitar · then start on A2 from 0:42\. Setup: Keep the attack short so the verse breathes/i
       })
     );
 
@@ -398,6 +398,10 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    expect(screen.getByRole("button", { name: /Bass Guitar 세팅: Keep the attack short so the verse breathes/ })).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: /Bass Guitar 세팅 · .*세팅: Keep the attack short so the verse breathes/
+      })
+    ).toBeTruthy();
   });
 });
