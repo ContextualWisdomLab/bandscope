@@ -154,6 +154,21 @@ fn project_contract_rejects_drop_plan_source_without_drop_plan() {
 }
 
 #[test]
+fn project_contract_rejects_drop_plan_without_source() {
+    let mut payload = song_with_drop_plan();
+    payload["sections"][0]["roles"][0]
+        .as_object_mut()
+        .expect("role fixture should be an object")
+        .remove("dropPlanSource");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(
+        project_payload_from_content(&content).is_err(),
+        "native persisted contract must reject drop-plan copy without provenance"
+    );
+}
+
+#[test]
 fn project_contract_rejects_invalid_drop_plan_copy_with_source() {
     for drop_plan in ["", "   ", "land here\nthen hold", "land here\rthen hold"] {
         let mut payload = song_with_drop_plan();
