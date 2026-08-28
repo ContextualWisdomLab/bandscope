@@ -148,6 +148,7 @@ def _required_workflow_jobs() -> dict[str, dict[str, tuple[str, ...]]]:
                 install,
                 f"cargo +{EXPECTED_TOOLCHAIN} check",
                 f"cargo +{EXPECTED_TOOLCHAIN} test",
+                f"cargo +{EXPECTED_TOOLCHAIN} test --manifest-path apps/desktop/core/Cargo.toml --locked",
             ),
         },
         "release.yml": {"release-preflight": (install,)},
