@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from math import isfinite
 from typing import Any
 
@@ -494,7 +495,7 @@ class RoleExtractor:
             handoff_to, handoff_from = handoffs.get(role_id, ([], []))
 
             if is_active:
-                role = roles[role_key]
+                role = deepcopy(roles[role_key])
                 swell_plan = self._activity_swell_plan(
                     role_id,
                     roles,
