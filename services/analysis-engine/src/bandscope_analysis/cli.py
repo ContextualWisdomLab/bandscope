@@ -6,7 +6,7 @@ import json
 import logging
 import sys
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
 from bandscope_analysis.temporal import TemporalAnalyzer
@@ -90,7 +90,7 @@ def main() -> int:
             try:
                 temporal_analyzer = TemporalAnalyzer()
                 features = temporal_analyzer.analyze(audio_path)
-                temporal_features = features
+                temporal_features = cast(dict[str, Any], features)
                 logging.info(f"Extracted BPM: {features['bpm']}")
             except Exception:
                 logging.warning(
