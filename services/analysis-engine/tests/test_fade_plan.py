@@ -80,7 +80,10 @@ def test_activity_fade_emits_solo_plan_for_a_staying_vocal_fall() -> None:
     vocal = next(role for role in topology["active_roles"] if role["id"] == "lead-vocal")
     assert vocal["fadePlan"] == _SOLO_PLAN
     assert vocal["fadePlanSource"] == "model"
-    assert all("fadePlan" not in role or role["id"] == "lead-vocal" for role in topology["active_roles"])
+    assert all(
+        "fadePlan" not in role or role["id"] == "lead-vocal"
+        for role in topology["active_roles"]
+    )
 
 
 def test_activity_fade_names_two_named_falls_as_partners() -> None:
