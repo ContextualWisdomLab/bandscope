@@ -16,6 +16,10 @@ const PROJECT_TOO_LARGE_ERROR: &str = "Project file is too large (exceeds 5MB li
 const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 #[cfg(windows)]
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+#[cfg(target_os = "linux")]
+const UNIX_PROJECT_OPEN_FLAGS: i32 = 0x0002_0800; // O_NOFOLLOW | O_NONBLOCK
+#[cfg(target_os = "macos")]
+const UNIX_PROJECT_OPEN_FLAGS: i32 = 0x0000_0104; // O_NOFOLLOW | O_NONBLOCK
 
 fn project_parent(target: &Path) -> &Path {
     match target.parent() {
@@ -50,9 +54,34 @@ fn open_project_file(target: &Path) -> std::io::Result<File> {
     options.open(target)
 }
 
-#[cfg(not(windows))]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn open_project_file(target: &Path) -> std::io::Result<File> {
-    File::open(target)
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut options = fs::OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(UNIX_PROJECT_OPEN_FLAGS);
+    options.open(target)
+}
+
+#[cfg(all(
+    unix,
+    not(any(target_os = "linux", target_os = "macos"))
+))]
+fn open_project_file(_target: &Path) -> std::io::Result<File> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "project loading requires no-follow handle acquisition on this platform",
+    ))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_project_file(_target: &Path) -> std::io::Result<File> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "project loading is unsupported on this platform",
+    ))
 }
 
 #[cfg(unix)]
@@ -135,12 +164,13 @@ where
 /// Reads one project through a bounded, path-stable native file handle.
 ///
 /// The selected path must name the same regular file before the open, on the opened handle, and
-/// immediately after the open. Unix builds compare device/inode identity. Windows opens the reparse
-/// point itself rather than following it and rejects reparse handles, then requires the stable file
-/// metadata revision to match around the open. This closes the selected-path swap between the
-/// preflight and handle acquisition without adding a dependency or granting JavaScript path
-/// authority. The reader remains capped at `MAX_PROJECT_FILE_BYTES + 1`; backup, migration, and
-/// recovery semantics remain later #962 work.
+/// immediately after the open. Linux and macOS acquire the handle with no-follow plus non-blocking
+/// flags before comparing device/inode identity, so a last-component symlink swap cannot redirect
+/// handle acquisition and a special-file swap cannot block the UI thread. Windows opens the reparse
+/// point itself rather than following it and rejects reparse handles, then requires stable file
+/// metadata around acquisition. Other Unix targets fail closed until their no-follow flags are
+/// explicitly modeled. The reader remains capped at `MAX_PROJECT_FILE_BYTES + 1`; backup, migration,
+/// and recovery semantics remain later #962 work.
 pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
     read_project_file_with_opener(target, open_project_file)
 }
