@@ -94,11 +94,11 @@ flowchart LR
 
 ## 4. 현재 열린 PR 기반 Gap 분석 (Open-PR Gap Analysis)
 
-현재 open PR은 130건이다(2026-08-28 REST inventory 기준). 대부분은 동일 패턴의 시리즈다.
+현재 open PR은 130건이다(2026-08-28 REST inventory 기준). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
 
 ### 4.1 2026-08-28 exact-head 운영 snapshot
 
-아래 표는 protected base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`에 대해 GitHub REST API로 다시 읽은 current head와 그 head의 Checks/review 상태다. 이전 SHA의 Checks는 현재 증적으로 재사용하지 않았다.
+아래 표는 protected base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`에 대해 GitHub REST API로 다시 읽은 대표 PR의 current head와 그 head의 Checks/review 상태다. 아래 재실행 명령은 capture 시각의 open PR 전체에 대해 각 current head, 동일 SHA의 check-runs, reviews, protected base를 JSON으로 묶는다. 이전 SHA의 Checks는 현재 증적으로 재사용하지 않았다.
 
 | PR | current head | current 상태와 traceability |
 |---|---|---|
@@ -125,7 +125,9 @@ flowchart LR
 | #922 | `0a677db0cc43aaff3934b4692d1882b9b0f57769` | Storybook 10.5.8 업데이트에 필요한 Storybook 10.5.10·oxc-resolver·플랫폼 optional dependency tree를 lockfile에 재생성; clean `npm ci`, `npm ls`, npm runtime/typecheck/lint/build local pass; hosted non-cancelled checks 21 success·0 pending, `strix`/`opencode-review` failure, qualifying current-head approval 없음 |
 | #859 | `62fd665968dff9032e58a2c58141355b65f264d0` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 1 hosted Check success, 27 pending, failure 없음, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `22b48f11e5dd7d050f3b29fdb7742f1f96610bf6` | 이 문서 PR의 current head; hosted non-cancelled check-runs 31 success·1 failure(`opencode-review`)·2 neutral·0 pending, `strix` success; OpenCode는 해당 head의 current-head verdict 미발행으로 failure이며 qualifying approval 없음 |
+| #1025 | `175e2ad0338ebb0e8a5b8f6d36df285203623466` | 이 문서 PR의 current head; 이전 SHA의 Checks는 재사용하지 않음; 새 hosted Checks는 실행 중이며 qualifying approval 없음 |
+
+`#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
@@ -166,7 +168,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 (d) **테스트 현실성** — `test_numeric_parity.py`(Rust-Python parity), `test_api.py` 등은 합성 입력 기반이다. 현재 PR checkout의 Git tree 및 9장 `find` 검증 기준 test 경로에 `.wav`/`.mp3` 실오디오 fixture가 없다. 실오디오 acceptance는 PR #892(decoded WAV C major), #891(known take verse/chorus recovery)이 열려 있고, 실 YouTube known-stem benchmark는 draft PR #828 + Issue #770 상태다. RMSE/SI-SDR 스타일 정량 임계값 acceptance gate는 아직 없다.
 
-(e) **커버리지/docstring 100%** — Python은 `--cov-fail-under=100` + Ruff D100-D107 docstring 100%가 gate로 작동한다(AGENTS.md, roadmap-completion 문서). JS workspace의 **2026-08-25 snapshot 실측**은 desktop(469 stmts/357 branches/105 funcs)과 shared-types(717 stmts/643 branches/59 funcs) 모두 statements/branches/functions/lines 100%였다. 이 수치는 현재 영구 gate를 뜻하지 않는다. gate threshold(`vite.config.ts`, `vitest.config.ts`)는 90으로 Python보다 낮아, 리그레션 시 90~99% 구간이 무단 통과될 수 있다. Gate 상향은 Backlog #10.
+(e) **커버리지/docstring 100%** — Python은 `--cov-fail-under=100` + Ruff D100-D107 docstring 100%가 gate로 작동한다(AGENTS.md, roadmap-completion 문서). JS workspace의 **2026-08-25 snapshot 실측**(source tree commit `d303c93e5e7d9199edb6ce596dcb9a8753f3a5fa`)은 desktop(469 stmts/357 branches/105 funcs)과 shared-types(717 stmts/643 branches/59 funcs) 모두 statements/branches/functions/lines 100%였다. 재실행 명령과 결과 artifact 경로는 각각 `npm run test --workspace @bandscope/desktop` -> `apps/desktop/coverage/coverage-summary.json`, `npm run test --workspace @bandscope/shared-types` -> `packages/shared-types/coverage/coverage-summary.json`이다. 이 수치는 현재 영구 gate를 뜻하지 않는다. gate threshold(`vite.config.ts`, `vitest.config.ts`)는 90으로 Python보다 낮아, 리그레션 시 90~99% 구간이 무단 통과될 수 있다. Gate 상향은 Backlog #10.
 
 (f) **보안 체크리스트 잔여 항목** — 구현된 것: allowlisted stdin/stdout subprocess, Tauri CSP, path guards(#727 착지), CSV escape/sanitize, shell=False. 열린 것: canonical audio resource budget(#985 draft, Issue #781), filesystem path containment 재구축(Issue #852, #858 진행), native PDF read bounding(#865, #750), quick-xml RustSec 예외(#948, Issue #542), npm/PDF.js/nanoid/undici baseline(#783). 모델 artifact(Demucs checkpoint) checksum/signature 검증 파이프라인은 문서(app-security.md "Models") 요구 대비 미구현.
 
@@ -174,7 +176,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 (h) **i18n/현지화** — `src/i18n` + `locales/en`, `locales/ko` 존재, 하드코딩 한국어 문자열 미탐지(workspace tsx grep 0건), interpolation hardening PR #744 진행. en/ko 2개 언어뿐이며, PR 시리즈가 추가할 다수의 카피 키가 locales에 아직 없다.
 
-(i) **접근성** — 2026-08-25 snapshot에서 workspace 컴포넌트의 `aria-`가 포함된 matching line은 52개였다. 이는 고유 attribute token 수가 아니다. WCAG 2.2 AA gate는 Issue #965로 열려 있고, Figma/Storybook/shipped UI 정합 점검도 미완이다. tooltip/a11y PR(#833, #731)이 진행 중.
+(i) **접근성** — 2026-08-28 current checkout에서 workspace 컴포넌트의 `aria-*` attribute token은 56개였다. WCAG 2.2 AA gate는 Issue #965로 열려 있고, Figma/Storybook/shipped UI 정합 점검도 미완이다. tooltip/a11y PR(#833, #731)이 진행 중.
 
 (j) **Design token/Storybook** — shadcn/ui 프리미티브 중 stories는 button/checkbox/dialog 3개뿐이고, rehearsal 도메인 컴포넌트(GrooveMap, SectionRoadmap, RoleSwitcher 등) stories는 없다. Storybook token PR #897이 진행 중.
 
@@ -348,6 +350,29 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
     --jq '.[].number' | wc -l   # 130
   gh pr view 1021 --json title,body       # 시리즈 패턴 샘플
   ```
+- Exact-head PR snapshot (capture time, protected base, current head, same-head Checks and reviews):
+  ```bash
+  snapshot_dir="${TMPDIR:-/tmp}/bandscope-pr-snapshot"
+  mkdir -p "$snapshot_dir"
+  base_sha="$(git ls-remote https://github.com/ContextualWisdomLab/bandscope.git refs/heads/develop | cut -f1)"
+  gh api --paginate --slurp 'repos/ContextualWisdomLab/bandscope/pulls?state=open&per_page=100' \
+    --jq 'add | map({number,head_sha:.head.sha,base_sha:.base.sha})' > "$snapshot_dir/prs.json"
+  jq -c '.[]' "$snapshot_dir/prs.json" | while read -r pr; do
+    number="$(jq -r .number <<<"$pr")"
+    head_sha="$(jq -r .head_sha <<<"$pr")"
+    checks="$(gh api --paginate --slurp "repos/ContextualWisdomLab/bandscope/commits/${head_sha}/check-runs?per_page=100" \
+      --jq 'map(.check_runs) | add | map({name,status,conclusion,head_sha})')"
+    reviews="$(gh api --paginate --slurp "repos/ContextualWisdomLab/bandscope/pulls/${number}/reviews" \
+      --jq 'add | map({user:.user.login,state,commit_id})')"
+    jq -n --argjson pr "$pr" --arg protected_base_sha "$base_sha" \
+      --argjson check_runs "$checks" --argjson reviews "$reviews" \
+      '$pr + {protected_base_sha:$protected_base_sha,check_runs:$check_runs,reviews:$reviews}' \
+      > "$snapshot_dir/pr-${number}.json"
+  done
+  jq -s --arg captured_at "$(date -u +%FT%TZ)" --arg protected_base_sha "$base_sha" \
+    '{captured_at:$captured_at,protected_base_sha:$protected_base_sha,open_pr_count:length,pull_requests:.}' \
+    "$snapshot_dir"/pr-*.json > "$snapshot_dir/open-pr-snapshot.json"
+  ```
 - Open issues: `gh issue list --state open --limit 50 --json number,title --jq '.[]|"\(.number)\t\(.title)"'`
 - 코드 검증 grep/glob (요지):
   - `grep -rn "padPlan\|PadPlan" apps/desktop/src packages/shared-types/src` -> 0건(시리즈 미착지 확인)
@@ -357,10 +382,12 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
   - `head -30 services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json` -> 휴리스틱 manifest 확인
-  - `grep -rn "aria-" apps/desktop/src/features/workspace/*.tsx | wc -l` -> 52 matching lines (2026-08-25 snapshot; 고유 aria-* attribute token 수가 아님)
+  - `find apps/desktop/src/features/workspace -type f -name '*.tsx' -print0 | xargs -0 grep -hEo 'aria-[[:alnum:]_-]+' | wc -l` -> 56 attribute tokens (2026-08-28 current checkout)
   - `grep -rln "RehearsalAssignment\|RehearsalCollaboration" apps/desktop/src` -> 0건(UI 미구현 확인)
   - `grep -rn "loop" apps/desktop/src/features/player/index.tsx` -> 0건(loop 미구현 확인)
   - `ls CHANGELOG.md VERSION .github/workflows` -> 릴리스 자산 확인
+  - `npm run test --workspace @bandscope/desktop` -> `apps/desktop/coverage/coverage-summary.json` (2026-08-25 snapshot command)
+  - `npm run test --workspace @bandscope/shared-types` -> `packages/shared-types/coverage/coverage-summary.json` (2026-08-25 snapshot command)
   - `grep -n thresholds apps/desktop/vite.config.ts packages/shared-types/vitest.config.ts` -> JS 90% 확인
   - `grep -rn "cov-fail-under" AGENTS.md docs` -> Python 100% gate 확인
-  - Protected-base Mermaid 존재 여부: `git grep -n -E 'sequenceDiagram|classDiagram|flowchart' 749511c3ad4000090048718f685c6bee6b3d2c25 -- docs ARCHITECTURE.md || true` -> 0건(6장 전제 확인)
+  - Protected-base Mermaid 존재 여부: `git grep -n -E 'sequenceDiagram|classDiagram|flowchart' 749511c3ad4000090048718f685c6bee6b3d2c25 -- docs ARCHITECTURE.md || true` -> 0건(문서 추가 전 protected base 기준; 6장 전제 확인)
