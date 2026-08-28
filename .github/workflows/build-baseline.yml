@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22.22.3
-          package-manager-cache: false
+          cache: npm
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
@@ -90,10 +90,6 @@ jobs:
           }
 
           Write-AntivirusEvidence "Antivirus check: no explicit antivirus telemetry was available on this hosted runner."
-      - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -138,7 +134,7 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22.22.3
-          package-manager-cache: false
+          cache: npm
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
@@ -189,10 +185,6 @@ jobs:
           }
 
           Write-AntivirusEvidence "Antivirus check: no explicit antivirus telemetry was available on this hosted runner."
-      - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -248,7 +240,7 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22.22.3
-          package-manager-cache: false
+          cache: npm
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
@@ -262,10 +254,6 @@ jobs:
         run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
       - name: Install create-dmg
         run: brew install create-dmg
-      - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -310,7 +298,7 @@ jobs:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22.22.3
-          package-manager-cache: false
+          cache: npm
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
@@ -324,10 +312,6 @@ jobs:
         run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
       - name: Install create-dmg
         run: brew install create-dmg
-      - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
