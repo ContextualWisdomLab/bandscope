@@ -290,31 +290,33 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
-          <Button
-            variant="outline"
-            size="icon-lg"
-            className="size-14"
-            title={t("scoreViewerPrevPage")}
-            aria-label={t("scoreViewerPrevPage")}
-            disabled={pageNumber <= 1}
-            onClick={goToPreviousPage}
-          >
-            <ChevronLeft className="size-6" aria-hidden="true" />
-          </Button>
+          <span title={t("scoreViewerPrevPage")} className="inline-flex">
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-14"
+              aria-label={t("scoreViewerPrevPage")}
+              disabled={pageNumber <= 1}
+              onClick={goToPreviousPage}
+            >
+              <ChevronLeft className="size-6" aria-hidden="true" />
+            </Button>
+          </span>
           <span className="min-w-28 text-center text-sm font-semibold text-slate-200">
             {pageIndicator}
           </span>
-          <Button
-            variant="outline"
-            size="icon-lg"
-            className="size-14"
-            title={t("scoreViewerNextPage")}
-            aria-label={t("scoreViewerNextPage")}
-            disabled={pageNumber >= pageCount}
-            onClick={goToNextPage}
-          >
-            <ChevronRight className="size-6" aria-hidden="true" />
-          </Button>
+          <span title={t("scoreViewerNextPage")} className="inline-flex">
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-14"
+              aria-label={t("scoreViewerNextPage")}
+              disabled={pageNumber >= pageCount}
+              onClick={goToNextPage}
+            >
+              <ChevronRight className="size-6" aria-hidden="true" />
+            </Button>
+          </span>
         </div>
       </CardContent>
     </Card>
