@@ -12,6 +12,7 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
+from bandscope_analysis.audio_metadata import preflight_audio_metadata
 from bandscope_analysis.audio_resource_policy import (
     MAX_DURATION_SECONDS,
     MAX_ENCODED_FILE_BYTES,
@@ -93,6 +94,8 @@ class TemporalAnalyzer:
                         "encoded_file_too_large",
                         policy_rejection_message("encoded_file_too_large"),
                     )
+
+                preflight_audio_metadata(fileobj)
 
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
