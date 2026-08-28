@@ -105,7 +105,7 @@ flowchart LR
 | #1040 | `eb7432c124ccf667eca8db0656ed09273e51e5c7` | drop-plan copy/provenance 양방향 검증을 shared-types와 native parser에 보강; 15 hosted Checks success, 11 pending, failure 없음; qualifying independent approval 없음 |
 | #1045 | `88c2c741ab0d62033b3d9c330d67e8ac90010c57` | swell-plan copy/provenance 양방향 검증 보강; 새 current-head workflow 21개 pending, failure 없음; qualifying independent approval 없음 |
 | #1046 | `c8b5e391cec704e599ff75fe00f5a0b2016a6eca` | fade-plan copy/provenance 양방향 검증 보강; 새 current-head workflow 21개 pending, failure 없음; qualifying independent approval 없음 |
-| #1047 | `02b6287005dbd9ee6e770a8aba044db6b925d6ea` | ritardando plan 누락 JSDoc과 copy/provenance 양방향 검증을 보강; desktop 21 files/239 tests, analysis-engine 697 passed/24 skipped 및 100% coverage, build pass; hosted failure 없음, 22 pending, qualifying approval 없음 |
+| #1047 | `bac0d90d1f1ae88141c93dd50483eebb63ed1e85` | ritardando plan 누락 JSDoc·copy/provenance 양방향 검증과 `ritardando.py` mypy 타입 계약을 보강; 관련 desktop 23 tests, mypy/ruff pass, Python 전체 697 passed/24 skipped이나 torch child segfault로 coverage 0 산출되어 100%로 주장하지 않음; hosted current check-runs failure 0, pending 21, qualifying approval 없음 |
 | #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | source/coverage/security/build/release 및 `opencode-review`/`strix` terminal success; reviews는 COMMENTED뿐이며 qualifying approval 없음 |
 | #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
 | #1041 | `164995d3a3c056bdbb4fc293226d0c31c062104e` | ScoreView/ScoreViewer tooltip 변경 current head; coverage/build/security Checks 일부 queued/in-progress; qualifying approval 없음 |
@@ -118,7 +118,7 @@ flowchart LR
 | #982 | `821ae34a75a4d60c39dd919b4502e8a694b76ad4` | YouTube 실패 사유가 field description과 recovery alert에 중복 표시되는 계약에 맞춰 9개 stale 단일 조회 assertion을 multiplicity-safe로 정렬; App.test 65 pass와 affected visibility 10 pass, typecheck/lint/build local pass; 전체 desktop 234 tests 중 231 pass 및 기존/자원경합성 3 timeout, coverage 재실행은 100%로 주장하지 않음; hosted current check-runs 14 success, 8 pending, `opencode-review` failure, qualifying approval 없음 |
 | #859 | `62fd665968dff9032e58a2c58141355b65f264d0` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 1 hosted Check success, 27 pending, failure 없음, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `03abbbe57ea0ec4051d18fa49c490bcde1898a49` | 이 문서 PR의 직전 current head; #980 exact-head snapshot 이후 #982 exact-head snapshot 추가 중; qualifying approval 없음 |
+| #1025 | `dfa47d16fd1987da339e56a83b905e33020bedf4` | 이 문서 PR의 직전 current head; #982 exact-head snapshot 이후 #1047 exact-head snapshot 추가 중; qualifying approval 없음 |
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
