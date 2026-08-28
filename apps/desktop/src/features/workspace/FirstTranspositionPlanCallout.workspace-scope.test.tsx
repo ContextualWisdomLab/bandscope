@@ -13,13 +13,13 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
       <>
         <div data-testid="workspace-one">
           <FirstTranspositionPlanCallout song={firstSong} />
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid">
             <div data-section-index="0" />
           </div>
         </div>
         <div data-testid="workspace-two">
           <FirstTranspositionPlanCallout song={secondSong} />
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid">
             <div data-section-index="0" />
           </div>
         </div>
@@ -65,7 +65,7 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
     const { container, rerender } = render(
       <div>
         <FirstTranspositionPlanCallout song={song} />
-        <div data-testid="song-structure-grid">
+        <div id="workspace-song-structure-grid">
           <div data-section-index="0" />
         </div>
       </div>
@@ -93,7 +93,7 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
         <FirstTranspositionPlanCallout
           song={{ ...song, sections: [precedingSection, namedSection] }}
         />
-        <div data-testid="song-structure-grid">
+        <div id="workspace-song-structure-grid">
           <div data-section-index="0" />
           <div data-section-index="1" />
         </div>

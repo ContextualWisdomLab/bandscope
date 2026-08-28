@@ -21,7 +21,7 @@ describe("FirstTranspositionPlanCallout reduced motion", () => {
     }));
 
     const grid = document.createElement("div");
-    grid.dataset.testid = "song-structure-grid";
+    grid.id = "workspace-song-structure-grid";
     grid.setAttribute("role", "region");
     grid.setAttribute("aria-label", "Scrollable song structure timeline");
     const target = document.createElement("div");
