@@ -28,7 +28,7 @@
 
 ## 2024-06-29 - 비활성화된 네이티브 버튼의 툴팁 차단
 **Learning:** 네이티브 `<button>` 요소에 `disabled` 속성을 사용하면 마우스 호버 이벤트를 포함한 포인터 이벤트가 완전히 차단되어 표준 HTML `title` 속성이 툴팁으로 표시되지 않으며, 키보드 탭 순서(tab order)에서도 제외됩니다.
-**Action:** "출시 예정" 등 설명 툴팁이 필요한 비활성화된 액션 버튼의 경우, `title`을 버튼에 직접 붙이는 대신 포커스 가능한 `span` (`<span tabIndex={0} title={...} role="button" aria-disabled="true">`)으로 버튼을 감싸서 시각적 및 스크린 리더 접근성을 모두 보장해야 합니다.
+**Action:** "출시 예정" 등 설명 툴팁이 필요한 비활성화된 액션 버튼의 경우, `title`을 버튼에 직접 붙이는 대신 포커스 가능한 표준 `span` (`<span tabIndex={0} title={...} aria-disabled="true">`)으로 버튼을 감싸서 툴팁과 키보드 포커스를 제공하되 wrapper에 `role="button"`을 부여하지 않아 중첩 interactive role을 만들지 않아야 합니다.
 
 ## 2024-07-01 - Testing components with focusable disabled button wrappers
 **Learning:** When native disabled buttons are wrapped in a focusable `span` to provide accessible tooltips, tests that previously found and clicked the `button` (by temporarily removing the `disabled` attribute) may fail or become overly complex. It is cleaner and more accurate to query the wrapper element (e.g. via its `title`) and fire events on it, reflecting the actual accessible DOM structure.
