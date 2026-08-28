@@ -97,7 +97,7 @@ describe("Workspace fade state authority", () => {
     render(<Workspace song={analyzedSongWithFadePlan()} />);
 
     expect(
-      screen.queryByRole("button", { name: /Edit chord for Lead Vocal in chorus, current/ })
-    ).toBeNull();
+      screen.getByRole("button", { name: /Edit chord for Lead Vocal in chorus, current/ })
+    ).toBeDisabled();
   });
 });
