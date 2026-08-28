@@ -668,8 +668,8 @@ pub fn validate_score_pdf_source(path: &Path) -> Result<(PathBuf, String, u64), 
 
 /// Validate the bundled licensed demo WAV before it reuses local-audio bootstrap.
 pub fn validate_demo_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, String> {
-    let link_metadata = std::fs::symlink_metadata(path)
-        .map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+    let link_metadata =
+        std::fs::symlink_metadata(path).map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
     #[cfg(not(all(coverage, windows)))]
     if link_metadata.file_type().is_symlink() {
         return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
@@ -764,7 +764,8 @@ fn is_valid_demo_wav(data: &[u8]) -> bool {
                     data[header_end + 10],
                     data[header_end + 11],
                 ]);
-                let block_align = u16::from_le_bytes([data[header_end + 12], data[header_end + 13]]);
+                let block_align =
+                    u16::from_le_bytes([data[header_end + 12], data[header_end + 13]]);
                 let bits_per_sample =
                     u16::from_le_bytes([data[header_end + 14], data[header_end + 15]]);
                 has_format = format == 1
@@ -1458,7 +1459,8 @@ mod tests {
         assert!(validate_demo_audio_source(&wrong_size).is_err());
 
         write_sized_demo_wav(&wrong_size, DEMO_AUDIO_BYTES, true, true);
-        let mut malformed = std::fs::read(&wrong_size).expect("valid demo fixture should be readable");
+        let mut malformed =
+            std::fs::read(&wrong_size).expect("valid demo fixture should be readable");
         malformed[4..8].copy_from_slice(&(DEMO_AUDIO_BYTES as u32).to_le_bytes());
         std::fs::write(&wrong_size, malformed).expect("malformed fixture should be writable");
         assert!(validate_demo_audio_source(&wrong_size).is_err());
@@ -1484,6 +1486,4 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(root);
     }
-
-
 }
