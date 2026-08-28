@@ -21,8 +21,7 @@ fn unix_project_opener_refuses_symlink_at_handle_acquisition() {
     fs::create_dir_all(&root).expect("test directory should be created");
     let external = root.join("external.bscope");
     let selected = root.join("selected.bscope");
-    fs::write(&external, br#"{\"id\":\"external\"}"#)
-        .expect("external fixture should be written");
+    fs::write(&external, br#"{\"id\":\"external\"}"#).expect("external fixture should be written");
     symlink(&external, &selected).expect("fixture symlink should be created");
 
     let opened = project_persistence::open_project_file(&selected);

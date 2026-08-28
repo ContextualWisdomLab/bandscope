@@ -24,11 +24,9 @@ fn refuses_to_publish_through_symlinked_parent_directory() {
     symlink(&external, &linked_parent).expect("fixture parent symlink should be created");
 
     let target = linked_parent.join("setlist.bscope");
-    let error = project_persistence::publish_new_project_file(
-        &target,
-        br#"{\"id\":\"must-not-escape\"}"#,
-    )
-    .expect_err("a symlinked save parent must not redirect project publication");
+    let error =
+        project_persistence::publish_new_project_file(&target, br#"{\"id\":\"must-not-escape\"}"#)
+            .expect_err("a symlinked save parent must not redirect project publication");
 
     assert_eq!(error, "Could not stage the project safely.");
     assert!(!external.join("setlist.bscope").exists());

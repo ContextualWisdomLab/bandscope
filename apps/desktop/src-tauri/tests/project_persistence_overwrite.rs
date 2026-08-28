@@ -37,7 +37,11 @@ fn confirmed_existing_project_is_replaced_after_new_bytes_are_staged() {
     );
     let names = fs::read_dir(&root)
         .expect("test directory should be readable")
-        .map(|entry| entry.expect("directory entry should be readable").file_name())
+        .map(|entry| {
+            entry
+                .expect("directory entry should be readable")
+                .file_name()
+        })
         .collect::<Vec<_>>();
     assert_eq!(names, vec![target.file_name().unwrap().to_os_string()]);
 
@@ -89,7 +93,10 @@ fn hard_link_fallback_never_clobbers_a_target_that_appears_concurrently() {
     )
     .expect_err("fallback must fail closed when another writer wins the target name");
 
-    assert_eq!(error, "Project file already exists. Choose a new file name.");
+    assert_eq!(
+        error,
+        "Project file already exists. Choose a new file name."
+    );
     assert_eq!(
         fs::read(&target).expect("racer project should remain readable"),
         racer

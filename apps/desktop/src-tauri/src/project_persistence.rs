@@ -59,9 +59,7 @@ pub(crate) fn open_project_file(target: &Path) -> std::io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt;
 
     let mut options = fs::OpenOptions::new();
-    options
-        .read(true)
-        .custom_flags(UNIX_PROJECT_OPEN_FLAGS);
+    options.read(true).custom_flags(UNIX_PROJECT_OPEN_FLAGS);
     options.open(target)
 }
 
@@ -137,7 +135,9 @@ where
     }
 
     let file = open_file(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
-    let opened = file.metadata().map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    let opened = file
+        .metadata()
+        .map_err(|_| PROJECT_READ_ERROR.to_string())?;
     let after = fs::symlink_metadata(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
     if !metadata_is_regular_project_file(&opened)
         || !metadata_is_regular_project_file(&after)
@@ -207,7 +207,9 @@ fn write_first_project_exclusively(target: &Path, content: &[u8]) -> Result<(), 
 /// concurrent-writer serialization, backup rotation, migration, and recovery remain separate
 /// project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
-    publish_new_project_file_with_linker(target, content, fs::hard_link)
+    publish_new_project_file_with_linker(target, content, |source, destination| {
+        fs::hard_link(source, destination)
+    })
 }
 
 pub(crate) fn publish_new_project_file_with_linker<F>(
@@ -218,8 +220,11 @@ pub(crate) fn publish_new_project_file_with_linker<F>(
 where
     F: FnOnce(&Path, &Path) -> std::io::Result<()>,
 {
-    if content.is_empty() || content.len() > MAX_PROJECT_FILE_BYTES {
+    if content.is_empty() {
         return Err(PROJECT_STAGE_ERROR.to_string());
+    }
+    if content.len() > MAX_PROJECT_FILE_BYTES {
+        return Err(PROJECT_TOO_LARGE_ERROR.to_string());
     }
 
     let parent = project_parent(target);
@@ -316,7 +321,11 @@ mod tests {
         );
         let names = fs::read_dir(&root)
             .expect("test directory should be readable")
-            .map(|entry| entry.expect("directory entry should be readable").file_name())
+            .map(|entry| {
+                entry
+                    .expect("directory entry should be readable")
+                    .file_name()
+            })
             .collect::<Vec<_>>();
         assert_eq!(names, vec![target.file_name().unwrap().to_os_string()]);
         fs::remove_dir_all(root).expect("test directory should be removable");
@@ -360,12 +369,10 @@ mod tests {
             fs::read(&external).expect("external project should remain readable"),
             known_good
         );
-        assert!(
-            fs::symlink_metadata(&selected)
-                .expect("selected symlink should remain")
-                .file_type()
-                .is_symlink()
-        );
+        assert!(fs::symlink_metadata(&selected)
+            .expect("selected symlink should remain")
+            .file_type()
+            .is_symlink());
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
@@ -378,7 +385,7 @@ mod tests {
         let error = publish_new_project_file(&target, &content)
             .expect_err("oversized project should fail before publication");
 
-        assert_eq!(error, "Could not stage the project safely.");
+        assert_eq!(error, "Project file is too large (exceeds 5MB limit)");
         assert!(!target.exists());
         assert_eq!(
             fs::read_dir(&root)
@@ -411,8 +418,7 @@ mod tests {
         let root = test_dir("read-symlink");
         let external = root.join("external.json");
         let selected = root.join("selected.bscope");
-        fs::write(&external, r#"{"id":"external"}"#)
-            .expect("external fixture should be written");
+        fs::write(&external, r#"{"id":"external"}"#).expect("external fixture should be written");
         symlink(&external, &selected).expect("fixture symlink should be created");
 
         let error = read_project_file(&selected)
@@ -428,13 +434,9 @@ mod tests {
         let selected = root.join("selected.bscope");
         let replacement = root.join("replacement.bscope");
         let parked = root.join("parked.bscope");
-        fs::write(&selected, r#"{"id":"selected"}"#)
-            .expect("selected fixture should be written");
-        fs::write(
-            &replacement,
-            r#"{"id":"replacement-with-different-bytes"}"#,
-        )
-        .expect("replacement fixture should be written");
+        fs::write(&selected, r#"{"id":"selected"}"#).expect("selected fixture should be written");
+        fs::write(&replacement, r#"{"id":"replacement-with-different-bytes"}"#)
+            .expect("replacement fixture should be written");
 
         let error = read_project_file_with_opener(&selected, |path| {
             fs::rename(path, &parked)?;
