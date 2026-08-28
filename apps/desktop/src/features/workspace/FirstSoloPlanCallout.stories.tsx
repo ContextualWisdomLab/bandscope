@@ -19,7 +19,7 @@ function StorySurface({ song }: { song: RehearsalSong }) {
     <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
       <div className="mx-auto max-w-5xl space-y-6">
         <FirstSoloPlanCallout song={song} />
-        <div data-testid="song-structure-grid" aria-hidden="true" className="hidden" />
+        <div id="workspace-song-structure-grid" aria-hidden="true" className="hidden" />
         <SectionRoadmap song={song} activeRole={null} />
       </div>
     </div>

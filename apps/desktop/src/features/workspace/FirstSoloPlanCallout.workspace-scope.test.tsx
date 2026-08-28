@@ -15,13 +15,13 @@ describe("FirstSoloPlanCallout workspace scope", () => {
       <>
         <div data-testid="workspace-one">
           <FirstSoloPlanCallout song={firstSong} />
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid">
             <div data-section-id={firstSectionId} />
           </div>
         </div>
         <div data-testid="workspace-two">
           <FirstSoloPlanCallout song={secondSong} />
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid">
             <div data-section-id={secondSectionId} />
           </div>
         </div>
@@ -60,7 +60,7 @@ describe("FirstSoloPlanCallout workspace scope", () => {
     const { container } = render(
       <div>
         <FirstSoloPlanCallout song={song} />
-        <div data-testid="song-structure-grid">
+        <div id="workspace-song-structure-grid">
           <div data-section-id="rendered-before-the-solo" />
           <div data-section-id={expectedSectionId} />
         </div>
@@ -97,10 +97,10 @@ describe("FirstSoloPlanCallout workspace scope", () => {
     const { container } = render(
       <div>
         <FirstSoloPlanCallout song={song} />
-        <div data-testid="song-structure-grid">
+        <div id="workspace-song-structure-grid">
           <div data-section-id={sectionId} />
         </div>
-        <div data-testid="song-structure-grid">
+        <div id="workspace-song-structure-grid">
           <div data-section-id={sectionId} />
         </div>
       </div>
@@ -137,7 +137,7 @@ describe("FirstSoloPlanCallout workspace scope", () => {
           <FirstSoloPlanCallout song={song} />
         </div>
         <div data-testid="other-workspace">
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid">
             <div data-section-id={sectionId} />
           </div>
         </div>

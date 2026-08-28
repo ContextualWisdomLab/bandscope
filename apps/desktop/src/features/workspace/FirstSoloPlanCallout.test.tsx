@@ -19,7 +19,7 @@ function appendSongStructureTarget(
   timeline.setAttribute("role", "region");
   timeline.setAttribute("aria-label", ariaLabel);
   const grid = document.createElement("div");
-  grid.dataset.testid = "song-structure-grid";
+  grid.id = "workspace-song-structure-grid";
   timeline.appendChild(grid);
 
   const target = document.createElement("div");

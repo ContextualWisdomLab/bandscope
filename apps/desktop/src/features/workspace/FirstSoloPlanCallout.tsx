@@ -60,7 +60,7 @@ function preferredSoloPlanScrollBehavior(): ScrollBehavior {
 
 /** Resolve only this callout's local workspace scope; never borrow a renderer from another workspace. */
 function resolveSoloPlanWorkspaceScope(origin: HTMLElement): HTMLElement | null {
-  const selector = '[data-testid="song-structure-grid"]';
+  const selector = "#workspace-song-structure-grid";
   const localScope = origin.closest("aside")?.parentElement ?? null;
   if (!localScope) {
     return null;
