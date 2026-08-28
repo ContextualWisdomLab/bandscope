@@ -11,6 +11,7 @@ function withCutoffSection(
     start?: number;
     end?: number;
     cutoffPlan?: string;
+    cutoffPlanSource?: "model" | "user";
     label?: "intro" | "verse" | "pre-chorus" | "chorus" | "bridge" | "outro" | "tag" | "pickup" | "stop" | "handoff";
     roleId?: string;
     roleName?: string;
@@ -51,6 +52,7 @@ function withCutoffSection(
         notes: "Singer confirmed the pickup phrasing in rehearsal notes."
       },
       cutoffPlan: overrides.cutoffPlan ?? DEMO_CUTOFF_PLAN,
+      cutoffPlanSource: overrides.cutoffPlanSource,
       manualOverrides: []
     }
   ];
@@ -298,7 +300,8 @@ describe("resolveFirstCutoffPlan", () => {
   it("keeps the generated activity sentence recognizable after bounding a long partner name", () => {
     const target = `Lead-${"A".repeat(180)}`;
     const song = withCutoffSection({
-      cutoffPlan: `Cut this off with ${target}; don't linger past the last beat.`
+      cutoffPlan: `Cut this off with ${target}; don't linger past the last beat.`,
+      cutoffPlanSource: "model"
     });
     const resolved = resolveFirstCutoffPlan(song);
     expect(resolved?.cutoffPlan.startsWith("Cut this off with Lead-")).toBe(true);
