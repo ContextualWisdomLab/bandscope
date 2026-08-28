@@ -830,15 +830,15 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     for content in (
         "[]",
         '{"schemaVersion": 999, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
-        '{"schemaVersion": 1, "sampleRate": "22050", "separation": {}, "stemKeys": ["bass"]}',
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": [], "stemKeys": ["bass"]}',
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": []}',
+        '{"schemaVersion": 2, "sampleRate": "22050", "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": [], "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": []}',
     ):
         metadata_path.write_text(content, encoding="utf-8")
         assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
         encoding="utf-8",
     )
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
@@ -847,28 +847,28 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
         encoding="utf-8",
     )
     arrays_path.write_bytes(b"not an npz archive")
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": [7]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": [7]}',
         encoding="utf-8",
     )
     np.savez_compressed(arrays_path, stem_bass=np.zeros(4))
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, '
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, '
         '"stemKeys": ["bass"], "stemRoleTypes": []}',
         encoding="utf-8",
     )
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, '
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, '
         '"stemKeys": ["bass"], "stemRoleTypes": {"bass": "percussion"}}',
         encoding="utf-8",
     )
@@ -888,7 +888,7 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
             return "not-an-array"
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
         encoding="utf-8",
     )
     with patch("bandscope_analysis.api.np.load", return_value=BadArchive()):
@@ -1098,6 +1098,8 @@ def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) ->
             "duration_seconds": 1.0,
             "chunk_count": 1,
             "separation_notes": "Separated test stems.",
+            "bpm": 120.0,
+            "beat_times": [0.0, 0.5, 1.0],
         }
         _stem_separation_worker("/tmp/audio.wav", fake_queue, str(arrays_path))
 
