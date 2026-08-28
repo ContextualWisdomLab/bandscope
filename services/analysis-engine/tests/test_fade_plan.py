@@ -81,8 +81,7 @@ def test_activity_fade_emits_solo_plan_for_a_staying_vocal_fall() -> None:
     assert vocal["fadePlan"] == _SOLO_PLAN
     assert vocal["fadePlanSource"] == "model"
     assert all(
-        "fadePlan" not in role or role["id"] == "lead-vocal"
-        for role in topology["active_roles"]
+        "fadePlan" not in role or role["id"] == "lead-vocal" for role in topology["active_roles"]
     )
 
 
@@ -276,9 +275,7 @@ def test_extract_emits_fade_across_real_stem_boundaries() -> None:
     sr = 8
     bass = np.full(sr * 2, 0.4, dtype=np.float32)
     other = np.full(sr * 2, 0.3, dtype=np.float32)
-    vocal = np.concatenate(
-        [np.full(sr, 0.8, dtype=np.float32), np.full(sr, 0.2, dtype=np.float32)]
-    )
+    vocal = np.concatenate([np.full(sr, 0.8, dtype=np.float32), np.full(sr, 0.2, dtype=np.float32)])
     result = extractor.extract(
         [{"id": "verse-1"}, {"id": "chorus-1"}],
         {
