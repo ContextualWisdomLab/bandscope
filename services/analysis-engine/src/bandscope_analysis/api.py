@@ -530,7 +530,7 @@ def _coerce_beat_times(audio_features: dict[str, Any] | None) -> list[float] | N
     if not audio_features:
         return None
     raw = audio_features.get("beat_times")
-    if not isinstance(raw, list) or not raw:
+    if not isinstance(raw, list):
         return None
     times: list[float] = []
     for item in raw:

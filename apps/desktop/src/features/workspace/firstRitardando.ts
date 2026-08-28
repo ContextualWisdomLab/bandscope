@@ -108,12 +108,16 @@ function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
   ) {
     return null;
   }
+  const keys = Object.keys(value);
+  if (keys.length !== length) {
+    return null;
+  }
   const items: unknown[] = [];
-  for (let index = 0; index < length; index += 1) {
-    if (!hasOwnData(value, index)) {
+  for (const [index, key] of keys.entries()) {
+    if (key !== String(index) || !hasOwnData(value, key)) {
       return null;
     }
-    items.push(ownDataValue(value, index));
+    items.push(ownDataValue(value, key));
   }
   return items;
 }

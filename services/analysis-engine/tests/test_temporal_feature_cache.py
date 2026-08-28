@@ -3,11 +3,6 @@
 import numpy as np
 
 import bandscope_analysis.api as api
-from bandscope_analysis.api import (
-    _load_cached_local_audio_features,
-    _store_cached_local_audio_features,
-    validate_analysis_job_request,
-)
 
 
 def _request(tmp_path, *, cache: bool = True):
@@ -26,7 +21,7 @@ def _request(tmp_path, *, cache: bool = True):
     }
     if cache:
         payload["cacheRoot"] = str(tmp_path / "cache")
-    return validate_analysis_job_request(payload)
+    return api.validate_analysis_job_request(payload)
 
 
 def _features():
@@ -70,8 +65,8 @@ def test_feature_cache_round_trips_authoritative_tempo_grid(tmp_path) -> None:
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
 
-    assert _store_cached_local_audio_features(metadata_path, arrays_path, request, _features())
-    loaded = _load_cached_local_audio_features(metadata_path, arrays_path)
+    assert api._store_cached_local_audio_features(metadata_path, arrays_path, request, _features())
+    loaded = api._load_cached_local_audio_features(metadata_path, arrays_path)
 
     assert loaded is not None
     assert loaded["bpm"] == 120.0
@@ -95,7 +90,7 @@ def test_cached_source_temporal_grid_skips_second_decode(monkeypatch, tmp_path) 
     request = _request(tmp_path)
     cache_paths = api._feature_cache_paths(request)
     assert cache_paths is not None
-    assert _store_cached_local_audio_features(*cache_paths, request, _features())
+    assert api._store_cached_local_audio_features(*cache_paths, request, _features())
     monkeypatch.setattr(api, "_temporal_features_for_request", _unexpected_temporal_redecode)
     monkeypatch.setattr(api, "build_demo_rehearsal_song", lambda _features: _song())
 
