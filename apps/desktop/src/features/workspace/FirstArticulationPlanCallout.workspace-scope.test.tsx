@@ -13,13 +13,13 @@ describe("FirstArticulationPlanCallout workspace scope", () => {
       <>
         <div data-testid="workspace-one">
           <FirstArticulationPlanCallout song={firstSong} />
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid">
             <div data-section-index="0" />
           </div>
         </div>
         <div data-testid="workspace-two">
           <FirstArticulationPlanCallout song={secondSong} />
-          <div data-testid="song-structure-grid">
+          <div id="workspace-song-structure-grid">
             <div data-section-index="0" />
           </div>
         </div>

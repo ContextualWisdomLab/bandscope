@@ -189,6 +189,8 @@ pub struct RehearsalRolePayload {
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    articulation_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
 }
@@ -529,7 +531,7 @@ pub fn is_youtube_video_id(value: &str) -> bool {
 
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
-        return Ok(parsed);
+        return validate_articulation_plan(parsed);
     }
 
     let payload = serde_json::from_str::<Value>(content)
@@ -547,7 +549,30 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         }
     }
 
-    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+    let parsed =
+        serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())?;
+    validate_articulation_plan(parsed)
+}
+
+fn validate_articulation_plan(
+    payload: RehearsalSongPayload,
+) -> Result<RehearsalSongPayload, String> {
+    for section in &payload.sections {
+        for role in &section.roles {
+            if role
+                .articulation_plan
+                .as_ref()
+                .is_some_and(|articulation_plan| {
+                    articulation_plan.trim().is_empty()
+                        || articulation_plan.contains('\n')
+                        || articulation_plan.contains('\r')
+                })
+            {
+                return Err("Invalid project file format".to_string());
+            }
+        }
+    }
+    Ok(payload)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -752,6 +777,7 @@ mod tests {
                             "rehearsalPriority": "high",
                             "simplification": "Stay on roots if the chorus entrance gets muddy.",
                             "setupNote": "Keep the attack short so the verse breathes.",
+                            "articulationPlan": "Keep the verse attack short so the chorus still has a longer sustain to land on.",
                             "manualOverrides": [],
                             "overlapWarnings": [
                                 "Density warning: competing with Keyboard Left Hand in low register."
@@ -784,6 +810,12 @@ mod tests {
             .expect("shared rehearsal song contract should deserialize in Tauri");
 
         assert_eq!(parsed.sections[0].id, "verse-1");
+        assert_eq!(
+            parsed.sections[0].roles[0].articulation_plan.as_deref(),
+            Some(
+                "Keep the verse attack short so the chorus still has a longer sustain to land on."
+            )
+        );
     }
 
     #[test]
@@ -892,6 +924,22 @@ mod tests {
             project_payload_from_content(r#"{"sections":[{"timeRange":{"start":0,"end":1}}]}"#)
                 .expect_err("timed but incomplete payload should fail closed");
         assert_eq!(error, "Invalid project file format");
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_invalid_articulation_plan() {
+        for articulation_plan in [
+            "",
+            "   ",
+            "attack here\nthen move",
+            "attack here\rthen move",
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["sections"][0]["roles"][0]["articulationPlan"] = json!(articulation_plan);
+            let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+            assert!(project_payload_from_content(&content).is_err());
+        }
     }
 
     #[test]
