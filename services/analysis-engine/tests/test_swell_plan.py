@@ -80,7 +80,10 @@ def test_activity_swell_emits_solo_plan_for_a_staying_vocal_rise() -> None:
     vocal = next(role for role in topology["active_roles"] if role["id"] == "lead-vocal")
     assert vocal["swellPlan"] == _SOLO_PLAN
     assert vocal["swellPlanSource"] == "model"
-    assert all("swellPlan" not in role or role["id"] == "lead-vocal" for role in topology["active_roles"])
+    assert all(
+        "swellPlan" not in role or role["id"] == "lead-vocal"
+        for role in topology["active_roles"]
+    )
 
 
 def test_activity_swell_names_two_named_rises_as_partners() -> None:
