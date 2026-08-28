@@ -89,6 +89,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
       >
         <div
           className="grid min-w-[720px]"
+          id="workspace-song-structure-grid"
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
