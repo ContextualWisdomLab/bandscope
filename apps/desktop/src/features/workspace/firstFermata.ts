@@ -33,8 +33,9 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedFermataPlan = Readonly<{
   text: string;
-  source: FermataPlanSource | null;
+  source: FermataPlanSource;
   guidance: FermataPlanGuidance | null;
+  atSeconds: number | null;
 }>;
 
 /** Tonight's first fermata plan: the earliest isolated beat-gap hold on a named vocal or bass. */
@@ -47,7 +48,7 @@ export type FirstFermataPlan = {
   landingRoleId: string;
   landingRoleName: string;
   fermataPlan: string;
-  fermataPlanSource: FermataPlanSource | null;
+  fermataPlanSource: FermataPlanSource;
   fermataPlanGuidance: FermataPlanGuidance | null;
   atSeconds: number;
 };
@@ -131,7 +132,10 @@ function truncateCodePoints(value: string, maximum: number): string {
 }
 
 /** Preserve the engine fermata template while enforcing isolated extra-hold semantics. */
-function boundedGeneratedFermataPlan(value: string): OwnedFermataPlan | null {
+function boundedGeneratedFermataPlan(
+  value: string,
+  atSeconds: number
+): OwnedFermataPlan | null {
   if (!value.startsWith(FERMATA_PLAN_PREFIX) || !value.endsWith(FERMATA_PLAN_SUFFIX)) {
     return null;
   }
@@ -150,7 +154,8 @@ function boundedGeneratedFermataPlan(value: string): OwnedFermataPlan | null {
   return {
     text: `${FERMATA_PLAN_PREFIX}${holdSeconds}${FERMATA_PLAN_SUFFIX}`,
     source: "model",
-    guidance: { kind: "hold", holdSeconds }
+    guidance: { kind: "hold", holdSeconds },
+    atSeconds
   };
 }
 
@@ -161,27 +166,37 @@ function ownedFermataPlan(role: unknown): OwnedFermataPlan | null {
   }
   const fermataPlan = ownDataValue(role, "fermataPlan");
   const fermataPlanSource = ownDataValue(role, "fermataPlanSource");
+  const fermataPlanAtSeconds = ownDataValue(role, "fermataPlanAtSeconds");
   if (typeof fermataPlan !== "string") {
     return null;
   }
   if (
-    fermataPlanSource !== undefined &&
     fermataPlanSource !== "model" &&
     fermataPlanSource !== "user"
   ) {
     return null;
   }
+  if (
+    fermataPlanAtSeconds !== undefined &&
+    (typeof fermataPlanAtSeconds !== "number" ||
+      !Number.isFinite(fermataPlanAtSeconds) ||
+      fermataPlanAtSeconds < 0)
+  ) {
+    return null;
+  }
+  const atSeconds = fermataPlanAtSeconds === undefined ? null : fermataPlanAtSeconds;
   const trimmed = fermataPlan.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
   if (fermataPlanSource === "model") {
-    return boundedGeneratedFermataPlan(trimmed);
+    return atSeconds === null ? null : boundedGeneratedFermataPlan(trimmed, atSeconds);
   }
   return {
     text: truncateCodePoints(trimmed, MAX_FERMATA_PLAN_CHARACTERS),
-    source: fermataPlanSource ?? null,
-    guidance: null
+    source: fermataPlanSource,
+    guidance: null,
+    atSeconds
   };
 }
 
@@ -369,12 +384,17 @@ function resolveSafeFirstFermataPlan(song: RehearsalSong): FirstFermataPlan | nu
                   ...metadata,
                   fermataPlan: fermataPlan.text,
                   fermataPlanSource: fermataPlan.source,
-                  fermataPlanGuidance: fermataPlan.guidance
+                  fermataPlanGuidance: fermataPlan.guidance,
+                  atSeconds: fermataPlan.atSeconds
                 }
               ];
         })
       );
       if (!landingRole) {
+        return [];
+      }
+      const atSeconds = landingRole.atSeconds ?? timeRange.start;
+      if (atSeconds < timeRange.start || atSeconds >= timeRange.end) {
         return [];
       }
       return [
@@ -389,7 +409,7 @@ function resolveSafeFirstFermataPlan(song: RehearsalSong): FirstFermataPlan | nu
           fermataPlan: landingRole.fermataPlan,
           fermataPlanSource: landingRole.fermataPlanSource,
           fermataPlanGuidance: landingRole.fermataPlanGuidance,
-          atSeconds: timeRange.start
+          atSeconds
         }
       ];
     })

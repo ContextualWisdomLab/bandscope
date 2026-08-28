@@ -308,6 +308,7 @@ def apply_fermata_plan(song: Mapping[str, Any], beat_times: Sequence[float] | No
                 stamped = dict(landing)
                 stamped["fermataPlan"] = copy
                 stamped["fermataPlanSource"] = "model"
+                stamped["fermataPlanAtSeconds"] = hold["time"]
                 roles[index] = stamped
                 return
             return

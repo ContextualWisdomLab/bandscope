@@ -12,6 +12,7 @@ function withFermataSection(
     end?: number;
     fermataPlan?: string;
     source?: "model" | "user";
+    fermataPlanAtSeconds?: number;
     label?: "intro" | "verse" | "chorus" | "bridge" | "outro";
     roleId?: string;
     roleName?: string;
@@ -40,7 +41,8 @@ function withFermataSection(
     roleType: overrides.roleType ?? (roleId === "lead-vocal" ? "vocal" : "instrument"),
     rehearsalPriority: overrides.priority ?? "high",
     fermataPlan: overrides.fermataPlan ?? DEMO_FERMATA_PLAN,
-    ...(overrides.source ? { fermataPlanSource: overrides.source } : { fermataPlanSource: "model" as const })
+    ...(overrides.source ? { fermataPlanSource: overrides.source } : { fermataPlanSource: "model" as const }),
+    fermataPlanAtSeconds: overrides.fermataPlanAtSeconds ?? landingStart
   };
   const current = structuredClone(verse);
   current.id = overrides.id ?? "chorus-fermata";
@@ -81,6 +83,14 @@ describe("resolveFirstFermataPlan", () => {
     expect(formatFermataPlanTime(-4)).toBe("0:00");
   });
 
+  it("uses the engine hold timestamp instead of the section opening", () => {
+    const resolved = resolveFirstFermataPlan(
+      withFermataSection({ fermataPlanAtSeconds: 7.25 })
+    );
+
+    expect(resolved?.atSeconds).toBe(7.25);
+  });
+
   it("does not invent an fermata plan from groove, cue, simplification, overlap, range, chords, function labels, setup notes, transposition plans, or confidence notes", () => {
     const song = withFermataSection();
     delete song.sections[0]!.roles.find((role) => role.id === "lead-vocal")!.fermataPlan;
@@ -115,6 +125,7 @@ describe("resolveFirstFermataPlan", () => {
     const bass = song.sections[0]!.roles.find((role) => role.id === "bass-guitar")!;
     bass.fermataPlan = DEMO_FERMATA_PLAN;
     bass.fermataPlanSource = "model";
+    bass.fermataPlanAtSeconds = 0;
     bass.rehearsalPriority = "high";
     expect(resolveFirstFermataPlan(song)?.landingRoleId).toBe("lead-vocal");
   });
@@ -124,6 +135,7 @@ describe("resolveFirstFermataPlan", () => {
     const bass = song.sections[0]!.roles.find((role) => role.id === "bass-guitar")!;
     bass.fermataPlan = DEMO_FERMATA_PLAN;
     bass.fermataPlanSource = "model";
+    bass.fermataPlanAtSeconds = 0;
     bass.rehearsalPriority = "high";
     expect(resolveFirstFermataPlan(song)?.landingRoleId).toBe("bass-guitar");
   });
@@ -205,5 +217,21 @@ describe("resolveFirstFermataPlan", () => {
       }
     });
     expect(resolveFirstFermataPlan(song)).toBeNull();
+  });
+
+  it("fails closed when model provenance or its timestamp is missing", () => {
+    const missingSource = withFermataSection();
+    delete missingSource.sections[0]!.roles[0]!.fermataPlanSource;
+    expect(resolveFirstFermataPlan(missingSource)).toBeNull();
+
+    const missingTimestamp = withFermataSection();
+    delete missingTimestamp.sections[0]!.roles[0]!.fermataPlanAtSeconds;
+    expect(resolveFirstFermataPlan(missingTimestamp)).toBeNull();
+  });
+
+  it("fails closed when the engine hold timestamp is outside its section", () => {
+    expect(
+      resolveFirstFermataPlan(withFermataSection({ fermataPlanAtSeconds: 16 }))
+    ).toBeNull();
   });
 });

@@ -17,6 +17,7 @@ function analyzedSongWithFermataPlan(): RehearsalSong {
   vocal.fermataPlan =
     "Hold this part through the extra 1 s; wait for the cutoff before the next entrance.";
   vocal.fermataPlanSource = "model";
+  vocal.fermataPlanAtSeconds = 11.25;
   return song;
 }
 
@@ -45,9 +46,9 @@ describe("Workspace fermata state authority", () => {
     });
     const { rerender } = render(<Workspace song={song} onSongUpdate={onSongUpdate} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:11" }));
     expect(
-      screen.getByText(/Hold Lead Vocal together at 0:10 until the cutoff./)
+      screen.getByText(/Hold Lead Vocal together at 0:11 until the cutoff./)
     ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
@@ -57,7 +58,7 @@ describe("Workspace fermata state authority", () => {
     rerender(<Workspace song={updatedSong!} onSongUpdate={onSongUpdate} />);
 
     expect(
-      screen.getByText(/Hold Lead Vocal together at 0:10 until the cutoff./)
+      screen.getByText(/Hold Lead Vocal together at 0:11 until the cutoff./)
     ).toBeTruthy();
   });
 });

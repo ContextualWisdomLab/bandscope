@@ -14,6 +14,7 @@ function songWithFermataPlan() {
   const vocal = verse.roles.find((role) => role.id === "lead-vocal")!;
   vocal.fermataPlan = DEMO_FERMATA_PLAN;
   vocal.fermataPlanSource = "model";
+  vocal.fermataPlanAtSeconds = 11.25;
   return song;
 }
 
@@ -67,7 +68,7 @@ describe("FirstFermataCallout", () => {
     });
 
     expect(() => render(<FirstFermataCallout song={song} />)).not.toThrow();
-    expect(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:10" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:11" })).toBeTruthy();
   });
 
   it("contains a hostile song identity descriptor lookup instead of crashing the callout", () => {
@@ -89,11 +90,11 @@ describe("FirstFermataCallout", () => {
     const { scrollIntoView } = appendSongStructureTarget();
     render(<FirstFermataCallout song={songWithFermataPlan()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:11" }));
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(
-      screen.getByText(/Hold Lead Vocal together at 0:10 until the cutoff./)
+      screen.getByText(/Hold Lead Vocal together at 0:11 until the cutoff./)
     ).toBeTruthy();
     expect(screen.getByText(DEMO_FERMATA_PLAN)).toBeTruthy();
   });
@@ -107,10 +108,10 @@ describe("FirstFermataCallout", () => {
     appendSongStructureTarget();
     render(<FirstFermataCallout song={song} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:11" }));
 
     expect(
-      screen.getByText(/Hold Lead Vocal together at 0:10 until the cutoff./)
+      screen.getByText(/Hold Lead Vocal together at 0:11 until the cutoff./)
     ).toBeTruthy();
     expect(screen.getByText(userPlan)).toBeTruthy();
   });
@@ -118,7 +119,7 @@ describe("FirstFermataCallout", () => {
   it("reports when the map section cannot be opened", () => {
     render(<FirstFermataCallout song={songWithFermataPlan()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:11" }));
 
     expect(
       screen.getByText("Could not open this fermata on the song map. Use the map below to find the section.")
@@ -135,7 +136,7 @@ describe("FirstFermataCallout", () => {
     }));
     render(<FirstFermataCallout song={songWithFermataPlan()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:11" }));
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "auto" });
   });
@@ -155,16 +156,16 @@ describe("FirstFermataCallout", () => {
     appendSongStructureTarget();
     const { rerender } = render(<FirstFermataCallout song={firstSong} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:11" }));
     expect(
-      screen.getByText(/Hold Lead Vocal together at 0:10 until the cutoff./)
+      screen.getByText(/Hold Lead Vocal together at 0:11 until the cutoff./)
     ).toBeTruthy();
 
     rerender(<FirstFermataCallout song={nextSong} />);
 
-    expect(screen.getByText("Lead Vocal holds the verse fermata at 0:10.")).toBeTruthy();
+    expect(screen.getByText("Lead Vocal holds the verse fermata at 0:11.")).toBeTruthy();
     expect(
-      screen.queryByText(/Hold Lead Vocal together at 0:10 until the cutoff./)
+      screen.queryByText(/Hold Lead Vocal together at 0:11 until the cutoff./)
     ).toBeNull();
   });
 
@@ -178,18 +179,18 @@ describe("FirstFermataCallout", () => {
       <FirstFermataCallout song={firstSong} workspaceInstanceKey={workspaceInstanceKey} />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:10" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fermata at 0:11" }));
     expect(
-      screen.getByText(/Hold Lead Vocal together at 0:10 until the cutoff./)
+      screen.getByText(/Hold Lead Vocal together at 0:11 until the cutoff./)
     ).toBeTruthy();
 
     rerender(
       <FirstFermataCallout song={nextSong} workspaceInstanceKey={workspaceInstanceKey} />
     );
 
-    expect(screen.getByText("Lead Singer holds the verse fermata at 0:10.")).toBeTruthy();
+    expect(screen.getByText("Lead Singer holds the verse fermata at 0:11.")).toBeTruthy();
     expect(
-      screen.queryByText(/Hold Lead Singer together at 0:10 until the cutoff./)
+      screen.queryByText(/Hold Lead Singer together at 0:11 until the cutoff./)
     ).toBeNull();
   });
 });

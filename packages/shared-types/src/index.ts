@@ -145,6 +145,7 @@ export type RehearsalRole = {
   practiceProgress?: number;
   fermataPlan?: string;
   fermataPlanSource?: ProvenanceSource;
+  fermataPlanAtSeconds?: number;
 };
 
 /** Documented. */
@@ -1504,7 +1505,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "transcription",
       "practiceProgress",
       "fermataPlan",
-      "fermataPlanSource"
+      "fermataPlanSource",
+      "fermataPlanAtSeconds"
     ],
     path
   );
@@ -1612,6 +1614,15 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.fermataPlan !== undefined && value.fermataPlanSource === undefined) {
     return invalidField(`${path}.fermataPlanSource`);
+  }
+  if (
+    value.fermataPlanAtSeconds !== undefined &&
+    (typeof value.fermataPlanAtSeconds !== "number" ||
+      !Number.isFinite(value.fermataPlanAtSeconds) ||
+      value.fermataPlanAtSeconds < 0 ||
+      value.fermataPlan === undefined)
+  ) {
+    return invalidField(`${path}.fermataPlanAtSeconds`);
   }
 
   return null;

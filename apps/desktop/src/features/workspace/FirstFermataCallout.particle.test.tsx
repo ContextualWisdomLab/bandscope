@@ -15,7 +15,8 @@ function songWithKoreanAccel() {
       rehearsalPriority: "high",
       fermataPlan:
         "Hold this part through the extra 1 s; wait for the cutoff before the next entrance.",
-      fermataPlanSource: "model"
+      fermataPlanSource: "model",
+      fermataPlanAtSeconds: 11.25
     }
   ];
   verse.partGraph = [
@@ -48,14 +49,14 @@ describe("FirstFermataCallout Korean role copy", () => {
 
     render(<FirstFermataCallout song={song} />);
 
-    expect(screen.getByText("0:10 벌스에서 피아노 파트가 페르마타를 붙잡습니다.")).toBeTruthy();
+    expect(screen.getByText("0:11 벌스에서 피아노 파트가 페르마타를 붙잡습니다.")).toBeTruthy();
     expect(screen.queryByText(/피아노이/)).toBeNull();
     expect(screen.queryByText(/피아노가/)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "0:10 피아노 페르마타 열기" }));
+    fireEvent.click(screen.getByRole("button", { name: "0:11 피아노 페르마타 열기" }));
 
     expect(
-      screen.getByText("0:10에서 피아노 파트로 함께 붙잡으세요. 끊을 신호까지 기다리세요.")
+      screen.getByText("0:11에서 피아노 파트로 함께 붙잡으세요. 끊을 신호까지 기다리세요.")
     ).toBeTruthy();
     expect(screen.queryByText(/피아노과/)).toBeNull();
     expect(screen.queryByText(/피아노을/)).toBeNull();

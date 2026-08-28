@@ -45,7 +45,8 @@ fn song_with_fermata_plan() -> Value {
                         "manualOverrides": [],
                         "overlapWarnings": [],
                         "fermataPlan": "Hold this part through the extra 1 s; wait for the cutoff before the next entrance.",
-                        "fermataPlanSource": "model"
+                        "fermataPlanSource": "model",
+                        "fermataPlanAtSeconds": 11.25
                     }
                 ],
                 "partGraph": [
@@ -73,7 +74,8 @@ fn project_contract_round_trips_fermata_plan_provenance() {
 
     let parsed = project_payload_from_content(&content)
         .expect("native project contract must accept shared fermata-plan fields");
-    let serialized = serde_json::to_value(parsed).expect("native project contract should serialize");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
 
     assert_eq!(
         serialized["sections"][0]["roles"][0]["fermataPlan"],
@@ -82,6 +84,10 @@ fn project_contract_round_trips_fermata_plan_provenance() {
     assert_eq!(
         serialized["sections"][0]["roles"][0]["fermataPlanSource"],
         json!("model")
+    );
+    assert_eq!(
+        serialized["sections"][0]["roles"][0]["fermataPlanAtSeconds"],
+        json!(11.25)
     );
 }
 
@@ -138,5 +144,17 @@ fn project_contract_rejects_unknown_fermata_plan_source() {
     assert!(
         project_payload_from_content(&content).is_err(),
         "native persisted contract must reject provenance outside model/user"
+    );
+}
+
+#[test]
+fn project_contract_rejects_invalid_fermata_plan_timestamp() {
+    let mut payload = song_with_fermata_plan();
+    payload["sections"][0]["roles"][0]["fermataPlanAtSeconds"] = json!(-1.0);
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(
+        project_payload_from_content(&content).is_err(),
+        "native persisted contract must reject negative fermata-plan timestamps"
     );
 }

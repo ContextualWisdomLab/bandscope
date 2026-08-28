@@ -202,6 +202,8 @@ pub struct RehearsalRolePayload {
     fermata_plan: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     fermata_plan_source: Option<FermataPlanSourcePayload>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fermata_plan_at_seconds: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -554,6 +556,15 @@ fn validate_fermata_plan_provenance(
                 return Err("Invalid project file format".to_string());
             }
             if role.fermata_plan.is_some() && role.fermata_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
+            if role
+                .fermata_plan_at_seconds
+                .is_some_and(|at_seconds| !at_seconds.is_finite() || at_seconds < 0.0)
+            {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.fermata_plan.is_none() && role.fermata_plan_at_seconds.is_some() {
                 return Err("Invalid project file format".to_string());
             }
         }

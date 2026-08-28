@@ -85,6 +85,7 @@ class RehearsalRole(TypedDict):
     overlapWarnings: list[str]
     fermataPlan: NotRequired[str]
     fermataPlanSource: NotRequired[Literal["model", "user"]]
+    fermataPlanAtSeconds: NotRequired[float]
 
 
 class PartGraphNode(TypedDict):

@@ -10,7 +10,10 @@ describe("fermataPlan provenance", () => {
     const role = song.sections[0]!.roles[0]!;
     role.fermataPlan = DEMO_FERMATA_PLAN;
     role.fermataPlanSource = source;
-    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.fermataPlanSource).toBe(source);
+    role.fermataPlanAtSeconds = 11.25;
+    const parsed = parseRehearsalSong(song).sections[0]!.roles[0]!;
+    expect(parsed.fermataPlanSource).toBe(source);
+    expect(parsed.fermataPlanAtSeconds).toBe(11.25);
   });
 
   it("rejects an unknown fermata plan source", () => {
@@ -26,6 +29,7 @@ describe("fermataPlan provenance", () => {
     const role = song.sections[0]!.roles[0]!;
     delete role.fermataPlan;
     role.fermataPlanSource = "model";
+    role.fermataPlanAtSeconds = 11.25;
     expect(() => parseRehearsalSong(song)).toThrow(/fermataPlanSource/);
   });
 
@@ -45,6 +49,18 @@ describe("fermataPlan provenance", () => {
       role.fermataPlan = fermataPlan;
       role.fermataPlanSource = "model";
       expect(() => parseRehearsalSong(song)).toThrow(/fermataPlan/);
+    }
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, "11"])(
+    "rejects an invalid fermata plan timestamp %j",
+    (atSeconds) => {
+      const song = createDemoRehearsalSong();
+      const role = song.sections[0]!.roles[0]!;
+      role.fermataPlan = DEMO_FERMATA_PLAN;
+      role.fermataPlanSource = "model";
+      role.fermataPlanAtSeconds = atSeconds as never;
+      expect(() => parseRehearsalSong(song)).toThrow(/fermataPlanAtSeconds/);
     }
   );
 });

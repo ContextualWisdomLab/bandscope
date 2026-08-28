@@ -237,6 +237,7 @@ def test_apply_stamps_highest_priority_named_vocal() -> None:
     keys = next(role for role in song["sections"][0]["roles"] if role["id"] == "keys-right")
     assert vocal["fermataPlan"] == _FERMATA_PLAN
     assert vocal["fermataPlanSource"] == "model"
+    assert vocal["fermataPlanAtSeconds"] == 11.25
     assert "fermataPlan" not in bass
     assert "fermataPlan" not in keys
 
@@ -453,4 +454,5 @@ def test_pipeline_stamps_fermata_from_provided_beat_times() -> None:
     assert len(stamped) <= 1
     if stamped:
         assert stamped[0]["fermataPlanSource"] == "model"
+        assert stamped[0]["fermataPlanAtSeconds"] == 11.25
         assert stamped[0]["id"] in {"lead-vocal", "bass-guitar"}
