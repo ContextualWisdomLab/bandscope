@@ -310,7 +310,11 @@ def test_activity_fade_stays_unnamed_when_energy_maps_are_missing() -> None:
 def test_activity_fade_stays_unnamed_when_partner_has_no_display_name() -> None:
     """A two-named fade without a named partner stays unnamed."""
     extractor = RoleExtractor()
-    incomplete = {key: value for key, value in _roles(extractor).items() if key != "vocal"}
+    incomplete = {
+        key: value
+        for key, value in _roles(extractor).items()
+        if key != "vocal"
+    }
     plan = extractor._activity_fade_plan(
         "bass-guitar",
         incomplete,
