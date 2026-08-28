@@ -648,7 +648,7 @@ def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
     for content in (
         "[]",
         '{"schemaVersion": 999, "result": {}}',
-        '{"schemaVersion": 1, "result": []}',
+        '{"schemaVersion": 2, "result": []}',
     ):
         cache_path.write_text(content, encoding="utf-8")
         assert _load_cached_analysis(cache_path) is None
