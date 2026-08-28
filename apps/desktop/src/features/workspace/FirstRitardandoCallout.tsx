@@ -177,9 +177,7 @@ export function FirstRitardandoCallout({
       <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">
         {t("firstRitardandoPlanLabel")}
       </p>
-      <p className="mt-2 text-sm leading-6 text-slate-300">
-        {opened && named.ritardandoPlanSource === "model" ? armed : body}
-      </p>
+      <p className="mt-2 text-sm leading-6 text-slate-300">{opened ? armed : body}</p>
       <p className="mt-1 text-sm leading-6 text-slate-400">{ritardandoPlan}</p>
       <Button
         type="button"
