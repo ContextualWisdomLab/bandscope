@@ -1,5 +1,4 @@
 use std::{
-    ffi::OsString,
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -30,12 +29,10 @@ fn project_parent(target: &Path) -> &Path {
 
 fn staging_path(target: &Path) -> Result<PathBuf, String> {
     let parent = project_parent(target);
-    let file_name = target
-        .file_name()
-        .ok_or_else(|| PROJECT_PUBLISH_ERROR.to_string())?;
-    let mut stage_name = OsString::from(".");
-    stage_name.push(file_name);
-    stage_name.push(format!(".{}.stage", uuid::Uuid::new_v4()));
+    if target.file_name().is_none() {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+    let stage_name = format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4());
     Ok(parent.join(stage_name))
 }
 
@@ -328,6 +325,18 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(names, vec![target.file_name().unwrap().to_os_string()]);
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[test]
+    fn stages_a_project_with_a_max_length_file_name() {
+        let root = test_dir("max-name");
+        let target = root.join("a".repeat(255));
+
+        publish_new_project_file(&target, br#"{"id":"song-1"}"#)
+            .expect("a max-length target name should still be stageable");
+
+        assert!(target.is_file());
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
