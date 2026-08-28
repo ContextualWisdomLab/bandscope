@@ -1,8 +1,10 @@
-import type { RehearsalSong } from "@bandscope/shared-types";
+import { SECTION_FORM_LABELS, type RehearsalSong, type SectionFormLabel } from "@bandscope/shared-types";
+
+const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 
 /** Tonight's first named playable span on the rehearsal map. */
 export type FirstRangeSqueeze = {
-  sectionLabel: string;
+  sectionLabel: SectionFormLabel;
   roleName: string;
   lowestNote: string;
   highestNote: string;
@@ -28,6 +30,11 @@ const ACCIDENTAL_OFFSET: Record<string, number> = {
 };
 
 const NOTE_PATTERN = /^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/u;
+
+/** Return whether a runtime section label belongs to the shared form contract. */
+function isSectionFormLabel(value: string): value is SectionFormLabel {
+  return SECTION_FORM_LABEL_SET.has(value);
+}
 
 /** Return whether an untrusted runtime value is a plain object record. */
 function isRuntimeObject(value: unknown): value is Record<string, unknown> {
@@ -109,7 +116,7 @@ export function firstRangeSqueeze(
       continue;
     }
     const sectionLabel = meaningfulRangeText(sectionValue.label);
-    if (!sectionLabel) {
+    if (!sectionLabel || !isSectionFormLabel(sectionLabel)) {
       continue;
     }
 

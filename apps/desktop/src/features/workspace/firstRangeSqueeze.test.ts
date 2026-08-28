@@ -122,6 +122,15 @@ describe("firstRangeSqueeze", () => {
     });
   });
 
+  it("fails closed when runtime metadata supplies an unsupported section label", () => {
+    const song = createDemoRehearsalSong();
+    for (const section of song.sections) {
+      (section as unknown as { label: string }).label = "custom-section";
+    }
+
+    expect(firstRangeSqueeze(song)).toBeNull();
+  });
+
   it("limits the squeeze to the selected role", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong(), "lead-vocal");
 
