@@ -117,7 +117,7 @@ describe("i18n", () => {
 
     it("keeps Korean first-confirmed-harmony next-action copy particle-safe", () => {
       const t = createTranslator("ko");
-      expect(t("firstConfirmedHarmonyOpenAction")).toBe("{at} {role} 확인 코드 위치 열기");
+      expect(t("firstConfirmedHarmonyOpenAction")).toBe("{at} {role} {chord} 확인 코드 위치 열기");
       expect(t("firstConfirmedHarmonyBody")).toBe("{at} {section}에서 {role} 파트의 확인된 코드는 {chord}입니다.");
       expect(t("firstConfirmedHarmonyArmed")).toBe("{at}에서 {role} 파트를 {chord}로 연주한 다음 합주를 시작하세요.");
     });
