@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { invoke } from "@tauri-apps/api/core";
@@ -95,11 +95,24 @@ describe("ScoreView", () => {
     render(<ScoreView song={song} projectId={null} onSongUpdate={vi.fn()} />);
 
     expect(screen.getByText("Scores attach to the active analysis project.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
+    const addBtn = screen.getByRole("button", { name: "Add score" });
+    expect(addBtn).toHaveAttribute("aria-disabled", "true");
+    const openBtn = screen.getByRole("button", { name: "Open score: opener.pdf" });
+    expect(openBtn).toHaveAttribute("aria-disabled", "true");
+    const removeBtn = screen.getByRole("button", { name: "Remove: opener.pdf" });
+    expect(removeBtn).toHaveAttribute("aria-disabled", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
+    const clickEvent1 = createEvent.click(addBtn);
+    fireEvent(addBtn, clickEvent1);
+    expect(clickEvent1.defaultPrevented).toBe(true);
+
+    const clickEvent2 = createEvent.click(openBtn);
+    fireEvent(openBtn, clickEvent2);
+    expect(clickEvent2.defaultPrevented).toBe(true);
+
+    const clickEvent3 = createEvent.click(removeBtn);
+    fireEvent(removeBtn, clickEvent3);
+    expect(clickEvent3.defaultPrevented).toBe(true);
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
