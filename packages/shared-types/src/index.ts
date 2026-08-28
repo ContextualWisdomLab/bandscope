@@ -1563,8 +1563,19 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   if (value.vampPlan !== undefined && typeof value.vampPlan !== "string") {
     return invalidField(`${path}.vampPlan`);
   }
+  if (
+    value.vampPlan !== undefined &&
+    (value.vampPlan.trim().length === 0 ||
+      value.vampPlan.includes("\n") ||
+      value.vampPlan.includes("\r"))
+  ) {
+    return invalidField(`${path}.vampPlan`);
+  }
   if (value.vampPlanSource !== undefined && !isOneOf(PROVENANCE_SOURCES, value.vampPlanSource)) {
     return invalidField(`${path}.vampPlanSource`);
+  }
+  if (value.vampPlan === undefined && value.vampPlanSource !== undefined) {
+    return invalidField(`${path}.vampPlan`);
   }
   if (value.vampPlan !== undefined && value.vampPlanSource === undefined) {
     return invalidField(`${path}.vampPlanSource`);

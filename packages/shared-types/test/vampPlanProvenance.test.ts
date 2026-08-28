@@ -29,4 +29,16 @@ describe("vamp plan provenance contract", () => {
     expect(isRehearsalSong(song)).toBe(false);
     expect(() => parseRehearsalSong(song)).toThrow(/vampPlanSource/);
   });
+
+  it("rejects dangling, blank, and multiline vamp-plan metadata", () => {
+    const danglingSource = createDemoRehearsalSong();
+    delete danglingSource.sections[0]!.roles[0]!.vampPlan;
+    expect(() => parseRehearsalSong(danglingSource)).toThrow(/vampPlan/);
+
+    for (const vampPlan of ["", "   ", "keep here\nthen move", "keep here\rthen move"]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[0]!.vampPlan = vampPlan;
+      expect(() => parseRehearsalSong(song)).toThrow(/vampPlan/);
+    }
+  });
 });

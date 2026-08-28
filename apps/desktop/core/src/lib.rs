@@ -177,6 +177,30 @@ pub struct ManualOverridePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TranscriptionNotePayload {
+    pitch: String,
+    onset: f64,
+    offset: f64,
+    velocity: f64,
+}
+
+fn deserialize_practice_progress<'de, D>(deserializer: D) -> Result<Option<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let progress = Option::<u8>::deserialize(deserializer)?;
+    if let Some(value) = progress {
+        if value > 100 {
+            return Err(serde::de::Error::custom(
+                "practiceProgress must be between 0 and 100",
+            ));
+        }
+    }
+    Ok(progress)
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum VampPlanSourcePayload {
     Model,
@@ -190,12 +214,24 @@ pub struct RehearsalRolePayload {
     name: String,
     role_type: String,
     harmony: HarmonyPayload,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    harmonic_explanation: Option<String>,
     cue: CuePayload,
     range: RangePayload,
     confidence: ConfidencePayload,
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transposition_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transcription: Option<Vec<TranscriptionNotePayload>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_practice_progress",
+        skip_serializing_if = "Option::is_none"
+    )]
+    practice_progress: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     vamp_plan: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -770,6 +806,7 @@ mod tests {
                                 "functionLabel": "vi pedal anchor",
                                 "source": "model"
                             },
+                            "harmonicExplanation": "The landing keeps the tonal floor clear.",
                             "cue": {
                                 "kind": "transition",
                                 "value": "Hold through the pickup before the downbeat."
@@ -786,6 +823,14 @@ mod tests {
                             "rehearsalPriority": "high",
                             "simplification": "Stay on roots if the chorus entrance gets muddy.",
                             "setupNote": "Keep the attack short so the verse breathes.",
+                            "transpositionPlan": "Keep the landing shape a whole step lower if needed.",
+                            "transcription": [{
+                                "pitch": "C#4",
+                                "onset": 1.0,
+                                "offset": 1.5,
+                                "velocity": 0.8
+                            }],
+                            "practiceProgress": 50,
                             "vampPlan": "Keep this part going until Lead Vocal enters in the next section.",
                             "vampPlanSource": "model",
                             "manualOverrides": [],
@@ -824,6 +869,22 @@ mod tests {
             parsed.sections[0].roles[0].vamp_plan.as_deref(),
             Some("Keep this part going until Lead Vocal enters in the next section.")
         );
+        assert_eq!(
+            parsed.sections[0].roles[0].harmonic_explanation.as_deref(),
+            Some("The landing keeps the tonal floor clear.")
+        );
+        assert_eq!(
+            parsed.sections[0].roles[0].transposition_plan.as_deref(),
+            Some("Keep the landing shape a whole step lower if needed.")
+        );
+        assert_eq!(
+            parsed.sections[0].roles[0]
+                .transcription
+                .as_ref()
+                .map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(parsed.sections[0].roles[0].practice_progress, Some(50));
     }
 
     #[test]
@@ -955,6 +1016,15 @@ mod tests {
 
             assert!(project_payload_from_content(&content).is_err());
         }
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_practice_progress_above_shared_bound() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]["roles"][0]["practiceProgress"] = json!(101);
+        let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+        assert!(project_payload_from_content(&content).is_err());
     }
 
     #[test]
