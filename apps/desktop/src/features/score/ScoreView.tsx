@@ -192,19 +192,17 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
                       <span className="truncate">{attachment.fileName}</span>
                     </button>
-                    <span className="inline-flex" title={`${t("scoreRemove")}: ${attachment.fileName}`}>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
-                        disabled={!projectId}
-                        title={`${t("scoreRemove")}: ${attachment.fileName}`}
-                        aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
-                        className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
-                      >
-                        <Trash2 className="size-4" aria-hidden="true" />
-                      </Button>
-                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
+                      disabled={!projectId}
+                      title={`${t("scoreRemove")}: ${attachment.fileName}`}
+                      aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
+                      className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </Button>
                   </li>
                 ))}
               </ul>

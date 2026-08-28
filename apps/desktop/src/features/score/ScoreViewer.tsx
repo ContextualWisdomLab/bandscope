@@ -290,35 +290,31 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
-          <span className="inline-flex" title={t("scoreViewerPrevPage")}>
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className="size-14"
-              title={t("scoreViewerPrevPage")}
-              aria-label={t("scoreViewerPrevPage")}
-              disabled={pageNumber <= 1}
-              onClick={goToPreviousPage}
-            >
-              <ChevronLeft className="size-6" aria-hidden="true" />
-            </Button>
-          </span>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            className="size-14"
+            title={t("scoreViewerPrevPage")}
+            aria-label={t("scoreViewerPrevPage")}
+            disabled={pageNumber <= 1}
+            onClick={goToPreviousPage}
+          >
+            <ChevronLeft className="size-6" aria-hidden="true" />
+          </Button>
           <span className="min-w-28 text-center text-sm font-semibold text-slate-200">
             {pageIndicator}
           </span>
-          <span className="inline-flex" title={t("scoreViewerNextPage")}>
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className="size-14"
-              title={t("scoreViewerNextPage")}
-              aria-label={t("scoreViewerNextPage")}
-              disabled={pageNumber >= pageCount}
-              onClick={goToNextPage}
-            >
-              <ChevronRight className="size-6" aria-hidden="true" />
-            </Button>
-          </span>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            className="size-14"
+            title={t("scoreViewerNextPage")}
+            aria-label={t("scoreViewerNextPage")}
+            disabled={pageNumber >= pageCount}
+            onClick={goToNextPage}
+          >
+            <ChevronRight className="size-6" aria-hidden="true" />
+          </Button>
         </div>
       </CardContent>
     </Card>
