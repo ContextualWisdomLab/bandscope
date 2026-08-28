@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from math import isfinite
 from typing import Any
 
 from ..sections.utils import validate_section
@@ -409,6 +410,8 @@ class RoleExtractor:
         for role_id in _NAMED_SWELL_ROLE_IDS & current_active & previous_active:
             previous_rms = float(previous_role_energy.get(role_id, 0.0) or 0.0)
             current_rms = float(role_energy.get(role_id, 0.0) or 0.0)
+            if not isfinite(previous_rms) or not isfinite(current_rms):
+                continue
             if previous_rms < _SWELL_PREVIOUS_FLOOR:
                 continue
             if current_rms < previous_rms * _SWELL_RATIO:
