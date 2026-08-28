@@ -26,6 +26,14 @@ describe("dropPlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/dropPlanSource/);
   });
 
+  it("rejects drop plan copy without provenance", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.dropPlan = "Hit this drop; come in together when the texture fills.";
+    delete role.dropPlanSource;
+    expect(() => parseRehearsalSong(song)).toThrow(/dropPlanSource/);
+  });
+
   it.each(["", "   ", "land here\nthen hold", "land here\rthen hold"])(
     "rejects a drop plan source with blank or multiline copy %j",
     (dropPlan) => {
