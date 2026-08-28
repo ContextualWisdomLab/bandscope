@@ -102,8 +102,9 @@ flowchart LR
 
 | PR | current head | current 상태와 traceability |
 |---|---|---|
-| #1045 | `6c4edebe44740d753b7a0d287273e01b9faddfb3` | navigation-failure disarm fix 포함; 29 hosted Checks success, Rust check 진행 중, `opencode-review` failure; qualifying independent approval 없음 |
-| #1046 | `008248327f2f3e3636d9d234221810f3db56829f` | current head에서 source local proof 통과; 30 hosted Checks success, `opencode-review`는 current-head verdict 없음으로 failure, Strix는 tool-description 1024자 제한 후 provider unavailable로 failure; qualifying independent approval 없음 |
+| #1040 | `eb7432c124ccf667eca8db0656ed09273e51e5c7` | drop-plan copy/provenance 양방향 검증을 shared-types와 native parser에 보강; 15 hosted Checks success, 11 pending, failure 없음; qualifying independent approval 없음 |
+| #1045 | `88c2c741ab0d62033b3d9c330d67e8ac90010c57` | swell-plan copy/provenance 양방향 검증 보강; 새 current-head workflow 21개 pending, failure 없음; qualifying independent approval 없음 |
+| #1046 | `c8b5e391cec704e599ff75fe00f5a0b2016a6eca` | fade-plan copy/provenance 양방향 검증 보강; 새 current-head workflow 21개 pending, failure 없음; qualifying independent approval 없음 |
 | #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | source/coverage/security/build/release 및 `opencode-review`/`strix` terminal success; reviews는 COMMENTED뿐이며 qualifying approval 없음 |
 | #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
 | #1041 | `164995d3a3c056bdbb4fc293226d0c31c062104e` | ScoreView/ScoreViewer tooltip 변경 current head; coverage/build/security Checks 일부 queued/in-progress; qualifying approval 없음 |
