@@ -186,6 +186,7 @@ export function FirstSwellPlanCallout({ song, workspaceInstanceKey }: FirstSwell
               `[data-section-index="${named.sectionIndex}"]`
             ) ?? null;
           if (typeof target?.scrollIntoView !== "function") {
+            setOpenedSwellPlan(null);
             setNavigationFailed(true);
             return;
           }
