@@ -332,34 +332,42 @@ export function resolveTonightTempo(song: RehearsalSong | null | undefined): Ton
 export function resolveTonightStartingChord(
   song: RehearsalSong | null | undefined
 ): TonightStartingChord | null {
-  const section = firstEntranceSection(song as RehearsalSong);
-  if (!section) {
+  try {
+    const section = firstEntranceSection(song as RehearsalSong);
+    if (!section) {
+      return null;
+    }
+    for (const role of rankedActiveRoles(section)) {
+      const chord = roleChord(role);
+      const roleName = readBoundedOwnString(role, "name", MAX_ROLE_NAME_LENGTH);
+      if (chord && roleName) {
+        return { chord, roleName };
+      }
+    }
+    return null;
+  } catch {
     return null;
   }
-  for (const role of rankedActiveRoles(section)) {
-    const chord = roleChord(role);
-    const roleName = readBoundedOwnString(role, "name", MAX_ROLE_NAME_LENGTH);
-    if (chord && roleName) {
-      return { chord, roleName };
-    }
-  }
-  return null;
 }
 
 /** Return the first-entrance transpose plan, or null when no setup note remains. */
 export function resolveTonightTransposePlan(
   song: RehearsalSong | null | undefined
 ): TonightTransposePlan | null {
-  const section = firstEntranceSection(song as RehearsalSong);
-  if (!section) {
+  try {
+    const section = firstEntranceSection(song as RehearsalSong);
+    if (!section) {
+      return null;
+    }
+    for (const role of rankedActiveRoles(section)) {
+      const plan = readBoundedOwnString(role, "transpositionPlan", MAX_PLAN_LENGTH);
+      const roleName = readBoundedOwnString(role, "name", MAX_ROLE_NAME_LENGTH);
+      if (plan && roleName) {
+        return { plan, roleName };
+      }
+    }
+    return null;
+  } catch {
     return null;
   }
-  for (const role of rankedActiveRoles(section)) {
-    const plan = readBoundedOwnString(role, "transpositionPlan", MAX_PLAN_LENGTH);
-    const roleName = readBoundedOwnString(role, "name", MAX_ROLE_NAME_LENGTH);
-    if (plan && roleName) {
-      return { plan, roleName };
-    }
-  }
-  return null;
 }

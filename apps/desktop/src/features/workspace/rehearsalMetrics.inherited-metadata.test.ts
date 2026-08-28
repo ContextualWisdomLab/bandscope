@@ -109,4 +109,20 @@ describe("rehearsal cockpit metrics inherited metadata", () => {
     expect(resolveTonightStartingChord(song)).toBeNull();
     expect(resolveTonightTransposePlan(song)).toBeNull();
   });
+
+  it("fails closed when role metadata throws during ranking", () => {
+    const song = createDemoRehearsalSong();
+    Object.defineProperty(song.sections[0]!.roles[0]!, "rehearsalPriority", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("priority getter must stay data");
+      }
+    });
+
+    expect(() => resolveTonightStartingChord(song)).not.toThrow();
+    expect(() => resolveTonightTransposePlan(song)).not.toThrow();
+    expect(resolveTonightStartingChord(song)).toBeNull();
+    expect(resolveTonightTransposePlan(song)).toBeNull();
+  });
 });
