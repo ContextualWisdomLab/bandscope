@@ -1,6 +1,6 @@
 # BandScope Product-Technical Gap Baseline
 
-Last updated: 2026-08-26
+Last updated: 2026-08-28
 Base revision: `develop@acdbea63` (fix(security): projectId path guard, npm HIGH CVEs, Foote novelty sign)
 
 ## 1. 목적과 범위 (Purpose & Scope)
@@ -258,6 +258,8 @@ flowchart TD
 
 본 문서에서 실제 인용한 개념(MIR novelty kernel, chord-recognition 연구 맥락, Viterbi 디코딩, 소스 분리 평가, librosa, 접근성 표준)에 한정한다.
 
+2026-08-28 최신성 점검: WCAG 2.2는 현재 W3C Recommendation이며 2025년에 ISO/IEC 40500:2025로 승인되었다. 보안 개발 수명주기에는 NIST SSDF 1.1을 기준으로 삼고, MIR acceptance 설계에는 ISMIR 2024의 구조 분석·notewise source-separation 평가·다중 stem 연구를 보조 근거로 반영한다. 이 문헌은 기존 휴리스틱을 자동으로 정답으로 취급하지 않으며, 실제 오디오 benchmark와 provenance·재현성 증적을 요구하는 근거로만 사용한다.
+
 Boulanger-Lewandowski, N., Bengio, Y., & Vincent, P. (2013). Audio chord recognition with recurrent neural networks. In Proceedings of the 14th International Society for Music Information Retrieval Conference (ISMIR 2013) (pp. 335–340). ISMIR.
 
 Burgoyne, J. A., Wild, J., & Fujinaga, I. (2011). An expert ground truth set for audio chord recognition and music analysis. In Proceedings of the 12th International Society for Music Information Retrieval Conference (ISMIR 2011) (pp. 633–638). ISMIR.
@@ -280,7 +282,17 @@ Müller, M. (2015). Fundamentals of music processing: Audio, analysis, algorithm
 
 Viterbi, A. J. (1967). Error bounds for convolutional codes and an asymptotically optimum decoding algorithm. IEEE Transactions on Information Theory, 13(2), 260–269.
 
-W3C. (2023). Web Content Accessibility Guidelines (WCAG) 2.2. World Wide Web Consortium. https://www.w3.org/TR/WCAG22/
+Chen, T.-P., & Yoshii, K. (2024). Learning multifaceted self-similarity over time and frequency for music structure analysis. In Proceedings of the 25th International Society for Music Information Retrieval Conference (pp. 189–197). ISMIR. https://doi.org/10.5281/zenodo.14877309
+
+International Organization for Standardization. (2025). Information technology—W3C Web Content Accessibility Guidelines 2.2 (ISO/IEC 40500:2025). https://www.w3.org/press-releases/2025/wcag22-iso-pas/
+
+Özer, Y., Berendes, H.-U., Arifi-Müller, V., Stöter, F.-R., & Müller, M. (2024). Notewise evaluation for music source separation: A case study for separated piano tracks. In Proceedings of the 25th International Society for Music Information Retrieval Conference (pp. 248–255). ISMIR. https://www.audiolabs-erlangen.de/resources/MIR/2024-ISMIR-PianoSepEval
+
+Souppaya, M., Scarfone, K., & Dodson, D. (2022). Secure software development framework (SSDF) version 1.1: Recommendations for mitigating the risk of software vulnerabilities (NIST Special Publication 800-218). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-218
+
+Watcharasupat, K. N., & Lerch, A. (2024). A stem-agnostic single-decoder system for music source separation beyond four stems. In Proceedings of the 25th International Society for Music Information Retrieval Conference (pp. 1051–1059). ISMIR. https://arxiv.org/abs/2406.18747
+
+World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2.2. https://www.w3.org/TR/2024/REC-WCAG22-20241212/
 
 참고: 위 항목 중 DOI가 확실치 않은 항목은 DOI 없이 plain APA로 기술했다(조작 금지 원칙). 코드 내 개념 대응: Foote(1999)=checkerboard novelty, Viterbi(1967)=Viterbi 디코딩 알고리즘, Boulanger-Lewandowski et al.(2013)=오디오 화음 인식 연구 맥락(현재 hand-set transition prior 수치의 근거는 아님), Défossez et al.(2019)=Demucs htdemucs, Le Roux et al.(2019)=SI-SDR(audio_separator.py 주석 언급), Müller(2015)/McFee et al.(2015)=섹션/코드/음역 분석 기반 라이브러리. 현재 transition prior 수치의 문헌·교정 데이터 근거가 없는 점은 5장 (c) 및 P2-11의 미해결 Gap으로 유지한다.
 
