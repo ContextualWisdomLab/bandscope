@@ -123,3 +123,18 @@ def test_rust_toolchain_policy_rejects_failure_masking_shell_suffixes() -> None:
     )
     for required, masked in masked_commands:
         assert not verifier._job_runs_required_command(_job("owner", masked), required)
+
+
+def test_rust_toolchain_policy_requires_desktop_core_integration_suite() -> None:
+    """The required Rust CI lane must execute desktop-core integration tests."""
+    verifier = load_module(
+        "scripts/checks/verify_rust_toolchain.py",
+        "verify_rust_toolchain_core_integration_requirement",
+    )
+    version = verifier.EXPECTED_TOOLCHAIN
+    requirements = verifier._required_workflow_jobs()["ci.yml"]["rust-check"]
+
+    assert (
+        f"cargo +{version} test --manifest-path apps/desktop/core/Cargo.toml --locked"
+        in requirements
+    )
