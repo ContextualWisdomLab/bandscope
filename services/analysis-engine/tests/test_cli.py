@@ -387,7 +387,7 @@ def test_cli_main_temporal_analyzer_mock_success(
 
     class FakeAnalyzerSuccess:
         def analyze(self, path):
-            return {"bpm": 120.0, "beats": []}
+            return {"bpm": 120.0, "beat_times": [0.0], "beats": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
     monkeypatch.setattr(
@@ -405,6 +405,7 @@ def test_cli_main_temporal_analyzer_mock_success(
     assert cli.main() == 0
     res = json.loads(stdout.getvalue())
     assert res["jobId"] == "job-audio-success"
+    assert res["result"]["tempo"] == 120
 
 
 def test_cli_main_progress_jsonl_streams_status_updates(

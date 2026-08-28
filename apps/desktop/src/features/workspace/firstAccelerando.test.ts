@@ -181,6 +181,14 @@ describe("resolveFirstAccelerandoPlan", () => {
     expect(resolved?.accelerandoPlanSource).toBe("user");
   });
 
+  it("fails closed when persisted accelerando copy has no provenance", () => {
+    const song = withAccelerandoSection();
+    delete song.sections[0]!.roles.find((role) => role.id === "lead-vocal")!
+      .accelerandoPlanSource;
+
+    expect(resolveFirstAccelerandoPlan(song)).toBeNull();
+  });
+
   it("fails closed on a malformed runtime song root", () => {
     expect(resolveFirstAccelerandoPlan(null as never)).toBeNull();
   });

@@ -29,7 +29,7 @@ type OpenedAccelerandoPlan = Readonly<{
   landingRoleId: string;
   landingRoleName: string;
   accelerandoPlan: string;
-  accelerandoPlanSource: AccelerandoPlanSource | null;
+  accelerandoPlanSource: AccelerandoPlanSource;
   fromBpm: string | null;
   toBpm: string | null;
   atSeconds: number;
@@ -54,7 +54,7 @@ function formatAccelerandoPlanCopy(template: string, values: AccelerandoPlanCopy
 /** Localize model accelerando guidance from structured tempo tokens, never from display-copy grammar. */
 function localizedAccelerandoPlan(
   accelerandoPlan: string,
-  accelerandoPlanSource: AccelerandoPlanSource | null,
+  accelerandoPlanSource: AccelerandoPlanSource,
   guidance: AccelerandoPlanGuidance | null,
   generatedTemplate: string
 ): string {

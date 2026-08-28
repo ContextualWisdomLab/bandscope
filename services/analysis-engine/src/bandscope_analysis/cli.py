@@ -6,6 +6,7 @@ import json
 import logging
 import sys
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
 from bandscope_analysis.temporal import TemporalAnalyzer
@@ -75,8 +76,7 @@ def main() -> int:
 
     request = payload.get("request")
 
-    # Temporary: Inject temporal analyzer call if it's a local file, just to prove it works
-    # before full orchestrator integration
+    temporal_features: dict[str, Any] | None = None
     if (
         isinstance(request, dict)
         and request.get("sourceKind") == "local_audio"
@@ -90,6 +90,8 @@ def main() -> int:
             try:
                 temporal_analyzer = TemporalAnalyzer()
                 features = temporal_analyzer.analyze(audio_path)
+                if isinstance(features, dict):
+                    temporal_features = cast(dict[str, Any], features)
                 logging.info(f"Extracted BPM: {features['bpm']}")
             except Exception:
                 logging.warning(
@@ -99,13 +101,13 @@ def main() -> int:
 
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     if progress_jsonl:
-        for update in run_analysis_job_updates(job_id, request, requested_at):
+        for update in run_analysis_job_updates(job_id, request, requested_at, temporal_features):
             json.dump(update, sys.stdout)
             sys.stdout.write("\n")
             sys.stdout.flush()
         return 0
 
-    response = run_analysis_job(job_id, request, requested_at)
+    response = run_analysis_job(job_id, request, requested_at, temporal_features)
     json.dump(response, sys.stdout)
     return 0
 

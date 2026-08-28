@@ -35,7 +35,7 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedAccelerandoPlan = Readonly<{
   text: string;
-  source: AccelerandoPlanSource | null;
+  source: AccelerandoPlanSource;
   guidance: AccelerandoPlanGuidance | null;
 }>;
 
@@ -49,7 +49,7 @@ export type FirstAccelerandoPlan = {
   landingRoleId: string;
   landingRoleName: string;
   accelerandoPlan: string;
-  accelerandoPlanSource: AccelerandoPlanSource | null;
+  accelerandoPlanSource: AccelerandoPlanSource;
   accelerandoPlanGuidance: AccelerandoPlanGuidance | null;
   atSeconds: number;
 };
@@ -183,11 +183,7 @@ function ownedAccelerandoPlan(role: unknown): OwnedAccelerandoPlan | null {
   if (typeof accelerandoPlan !== "string") {
     return null;
   }
-  if (
-    accelerandoPlanSource !== undefined &&
-    accelerandoPlanSource !== "model" &&
-    accelerandoPlanSource !== "user"
-  ) {
+  if (accelerandoPlanSource !== "model" && accelerandoPlanSource !== "user") {
     return null;
   }
   const trimmed = accelerandoPlan.trim();
@@ -199,7 +195,7 @@ function ownedAccelerandoPlan(role: unknown): OwnedAccelerandoPlan | null {
   }
   return {
     text: truncateCodePoints(trimmed, MAX_ACCELERANDO_PLAN_CHARACTERS),
-    source: accelerandoPlanSource ?? null,
+    source: accelerandoPlanSource,
     guidance: null
   };
 }

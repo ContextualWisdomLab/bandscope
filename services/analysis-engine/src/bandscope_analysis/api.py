@@ -1078,8 +1078,13 @@ def run_analysis_job_updates(
     job_id: str,
     payload: object,
     requested_at: str,
+    temporal_features: dict[str, Any] | None = None,
 ) -> list[AnalysisJobStatus]:
-    """Return incremental orchestration status updates for an analysis job."""
+    """Return incremental orchestration status updates for an analysis job.
+
+    ``temporal_features`` contains optional features already extracted by the CLI
+    so the integrated pipeline can reuse beat tracking instead of repeating it.
+    """
     try:
         request = validate_analysis_job_request(payload)
     except ValueError as error:
@@ -1215,6 +1220,9 @@ def run_analysis_job_updates(
             )
             return updates
 
+    if temporal_features:
+        audio_features = {**(audio_features or {}), **temporal_features}
+
     updates.append(
         _build_job_status(
             job_id=job_id,
@@ -1263,6 +1271,11 @@ def run_analysis_job_updates(
     return updates
 
 
-def run_analysis_job(job_id: str, payload: object, requested_at: str) -> AnalysisJobStatus:
+def run_analysis_job(
+    job_id: str,
+    payload: object,
+    requested_at: str,
+    temporal_features: dict[str, Any] | None = None,
+) -> AnalysisJobStatus:
     """Return a structured orchestration response for a validated analysis job."""
-    return run_analysis_job_updates(job_id, payload, requested_at)[-1]
+    return run_analysis_job_updates(job_id, payload, requested_at, temporal_features)[-1]

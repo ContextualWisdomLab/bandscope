@@ -359,6 +359,23 @@ def test_coerce_beat_times_and_pipeline_stamp() -> None:
     assert all("accelerandoPlan" not in role for role in unnamed["sections"][0]["roles"])
 
 
+def test_apply_accelerando_reuses_provided_beat_times(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provided temporal features avoid a second beat-tracking pass."""
+
+    def fail_if_derived(*args: Any, **kwargs: Any) -> list[float] | None:
+        raise AssertionError("beat times should be reused")
+
+    monkeypatch.setattr("bandscope_analysis.api.derive_beat_times", fail_if_derived)
+    song = _song_with_section()
+
+    _apply_accelerando(
+        song, np.ones(8, dtype=np.float32), 22050, {"beat_times": _beats_80_to_120()}
+    )
+
+    vocal = next(role for role in song["sections"][0]["roles"] if role["id"] == "lead-vocal")
+    assert vocal["accelerandoPlan"] == _ACCEL_PLAN
+
+
 def test_pipeline_stamps_accelerando_from_provided_beat_times() -> None:
     """Real stem pipeline receives beat times and names the accel on the map."""
     sr = 8
