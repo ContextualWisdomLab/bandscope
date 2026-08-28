@@ -88,6 +88,9 @@ describe("App local song intake concurrency", () => {
 
     fireEvent.click(emptyAction);
     fireEvent.click(headerAction);
+    emptyAction.removeAttribute("disabled");
+    expect(emptyAction).not.toBeDisabled();
+    fireEvent.click(emptyAction);
     expect(analysisMocks.selectLocalAudioSource).toHaveBeenCalledTimes(1);
 
     resolveSelection?.({ ok: true, bootstrap: selectedBootstrap });
@@ -120,6 +123,8 @@ describe("App local song intake concurrency", () => {
       expect(screen.queryByRole("button", { name: "Clear YouTube URL" })).toBeNull();
     });
 
+    youtubeImport.removeAttribute("disabled");
+    expect(youtubeImport).not.toBeDisabled();
     fireEvent.click(youtubeImport);
     expect(analysisMocks.importYoutubeUrl).not.toHaveBeenCalled();
 

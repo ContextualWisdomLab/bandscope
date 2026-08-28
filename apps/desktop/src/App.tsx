@@ -722,7 +722,7 @@ export function App() {
                         aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
                         aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
-                      {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
+                      {youtubeUrl && !analysisInFlight && !isStarting && !isImporting && !isChoosingLocalAudio ? (
                         <button
                           type="button"
                           onClick={handleClearYoutubeUrl}
