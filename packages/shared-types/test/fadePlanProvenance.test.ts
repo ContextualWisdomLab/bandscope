@@ -26,6 +26,14 @@ describe("fadePlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/fadePlanSource/);
   });
 
+  it("rejects fade plan copy without provenance", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.fadePlan = "Fade this part; let the next downbeat land quieter.";
+    delete role.fadePlanSource;
+    expect(() => parseRehearsalSong(song)).toThrow(/fadePlanSource/);
+  });
+
   it.each(["", "   ", "fade here\nthen hold", "fade here\rthen hold"])(
     "rejects a fade plan source with blank or multiline copy %j",
     (fadePlan) => {
