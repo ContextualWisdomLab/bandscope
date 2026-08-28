@@ -192,6 +192,21 @@ enum FadePlanSourcePayload {
     User,
 }
 
+fn deserialize_practice_progress<'de, D>(deserializer: D) -> Result<Option<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let progress = Option::<u8>::deserialize(deserializer)?;
+    if let Some(value) = progress {
+        if value > 100 {
+            return Err(serde::de::Error::custom(
+                "practiceProgress must be between 0 and 100",
+            ));
+        }
+    }
+    Ok(progress)
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
@@ -213,7 +228,11 @@ pub struct RehearsalRolePayload {
     overlap_warnings: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     transcription: Option<Vec<TranscriptionNotePayload>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_practice_progress",
+        skip_serializing_if = "Option::is_none"
+    )]
     practice_progress: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     fade_plan: Option<String>,
