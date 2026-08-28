@@ -506,7 +506,6 @@ class RoleExtractor:
                     stem_source_continuity,
                 )
                 if swell_plan is not None:
-                    role = role.copy()
                     role["swellPlan"] = swell_plan
                     role["swellPlanSource"] = "model"
                 active_roles.append(role)
