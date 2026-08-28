@@ -154,5 +154,12 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "firstFermataPlanLabel": "오늘 첫 페르마타 계획",
+  "firstFermataPlanOpenAction": "{at} {role} 페르마타 열기",
+  "firstFermataPlanBody": "{at} {section}에서 {role} 파트가 페르마타를 붙잡습니다.",
+  "firstFermataPlanArmed": "{at}에서 {role} 파트로 함께 붙잡으세요. 끊을 신호까지 기다리세요.",
+  "firstFermataPlanGeneratedGuidance": "이 파트를 {hold}초 더 붙잡으세요. 다음 입장 전에 끊을 신호를 기다리세요.",
+  "firstFermataPlanUnavailable": "사용 가능한 페르마타 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요.",
+  "firstFermataPlanNavigationFailed": "곡 맵에서 이 페르마타를 열 수 없습니다. 아래 맵에서 해당 구간을 찾아주세요."
 }

@@ -143,6 +143,8 @@ export type RehearsalRole = {
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
   practiceProgress?: number;
+  fermataPlan?: string;
+  fermataPlanSource?: ProvenanceSource;
 };
 
 /** Documented. */
@@ -1500,7 +1502,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "manualOverrides",
       "overlapWarnings",
       "transcription",
-      "practiceProgress"
+      "practiceProgress",
+      "fermataPlan",
+      "fermataPlanSource"
     ],
     path
   );
@@ -1586,6 +1590,28 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     if (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100) {
       return invalidField(`${path}.practiceProgress`);
     }
+  }
+
+  if (
+    value.fermataPlan !== undefined &&
+    (typeof value.fermataPlan !== "string" ||
+      value.fermataPlan.trim().length === 0 ||
+      value.fermataPlan.includes("\n") ||
+      value.fermataPlan.includes("\r"))
+  ) {
+    return invalidField(`${path}.fermataPlan`);
+  }
+  if (
+    value.fermataPlanSource !== undefined &&
+    !isOneOf(PROVENANCE_SOURCES, value.fermataPlanSource)
+  ) {
+    return invalidField(`${path}.fermataPlanSource`);
+  }
+  if (value.fermataPlanSource !== undefined && value.fermataPlan === undefined) {
+    return invalidField(`${path}.fermataPlanSource`);
+  }
+  if (value.fermataPlan !== undefined && value.fermataPlanSource === undefined) {
+    return invalidField(`${path}.fermataPlanSource`);
   }
 
   return null;
