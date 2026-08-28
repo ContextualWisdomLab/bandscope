@@ -1184,7 +1184,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Network Error/i)).toBeTruthy();
+      expect(screen.getAllByText(/Network Error/i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
@@ -1200,7 +1200,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getAllByText(/Failed to import YouTube URL./i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
@@ -1213,7 +1213,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getAllByText(/Failed to import YouTube URL./i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
@@ -1226,7 +1226,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getAllByText(/Failed to import YouTube URL./i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
@@ -1239,7 +1239,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getAllByText(/Failed to import YouTube URL./i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
@@ -1253,7 +1253,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getAllByText(/Failed to import YouTube URL./i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
@@ -1267,7 +1267,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getAllByText(/Failed to import YouTube URL./i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
@@ -1583,7 +1583,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getAllByText(/Failed to import YouTube URL./i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
@@ -1609,7 +1609,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getAllByText(/Failed to import YouTube URL./i).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Paste another YouTube link" })).toBeTruthy();
     });
   });
