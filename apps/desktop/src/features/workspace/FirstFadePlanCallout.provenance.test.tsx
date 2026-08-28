@@ -53,14 +53,19 @@ describe("FirstFadePlanCallout fade-plan provenance", () => {
     expect(screen.queryByText("이 파트를 페이드하세요. 다음 다운비트까지 줄이세요.")).toBeNull();
   });
 
-  it("does not infer model authority when persisted fade guidance has no source", () => {
+  it("does not render persisted fade guidance when it has no source", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const legacyPlan = "Fade this part; let the next downbeat land quieter.";
     const song = songWithKoreanFade(legacyPlan);
 
     render(<FirstFadePlanCallout song={song} />);
 
-    expect(screen.getByText(legacyPlan)).toBeTruthy();
+    expect(screen.queryByText(legacyPlan)).toBeNull();
+    expect(
+      screen.getByText(
+        "사용 가능한 페이드 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
+      )
+    ).toBeTruthy();
     expect(screen.queryByText("이 파트를 페이드하세요. 다음 다운비트까지 줄이세요.")).toBeNull();
   });
 

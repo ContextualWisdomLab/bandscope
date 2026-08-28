@@ -71,12 +71,17 @@ describe("FirstFadePlanCallout custom guidance", () => {
     expect(screen.queryByText(/Fade Lead Vocal together at 0:30 so the quieter landing is audible./)).toBeNull();
   });
 
-  it("preserves custom copy without model provenance instead of rewriting it", () => {
+  it("does not render custom copy without provenance", () => {
     render(
       <FirstFadePlanCallout
         song={songWithCustomFadePlan(undefined, "Stack the last bar and grow together.")}
       />
     );
-    expect(screen.getByText("Stack the last bar and grow together.")).toBeTruthy();
+    expect(screen.queryByText("Stack the last bar and grow together.")).toBeNull();
+    expect(
+      screen.getByText(
+        "No fade plan is available. Stay on tonight's map for the next rehearsal cue."
+      )
+    ).toBeTruthy();
   });
 });

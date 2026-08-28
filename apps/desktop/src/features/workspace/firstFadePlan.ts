@@ -166,6 +166,9 @@ function ownedFadePlan(role: unknown): OwnedFadePlan | null {
   if (fadePlanSource !== undefined && fadePlanSource !== "model" && fadePlanSource !== "user") {
     return null;
   }
+  if (fadePlanSource === undefined) {
+    return null;
+  }
   const trimmed = fadePlan.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
@@ -175,7 +178,7 @@ function ownedFadePlan(role: unknown): OwnedFadePlan | null {
   }
   return {
     text: truncateCodePoints(trimmed, MAX_FADE_PLAN_CHARACTERS),
-    source: fadePlanSource ?? null,
+    source: fadePlanSource,
     guidance: null
   };
 }

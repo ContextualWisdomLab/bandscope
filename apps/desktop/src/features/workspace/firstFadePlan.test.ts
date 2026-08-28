@@ -25,6 +25,7 @@ function withFadeSection(
     roleId?: string;
     roleName?: string;
     priority?: "low" | "medium" | "high";
+    source?: "model" | "user";
     isActive?: boolean;
     wasActive?: boolean;
     previousVocalActive?: boolean;
@@ -56,7 +57,8 @@ function withFadeSection(
           ? "Bass Guitar"
           : "Lead Vocal"),
     rehearsalPriority: overrides.priority ?? "high",
-    fadePlan: overrides.fadePlan ?? DEMO_FADE_PLAN
+    fadePlan: overrides.fadePlan ?? DEMO_FADE_PLAN,
+    fadePlanSource: overrides.source ?? "model"
   };
 
   const current = structuredClone(verse);
@@ -209,7 +211,8 @@ describe("resolveFirstFadePlan", () => {
       end: 56,
       previousStart: 24,
       roleId: "lead-vocal",
-      fadePlan: "Late fade."
+      fadePlan: "Late fade.",
+      source: "user"
     });
     const earlier = structuredClone(song.sections[1]!);
     earlier.id = "chorus-early";
@@ -255,7 +258,8 @@ describe("resolveFirstFadePlan", () => {
       roleId: "bass-guitar",
       roleName: "Bass Guitar",
       priority: "low",
-      fadePlan: "Low-priority fade."
+      fadePlan: "Low-priority fade.",
+      source: "user"
     });
     const section = song.sections[1]!;
     const highRole = {
@@ -263,7 +267,8 @@ describe("resolveFirstFadePlan", () => {
       id: "lead-vocal",
       name: "Lead Vocal",
       rehearsalPriority: "high" as const,
-      fadePlan: "High-priority fade."
+      fadePlan: "High-priority fade.",
+      fadePlanSource: "user" as const
     };
     section.roles = [...section.roles.filter((role) => role.id !== "lead-vocal"), highRole];
     section.partGraph = [
