@@ -24,7 +24,7 @@ function songWithSwellPlan() {
 describe("FirstSwellPlanCallout reduced motion", () => {
   afterEach(() => {
     document.querySelectorAll('[data-testid="song-structure-grid"]').forEach((node) => {
-      node.parentElement?.remove();
+      node.remove();
     });
     vi.unstubAllGlobals();
   });
