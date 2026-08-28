@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import numpy as np
 import pytest
+import soundfile as sf
 
 from bandscope_analysis.temporal import TemporalAnalyzer
 
@@ -33,7 +35,7 @@ def test_decoder_failure_redacts_source_path_and_decoder_payload(
 
     sensitive_path = tmp_path / "private-customer-session" / "unreleased-song.wav"
     sensitive_path.parent.mkdir()
-    sensitive_path.write_bytes(b"bounded-test-input")
+    sf.write(sensitive_path, np.zeros(4_000, dtype=np.float32), 44_100)
     decoder_payload = "decoder exposed /private/customer/token-shaped-audio-name.wav"
 
     def fail_decode(*args: object, **kwargs: object) -> tuple[object, int]:

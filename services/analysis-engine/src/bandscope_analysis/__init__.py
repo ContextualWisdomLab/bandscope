@@ -5,7 +5,6 @@ from importlib import import_module
 
 from .health import build_health_report
 
-
 _STEM_SAFE_FAILURE_LOG_MESSAGES = frozenset(
     {
         "Stem separation failed because the source file was missing.",

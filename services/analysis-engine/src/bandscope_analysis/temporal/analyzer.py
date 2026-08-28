@@ -12,6 +12,7 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
+from bandscope_analysis.audio_metadata import preflight_audio_metadata
 from bandscope_analysis.audio_resource_policy import (
     DEFAULT_AUDIO_RESOURCE_POLICY,
     DEFAULT_MAX_DURATION_SECONDS,
@@ -123,6 +124,7 @@ class TemporalAnalyzer:
                     self.resource_policy.validate_encoded_file_bytes(file_size)
                 except ValueError as error:
                     raise ValueError("Audio file is too large for temporal analysis") from error
+                preflight_audio_metadata(fileobj, self.resource_policy)
 
                 with warnings.catch_warnings():
                     warnings.filterwarnings(

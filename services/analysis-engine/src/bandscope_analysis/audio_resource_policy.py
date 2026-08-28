@@ -32,6 +32,10 @@ from numpy.typing import NDArray
 
 AUDIO_RESOURCE_POLICY_VERSION = "1"
 DEFAULT_TARGET_SAMPLE_RATE = 44_100
+DEFAULT_MIN_SOURCE_SAMPLE_RATE = 8_000
+DEFAULT_MAX_SOURCE_SAMPLE_RATE = 192_000
+DEFAULT_MIN_SOURCE_CHANNELS = 1
+DEFAULT_MAX_SOURCE_CHANNELS = 2
 DEFAULT_MAX_ENCODED_FILE_BYTES = 100 * 1024 * 1024
 DEFAULT_MAX_DURATION_SECONDS = 15 * 60
 DEFAULT_MAX_DECODED_AUDIO_BYTES = (
@@ -52,12 +56,24 @@ class AudioResourcePolicy:
             ceiling at ``target_sample_rate``.
         max_decoded_audio_bytes: Maximum in-memory byte size of the canonical
             decoded mono NumPy buffer.
+        min_source_sample_rate: Minimum source-container sample rate accepted
+            before resampling.
+        max_source_sample_rate: Maximum source-container sample rate accepted
+            before resampling.
+        min_source_channels: Minimum source-container channel count accepted
+            before downmixing.
+        max_source_channels: Maximum source-container channel count accepted
+            before downmixing.
     """
 
     max_encoded_file_bytes: int = DEFAULT_MAX_ENCODED_FILE_BYTES
     target_sample_rate: int = DEFAULT_TARGET_SAMPLE_RATE
     max_duration_seconds: float = float(DEFAULT_MAX_DURATION_SECONDS)
     max_decoded_audio_bytes: int = DEFAULT_MAX_DECODED_AUDIO_BYTES
+    min_source_sample_rate: int = DEFAULT_MIN_SOURCE_SAMPLE_RATE
+    max_source_sample_rate: int = DEFAULT_MAX_SOURCE_SAMPLE_RATE
+    min_source_channels: int = DEFAULT_MIN_SOURCE_CHANNELS
+    max_source_channels: int = DEFAULT_MAX_SOURCE_CHANNELS
 
     def __post_init__(self) -> None:
         """Reject invalid policy configuration before it can weaken admission."""
@@ -84,6 +100,24 @@ class AudioResourcePolicy:
             or not isinstance(self.max_decoded_audio_bytes, int)
             or self.max_decoded_audio_bytes <= 0
             or self.max_decoded_audio_bytes > sys.maxsize - 1
+        ):
+            raise ValueError(_POLICY_ERROR)
+        for source_bound in (
+            self.min_source_sample_rate,
+            self.max_source_sample_rate,
+            self.min_source_channels,
+            self.max_source_channels,
+        ):
+            if (
+                isinstance(source_bound, bool)
+                or not isinstance(source_bound, int)
+                or source_bound <= 0
+                or source_bound > sys.maxsize - 1
+            ):
+                raise ValueError(_POLICY_ERROR)
+        if (
+            self.min_source_sample_rate > self.max_source_sample_rate
+            or self.min_source_channels > self.max_source_channels
         ):
             raise ValueError(_POLICY_ERROR)
         try:
@@ -130,6 +164,43 @@ class AudioResourcePolicy:
         ):
             raise ValueError(_POLICY_ERROR)
         return file_size
+
+    def validate_source_metadata(
+        self,
+        frames: object,
+        sample_rate: object,
+        channels: object,
+    ) -> None:
+        """Validate source-container metadata before any decode transformation.
+
+        Args:
+            frames: Number of source frames reported by the container parser.
+            sample_rate: Source sample rate in Hz before resampling.
+            channels: Source channel count before downmixing.
+
+        Raises:
+            ValueError: If metadata is malformed or outside the source bounds.
+        """
+        if (
+            isinstance(frames, bool)
+            or not isinstance(frames, int)
+            or frames <= 0
+            or isinstance(sample_rate, bool)
+            or not isinstance(sample_rate, int)
+            or sample_rate < self.min_source_sample_rate
+            or sample_rate > self.max_source_sample_rate
+            or isinstance(channels, bool)
+            or not isinstance(channels, int)
+            or channels < self.min_source_channels
+            or channels > self.max_source_channels
+        ):
+            raise ValueError(_POLICY_ERROR)
+        try:
+            source_duration_seconds = float(frames) / float(sample_rate)
+        except (OverflowError, ValueError):
+            raise ValueError(_POLICY_ERROR) from None
+        if source_duration_seconds > float(self.max_duration_seconds):
+            raise ValueError(_POLICY_ERROR)
 
     def validate_decoded_audio(
         self,
@@ -180,5 +251,9 @@ __all__ = [
     "DEFAULT_MAX_DECODED_AUDIO_BYTES",
     "DEFAULT_MAX_DURATION_SECONDS",
     "DEFAULT_MAX_ENCODED_FILE_BYTES",
+    "DEFAULT_MAX_SOURCE_CHANNELS",
+    "DEFAULT_MAX_SOURCE_SAMPLE_RATE",
+    "DEFAULT_MIN_SOURCE_CHANNELS",
+    "DEFAULT_MIN_SOURCE_SAMPLE_RATE",
     "DEFAULT_TARGET_SAMPLE_RATE",
 ]

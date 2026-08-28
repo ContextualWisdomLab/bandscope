@@ -8,6 +8,10 @@ import pytest
 from bandscope_analysis.audio_resource_policy import (
     AUDIO_RESOURCE_POLICY_VERSION,
     DEFAULT_AUDIO_RESOURCE_POLICY,
+    DEFAULT_MAX_SOURCE_CHANNELS,
+    DEFAULT_MAX_SOURCE_SAMPLE_RATE,
+    DEFAULT_MIN_SOURCE_CHANNELS,
+    DEFAULT_MIN_SOURCE_SAMPLE_RATE,
     AudioResourcePolicy,
 )
 
@@ -36,6 +40,46 @@ def test_encoded_file_size_accepts_exact_boundary() -> None:
     policy = AudioResourcePolicy(max_encoded_file_bytes=100)
 
     assert policy.validate_encoded_file_bytes(100) == 100
+
+
+def test_source_metadata_accepts_the_published_bounds() -> None:
+    """Source metadata accepts the inclusive rate, channel, and duration bounds."""
+    policy = AudioResourcePolicy(max_duration_seconds=15 * 60)
+
+    policy.validate_source_metadata(
+        frames=DEFAULT_MAX_SOURCE_SAMPLE_RATE * 15 * 60,
+        sample_rate=DEFAULT_MAX_SOURCE_SAMPLE_RATE,
+        channels=DEFAULT_MAX_SOURCE_CHANNELS,
+    )
+    policy.validate_source_metadata(
+        frames=DEFAULT_MIN_SOURCE_SAMPLE_RATE,
+        sample_rate=DEFAULT_MIN_SOURCE_SAMPLE_RATE,
+        channels=DEFAULT_MIN_SOURCE_CHANNELS,
+    )
+
+
+@pytest.mark.parametrize(
+    ("frames", "sample_rate", "channels"),
+    [
+        (DEFAULT_MAX_SOURCE_SAMPLE_RATE * (15 * 60 + 1), 44_100, 2),
+        (44_100, DEFAULT_MIN_SOURCE_SAMPLE_RATE - 1, 2),
+        (44_100, DEFAULT_MAX_SOURCE_SAMPLE_RATE + 1, 2),
+        (44_100, 44_100, DEFAULT_MAX_SOURCE_CHANNELS + 1),
+        (44_100, 44_100, DEFAULT_MIN_SOURCE_CHANNELS - 1),
+        (0, 44_100, 2),
+        (44_100, True, 2),
+        (44_100, 44_100, True),
+        (10**400, 44_100, 2),
+    ],
+)
+def test_source_metadata_fails_closed_before_decode(
+    frames: object,
+    sample_rate: object,
+    channels: object,
+) -> None:
+    """Overlong and malformed source metadata cannot reach a decoder."""
+    with pytest.raises(ValueError, match="audio resource policy"):
+        DEFAULT_AUDIO_RESOURCE_POLICY.validate_source_metadata(frames, sample_rate, channels)
 
 
 @pytest.mark.parametrize(
@@ -105,6 +149,10 @@ def test_decoded_audio_accepts_exact_sample_boundary() -> None:
         {"max_duration_seconds": float("inf")},
         {"max_decoded_audio_bytes": 0},
         {"max_decoded_audio_bytes": True},
+        {"min_source_sample_rate": 0},
+        {"max_source_channels": True},
+        {"min_source_sample_rate": 48_000, "max_source_sample_rate": 44_100},
+        {"min_source_channels": 2, "max_source_channels": 1},
     ],
 )
 def test_policy_configuration_itself_fails_closed(kwargs: dict[str, object]) -> None:

@@ -102,19 +102,20 @@ def test_download_youtube_audio_success(
         "filesize": True,
         "filesize_approx": float("nan"),
     }
+    out_dir = str(Path("/tmp").resolve())
     mock_ydl.extract_info.return_value = mock_info
-    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
+    mock_ydl.prepare_filename.return_value = f"{out_dir}/abc123DEF45.webm"
     mock_exists.return_value = True
     mock_getsize.return_value = 10 * 1024 * 1024
 
     input_url = "https://youtube.com/watch?v=abc123DEF45"
-    result = download_youtube_audio(input_url, "/tmp")
+    result = download_youtube_audio(input_url, out_dir)
 
     assert result["ok"] is True
     assert result["metadata"]["id"] == "abc123DEF45"
     assert result["metadata"]["title"] == "Test Video"
     assert result["metadata"]["duration"] == 60
-    assert result["metadata"]["filepath"] == "/tmp/abc123DEF45.webm"
+    assert result["metadata"]["filepath"] == f"{out_dir}/abc123DEF45.webm"
 
     # Assert that YoutubeDL was initialized with the correct options
     mock_ydl_class.assert_called_once()
@@ -159,21 +160,22 @@ def test_download_youtube_audio_converted_extension(
         "title": "Test Video",
         "duration": 60,
     }
+    out_dir = str(Path("/tmp").resolve())
     mock_ydl.extract_info.return_value = mock_info
-    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.webm"
+    mock_ydl.prepare_filename.return_value = f"{out_dir}/abc123DEF45.webm"
 
     # os.path.exists returns False for .webm, but True for the converted .opus.
     def exists_side_effect(path: str) -> bool:
         """Mock exists function to simulate converted extension file presence."""
-        return path == "/tmp/abc123DEF45.opus"
+        return path == f"{out_dir}/abc123DEF45.opus"
 
     mock_exists.side_effect = exists_side_effect
     mock_getsize.return_value = 10 * 1024 * 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", out_dir)
 
     assert result["ok"] is True
-    assert result["metadata"]["filepath"] == "/tmp/abc123DEF45.opus"
+    assert result["metadata"]["filepath"] == f"{out_dir}/abc123DEF45.opus"
 
 
 @patch("bandscope_analysis.youtube.os.path.exists")
@@ -298,15 +300,16 @@ def test_download_youtube_audio_accepts_size_between_legacy_and_canonical_ceilin
     """A 60 MiB download that the old 50 MB check rejected is now accepted."""
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    out_dir = str(Path("/tmp").resolve())
     mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
-    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_ydl.prepare_filename.return_value = f"{out_dir}/abc123DEF45.m4a"
     mock_exists.return_value = True
     mock_getsize.return_value = 60 * 1024 * 1024
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", out_dir)
 
     assert result["ok"] is True
-    assert result["metadata"]["filepath"] == "/tmp/abc123DEF45.m4a"
+    assert result["metadata"]["filepath"] == f"{out_dir}/abc123DEF45.m4a"
 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")
@@ -343,16 +346,17 @@ def test_download_youtube_audio_size_exceeded(
     """Post-download files one byte over the canonical 100 MiB ceiling are deleted."""
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    out_dir = str(Path("/tmp").resolve())
     mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
-    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+    mock_ydl.prepare_filename.return_value = f"{out_dir}/abc123DEF45.m4a"
     mock_exists.return_value = True
     mock_getsize.return_value = DEFAULT_MAX_ENCODED_FILE_BYTES + 1
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", out_dir)
     assert result["ok"] is False
     assert result["error"]["code"] == "size_exceeded"
     assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
-    mock_remove.assert_called_with("/tmp/abc123DEF45.m4a")
+    mock_remove.assert_called_with(f"{out_dir}/abc123DEF45.m4a")
 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")

@@ -138,6 +138,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Prefer isolated worker processing for decode and analysis.
 - Guard against very large files, abnormal duration, and hostile metadata.
 - Apply the versioned canonical local-audio resource policy consistently at request preflight and again at the opened-file/decoded-waveform boundary; request metadata is never authoritative for actual resource use.
+- Before any decoder resamples, downmixes, or duration-truncates local audio, inspect source-container metadata from the already-open handle with `soundfile.info`, enforce the shared 8 kHz–192 kHz and mono/stereo source contract, reject overlong sources, and rewind the handle before `librosa.load`.
 - In the Python analysis boundary, reject decoded audio that is empty, non-finite, wrong-rate, wrong-shaped, or over the accepted sample budget before beat tracking or model inference. Use the one-sample-over decode probe described in `docs/doctoring/audio-resource-policy.md` so an exact-boundary track remains accepted while excess decoded output is observable and fails closed.
 - Do not add arbitrary filesystem scanning just to find media files.
 - When bootstrapping a project around local audio, prefer referencing the validated original file plus app-owned temp/cache/project roots over copying the file until persistence requirements justify the extra storage boundary.

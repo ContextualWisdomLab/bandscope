@@ -94,7 +94,7 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
     monkeypatch.setattr(librosa, "load", fake_load)
 
     test_wav = tmp_path / "test.wav"
-    test_wav.write_bytes(b"dummy")
+    sf.write(test_wav, np.zeros(4_000, dtype=np.float32), 44_100)
 
     with pytest.raises(ValueError, match="Expected numpy array"):
         TemporalAnalyzer().analyze(test_wav)
@@ -115,7 +115,7 @@ def test_temporal_analyzer_exception_handling(
     monkeypatch.setattr(librosa, "load", fake_load)
 
     test_wav = tmp_path / "test.wav"
-    test_wav.write_bytes(b"dummy")
+    sf.write(test_wav, np.zeros(4_000, dtype=np.float32), 44_100)
 
     with pytest.raises(ValueError, match=r"^Temporal analysis failed\.$") as exc_info:
         TemporalAnalyzer().analyze(test_wav)
@@ -129,7 +129,7 @@ def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -
     from bandscope_analysis.temporal import analyzer as analyzer_module
 
     test_wav = tmp_path / "large.wav"
-    test_wav.write_bytes(b"1234")
+    sf.write(test_wav, np.zeros(4_000, dtype=np.float32), 44_100)
 
     monkeypatch.setattr(analyzer_module, "MAX_AUDIO_FILE_BYTES", 1)
 
@@ -148,7 +148,7 @@ def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> N
     import librosa
 
     test_wav = tmp_path / "bounded.wav"
-    test_wav.write_bytes(b"1234")
+    sf.write(test_wav, np.zeros(4_000, dtype=np.float32), 44_100)
     captured_kwargs: dict[str, object] = {}
 
     def fake_load(path, **kwargs):
@@ -179,7 +179,7 @@ def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
     import librosa
 
     test_wav = tmp_path / "test.wav"
-    test_wav.write_bytes(b"dummy")
+    sf.write(test_wav, np.zeros(4_000, dtype=np.float32), 44_100)
 
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
         warnings.warn("unrelated downstream warning", FutureWarning, stacklevel=2)

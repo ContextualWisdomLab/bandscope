@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 import numpy as np
 import pytest
 
@@ -71,6 +74,10 @@ def test_temporal_decoder_probes_one_sample_past_duration_limit_and_fails_closed
     )
     source = tmp_path / "overlong.wav"
     source.write_bytes(b"bounded")
+    monkeypatch.setattr(
+        "bandscope_analysis.temporal.analyzer.preflight_audio_metadata",
+        lambda *_args, **_kwargs: None,
+    )
     captured: dict[str, object] = {}
 
     def fake_load(fileobj: object, **kwargs: object) -> tuple[np.ndarray, int]:
@@ -96,6 +103,37 @@ def test_temporal_decoder_probes_one_sample_past_duration_limit_and_fails_closed
     assert captured["mono"] is True
 
 
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        SimpleNamespace(frames=44_100 * 901, samplerate=44_100, channels=2),
+        SimpleNamespace(frames=44_100, samplerate=7_999, channels=2),
+        SimpleNamespace(frames=44_100, samplerate=44_100, channels=3),
+    ],
+)
+def test_temporal_rejects_source_metadata_before_librosa_decode(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    metadata: SimpleNamespace,
+) -> None:
+    """Temporal analysis must inspect source metadata before resampling or truncation."""
+    import librosa
+
+    source = tmp_path / "source-metadata.wav"
+    source.write_bytes(b"bounded")
+    monkeypatch.setattr(
+        "bandscope_analysis.audio_metadata.soundfile.info",
+        lambda _fileobj: metadata,
+    )
+    load_mock = Mock(side_effect=AssertionError("source metadata must be checked first"))
+    monkeypatch.setattr(librosa, "load", load_mock)
+
+    with pytest.raises(ValueError, match="audio resource policy"):
+        TemporalAnalyzer().analyze(source)
+
+    load_mock.assert_not_called()
+
+
 def test_stem_decoder_probes_one_sample_past_duration_limit_and_fails_closed(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -110,6 +148,10 @@ def test_stem_decoder_probes_one_sample_past_duration_limit_and_fails_closed(
     )
     source = tmp_path / "overlong.wav"
     source.write_bytes(b"bounded")
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        lambda *_args, **_kwargs: None,
+    )
     captured: dict[str, object] = {}
 
     def fake_load(fileobj: object, **kwargs: object) -> tuple[np.ndarray, int]:
@@ -133,6 +175,38 @@ def test_stem_decoder_probes_one_sample_past_duration_limit_and_fails_closed(
     assert captured["mono"] is True
 
 
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        SimpleNamespace(frames=44_100 * 901, samplerate=44_100, channels=2),
+        SimpleNamespace(frames=44_100, samplerate=7_999, channels=2),
+        SimpleNamespace(frames=44_100, samplerate=44_100, channels=3),
+    ],
+)
+def test_stem_decoder_rejects_source_metadata_before_librosa_decode(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    metadata: SimpleNamespace,
+) -> None:
+    """Stem separation must inspect source metadata before mono conversion or model work."""
+    import librosa
+
+    source = tmp_path / "source-metadata.wav"
+    source.write_bytes(b"bounded")
+    monkeypatch.setattr(
+        "bandscope_analysis.audio_metadata.soundfile.info",
+        lambda _fileobj: metadata,
+    )
+    load_mock = Mock(side_effect=AssertionError("source metadata must be checked first"))
+    monkeypatch.setattr(librosa, "load", load_mock)
+
+    separator = AudioStemSeparator(AudioSeparationConfig(max_file_bytes=100))
+    with pytest.raises(ValueError, match="audio resource policy"):
+        separator.separate(source)
+
+    load_mock.assert_not_called()
+
+
 def test_stem_decoder_rejects_nonfinite_decoded_output_before_model(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -142,6 +216,10 @@ def test_stem_decoder_rejects_nonfinite_decoded_output_before_model(
 
     source = tmp_path / "nonfinite.wav"
     source.write_bytes(b"bounded")
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         librosa,
         "load",
