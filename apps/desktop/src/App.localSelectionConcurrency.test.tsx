@@ -131,4 +131,29 @@ describe("App local song intake concurrency", () => {
     resolveSelection?.({ ok: true, bootstrap: selectedBootstrap });
     await waitFor(() => expect(screen.getByText("selected-song.wav")).toBeTruthy());
   });
+
+  it("blocks analysis while a replacement local picker is pending", async () => {
+    let resolveSelection: ((value: SuccessfulLocalAudioSelection) => void) | undefined;
+    analysisMocks.selectLocalAudioSource
+      .mockResolvedValueOnce({ ok: true, bootstrap: selectedBootstrap })
+      .mockImplementationOnce(
+        () =>
+          new Promise<SuccessfulLocalAudioSelection>((resolve) => {
+            resolveSelection = resolve;
+          }),
+      );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Use my own song" }));
+    await waitFor(() => expect(screen.getByText("selected-song.wav")).toBeTruthy());
+
+    const startAnalysis = screen.getByRole("button", { name: "Start analysis" });
+    expect(startAnalysis).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Choose local audio" }));
+
+    await waitFor(() => expect(startAnalysis).toBeDisabled());
+
+    resolveSelection?.({ ok: true, bootstrap: selectedBootstrap });
+    await waitFor(() => expect(startAnalysis).not.toBeDisabled());
+  });
 });
