@@ -172,17 +172,52 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
     read_project_file_with_opener(target, open_project_file)
 }
 
+fn write_first_project_exclusively(target: &Path, content: &[u8]) -> Result<(), String> {
+    let mut published = match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(target)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(PROJECT_EXISTS_ERROR.to_string());
+        }
+        Err(_) => return Err(PROJECT_PUBLISH_ERROR.to_string()),
+    };
+
+    if published.write_all(content).is_err() || published.sync_all().is_err() {
+        // Do not remove `target` by path after publication begins: another actor could replace the
+        // directory entry between this handle write and cleanup. There was no previous known-good
+        // target in this fallback path, so fail without introducing a path-based delete race.
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+    Ok(())
+}
+
 /// Publishes a selected project only after its complete bounded bytes are staged and synced.
 ///
 /// The directly selected parent must itself be a real directory rather than a symlink/reparse point
 /// before any staging artifact is created. `File::create_new` makes staging non-clobbering. A new
-/// destination is published with `hard_link`, preserving the no-clobber contract if another writer
-/// creates that name first. If the save dialog selected an existing regular file, the synced staging
-/// file is atomically renamed over that directory entry; symlink/reparse/special targets fail closed.
-/// This avoids truncating the known-good destination before replacement bytes are durable. Ancestor-
-/// handle binding, parent-directory durability, concurrent-writer serialization, backup rotation,
-/// migration, and recovery remain separate project-format work under #962.
+/// destination first uses a hard link to the synced staging inode, preserving no-clobber publication
+/// where hard links are available. Filesystems without hard-link support fall back to an exclusive
+/// `create_new` target and a second bounded write, which remains race-safe against another writer but
+/// is not claimed to provide atomic first-save visibility. If the save dialog selected an existing
+/// regular file, the synced staging file is atomically renamed over that directory entry;
+/// symlink/reparse/special targets fail closed. Ancestor-handle binding, parent-directory durability,
+/// concurrent-writer serialization, backup rotation, migration, and recovery remain separate
+/// project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
+    publish_new_project_file_with_linker(target, content, fs::hard_link)
+}
+
+pub(crate) fn publish_new_project_file_with_linker<F>(
+    target: &Path,
+    content: &[u8],
+    link: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&Path, &Path) -> std::io::Result<()>,
+{
     if content.is_empty() || content.len() > MAX_PROJECT_FILE_BYTES {
         return Err(PROJECT_STAGE_ERROR.to_string());
     }
@@ -226,13 +261,14 @@ pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<
         return Ok(());
     }
 
-    if let Err(error) = fs::hard_link(&stage, target) {
+    if let Err(error) = link(&stage, target) {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            remove_stage(&stage);
+            return Err(PROJECT_EXISTS_ERROR.to_string());
+        }
+        let fallback = write_first_project_exclusively(target, content);
         remove_stage(&stage);
-        return if error.kind() == std::io::ErrorKind::AlreadyExists {
-            Err(PROJECT_EXISTS_ERROR.to_string())
-        } else {
-            Err(PROJECT_PUBLISH_ERROR.to_string())
-        };
+        return fallback;
     }
 
     // Both names reference the already-synced inode at this point. Cleanup failure does not make the
