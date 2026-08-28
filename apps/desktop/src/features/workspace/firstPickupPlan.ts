@@ -35,7 +35,7 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedPickupPlan = Readonly<{
   text: string;
-  source: PickupPlanSource | null;
+  source: PickupPlanSource;
 }>;
 
 /** Tonight's first pickup plan: the earliest labeled downbeat a resting part leads into. */
@@ -165,6 +165,9 @@ function ownedPickupPlan(role: unknown): OwnedPickupPlan | null {
   ) {
     return null;
   }
+  if (pickupPlanSource === undefined) {
+    return null;
+  }
   const trimmed = pickupPlan.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
@@ -177,7 +180,7 @@ function ownedPickupPlan(role: unknown): OwnedPickupPlan | null {
   }
   return {
     text: truncateCodePoints(trimmed, MAX_PICKUP_PLAN_CHARACTERS),
-    source: pickupPlanSource ?? null
+    source: pickupPlanSource
   };
 }
 

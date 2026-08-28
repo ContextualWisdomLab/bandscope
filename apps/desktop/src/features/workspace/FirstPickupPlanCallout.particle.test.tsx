@@ -57,7 +57,8 @@ describe("FirstPickupPlanCallout Korean role copy", () => {
   it("keeps vowel-ending role names particle-safe before and after the pickup action", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = songWithKoreanPickup(
-      "Play this pickup with Lead Vocal on the verse last beat; land the chorus downbeat together."
+      "Play this pickup with Lead Vocal on the verse last beat; land the chorus downbeat together.",
+      "user"
     );
 
     const workspace = document.createElement("div");

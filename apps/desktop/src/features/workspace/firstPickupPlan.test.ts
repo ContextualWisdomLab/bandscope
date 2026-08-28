@@ -15,6 +15,7 @@ function withPickupSection(
     roleId?: string;
     roleName?: string;
     priority?: "low" | "medium" | "high";
+    source?: "model" | "user";
     isActive?: boolean;
     wasActive?: boolean;
     functionLabel?: string;
@@ -59,6 +60,7 @@ function withPickupSection(
         notes: "Singer confirmed the pickup phrasing in rehearsal notes."
       },
       pickupPlan: overrides.pickupPlan ?? DEMO_PICKUP_PLAN,
+      pickupPlanSource: overrides.source ?? "model",
       manualOverrides: []
     },
     companionRole
@@ -184,7 +186,8 @@ describe("resolveFirstPickupPlan", () => {
       end: 56,
       previousStart: 24,
       roleId: "keys-right",
-      pickupPlan: "Late pickup."
+      pickupPlan: "Late pickup.",
+      source: "user"
     });
     const earlier = structuredClone(song.sections[1]!);
     const earlierCompanion = structuredClone(earlier.roles[1]!);
@@ -197,7 +200,8 @@ describe("resolveFirstPickupPlan", () => {
         id: "lead-vocal",
         name: "Lead Vocal",
         rehearsalPriority: "low",
-        pickupPlan: "Earlier pickup."
+        pickupPlan: "Earlier pickup.",
+        pickupPlanSource: "user"
       },
       earlierCompanion
     ];
@@ -247,7 +251,8 @@ describe("resolveFirstPickupPlan", () => {
       roleId: "keys-right",
       roleName: "Keys",
       priority: "low",
-      pickupPlan: "Low-priority pickup."
+      pickupPlan: "Low-priority pickup.",
+      source: "user"
     });
     const section = song.sections[1]!;
     const highRole = {
@@ -255,7 +260,8 @@ describe("resolveFirstPickupPlan", () => {
       id: "lead-vocal",
       name: "Lead Vocal",
       rehearsalPriority: "high" as const,
-      pickupPlan: "High-priority pickup."
+      pickupPlan: "High-priority pickup.",
+      pickupPlanSource: "user" as const
     };
     section.roles = [section.roles[0]!, highRole];
     section.partGraph = [
@@ -276,13 +282,14 @@ describe("resolveFirstPickupPlan", () => {
   });
 
   it("breaks equal-priority role ties with locale-independent id ordering", () => {
-    const song = withPickupSection({ roleId: "ä-role", roleName: "Umlaut role", priority: "high" });
+    const song = withPickupSection({ roleId: "ä-role", roleName: "Umlaut role", priority: "high", source: "user" });
     const section = song.sections[1]!;
     const asciiRole = {
       ...section.roles[0]!,
       id: "z-role",
       name: "ASCII role",
-      pickupPlan: "ASCII pickup."
+      pickupPlan: "ASCII pickup.",
+      pickupPlanSource: "user"
     };
     section.roles = [section.roles[0]!, asciiRole];
     section.partGraph = [

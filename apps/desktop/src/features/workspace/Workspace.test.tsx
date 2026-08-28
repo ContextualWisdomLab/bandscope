@@ -358,7 +358,7 @@ describe("Workspace", () => {
     });
 
     expect(
-      screen.getAllByText("Play this pickup with Lead Vocal; land the downbeat together.").length
+      screen.getAllByText("Play this pickup with the rest of the band; land the downbeat together.").length
     ).toBeGreaterThan(0);
     const action = screen.getByRole("button", {
       name: "Open Bass Guitar pickup at 0:10"

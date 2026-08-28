@@ -3,7 +3,6 @@ import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-t
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FirstPickupPlanCallout } from "./FirstPickupPlanCallout";
 
-const DEMO_PICKUP_PLAN = "Play this pickup with Lead Vocal; land the downbeat together.";
 const appendedSongStructureTargets = new Set<HTMLElement>();
 
 function songWithPickupPlan() {
@@ -149,11 +148,14 @@ describe("FirstPickupPlanCallout", () => {
   it("does not show another part's pickup plan under the named landing part", () => {
     const song = songWithPickupPlan();
     song.sections[1]!.roles[0]!.pickupPlan = "Bass leftover pickup that must not appear.";
+    song.sections[1]!.roles[0]!.pickupPlanSource = "user";
     song.sections[1]!.roles[0]!.rehearsalPriority = "low";
     song.sections[1]!.roles[2]!.pickupPlan = "Leave the vocal on the last lyric while the pickup lands.";
+    song.sections[1]!.roles[2]!.pickupPlanSource = "user";
     song.sections[1]!.roles[2]!.rehearsalPriority = "low";
     song.sections[1]!.roles[1]!.pickupPlan =
       "Play this pickup with Lead Vocal; land the downbeat together.";
+    song.sections[1]!.roles[1]!.pickupPlanSource = "user";
     song.sections[0]!.partGraph = song.sections[0]!.partGraph.map((node) => ({
       ...node,
       is_active: node.role_id !== "keys-right"
@@ -177,7 +179,9 @@ describe("FirstPickupPlanCallout", () => {
     render(<FirstPickupPlanCallout song={songWithPickupPlan()} />, { container: mount });
     mount.appendChild(grid);
 
-    expect(screen.getByText(DEMO_PICKUP_PLAN)).toBeTruthy();
+    expect(
+      screen.getByText("Play this pickup with the rest of the band; land the downbeat together.")
+    ).toBeTruthy();
     const action = screen.getByRole("button", {
       name: "Open Bass Guitar pickup at 0:10"
     });

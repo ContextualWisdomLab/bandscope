@@ -102,14 +102,19 @@ describe("FirstPickupPlanCallout pickup-plan provenance", () => {
     ).toBeNull();
   });
 
-  it("does not infer model authority when persisted pickup guidance has no source", () => {
+  it("does not render persisted pickup guidance when it has no source", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const legacyPlan = "Play this pickup with Lead Vocal; land the downbeat together.";
     const song = songWithKoreanPickup(legacyPlan);
 
     render(<FirstPickupPlanCallout song={song} />);
 
-    expect(screen.getByText(legacyPlan)).toBeTruthy();
+    expect(screen.queryByText(legacyPlan)).toBeNull();
+    expect(
+      screen.getByText(
+        "사용 가능한 픽업 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
+      )
+    ).toBeTruthy();
     expect(
       screen.queryByText("Bass Guitar 파트와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.")
     ).toBeNull();

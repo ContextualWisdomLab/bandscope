@@ -27,4 +27,13 @@ describe("pickup plan provenance", () => {
 
     expect(() => parseRehearsalSong(song)).toThrow(/pickupPlanSource/);
   });
+
+  it("rejects a pickup plan without provenance", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.pickupPlan = "Play this pickup with Lead Vocal; land the downbeat together.";
+    delete role.pickupPlanSource;
+
+    expect(() => parseRehearsalSong(song)).toThrow(/pickupPlanSource/);
+  });
 });

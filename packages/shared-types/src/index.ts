@@ -477,6 +477,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           pickupPlan: "Play this pickup with Lead Vocal; land the downbeat together.",
+          pickupPlanSource: "model",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1567,6 +1568,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     return invalidField(`${path}.pickupPlanSource`);
   }
   if (value.pickupPlanSource !== undefined && value.pickupPlan === undefined) {
+    return invalidField(`${path}.pickupPlanSource`);
+  }
+  if (value.pickupPlan !== undefined && value.pickupPlanSource === undefined) {
     return invalidField(`${path}.pickupPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {
