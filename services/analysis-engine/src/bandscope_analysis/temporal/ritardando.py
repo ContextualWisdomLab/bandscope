@@ -16,7 +16,7 @@ Security Notes:
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from math import isfinite
 from typing import Any
 
@@ -88,13 +88,17 @@ def first_ritardando(tempo_changes: Sequence[Mapping[str, Any]] | None) -> Tempo
             or isinstance(time, bool)
             or not isfinite(time)
             or time < 0
+            or not isinstance(from_bpm, (int, float))
+            or isinstance(from_bpm, bool)
+            or not isinstance(to_bpm, (int, float))
+            or isinstance(to_bpm, bool)
         ):
             continue
-        return {
-            "time": float(time),
-            "from_bpm": float(from_bpm),
-            "to_bpm": float(to_bpm),
-        }
+        return TempoChange(
+            time=float(time),
+            from_bpm=float(from_bpm),
+            to_bpm=float(to_bpm),
+        )
     return None
 
 
@@ -169,7 +173,7 @@ def _section_contains(section: Mapping[str, Any], time: float) -> bool:
     return start <= time < end
 
 
-def _pick_landing_role(section: Mapping[str, Any]) -> dict[str, Any] | None:
+def _pick_landing_role(section: Mapping[str, Any]) -> MutableMapping[str, Any] | None:
     """Pick the highest-priority unique active named vocal or bass."""
     roles = section.get("roles")
     if not isinstance(roles, list):
@@ -181,9 +185,9 @@ def _pick_landing_role(section: Mapping[str, Any]) -> dict[str, Any] | None:
         if isinstance(role, Mapping) and isinstance(role.get("id"), str) and role["id"].strip()
     ]
     repeated = _repeated_ids([role_id for role_id in safe_ids if isinstance(role_id, str)])
-    ranked: list[tuple[int, int, str, dict[str, Any]]] = []
+    ranked: list[tuple[int, int, str, MutableMapping[str, Any]]] = []
     for role in roles:
-        if not isinstance(role, Mapping):
+        if not isinstance(role, MutableMapping):
             continue
         role_id = role.get("id")
         name = role.get("name")
