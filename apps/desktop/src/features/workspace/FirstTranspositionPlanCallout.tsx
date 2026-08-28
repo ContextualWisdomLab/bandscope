@@ -60,7 +60,7 @@ function preferredTranspositionPlanScrollBehavior(): ScrollBehavior {
 
 /** Resolve the song-structure renderer owned by this workspace, failing closed on ambiguous mounts. */
 function resolveTranspositionPlanRenderer(origin: HTMLElement): HTMLElement | null {
-  const selector = "#workspace-song-structure-grid";
+  const selector = "[data-workspace-song-structure-grid]";
   const localScope = origin.closest("aside")?.parentElement ?? null;
   const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
   if (localRenderers.length === 1) {
