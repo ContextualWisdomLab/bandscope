@@ -740,8 +740,11 @@ async fn import_youtube_url(
 
 #[tauri::command]
 fn save_project(payload: Value) -> Result<(), String> {
-    let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
-        .map_err(|_| "Invalid project payload".to_string())?;
+    let parsed = validate_breakdown_plan_provenance(
+        serde_json::from_value::<RehearsalSongPayload>(payload)
+            .map_err(|_| "Invalid project payload".to_string())?,
+    )
+    .map_err(|_| "Invalid project payload".to_string())?;
 
     let path = FileDialog::new()
         .add_filter("BandScope Project", &["bscope", "json"])

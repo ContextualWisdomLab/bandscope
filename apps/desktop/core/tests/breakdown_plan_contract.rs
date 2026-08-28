@@ -85,3 +85,21 @@ fn project_contract_round_trips_breakdown_plan_provenance() {
         json!("model")
     );
 }
+
+#[test]
+fn project_contract_rejects_invalid_breakdown_plan_provenance() {
+    let mut payload = song_with_breakdown_plan();
+    payload["sections"][0]["roles"][0]["breakdownPlanSource"] = json!("inferred");
+    let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+    assert!(project_payload_from_content(&content).is_err());
+
+    let mut missing_copy = song_with_breakdown_plan();
+    missing_copy["sections"][0]["roles"][0]
+        .as_object_mut()
+        .expect("role should be an object")
+        .remove("breakdownPlan");
+    let content = serde_json::to_string(&missing_copy).expect("payload should serialize");
+
+    assert!(project_payload_from_content(&content).is_err());
+}
