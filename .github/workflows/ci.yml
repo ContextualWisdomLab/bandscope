@@ -68,3 +68,5 @@ jobs:
         run: cargo +1.97.1 check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
       - name: Test Tauri shell
         run: cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+      - name: Test desktop core integration contracts
+        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --locked
