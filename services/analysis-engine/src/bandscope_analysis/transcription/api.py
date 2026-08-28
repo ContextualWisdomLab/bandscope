@@ -10,6 +10,7 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
+from bandscope_analysis.audio_metadata import preflight_audio_metadata
 from bandscope_analysis.audio_resource_policy import (
     MAX_DURATION_SECONDS,
     MAX_ENCODED_FILE_BYTES,
@@ -53,10 +54,12 @@ def transcribe_bass_stem(stem_data: bytes) -> list[NoteEvent]:
             policy_rejection_message("encoded_file_too_large"),
         )
 
+    fileobj = io.BytesIO(stem_data)
+    preflight_audio_metadata(fileobj)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
         y, sr = librosa.load(
-            io.BytesIO(stem_data),
+            fileobj,
             sr=TARGET_SR,
             mono=True,
             duration=MAX_TRANSCRIPTION_DURATION_SECONDS,
