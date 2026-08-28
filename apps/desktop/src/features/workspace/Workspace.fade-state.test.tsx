@@ -92,4 +92,12 @@ describe("Workspace fade state authority", () => {
 
     expect(screen.getByText(/Fade Lead Vocal together at 0:30 so the quieter landing is audible\./)).toBeTruthy();
   });
+
+  it("keeps chord editing unavailable when no song update handler exists", () => {
+    render(<Workspace song={analyzedSongWithFadePlan()} />);
+
+    expect(
+      screen.queryByRole("button", { name: /Edit chord for Lead Vocal in chorus, current/ })
+    ).toBeNull();
+  });
 });
