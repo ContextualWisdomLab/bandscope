@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, memo, type MouseEvent } from "react";
+import { useState, useMemo, useRef, useEffect, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -130,15 +130,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const localSongUpdateRef = useRef<RehearsalSong | null>(null);
   const workspaceInstanceRef = useRef<unknown>(song);
   const previousSongRef = useRef(song);
+  const isLocalWorkspaceUpdate = song === localSongUpdateRef.current;
 
-  if (song !== previousSongRef.current) {
-    const isLocalWorkspaceUpdate = song === localSongUpdateRef.current;
-    if (!isLocalWorkspaceUpdate) {
-      workspaceInstanceRef.current = song;
+  useEffect(() => {
+    if (song !== previousSongRef.current) {
+      if (!isLocalWorkspaceUpdate) {
+        workspaceInstanceRef.current = song;
+      }
+      localSongUpdateRef.current = null;
+      previousSongRef.current = song;
     }
-    localSongUpdateRef.current = null;
-    previousSongRef.current = song;
-  }
+  }, [isLocalWorkspaceUpdate, song]);
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -333,7 +335,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
           </section>
-          <FirstAccelerandoCallout song={song} workspaceInstanceKey={workspaceInstanceRef.current} />
+          <FirstAccelerandoCallout
+            song={song}
+            workspaceInstanceKey={isLocalWorkspaceUpdate ? workspaceInstanceRef.current : song}
+          />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
