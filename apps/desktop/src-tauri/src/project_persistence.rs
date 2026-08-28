@@ -172,15 +172,16 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
     read_project_file_with_opener(target, open_project_file)
 }
 
-/// Publishes one new project only after its complete bounded bytes are staged and synced.
+/// Publishes a selected project only after its complete bounded bytes are staged and synced.
 ///
-/// This helper deliberately does not implement overwrite semantics. The directly selected parent
-/// must itself be a real directory rather than a symlink/reparse point before any staging artifact is
-/// created. `File::create_new` makes the staging name non-clobbering, and `hard_link` atomically
-/// creates the user-selected destination only if that destination is still absent. An existing file
-/// or dangling symlink therefore stays untouched instead of being truncated before replacement bytes
-/// are durable. Crash-safe overwrite, ancestor-handle binding, parent-directory durability, backup
-/// rotation, migration, and recovery remain separate project-format work under #962.
+/// The directly selected parent must itself be a real directory rather than a symlink/reparse point
+/// before any staging artifact is created. `File::create_new` makes staging non-clobbering. A new
+/// destination is published with `hard_link`, preserving the no-clobber contract if another writer
+/// creates that name first. If the save dialog selected an existing regular file, the synced staging
+/// file is atomically renamed over that directory entry; symlink/reparse/special targets fail closed.
+/// This avoids truncating the known-good destination before replacement bytes are durable. Ancestor-
+/// handle binding, parent-directory durability, concurrent-writer serialization, backup rotation,
+/// migration, and recovery remain separate project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     if content.is_empty() || content.len() > MAX_PROJECT_FILE_BYTES {
         return Err(PROJECT_STAGE_ERROR.to_string());
@@ -201,6 +202,29 @@ pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<
         return Err(PROJECT_STAGE_ERROR.to_string());
     }
     drop(staged);
+
+    let existing_target = match fs::symlink_metadata(target) {
+        Ok(metadata) => {
+            if !metadata_is_regular_project_file(&metadata) {
+                remove_stage(&stage);
+                return Err(PROJECT_PUBLISH_ERROR.to_string());
+            }
+            true
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(_) => {
+            remove_stage(&stage);
+            return Err(PROJECT_PUBLISH_ERROR.to_string());
+        }
+    };
+
+    if existing_target {
+        if fs::rename(&stage, target).is_err() {
+            remove_stage(&stage);
+            return Err(PROJECT_PUBLISH_ERROR.to_string());
+        }
+        return Ok(());
+    }
 
     if let Err(error) = fs::hard_link(&stage, target) {
         remove_stage(&stage);
@@ -263,22 +287,48 @@ mod tests {
     }
 
     #[test]
-    fn refuses_to_clobber_an_existing_known_good_project() {
-        let root = test_dir("existing");
+    fn invalid_replacement_does_not_clobber_an_existing_known_good_project() {
+        let root = test_dir("existing-invalid");
         let target = root.join("setlist.bscope");
         let known_good = br#"{\"id\":\"known-good\"}"#;
         fs::write(&target, known_good).expect("fixture should be written");
 
-        let error = publish_new_project_file(&target, br#"{\"id\":\"replacement\"}"#)
-            .expect_err("existing project must not be overwritten unsafely");
+        let error = publish_new_project_file(&target, b"")
+            .expect_err("invalid replacement must fail before publication");
 
-        assert_eq!(
-            error,
-            "Project file already exists. Choose a new file name."
-        );
+        assert_eq!(error, "Could not stage the project safely.");
         assert_eq!(
             fs::read(&target).expect("known-good project should remain"),
             known_good
+        );
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_to_replace_a_symlink_target() {
+        use std::os::unix::fs::symlink;
+
+        let root = test_dir("save-symlink");
+        let external = root.join("external.bscope");
+        let selected = root.join("selected.bscope");
+        let known_good = br#"{\"id\":\"external-known-good\"}"#;
+        fs::write(&external, known_good).expect("external fixture should be written");
+        symlink(&external, &selected).expect("fixture symlink should be created");
+
+        let error = publish_new_project_file(&selected, br#"{\"id\":\"replacement\"}"#)
+            .expect_err("a selected symlink must not be replaced as project authority");
+
+        assert_eq!(error, "Could not publish the project safely.");
+        assert_eq!(
+            fs::read(&external).expect("external project should remain readable"),
+            known_good
+        );
+        assert!(
+            fs::symlink_metadata(&selected)
+                .expect("selected symlink should remain")
+                .file_type()
+                .is_symlink()
         );
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
@@ -383,7 +433,7 @@ mod tests {
 
         assert!(
             main_source.contains("project_persistence::publish_new_project_file"),
-            "the Tauri save command must use the staged non-clobbering publisher"
+            "the Tauri save command must use the staged project publisher"
         );
         assert!(
             !main_source.contains("std::fs::write(path, content)"),
