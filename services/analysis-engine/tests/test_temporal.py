@@ -91,6 +91,9 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
     def fake_load(*args, **kwargs):
         return "not-an-array", 22050
 
+    monkeypatch.setattr(
+        "bandscope_analysis.temporal.analyzer.preflight_audio_metadata", lambda _fileobj: None
+    )
     monkeypatch.setattr(librosa, "load", fake_load)
 
     test_wav = tmp_path / "test.wav"
@@ -112,6 +115,9 @@ def test_temporal_analyzer_exception_handling(
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
         raise Exception("Mocked general error")
 
+    monkeypatch.setattr(
+        "bandscope_analysis.temporal.analyzer.preflight_audio_metadata", lambda _fileobj: None
+    )
     monkeypatch.setattr(librosa, "load", fake_load)
 
     test_wav = tmp_path / "test.wav"
@@ -154,6 +160,9 @@ def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> N
         captured_kwargs.update(kwargs)
         return np.zeros(44100, dtype=float), 44100
 
+    monkeypatch.setattr(
+        "bandscope_analysis.temporal.analyzer.preflight_audio_metadata", lambda _fileobj: None
+    )
     monkeypatch.setattr(librosa, "load", fake_load)
 
     def fake_beat_track(y, sr):
@@ -184,6 +193,9 @@ def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
         warnings.warn("unrelated downstream warning", FutureWarning, stacklevel=2)
         return np.zeros(44100, dtype=float), 44100
 
+    monkeypatch.setattr(
+        "bandscope_analysis.temporal.analyzer.preflight_audio_metadata", lambda _fileobj: None
+    )
     monkeypatch.setattr(librosa, "load", fake_load)
     monkeypatch.setattr(librosa, "get_duration", lambda *, y, sr: 1.0)
     monkeypatch.setattr(
