@@ -28,6 +28,9 @@ function songWithPickupPlan() {
 }
 
 function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeline") {
+  const workspace = document.createElement("div");
+  const mount = document.createElement("div");
+  workspace.appendChild(mount);
   const timeline = document.createElement("div");
   timeline.setAttribute("role", "region");
   timeline.setAttribute("aria-label", ariaLabel);
@@ -42,9 +45,9 @@ function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeli
   });
   grid.appendChild(target);
   timeline.appendChild(grid);
-  document.body.appendChild(timeline);
-  appendedSongStructureTargets.add(timeline);
-  return { grid: timeline, scrollIntoView };
+  document.body.appendChild(workspace);
+  appendedSongStructureTargets.add(workspace);
+  return { mount, grid: timeline, scrollIntoView };
 }
 
 describe("FirstPickupPlanCallout", () => {
@@ -103,8 +106,9 @@ describe("FirstPickupPlanCallout", () => {
         }
       });
     }
-    const { grid } = appendSongStructureTarget();
-    const { rerender } = render(<FirstPickupPlanCallout song={firstSong} />);
+    const { mount, grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstPickupPlanCallout song={firstSong} />, { container: mount });
+    mount.appendChild(grid);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar pickup at 0:10" }));
     expect(
@@ -123,8 +127,9 @@ describe("FirstPickupPlanCallout", () => {
 
   it("preserves armed guidance across immutable edits of the same owned song", () => {
     const song = songWithPickupPlan();
-    const { grid } = appendSongStructureTarget();
-    const { rerender } = render(<FirstPickupPlanCallout song={song} />);
+    const { mount, grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstPickupPlanCallout song={song} />, { container: mount });
+    mount.appendChild(grid);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar pickup at 0:10" }));
     expect(
@@ -167,9 +172,10 @@ describe("FirstPickupPlanCallout", () => {
   });
 
   it("names the first pickup plan as map navigation, scrolls to its rendered section, and arms that action", () => {
-    const { grid, scrollIntoView } = appendSongStructureTarget();
+    const { mount, grid, scrollIntoView } = appendSongStructureTarget();
 
-    render(<FirstPickupPlanCallout song={songWithPickupPlan()} />);
+    render(<FirstPickupPlanCallout song={songWithPickupPlan()} />, { container: mount });
+    mount.appendChild(grid);
 
     expect(screen.getByText(DEMO_PICKUP_PLAN)).toBeTruthy();
     const action = screen.getByRole("button", {
@@ -186,9 +192,10 @@ describe("FirstPickupPlanCallout", () => {
   });
 
   it("keeps map navigation stable when the renderer accessible name is localized", () => {
-    const { grid, scrollIntoView } = appendSongStructureTarget("스크롤 가능한 곡 구조 타임라인");
+    const { mount, grid, scrollIntoView } = appendSongStructureTarget("스크롤 가능한 곡 구조 타임라인");
 
-    render(<FirstPickupPlanCallout song={songWithPickupPlan()} />);
+    render(<FirstPickupPlanCallout song={songWithPickupPlan()} />, { container: mount });
+    mount.appendChild(grid);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar pickup at 0:10" }));
 
@@ -214,9 +221,10 @@ describe("FirstPickupPlanCallout", () => {
   it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
     const song = songWithPickupPlan();
     song.sections[1]!.id = "analysis section / duplicate";
-    const { grid, scrollIntoView } = appendSongStructureTarget();
+    const { mount, grid, scrollIntoView } = appendSongStructureTarget();
 
-    render(<FirstPickupPlanCallout song={song} />);
+    render(<FirstPickupPlanCallout song={song} />, { container: mount });
+    mount.appendChild(grid);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar pickup at 0:10" }));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });

@@ -41,6 +41,9 @@ describe("FirstPickupPlanCallout reduced motion", () => {
       dispatchEvent: vi.fn()
     }));
 
+    const workspace = document.createElement("div");
+    const mount = document.createElement("div");
+    workspace.appendChild(mount);
     const grid = document.createElement("div");
     grid.dataset.testid = "song-structure-grid";
     grid.setAttribute("role", "region");
@@ -53,9 +56,10 @@ describe("FirstPickupPlanCallout reduced motion", () => {
       value: scrollIntoView
     });
     grid.appendChild(target);
-    document.body.appendChild(grid);
+    document.body.appendChild(workspace);
 
-    render(<FirstPickupPlanCallout song={songWithPickupPlan()} />);
+    render(<FirstPickupPlanCallout song={songWithPickupPlan()} />, { container: mount });
+    mount.appendChild(grid);
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar pickup at 0:10" }));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "auto" });
 

@@ -60,6 +60,9 @@ describe("FirstPickupPlanCallout Korean role copy", () => {
       "Play this pickup with Lead Vocal on the verse last beat; land the chorus downbeat together."
     );
 
+    const workspace = document.createElement("div");
+    const mount = document.createElement("div");
+    workspace.appendChild(mount);
     const grid = document.createElement("div");
     grid.dataset.testid = "song-structure-grid";
     grid.setAttribute("role", "region");
@@ -71,9 +74,10 @@ describe("FirstPickupPlanCallout Korean role copy", () => {
       value: vi.fn()
     });
     grid.appendChild(target);
-    document.body.appendChild(grid);
+    document.body.appendChild(workspace);
 
-    render(<FirstPickupPlanCallout song={song} />);
+    render(<FirstPickupPlanCallout song={song} />, { container: mount });
+    mount.appendChild(grid);
 
     expect(screen.getByText("0:10 벌스에서 피아노 파트의 픽업 계획이 있습니다.")).toBeTruthy();
     expect(screen.queryByText(/피아노이/)).toBeNull();
