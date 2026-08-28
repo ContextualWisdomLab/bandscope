@@ -110,7 +110,9 @@ class RoleExtractor:
                     current_source_ids == activity_evidence[i - 1][1] if i > 0 else None
                 )
                 current_energy = energy_maps[i] if energy_maps is not None else None
-                previous_energy = energy_maps[i - 1] if energy_maps is not None and i > 0 else None
+                previous_energy = (
+                    energy_maps[i - 1] if energy_maps is not None and i > 0 else None
+                )
                 topology = self._build_activity_topology(
                     section_id,
                     roles,
