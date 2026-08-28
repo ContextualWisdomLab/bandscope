@@ -26,6 +26,14 @@ describe("swellPlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/swellPlanSource/);
   });
 
+  it("rejects swell plan copy without provenance", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.swellPlan = "Swell this part; grow into the next downbeat.";
+    delete role.swellPlanSource;
+    expect(() => parseRehearsalSong(song)).toThrow(/swellPlanSource/);
+  });
+
   it.each(["", "   ", "swell here\nthen hold", "swell here\rthen hold"])(
     "rejects a swell plan source with blank or multiline copy %j",
     (swellPlan) => {
