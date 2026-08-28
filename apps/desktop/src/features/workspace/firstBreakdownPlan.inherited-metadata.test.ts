@@ -11,6 +11,7 @@ function songWithBreakdownPlan() {
   chorus.timeRange = { start: verse.timeRange.end, end: verse.timeRange.end + 16 };
   const bass = chorus.roles.find((role) => role.id === "bass-guitar")!;
   bass.breakdownPlan = "Hold this breakdown; keep it sparse until the drop.";
+  bass.breakdownPlanSource = "model";
   chorus.partGraph = chorus.partGraph.map((node) => ({
     ...node,
     is_active: node.role_id === "bass-guitar"

@@ -10,6 +10,7 @@ describe("resolveFirstBreakdownPlan landing authority", () => {
     const verse = structuredClone(song.sections[0]!);
     const holdingRole = verse.roles.find((role) => role.id === "bass-guitar")!;
     holdingRole.breakdownPlan = DEMO_BREAKDOWN_PLAN;
+    holdingRole.breakdownPlanSource = "model";
     verse.roles = [holdingRole];
     verse.partGraph = verse.partGraph.map((node) => ({
       ...node,
@@ -39,6 +40,7 @@ describe("resolveFirstBreakdownPlan landing authority", () => {
     const song = createDemoRehearsalSong();
     const verse = structuredClone(song.sections[0]!);
     verse.roles[0]!.breakdownPlan = DEMO_BREAKDOWN_PLAN;
+    verse.roles[0]!.breakdownPlanSource = "model";
     verse.partGraph = verse.partGraph.map((node) => ({
       ...node,
       is_active: node.role_id === "bass-guitar"

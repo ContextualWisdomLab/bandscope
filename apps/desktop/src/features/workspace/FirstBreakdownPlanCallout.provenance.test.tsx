@@ -53,14 +53,19 @@ describe("FirstBreakdownPlanCallout breakdown-plan provenance", () => {
     expect(screen.queryByText("이 브레이크다운을 유지하세요. 드롭 전까지 얇게 가십시오.")).toBeNull();
   });
 
-  it("does not infer model authority when persisted breakdown guidance has no source", () => {
+  it("does not render persisted breakdown guidance when it has no source", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const legacyPlan = "Hold this breakdown; keep it sparse until the drop.";
     const song = songWithKoreanBreakdown(legacyPlan);
 
     render(<FirstBreakdownPlanCallout song={song} />);
 
-    expect(screen.getByText(legacyPlan)).toBeTruthy();
+    expect(screen.queryByText(legacyPlan)).toBeNull();
+    expect(
+      screen.getByText(
+        "사용 가능한 브레이크다운 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
+      )
+    ).toBeTruthy();
     expect(screen.queryByText("이 브레이크다운을 유지하세요. 드롭 전까지 얇게 가십시오.")).toBeNull();
   });
 

@@ -15,6 +15,7 @@ function withBreakdownSection(
     roleId?: string;
     roleName?: string;
     priority?: "low" | "medium" | "high";
+    source?: "model" | "user";
     isActive?: boolean;
     wasActive?: boolean;
     previousActiveCount?: 3 | 2;
@@ -39,7 +40,8 @@ function withBreakdownSection(
     id: roleId,
     name: overrides.roleName ?? (roleId === "keys-right" ? "Keyboard 1 Right Hand" : roleId === "lead-vocal" ? "Lead Vocal" : "Bass Guitar"),
     rehearsalPriority: overrides.priority ?? "high",
-    breakdownPlan: overrides.breakdownPlan ?? DEMO_BREAKDOWN_PLAN
+    breakdownPlan: overrides.breakdownPlan ?? DEMO_BREAKDOWN_PLAN,
+    breakdownPlanSource: overrides.source ?? "model"
   };
 
   const current = structuredClone(verse);
@@ -183,7 +185,8 @@ describe("resolveFirstBreakdownPlan", () => {
       end: 56,
       previousStart: 24,
       roleId: "keys-right",
-      breakdownPlan: "Late breakdown."
+      breakdownPlan: "Late breakdown.",
+      source: "user"
     });
     const earlier = structuredClone(song.sections[1]!);
     earlier.id = "verse-early";
@@ -193,7 +196,8 @@ describe("resolveFirstBreakdownPlan", () => {
         id: "bass-guitar",
         name: "Bass Guitar",
         rehearsalPriority: "low",
-        breakdownPlan: "Earlier breakdown."
+        breakdownPlan: "Earlier breakdown.",
+        breakdownPlanSource: "user"
       }
     ];
     earlier.timeRange = { start: 8, end: 24 };
@@ -233,6 +237,7 @@ describe("resolveFirstBreakdownPlan", () => {
       roleName: "Keys",
       priority: "low",
       breakdownPlan: "Low-priority breakdown.",
+      source: "user",
       keepCompanion: true
     });
     const section = song.sections[1]!;
@@ -241,7 +246,8 @@ describe("resolveFirstBreakdownPlan", () => {
       id: "bass-guitar",
       name: "Bass Guitar",
       rehearsalPriority: "high" as const,
-      breakdownPlan: "High-priority breakdown."
+      breakdownPlan: "High-priority breakdown.",
+      breakdownPlanSource: "user" as const
     };
     section.roles = [section.roles[0]!, highRole];
     section.partGraph = [
@@ -255,13 +261,14 @@ describe("resolveFirstBreakdownPlan", () => {
   });
 
   it("breaks equal-priority role ties with locale-independent id ordering", () => {
-    const song = withBreakdownSection({ roleId: "ä-role", roleName: "Umlaut role", priority: "high", keepCompanion: true });
+    const song = withBreakdownSection({ roleId: "ä-role", roleName: "Umlaut role", priority: "high", source: "user", keepCompanion: true });
     const section = song.sections[1]!;
     const asciiRole = {
       ...section.roles[0]!,
       id: "z-role",
       name: "ASCII role",
-      breakdownPlan: "ASCII breakdown."
+      breakdownPlan: "ASCII breakdown.",
+      breakdownPlanSource: "user"
     };
     section.roles = [section.roles[0]!, asciiRole];
     section.partGraph = [

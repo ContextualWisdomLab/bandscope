@@ -73,7 +73,8 @@ fn project_contract_round_trips_breakdown_plan_provenance() {
 
     let parsed = project_payload_from_content(&content)
         .expect("native project contract must accept shared breakdown-plan fields");
-    let serialized = serde_json::to_value(parsed).expect("native project contract should serialize");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
 
     assert_eq!(
         serialized["sections"][0]["roles"][0]["breakdownPlan"],

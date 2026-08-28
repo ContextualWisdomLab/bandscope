@@ -11,6 +11,7 @@ describe("resolveFirstBreakdownPlan descriptor snapshots", () => {
     chorus.label = "chorus";
     chorus.timeRange = { start: verse.timeRange.end, end: verse.timeRange.end + 16 };
     const role = chorus.roles.find((candidate) => candidate.id === "bass-guitar")!;
+    role.breakdownPlanSource = "model";
     const roleId = role.id;
     let breakdownPlanDescriptorReads = 0;
     const proxiedRole = new Proxy(role, {

@@ -35,7 +35,7 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedBreakdownPlan = Readonly<{
   text: string;
-  source: BreakdownPlanSource | null;
+  source: BreakdownPlanSource;
   guidance: BreakdownPlanGuidance | null;
 }>;
 
@@ -170,6 +170,9 @@ function ownedBreakdownPlan(role: unknown): OwnedBreakdownPlan | null {
   ) {
     return null;
   }
+  if (breakdownPlanSource === undefined) {
+    return null;
+  }
   const trimmed = breakdownPlan.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
@@ -182,7 +185,7 @@ function ownedBreakdownPlan(role: unknown): OwnedBreakdownPlan | null {
   }
   return {
     text: truncateCodePoints(trimmed, MAX_BREAKDOWN_PLAN_CHARACTERS),
-    source: breakdownPlanSource ?? null,
+    source: breakdownPlanSource,
     guidance: null
   };
 }
