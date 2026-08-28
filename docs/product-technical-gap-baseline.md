@@ -103,7 +103,7 @@ flowchart LR
 | PR | current head | current 상태와 traceability |
 |---|---|---|
 | #1045 | `6c4edebe44740d753b7a0d287273e01b9faddfb3` | navigation-failure disarm fix 포함; 29 hosted Checks success, Rust check 진행 중, `opencode-review` failure; qualifying independent approval 없음 |
-| #1046 | `008248327f2f3e3636d9d234221810f3db56829f` | current head에서 source local proof 통과; Ruff format failure를 수정한 뒤 hosted Checks는 push 후 queued/in-progress; qualifying independent approval 없음 |
+| #1046 | `008248327f2f3e3636d9d234221810f3db56829f` | current head에서 source local proof 통과; 29 hosted Checks success, Strix는 tool-description 1024자 제한 후 provider unavailable로 failure, OpenCode/macOS gate 진행 중; qualifying independent approval 없음 |
 | #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | source/coverage/security/build/release 및 `opencode-review`/`strix` terminal success; reviews는 COMMENTED뿐이며 qualifying approval 없음 |
 | #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
 | #1041 | `164995d3a3c056bdbb4fc293226d0c31c062104e` | ScoreView/ScoreViewer tooltip 변경 current head; coverage/build/security Checks 일부 queued/in-progress; qualifying approval 없음 |
