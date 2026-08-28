@@ -68,16 +68,27 @@ class RoleExtractor:
         vocal_range, vocal_chord, bass_range, bass_chord = self._extract_features(stems, sr)
         roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range)
 
-        # Use real stem activity detection when we have stems and boundaries
-        activity_maps: list[dict[str, bool]] | None = None
+        # Keep raw stem source sets beside rendered role activity so swell
+        # continuity can see non-rendered sources such as drums.
+        activity_evidence: list[tuple[dict[str, bool], set[str]]] | None = None
         energy_maps: list[dict[str, float]] | None = None
         if stems and boundaries and len(boundaries) == len(sections):
             try:
                 stem_activity = detect_stem_activity(stems, boundaries, sr)
-                activity_maps = [map_stems_to_roles(sa) for sa in stem_activity]
+                activity_evidence = [
+                    (
+                        map_stems_to_roles(segment_activity),
+                        {
+                            stem_id
+                            for stem_id, is_active in segment_activity.items()
+                            if is_active
+                        },
+                    )
+                    for segment_activity in stem_activity
+                ]
             except Exception as e:
                 logger.warning("Stem activity detection failed, using fallback: %s", e)
-                activity_maps = None
+                activity_evidence = None
             try:
                 stem_energy = detect_stem_energy(stems, boundaries, sr)
                 energy_maps = [map_stems_to_role_energy(se) for se in stem_energy]
@@ -88,11 +99,16 @@ class RoleExtractor:
         for i, section in enumerate(sections):
             section_id = validate_section(section, i, logger)
 
-            if activity_maps is not None:
+            if activity_evidence is not None:
                 # Real activity-based topology
-                current_activity = activity_maps[i]
-                next_activity = activity_maps[i + 1] if i + 1 < len(activity_maps) else None
-                previous_activity = activity_maps[i - 1] if i > 0 else None
+                current_activity, current_source_ids = activity_evidence[i]
+                next_activity = (
+                    activity_evidence[i + 1][0] if i + 1 < len(activity_evidence) else None
+                )
+                previous_activity = activity_evidence[i - 1][0] if i > 0 else None
+                stem_source_continuity = (
+                    current_source_ids == activity_evidence[i - 1][1] if i > 0 else None
+                )
                 current_energy = energy_maps[i] if energy_maps is not None else None
                 previous_energy = energy_maps[i - 1] if energy_maps is not None and i > 0 else None
                 topology = self._build_activity_topology(
@@ -103,6 +119,7 @@ class RoleExtractor:
                     previous_activity,
                     current_energy,
                     previous_energy,
+                    stem_source_continuity,
                 )
             else:
                 # Fallback to heuristic-based topology
@@ -112,7 +129,7 @@ class RoleExtractor:
 
         extraction_method = (
             "Extracted roles from real stem activity detection."
-            if activity_maps is not None
+            if activity_evidence is not None
             else "Extracted roles and computed handoffs."
         )
 
@@ -381,9 +398,12 @@ class RoleExtractor:
         previous_role_activity: dict[str, bool],
         role_energy: dict[str, float] | None,
         previous_role_energy: dict[str, float] | None,
+        stem_source_continuity: bool | None = None,
     ) -> set[str]:
         """Return named staying roles whose RMS rose by the swell ratio."""
         if role_energy is None or previous_role_energy is None:
+            return set()
+        if stem_source_continuity is False:
             return set()
         previous_active = self._active_role_ids(previous_role_activity)
         current_active = self._active_role_ids(role_activity)
@@ -408,6 +428,7 @@ class RoleExtractor:
         previous_role_activity: dict[str, bool] | None,
         role_energy: dict[str, float] | None,
         previous_role_energy: dict[str, float] | None,
+        stem_source_continuity: bool | None = None,
     ) -> str | None:
         """Return bounded swell guidance only for a corroborated intensity rise.
 
@@ -427,6 +448,7 @@ class RoleExtractor:
             previous_role_activity,
             role_energy,
             previous_role_energy,
+            stem_source_continuity,
         )
         if role_id not in swelled:
             return None
@@ -451,6 +473,7 @@ class RoleExtractor:
         previous_role_activity: dict[str, bool] | None = None,
         role_energy: dict[str, float] | None = None,
         previous_role_energy: dict[str, float] | None = None,
+        stem_source_continuity: bool | None = None,
     ) -> SectionRoleTopology:
         """Build topology from real stem activity detection."""
         handoffs = compute_handoffs(role_activity, next_role_activity)
@@ -480,6 +503,7 @@ class RoleExtractor:
                     previous_role_activity,
                     role_energy,
                     previous_role_energy,
+                    stem_source_continuity,
                 )
                 if swell_plan is not None:
                     role = role.copy()
