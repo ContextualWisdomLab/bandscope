@@ -126,8 +126,9 @@ def render_click_track(
         beat_time += interval_seconds
 
     peak = float(np.max(np.abs(audio)))
-    if peak > 0:
-        audio /= np.float32(peak)
+    if peak <= 0:
+        raise ValueError("click pulse must contain non-zero signal")
+    audio /= np.float32(peak)
     return audio
 
 

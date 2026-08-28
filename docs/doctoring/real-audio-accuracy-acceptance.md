@@ -61,7 +61,7 @@ stem quality, or private-corpus readiness.
   fixture sample count, beat interval, and click-pulse width must each be finite
   and must resolve to at least one sample at the requested rate. This prevents a
   nominally valid high BPM from placing multiple beats onto the same sample and
-  prevents a low sample rate from producing an all-zero “click” fixture. Inputs
+  rejects a low sample rate that produces an all-zero “click” fixture. Inputs
   that overflow or undersample those derived quantities fail closed before
   allocation, loop construction, or file serialization.
 - Checksum mismatch fails closed on both file evaluators. Do not score a
@@ -121,6 +121,7 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   estimate intervals, finite non-Boolean tempo metric inputs, finite positive
   non-Boolean fixture duration/BPM/sample-rate inputs, finite derived fixture
   sample count, beat interval, and click-pulse width with a one-sample minimum,
+  plus a non-zero click signal check,
   strict SHA-256 syntax, finite-only report metric values including overflow
   rejection, exact non-empty product-version provenance, bounded fixture
   durations, and no copyrighted commercial recordings. Fixture paths are pytest
@@ -133,8 +134,9 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   empty/reversed estimate interval rejection, silence-on-disk vs in-memory
   triad, 120 BPM Acc1, non-finite and Boolean tempo estimate / truth / tolerance
   rejection, non-finite and Boolean fixture generation/WAV sample-rate
-  rejection, derived sample-count overflow and zero-sample rejection, beat-
-  interval overflow and sub-one-sample rejection, sub-one-sample click-pulse
+  rejection, derived sample-count overflow and zero-sample rejection, aliased
+  zero-signal rejection, beat-interval overflow and sub-one-sample rejection,
+  sub-one-sample click-pulse
   rejection, checksum mismatch through both file evaluators, malformed/non-hex
   manifest provenance, NaN/infinity/overflow report rejection, missing/empty
   product `VERSION` rejection, and silence must not pass as C major.

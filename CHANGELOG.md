@@ -9,6 +9,7 @@
 ### Fixed
 
 - Reject click-track accuracy fixtures whose beat interval or click pulse cannot be represented by at least one sample, preventing aliased or all-zero tempo evidence from entering acceptance runs.
+- Reject click-track fixtures whose chosen pulse frequency aliases to a zero signal, so silent WAVs cannot become tempo acceptance evidence.
 - Reject fixture timings whose derived sample count overflows or quantizes below one sample, and reject finite BPM inputs whose derived beat interval becomes non-finite, before they can drive real-audio accuracy allocation or loop authority.
 - Reject malformed decoded-PCM accuracy evidence before chord recognition: the C-major acceptance buffer must be a non-empty, finite, floating-point, one-dimensional mono array and sample rates must be finite, positive, and non-Boolean.
 - Reject accuracy-report metric integers whose conversion overflows floating-point evidence instead of letting an `OverflowError` escape the manifest validation boundary.

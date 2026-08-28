@@ -84,6 +84,12 @@ def test_click_fixture_rejects_sample_rate_too_low_for_one_click_sample() -> Non
         render_click_track(bpm=60.0, duration_seconds=0.1, sample_rate=99)
 
 
+def test_click_fixture_rejects_a_silent_aliased_pulse() -> None:
+    """A valid-sized but silent click pulse cannot become tempo evidence."""
+    with pytest.raises(ValueError, match="non-zero signal"):
+        render_click_track(bpm=60.0, duration_seconds=0.1, sample_rate=100)
+
+
 def test_wav_writer_rejects_boolean_sample_rate(tmp_path: Path) -> None:
     """A Boolean sample rate must not be serialized as a 1 Hz WAV contract."""
     with pytest.raises(ValueError, match="sample_rate"):
