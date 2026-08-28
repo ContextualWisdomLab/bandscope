@@ -13,13 +13,13 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
       <>
         <div data-testid="workspace-one">
           <FirstTranspositionPlanCallout song={firstSong} />
-          <div id="workspace-song-structure-grid">
+          <div data-workspace-song-structure-grid>
             <div data-section-index="0" />
           </div>
         </div>
         <div data-testid="workspace-two">
           <FirstTranspositionPlanCallout song={secondSong} />
-          <div id="workspace-song-structure-grid">
+          <div data-workspace-song-structure-grid>
             <div data-section-index="0" />
           </div>
         </div>
@@ -32,6 +32,8 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
     expect(callouts).toHaveLength(2);
     expect(callouts.every((callout) => callout.id.length > 0)).toBe(true);
     expect(new Set(callouts.map((callout) => callout.id)).size).toBe(callouts.length);
+    expect(container.querySelectorAll("#workspace-song-structure-grid")).toHaveLength(0);
+    expect(container.querySelectorAll("[data-workspace-song-structure-grid]")).toHaveLength(2);
 
     const targets = container.querySelectorAll<HTMLElement>('[data-section-index="0"]');
     expect(targets).toHaveLength(2);
@@ -65,7 +67,7 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
     const { container, rerender } = render(
       <div>
         <FirstTranspositionPlanCallout song={song} />
-        <div id="workspace-song-structure-grid">
+        <div data-workspace-song-structure-grid>
           <div data-section-index="0" />
         </div>
       </div>
@@ -93,7 +95,7 @@ describe("FirstTranspositionPlanCallout workspace scope", () => {
         <FirstTranspositionPlanCallout
           song={{ ...song, sections: [precedingSection, namedSection] }}
         />
-        <div id="workspace-song-structure-grid">
+        <div data-workspace-song-structure-grid>
           <div data-section-index="0" />
           <div data-section-index="1" />
         </div>
