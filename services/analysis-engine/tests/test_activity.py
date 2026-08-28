@@ -146,6 +146,16 @@ def test_detect_stem_energy_fails_closed_for_empty_slices() -> None:
     assert energy == [{"vocals": 0.0, "bass": 0.0}]
 
 
+def test_detect_stem_energy_fails_closed_for_negative_boundaries() -> None:
+    """Negative section metadata must not read wrapped samples from the stem."""
+    audio = np.zeros(20, dtype=np.float32)
+    audio[5:15] = 1.0
+
+    energy = detect_stem_energy({"vocals": audio}, [(-1.5, -0.5)], 10)
+
+    assert energy == [{"vocals": 0.0}]
+
+
 def test_detect_stem_energy_returns_empty_without_boundaries_or_stems() -> None:
     """No input segments must produce no energy maps."""
     assert detect_stem_energy({}, [(0.0, 1.0)], 10) == []
