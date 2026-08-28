@@ -191,7 +191,7 @@ function ownedAccelerandoPlan(role: unknown): OwnedAccelerandoPlan | null {
     return null;
   }
   const trimmed = accelerandoPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (trimmed.length === 0 || accelerandoPlan.includes("\n") || accelerandoPlan.includes("\r")) {
     return null;
   }
   if (accelerandoPlanSource === "model") {

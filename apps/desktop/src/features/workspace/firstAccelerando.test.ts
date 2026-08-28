@@ -144,6 +144,11 @@ describe("resolveFirstAccelerandoPlan", () => {
       )
     ).toBeNull();
     expect(
+      resolveFirstAccelerandoPlan(
+        withAccelerandoSection({ accelerandoPlan: `${DEMO_ACCELERANDO_PLAN}\n` })
+      )
+    ).toBeNull();
+    expect(
       resolveFirstAccelerandoPlan(withAccelerandoSection({ accelerandoPlan: "slow down here" }))
     ).toBeNull();
   });
