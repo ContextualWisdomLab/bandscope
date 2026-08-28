@@ -2,7 +2,7 @@
 mod project_persistence;
 
 use std::{
-    fs,
+    fs, io,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -41,5 +41,58 @@ fn confirmed_existing_project_is_replaced_after_new_bytes_are_staged() {
         .collect::<Vec<_>>();
     assert_eq!(names, vec![target.file_name().unwrap().to_os_string()]);
 
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
+
+#[test]
+fn new_project_falls_back_to_exclusive_create_when_hard_links_are_unsupported() {
+    let root = test_dir("no-hard-link");
+    let target = root.join("setlist.bscope");
+    let content = br#"{\"id\":\"portable-new-save\"}"#;
+
+    project_persistence::publish_new_project_file_with_linker(
+        &target,
+        content,
+        |_stage, _target| {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "fixture filesystem has no hard links",
+            ))
+        },
+    )
+    .expect("a filesystem without hard links must still support a first save");
+
+    assert_eq!(
+        fs::read(&target).expect("fallback project should be readable"),
+        content
+    );
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
+
+#[test]
+fn hard_link_fallback_never_clobbers_a_target_that_appears_concurrently() {
+    let root = test_dir("no-hard-link-race");
+    let target = root.join("setlist.bscope");
+    let content = br#"{\"id\":\"candidate\"}"#;
+    let racer = br#"{\"id\":\"racer\"}"#;
+
+    let error = project_persistence::publish_new_project_file_with_linker(
+        &target,
+        content,
+        |_stage, target| {
+            fs::write(target, racer)?;
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "fixture filesystem has no hard links",
+            ))
+        },
+    )
+    .expect_err("fallback must fail closed when another writer wins the target name");
+
+    assert_eq!(error, "Project file already exists. Choose a new file name.");
+    assert_eq!(
+        fs::read(&target).expect("racer project should remain readable"),
+        racer
+    );
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
