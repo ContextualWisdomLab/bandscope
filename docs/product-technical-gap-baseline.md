@@ -114,9 +114,10 @@ flowchart LR
 | #947 | `38ed1c8f4dc5f020db43536596aa401c454db55c` | first-verse workspace/player current head; CHANGELOG heading spacing fix 포함; 28 hosted Checks success, macOS amd64 진행 중, `opencode-review` failure; qualifying approval 없음 |
 | #955 | `4058e5094bff94f9ed2df0f635313ff244f225a6` | first-pre-chorus workspace/player current head; CHANGELOG heading spacing fix 포함; 27 hosted Checks success, Rust/macOS amd64 진행 중, `opencode-review` failure; qualifying approval 없음 |
 | #1002 | `607994004c43a084c28d2d137ec5543be903eec6` | confirmed-harmony 한국어 action contract를 feature UI 계약에 맞춰 정렬하고 case-collision을 기준 blob으로 복원; desktop 23 files/263 tests와 100% coverage, typecheck/lint/build local pass; push 후 27 hosted check-runs 중 failure 0, pending 21, `REVIEW_REQUIRED/BLOCKED`, qualifying approval 없음 |
+| #980 | `bc922359725d5b7d8eba515fb1ad4756f5bf8ec9` | local picker가 source selection을 소유하는 동안 YouTube clear action도 숨겨 동시성 계약을 완성; targeted 2 tests, typecheck/lint/build local pass; 전체 desktop 223 tests 중 219 pass 및 기존/자원경합성 4 timeout, coverage 재실행은 실패하여 100%로 주장하지 않음; hosted current check-runs 12 success, 9 pending, `opencode-review` failure(로그 조회 404), qualifying approval 없음 |
 | #859 | `62fd665968dff9032e58a2c58141355b65f264d0` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 1 hosted Check success, 27 pending, failure 없음, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `e13218a2245e9929dbc93715c4f1a1061099123c` | 이 문서 PR의 current head; #1047 exact-head snapshot 추가 후 docs Checks queued/in-progress; qualifying approval 없음 |
+| #1025 | `852e5d8123215fd004fe3b17dea904d1fdb0ff46` | 이 문서 PR의 직전 current head; #1047 exact-head snapshot 이후 #980 exact-head snapshot 추가 중; qualifying approval 없음 |
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
