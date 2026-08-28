@@ -143,6 +143,8 @@ export type RehearsalRole = {
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
   practiceProgress?: number;
+  accelerandoPlan?: string;
+  accelerandoPlanSource?: ProvenanceSource;
 };
 
 /** Documented. */
@@ -1500,7 +1502,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "manualOverrides",
       "overlapWarnings",
       "transcription",
-      "practiceProgress"
+      "practiceProgress",
+      "accelerandoPlan",
+      "accelerandoPlanSource"
     ],
     path
   );
@@ -1586,6 +1590,28 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     if (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100) {
       return invalidField(`${path}.practiceProgress`);
     }
+  }
+
+  if (
+    value.accelerandoPlan !== undefined &&
+    (typeof value.accelerandoPlan !== "string" ||
+      value.accelerandoPlan.trim().length === 0 ||
+      value.accelerandoPlan.includes("\n") ||
+      value.accelerandoPlan.includes("\r"))
+  ) {
+    return invalidField(`${path}.accelerandoPlan`);
+  }
+  if (
+    value.accelerandoPlanSource !== undefined &&
+    !isOneOf(PROVENANCE_SOURCES, value.accelerandoPlanSource)
+  ) {
+    return invalidField(`${path}.accelerandoPlanSource`);
+  }
+  if (value.accelerandoPlanSource !== undefined && value.accelerandoPlan === undefined) {
+    return invalidField(`${path}.accelerandoPlanSource`);
+  }
+  if (value.accelerandoPlan !== undefined && value.accelerandoPlanSource === undefined) {
+    return invalidField(`${path}.accelerandoPlanSource`);
   }
 
   return null;

@@ -1,10 +1,11 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useRef, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { FirstAccelerandoCallout } from "./FirstAccelerandoCallout";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -91,8 +92,12 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
+          {sections.map((section, sectionIndex) => (
+            <div
+              key={section.id}
+              data-section-index={sectionIndex}
+              className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0"
+            >
               <p className="text-sm font-black text-white">
                 {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
               </p>
@@ -122,6 +127,18 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const localSongUpdateRef = useRef<RehearsalSong | null>(null);
+  const workspaceInstanceRef = useRef<unknown>(song);
+  const previousSongRef = useRef(song);
+
+  if (song !== previousSongRef.current) {
+    const isLocalWorkspaceUpdate = song === localSongUpdateRef.current;
+    if (!isLocalWorkspaceUpdate) {
+      workspaceInstanceRef.current = song;
+    }
+    localSongUpdateRef.current = null;
+    previousSongRef.current = song;
+  }
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -164,6 +181,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       )
     : t("workspaceFirstRangeMissing");
 
+  /** Preserve workspace-instance authority for immutable edits emitted by this workspace. */
+  const commitSongUpdate = (nextSong: RehearsalSong) => {
+    if (!onSongUpdate) return;
+    localSongUpdateRef.current = nextSong;
+    onSongUpdate(nextSong);
+  };
+
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
     if (!activeRole || !onSongUpdate) return;
@@ -188,7 +212,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       })
     };
 
-    onSongUpdate(nextSong);
+    commitSongUpdate(nextSong);
   };
   const collaborationAssignments = useMemo(
     () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
@@ -309,6 +333,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
           </section>
+          <FirstAccelerandoCallout song={song} workspaceInstanceKey={workspaceInstanceRef.current} />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
@@ -505,7 +530,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SectionRoadmap
             song={song}
             activeRole={activeRole}
-            onSongUpdate={onSongUpdate}
+            onSongUpdate={onSongUpdate ? commitSongUpdate : undefined}
           />
           </section>
         </CardContent>
