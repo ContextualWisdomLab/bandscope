@@ -83,8 +83,8 @@ def main() -> int:
     validated_request = None
     try:
         validated_request = validate_analysis_job_request(request)
-    except ValueError:
-        pass
+    except ValueError as error:
+        logging.debug("Analysis request validation deferred to orchestration: %s", error)
     if validated_request is not None:
         request = validated_request
 
