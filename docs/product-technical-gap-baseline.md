@@ -103,13 +103,13 @@ flowchart LR
 | PR | current head | current 상태와 traceability |
 |---|---|---|
 | #1045 | `7d6db4bf9a70bb861bd32e5955e9b3f6de10da09` | source/coverage/security/build/release Checks terminal success; `opencode-review`와 `strix` failure; qualifying independent approval 없음 |
-| #1046 | `4d06285a780d4a17b78f0826e79ba3f64595cfc0` | current head에서 source local proof 통과; hosted Checks는 push 후 queued/in-progress; qualifying independent approval 없음 |
+| #1046 | `008248327f2f3e3636d9d234221810f3db56829f` | current head에서 source local proof 통과; Ruff format failure를 수정한 뒤 hosted Checks는 push 후 queued/in-progress; qualifying independent approval 없음 |
 | #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | source/coverage/security/build/release 및 `opencode-review`/`strix` terminal success; reviews는 COMMENTED뿐이며 qualifying approval 없음 |
 | #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
 | #1041 | `164995d3a3c056bdbb4fc293226d0c31c062104e` | ScoreView/ScoreViewer tooltip 변경 current head; coverage/build/security Checks 일부 queued/in-progress; qualifying approval 없음 |
 | #910 | `b6bcecb8649796dc13a54c39d70ca05977b0ac4c` | source/coverage/security/build/release terminal success이나 current `opencode-review` failure; current-head qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `fd30db91467aefb263b72c40f12656d1e93a09b6` | 이 문서 PR의 current head; docs/source/security/build Checks는 terminal success이나 `opencode-review` failure; qualifying approval 없음 |
+| #1025 | `7b081bade73a06fbe4383aa7655e9b60f72a3c8b` | 이 문서 PR의 current head; docs 변경 push 후 hosted Checks는 queued/in-progress; qualifying approval 없음 |
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
