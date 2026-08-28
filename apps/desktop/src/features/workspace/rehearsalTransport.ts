@@ -1,4 +1,8 @@
-import type { RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
+import {
+  MAX_SECTION_TIME_SECONDS,
+  type RehearsalSection,
+  type RehearsalSong,
+} from "@bandscope/shared-types";
 
 const DEFAULT_REHEARSAL_TEMPO_BPM = 120;
 const DEFAULT_COUNT_IN_BEATS = 4;
@@ -76,9 +80,16 @@ function ownedDenseArray(value: unknown): unknown[] | null {
     ) {
       return null;
     }
+    const keys = Object.keys(value);
+    if (keys.length !== length) {
+      return null;
+    }
     const items: unknown[] = [];
-    for (let index = 0; index < length; index += 1) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, index);
+    for (const [index, key] of keys.entries()) {
+      if (key !== String(index)) {
+        return null;
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (
         descriptor === undefined ||
         !Object.prototype.hasOwnProperty.call(descriptor, "value")
@@ -116,6 +127,8 @@ function playableSectionSnapshot(
   if (
     !isFiniteNonNegativeNumber(start) ||
     !isFiniteNonNegativeNumber(end) ||
+    start > MAX_SECTION_TIME_SECONDS ||
+    end > MAX_SECTION_TIME_SECONDS ||
     end <= start
   ) {
     return null;

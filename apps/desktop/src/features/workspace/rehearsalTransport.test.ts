@@ -24,6 +24,8 @@ describe("rehearsalTransport", () => {
     expect(createLoopWindow(song.sections[0]!, song.tempo)).toBeNull();
     song.sections[0]!.timeRange = { start: 40, end: 10 };
     expect(isPlayableLoopSection(song.sections[0])).toBe(false);
+    song.sections[0]!.timeRange = { start: 4_294_967_295, end: 4_294_967_296 };
+    expect(isPlayableLoopSection(song.sections[0])).toBe(false);
   });
 
   it("arms the first valid section and skips a requested invalid id", () => {
@@ -53,6 +55,13 @@ describe("rehearsalTransport", () => {
     expect(window?.sectionId).toBe("chorus-1");
     expect(window?.startSeconds).toBe(40);
     expect(window?.endSeconds).toBe(64);
+  });
+
+  it("rejects a sparse hostile section array without scanning its declared length", () => {
+    const song = createDemoRehearsalSong();
+    song.sections = new Array(0xffffffff) as typeof song.sections;
+
+    expect(resolveLoopWindow(song)).toBeNull();
   });
 
   it("assumes 120 BPM when tempo is missing and keeps published tempo in range", () => {
