@@ -81,8 +81,7 @@ def test_activity_swell_emits_solo_plan_for_a_staying_vocal_rise() -> None:
     assert vocal["swellPlan"] == _SOLO_PLAN
     assert vocal["swellPlanSource"] == "model"
     assert all(
-        "swellPlan" not in role or role["id"] == "lead-vocal"
-        for role in topology["active_roles"]
+        "swellPlan" not in role or role["id"] == "lead-vocal" for role in topology["active_roles"]
     )
 
 
@@ -242,9 +241,7 @@ def test_extract_emits_swell_across_real_stem_boundaries() -> None:
     sr = 8
     bass = np.full(sr * 2, 0.4, dtype=np.float32)
     other = np.full(sr * 2, 0.3, dtype=np.float32)
-    vocal = np.concatenate(
-        [np.full(sr, 0.2, dtype=np.float32), np.full(sr, 0.8, dtype=np.float32)]
-    )
+    vocal = np.concatenate([np.full(sr, 0.2, dtype=np.float32), np.full(sr, 0.8, dtype=np.float32)])
     result = extractor.extract(
         [{"id": "verse-1"}, {"id": "chorus-1"}],
         {
