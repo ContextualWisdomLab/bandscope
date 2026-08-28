@@ -146,6 +146,12 @@ def test_detect_stem_energy_fails_closed_for_empty_slices() -> None:
     assert energy == [{"vocals": 0.0, "bass": 0.0}]
 
 
+def test_detect_stem_energy_returns_empty_without_boundaries_or_stems() -> None:
+    """No input segments must produce no energy maps."""
+    assert detect_stem_energy({}, [(0.0, 1.0)], 10) == []
+    assert detect_stem_energy({"vocals": np.ones(10, dtype=np.float32)}, [], 10) == []
+
+
 def test_map_stems_to_role_energy_shares_other_without_drums() -> None:
     """Accompaniment roles share other energy; drums never land a fade."""
     mapped = map_stems_to_role_energy({"vocals": 0.2, "bass": 0.4, "other": 0.9, "drums": 1.0})
