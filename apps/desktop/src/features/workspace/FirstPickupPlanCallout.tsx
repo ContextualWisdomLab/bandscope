@@ -112,15 +112,7 @@ function resolvePickupPlanRenderer(origin: HTMLElement): HTMLElement | null {
   const selector = '[data-testid="song-structure-grid"]';
   const localScope = origin.closest("aside")?.parentElement ?? null;
   const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
-  if (localRenderers.length === 1) {
-    return localRenderers[0] ?? null;
-  }
-  if (localRenderers.length > 1) {
-    return null;
-  }
-
-  const globalRenderers = document.querySelectorAll<HTMLElement>(selector);
-  return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
+  return localRenderers.length === 1 ? (localRenderers[0] ?? null) : null;
 }
 
 /** Name tonight's first pickup plan and open the matching rendered map section. */
