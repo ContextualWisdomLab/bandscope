@@ -12,7 +12,8 @@ function songWithTurnaroundPlan() {
       id: "bass-guitar",
       name: "Bass Guitar",
       rehearsalPriority: "high",
-      turnaroundPlan: "Turn these last bars with Lead Vocal on the verse last beat; land the chorus downbeat together."
+      turnaroundPlan: "Turn these last bars with Lead Vocal on the verse last beat; land the chorus downbeat together.",
+      turnaroundPlanSource: "model"
     }
   ];
   section.partGraph = [{ role_id: "bass-guitar", is_active: true, handoff_to: [], handoff_from: [] }];

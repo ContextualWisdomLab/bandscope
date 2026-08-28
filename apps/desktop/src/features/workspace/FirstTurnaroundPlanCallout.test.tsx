@@ -130,9 +130,11 @@ describe("FirstTurnaroundPlanCallout", () => {
     song.sections[0]!.roles[0]!.turnaroundPlan = "";
     song.sections[0]!.roles[0]!.rehearsalPriority = "low";
     song.sections[0]!.roles[2]!.turnaroundPlan = "Leave the vocal on the last lyric while the turnaround lands.";
+    song.sections[0]!.roles[2]!.turnaroundPlanSource = "user";
     song.sections[0]!.roles[2]!.rehearsalPriority = "low";
     song.sections[0]!.roles[1]!.turnaroundPlan =
       "Turn these last bars with Lead Vocal; land the downbeat together.";
+    song.sections[0]!.roles[1]!.turnaroundPlanSource = "user";
 
     render(<FirstTurnaroundPlanCallout song={song} />);
 

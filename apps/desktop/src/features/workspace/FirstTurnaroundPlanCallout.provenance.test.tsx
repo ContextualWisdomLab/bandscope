@@ -59,7 +59,7 @@ describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
     ).toBeNull();
   });
 
-  it("does not infer model authority when persisted turnaround guidance has no source", () => {
+  it("does not render persisted turnaround guidance when it has no source", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
     const legacyPlan = "Turn these last bars with Lead Vocal; land the downbeat together.";
@@ -67,7 +67,12 @@ describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
 
     render(<FirstTurnaroundPlanCallout song={song} />);
 
-    expect(screen.getByText(legacyPlan)).toBeTruthy();
+    expect(screen.queryByText(legacyPlan)).toBeNull();
+    expect(
+      screen.getByText(
+        "사용 가능한 턴어라운드 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
+      )
+    ).toBeTruthy();
     expect(
       screen.queryByText("Lead Vocal 파트와 이 턴어라운드를 맞추세요. 다음 섹션 첫 박에 함께 들어가세요.")
     ).toBeNull();

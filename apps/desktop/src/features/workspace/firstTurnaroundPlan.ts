@@ -32,7 +32,7 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedTurnaroundPlan = Readonly<{
   text: string;
-  source: TurnaroundPlanSource | null;
+  source: TurnaroundPlanSource;
 }>;
 
 /** Tonight's first turnaround plan: the earliest labeled section and the part that carries it into the next section. */
@@ -168,6 +168,9 @@ function ownedTurnaroundPlan(role: unknown): OwnedTurnaroundPlan | null {
   ) {
     return null;
   }
+  if (turnaroundPlanSource === undefined) {
+    return null;
+  }
   const trimmed = turnaroundPlan.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
@@ -176,7 +179,7 @@ function ownedTurnaroundPlan(role: unknown): OwnedTurnaroundPlan | null {
     text:
       boundedGeneratedActivityTurnaroundPlan(trimmed) ??
       truncateCodePoints(trimmed, MAX_TURNAROUND_PLAN_CHARACTERS),
-    source: turnaroundPlanSource ?? null
+    source: turnaroundPlanSource
   };
 }
 

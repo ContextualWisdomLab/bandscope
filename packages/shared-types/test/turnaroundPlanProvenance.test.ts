@@ -27,4 +27,13 @@ describe("turnaround plan provenance", () => {
 
     expect(() => parseRehearsalSong(song)).toThrow(/turnaroundPlanSource/);
   });
+
+  it("rejects a turnaround plan without provenance", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.turnaroundPlan = "Turn these last bars with Lead Vocal; land the downbeat together.";
+    delete role.turnaroundPlanSource;
+
+    expect(() => parseRehearsalSong(song)).toThrow(/turnaroundPlanSource/);
+  });
 });

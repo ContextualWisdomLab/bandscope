@@ -477,6 +477,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           turnaroundPlan: "Turn these last bars with Lead Vocal on the verse last beat; land the chorus downbeat together.",
+          turnaroundPlanSource: "model",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1591,6 +1592,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     return invalidField(`${path}.turnaroundPlanSource`);
   }
   if (value.turnaroundPlanSource !== undefined && value.turnaroundPlan === undefined) {
+    return invalidField(`${path}.turnaroundPlanSource`);
+  }
+  if (value.turnaroundPlan !== undefined && value.turnaroundPlanSource === undefined) {
     return invalidField(`${path}.turnaroundPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {

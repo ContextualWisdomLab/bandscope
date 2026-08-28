@@ -11,6 +11,7 @@ function withTurnaroundSection(
     start?: number;
     end?: number;
     turnaroundPlan?: string;
+    source?: "model" | "user";
     label?: "intro" | "verse" | "pre-chorus" | "chorus" | "bridge" | "outro" | "tag" | "pickup" | "stop" | "handoff";
     roleId?: string;
     roleName?: string;
@@ -55,6 +56,7 @@ function withTurnaroundSection(
         notes: "Singer confirmed the pickup phrasing in rehearsal notes."
       },
       turnaroundPlan: overrides.turnaroundPlan ?? DEMO_TURNAROUND_PLAN,
+      turnaroundPlanSource: overrides.source ?? "model",
       manualOverrides: []
     },
     companionRole
@@ -180,7 +182,8 @@ describe("resolveFirstTurnaroundPlan", () => {
       start: 40,
       end: 56,
       roleId: "keys-right",
-      turnaroundPlan: "Late turnaround."
+      turnaroundPlan: "Late turnaround.",
+      source: "user"
     });
     const earlier = structuredClone(song.sections[0]!);
     const earlierCompanion = structuredClone(earlier.roles[1]!);
@@ -193,7 +196,8 @@ describe("resolveFirstTurnaroundPlan", () => {
         id: "lead-vocal",
         name: "Lead Vocal",
         rehearsalPriority: "low",
-        turnaroundPlan: "Earlier turnaround."
+        turnaroundPlan: "Earlier turnaround.",
+        turnaroundPlanSource: "user"
       },
       earlierCompanion
     ];
@@ -235,7 +239,8 @@ describe("resolveFirstTurnaroundPlan", () => {
       roleId: "keys-right",
       roleName: "Keys",
       priority: "low",
-      turnaroundPlan: "Low-priority turnaround."
+      turnaroundPlan: "Low-priority turnaround.",
+      source: "user"
     });
     const section = song.sections[0]!;
     const highRole = {
@@ -243,7 +248,8 @@ describe("resolveFirstTurnaroundPlan", () => {
       id: "lead-vocal",
       name: "Lead Vocal",
       rehearsalPriority: "high" as const,
-      turnaroundPlan: "High-priority turnaround."
+      turnaroundPlan: "High-priority turnaround.",
+      turnaroundPlanSource: "user" as const
     };
     section.roles = [section.roles[0]!, highRole];
     section.partGraph = [
@@ -264,13 +270,14 @@ describe("resolveFirstTurnaroundPlan", () => {
   });
 
   it("breaks equal-priority role ties with locale-independent id ordering", () => {
-    const song = withTurnaroundSection({ roleId: "ä-role", roleName: "Umlaut role", priority: "high" });
+    const song = withTurnaroundSection({ roleId: "ä-role", roleName: "Umlaut role", priority: "high", source: "user" });
     const section = song.sections[0]!;
     const asciiRole = {
       ...section.roles[0]!,
       id: "z-role",
       name: "ASCII role",
-      turnaroundPlan: "ASCII turnaround."
+      turnaroundPlan: "ASCII turnaround.",
+      turnaroundPlanSource: "user"
     };
     section.roles = [section.roles[0]!, asciiRole];
     section.partGraph = [
