@@ -116,6 +116,8 @@ class RehearsalRolePayload(TypedDict):
     setupNote: str
     manualOverrides: list[ManualOverridePayload]
     overlapWarnings: list[str]
+    swellPlan: NotRequired[str]
+    swellPlanSource: NotRequired[Literal["model", "user"]]
 
 
 class PartGraphNodePayload(TypedDict):
