@@ -54,9 +54,9 @@ Audit metadata records `policy_version` and `reason` on
 - `transcription.api` — stem byte budget and 15-minute loader cap (no 120 s silent cap)
 - `chords.chord_recognizer` — decoded revalidation at `recognize()`
 
-Desktop Rust currently records `file_size_bytes` at intake but does not yet
-enforce this ceiling. The Python engine remains fail-closed if a larger file
-reaches analysis.
+Desktop Rust enforces this encoded-byte ceiling at local-file selection and
+again when accepting the downloaded YouTube file into the app-owned cache. The
+Python engine repeats the check before analysis as a defense-in-depth boundary.
 
 ## Rollback
 
@@ -77,8 +77,7 @@ canonical validators and the old silent caps on the same branch.
 - Realistic threats: decompression bombs, huge channel counts, extreme
   sampling rates, integer overflow in size conversions, inconsistent
   feature-local caps that fail only after expensive work.
-- Remaining risk: desktop encoded-byte preflight still records size without
-  rejecting; duration still requires a decoder; GPU/VRAM budgets are not
+- Remaining risk: duration still requires a decoder; GPU/VRAM budgets are not
   part of policy version 1.
 
 ## References
