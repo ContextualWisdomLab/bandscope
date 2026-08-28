@@ -78,11 +78,7 @@ class RoleExtractor:
                 activity_evidence = [
                     (
                         map_stems_to_roles(segment_activity),
-                        {
-                            stem_id
-                            for stem_id, is_active in segment_activity.items()
-                            if is_active
-                        },
+                        {stem_id for stem_id, is_active in segment_activity.items() if is_active},
                     )
                     for segment_activity in stem_activity
                 ]
