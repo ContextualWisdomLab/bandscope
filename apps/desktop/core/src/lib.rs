@@ -560,13 +560,14 @@ fn validate_drop_plan_provenance(
 ) -> Result<RehearsalSongPayload, String> {
     for section in &payload.sections {
         for role in &section.roles {
-            if role.practice_progress.is_some_and(|progress| progress > 100) {
+            if role
+                .practice_progress
+                .is_some_and(|progress| progress > 100)
+            {
                 return Err("Invalid project file format".to_string());
             }
             if role.drop_plan.as_ref().is_some_and(|drop_plan| {
-                drop_plan.trim().is_empty()
-                    || drop_plan.contains('\n')
-                    || drop_plan.contains('\r')
+                drop_plan.trim().is_empty() || drop_plan.contains('\n') || drop_plan.contains('\r')
             }) {
                 return Err("Invalid project file format".to_string());
             }

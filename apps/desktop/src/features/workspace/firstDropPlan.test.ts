@@ -25,6 +25,7 @@ function withDropSection(
     roleId?: string;
     roleName?: string;
     priority?: "low" | "medium" | "high";
+    source?: "model" | "user";
     isActive?: boolean;
     wasActive?: boolean;
     previousActiveCount?: 1 | 2 | 3;
@@ -57,7 +58,8 @@ function withDropSection(
           ? "Bass Guitar"
           : "Lead Vocal"),
     rehearsalPriority: overrides.priority ?? "high",
-    dropPlan: overrides.dropPlan ?? DEMO_DROP_PLAN
+    dropPlan: overrides.dropPlan ?? DEMO_DROP_PLAN,
+    dropPlanSource: overrides.source ?? "model"
   };
 
   const current = structuredClone(verse);
@@ -216,7 +218,8 @@ describe("resolveFirstDropPlan", () => {
       end: 56,
       previousStart: 24,
       roleId: "lead-vocal",
-      dropPlan: "Late drop."
+      dropPlan: "Late drop.",
+      source: "user"
     });
     const earlier = structuredClone(song.sections[1]!);
     earlier.id = "chorus-early";
@@ -226,7 +229,8 @@ describe("resolveFirstDropPlan", () => {
         id: "lead-vocal",
         name: "Lead Vocal",
         rehearsalPriority: "low",
-        dropPlan: "Earlier drop."
+        dropPlan: "Earlier drop.",
+        dropPlanSource: "user"
       },
       ...earlier.roles.filter((role) => role.id !== "lead-vocal")
     ];
@@ -262,7 +266,8 @@ describe("resolveFirstDropPlan", () => {
       roleId: "keys-right",
       roleName: "Keys",
       priority: "low",
-      dropPlan: "Low-priority drop."
+      dropPlan: "Low-priority drop.",
+      source: "user"
     });
     const section = song.sections[1]!;
     const highRole = {
@@ -270,7 +275,8 @@ describe("resolveFirstDropPlan", () => {
       id: "lead-vocal",
       name: "Lead Vocal",
       rehearsalPriority: "high" as const,
-      dropPlan: "High-priority drop."
+      dropPlan: "High-priority drop.",
+      dropPlanSource: "user" as const
     };
     section.roles = [...section.roles.filter((role) => role.id !== "lead-vocal"), highRole];
     section.partGraph = [

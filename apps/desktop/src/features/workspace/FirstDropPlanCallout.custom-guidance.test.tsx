@@ -74,12 +74,17 @@ describe("FirstDropPlanCallout custom guidance", () => {
     expect(screen.queryByText(/Land Lead Vocal together at 0:30 when the texture fills./)).toBeNull();
   });
 
-  it("preserves custom copy without model provenance instead of rewriting it", () => {
+  it("does not render custom copy without provenance", () => {
     render(
       <FirstDropPlanCallout
         song={songWithCustomDropPlan(undefined, "Stack the last bar and land together.")}
       />
     );
-    expect(screen.getByText("Stack the last bar and land together.")).toBeTruthy();
+    expect(screen.queryByText("Stack the last bar and land together.")).toBeNull();
+    expect(
+      screen.getByText(
+        "No drop plan is available. Stay on tonight's map for the next rehearsal cue."
+      )
+    ).toBeTruthy();
   });
 });

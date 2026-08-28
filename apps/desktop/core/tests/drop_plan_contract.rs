@@ -73,7 +73,8 @@ fn project_contract_round_trips_drop_plan_provenance() {
 
     let parsed = project_payload_from_content(&content)
         .expect("native project contract must accept shared drop-plan fields");
-    let serialized = serde_json::to_value(parsed).expect("native project contract should serialize");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
 
     assert_eq!(
         serialized["sections"][0]["roles"][0]["dropPlan"],
@@ -113,7 +114,8 @@ fn project_contract_round_trips_optional_shared_role_fields() {
 
     let parsed = project_payload_from_content(&content)
         .expect("native project contract must accept optional shared role fields");
-    let serialized = serde_json::to_value(parsed).expect("native project contract should serialize");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
     let serialized_role = &serialized["sections"][0]["roles"][0];
 
     for field in [
@@ -122,7 +124,10 @@ fn project_contract_round_trips_optional_shared_role_fields() {
         "transcription",
         "practiceProgress",
     ] {
-        assert_eq!(serialized_role[field], payload["sections"][0]["roles"][0][field]);
+        assert_eq!(
+            serialized_role[field],
+            payload["sections"][0]["roles"][0][field]
+        );
     }
 }
 

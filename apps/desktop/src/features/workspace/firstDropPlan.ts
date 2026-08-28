@@ -35,7 +35,7 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedDropPlan = Readonly<{
   text: string;
-  source: DropPlanSource | null;
+  source: DropPlanSource;
   guidance: DropPlanGuidance | null;
 }>;
 
@@ -166,6 +166,9 @@ function ownedDropPlan(role: unknown): OwnedDropPlan | null {
   if (dropPlanSource !== undefined && dropPlanSource !== "model" && dropPlanSource !== "user") {
     return null;
   }
+  if (dropPlanSource === undefined) {
+    return null;
+  }
   const trimmed = dropPlan.trim();
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
@@ -175,7 +178,7 @@ function ownedDropPlan(role: unknown): OwnedDropPlan | null {
   }
   return {
     text: truncateCodePoints(trimmed, MAX_DROP_PLAN_CHARACTERS),
-    source: dropPlanSource ?? null,
+    source: dropPlanSource,
     guidance: null
   };
 }

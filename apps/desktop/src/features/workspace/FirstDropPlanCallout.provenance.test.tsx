@@ -53,14 +53,19 @@ describe("FirstDropPlanCallout drop-plan provenance", () => {
     expect(screen.queryByText("이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요.")).toBeNull();
   });
 
-  it("does not infer model authority when persisted drop guidance has no source", () => {
+  it("does not render persisted drop guidance when it has no source", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const legacyPlan = "Hit this drop; come in together when the texture fills.";
     const song = songWithKoreanDrop(legacyPlan);
 
     render(<FirstDropPlanCallout song={song} />);
 
-    expect(screen.getByText(legacyPlan)).toBeTruthy();
+    expect(screen.queryByText(legacyPlan)).toBeNull();
+    expect(
+      screen.getByText(
+        "사용 가능한 드롭 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
+      )
+    ).toBeTruthy();
     expect(screen.queryByText("이 드롭을 맞으세요. 텍스처가 채워질 때 함께 들어오세요.")).toBeNull();
   });
 
