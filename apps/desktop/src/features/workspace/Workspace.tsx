@@ -136,6 +136,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     }
     localSongUpdateRef.current = null;
   }, [song]);
+  const workspaceInstanceKey =
+    song === localSongUpdateRef.current ? workspaceInstanceRef.current : song;
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -331,7 +333,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
           </section>
 
-          <FirstFadePlanCallout song={song} workspaceInstanceKey={workspaceInstanceRef.current} />
+          <FirstFadePlanCallout song={song} workspaceInstanceKey={workspaceInstanceKey} />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">

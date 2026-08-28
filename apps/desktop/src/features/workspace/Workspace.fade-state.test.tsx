@@ -93,6 +93,20 @@ describe("Workspace fade state authority", () => {
     expect(screen.getByText(/Fade Lead Vocal together at 0:30 so the quieter landing is audible\./)).toBeTruthy();
   });
 
+  it("resets opened fade guidance when an external song reuses the same fade metadata", () => {
+    const firstSong = analyzedSongWithFadePlan();
+    const replacementSong = structuredClone(firstSong);
+    const { rerender } = render(<Workspace song={firstSong} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fade at 0:30" }));
+    expect(screen.getByText(/Fade Lead Vocal together at 0:30 so the quieter landing is audible\./)).toBeTruthy();
+
+    rerender(<Workspace song={replacementSong} />);
+
+    expect(screen.getByText("Lead Vocal fades the chorus at 0:30.")).toBeTruthy();
+    expect(screen.queryByText(/Fade Lead Vocal together at 0:30 so the quieter landing is audible\./)).toBeNull();
+  });
+
   it("keeps chord editing unavailable when no song update handler exists", () => {
     render(<Workspace song={analyzedSongWithFadePlan()} />);
 
