@@ -1,10 +1,13 @@
 """Tests for stem activity detection and role mapping."""
 
 import numpy as np
+import pytest
 
 from bandscope_analysis.roles.activity import (
     compute_handoffs,
     detect_stem_activity,
+    detect_stem_energy,
+    map_stems_to_role_energy,
     map_stems_to_roles,
 )
 
@@ -116,3 +119,42 @@ def test_compute_handoffs_no_changes_means_no_handoffs() -> None:
 
     for role_id in current:
         assert handoffs[role_id] == ([], [])
+
+
+def test_detect_stem_energy_returns_segment_rms() -> None:
+    """Ensure per-segment RMS is reported for usable slices."""
+    sr = 8
+    quiet = np.full(sr, 0.2, dtype=np.float32)
+    loud = np.full(sr, 0.8, dtype=np.float32)
+    vocals = np.concatenate([quiet, loud])
+    energy = detect_stem_energy({"vocals": vocals}, [(0.0, 1.0), (1.0, 2.0)], sr)
+    assert len(energy) == 2
+    assert energy[0]["vocals"] == pytest.approx(0.2, rel=1e-5)
+    assert energy[1]["vocals"] == pytest.approx(0.8, rel=1e-5)
+
+
+def test_detect_stem_energy_empty_inputs() -> None:
+    """Ensure empty stems or boundaries return empty energy."""
+    assert detect_stem_energy({}, [(0.0, 5.0)], 22050) == []
+    assert detect_stem_energy({"bass": np.zeros(1000, dtype=np.float32)}, [], 22050) == []
+
+
+def test_detect_stem_energy_marks_empty_and_out_of_range_segments_zero() -> None:
+    """Ensure unusable slices fail closed as zero energy."""
+    stems = {
+        "vocals": np.array([], dtype=np.float32),
+        "bass": np.ones(10, dtype=np.float32),
+    }
+    energy = detect_stem_energy(stems, [(1.0, 2.0)], 10)
+    assert energy == [{"vocals": 0.0, "bass": 0.0}]
+
+
+def test_map_stems_to_role_energy_maps_named_and_shared_stems() -> None:
+    """Ensure vocals and bass own energy while other is shared."""
+    mapped = map_stems_to_role_energy({"vocals": 0.4, "bass": 0.2, "other": 0.1, "drums": 0.9})
+    assert mapped["lead-vocal"] == 0.4
+    assert mapped["bass-guitar"] == 0.2
+    assert mapped["keys-left"] == 0.1
+    assert mapped["keys-right"] == 0.1
+    assert mapped["acoustic-guitar"] == 0.1
+    assert "drums" not in mapped

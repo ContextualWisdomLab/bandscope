@@ -177,6 +177,13 @@ pub struct ManualOverridePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum SwellPlanSourcePayload {
+    Model,
+    User,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
     id: String,
@@ -191,6 +198,10 @@ pub struct RehearsalRolePayload {
     setup_note: String,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    swell_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    swell_plan_source: Option<SwellPlanSourcePayload>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -527,9 +538,29 @@ pub fn is_youtube_video_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
 }
 
+fn validate_swell_plan_provenance(
+    payload: RehearsalSongPayload,
+) -> Result<RehearsalSongPayload, String> {
+    for section in &payload.sections {
+        for role in &section.roles {
+            if role.swell_plan.as_ref().is_some_and(|swell_plan| {
+                swell_plan.trim().is_empty()
+                    || swell_plan.contains('\n')
+                    || swell_plan.contains('\r')
+            }) {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.swell_plan.is_none() && role.swell_plan_source.is_some() {
+                return Err("Invalid project file format".to_string());
+            }
+        }
+    }
+    Ok(payload)
+}
+
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
-        return Ok(parsed);
+        return validate_swell_plan_provenance(parsed);
     }
 
     let payload = serde_json::from_str::<Value>(content)
@@ -547,7 +578,9 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         }
     }
 
-    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+    let parsed =
+        serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())?;
+    validate_swell_plan_provenance(parsed)
 }
 
 #[derive(Clone, Debug, Serialize)]
