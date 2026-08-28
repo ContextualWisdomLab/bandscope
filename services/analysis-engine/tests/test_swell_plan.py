@@ -256,6 +256,35 @@ def test_extract_emits_swell_across_real_stem_boundaries() -> None:
     assert all("swellPlan" not in role for role in result["topologies"][0]["active_roles"])
 
 
+@pytest.mark.parametrize(("previous_drums", "current_drums"), [(0.0, 0.6), (0.6, 0.0)])
+def test_extract_leaves_swell_unnamed_when_drum_source_set_changes(
+    previous_drums: float,
+    current_drums: float,
+) -> None:
+    """A drum entrance or exit changes the real source set and is not a swell."""
+    extractor = RoleExtractor()
+    sr = 8
+    bass = np.full(sr * 2, 0.4, dtype=np.float32)
+    other = np.full(sr * 2, 0.3, dtype=np.float32)
+    vocal = np.concatenate([np.full(sr, 0.2, dtype=np.float32), np.full(sr, 0.8, dtype=np.float32)])
+    drums = np.concatenate(
+        [
+            np.full(sr, previous_drums, dtype=np.float32),
+            np.full(sr, current_drums, dtype=np.float32),
+        ]
+    )
+    result = extractor.extract(
+        [{"id": "verse-1"}, {"id": "chorus-1"}],
+        {
+            "stems": {"bass": bass, "drums": drums, "other": other, "vocals": vocal},
+            "sr": sr,
+            "boundaries": [(0.0, 1.0), (1.0, 2.0)],
+        },
+    )
+    chorus: dict[str, Any] = result["topologies"][1]
+    assert all("swellPlan" not in role for role in chorus["active_roles"])
+
+
 def test_activity_swell_stays_unnamed_when_energy_maps_are_missing() -> None:
     """Activity without RMS evidence cannot name a swell."""
     extractor = RoleExtractor()
