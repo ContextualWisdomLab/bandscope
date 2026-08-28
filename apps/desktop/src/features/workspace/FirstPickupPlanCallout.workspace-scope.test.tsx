@@ -72,4 +72,38 @@ describe("FirstPickupPlanCallout workspace scope", () => {
       behavior: "smooth"
     });
   });
+
+  it("fails closed instead of opening another workspace when its renderer is absent", () => {
+    const song = songWithPickupPlan("renderer-absent-song");
+    const foreignScrollIntoView = vi.fn();
+
+    const { container } = render(
+      <>
+        <div data-testid="workspace-without-renderer">
+          <FirstPickupPlanCallout song={song} />
+        </div>
+        <div data-testid="foreign-workspace">
+          <div data-testid="song-structure-grid">
+            <div data-section-index="1" />
+          </div>
+        </div>
+      </>
+    );
+
+    const foreignTarget = container.querySelector<HTMLElement>('[data-section-index="1"]');
+    expect(foreignTarget).not.toBeNull();
+    Object.defineProperty(foreignTarget!, "scrollIntoView", {
+      configurable: true,
+      value: foreignScrollIntoView
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Bass Guitar pickup at 0:10"
+      })
+    );
+
+    expect(foreignScrollIntoView).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toBeTruthy();
+  });
 });
