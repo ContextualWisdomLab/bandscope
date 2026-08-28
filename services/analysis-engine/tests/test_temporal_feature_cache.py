@@ -102,4 +102,6 @@ def test_cached_source_temporal_grid_skips_second_decode(monkeypatch, tmp_path) 
     updates = api.run_analysis_job_updates("job-cached-grid", request, "2026-08-28T00:00:00Z")
 
     assert updates[-1]["state"] == "succeeded"
-    assert any(update.get("progressLabel") == "Loaded reusable stems... (45%)" for update in updates)
+    assert any(
+        update.get("progressLabel") == "Loaded reusable stems... (45%)" for update in updates
+    )
