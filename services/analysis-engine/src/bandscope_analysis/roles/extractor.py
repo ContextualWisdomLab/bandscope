@@ -390,9 +390,7 @@ class RoleExtractor:
         if self._source_ids(previous_active) != self._source_ids(current_active):
             return set()
         swelled: set[str] = set()
-        for role_id in _NAMED_SWELL_ROLE_IDS:
-            if role_id not in current_active or role_id not in previous_active:
-                continue
+        for role_id in _NAMED_SWELL_ROLE_IDS & current_active & previous_active:
             previous_rms = float(previous_role_energy.get(role_id, 0.0) or 0.0)
             current_rms = float(role_energy.get(role_id, 0.0) or 0.0)
             if previous_rms < _SWELL_PREVIOUS_FLOOR:
@@ -435,8 +433,6 @@ class RoleExtractor:
         partners = sorted(swelled - {role_id})
         if not partners:
             return _SWELL_PLAN_SOLO
-        if len(partners) != 1:
-            return None
         partner_id = partners[0]
         other_name = next(
             (role["name"] for role in roles.values() if role["id"] == partner_id),
