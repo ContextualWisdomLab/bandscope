@@ -37,7 +37,7 @@ describe("Workspace accelerando state authority", () => {
     }
   });
 
-  it("keeps an opened accel armed after an immutable practice-progress update", () => {
+  it("keeps an opened accel armed after an immutable edit and role switch", () => {
     const song = analyzedSongWithAccelerandoPlan();
     let updatedSong: RehearsalSong | null = null;
     const onSongUpdate = vi.fn((nextSong: RehearsalSong) => {
@@ -55,6 +55,12 @@ describe("Workspace accelerando state authority", () => {
     expect(updatedSong).not.toBeNull();
 
     rerender(<Workspace song={updatedSong!} onSongUpdate={onSongUpdate} />);
+
+    expect(
+      screen.getByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible\./)
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     expect(
       screen.getByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible\./)

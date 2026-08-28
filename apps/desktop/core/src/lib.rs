@@ -177,6 +177,30 @@ pub struct ManualOverridePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TranscriptionNotePayload {
+    pitch: String,
+    onset: f64,
+    offset: f64,
+    velocity: f64,
+}
+
+fn deserialize_practice_progress<'de, D>(deserializer: D) -> Result<Option<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let progress = Option::<u8>::deserialize(deserializer)?;
+    if let Some(value) = progress {
+        if value > 100 {
+            return Err(serde::de::Error::custom(
+                "practiceProgress must be between 0 and 100",
+            ));
+        }
+    }
+    Ok(progress)
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum AccelerandoPlanSourcePayload {
     Model,
@@ -190,14 +214,26 @@ pub struct RehearsalRolePayload {
     name: String,
     role_type: String,
     harmony: HarmonyPayload,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    harmonic_explanation: Option<String>,
     cue: CuePayload,
     range: RangePayload,
     confidence: ConfidencePayload,
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transposition_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transcription: Option<Vec<TranscriptionNotePayload>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_practice_progress",
+        skip_serializing_if = "Option::is_none"
+    )]
+    practice_progress: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     accelerando_plan: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -543,11 +579,15 @@ fn validate_accelerando_plan_provenance(
 ) -> Result<RehearsalSongPayload, String> {
     for section in &payload.sections {
         for role in &section.roles {
-            if role.accelerando_plan.as_ref().is_some_and(|accelerando_plan| {
-                accelerando_plan.trim().is_empty()
-                    || accelerando_plan.contains('\n')
-                    || accelerando_plan.contains('\r')
-            }) {
+            if role
+                .accelerando_plan
+                .as_ref()
+                .is_some_and(|accelerando_plan| {
+                    accelerando_plan.trim().is_empty()
+                        || accelerando_plan.contains('\n')
+                        || accelerando_plan.contains('\r')
+                })
+            {
                 return Err("Invalid project file format".to_string());
             }
             if role.accelerando_plan.is_none() && role.accelerando_plan_source.is_some() {

@@ -337,7 +337,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           </section>
           <FirstAccelerandoCallout
             song={song}
-            workspaceInstanceKey={isLocalWorkspaceUpdate ? workspaceInstanceRef.current : song}
+            workspaceInstanceKey={workspaceInstanceRef.current}
           />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

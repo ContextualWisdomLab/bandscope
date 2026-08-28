@@ -26,6 +26,7 @@ fn song_with_accelerando_plan() -> Value {
                             "functionLabel": "vi landing",
                             "source": "model"
                         },
+                        "harmonicExplanation": "The landing keeps the tonal floor clear.",
                         "cue": {
                             "kind": "transition",
                             "value": "Let the next downbeat arrive sooner."
@@ -42,8 +43,16 @@ fn song_with_accelerando_plan() -> Value {
                         "rehearsalPriority": "high",
                         "simplification": "Lean into the landing syllable.",
                         "setupNote": "Keep the attack short.",
+                        "transpositionPlan": "Keep the landing shape a whole step lower if needed.",
                         "manualOverrides": [],
                         "overlapWarnings": [],
+                        "transcription": [{
+                            "pitch": "C#4",
+                            "onset": 1.0,
+                            "offset": 1.5,
+                            "velocity": 0.8
+                        }],
+                        "practiceProgress": 50,
                         "accelerandoPlan": "Push this part from 80 BPM into 120 BPM; let the next downbeat arrive sooner.",
                         "accelerandoPlanSource": "model"
                     }
@@ -73,7 +82,8 @@ fn project_contract_round_trips_accelerando_plan_provenance() {
 
     let parsed = project_payload_from_content(&content)
         .expect("native project contract must accept shared accelerando-plan fields");
-    let serialized = serde_json::to_value(parsed).expect("native project contract should serialize");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
 
     assert_eq!(
         serialized["sections"][0]["roles"][0]["accelerandoPlan"],
@@ -138,5 +148,17 @@ fn project_contract_rejects_unknown_accelerando_plan_source() {
     assert!(
         project_payload_from_content(&content).is_err(),
         "native persisted contract must reject provenance outside model/user"
+    );
+}
+
+#[test]
+fn project_contract_rejects_practice_progress_above_shared_bound() {
+    let mut payload = song_with_accelerando_plan();
+    payload["sections"][0]["roles"][0]["practiceProgress"] = json!(101);
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(
+        project_payload_from_content(&content).is_err(),
+        "native persisted contract must reject practiceProgress above the shared 0..=100 bound"
     );
 }
