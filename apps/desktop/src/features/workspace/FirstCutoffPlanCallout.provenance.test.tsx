@@ -33,7 +33,7 @@ describe("FirstCutoffPlanCallout cutoff-plan provenance", () => {
     ).toBeNull();
   });
 
-  it("does not infer model authority when persisted cutoff guidance has no source", () => {
+  it("does not render persisted cutoff guidance when it has no source", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
     const section = song.sections[0]!;
@@ -51,7 +51,12 @@ describe("FirstCutoffPlanCallout cutoff-plan provenance", () => {
 
     render(<FirstCutoffPlanCallout song={song} />);
 
-    expect(screen.getByText(legacyPlan)).toBeTruthy();
+    expect(screen.queryByText(legacyPlan)).toBeNull();
+    expect(
+      screen.getByText(
+        "사용 가능한 컷오프 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요."
+      )
+    ).toBeTruthy();
     expect(
       screen.queryByText("Lead Vocal 파트와 이 컷오프를 맞추세요. 마지막 박 뒤로 남기지 마세요.")
     ).toBeNull();

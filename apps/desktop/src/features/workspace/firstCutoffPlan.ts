@@ -25,7 +25,7 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedCutoffPlan = Readonly<{
   cutoffPlan: string;
-  cutoffPlanSource?: ProvenanceSource;
+  cutoffPlanSource: ProvenanceSource;
 }>;
 
 /** Tonight's first cutoff plan: the earliest labeled section and the part that leaves it. */
@@ -159,17 +159,17 @@ function ownedCutoffPlan(role: unknown): OwnedCutoffPlan | null {
   }
 
   const source = ownDataValue(role, "cutoffPlanSource");
-  const cutoffPlanSource: ProvenanceSource | undefined =
-    source === "model" || source === "user" ? source : undefined;
+  if (source !== "model" && source !== "user") {
+    return null;
+  }
+  const cutoffPlanSource: ProvenanceSource = source;
   const boundedPlan =
     cutoffPlanSource === "model"
       ? (boundedGeneratedActivityCutoffPlan(trimmed) ??
         truncateCodePoints(trimmed, MAX_CUTOFF_PLAN_CHARACTERS))
       : truncateCodePoints(trimmed, MAX_CUTOFF_PLAN_CHARACTERS);
 
-  return cutoffPlanSource === undefined
-    ? { cutoffPlan: boundedPlan }
-    : { cutoffPlan: boundedPlan, cutoffPlanSource };
+  return { cutoffPlan: boundedPlan, cutoffPlanSource };
 }
 
 /** Snapshot trusted role identity, display name, and priority without Proxy get authority. */

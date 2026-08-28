@@ -6,7 +6,7 @@ import {
 } from "../src/index";
 
 describe("cutoff plan provenance contract", () => {
-  it("round-trips explicit model and user provenance while preserving legacy absence", () => {
+  it("round-trips explicit model and user provenance and rejects legacy absence", () => {
     for (const source of ["model", "user"] as const) {
       const song = createDemoRehearsalSong();
       song.sections[0]!.roles[0]!.cutoffPlanSource = source;
@@ -16,8 +16,9 @@ describe("cutoff plan provenance contract", () => {
     }
 
     const legacySong = createDemoRehearsalSong();
-    expect(legacySong.sections[0]!.roles[0]!.cutoffPlanSource).toBeUndefined();
-    expect(parseRehearsalSong(legacySong).sections[0]!.roles[0]!.cutoffPlanSource).toBeUndefined();
+    delete legacySong.sections[0]!.roles[0]!.cutoffPlanSource;
+    expect(isRehearsalSong(legacySong)).toBe(false);
+    expect(() => parseRehearsalSong(legacySong)).toThrow("sections[0].roles[0].cutoffPlanSource");
   });
 
   it("fails closed on unknown cutoff plan provenance", () => {

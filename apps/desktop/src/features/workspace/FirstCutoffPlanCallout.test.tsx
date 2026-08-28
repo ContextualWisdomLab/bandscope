@@ -130,9 +130,11 @@ describe("FirstCutoffPlanCallout", () => {
     song.sections[0]!.roles[0]!.cutoffPlan = "";
     song.sections[0]!.roles[0]!.rehearsalPriority = "low";
     song.sections[0]!.roles[2]!.cutoffPlan = "Leave the vocal on the last lyric while the cutoff lands.";
+    song.sections[0]!.roles[2]!.cutoffPlanSource = "user";
     song.sections[0]!.roles[2]!.rehearsalPriority = "low";
     song.sections[0]!.roles[1]!.cutoffPlan =
       "Cut this off with Lead Vocal; don't linger past the last beat.";
+    song.sections[0]!.roles[1]!.cutoffPlanSource = "user";
 
     render(<FirstCutoffPlanCallout song={song} />);
 

@@ -11,7 +11,7 @@ function withCutoffSection(
     start?: number;
     end?: number;
     cutoffPlan?: string;
-    cutoffPlanSource?: "model" | "user";
+      cutoffPlanSource?: "model" | "user";
     label?: "intro" | "verse" | "pre-chorus" | "chorus" | "bridge" | "outro" | "tag" | "pickup" | "stop" | "handoff";
     roleId?: string;
     roleName?: string;
@@ -52,7 +52,7 @@ function withCutoffSection(
         notes: "Singer confirmed the pickup phrasing in rehearsal notes."
       },
       cutoffPlan: overrides.cutoffPlan ?? DEMO_CUTOFF_PLAN,
-      cutoffPlanSource: overrides.cutoffPlanSource,
+      cutoffPlanSource: overrides.cutoffPlanSource ?? "model",
       manualOverrides: []
     }
   ];
@@ -150,7 +150,8 @@ describe("resolveFirstCutoffPlan", () => {
       start: 40,
       end: 56,
       roleId: "keys-right",
-      cutoffPlan: "Late cutoff."
+      cutoffPlan: "Late cutoff.",
+      cutoffPlanSource: "user"
     });
     const earlier = structuredClone(song.sections[0]!);
     earlier.id = "verse-early";
@@ -160,7 +161,8 @@ describe("resolveFirstCutoffPlan", () => {
         id: "lead-vocal",
         name: "Lead Vocal",
         rehearsalPriority: "low",
-        cutoffPlan: "Earlier cutoff."
+        cutoffPlan: "Earlier cutoff.",
+        cutoffPlanSource: "user"
       }
     ];
     earlier.timeRange = { start: 8, end: 24 };
@@ -198,7 +200,8 @@ describe("resolveFirstCutoffPlan", () => {
       roleId: "keys-right",
       roleName: "Keys",
       priority: "low",
-      cutoffPlan: "Low-priority cutoff."
+      cutoffPlan: "Low-priority cutoff.",
+      cutoffPlanSource: "user"
     });
     const section = song.sections[0]!;
     const highRole = {
@@ -206,7 +209,8 @@ describe("resolveFirstCutoffPlan", () => {
       id: "lead-vocal",
       name: "Lead Vocal",
       rehearsalPriority: "high" as const,
-      cutoffPlan: "High-priority cutoff."
+      cutoffPlan: "High-priority cutoff.",
+      cutoffPlanSource: "user" as const
     };
     section.roles = [section.roles[0]!, highRole];
     section.partGraph = [
@@ -225,7 +229,8 @@ describe("resolveFirstCutoffPlan", () => {
       ...section.roles[0]!,
       id: "z-role",
       name: "ASCII role",
-      cutoffPlan: "ASCII cutoff."
+      cutoffPlan: "ASCII cutoff.",
+      cutoffPlanSource: "user"
     };
     section.roles = [section.roles[0]!, asciiRole];
     section.partGraph = [

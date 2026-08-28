@@ -12,7 +12,8 @@ function songWithCutoffPlan() {
       id: "bass-guitar",
       name: "Bass Guitar",
       rehearsalPriority: "high",
-      cutoffPlan: "Cut this off with Lead Vocal on the verse last beat; don't linger past the pickup."
+      cutoffPlan: "Cut this off with Lead Vocal on the verse last beat; don't linger past the pickup.",
+      cutoffPlanSource: "model"
     }
   ];
   section.partGraph = [{ role_id: "bass-guitar", is_active: true, handoff_to: [], handoff_from: [] }];

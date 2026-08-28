@@ -18,7 +18,8 @@ describe("FirstCutoffPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        cutoffPlan: "Cut this off with Lead Vocal on the verse last beat; don't linger past the pickup."
+        cutoffPlan: "Cut this off with Lead Vocal on the verse last beat; don't linger past the pickup.",
+        cutoffPlanSource: "user"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];

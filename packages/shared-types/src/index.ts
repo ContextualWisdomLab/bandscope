@@ -478,6 +478,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           cutoffPlan: "Cut this off with Lead Vocal on the verse last beat; don't linger past the pickup.",
+          cutoffPlanSource: "model",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1562,6 +1563,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     return invalidField(`${path}.cutoffPlan`);
   }
   if (value.cutoffPlanSource !== undefined && !isOneOf(PROVENANCE_SOURCES, value.cutoffPlanSource)) {
+    return invalidField(`${path}.cutoffPlanSource`);
+  }
+  if (value.cutoffPlan !== undefined && value.cutoffPlanSource === undefined) {
     return invalidField(`${path}.cutoffPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {
