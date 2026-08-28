@@ -170,6 +170,7 @@ def test_role_extractor_emits_activity_corroborated_vamp_plan() -> None:
     assert verse_roles["bass-guitar"]["vampPlan"] == (
         "Keep this part going until Lead Vocal enters in the next section."
     )
+    assert verse_roles["bass-guitar"]["vampPlanSource"] == "model"
 
 
 def test_role_extractor_groups_shared_other_stem_entrance_for_vamp_plan() -> None:
@@ -207,6 +208,7 @@ def test_role_extractor_groups_shared_other_stem_entrance_for_vamp_plan() -> Non
     assert verse_roles["bass-guitar"]["vampPlan"] == (
         "Keep this part going until Accompaniment enters in the next section."
     )
+    assert verse_roles["bass-guitar"]["vampPlanSource"] == "model"
 
 
 def test_role_extractor_keeps_mixed_entrances_vamp_plan_ambiguous() -> None:

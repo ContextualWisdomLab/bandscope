@@ -141,6 +141,8 @@ export type RehearsalRole = {
   transpositionPlan?: string;
   /** Rehearsal-facing vamp guidance owned by this role when runtime graph evidence corroborates it. */
   vampPlan?: string;
+  /** Identifies whether vampPlan came from the analysis model or a user. */
+  vampPlanSource?: ProvenanceSource;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -477,6 +479,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           vampPlan: "Hold the two-bar verse groove until the vocal pickup; don't move until you hear city lights.",
+          vampPlanSource: "model",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1501,6 +1504,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "setupNote",
       "transpositionPlan",
       "vampPlan",
+      "vampPlanSource",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1558,6 +1562,12 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.vampPlan !== undefined && typeof value.vampPlan !== "string") {
     return invalidField(`${path}.vampPlan`);
+  }
+  if (value.vampPlanSource !== undefined && !isOneOf(PROVENANCE_SOURCES, value.vampPlanSource)) {
+    return invalidField(`${path}.vampPlanSource`);
+  }
+  if (value.vampPlan !== undefined && value.vampPlanSource === undefined) {
+    return invalidField(`${path}.vampPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);

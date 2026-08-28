@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  type ProvenanceSource,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -22,6 +23,11 @@ type RankedRoleMetadata = Readonly<{
   rehearsalPriority: keyof typeof PRIORITY_RANK;
 }>;
 
+type OwnedVampPlan = Readonly<{
+  vampPlan: string;
+  vampPlanSource: ProvenanceSource;
+}>;
+
 /** Tonight's first vamp plan: the earliest labeled section and the part that owns it. */
 export type FirstVampPlan = {
   section: RehearsalSection;
@@ -32,6 +38,7 @@ export type FirstVampPlan = {
   holdingRoleId: string;
   holdingRoleName: string;
   vampPlan: string;
+  vampPlanSource: ProvenanceSource;
   atSeconds: number;
 };
 
@@ -137,8 +144,8 @@ function boundedGeneratedActivityVampPlan(value: string): string | null {
   return `${GENERATED_ACTIVITY_VAMP_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_VAMP_PLAN_SUFFIX}`;
 }
 
-/** Return a bounded snapshotted own vamp plan, or null when it cannot be shown. */
-function ownedVampPlan(role: unknown): string | null {
+/** Return a bounded snapshotted own vamp plan and explicit source, or null when it cannot be shown. */
+function ownedVampPlan(role: unknown): OwnedVampPlan | null {
   if (!isRuntimeObject(role)) {
     return null;
   }
@@ -150,10 +157,16 @@ function ownedVampPlan(role: unknown): string | null {
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
-  return (
-    boundedGeneratedActivityVampPlan(trimmed) ??
-    truncateCodePoints(trimmed, MAX_VAMP_PLAN_CHARACTERS)
-  );
+  const vampPlanSource = ownDataValue(role, "vampPlanSource");
+  if (vampPlanSource !== "model" && vampPlanSource !== "user") {
+    return null;
+  }
+  return {
+    vampPlan:
+      boundedGeneratedActivityVampPlan(trimmed) ??
+      truncateCodePoints(trimmed, MAX_VAMP_PLAN_CHARACTERS),
+    vampPlanSource
+  };
 }
 
 /** Snapshot trusted role identity, display name, and priority without Proxy get authority. */
@@ -335,7 +348,8 @@ function resolveSafeFirstVampPlan(song: RehearsalSong): FirstVampPlan | null {
           holdingRole: holdingRole.role,
           holdingRoleId: holdingRole.id,
           holdingRoleName: holdingRole.name,
-          vampPlan,
+          vampPlan: vampPlan.vampPlan,
+          vampPlanSource: vampPlan.vampPlanSource,
           atSeconds: timeRange.start
         }
       ];

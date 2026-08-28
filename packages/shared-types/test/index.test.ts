@@ -739,6 +739,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
     expect(song.sections[0]?.roles[0]?.vampPlan).toContain("two-bar verse groove");
+    expect(song.sections[0]?.roles[0]?.vampPlanSource).toBe("model");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({

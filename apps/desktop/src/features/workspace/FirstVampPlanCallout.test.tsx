@@ -111,9 +111,11 @@ describe("FirstVampPlanCallout", () => {
     song.sections[0]!.roles[0]!.vampPlan = "";
     song.sections[0]!.roles[0]!.rehearsalPriority = "low";
     song.sections[0]!.roles[2]!.vampPlan = "Leave the vocal on the last lyric while the vamp holds.";
+    song.sections[0]!.roles[2]!.vampPlanSource = "user";
     song.sections[0]!.roles[2]!.rehearsalPriority = "low";
     song.sections[0]!.roles[1]!.vampPlan =
       "Keep the right-hand figure under the vocal so the vamp still reads.";
+    song.sections[0]!.roles[1]!.vampPlanSource = "user";
 
     render(<FirstVampPlanCallout song={song} />);
 
@@ -125,6 +127,23 @@ describe("FirstVampPlanCallout", () => {
     ).toBeTruthy();
     expect(screen.queryByText("Leave the vocal on the last lyric while the vamp holds.")).toBeNull();
     expect(screen.queryByText(DEMO_VAMP_PLAN)).toBeNull();
+  });
+
+  it("preserves user-authored text that resembles the generated vamp shape", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = songWithVampPlan();
+    song.sections[0]!.roles[0]!.vampPlan =
+      "Keep this part going until Lead Vocal enters in the next section.";
+    song.sections[0]!.roles[0]!.vampPlanSource = "user";
+
+    render(<FirstVampPlanCallout song={song} />);
+
+    expect(
+      screen.getByText("Keep this part going until Lead Vocal enters in the next section.")
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("다음 섹션에서 Lead Vocal 파트가 들어올 때까지 이 파트를 유지하세요.")
+    ).toBeNull();
   });
 
   it("names the first vamp plan as map navigation, scrolls to its rendered section, and arms that action", () => {

@@ -18,7 +18,8 @@ describe("FirstVampPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        vampPlan: "Hold the two-bar verse groove until the vocal pickup; don't move until you hear city lights."
+        vampPlan: "Hold the two-bar verse groove until the vocal pickup; don't move until you hear city lights.",
+        vampPlanSource: "user"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -61,7 +62,8 @@ describe("FirstVampPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        vampPlan: "Keep this part going until Lead Vocal enters in the next section."
+        vampPlan: "Keep this part going until Lead Vocal enters in the next section.",
+        vampPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -87,7 +89,8 @@ describe("FirstVampPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        vampPlan: `Keep this part going until ${targetRole} enters in the next section.`
+        vampPlan: `Keep this part going until ${targetRole} enters in the next section.`,
+        vampPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];

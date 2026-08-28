@@ -82,6 +82,7 @@ class RehearsalRole(TypedDict):
     simplification: str
     setupNote: str
     vampPlan: NotRequired[str]
+    vampPlanSource: NotRequired[Literal["model", "user"]]
     manualOverrides: list[ManualOverride]
     overlapWarnings: list[str]
 

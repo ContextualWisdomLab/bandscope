@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import type { ProvenanceSource, RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
   createTranslator,
@@ -21,6 +21,7 @@ type OpenedVampPlan = Readonly<{
   sectionIndex: number;
   holdingRoleId: string;
   vampPlan: string;
+  vampPlanSource: ProvenanceSource;
   atSeconds: number;
 }>;
 
@@ -55,7 +56,14 @@ function formatVampPlanCopy(template: string, values: VampPlanCopyValues): strin
 }
 
 /** Localize the analysis-engine-owned vamp sentence while preserving custom role-owned guidance verbatim. */
-function localizedVampPlan(vampPlan: string, generatedTemplate: string): string {
+function localizedVampPlan(
+  vampPlan: string,
+  vampPlanSource: ProvenanceSource,
+  generatedTemplate: string
+): string {
+  if (vampPlanSource !== "model") {
+    return vampPlan;
+  }
   const match = GENERATED_ACTIVITY_VAMP_PLAN.exec(vampPlan);
   const targetRole = match?.[1]?.trim() ?? "";
   if (targetRole.length === 0) {
@@ -105,6 +113,7 @@ export function FirstVampPlanCallout({ song }: FirstVampPlanCalloutProps) {
     named?.sectionId,
     named?.holdingRoleId,
     named?.vampPlan,
+    named?.vampPlanSource,
     named?.atSeconds
   ]);
 
@@ -130,6 +139,7 @@ export function FirstVampPlanCallout({ song }: FirstVampPlanCalloutProps) {
     openedVampPlan.sectionIndex === named.sectionIndex &&
     openedVampPlan.holdingRoleId === named.holdingRoleId &&
     openedVampPlan.vampPlan === named.vampPlan &&
+    openedVampPlan.vampPlanSource === named.vampPlanSource &&
     openedVampPlan.atSeconds === named.atSeconds;
   const at = formatVampPlanTime(named.atSeconds);
   const copyValues: VampPlanCopyValues = {
@@ -140,7 +150,11 @@ export function FirstVampPlanCallout({ song }: FirstVampPlanCalloutProps) {
   const actionLabel = formatVampPlanCopy(t("firstVampPlanOpenAction"), copyValues);
   const body = formatVampPlanCopy(t("firstVampPlanBody"), copyValues);
   const armed = formatVampPlanCopy(t("firstVampPlanArmed"), copyValues);
-  const vampPlan = localizedVampPlan(named.vampPlan, t("firstVampPlanGeneratedGuidance"));
+  const vampPlan = localizedVampPlan(
+    named.vampPlan,
+    named.vampPlanSource,
+    t("firstVampPlanGeneratedGuidance")
+  );
 
   return (
     <aside
@@ -175,6 +189,7 @@ export function FirstVampPlanCallout({ song }: FirstVampPlanCalloutProps) {
             sectionIndex: named.sectionIndex,
             holdingRoleId: named.holdingRoleId,
             vampPlan: named.vampPlan,
+            vampPlanSource: named.vampPlanSource,
             atSeconds: named.atSeconds
           });
         }}

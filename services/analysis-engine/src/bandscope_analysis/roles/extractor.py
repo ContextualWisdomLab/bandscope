@@ -414,6 +414,7 @@ class RoleExtractor:
                 if vamp_plan is not None:
                     role = role.copy()
                     role["vampPlan"] = vamp_plan
+                    role["vampPlanSource"] = "model"
                 active_roles.append(role)
 
             part_graph.append(

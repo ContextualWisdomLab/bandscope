@@ -177,6 +177,13 @@ pub struct ManualOverridePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum VampPlanSourcePayload {
+    Model,
+    User,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
     id: String,
@@ -189,6 +196,10 @@ pub struct RehearsalRolePayload {
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    vamp_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    vamp_plan_source: Option<VampPlanSourcePayload>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
 }
@@ -529,7 +540,7 @@ pub fn is_youtube_video_id(value: &str) -> bool {
 
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
-        return Ok(parsed);
+        return validate_vamp_plan_provenance(parsed);
     }
 
     let payload = serde_json::from_str::<Value>(content)
@@ -547,7 +558,30 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         }
     }
 
-    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+    let parsed =
+        serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())?;
+    validate_vamp_plan_provenance(parsed)
+}
+
+fn validate_vamp_plan_provenance(
+    payload: RehearsalSongPayload,
+) -> Result<RehearsalSongPayload, String> {
+    for section in &payload.sections {
+        for role in &section.roles {
+            if role.vamp_plan.as_ref().is_some_and(|vamp_plan| {
+                vamp_plan.trim().is_empty() || vamp_plan.contains('\n') || vamp_plan.contains('\r')
+            }) {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.vamp_plan.is_none() && role.vamp_plan_source.is_some() {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.vamp_plan.is_some() && role.vamp_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
+        }
+    }
+    Ok(payload)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -752,6 +786,8 @@ mod tests {
                             "rehearsalPriority": "high",
                             "simplification": "Stay on roots if the chorus entrance gets muddy.",
                             "setupNote": "Keep the attack short so the verse breathes.",
+                            "vampPlan": "Keep this part going until Lead Vocal enters in the next section.",
+                            "vampPlanSource": "model",
                             "manualOverrides": [],
                             "overlapWarnings": [
                                 "Density warning: competing with Keyboard Left Hand in low register."
@@ -784,6 +820,10 @@ mod tests {
             .expect("shared rehearsal song contract should deserialize in Tauri");
 
         assert_eq!(parsed.sections[0].id, "verse-1");
+        assert_eq!(
+            parsed.sections[0].roles[0].vamp_plan.as_deref(),
+            Some("Keep this part going until Lead Vocal enters in the next section.")
+        );
     }
 
     #[test]
@@ -892,6 +932,29 @@ mod tests {
             project_payload_from_content(r#"{"sections":[{"timeRange":{"start":0,"end":1}}]}"#)
                 .expect_err("timed but incomplete payload should fail closed");
         assert_eq!(error, "Invalid project file format");
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_vamp_plan_without_provenance() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]["roles"][0]
+            .as_object_mut()
+            .expect("role should be an object")
+            .remove("vampPlanSource");
+        let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+        assert!(project_payload_from_content(&content).is_err());
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_invalid_vamp_plan_copy() {
+        for vamp_plan in ["", "   ", "keep here\nthen move", "keep here\rthen move"] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["sections"][0]["roles"][0]["vampPlan"] = json!(vamp_plan);
+            let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+            assert!(project_payload_from_content(&content).is_err());
+        }
     }
 
     #[test]

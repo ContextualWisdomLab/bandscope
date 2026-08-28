@@ -15,6 +15,7 @@ function withVampSection(
     start?: number;
     end?: number;
     vampPlan?: string;
+    vampPlanSource?: "model" | "user";
     label?: SectionFormLabel;
     roleId?: string;
     roleName?: string;
@@ -57,6 +58,7 @@ function withVampSection(
       vampPlan:
         overrides.vampPlan ??
         DEMO_VAMP_PLAN,
+      vampPlanSource: overrides.vampPlanSource ?? "model",
       manualOverrides: []
     }
   ];
@@ -144,13 +146,21 @@ describe("resolveFirstVampPlan", () => {
     ).toBeNull();
   });
 
+  it("skips a vamp plan without explicit provenance", () => {
+    const song = withVampSection();
+    delete song.sections[0]!.roles[0]!.vampPlanSource;
+
+    expect(resolveFirstVampPlan(song)).toBeNull();
+  });
+
   it("prefers the earlier of two vamp plans", () => {
     const song = withVampSection({
       id: "verse-late-vamp",
       start: 40,
       end: 56,
       roleId: "keys-right",
-      vampPlan: "Late vamp."
+      vampPlan: "Late vamp.",
+      vampPlanSource: "user"
     });
     const earlier = structuredClone(song.sections[0]!);
     earlier.id = "verse-early";
@@ -160,7 +170,8 @@ describe("resolveFirstVampPlan", () => {
         id: "lead-vocal",
         name: "Lead Vocal",
         rehearsalPriority: "low",
-        vampPlan: "Earlier vamp."
+        vampPlan: "Earlier vamp.",
+        vampPlanSource: "user"
       }
     ];
     earlier.timeRange = { start: 8, end: 24 };
@@ -188,7 +199,8 @@ describe("resolveFirstVampPlan", () => {
       roleId: "keys-right",
       roleName: "Keys",
       priority: "low",
-      vampPlan: "Low-priority vamp."
+      vampPlan: "Low-priority vamp.",
+      vampPlanSource: "user"
     });
     const section = song.sections[0]!;
     const highRole = {
@@ -196,7 +208,8 @@ describe("resolveFirstVampPlan", () => {
       id: "lead-vocal",
       name: "Lead Vocal",
       rehearsalPriority: "high" as const,
-      vampPlan: "High-priority vamp."
+      vampPlan: "High-priority vamp.",
+      vampPlanSource: "user" as const
     };
     section.roles = [section.roles[0]!, highRole];
     section.partGraph = [
@@ -215,7 +228,8 @@ describe("resolveFirstVampPlan", () => {
       ...section.roles[0]!,
       id: "z-role",
       name: "ASCII role",
-      vampPlan: "ASCII vamp."
+      vampPlan: "ASCII vamp.",
+      vampPlanSource: "user"
     };
     section.roles = [section.roles[0]!, asciiRole];
     section.partGraph = [

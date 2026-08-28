@@ -12,7 +12,8 @@ function songWithVampPlan() {
       id: "bass-guitar",
       name: "Bass Guitar",
       rehearsalPriority: "high",
-      vampPlan: "Hold the two-bar verse groove until the vocal pickup; don't move until you hear city lights."
+      vampPlan: "Hold the two-bar verse groove until the vocal pickup; don't move until you hear city lights.",
+      vampPlanSource: "model"
     }
   ];
   section.partGraph = [{ role_id: "bass-guitar", is_active: true, handoff_to: [], handoff_from: [] }];
