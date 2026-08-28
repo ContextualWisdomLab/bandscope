@@ -65,6 +65,7 @@ describe("firstRangeSqueeze", () => {
       ...role,
       overlapWarnings: index === 0 ? [" none ", ""] : []
     }));
+    song.sections = [song.sections[0]!];
 
     expect(firstRangeSqueeze(song)).toEqual({
       sectionLabel: "verse",
@@ -94,6 +95,7 @@ describe("firstRangeSqueeze", () => {
       const song = createDemoRehearsalSong();
       const selectedRole = song.sections[0]!.roles[0]!;
       selectedRole.range = range;
+      song.sections = [song.sections[0]!];
 
       expect(firstRangeSqueeze(song, selectedRole.id)).toBeNull();
     }

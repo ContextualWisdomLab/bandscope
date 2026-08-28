@@ -141,16 +141,12 @@ def _extract_with_activity(
 ) -> dict[str, dict[str, object]]:
     """Run RoleExtractor against a patched stem-activity map."""
     extractor = RoleExtractor()
-    sections = [
-        {"id": section_id}
-        for section_id in (section_ids or ["verse-1", "chorus-1"])
-    ]
+    sections = [{"id": section_id} for section_id in (section_ids or ["verse-1", "chorus-1"])]
     audio_features = {
         "stems": {"bass": np.ones(200, dtype=np.float32)},
         "sr": 10,
         "boundaries": [
-            (float(index * 10), float((index + 1) * 10))
-            for index in range(len(sections))
+            (float(index * 10), float((index + 1) * 10)) for index in range(len(sections))
         ],
     }
     with (

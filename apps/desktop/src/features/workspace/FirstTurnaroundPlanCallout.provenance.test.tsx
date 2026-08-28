@@ -1,9 +1,46 @@
 import { render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FirstTurnaroundPlanCallout } from "./FirstTurnaroundPlanCallout";
 
 describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
+  function setPianoTurnaround(
+    song: RehearsalSong,
+    turnaroundPlan: string,
+    turnaroundPlanSource?: "model" | "user"
+  ) {
+    const section = song.sections[0]!;
+    const piano = {
+      ...section.roles[2]!,
+      id: "piano",
+      name: "피아노",
+      rehearsalPriority: "high" as const,
+      turnaroundPlan,
+      ...(turnaroundPlanSource ? { turnaroundPlanSource } : {})
+    };
+    const companion = structuredClone(section.roles[0]!);
+    delete companion.turnaroundPlan;
+    delete companion.turnaroundPlanSource;
+    section.roles = [piano, companion];
+    section.partGraph = [
+      { role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] },
+      { role_id: companion.id, is_active: true, handoff_to: [], handoff_from: [] }
+    ];
+
+    const continuation = structuredClone(section);
+    continuation.id = "chorus-1";
+    continuation.label = "chorus";
+    continuation.timeRange = { start: 30, end: 50 };
+    continuation.roles = continuation.roles.map((role) => {
+      const clone = structuredClone(role);
+      delete clone.turnaroundPlan;
+      delete clone.turnaroundPlanSource;
+      return clone;
+    });
+    continuation.partGraph = continuation.partGraph.map((node) => ({ ...node, is_active: true }));
+    song.sections = [section, continuation];
+  }
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -11,19 +48,8 @@ describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
   it("preserves user turnaround guidance that happens to match the engine sentence shape", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
-    const section = song.sections[0]!;
     const customPlan = "Turn these last bars with Lead Vocal; land the downbeat together.";
-    section.roles = [
-      {
-        ...section.roles[2]!,
-        id: "piano",
-        name: "피아노",
-        rehearsalPriority: "high",
-        turnaroundPlan: customPlan,
-        turnaroundPlanSource: "user"
-      }
-    ];
-    section.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
+    setPianoTurnaround(song, customPlan, "user");
 
     render(<FirstTurnaroundPlanCallout song={song} />);
 
@@ -36,18 +62,8 @@ describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
   it("does not infer model authority when persisted turnaround guidance has no source", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
-    const section = song.sections[0]!;
     const legacyPlan = "Turn these last bars with Lead Vocal; land the downbeat together.";
-    section.roles = [
-      {
-        ...section.roles[2]!,
-        id: "piano",
-        name: "피아노",
-        rehearsalPriority: "high",
-        turnaroundPlan: legacyPlan
-      }
-    ];
-    section.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
+    setPianoTurnaround(song, legacyPlan);
 
     render(<FirstTurnaroundPlanCallout song={song} />);
 
@@ -60,19 +76,8 @@ describe("FirstTurnaroundPlanCallout turnaround-plan provenance", () => {
   it("localizes the engine template only when model provenance is explicit", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
-    const section = song.sections[0]!;
     const generatedPlan = "Turn these last bars with Lead Vocal; land the downbeat together.";
-    section.roles = [
-      {
-        ...section.roles[2]!,
-        id: "piano",
-        name: "피아노",
-        rehearsalPriority: "high",
-        turnaroundPlan: generatedPlan,
-        turnaroundPlanSource: "model"
-      }
-    ];
-    section.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
+    setPianoTurnaround(song, generatedPlan, "model");
 
     render(<FirstTurnaroundPlanCallout song={song} />);
 

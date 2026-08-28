@@ -725,7 +725,8 @@ describe("shared type helpers", () => {
               }
             }
           ]
-        }
+        },
+        expect.anything()
       ],
       exportSummary: {
         format: "cue-sheet"
@@ -747,6 +748,12 @@ describe("shared type helpers", () => {
       value: {
         chord: "C#m11"
         }
+    });
+    expect(song.sections).toHaveLength(2);
+    expect(song.sections[1]).toMatchObject({
+      id: "chorus-1",
+      label: "chorus",
+      timeRange: { start: 30, end: 50 }
     });
   });
 

@@ -625,6 +625,30 @@ const demoRehearsalSongSeed: RehearsalSong = {
   }
 };
 
+/** Keep the demo turnaround on a real continuation boundary for the workspace resolver. */
+const demoContinuationSection = structuredClone(demoRehearsalSongSeed.sections[0]);
+demoContinuationSection.id = "chorus-1";
+demoContinuationSection.label = "chorus";
+demoContinuationSection.groove = "Open chorus lift on the shared downbeat";
+demoContinuationSection.timeRange = { start: 30, end: 50 };
+demoContinuationSection.confidence = {
+  level: "medium",
+  source: "model",
+  notes: "The chorus follows the verse turnaround."
+};
+demoContinuationSection.roles = demoContinuationSection.roles.map((role) => {
+  const clone = structuredClone(role);
+  delete clone.turnaroundPlan;
+  delete clone.turnaroundPlanSource;
+  return clone;
+});
+demoContinuationSection.partGraph = demoContinuationSection.partGraph.map((node) => ({
+  ...node,
+  handoff_to: [],
+  handoff_from: []
+}));
+demoRehearsalSongSeed.sections.push(demoContinuationSection);
+
 /** Documented. */
 export function createDefaultProjectSummary(input: {
   id: string;

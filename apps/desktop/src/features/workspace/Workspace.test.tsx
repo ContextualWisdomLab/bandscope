@@ -92,6 +92,7 @@ describe("Workspace", () => {
       id: "low-end",
       name: "Bass Guitar"
     };
+    song.sections = [song.sections[0]!];
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
@@ -161,6 +162,7 @@ describe("Workspace", () => {
       range: { lowestNote: "", highestNote: "none" },
       overlapWarnings: []
     }));
+    song.sections = [song.sections[0]!];
 
     render(<Workspace song={song} />);
 
@@ -188,6 +190,7 @@ describe("Workspace", () => {
       ...role,
       overlapWarnings: []
     }));
+    song.sections = [song.sections[0]!];
 
     render(<Workspace song={song} />);
 
