@@ -340,10 +340,10 @@ def test_derive_beat_times_fails_closed_and_reuses_librosa(
     assert derive_beat_times(np.ones(32, dtype=np.float32), 22050) is None
 
 
-def test_coerce_beat_times_and_pipeline_stamp() -> None:
+def test_coerce_beat_times_and_pipeline_stamp(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pipeline features stamp a rit; malformed beat times fall through to mix derivation."""
     assert _coerce_beat_times(None) is None
-    assert _coerce_beat_times({"beat_times": []}) is None
+    assert _coerce_beat_times({"beat_times": []}) == []
     assert _coerce_beat_times({"beat_times": [0.0, True]}) is None
     assert _coerce_beat_times({"beat_times": [0.0, float("nan")]}) is None
     assert _coerce_beat_times({"beat_times": _beats_80_to_120()})[0] == 0.0
@@ -353,6 +353,15 @@ def test_coerce_beat_times_and_pipeline_stamp() -> None:
     _apply_accelerando(song, mix, 22050, {"beat_times": _beats_80_to_120()})
     vocal = next(role for role in song["sections"][0]["roles"] if role["id"] == "lead-vocal")
     assert vocal["accelerandoPlan"] == _ACCEL_PLAN
+
+    def fail_if_redecoded(*args: Any, **kwargs: Any) -> list[float] | None:
+        raise AssertionError("an empty authoritative beat grid must not be re-decoded")
+
+    with monkeypatch.context() as context:
+        context.setattr("bandscope_analysis.api.derive_beat_times", fail_if_redecoded)
+        empty_grid_song = _song_with_section()
+        _apply_accelerando(empty_grid_song, np.ones(8, dtype=np.float32), 22050, {"beat_times": []})
+    assert all("accelerandoPlan" not in role for role in empty_grid_song["sections"][0]["roles"])
 
     unnamed = _song_with_section()
     _apply_accelerando(unnamed, np.zeros(0, dtype=np.float32), 22050, {"beat_times": "nope"})
