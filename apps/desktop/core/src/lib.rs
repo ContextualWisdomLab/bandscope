@@ -573,6 +573,9 @@ fn validate_drop_plan_provenance(
             if role.drop_plan.is_none() && role.drop_plan_source.is_some() {
                 return Err("Invalid project file format".to_string());
             }
+            if role.drop_plan.is_some() && role.drop_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
         }
     }
     Ok(payload)

@@ -1612,6 +1612,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   if (value.dropPlanSource !== undefined && value.dropPlan === undefined) {
     return invalidField(`${path}.dropPlanSource`);
   }
+  if (value.dropPlan !== undefined && value.dropPlanSource === undefined) {
+    return invalidField(`${path}.dropPlanSource`);
+  }
 
   return null;
 }
