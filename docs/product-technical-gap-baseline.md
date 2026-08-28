@@ -125,7 +125,7 @@ flowchart LR
 | #922 | `0a677db0cc43aaff3934b4692d1882b9b0f57769` | Storybook 10.5.8 업데이트에 필요한 Storybook 10.5.10·oxc-resolver·플랫폼 optional dependency tree를 lockfile에 재생성; clean `npm ci`, `npm ls`, npm runtime/typecheck/lint/build local pass; hosted non-cancelled checks 21 success·0 pending, `strix`/`opencode-review` failure, qualifying current-head approval 없음 |
 | #859 | `62fd665968dff9032e58a2c58141355b65f264d0` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 1 hosted Check success, 27 pending, failure 없음, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `ad72624fa81361594ee05a129b233f2119d8238c` | 이 문서 PR의 직전 current head; #1016 exact-head macOS arm64 재실행 성공 및 dependency lock repair 결과 반영 중; hosted non-cancelled checks 8 success·13 pending, qualifying approval 없음 |
+| #1025 | `22b48f11e5dd7d050f3b29fdb7742f1f96610bf6` | 이 문서 PR의 current head; hosted non-cancelled check-runs 31 success·1 failure(`opencode-review`)·2 neutral·0 pending, `strix` success; OpenCode는 해당 head의 current-head verdict 미발행으로 failure이며 qualifying approval 없음 |
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
