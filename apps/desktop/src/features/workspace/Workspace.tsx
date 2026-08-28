@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, memo, type MouseEvent } from "react";
+import { useState, useMemo, useRef, useEffect, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -129,16 +129,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const localSongUpdateRef = useRef<RehearsalSong | null>(null);
   const workspaceInstanceRef = useRef<unknown>(song);
-  const previousSongRef = useRef(song);
 
-  if (song !== previousSongRef.current) {
-    const isLocalWorkspaceUpdate = song === localSongUpdateRef.current;
-    if (!isLocalWorkspaceUpdate) {
+  useEffect(() => {
+    if (song !== localSongUpdateRef.current) {
       workspaceInstanceRef.current = song;
     }
     localSongUpdateRef.current = null;
-    previousSongRef.current = song;
-  }
+  }, [song]);
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {

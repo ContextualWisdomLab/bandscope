@@ -574,7 +574,7 @@ pub fn is_youtube_video_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
 }
 
-fn validate_fade_plan_provenance(
+pub fn validate_fade_plan_provenance(
     payload: RehearsalSongPayload,
 ) -> Result<RehearsalSongPayload, String> {
     for section in &payload.sections {

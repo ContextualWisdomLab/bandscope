@@ -71,14 +71,17 @@ class RoleExtractor:
 
         # Use real stem activity detection when we have stems and boundaries
         activity_maps: list[dict[str, bool]] | None = None
+        source_activity_maps: list[dict[str, bool]] | None = None
         energy_maps: list[dict[str, float]] | None = None
         if stems and boundaries and len(boundaries) == len(sections):
             try:
                 stem_activity = detect_stem_activity(stems, boundaries, sr)
+                source_activity_maps = stem_activity
                 activity_maps = [map_stems_to_roles(sa) for sa in stem_activity]
             except Exception as e:
                 logger.warning("Stem activity detection failed, using fallback: %s", e)
                 activity_maps = None
+                source_activity_maps = None
             try:
                 stem_energy = detect_stem_energy(stems, boundaries, sr)
                 energy_maps = [map_stems_to_role_energy(se) for se in stem_energy]
@@ -104,6 +107,16 @@ class RoleExtractor:
                     previous_activity,
                     current_energy,
                     previous_energy,
+                    current_source_activity=(
+                        source_activity_maps[i]
+                        if source_activity_maps is not None and i < len(source_activity_maps)
+                        else None
+                    ),
+                    previous_source_activity=(
+                        source_activity_maps[i - 1]
+                        if source_activity_maps is not None and i > 0
+                        else None
+                    ),
                 )
             else:
                 # Fallback to heuristic-based topology
@@ -376,19 +389,36 @@ class RoleExtractor:
         """Return distinct source-separation stems among the given roles."""
         return {cls._source_id(role_id) for role_id in role_ids}
 
+    @staticmethod
+    def _active_source_ids(source_activity: dict[str, bool]) -> set[str]:
+        """Return raw active source names before role mapping can discard a stem."""
+        return {source_id for source_id, is_active in source_activity.items() if is_active}
+
     def _named_fade_ids(
         self,
         role_activity: dict[str, bool],
         previous_role_activity: dict[str, bool],
         role_energy: dict[str, float] | None,
         previous_role_energy: dict[str, float] | None,
+        source_activity: dict[str, bool] | None = None,
+        previous_source_activity: dict[str, bool] | None = None,
     ) -> set[str]:
         """Return named staying roles whose RMS fell by the fade ratio."""
         if role_energy is None or previous_role_energy is None:
             return set()
         previous_active = self._active_role_ids(previous_role_activity)
         current_active = self._active_role_ids(role_activity)
-        if self._source_ids(previous_active) != self._source_ids(current_active):
+        previous_source_ids = (
+            self._active_source_ids(previous_source_activity)
+            if previous_source_activity is not None
+            else self._source_ids(previous_active)
+        )
+        current_source_ids = (
+            self._active_source_ids(source_activity)
+            if source_activity is not None
+            else self._source_ids(current_active)
+        )
+        if previous_source_ids != current_source_ids:
             return set()
         faded: set[str] = set()
         for role_id in _NAMED_FADE_ROLE_IDS & current_active & previous_active:
@@ -411,6 +441,8 @@ class RoleExtractor:
         previous_role_activity: dict[str, bool] | None,
         role_energy: dict[str, float] | None,
         previous_role_energy: dict[str, float] | None,
+        source_activity: dict[str, bool] | None = None,
+        previous_source_activity: dict[str, bool] | None = None,
     ) -> str | None:
         """Return bounded fade guidance only for a corroborated intensity fall.
 
@@ -431,6 +463,8 @@ class RoleExtractor:
             previous_role_activity,
             role_energy,
             previous_role_energy,
+            source_activity,
+            previous_source_activity,
         )
         if role_id not in faded:
             return None
@@ -455,6 +489,8 @@ class RoleExtractor:
         previous_role_activity: dict[str, bool] | None = None,
         role_energy: dict[str, float] | None = None,
         previous_role_energy: dict[str, float] | None = None,
+        current_source_activity: dict[str, bool] | None = None,
+        previous_source_activity: dict[str, bool] | None = None,
     ) -> SectionRoleTopology:
         """Build topology from real stem activity detection."""
         handoffs = compute_handoffs(role_activity, next_role_activity)
@@ -484,6 +520,8 @@ class RoleExtractor:
                     previous_role_activity,
                     role_energy,
                     previous_role_energy,
+                    current_source_activity,
+                    previous_source_activity,
                 )
                 if fade_plan is not None:
                     role = role.copy()

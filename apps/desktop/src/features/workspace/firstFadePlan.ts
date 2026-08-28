@@ -35,7 +35,7 @@ type RankedRoleMetadata = Readonly<{
 
 type OwnedFadePlan = Readonly<{
   text: string;
-  source: FadePlanSource | null;
+  source: FadePlanSource;
   guidance: FadePlanGuidance | null;
 }>;
 
@@ -49,7 +49,7 @@ export type FirstFadePlan = {
   landingRoleId: string;
   landingRoleName: string;
   fadePlan: string;
-  fadePlanSource: FadePlanSource | null;
+  fadePlanSource: FadePlanSource;
   fadePlanGuidance: FadePlanGuidance | null;
   atSeconds: number;
 };

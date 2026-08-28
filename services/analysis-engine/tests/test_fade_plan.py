@@ -269,6 +269,46 @@ def test_activity_fade_keeps_shared_accompaniment_source_across_role_swap() -> N
     assert vocal["fadePlan"] == _SOLO_PLAN
 
 
+def test_activity_fade_stays_unnamed_when_a_drum_source_enters() -> None:
+    """A drum entry changes the raw source set even when rendered roles stay active."""
+    extractor = RoleExtractor()
+    role_activity = _activity(bass=True, keys_right=True, vocal=True)
+    previous_sources = {"bass": True, "other": True, "vocals": True, "drums": False}
+    current_sources = {"bass": True, "other": True, "vocals": True, "drums": True}
+    topology = extractor._build_activity_topology(
+        "chorus-1",
+        _roles(extractor),
+        role_activity,
+        None,
+        role_activity,
+        _energy(bass=0.2, vocal=0.2),
+        _energy(bass=0.5, vocal=0.5),
+        current_source_activity=current_sources,
+        previous_source_activity=previous_sources,
+    )
+    assert all("fadePlan" not in role for role in topology["active_roles"])
+
+
+def test_activity_fade_stays_unnamed_when_a_drum_source_exits() -> None:
+    """A drum exit changes the raw source set even when rendered roles stay active."""
+    extractor = RoleExtractor()
+    role_activity = _activity(bass=True, keys_right=True, vocal=True)
+    previous_sources = {"bass": True, "other": True, "vocals": True, "drums": True}
+    current_sources = {"bass": True, "other": True, "vocals": True, "drums": False}
+    topology = extractor._build_activity_topology(
+        "chorus-1",
+        _roles(extractor),
+        role_activity,
+        None,
+        role_activity,
+        _energy(bass=0.2, vocal=0.2),
+        _energy(bass=0.5, vocal=0.5),
+        current_source_activity=current_sources,
+        previous_source_activity=previous_sources,
+    )
+    assert all("fadePlan" not in role for role in topology["active_roles"])
+
+
 def test_extract_emits_fade_across_real_stem_boundaries() -> None:
     """Live activity maps pass previous-section energy into fade emission."""
     extractor = RoleExtractor()
