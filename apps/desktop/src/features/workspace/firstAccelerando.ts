@@ -13,6 +13,8 @@ const NAMED_ACCELERANDO_ROLE_IDS = new Set(["bass-guitar", "lead-vocal"]);
 const ACCELERANDO_PLAN_PREFIX = "Push this part from ";
 const ACCELERANDO_PLAN_MIDDLE = " BPM into ";
 const ACCELERANDO_PLAN_SUFFIX = " BPM; let the next downbeat arrive sooner.";
+const DOUBLE_TIME_RATIO_MIN = 1.9;
+const DOUBLE_TIME_RATIO_MAX = 2.1;
 
 type AccelerandoPlanSource = "model" | "user";
 
@@ -130,7 +132,7 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Preserve the engine accelerando template while bounding its model-owned tempo tokens. */
+/** Preserve the engine accelerando template while enforcing the engine's speeding semantics. */
 function boundedGeneratedAccelerandoPlan(value: string): OwnedAccelerandoPlan | null {
   if (
     !value.startsWith(ACCELERANDO_PLAN_PREFIX) ||
@@ -147,6 +149,21 @@ function boundedGeneratedAccelerandoPlan(value: string): OwnedAccelerandoPlan | 
   const fromBpm = inner.slice(0, middleIndex);
   const toBpm = inner.slice(middleIndex + ACCELERANDO_PLAN_MIDDLE.length);
   if (!/^\d+(?:\.\d+)?$/u.test(fromBpm) || !/^\d+(?:\.\d+)?$/u.test(toBpm)) {
+    return null;
+  }
+  const fromBpmValue = Number(fromBpm);
+  const toBpmValue = Number(toBpm);
+  if (
+    !Number.isFinite(fromBpmValue) ||
+    !Number.isFinite(toBpmValue) ||
+    fromBpmValue <= 0 ||
+    toBpmValue <= 0 ||
+    toBpmValue <= fromBpmValue
+  ) {
+    return null;
+  }
+  const ratio = toBpmValue / fromBpmValue;
+  if (ratio >= DOUBLE_TIME_RATIO_MIN && ratio <= DOUBLE_TIME_RATIO_MAX) {
     return null;
   }
   return {
