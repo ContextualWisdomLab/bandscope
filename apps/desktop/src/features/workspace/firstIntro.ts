@@ -56,7 +56,10 @@ function isRuntimeObject(value: unknown): value is object {
 function readOwnDataProperty(value: object, key: PropertyKey): unknown {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+    if (!descriptor || !("value" in descriptor)) {
+      return undefined;
+    }
+    return descriptor.value;
   } catch {
     return undefined;
   }
@@ -184,10 +187,14 @@ function rankedActiveRoles(section: RehearsalSection): RankedRoleCandidate[] {
     return [];
   }
 
-  const roleCandidates = roles
-    .map(readRankedRoleCandidate)
-    .filter((candidate): candidate is RankedRoleCandidate => candidate !== null);
-  const repeatedRoleIds = repeatedIds(roleCandidates.map((candidate) => candidate.id));
+  const roleCandidates = roles.map(readRankedRoleCandidate);
+  if (roleCandidates.some((candidate) => candidate === null)) {
+    return [];
+  }
+  const validRoleCandidates = roleCandidates.filter(
+    (candidate): candidate is RankedRoleCandidate => candidate !== null
+  );
+  const repeatedRoleIds = repeatedIds(validRoleCandidates.map((candidate) => candidate.id));
 
   const graphCandidates = partGraph.flatMap((node) => {
     if (!isRuntimeObject(node)) {
@@ -209,7 +216,7 @@ function rankedActiveRoles(section: RehearsalSection): RankedRoleCandidate[] {
       .map((candidate) => candidate.roleId)
   );
 
-  return roleCandidates.filter(
+  return validRoleCandidates.filter(
     (candidate) => !repeatedRoleIds.has(candidate.id) && activeIds.has(candidate.id)
   );
 }

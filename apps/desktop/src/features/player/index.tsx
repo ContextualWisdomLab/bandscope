@@ -17,7 +17,11 @@ type PlayerFeatureProps = {
 function readOwnDataProperty(value: object, key: PropertyKey): unknown {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+    if (!descriptor || !("value" in descriptor)) {
+      return undefined;
+    }
+    Reflect.get(value, key);
+    return descriptor.value;
   } catch {
     return undefined;
   }
@@ -73,7 +77,11 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
   }
 
   const sections = playerSummarySections(song);
-  const songTitle = typeof song.title === "string" ? song.title : "";
+  const rawSongTitle = readOwnDataProperty(song, "title");
+  const songTitle = typeof rawSongTitle === "string" ? rawSongTitle : "";
+  const calloutSong = sections.length === 0
+    ? ({ sections: [] } as unknown as RehearsalSong)
+    : song;
   const sectionCountLabel = t(
     sections.length === 1
       ? "metricConfidenceSectionCountSingular"
@@ -83,7 +91,7 @@ export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureP
   return (
     <section style={{ padding: "24px" }}>
       <h2>{title}</h2>
-      <FirstIntroCallout song={song} actionMode="callback-only" onHearIntro={onPlayFromSeconds} />
+      <FirstIntroCallout song={calloutSong} actionMode="callback-only" onHearIntro={onPlayFromSeconds} />
       <div
         style={{
           padding: "16px",
