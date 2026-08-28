@@ -143,6 +143,8 @@ export type RehearsalRole = {
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
   practiceProgress?: number;
+  ritardandoPlan?: string;
+  ritardandoPlanSource?: ProvenanceSource;
 };
 
 /** Documented. */
@@ -1500,7 +1502,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "manualOverrides",
       "overlapWarnings",
       "transcription",
-      "practiceProgress"
+      "practiceProgress",
+      "ritardandoPlan",
+      "ritardandoPlanSource"
     ],
     path
   );
@@ -1586,6 +1590,25 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     if (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100) {
       return invalidField(`${path}.practiceProgress`);
     }
+  }
+
+  if (
+    value.ritardandoPlan !== undefined &&
+    (typeof value.ritardandoPlan !== "string" ||
+      value.ritardandoPlan.trim().length === 0 ||
+      value.ritardandoPlan.includes("\n") ||
+      value.ritardandoPlan.includes("\r"))
+  ) {
+    return invalidField(`${path}.ritardandoPlan`);
+  }
+  if (
+    value.ritardandoPlanSource !== undefined &&
+    !isOneOf(PROVENANCE_SOURCES, value.ritardandoPlanSource)
+  ) {
+    return invalidField(`${path}.ritardandoPlanSource`);
+  }
+  if (value.ritardandoPlanSource !== undefined && value.ritardandoPlan === undefined) {
+    return invalidField(`${path}.ritardandoPlanSource`);
   }
 
   return null;

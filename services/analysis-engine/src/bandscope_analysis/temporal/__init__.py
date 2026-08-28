@@ -3,6 +3,7 @@
 from .analyzer import TemporalAnalyzer
 from .groove import GrooveResult, detect_groove
 from .model import TemporalFeatures
+from .ritardando import apply_ritardando_plan, first_ritardando, ritardando_plan_copy
 from .stability import TempoChange, TempoStability, analyze_tempo_stability
 
 __all__ = [
@@ -12,5 +13,8 @@ __all__ = [
     "TemporalAnalyzer",
     "TemporalFeatures",
     "analyze_tempo_stability",
+    "apply_ritardando_plan",
     "detect_groove",
+    "first_ritardando",
+    "ritardando_plan_copy",
 ]

@@ -19,6 +19,7 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal.ritardando import apply_ritardando_plan, derive_beat_times
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,8 @@ class RehearsalRolePayload(TypedDict):
     setupNote: str
     manualOverrides: list[ManualOverridePayload]
     overlapWarnings: list[str]
+    ritardandoPlan: NotRequired[str]
+    ritardandoPlanSource: NotRequired[Literal["model", "user"]]
 
 
 class PartGraphNodePayload(TypedDict):
@@ -456,6 +459,7 @@ def _build_from_pipeline(
         },
     }
     _apply_tempo(song, features)
+    _apply_ritardando(song, mix, sr, features)
     return song
 
 
@@ -516,6 +520,37 @@ def _apply_tempo(song: RehearsalSong, audio_features: dict[str, Any] | None) -> 
     bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
     if bpm is not None:
         song["tempo"] = bpm
+
+
+def _coerce_beat_times(audio_features: dict[str, Any] | None) -> list[float] | None:
+    """Return finite non-negative beat times from analysis features, or None."""
+    if not audio_features:
+        return None
+    raw = audio_features.get("beat_times")
+    if not isinstance(raw, list) or not raw:
+        return None
+    times: list[float] = []
+    for item in raw:
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            return None
+        value = float(item)
+        if np.isnan(value) or np.isinf(value) or value < 0:
+            return None
+        times.append(value)
+    return times
+
+
+def _apply_ritardando(
+    song: RehearsalSong,
+    mix: Any,
+    sr: int,
+    audio_features: dict[str, Any] | None,
+) -> None:
+    """Stamp tonight's first ritardando from existing tempo-stability changes."""
+    beat_times = _coerce_beat_times(audio_features)
+    if beat_times is None:
+        beat_times = derive_beat_times(mix, sr)
+    apply_ritardando_plan(song, beat_times)
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
