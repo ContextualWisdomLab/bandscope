@@ -125,7 +125,7 @@ flowchart LR
 | #922 | `0a677db0cc43aaff3934b4692d1882b9b0f57769` | Storybook 10.5.8 업데이트에 필요한 Storybook 10.5.10·oxc-resolver·플랫폼 optional dependency tree를 lockfile에 재생성; clean `npm ci`, `npm ls`, npm runtime/typecheck/lint/build local pass; hosted non-cancelled checks 21 success·0 pending, `strix`/`opencode-review` failure, qualifying current-head approval 없음 |
 | #859 | `62fd665968dff9032e58a2c58141355b65f264d0` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 1 hosted Check success, 27 pending, failure 없음, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `175e2ad0338ebb0e8a5b8f6d36df285203623466` | 이 문서 PR의 current head; 이전 SHA의 Checks는 재사용하지 않음; 새 hosted Checks는 실행 중이며 qualifying approval 없음 |
+| #1025 | `9bbd706aad5d9b9a37e6add3266ee476dffa2cd1` | 이 문서 PR의 current head이며 base는 `749511c3ad4000090048718f685c6bee6b3d2c25`; hosted current check-runs는 hard failure 1건(`opencode-review`), pending 0, `coverage-evidence`/`coverage-source-tree`/`strix`/보안·플랫폼·빌드 gate success; `MERGEABLE/BLOCKED`, qualifying approval 없음 |
 
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
 
