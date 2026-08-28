@@ -388,7 +388,7 @@ class RoleExtractor:
                 (role["name"] for role in roles.values() if role["id"] == other_id),
                 None,
             )
-        elif other_stem_landing and role_id not in _OTHER_STEM_ROLE_IDS:
+        else:
             other_name = _OTHER_STEM_SOURCE_LABEL
 
         if other_name is None:
