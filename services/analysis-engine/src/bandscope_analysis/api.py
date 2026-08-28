@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 2
-FEATURE_CACHE_SCHEMA_VERSION = 1
+FEATURE_CACHE_SCHEMA_VERSION = 2
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
 logger = logging.getLogger(__name__)
@@ -200,6 +200,8 @@ class CachedFeaturePayload(TypedDict):
     separation: dict[str, object]
     stemKeys: list[str]
     stemRoleTypes: dict[str, str]
+    bpm: NotRequired[float]
+    beatTimes: NotRequired[list[float]]
 
 
 class StemSeparationTimedOut(RuntimeError):
@@ -806,7 +808,7 @@ def _load_cached_local_audio_features(
     except (OSError, ValueError):
         return None
 
-    return {
+    loaded: dict[str, Any] = {
         "stems": stems,
         "sr": metadata_payload["sampleRate"],
         "stem_role_types": stem_role_types,
@@ -816,6 +818,12 @@ def _load_cached_local_audio_features(
             "notes": separation.get("notes"),
         },
     }
+    bpm = _coerce_tempo_bpm(metadata_payload.get("bpm"))
+    beat_times = _coerce_beat_times({"beat_times": metadata_payload.get("beatTimes")})
+    if bpm is not None and beat_times is not None:
+        loaded["bpm"] = float(bpm)
+        loaded["beat_times"] = beat_times
+    return loaded
 
 
 def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
@@ -876,6 +884,11 @@ def _store_cached_local_audio_features(
         "stemKeys": stem_keys,
         "stemRoleTypes": stem_role_types,
     }
+    bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
+    beat_times = _coerce_beat_times(audio_features)
+    if bpm is not None and beat_times is not None:
+        metadata_payload["bpm"] = float(bpm)
+        metadata_payload["beatTimes"] = beat_times
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
@@ -924,6 +937,8 @@ def _stem_separation_worker(
                         },
                         "stemKeys": stem_keys,
                         "stemRoleTypes": stem_role_types,
+                        "bpm": separation_result["bpm"],
+                        "beatTimes": separation_result["beat_times"],
                     },
                 )
             )
@@ -1036,6 +1051,8 @@ def _run_stem_separation_with_timeout(
             "separation": payload.get("separation"),
             "stemKeys": payload.get("stemKeys"),
             "stemRoleTypes": payload.get("stemRoleTypes"),
+            "bpm": payload.get("bpm"),
+            "beatTimes": payload.get("beatTimes"),
         }
         arrays_output_path = Path(str(payload.get("arraysPath", "")))
         metadata_temp = arrays_output_path.with_suffix(".json")
@@ -1084,6 +1101,8 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
             "chunk_count": separation_result["chunk_count"],
             "notes": separation_result["separation_notes"],
         },
+        "bpm": separation_result.get("bpm"),
+        "beat_times": separation_result.get("beat_times"),
     }
 
 
@@ -1228,7 +1247,10 @@ def run_analysis_job_updates(
             )
             return updates
 
-    if audio_features is not None:
+    if audio_features is not None and (
+        _coerce_tempo_bpm(audio_features.get("bpm")) is None
+        or _coerce_beat_times(audio_features) is None
+    ):
         temporal_features = _temporal_features_for_request(request)
         if temporal_features:
             audio_features = {**audio_features, **temporal_features}
