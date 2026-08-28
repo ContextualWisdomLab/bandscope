@@ -109,9 +109,11 @@ flowchart LR
 | #1041 | `164995d3a3c056bdbb4fc293226d0c31c062104e` | ScoreView/ScoreViewer tooltip 변경 current head; coverage/build/security Checks 일부 queued/in-progress; qualifying approval 없음 |
 | #910 | `b6bcecb8649796dc13a54c39d70ca05977b0ac4c` | source/coverage/security/build/release terminal success이나 current `opencode-review` failure; current-head qualifying approval 없음 |
 | #943 | `ff5e47d5cff84194e457c05e4bfbe26a30ea69a8` | first-intro player/workspace current head; Proxy metadata fail-closed fix 포함; hosted Checks queued/in-progress; qualifying approval 없음 |
+| #947 | `38ed1c8f4dc5f020db43536596aa401c454db55c` | first-verse workspace/player current head; CHANGELOG heading spacing fix 포함; hosted Checks queued/in-progress; qualifying approval 없음 |
+| #955 | `4058e5094bff94f9ed2df0f635313ff244f225a6` | first-pre-chorus workspace/player current head; CHANGELOG heading spacing fix 포함; hosted Checks queued/in-progress; qualifying approval 없음 |
 | #859 | `5236ac2443e037f898a250b3c1320d4b71d6aaa2` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; hosted Checks queued/in-progress, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `b583f34796c002e075dd129581bf534096626b85` | 이 문서 PR의 current head; docs snapshot 갱신 후 hosted Checks는 queued/in-progress; qualifying approval 없음 |
+| #1025 | `bac16c752d3f6de498b12c4216dbdd2080d43cf3` | 이 문서 PR의 current head; docs snapshot 갱신 후 hosted Checks는 queued/in-progress; qualifying approval 없음 |
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
