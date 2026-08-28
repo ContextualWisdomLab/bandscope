@@ -68,3 +68,31 @@ def test_preflight_maps_probe_failures_to_payload_free_policy_error(_mock_info: 
 
     assert error.value.reason == "malformed_header"
     assert "decoder detail" not in error.value.message
+
+
+@patch("bandscope_analysis.audio_metadata.soundfile.info")
+def test_preflight_maps_rewind_failures_to_payload_free_policy_error(mock_info: object) -> None:
+    """A handle that cannot rewind after probing must not reach a decoder."""
+
+    class SeekFailsAfterProbe(io.BytesIO):
+        """Fail only when the metadata boundary tries to rewind the handle."""
+
+        def __init__(self) -> None:
+            """Initialize the caller-owned byte handle and seek counter."""
+            super().__init__(b"header")
+            self.seek_count = 0
+
+        def seek(self, *args: object, **kwargs: object) -> int:
+            """Reject the second seek, which is the post-probe rewind."""
+            self.seek_count += 1
+            if self.seek_count == 2:
+                raise OSError("rewind failed")
+            return super().seek(*args, **kwargs)
+
+    mock_info.return_value = _info()  # type: ignore[attr-defined]
+
+    with pytest.raises(AudioResourcePolicyError) as error:
+        preflight_audio_metadata(SeekFailsAfterProbe())
+
+    assert error.value.reason == "malformed_header"
+    assert "rewind failed" not in error.value.message

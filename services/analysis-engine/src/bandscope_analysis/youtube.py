@@ -172,18 +172,25 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                     },
                 }
 
-            if os.path.exists(actual_filepath):
-                try:
-                    validate_encoded_file_bytes(os.path.getsize(actual_filepath))
-                except AudioResourcePolicyError as error:
-                    os.remove(actual_filepath)
-                    return {
-                        "ok": False,
-                        "error": {
-                            "code": error.reason,
-                            "message": error.message,
-                        },
-                    }
+            if not os.path.exists(actual_filepath):
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "file_not_found",
+                        "message": "Downloaded file could not be found.",
+                    },
+                }
+            try:
+                validate_encoded_file_bytes(os.path.getsize(actual_filepath))
+            except AudioResourcePolicyError as error:
+                os.remove(actual_filepath)
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": error.reason,
+                        "message": error.message,
+                    },
+                }
             return {
                 "ok": True,
                 "metadata": {

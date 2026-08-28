@@ -399,7 +399,7 @@ class ChordRecognizer:
         Returns:
             List of TrackedChord dicts with start_time, end_time, chord, and confidence.
         """
-        if len(y) == 0:
+        if y.size == 0:
             return []
 
         validate_decoded_audio(y, sr)

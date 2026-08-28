@@ -297,7 +297,7 @@ def test_download_youtube_audio_size_exceeded(
 
     result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
     assert result["ok"] is False
-    assert result["error"]["code"] == "size_exceeded"
+    assert result["error"]["code"] == "encoded_file_too_large"
     assert result["error"]["message"] == (
         "Choose a shorter or smaller song file to start analysis."
     )
@@ -419,3 +419,26 @@ def test_download_youtube_audio_second_info_none(mock_ydl_class: MagicMock) -> N
     assert result["error"]["message"] == (
         "YouTube import failed. Please use a local audio file instead."
     )
+
+
+@patch("bandscope_analysis.youtube.os.path.exists", side_effect=[True, False])
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_download_youtube_audio_rejects_file_disappearing_before_size_check(
+    mock_ydl_class: MagicMock,
+    _mock_exists: MagicMock,
+) -> None:
+    """A downloaded path that vanishes before validation cannot be reported as success."""
+    mock_ydl = MagicMock()
+    mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
+    mock_ydl.prepare_filename.return_value = "/tmp/abc123DEF45.m4a"
+
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", "/tmp")
+
+    assert result == {
+        "ok": False,
+        "error": {
+            "code": "file_not_found",
+            "message": "Downloaded file could not be found.",
+        },
+    }

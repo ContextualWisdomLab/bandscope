@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import BinaryIO
 
-import soundfile
+import soundfile  # type: ignore[import-untyped]  # soundfile has no py.typed marker.
 
 from bandscope_analysis.audio_resource_policy import (
     DEFAULT_AUDIO_RESOURCE_POLICY,
