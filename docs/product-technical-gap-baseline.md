@@ -102,7 +102,7 @@ flowchart LR
 
 | PR | current head | current 상태와 traceability |
 |---|---|---|
-| #1045 | `7d6db4bf9a70bb861bd32e5955e9b3f6de10da09` | source/coverage/security/build/release Checks terminal success; `opencode-review`와 `strix` failure; qualifying independent approval 없음 |
+| #1045 | `6c4edebe44740d753b7a0d287273e01b9faddfb3` | navigation-failure disarm fix 포함; 29 hosted Checks success, Rust check 진행 중, `opencode-review` failure; qualifying independent approval 없음 |
 | #1046 | `008248327f2f3e3636d9d234221810f3db56829f` | current head에서 source local proof 통과; Ruff format failure를 수정한 뒤 hosted Checks는 push 후 queued/in-progress; qualifying independent approval 없음 |
 | #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | source/coverage/security/build/release 및 `opencode-review`/`strix` terminal success; reviews는 COMMENTED뿐이며 qualifying approval 없음 |
 | #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
