@@ -531,7 +531,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SectionRoadmap
             song={song}
             activeRole={activeRole}
-            onSongUpdate={commitSongUpdate}
+            onSongUpdate={onSongUpdate ? commitSongUpdate : undefined}
           />
           </section>
         </CardContent>
