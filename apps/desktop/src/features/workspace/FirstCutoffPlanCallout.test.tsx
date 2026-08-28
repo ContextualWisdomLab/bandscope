@@ -146,6 +146,36 @@ describe("FirstCutoffPlanCallout", () => {
     expect(screen.queryByText(DEMO_CUTOFF_PLAN)).toBeNull();
   });
 
+  it("preserves malformed model guidance instead of localizing an empty target", () => {
+    const song = songWithCutoffPlan();
+    const role = song.sections[0]!.roles[0]!;
+    role.cutoffPlan = "Cut this off with ; don't linger past the last beat.";
+    role.cutoffPlanSource = "model";
+
+    render(<FirstCutoffPlanCallout song={song} />);
+
+    expect(
+      screen.getByText("Cut this off with ; don't linger past the last beat.")
+    ).toBeTruthy();
+  });
+
+  it("arms model-provenance guidance after successful map navigation", () => {
+    const { grid, scrollIntoView } = appendSongStructureTarget();
+    const song = songWithCutoffPlan();
+    const role = song.sections[0]!.roles[0]!;
+    role.cutoffPlan = "Cut this off with Lead Vocal; don't linger past the last beat.";
+    role.cutoffPlanSource = "model";
+
+    render(<FirstCutoffPlanCallout song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar cutoff at 0:30" }));
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(
+      screen.getByText(/Cut that off on Bass Guitar at 0:30 before the room starts./)
+    ).toBeTruthy();
+    grid.remove();
+  });
+
   it("names the first cutoff plan as map navigation, scrolls to its rendered section, and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
 

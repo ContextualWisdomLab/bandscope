@@ -183,6 +183,16 @@ describe("resolveFirstCutoffPlan", () => {
     expect(resolveFirstCutoffPlan(song)?.section.id).toBe("z-cutoff");
   });
 
+  it("preserves the first section when same-time cutoff plans share an id", () => {
+    const first = withCutoffSection({ id: "same-cutoff" });
+    const second = structuredClone(first.sections[0]!);
+    second.roles[0]!.cutoffPlan = "Second cutoff.";
+    first.sections = [first.sections[0]!, second];
+
+    expect(resolveFirstCutoffPlan(first)?.sectionIndex).toBe(0);
+    expect(resolveFirstCutoffPlan(first)?.cutoffPlan).toBe(DEMO_CUTOFF_PLAN);
+  });
+
   it("prefers a high-priority cutoff part over a low-priority part in the same section", () => {
     const song = withCutoffSection({
       roleId: "keys-right",
@@ -265,6 +275,48 @@ describe("resolveFirstCutoffPlan", () => {
     expect(resolveFirstCutoffPlan(song)?.landingRole.id).toBe("lead-vocal");
   });
 
+  it("skips a role whose owned ranking metadata is invalid", () => {
+    const song = withCutoffSection();
+    const section = song.sections[0]!;
+    section.roles = [{ ...section.roles[0]!, name: "" }];
+
+    expect(resolveFirstCutoffPlan(song)).toBeNull();
+  });
+
+  it("skips a role whose owned id is not a non-empty string", () => {
+    const song = withCutoffSection();
+    const section = song.sections[0]!;
+    section.roles = [{ ...section.roles[0]!, id: 42 as never }];
+
+    expect(resolveFirstCutoffPlan(song)).toBeNull();
+  });
+
+  it("skips sections with invalid dense runtime collections", () => {
+    const invalidRoles = withCutoffSection();
+    invalidRoles.sections[0]!.roles = {} as never;
+    expect(resolveFirstCutoffPlan(invalidRoles)).toBeNull();
+
+    const invalidLength = withCutoffSection();
+    invalidLength.sections[0]!.roles = new Proxy(invalidLength.sections[0]!.roles, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === "length") {
+          return {
+            configurable: false,
+            enumerable: false,
+            value: Number.NaN,
+            writable: true
+          };
+        }
+        return Object.getOwnPropertyDescriptor(target, property);
+      }
+    }) as never;
+    expect(resolveFirstCutoffPlan(invalidLength)).toBeNull();
+
+    const invalidGraph = withCutoffSection();
+    invalidGraph.sections[0]!.partGraph = {} as never;
+    expect(resolveFirstCutoffPlan(invalidGraph)).toBeNull();
+  });
+
   it("returns null when the runtime section collection is sparse", () => {
     const song = withCutoffSection();
     const sparseSections: typeof song.sections = new Array(2);
@@ -323,6 +375,22 @@ describe("resolveFirstCutoffPlan", () => {
       cutoffPlan: "Cut this off with ; don't linger past the last beat."
     });
     expect(resolveFirstCutoffPlan(song)?.cutoffPlan).toBe(
+      "Cut this off with ; don't linger past the last beat."
+    );
+  });
+
+  it("falls back to bounded plain text for malformed model guidance", () => {
+    const song = withCutoffSection({
+      cutoffPlan: "Keep the last beat short.",
+      cutoffPlanSource: "model"
+    });
+    expect(resolveFirstCutoffPlan(song)?.cutoffPlan).toBe("Keep the last beat short.");
+
+    const emptyTarget = withCutoffSection({
+      cutoffPlan: "Cut this off with ; don't linger past the last beat.",
+      cutoffPlanSource: "model"
+    });
+    expect(resolveFirstCutoffPlan(emptyTarget)?.cutoffPlan).toBe(
       "Cut this off with ; don't linger past the last beat."
     );
   });
