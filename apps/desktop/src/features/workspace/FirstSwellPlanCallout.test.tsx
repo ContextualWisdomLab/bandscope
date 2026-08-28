@@ -158,4 +158,20 @@ describe("FirstSwellPlanCallout", () => {
     expect(screen.getByText(/Swell Lead Vocal together at 0:30 so the lift is audible./)).toBeTruthy();
     expect(screen.getByText(DEMO_SWELL_PLAN)).toBeTruthy();
   });
+
+  it("clears armed guidance when a later map navigation fails", () => {
+    const { grid } = appendSongStructureTarget();
+    render(<FirstSwellPlanCallout song={songWithSwellPlan()} />);
+    const openButton = screen.getByRole("button", { name: "Open Lead Vocal swell at 0:30" });
+
+    fireEvent.click(openButton);
+    expect(screen.getByText(/Swell Lead Vocal together at 0:30 so the lift is audible./)).toBeTruthy();
+
+    grid.remove();
+    fireEvent.click(openButton);
+
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByText("Lead Vocal swells the chorus at 0:30.")).toBeTruthy();
+    expect(screen.queryByText(/Swell Lead Vocal together at 0:30 so the lift is audible./)).toBeNull();
+  });
 });
