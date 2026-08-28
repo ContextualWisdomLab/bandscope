@@ -14,10 +14,15 @@ from bandscope_analysis.separation.audio_separator import AudioStemSeparator
 def test_separator_rejects_non_finite_decoder_output_before_normalization(
     mock_load: MagicMock,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """NaN/Inf decoder output must fail closed instead of becoming silent zeros."""
     audio_path = tmp_path / "rehearsal.wav"
     audio_path.write_bytes(b"RIFF")
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        lambda _fileobj: None,
+    )
     mock_load.return_value = (np.array([0.0, np.nan], dtype=np.float32), 44_100)
 
     with pytest.raises(AudioResourcePolicyError) as error:
