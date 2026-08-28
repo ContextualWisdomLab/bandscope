@@ -148,6 +148,28 @@ describe("resolveFirstRitardandoPlan", () => {
     ).toBeNull();
   });
 
+  it("rejects model copy that is not a genuine non-half-time slowing", () => {
+    expect(
+      resolveFirstRitardandoPlan(
+        withRitardandoSection({
+          ritardandoPlan:
+            "Ease this part from 80 BPM into 120 BPM; let the next downbeat land later."
+        })
+      )
+    ).toBeNull();
+    expect(
+      resolveFirstRitardandoPlan(
+        withRitardandoSection({
+          ritardandoPlan:
+            "Ease this part from 120 BPM into 60 BPM; let the next downbeat land later."
+        })
+      )
+    ).toBeNull();
+    expect(resolveFirstRitardandoPlan(withRitardandoSection())?.ritardandoPlan).toBe(
+      DEMO_RITARDANDO_PLAN
+    );
+  });
+
   it("admits bounded user copy without requiring the engine template", () => {
     const resolved = resolveFirstRitardandoPlan(
       withRitardandoSection({
