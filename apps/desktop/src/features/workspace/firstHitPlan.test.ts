@@ -15,6 +15,7 @@ function withHitSection(
     roleId?: string;
     roleName?: string;
     priority?: "low" | "medium" | "high";
+    hitPlanSource?: "model" | "user";
     isActive?: boolean;
     functionLabel?: string;
   } = {}
@@ -51,6 +52,7 @@ function withHitSection(
         notes: "Singer confirmed the pickup phrasing in rehearsal notes."
       },
       hitPlan: overrides.hitPlan ?? DEMO_HIT_PLAN,
+      hitPlanSource: overrides.hitPlanSource ?? "model",
       manualOverrides: []
     }
   ];
@@ -140,13 +142,21 @@ describe("resolveFirstHitPlan", () => {
     ).toBeNull();
   });
 
+  it("skips a hit plan without explicit provenance", () => {
+    const song = withHitSection();
+    delete song.sections[0]!.roles[0]!.hitPlanSource;
+
+    expect(resolveFirstHitPlan(song)).toBeNull();
+  });
+
   it("prefers the earlier of two hit plans", () => {
     const song = withHitSection({
       id: "verse-late-hit",
       start: 40,
       end: 56,
       roleId: "keys-right",
-      hitPlan: "Late hit."
+      hitPlan: "Late hit.",
+      hitPlanSource: "user"
     });
     const earlier = structuredClone(song.sections[0]!);
     earlier.id = "verse-early";
@@ -156,7 +166,8 @@ describe("resolveFirstHitPlan", () => {
         id: "lead-vocal",
         name: "Lead Vocal",
         rehearsalPriority: "low",
-        hitPlan: "Earlier hit."
+        hitPlan: "Earlier hit.",
+        hitPlanSource: "user"
       }
     ];
     earlier.timeRange = { start: 8, end: 24 };
@@ -184,7 +195,8 @@ describe("resolveFirstHitPlan", () => {
       roleId: "keys-right",
       roleName: "Keys",
       priority: "low",
-      hitPlan: "Low-priority hit."
+      hitPlan: "Low-priority hit.",
+      hitPlanSource: "user"
     });
     const section = song.sections[0]!;
     const highRole = {
@@ -192,7 +204,8 @@ describe("resolveFirstHitPlan", () => {
       id: "lead-vocal",
       name: "Lead Vocal",
       rehearsalPriority: "high" as const,
-      hitPlan: "High-priority hit."
+      hitPlan: "High-priority hit.",
+      hitPlanSource: "user" as const
     };
     section.roles = [section.roles[0]!, highRole];
     section.partGraph = [
@@ -211,7 +224,8 @@ describe("resolveFirstHitPlan", () => {
       ...section.roles[0]!,
       id: "z-role",
       name: "ASCII role",
-      hitPlan: "ASCII hit."
+      hitPlan: "ASCII hit.",
+      hitPlanSource: "user"
     };
     section.roles = [section.roles[0]!, asciiRole];
     section.partGraph = [

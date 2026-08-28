@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  type ProvenanceSource,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -22,6 +23,11 @@ type RankedRoleMetadata = Readonly<{
   rehearsalPriority: keyof typeof PRIORITY_RANK;
 }>;
 
+type OwnedHitPlan = Readonly<{
+  hitPlan: string;
+  hitPlanSource: ProvenanceSource;
+}>;
+
 /** Tonight's first hit plan: the earliest labeled section and the part that lands it. */
 export type FirstHitPlan = {
   section: RehearsalSection;
@@ -32,6 +38,7 @@ export type FirstHitPlan = {
   landingRoleId: string;
   landingRoleName: string;
   hitPlan: string;
+  hitPlanSource: ProvenanceSource;
   atSeconds: number;
 };
 
@@ -137,8 +144,8 @@ function boundedGeneratedActivityHitPlan(value: string): string | null {
   return `${GENERATED_ACTIVITY_HIT_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_HIT_PLAN_SUFFIX}`;
 }
 
-/** Return a bounded snapshotted own hit plan, or null when it cannot be shown. */
-function ownedHitPlan(role: unknown): string | null {
+/** Return a bounded snapshotted own hit plan and explicit source, or null when it cannot be shown. */
+function ownedHitPlan(role: unknown): OwnedHitPlan | null {
   if (!isRuntimeObject(role)) {
     return null;
   }
@@ -150,10 +157,16 @@ function ownedHitPlan(role: unknown): string | null {
   if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
     return null;
   }
-  return (
-    boundedGeneratedActivityHitPlan(trimmed) ??
-    truncateCodePoints(trimmed, MAX_HIT_PLAN_CHARACTERS)
-  );
+  const hitPlanSource = ownDataValue(role, "hitPlanSource");
+  if (hitPlanSource !== "model" && hitPlanSource !== "user") {
+    return null;
+  }
+  return {
+    hitPlan:
+      boundedGeneratedActivityHitPlan(trimmed) ??
+      truncateCodePoints(trimmed, MAX_HIT_PLAN_CHARACTERS),
+    hitPlanSource
+  };
 }
 
 /** Snapshot trusted role identity, display name, and priority without Proxy get authority. */
@@ -335,7 +348,8 @@ function resolveSafeFirstHitPlan(song: RehearsalSong): FirstHitPlan | null {
           landingRole: landingRole.role,
           landingRoleId: landingRole.id,
           landingRoleName: landingRole.name,
-          hitPlan,
+          hitPlan: hitPlan.hitPlan,
+          hitPlanSource: hitPlan.hitPlanSource,
           atSeconds: timeRange.start
         }
       ];

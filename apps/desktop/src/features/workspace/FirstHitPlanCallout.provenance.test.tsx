@@ -19,7 +19,8 @@ describe("FirstHitPlanCallout hit-plan provenance", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        hitPlan: customPlan
+        hitPlan: customPlan,
+        hitPlanSource: "user"
       }
     ];
     section.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -42,6 +43,7 @@ describe("FirstHitPlanCallout hit-plan provenance", () => {
     const engineLikePlan =
       "Land this hit with Keyboard 1 Right Hand; don't drift past the downbeat.";
     section.roles[1]!.hitPlan = engineLikePlan;
+    section.roles[1]!.hitPlanSource = "model";
 
     render(<FirstHitPlanCallout song={song} />);
 
@@ -60,6 +62,7 @@ describe("FirstHitPlanCallout hit-plan provenance", () => {
     }
     section.roles[1]!.hitPlan =
       "Land this hit with Accompaniment; don't drift past the downbeat.";
+    section.roles[1]!.hitPlanSource = "model";
 
     render(<FirstHitPlanCallout song={song} />);
 

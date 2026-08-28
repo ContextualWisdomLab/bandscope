@@ -434,6 +434,7 @@ class RoleExtractor:
                 if hit_plan is not None:
                     role = role.copy()
                     role["hitPlan"] = hit_plan
+                    role["hitPlanSource"] = "model"
                 active_roles.append(role)
 
             part_graph.append(

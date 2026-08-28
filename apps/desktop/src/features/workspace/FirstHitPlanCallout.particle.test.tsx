@@ -18,7 +18,8 @@ describe("FirstHitPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        hitPlan: "Land this hit with Lead Vocal on the verse downbeat; don't drift past the pickup."
+        hitPlan: "Land this hit with Lead Vocal on the verse downbeat; don't drift past the pickup.",
+        hitPlanSource: "user"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -60,7 +61,8 @@ describe("FirstHitPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        hitPlan: "Land this hit with Lead Vocal; don't drift past the downbeat."
+        hitPlan: "Land this hit with Lead Vocal; don't drift past the downbeat.",
+        hitPlanSource: "model"
       },
       {
         ...seed.roles[2]!,
@@ -94,7 +96,8 @@ describe("FirstHitPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        hitPlan: "Land this hit with the rest of the band; don't drift past the downbeat."
+        hitPlan: "Land this hit with the rest of the band; don't drift past the downbeat.",
+        hitPlanSource: "model"
       }
     ];
     seed.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
@@ -120,7 +123,8 @@ describe("FirstHitPlanCallout Korean role copy", () => {
         id: "piano",
         name: "피아노",
         rehearsalPriority: "high",
-        hitPlan: `Land this hit with ${targetRole}; don't drift past the downbeat.`
+        hitPlan: `Land this hit with ${targetRole}; don't drift past the downbeat.`,
+        hitPlanSource: "model"
       },
       {
         ...seed.roles[2]!,

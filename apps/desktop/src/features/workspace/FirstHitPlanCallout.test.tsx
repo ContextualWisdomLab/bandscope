@@ -130,9 +130,11 @@ describe("FirstHitPlanCallout", () => {
     song.sections[0]!.roles[0]!.hitPlan = "";
     song.sections[0]!.roles[0]!.rehearsalPriority = "low";
     song.sections[0]!.roles[2]!.hitPlan = "Leave the vocal on the last lyric while the hit lands.";
+    song.sections[0]!.roles[2]!.hitPlanSource = "user";
     song.sections[0]!.roles[2]!.rehearsalPriority = "low";
     song.sections[0]!.roles[1]!.hitPlan =
       "Land this hit with Lead Vocal; don't drift past the downbeat.";
+    song.sections[0]!.roles[1]!.hitPlanSource = "user";
 
     render(<FirstHitPlanCallout song={song} />);
 

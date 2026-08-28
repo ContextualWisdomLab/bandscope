@@ -183,6 +183,8 @@ def test_role_extractor_emits_activity_corroborated_hit_plan() -> None:
     assert chorus_roles["lead-vocal"]["hitPlan"] == (
         "Land this hit with Bass Guitar; don't drift past the downbeat."
     )
+    assert chorus_roles["bass-guitar"]["hitPlanSource"] == "model"
+    assert chorus_roles["lead-vocal"]["hitPlanSource"] == "model"
 
 
 def test_role_extractor_groups_shared_other_stem_activation_for_hit_plan() -> None:

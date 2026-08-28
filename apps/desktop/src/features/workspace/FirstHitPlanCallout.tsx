@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import type { RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
+import type { ProvenanceSource, RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
   createTranslator,
@@ -21,6 +21,7 @@ type OpenedHitPlan = Readonly<{
   sectionIndex: number;
   landingRoleId: string;
   hitPlan: string;
+  hitPlanSource: ProvenanceSource;
   atSeconds: number;
 }>;
 
@@ -63,10 +64,14 @@ function formatHitPlanCopy(template: string, values: HitPlanCopyValues): string 
 /** Localize the analysis-engine-owned hit sentence while preserving custom role-owned guidance verbatim. */
 function localizedHitPlan(
   hitPlan: string,
+  hitPlanSource: ProvenanceSource,
   generatedTemplate: string,
   generatedBandTemplate: string,
   knownSectionRoleNames: ReadonlySet<string>
 ): string {
+  if (hitPlanSource !== "model") {
+    return hitPlan;
+  }
   const match = GENERATED_ACTIVITY_HIT_PLAN.exec(hitPlan);
   const targetRole = match?.[1]?.trim() ?? "";
   if (targetRole.length === 0) {
@@ -167,6 +172,7 @@ export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
     named?.sectionId,
     named?.landingRoleId,
     named?.hitPlan,
+    named?.hitPlanSource,
     named?.atSeconds
   ]);
 
@@ -192,6 +198,7 @@ export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
     openedHitPlan.sectionIndex === named.sectionIndex &&
     openedHitPlan.landingRoleId === named.landingRoleId &&
     openedHitPlan.hitPlan === named.hitPlan &&
+    openedHitPlan.hitPlanSource === named.hitPlanSource &&
     openedHitPlan.atSeconds === named.atSeconds;
   const at = formatHitPlanTime(named.atSeconds);
   const copyValues: HitPlanCopyValues = {
@@ -204,6 +211,7 @@ export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
   const armed = formatHitPlanCopy(t("firstHitPlanArmed"), copyValues);
   const hitPlan = localizedHitPlan(
     named.hitPlan,
+    named.hitPlanSource,
     t("firstHitPlanGeneratedGuidance"),
     t("firstHitPlanGeneratedBandGuidance"),
     sectionRoleNames
@@ -242,6 +250,7 @@ export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
             sectionIndex: named.sectionIndex,
             landingRoleId: named.landingRoleId,
             hitPlan: named.hitPlan,
+            hitPlanSource: named.hitPlanSource,
             atSeconds: named.atSeconds
           });
         }}

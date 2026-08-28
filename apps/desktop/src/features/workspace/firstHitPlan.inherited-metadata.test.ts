@@ -12,7 +12,8 @@ function songWithHitPlan() {
       id: "bass-guitar",
       name: "Bass Guitar",
       rehearsalPriority: "high",
-      hitPlan: "Land this hit with Lead Vocal on the verse downbeat; don't drift past the pickup."
+      hitPlan: "Land this hit with Lead Vocal on the verse downbeat; don't drift past the pickup.",
+      hitPlanSource: "model"
     }
   ];
   section.partGraph = [{ role_id: "bass-guitar", is_active: true, handoff_to: [], handoff_from: [] }];

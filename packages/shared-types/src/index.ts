@@ -145,6 +145,8 @@ export type RehearsalRole = {
   practiceProgress?: number;
   /** Optional activity-backed guidance shown for this role in this section; absent when the engine has no hitPlan for it. */
   hitPlan?: string;
+  /** Identifies whether hitPlan came from the analysis model or a user. */
+  hitPlanSource?: ProvenanceSource;
 };
 
 /** Documented. */
@@ -477,6 +479,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           hitPlan: "Land this hit with Lead Vocal on the verse downbeat; don't drift past the pickup.",
+          hitPlanSource: "model",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1501,6 +1504,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "setupNote",
       "transpositionPlan",
       "hitPlan",
+      "hitPlanSource",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1558,6 +1562,12 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.hitPlan !== undefined && typeof value.hitPlan !== "string") {
     return invalidField(`${path}.hitPlan`);
+  }
+  if (value.hitPlanSource !== undefined && !isOneOf(PROVENANCE_SOURCES, value.hitPlanSource)) {
+    return invalidField(`${path}.hitPlanSource`);
+  }
+  if (value.hitPlan !== undefined && value.hitPlanSource === undefined) {
+    return invalidField(`${path}.hitPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);
