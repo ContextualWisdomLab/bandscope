@@ -1612,6 +1612,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   if (value.fadePlanSource !== undefined && value.fadePlan === undefined) {
     return invalidField(`${path}.fadePlanSource`);
   }
+  if (value.fadePlan !== undefined && value.fadePlanSource === undefined) {
+    return invalidField(`${path}.fadePlanSource`);
+  }
 
   return null;
 }

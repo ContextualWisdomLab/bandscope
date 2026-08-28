@@ -553,6 +553,9 @@ fn validate_fade_plan_provenance(
             if role.fade_plan.is_none() && role.fade_plan_source.is_some() {
                 return Err("Invalid project file format".to_string());
             }
+            if role.fade_plan.is_some() && role.fade_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
         }
     }
     Ok(payload)
