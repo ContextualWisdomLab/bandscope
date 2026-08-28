@@ -111,7 +111,7 @@ flowchart LR
 | #943 | `ff5e47d5cff84194e457c05e4bfbe26a30ea69a8` | first-intro player/workspace current head; Proxy metadata fail-closed fix 포함; hosted Checks queued/in-progress; qualifying approval 없음 |
 | #947 | `38ed1c8f4dc5f020db43536596aa401c454db55c` | first-verse workspace/player current head; CHANGELOG heading spacing fix 포함; hosted Checks queued/in-progress; qualifying approval 없음 |
 | #955 | `4058e5094bff94f9ed2df0f635313ff244f225a6` | first-pre-chorus workspace/player current head; CHANGELOG heading spacing fix 포함; hosted Checks queued/in-progress; qualifying approval 없음 |
-| #859 | `5236ac2443e037f898a250b3c1320d4b71d6aaa2` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; hosted Checks queued/in-progress, qualifying approval 없음 |
+| #859 | `9e58b226642c59db1c2260b48d4a84f3eb821a4c` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; hosted Checks queued/in-progress, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
 | #1025 | `bac16c752d3f6de498b12c4216dbdd2080d43cf3` | 이 문서 PR의 current head; docs snapshot 갱신 후 hosted Checks는 queued/in-progress; qualifying approval 없음 |
 
