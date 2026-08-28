@@ -189,36 +189,40 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 
 /** Return the first labeled outro, or null when no safe ending remains. */
 export function resolveFirstOutro(song: RehearsalSong): FirstOutro | null {
-  if (!isRuntimeObject(song) || !hasOwn(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+  try {
+    if (!isRuntimeObject(song) || !hasOwn(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+      return null;
+    }
+
+    const outroSections = song.sections
+      .filter(
+        (section) =>
+          isRuntimeObject(section) &&
+          hasOwn(section, "label") &&
+          section.label === "outro" &&
+          hasOwn(section, "id") &&
+          typeof section.id === "string" &&
+          section.id.trim().length > 0 &&
+          hasBoundedTimeRange(section)
+      )
+      .sort((left, right) => {
+        if (left.timeRange.start !== right.timeRange.start) {
+          return left.timeRange.start - right.timeRange.start;
+        }
+        return compareStableId(left.id, right.id);
+      });
+
+    const section = outroSections[0];
+    if (!section) {
+      return null;
+    }
+
+    return {
+      section,
+      holdingRole: pickHighestPriorityRole(rankedActiveRoles(section)),
+      atSeconds: section.timeRange.start
+    };
+  } catch {
     return null;
   }
-
-  const outroSections = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        hasOwn(section, "label") &&
-        section.label === "outro" &&
-        hasOwn(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
-    )
-    .sort((left, right) => {
-      if (left.timeRange.start !== right.timeRange.start) {
-        return left.timeRange.start - right.timeRange.start;
-      }
-      return compareStableId(left.id, right.id);
-    });
-
-  const section = outroSections[0];
-  if (!section) {
-    return null;
-  }
-
-  return {
-    section,
-    holdingRole: pickHighestPriorityRole(rankedActiveRoles(section)),
-    atSeconds: section.timeRange.start
-  };
 }

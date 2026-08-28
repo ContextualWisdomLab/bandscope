@@ -47,4 +47,18 @@ describe("resolveFirstOutro inherited metadata", () => {
     song.sections = [arraySection];
     expect(resolveFirstOutro(song)).toBeNull();
   });
+
+  it("fails closed when role metadata throws during ranking", () => {
+    const { song, outro } = songWithOutro();
+    Object.defineProperty(outro.roles[0]!, "rehearsalPriority", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("priority getter must stay data");
+      }
+    });
+
+    expect(() => resolveFirstOutro(song)).not.toThrow();
+    expect(resolveFirstOutro(song)).toBeNull();
+  });
 });
