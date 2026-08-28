@@ -86,6 +86,47 @@ fn project_contract_round_trips_drop_plan_provenance() {
 }
 
 #[test]
+fn project_contract_round_trips_optional_shared_role_fields() {
+    let mut payload = song_with_drop_plan();
+    let role = payload["sections"][0]["roles"][0]
+        .as_object_mut()
+        .expect("role fixture should be an object");
+    role.insert(
+        "harmonicExplanation".into(),
+        json!("The leading tone resolves into the chorus tonic."),
+    );
+    role.insert(
+        "transpositionPlan".into(),
+        json!("Move the line down a whole step if the vocal sits high."),
+    );
+    role.insert(
+        "transcription".into(),
+        json!([{
+            "pitch": "C#4",
+            "onset": 30.0,
+            "offset": 30.5,
+            "velocity": 96.0
+        }]),
+    );
+    role.insert("practiceProgress".into(), json!(75));
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    let parsed = project_payload_from_content(&content)
+        .expect("native project contract must accept optional shared role fields");
+    let serialized = serde_json::to_value(parsed).expect("native project contract should serialize");
+    let serialized_role = &serialized["sections"][0]["roles"][0];
+
+    for field in [
+        "harmonicExplanation",
+        "transpositionPlan",
+        "transcription",
+        "practiceProgress",
+    ] {
+        assert_eq!(serialized_role[field], payload["sections"][0]["roles"][0][field]);
+    }
+}
+
+#[test]
 fn project_contract_rejects_drop_plan_source_without_drop_plan() {
     let mut payload = song_with_drop_plan();
     payload["sections"][0]["roles"][0]
