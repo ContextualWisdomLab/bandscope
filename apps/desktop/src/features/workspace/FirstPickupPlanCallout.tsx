@@ -21,6 +21,7 @@ type PickupPlanCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 type PickupPlanSource = "model" | "user";
 
 const MAX_LOCALIZED_PICKUP_TARGET_CHARACTERS = 129;
+const SHARED_ACCOMPANIMENT_PICKUP_TARGET = "Keys / guitar";
 
 type OpenedPickupPlan = Readonly<{
   songIdentity: unknown;
@@ -81,16 +82,21 @@ function localizedPickupPlan(
   pickupPlanSource: PickupPlanSource | null,
   guidance: PickupPlanGuidance | null,
   generatedTemplate: string,
+  generatedAccompanimentTemplate: string,
   generatedBandTemplate: string
 ): string {
   if (pickupPlanSource !== "model" || guidance === null) {
     return pickupPlan;
   }
-  return guidance.kind === "band"
-    ? generatedBandTemplate
-    : generatedTemplate.replace("{target}", () =>
-        boundedPickupTargetRoleName(guidance.targetRoleName)
-      );
+  if (guidance.kind === "band") {
+    return generatedBandTemplate;
+  }
+  if (guidance.targetRoleName === SHARED_ACCOMPANIMENT_PICKUP_TARGET) {
+    return generatedAccompanimentTemplate;
+  }
+  return generatedTemplate.replace("{target}", () =>
+    boundedPickupTargetRoleName(guidance.targetRoleName)
+  );
 }
 
 /** Use immediate scrolling when the operating system requests reduced motion. */
@@ -187,6 +193,7 @@ export function FirstPickupPlanCallout({ song }: FirstPickupPlanCalloutProps) {
     named.pickupPlanSource,
     named.pickupPlanGuidance,
     t("firstPickupPlanGeneratedGuidance"),
+    t("firstPickupPlanGeneratedAccompanimentGuidance"),
     t("firstPickupPlanGeneratedBandGuidance")
   );
 

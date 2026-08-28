@@ -154,6 +154,7 @@
   "firstPickupPlanBody": "{at} {section}에서 {role} 파트의 픽업 계획이 있습니다.",
   "firstPickupPlanArmed": "{at}에서 {role} 파트의 픽업을 넣은 다음 합주를 시작하세요.",
   "firstPickupPlanGeneratedGuidance": "{target} 파트와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.",
+  "firstPickupPlanGeneratedAccompanimentGuidance": "키/기타 반주와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.",
   "firstPickupPlanGeneratedBandGuidance": "나머지 밴드와 이 픽업을 맞추세요. 첫 박에 함께 들어가세요.",
   "firstPickupPlanUnavailable": "사용 가능한 픽업 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요.",
   "firstPickupPlanNavigationFailed": "곡 맵에서 이 픽업을 열 수 없습니다. 아래 맵에서 해당 구간을 찾아주세요.",
