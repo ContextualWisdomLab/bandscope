@@ -61,7 +61,7 @@ function preferredSetupNoteScrollBehavior(): ScrollBehavior {
 
 /** Resolve the song-structure renderer owned by this workspace, failing closed on ambiguous mounts. */
 function resolveSetupNoteRenderer(origin: HTMLElement): HTMLElement | null {
-  const selector = '[data-testid="song-structure-grid"]';
+  const selector = "#workspace-song-structure-grid";
   const localScope = origin.closest("aside")?.parentElement ?? null;
   const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
   if (localRenderers.length === 1) {
