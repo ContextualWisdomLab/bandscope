@@ -193,6 +193,13 @@ describe("resolveFirstAccelerandoPlan", () => {
     expect(resolveFirstAccelerandoPlan(null as never)).toBeNull();
   });
 
+  it("rejects a sparse hostile section array without scanning its declared length", () => {
+    const song = createDemoRehearsalSong();
+    song.sections = new Array(0xffffffff) as typeof song.sections;
+
+    expect(resolveFirstAccelerandoPlan(song)).toBeNull();
+  });
+
   it("fails closed on inherited or accessor-backed plan copy", () => {
     const song = withAccelerandoSection();
     const vocal = song.sections[0]!.roles.find((role) => role.id === "lead-vocal")!;

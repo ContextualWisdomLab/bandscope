@@ -357,6 +357,42 @@ def test_cli_main_temporal_analyzer_mock(monkeypatch: pytest.MonkeyPatch) -> Non
     assert res["jobId"] == "job-audio"
 
 
+def test_cli_main_rejects_malformed_local_source_before_temporal_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure malformed local input cannot reach the file-reading analyzer."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-malformed-audio",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "p1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": "not-a-record",
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+
+    class ExplodingAnalyzer:
+        def analyze(self, path):
+            raise AssertionError("malformed local input reached temporal analysis")
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", ExplodingAnalyzer)
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+
+    assert cli.main() == 0
+    response = json.loads(stdout.getvalue())
+    assert response["jobId"] == "job-malformed-audio"
+    assert response["state"] == "failed"
+    assert "localSource" in response["error"]["message"]
+
+
 def test_cli_main_temporal_analyzer_mock_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

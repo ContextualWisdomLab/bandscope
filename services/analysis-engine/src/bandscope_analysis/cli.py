@@ -8,7 +8,12 @@ import sys
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
+from bandscope_analysis.api import (
+    get_analysis_status,
+    run_analysis_job,
+    run_analysis_job_updates,
+    validate_analysis_job_request,
+)
 from bandscope_analysis.temporal import TemporalAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -75,28 +80,34 @@ def main() -> int:
         return 0
 
     request = payload.get("request")
+    validated_request = None
+    try:
+        validated_request = validate_analysis_job_request(request)
+    except ValueError:
+        pass
+    if validated_request is not None:
+        request = validated_request
 
     temporal_features: dict[str, Any] | None = None
     if (
-        isinstance(request, dict)
-        and request.get("sourceKind") == "local_audio"
-        and "localSource" in request
+        validated_request is not None
+        and validated_request["sourceKind"] == "local_audio"
+        and "localSource" in validated_request
     ):
-        local_source = request["localSource"]
-        audio_path = local_source.get("sourcePath")
-        file_name = local_source.get("fileName", "selected audio")
-        if audio_path:
-            logging.info("Extracting temporal features from %s...", file_name)
-            try:
-                temporal_analyzer = TemporalAnalyzer()
-                features = temporal_analyzer.analyze(audio_path)
-                temporal_features = cast(dict[str, Any], features)
-                logging.info(f"Extracted BPM: {features['bpm']}")
-            except Exception:
-                logging.warning(
-                    "Temporal analysis failed for %s; continuing with safe fallback.",
-                    file_name,
-                )
+        local_source = validated_request["localSource"]
+        audio_path = local_source["sourcePath"]
+        file_name = local_source["fileName"]
+        logging.info("Extracting temporal features from %s...", file_name)
+        try:
+            temporal_analyzer = TemporalAnalyzer()
+            features = temporal_analyzer.analyze(audio_path)
+            temporal_features = cast(dict[str, Any], features)
+            logging.info(f"Extracted BPM: {features['bpm']}")
+        except Exception:
+            logging.warning(
+                "Temporal analysis failed for %s; continuing with safe fallback.",
+                file_name,
+            )
 
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     if progress_jsonl:
