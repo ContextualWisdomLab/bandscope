@@ -34,8 +34,8 @@ def _segment_rms(
     """Return RMS for one bounded stem slice, or None when the slice is unusable."""
     if not isinstance(audio, np.ndarray) or audio.size == 0:
         return None
-    seg_start = min(start_sample, audio.size)
-    seg_end = min(end_sample, audio.size)
+    seg_start = max(0, min(start_sample, audio.size))
+    seg_end = max(0, min(end_sample, audio.size))
     if seg_end <= seg_start:
         return None
     segment = audio[seg_start:seg_end].astype(np.float64)
