@@ -1,7 +1,7 @@
 # BandScope Product-Technical Gap Baseline
 
 Last updated: 2026-08-28
-Base revision: `develop@acdbea63` (fix(security): projectId path guard, npm HIGH CVEs, Foote novelty sign)
+Base revision: `develop@749511c3ad4000090048718f685c6bee6b3d2c25` (feat(workspace): name tonight's first playable range on the map, #957)
 
 ## 1. 목적과 범위 (Purpose & Scope)
 
@@ -94,7 +94,30 @@ flowchart LR
 
 ## 4. 현재 열린 PR 기반 Gap 분석 (Open-PR Gap Analysis)
 
-현재 open PR은 130건이다(`/tmp/opencode/open_prs_full.txt`, 2026-08-25 기준). 대부분은 동일 패턴의 시리즈다.
+현재 open PR은 130건이다(2026-08-28 REST inventory 기준). 대부분은 동일 패턴의 시리즈다.
+
+### 4.1 2026-08-28 exact-head 운영 snapshot
+
+아래 표는 protected base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`에 대해 GitHub REST API로 다시 읽은 current head와 그 head의 Checks/review 상태다. 이전 SHA의 Checks는 현재 증적으로 재사용하지 않았다.
+
+| PR | current head | current 상태와 traceability |
+|---|---|---|
+| #1045 | `7d6db4bf9a70bb861bd32e5955e9b3f6de10da09` | source/coverage/security/build/release Checks terminal success; `opencode-review`와 `strix` failure; qualifying independent approval 없음 |
+| #1046 | `4d06285a780d4a17b78f0826e79ba3f64595cfc0` | current head에서 source local proof 통과; hosted Checks는 push 후 queued/in-progress; qualifying independent approval 없음 |
+| #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | source/coverage/security/build/release 및 `opencode-review`/`strix` terminal success; reviews는 COMMENTED뿐이며 qualifying approval 없음 |
+| #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
+| #1041 | `164995d3a3c056bdbb4fc293226d0c31c062104e` | ScoreView/ScoreViewer tooltip 변경 current head; coverage/build/security Checks 일부 queued/in-progress; qualifying approval 없음 |
+| #910 | `b6bcecb8649796dc13a54c39d70ca05977b0ac4c` | source/coverage/security/build/release terminal success이나 current `opencode-review` failure; current-head qualifying approval 없음 |
+| #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
+| #1025 | `fd30db91467aefb263b72c40f12656d1e93a09b6` | 이 문서 PR의 current head; docs/source/security/build Checks는 terminal success이나 `opencode-review` failure; qualifying approval 없음 |
+
+이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
+
+#### Security Notes
+
+- 이 변경은 runtime code, 파일/URL intake, subprocess, IPC, 모델, 로그, export 동작을 변경하지 않고 현재 상태와 traceability만 갱신한다.
+- 근거는 각 PR의 API current head SHA와 동일 SHA의 check-runs/reviews이며, stale/cancelled predecessor run은 성공 증적에서 제외한다.
+- 명령 출력과 문서에는 secret 값이나 raw audio/사용자 경로를 기록하지 않는다.
 
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
@@ -143,7 +166,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 ## 6. UML 보완점
 
-Protected base `develop@acdbea6344fe1231c39535b575f4de35e4c607c9`의 `docs/`와 `ARCHITECTURE.md`에는 Mermaid `sequenceDiagram`/`classDiagram`/`flowchart`가 없다. 이 PR이 아래 다이어그램을 처음 추가하므로 현재 PR checkout 자체를 검색하면 이 파일이 매치되는 것이 정상이다.
+Protected base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`의 `docs/`와 `ARCHITECTURE.md`에는 Mermaid `sequenceDiagram`/`classDiagram`/`flowchart`가 없다. 이 PR이 아래 다이어그램을 처음 추가하므로 현재 PR checkout 자체를 검색하면 이 파일이 매치되는 것이 정상이다.
 
 ### 6.1 import -> analyze -> workspace render happy path
 
@@ -305,9 +328,8 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
 - Open PR inventory:
   ```bash
   mkdir -p /tmp/opencode
-  gh pr list --state open --limit 200 --json number,title,isDraft,headRefName \
-    --jq 'sort_by(-.number) | .[] | "\(.number)\t\(.isDraft)\t\(.title)"' > /tmp/opencode/open_prs_full.txt
-  wc -l /tmp/opencode/open_prs_full.txt   # 130
+  gh api --paginate 'repos/ContextualWisdomLab/bandscope/pulls?state=open&per_page=100' \
+    --jq '.[].number' | wc -l   # 130
   gh pr view 1021 --json title,body       # 시리즈 패턴 샘플
   ```
 - Open issues: `gh issue list --state open --limit 50 --json number,title --jq '.[]|"\(.number)\t\(.title)"'`
@@ -325,4 +347,4 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   - `ls CHANGELOG.md VERSION .github/workflows` -> 릴리스 자산 확인
   - `grep -n thresholds apps/desktop/vite.config.ts packages/shared-types/vitest.config.ts` -> JS 90% 확인
   - `grep -rn "cov-fail-under" AGENTS.md docs` -> Python 100% gate 확인
-  - Protected-base Mermaid 존재 여부: `git grep -n -E 'sequenceDiagram|classDiagram|flowchart' acdbea6344fe1231c39535b575f4de35e4c607c9 -- docs ARCHITECTURE.md || true` -> 0건(6장 전제 확인)
+  - Protected-base Mermaid 존재 여부: `git grep -n -E 'sequenceDiagram|classDiagram|flowchart' 749511c3ad4000090048718f685c6bee6b3d2c25 -- docs ARCHITECTURE.md || true` -> 0건(6장 전제 확인)
