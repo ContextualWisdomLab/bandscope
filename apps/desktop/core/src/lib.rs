@@ -553,6 +553,9 @@ fn validate_swell_plan_provenance(
             if role.swell_plan.is_none() && role.swell_plan_source.is_some() {
                 return Err("Invalid project file format".to_string());
             }
+            if role.swell_plan.is_some() && role.swell_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
         }
     }
     Ok(payload)
