@@ -116,9 +116,10 @@ flowchart LR
 | #1002 | `607994004c43a084c28d2d137ec5543be903eec6` | confirmed-harmony 한국어 action contract를 feature UI 계약에 맞춰 정렬하고 case-collision을 기준 blob으로 복원; desktop 23 files/263 tests와 100% coverage, typecheck/lint/build local pass; push 후 27 hosted check-runs 중 failure 0, pending 21, `REVIEW_REQUIRED/BLOCKED`, qualifying approval 없음 |
 | #980 | `bc922359725d5b7d8eba515fb1ad4756f5bf8ec9` | local picker가 source selection을 소유하는 동안 YouTube clear action도 숨겨 동시성 계약을 완성; targeted 2 tests, typecheck/lint/build local pass; 전체 desktop 223 tests 중 219 pass 및 기존/자원경합성 4 timeout, coverage 재실행은 실패하여 100%로 주장하지 않음; hosted current check-runs 20 success, 0 pending, `strix`/`opencode-review` failure, qualifying approval 없음 |
 | #982 | `821ae34a75a4d60c39dd919b4502e8a694b76ad4` | YouTube 실패 사유가 field description과 recovery alert에 중복 표시되는 계약에 맞춰 9개 stale 단일 조회 assertion을 multiplicity-safe로 정렬; App.test 65 pass와 affected visibility 10 pass, typecheck/lint/build local pass; 전체 desktop 234 tests 중 231 pass 및 기존/자원경합성 3 timeout, coverage 재실행은 100%로 주장하지 않음; hosted current check-runs 14 success, 8 pending, `opencode-review` failure, qualifying approval 없음 |
+| #1006 | `c4d50327917e2f20ee96d6b2b0ad883e4078571a` | first-range next-action의 runtime section label을 shared `SectionFormLabel` set으로 fail-closed 검증해 번역 helper typecheck를 복구; 관련 15 tests, typecheck/lint local pass; hosted current check-runs failure 0, pending 21, qualifying approval 없음 |
 | #859 | `62fd665968dff9032e58a2c58141355b65f264d0` | security-baseline 회귀를 제거하고 GrooveMap 최적화·회귀 테스트만 남긴 current head; 1 hosted Check success, 27 pending, failure 없음, qualifying approval 없음 |
 | #866 | `c2cc5bbeda6628fa9999401d6b0d228cb9b6bb9c` | stale base `acdbea63`, Draft + CONFLICTING; `opencode-review` failure; canonical audio policy owner이며 merge 대상 아님 |
-| #1025 | `dfa47d16fd1987da339e56a83b905e33020bedf4` | 이 문서 PR의 직전 current head; #982 exact-head snapshot 이후 #1047 exact-head snapshot 추가 중; qualifying approval 없음 |
+| #1025 | `e4ecdbdbb67399ac1738dc5be5749a5c2ebff74f` | 이 문서 PR의 직전 current head; #1047 exact-head snapshot 이후 #1006 exact-head snapshot 추가 중; qualifying approval 없음 |
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
 
