@@ -43,6 +43,7 @@ describe("Workspace fade state authority", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     if (originalScrollIntoView) {
       Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
     } else {
@@ -63,6 +64,28 @@ describe("Workspace fade state authority", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
     fireEvent.click(screen.getByRole("button", { name: "Increase progress" }));
+    expect(updatedSong).not.toBeNull();
+
+    rerender(<Workspace song={updatedSong!} onSongUpdate={onSongUpdate} />);
+
+    expect(screen.getByText(/Fade Lead Vocal together at 0:30 so the quieter landing is audible\./)).toBeTruthy();
+  });
+
+  it("keeps an opened fade armed after an immutable chord edit", () => {
+    const song = analyzedSongWithFadePlan();
+    let updatedSong: RehearsalSong | null = null;
+    const onSongUpdate = vi.fn((nextSong: RehearsalSong) => {
+      updatedSong = nextSong;
+    });
+    vi.spyOn(window, "prompt").mockReturnValue("Dm7");
+    const { rerender } = render(<Workspace song={song} onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal fade at 0:30" }));
+    expect(screen.getByText(/Fade Lead Vocal together at 0:30 so the quieter landing is audible\./)).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Edit chord for Lead Vocal in chorus, current/ })
+    );
     expect(updatedSong).not.toBeNull();
 
     rerender(<Workspace song={updatedSong!} onSongUpdate={onSongUpdate} />);
