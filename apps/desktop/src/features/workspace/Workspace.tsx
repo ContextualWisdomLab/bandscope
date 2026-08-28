@@ -131,6 +131,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const workspaceInstanceRef = useRef<unknown>(song);
   const previousSongRef = useRef(song);
   const isLocalWorkspaceUpdate = song === localSongUpdateRef.current;
+  const isExternalWorkspaceUpdate = song !== previousSongRef.current && !isLocalWorkspaceUpdate;
+  const workspaceInstanceKey = isExternalWorkspaceUpdate ? song : workspaceInstanceRef.current;
 
   useEffect(() => {
     if (song !== previousSongRef.current) {
@@ -337,7 +339,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           </section>
           <FirstAccelerandoCallout
             song={song}
-            workspaceInstanceKey={workspaceInstanceRef.current}
+            workspaceInstanceKey={workspaceInstanceKey}
           />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

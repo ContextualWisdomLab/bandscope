@@ -66,4 +66,19 @@ describe("Workspace accelerando state authority", () => {
       screen.getByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible\./)
     ).toBeTruthy();
   });
+
+  it("resets armed guidance when a new song arrives", () => {
+    const song = analyzedSongWithAccelerandoPlan();
+    const nextSong = structuredClone(song);
+    const { rerender } = render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal accel at 0:10" }));
+    expect(
+      screen.getByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible\./)
+    ).toBeTruthy();
+
+    rerender(<Workspace song={nextSong} />);
+
+    expect(screen.getByText("Lead Vocal lifts the verse at 0:10.")).toBeTruthy();
+  });
 });
