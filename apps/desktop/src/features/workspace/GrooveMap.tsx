@@ -19,7 +19,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
   const maxTime = useMemo(() => {
     let max = 10;
     for (const n of renderedNotes) {
-      max = Math.max(max, n.offset);
+      if (n.offset > max) max = n.offset;
     }
     return max;
   }, [renderedNotes]);
