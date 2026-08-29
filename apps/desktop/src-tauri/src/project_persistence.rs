@@ -84,18 +84,60 @@ fn same_file_identity(left: &fs::Metadata, right: &fs::Metadata) -> bool {
 }
 
 #[cfg(windows)]
-fn same_file_identity(left: &fs::Metadata, right: &fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-
-    left.file_attributes() == right.file_attributes()
-        && left.creation_time() == right.creation_time()
-        && left.last_write_time() == right.last_write_time()
-        && left.file_size() == right.file_size()
+#[repr(C)]
+struct WindowsFileTime {
+    low_date_time: u32,
+    high_date_time: u32,
 }
 
-#[cfg(not(any(unix, windows)))]
-fn same_file_identity(_left: &fs::Metadata, _right: &fs::Metadata) -> bool {
-    false
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsByHandleFileInformation {
+    file_attributes: u32,
+    creation_time: WindowsFileTime,
+    last_access_time: WindowsFileTime,
+    last_write_time: WindowsFileTime,
+    volume_serial_number: u32,
+    file_size_high: u32,
+    file_size_low: u32,
+    number_of_links: u32,
+    file_index_high: u32,
+    file_index_low: u32,
+}
+
+#[cfg(windows)]
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct WindowsFileIdentity {
+    volume_serial_number: u32,
+    file_index: u64,
+}
+
+#[cfg(windows)]
+pub(crate) fn windows_file_identity(file: &File) -> std::io::Result<WindowsFileIdentity> {
+    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle};
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        #[link_name = "GetFileInformationByHandle"]
+        fn get_file_information_by_handle(
+            file: std::os::windows::io::RawHandle,
+            information: *mut WindowsByHandleFileInformation,
+        ) -> i32;
+    }
+
+    let mut information = MaybeUninit::<WindowsByHandleFileInformation>::uninit();
+    let result = unsafe {
+        get_file_information_by_handle(file.as_raw_handle(), information.as_mut_ptr())
+    };
+    if result == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    let information = unsafe { information.assume_init() };
+    Ok(WindowsFileIdentity {
+        volume_serial_number: information.volume_serial_number,
+        file_index: ((information.file_index_high as u64) << 32)
+            | information.file_index_low as u64,
+    })
 }
 
 #[cfg(windows)]
@@ -131,18 +173,55 @@ where
         return Err(PROJECT_READ_ERROR.to_string());
     }
 
+    #[cfg(windows)]
+    let before_file = {
+        let file = open_project_file(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+        let metadata = file
+            .metadata()
+            .map_err(|_| PROJECT_READ_ERROR.to_string())?;
+        if !metadata_is_regular_project_file(&metadata) {
+            return Err(PROJECT_READ_ERROR.to_string());
+        }
+        file
+    };
+
     let file = open_file(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
     let opened = file
         .metadata()
         .map_err(|_| PROJECT_READ_ERROR.to_string())?;
     let after = fs::symlink_metadata(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
-    if !metadata_is_regular_project_file(&opened)
-        || !metadata_is_regular_project_file(&after)
-        || !same_file_identity(&before, &opened)
-        || !same_file_identity(&opened, &after)
-    {
+    if !metadata_is_regular_project_file(&opened) || !metadata_is_regular_project_file(&after) {
         return Err(PROJECT_READ_ERROR.to_string());
     }
+
+    #[cfg(unix)]
+    if !same_file_identity(&before, &opened) || !same_file_identity(&opened, &after) {
+        return Err(PROJECT_READ_ERROR.to_string());
+    }
+
+    #[cfg(windows)]
+    {
+        let after_file = open_project_file(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+        let after_opened = after_file
+            .metadata()
+            .map_err(|_| PROJECT_READ_ERROR.to_string())?;
+        if !metadata_is_regular_project_file(&after_opened) {
+            return Err(PROJECT_READ_ERROR.to_string());
+        }
+
+        let before_identity =
+            windows_file_identity(&before_file).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+        let opened_identity =
+            windows_file_identity(&file).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+        let after_identity =
+            windows_file_identity(&after_file).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+        if before_identity != opened_identity || opened_identity != after_identity {
+            return Err(PROJECT_READ_ERROR.to_string());
+        }
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    return Err(PROJECT_READ_ERROR.to_string());
 
     let mut reader = file.take((MAX_PROJECT_FILE_BYTES + 1) as u64);
     let mut bytes = Vec::new();
@@ -160,11 +239,11 @@ where
 /// The selected path must name the same regular file before the open, on the opened handle, and
 /// immediately after the open. Linux and macOS acquire the handle with no-follow plus non-blocking
 /// flags before comparing device/inode identity, so a last-component symlink swap cannot redirect
-/// handle acquisition and a special-file swap cannot block the UI thread. Windows opens the reparse
-/// point itself rather than following it and rejects reparse handles, then requires stable file
-/// metadata around acquisition. Other Unix targets fail closed until their no-follow flags are
-/// explicitly modeled. The reader remains capped at `MAX_PROJECT_FILE_BYTES + 1`; backup, migration,
-/// and recovery semantics remain later #962 work.
+/// handle acquisition and a special-file swap cannot block the UI thread. Windows opens reparse
+/// points without following them, rejects reparse handles, and compares the volume serial number plus
+/// file index returned for native handles before, during, and after acquisition. Other Unix targets
+/// fail closed until their no-follow open contract is explicitly modeled. The reader remains capped
+/// at `MAX_PROJECT_FILE_BYTES + 1`; backup, migration, and recovery semantics remain later #962 work.
 pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
     read_project_file_with_opener(target, open_project_file)
 }
