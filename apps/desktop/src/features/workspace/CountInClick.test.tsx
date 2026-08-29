@@ -134,4 +134,47 @@ describe("CountInClick", () => {
       expect(screen.queryByText("Now check that span on your instrument.")).toBeNull();
     });
   });
+
+  it("stops the old engine and invalidates completion when the active plan changes", async () => {
+    let finishPlay: (() => void) | undefined;
+    const engine: CountInClickEngine = {
+      available: true,
+      play: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finishPlay = resolve;
+          })
+      ),
+      stop: vi.fn()
+    };
+    const { rerender } = renderCountIn(engine);
+    fireEvent.click(screen.getByRole("button", { name: /count in 4 at 120 bpm/i }));
+
+    const nextPlan: FirstCountInPlan = {
+      tempoBpm: 90,
+      beats: 4,
+      intervalMs: 60_000 / 90,
+      sectionLabel: "chorus"
+    };
+    rerender(<CountInClick plan={nextPlan} t={t} engine={engine} />);
+
+    expect(engine.stop).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /count in 4 at 90 bpm/i })).toHaveTextContent("Count in");
+    finishPlay?.();
+    await waitFor(() => {
+      expect(screen.queryByText("Now check that span on your instrument.")).toBeNull();
+    });
+  });
+
+  it("stops the active engine when the count-in surface unmounts", () => {
+    const engine: CountInClickEngine = {
+      available: true,
+      play: vi.fn(() => new Promise<void>(() => undefined)),
+      stop: vi.fn()
+    };
+    const { unmount } = renderCountIn(engine);
+    fireEvent.click(screen.getByRole("button", { name: /count in 4 at 120 bpm/i }));
+    unmount();
+    expect(engine.stop).toHaveBeenCalledTimes(1);
+  });
 });

@@ -18,22 +18,27 @@ const plan: FirstCountInPlan = {
 function createFakeContext(): {
   context: CountInAudioContext;
   oscillators: CountInOscillator[];
+  gains: CountInGain[];
 } {
   const oscillators: CountInOscillator[] = [];
-  const gain: CountInGain = {
-    connect: () => gain,
-    disconnect: vi.fn(),
-    gain: {
-      setValueAtTime: vi.fn(),
-      exponentialRampToValueAtTime: vi.fn()
-    }
-  };
+  const gains: CountInGain[] = [];
   const context: CountInAudioContext = {
     currentTime: 1,
     destination: {},
     state: "running",
     resume: vi.fn(async () => undefined),
-    createGain: () => gain,
+    createGain: () => {
+      const gain: CountInGain = {
+        connect: () => gain,
+        disconnect: vi.fn(),
+        gain: {
+          setValueAtTime: vi.fn(),
+          exponentialRampToValueAtTime: vi.fn()
+        }
+      };
+      gains.push(gain);
+      return gain;
+    },
     createOscillator: () => {
       const oscillator: CountInOscillator = {
         connect: vi.fn(),
@@ -47,7 +52,7 @@ function createFakeContext(): {
       return oscillator;
     }
   };
-  return { context, oscillators };
+  return { context, oscillators, gains };
 }
 
 describe("defaultCountInContextFactory", () => {
@@ -138,6 +143,51 @@ describe("createWebAudioCountInEngine", () => {
 
     vi.runAllTimers();
     await playPromise;
+  });
+
+  it("cancels a play that is stopped while AudioContext resume is pending", async () => {
+    vi.useFakeTimers();
+    const { context, oscillators } = createFakeContext();
+    context.state = "suspended";
+    let finishResume: (() => void) | undefined;
+    context.resume = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishResume = resolve;
+        })
+    );
+    const engine = createWebAudioCountInEngine(() => context);
+
+    const playPromise = engine.play(plan);
+    await Promise.resolve();
+    expect(context.resume).toHaveBeenCalledTimes(1);
+    engine.stop();
+    finishResume?.();
+    await Promise.resolve();
+    vi.runAllTimers();
+    await playPromise;
+
+    expect(oscillators).toHaveLength(0);
+  });
+
+  it("disconnects completed oscillators and gain nodes after the count-in settles", async () => {
+    vi.useFakeTimers();
+    const { context, oscillators, gains } = createFakeContext();
+    const engine = createWebAudioCountInEngine(() => context);
+
+    const playPromise = engine.play(plan);
+    await Promise.resolve();
+    expect(oscillators).toHaveLength(2);
+    expect(gains).toHaveLength(2);
+    vi.runAllTimers();
+    await playPromise;
+
+    for (const oscillator of oscillators) {
+      expect(oscillator.disconnect).toHaveBeenCalled();
+    }
+    for (const gain of gains) {
+      expect(gain.disconnect).toHaveBeenCalled();
+    }
   });
 
   it("rejects a plan with no trusted beats", async () => {

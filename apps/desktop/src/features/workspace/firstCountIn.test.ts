@@ -82,6 +82,10 @@ describe("countInOnsetsMs", () => {
     expect(countInOnsetsMs({ tempoBpm: 120, beats: 4, intervalMs: Number.NaN })).toEqual([]);
     expect(countInOnsetsMs(null)).toEqual([]);
   });
+
+  it("fails closed when a finite interval overflows a later beat onset", () => {
+    expect(countInOnsetsMs({ tempoBpm: 120, beats: 3, intervalMs: Number.MAX_VALUE })).toEqual([]);
+  });
 });
 
 describe("fillCountInCopy", () => {
