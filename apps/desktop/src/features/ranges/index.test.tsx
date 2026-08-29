@@ -34,8 +34,8 @@ describe("RangesFeature", () => {
     expect(callout).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
     );
-    expect(screen.getByTestId("range-card-0-bass-guitar")).toHaveTextContent("C#2 — E3");
-    expect(screen.getByTestId("range-card-0-bass-guitar")).toHaveTextContent(
+    expect(screen.getByTestId("range-card-0-bass-guitar-0")).toHaveTextContent("C#2 — E3");
+    expect(screen.getByTestId("range-card-0-bass-guitar-0")).toHaveTextContent(
       "Check this span on your instrument before verse."
     );
     expect(screen.getByText("Density warning: competing with Keyboard Left Hand in low register.")).toBeTruthy();
@@ -66,7 +66,7 @@ describe("RangesFeature", () => {
 
     render(<RangesFeature title="Ranges" song={song} />);
 
-    const card = screen.getByTestId("range-card-0-bass-guitar");
+    const card = screen.getByTestId("range-card-0-bass-guitar-0");
     expect(card).toHaveTextContent("Confirm the high and low notes by ear before treating this as a playable span.");
     expect(card).not.toHaveTextContent("E3 — C#2");
   });
@@ -109,7 +109,7 @@ describe("RangesFeature", () => {
 
     render(<RangesFeature title="Ranges" song={song} />);
 
-    expect(screen.getByTestId("range-card-0-bass-guitar")).toBeTruthy();
-    expect(screen.getByTestId("range-card-1-bass-guitar")).toBeTruthy();
+    expect(screen.getByTestId("range-card-0-bass-guitar-0")).toBeTruthy();
+    expect(screen.getByTestId("range-card-1-bass-guitar-0")).toBeTruthy();
   });
 });

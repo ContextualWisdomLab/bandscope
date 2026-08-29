@@ -111,7 +111,7 @@ export function RangesFeature(props: {
                   <article
                     key={`${sectionIndex}-${roleId}-${roleIndex}`}
                     className="min-w-[16rem] flex-1 rounded-2xl border border-white/10 bg-slate-950/70 p-4"
-                    data-testid={`range-card-${sectionIndex}-${roleId}`}
+                    data-testid={`range-card-${sectionIndex}-${roleId}-${roleIndex}`}
                   >
                     <p className="text-sm font-bold text-white">{roleName}</p>
                     {validatedRange ? (
