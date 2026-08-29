@@ -243,7 +243,9 @@ def test_apply_fails_closed_on_malformed_song_topology() -> None:
     apply_accelerando_plan({"sections": "nope"}, _beats_80_to_120())
     apply_accelerando_plan({"sections": [{"timeRange": "nope", "roles": []}]}, _beats_80_to_120())
     apply_accelerando_plan(
-        _song_with_section(), _beats_80_to_120(), [(0.0,)]  # type: ignore[list-item]
+        _song_with_section(),
+        _beats_80_to_120(),
+        [(0.0,)],  # type: ignore[list-item]
     )
     song = _song_with_section()
     song["sections"][0]["timeRange"] = {"start": True, "end": 16}
