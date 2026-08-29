@@ -540,6 +540,9 @@ export function App() {
 
   /** Leave Settings and start the local-audio picker. */
   const handleSettingsChooseAudio = () => {
+    if (analysisInFlight || isStarting || isImporting) {
+      return;
+    }
     setActiveView("workspace");
     void handleChooseLocalAudio();
   };
@@ -885,6 +888,7 @@ export function App() {
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
             {currentView === "settings" ? (
               <RehearsalSettings
+                disabled={analysisInFlight || isStarting || isImporting}
                 songReady={jobResult !== null}
                 onChooseAudio={handleSettingsChooseAudio}
                 onOpenMap={handleSettingsOpenMap}

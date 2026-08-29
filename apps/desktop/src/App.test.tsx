@@ -1588,6 +1588,60 @@ describe("App", () => {
     expect(screen.queryByText("Tonight's audio")).toBeNull();
   });
 
+  it.each(["queued", "running"] as const)("keeps the Settings chooser disabled while analysis is %s", async (state) => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({ state }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+    mockLocalAudioSelectionResult = { ok: true, bootstrap: bootstrapResponse({ source: { fileName: "replacement.wav" } }) };
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    const settingsChooseButton = await screen.findByRole("button", { name: /Choose a supported file/i });
+    await waitFor(() => expect(settingsChooseButton).toBeDisabled());
+    fireEvent.click(settingsChooseButton);
+
+    expect(screen.getByTitle("late-night-set.wav")).toBeTruthy();
+    expect(screen.queryByText("replacement.wav")).toBeNull();
+  });
+
+  it("keeps the Settings chooser disabled while analysis startup is pending", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockImplementationOnce(() => new Promise(() => undefined));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+    mockLocalAudioSelectionResult = { ok: true, bootstrap: bootstrapResponse({ source: { fileName: "replacement.wav" } }) };
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    const settingsChooseButton = await screen.findByRole("button", { name: /Choose a supported file/i });
+    await waitFor(() => expect(settingsChooseButton).toBeDisabled());
+    fireEvent.click(settingsChooseButton);
+
+    expect(screen.getByTitle("late-night-set.wav")).toBeTruthy();
+    expect(screen.queryByText("replacement.wav")).toBeNull();
+  });
+
+  it("keeps the Settings chooser disabled while YouTube import is pending", async () => {
+    tauriInvoke.mockImplementation(() => new Promise(() => undefined));
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+    fireEvent.change(screen.getByPlaceholderText(/YouTube URL/i), {
+      target: { value: "https://youtube.com/watch?v=abc123DEF45" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    const settingsChooseButton = await screen.findByRole("button", { name: /Choose a supported file/i });
+    await waitFor(() => expect(settingsChooseButton).toBeDisabled());
+  });
+
   it("returns from Settings to tonight's rehearsal map after a song is ready", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;

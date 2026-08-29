@@ -26,7 +26,7 @@ export default defineConfig({
         "src/features/score/ScoreViewer.tsx",
         "src/features/score/ScoreView.tsx",
         "src/features/score/scoreStorage.ts",
-        "src/features/settings/rehearsalSettings.ts",
+        "src/features/settings/settingsModel.ts",
         "src/features/settings/RehearsalSettings.tsx"
       ],
       thresholds: {

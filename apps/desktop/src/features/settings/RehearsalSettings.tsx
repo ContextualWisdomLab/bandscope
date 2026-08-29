@@ -8,13 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { admittedAudioFormats, settingsNextAction } from "./settingsModel";
 
 interface RehearsalSettingsProps {
+  disabled: boolean;
   songReady: boolean;
   onChooseAudio: () => void;
   onOpenMap: () => void;
 }
 
 /** Settings names admitted local audio and the next rehearsal action. */
-export function RehearsalSettings({ songReady, onChooseAudio, onOpenMap }: RehearsalSettingsProps) {
+export function RehearsalSettings({ disabled, songReady, onChooseAudio, onOpenMap }: RehearsalSettingsProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const formats = admittedAudioFormats(SUPPORTED_AUDIO_FORMATS);
   const action = settingsNextAction(songReady);
@@ -55,6 +56,7 @@ export function RehearsalSettings({ songReady, onChooseAudio, onOpenMap }: Rehea
           </p>
           <Button
             type="button"
+            disabled={disabled}
             className="mt-4 min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
             onClick={action === "choose-audio" ? onChooseAudio : onOpenMap}
           >
