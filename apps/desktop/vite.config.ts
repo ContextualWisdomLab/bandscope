@@ -25,7 +25,9 @@ export default defineConfig({
         "src/i18n/index.ts",
         "src/features/score/ScoreViewer.tsx",
         "src/features/score/ScoreView.tsx",
-        "src/features/score/scoreStorage.ts"
+        "src/features/score/scoreStorage.ts",
+        "src/features/settings/rehearsalSettings.ts",
+        "src/features/settings/RehearsalSettings.tsx"
       ],
       thresholds: {
         lines: 90,

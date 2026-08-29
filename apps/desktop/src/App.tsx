@@ -45,6 +45,7 @@ import {
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
+import { RehearsalSettings } from "./features/settings/RehearsalSettings";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
@@ -54,11 +55,12 @@ import { Toaster } from "@/components/ui/sonner";
 
 const ANALYSIS_POLL_INTERVAL_MS = 250;
 const MAX_ERROR_DETAIL_LENGTH = 220;
+const SOURCE_CONTROLS_FOCUS_ID = "source-controls-choose-audio";
 const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:[\\/][^\s"'<>]+|\\\\[^\s"'<>]+|\/(?:Users|home|var|tmp|private|Volumes)\/[^\s"'<>]+)/g;
 const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
-type RehearsalView = "workspace" | "score";
+type RehearsalView = "workspace" | "score" | "settings";
 
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
@@ -517,7 +519,8 @@ export function App() {
     return <EmptyState />;
   };
 
-  const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  const currentView: RehearsalView =
+    activeView === "settings" ? "settings" : jobResult && activeView === "score" ? "score" : "workspace";
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
@@ -533,6 +536,24 @@ export function App() {
   /** Switch the main content to the clicked rehearsal view. */
   const handleNavSelect = (view: RehearsalView) => {
     setActiveView(view);
+  };
+
+  /** Leave Settings and start the local-audio picker. */
+  const handleSettingsChooseAudio = () => {
+    setActiveView("workspace");
+    void handleChooseLocalAudio();
+  };
+
+  /** Leave Settings and show tonight's rehearsal map. */
+  const handleSettingsOpenMap = () => {
+    setActiveView("workspace");
+    window.setTimeout(() => {
+      const main = document.getElementById("main-content");
+      if (main instanceof HTMLElement) {
+        main.scrollIntoView?.({ block: "start" });
+        main.focus();
+      }
+    }, 0);
   };
 
   return (
@@ -613,11 +634,15 @@ export function App() {
             <div className="flex items-center justify-between text-slate-400">
               <button
                 type="button"
-                aria-disabled={true}
-                aria-label={t("settingsComingSoon")}
-                title={t("settingsComingSoon")}
-                onClick={preventUnavailableAction}
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                aria-current={currentView === "settings" ? "page" : undefined}
+                aria-label={t("settingsOpenHint")}
+                title={t("settingsOpenHint")}
+                onClick={() => handleNavSelect("settings")}
+                className={`inline-flex items-center justify-center rounded-xl p-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                  currentView === "settings"
+                    ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
+                    : "text-slate-200 hover:bg-white/5"
+                }`}
               >
                 <Settings className="size-5" aria-hidden="true" />
               </button>
@@ -635,7 +660,7 @@ export function App() {
           </div>
         </aside>
 
-        <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
+        <main id="main-content" tabIndex={-1} className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
@@ -681,6 +706,7 @@ export function App() {
 
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
+                  id={SOURCE_CONTROLS_FOCUS_ID}
                   onClick={handleChooseLocalAudio}
                   disabled={analysisInFlight || isStarting || isImporting}
                   variant="secondary"
@@ -842,7 +868,13 @@ export function App() {
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-            {currentView === "score" && jobResult ? (
+            {currentView === "settings" ? (
+              <RehearsalSettings
+                songReady={jobResult !== null}
+                onChooseAudio={handleSettingsChooseAudio}
+                onOpenMap={handleSettingsOpenMap}
+              />
+            ) : currentView === "score" && jobResult ? (
               <ScoreView
                 song={jobResult}
                 projectId={jobResultBootstrap?.projectId ?? null}
