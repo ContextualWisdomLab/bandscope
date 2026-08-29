@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -173,10 +174,10 @@ function ownedBreakdownPlan(role: unknown): OwnedBreakdownPlan | null {
   if (breakdownPlanSource === undefined) {
     return null;
   }
-  const trimmed = breakdownPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(breakdownPlan)) {
     return null;
   }
+  const trimmed = breakdownPlan.trim();
   if (breakdownPlanSource === "model") {
     const generatedPlan = boundedGeneratedBreakdownPlan(trimmed);
     if (generatedPlan !== null) {

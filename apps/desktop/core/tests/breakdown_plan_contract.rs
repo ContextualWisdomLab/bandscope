@@ -103,3 +103,59 @@ fn project_contract_rejects_invalid_breakdown_plan_provenance() {
 
     assert!(project_payload_from_content(&content).is_err());
 }
+
+#[test]
+fn project_contract_rejects_breakdown_plan_without_source() {
+    let mut payload = song_with_breakdown_plan();
+    payload["sections"][0]["roles"][0]
+        .as_object_mut()
+        .expect("role fixture should be an object")
+        .remove("breakdownPlanSource");
+    let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+    assert!(project_payload_from_content(&content).is_err());
+}
+
+#[test]
+fn project_contract_rejects_invalid_breakdown_plan_copy() {
+    for breakdown_plan in [
+        "",
+        "   ",
+        "\u{0009}",
+        "\u{000B}",
+        "\u{000C}",
+        "\u{000D}",
+        "\u{0085}",
+        "\u{00A0}",
+        "\u{1680}",
+        "\u{2000}",
+        "\u{200A}",
+        "\u{2028}",
+        "\u{2029}",
+        "\u{202F}",
+        "\u{205F}",
+        "\u{3000}",
+        "\u{FEFF}",
+        "hold\nthen drop",
+        "hold\rthen drop",
+        "hold\u{0085}then drop",
+        "hold\u{2028}then drop",
+        "hold\u{2029}then drop",
+    ] {
+        let mut payload = song_with_breakdown_plan();
+        payload["sections"][0]["roles"][0]["breakdownPlan"] = json!(breakdown_plan);
+        let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+        assert!(project_payload_from_content(&content).is_err());
+    }
+}
+
+#[test]
+fn project_contract_accepts_unicode_padded_single_line_breakdown_plan() {
+    let mut payload = song_with_breakdown_plan();
+    payload["sections"][0]["roles"][0]["breakdownPlan"] =
+        json!("\u{FEFF} Hold this breakdown; keep it sparse until the drop.\u{3000}");
+    let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+    assert!(project_payload_from_content(&content).is_ok());
+}
