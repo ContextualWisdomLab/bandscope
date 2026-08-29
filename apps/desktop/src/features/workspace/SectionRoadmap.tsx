@@ -3,7 +3,7 @@ import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, meaningfulRangeText, playableRange } from "./firstRangeSqueeze";
-import { formatTempoBpm, trustedTempoBpm } from "./firstClickPlan";
+import { firstClickPlan, formatTempoBpm } from "./firstClickPlan";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -21,9 +21,9 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const clickTempo = useMemo(() => {
-    const tempoBpm = trustedTempoBpm(song.tempo);
-    return tempoBpm === null ? null : formatTempoBpm(tempoBpm);
-  }, [song.tempo]);
+    const plan = firstClickPlan(song);
+    return plan === null ? null : formatTempoBpm(plan.tempoBpm);
+  }, [song]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -83,7 +83,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const getPriorityColor = (priority: string) => {
     if (priority === "high") return "border-rose-400 bg-rose-400/[0.08] shadow-[0_0_30px_rgba(251,113,133,0.10)]";
     if (priority === "medium") return "border-amber-300 bg-amber-300/[0.08] shadow-[0_0_30px_rgba(252,211,77,0.08)]";
-    return "border-emerald-300 bg-emerald-300/[0.08] shadow-[0_0_30px_rgba(110,231,183,0.08)]";
+    return "border-emerald-300 bg-emerald-300/[0.08] shadow-[0_0_30px_rgba(110,231,183,0.10)]";
   };
 
   /** Documented. */
