@@ -1540,6 +1540,20 @@ describe("App", () => {
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 
+  it("opens Settings from the compact rehearsal navigation", () => {
+    render(<App />);
+
+    const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
+    const settingsButton = within(compactNav).getByRole("button", {
+      name: /See which audio this device can open compact view/i
+    });
+
+    fireEvent.click(settingsButton);
+
+    expect(settingsButton).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Tonight's audio")).toBeTruthy();
+  });
+
   it("handles exception thrown by importYoutubeUrl itself", async () => {
     mockImportYoutubeUrlError = true;
 
