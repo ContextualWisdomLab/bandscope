@@ -173,6 +173,25 @@ fn project_contract_preserves_padded_single_line_ritardando_copy() {
 }
 
 #[test]
+fn project_contract_rejects_invalid_model_ritardando_tempo_semantics() {
+    for ritardando_plan in [
+        "Ease this part from 80 BPM into 120 BPM; let the next downbeat land later.",
+        "Ease this part from 120 BPM into 60 BPM; let the next downbeat land later.",
+        "Ease this part from 0 BPM into 80 BPM; let the next downbeat land later.",
+        "Use this model plan instead.",
+    ] {
+        let mut payload = song_with_ritardando_plan();
+        payload["sections"][0]["roles"][0]["ritardandoPlan"] = json!(ritardando_plan);
+        let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+        assert!(
+            project_payload_from_content(&content).is_err(),
+            "native persisted contract must reject semantically invalid model ritardando copy"
+        );
+    }
+}
+
+#[test]
 fn project_contract_rejects_unknown_ritardando_plan_source() {
     let mut payload = song_with_ritardando_plan();
     payload["sections"][0]["roles"][0]["ritardandoPlanSource"] = json!("legacy");

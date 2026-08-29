@@ -594,8 +594,8 @@ fn is_plan_whitespace(value: char) -> bool {
     )
 }
 
-/// Mirrors shared-types plan validation without normalizing persisted text.
-fn is_valid_ritardando_plan(value: &str) -> bool {
+/// Validates persisted plan text without normalizing user-authored content.
+fn is_valid_ritardando_plan(value: &str, source: Option<&RitardandoPlanSourcePayload>) -> bool {
     let mut has_non_whitespace = false;
     for character in value.chars() {
         if matches!(
@@ -609,9 +609,62 @@ fn is_valid_ritardando_plan(value: &str) -> bool {
         }
     }
     has_non_whitespace
+        && (!matches!(source, Some(RitardandoPlanSourcePayload::Model))
+            || is_valid_model_ritardando_plan(value.trim()))
 }
 
 const MAX_SECTION_TIME_SECONDS: f64 = 4_294_967_295.0;
+const MAX_RITARDANDO_PLAN_CHARACTERS: usize = 180;
+const RITARDANDO_PLAN_PREFIX: &str = "Ease this part from ";
+const RITARDANDO_PLAN_MIDDLE: &str = " BPM into ";
+const RITARDANDO_PLAN_SUFFIX: &str = " BPM; let the next downbeat land later.";
+const HALF_TIME_RATIO_MIN: f64 = 0.45;
+const HALF_TIME_RATIO_MAX: f64 = 0.55;
+
+fn is_decimal_bpm_token(value: &str) -> bool {
+    let mut has_digit = false;
+    let mut decimal_points = 0;
+    for character in value.chars() {
+        if character.is_ascii_digit() {
+            has_digit = true;
+        } else if character == '.' {
+            decimal_points += 1;
+        } else {
+            return false;
+        }
+    }
+    has_digit && decimal_points <= 1 && !value.starts_with('.') && !value.ends_with('.')
+}
+
+fn is_valid_model_ritardando_plan(value: &str) -> bool {
+    if value.len() > MAX_RITARDANDO_PLAN_CHARACTERS
+        || !value.starts_with(RITARDANDO_PLAN_PREFIX)
+        || !value.ends_with(RITARDANDO_PLAN_SUFFIX)
+    {
+        return false;
+    }
+    let inner = &value[RITARDANDO_PLAN_PREFIX.len()..value.len() - RITARDANDO_PLAN_SUFFIX.len()];
+    let Some((from_bpm, to_bpm)) = inner.split_once(RITARDANDO_PLAN_MIDDLE) else {
+        return false;
+    };
+    if !is_decimal_bpm_token(from_bpm) || !is_decimal_bpm_token(to_bpm) {
+        return false;
+    }
+    let Ok(from_bpm) = from_bpm.parse::<f64>() else {
+        return false;
+    };
+    let Ok(to_bpm) = to_bpm.parse::<f64>() else {
+        return false;
+    };
+    if !from_bpm.is_finite() || !to_bpm.is_finite() || from_bpm <= 0.0 || to_bpm <= 0.0 {
+        return false;
+    }
+    if to_bpm >= from_bpm {
+        return false;
+    }
+    let ratio = to_bpm / from_bpm;
+    !(HALF_TIME_RATIO_MIN..=HALF_TIME_RATIO_MAX).contains(&ratio)
+}
 
 fn validate_ritardando_plan_provenance(
     payload: RehearsalSongPayload,
@@ -621,7 +674,9 @@ fn validate_ritardando_plan_provenance(
             if role
                 .ritardando_plan
                 .as_deref()
-                .is_some_and(|ritardando_plan| !is_valid_ritardando_plan(ritardando_plan))
+                .is_some_and(|ritardando_plan| {
+                    !is_valid_ritardando_plan(ritardando_plan, role.ritardando_plan_source.as_ref())
+                })
             {
                 return Err("Invalid project file format".to_string());
             }
