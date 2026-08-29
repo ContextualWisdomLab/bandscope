@@ -173,14 +173,14 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 ///
 /// The directly selected parent must itself be a real directory rather than a symlink/reparse point
 /// before any staging artifact is created. `File::create_new` makes staging non-clobbering. A new
-/// destination first uses a hard link to the synced staging inode, preserving no-clobber publication
-/// where hard links are available. Filesystems without hard-link support fail closed because a
-/// direct first-save write could leave a partial destination after a disk or sync failure. If the
-/// save dialog selected an existing regular file, the synced staging file is atomically renamed over
-/// that directory entry;
-/// symlink/reparse/special targets fail closed. Ancestor-handle binding, parent-directory durability,
-/// concurrent-writer serialization, backup rotation, migration, and recovery remain separate
-/// project-format work under #962.
+/// destination first uses a hard link to the synced staging inode. When that filesystem does not
+/// support hard links, the publisher reserves the still-absent destination with `File::create_new`
+/// and atomically renames the fully synced stage over that reservation. `AlreadyExists` at either
+/// publication boundary fails closed without clobbering the competing file. If the save dialog
+/// selected an existing regular file, the synced staging file is atomically renamed over that
+/// directory entry; symlink/reparse/special targets fail closed. Ancestor-handle binding,
+/// parent-directory durability, concurrent-writer serialization, backup rotation, migration, and
+/// recovery remain separate project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     publish_new_project_file_with_linker(target, content, |source, destination| {
         fs::hard_link(source, destination)
@@ -246,8 +246,25 @@ where
             remove_stage(&stage);
             return Err(PROJECT_EXISTS_ERROR.to_string());
         }
-        remove_stage(&stage);
-        return Err(PROJECT_PUBLISH_ERROR.to_string());
+
+        let reserved = match File::create_new(target) {
+            Ok(file) => file,
+            Err(reserve_error) if reserve_error.kind() == std::io::ErrorKind::AlreadyExists => {
+                remove_stage(&stage);
+                return Err(PROJECT_EXISTS_ERROR.to_string());
+            }
+            Err(_) => {
+                remove_stage(&stage);
+                return Err(PROJECT_PUBLISH_ERROR.to_string());
+            }
+        };
+        drop(reserved);
+
+        if fs::rename(&stage, target).is_err() {
+            remove_stage(&stage);
+            return Err(PROJECT_PUBLISH_ERROR.to_string());
+        }
+        return Ok(());
     }
 
     // Both names reference the already-synced inode at this point. Cleanup failure does not make the
