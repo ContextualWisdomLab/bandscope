@@ -5,6 +5,7 @@ import { RangesFeature } from "./index";
 
 const originalLanguage = navigator.language;
 
+/** Set the browser language used by locale detection for one test case. */
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
     configurable: true,
