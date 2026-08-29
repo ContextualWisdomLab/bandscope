@@ -290,6 +290,16 @@ fn metadata_is_safe_project_directory(metadata: &fs::Metadata) -> bool {
     metadata.is_dir() && !metadata.file_type().is_symlink()
 }
 
+fn project_parent_chain_is_safe(parent: &Path) -> bool {
+    parent
+        .ancestors()
+        .filter(|ancestor| !ancestor.as_os_str().is_empty())
+        .all(|ancestor| {
+            fs::symlink_metadata(ancestor)
+                .is_ok_and(|metadata| metadata_is_safe_project_directory(&metadata))
+        })
+}
+
 fn read_project_file_with_opener<F>(target: &Path, open_file: F) -> Result<String, String>
 where
     F: FnOnce(&Path) -> std::io::Result<File>,
@@ -376,18 +386,20 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 
 /// Publishes a selected project only after its complete bounded bytes are staged and synced.
 ///
-/// The directly selected parent must itself be a real directory rather than a symlink/reparse point
-/// before any staging artifact is created. `File::create_new` makes staging non-clobbering. A new
-/// destination first uses a hard link to the synced staging inode. When that filesystem does not
-/// support hard links, Linux uses `renameat2(RENAME_NOREPLACE)`, macOS uses
+/// The selected parent and each lexical ancestor must be a real directory rather than a
+/// symlink/reparse point before any staging artifact is created. This rejects static ancestor-link
+/// redirection without following the link into another authority boundary. `File::create_new` makes
+/// staging non-clobbering. A new destination first uses a hard link to the synced staging inode. When
+/// that filesystem does not support hard links, Linux uses `renameat2(RENAME_NOREPLACE)`, macOS uses
 /// `renamex_np(RENAME_EXCL)`, and Windows uses `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so
 /// the fully synced staging file becomes the final name without first materializing an empty final
 /// path. An existing destination at either no-clobber boundary fails closed. If the save dialog
 /// selected an existing regular file, the synced staging file is atomically renamed over that
 /// directory entry; symlink/reparse/special targets fail closed. Filesystems that do not support the
-/// native no-replace primitive fail closed rather than falling back to reserve-then-replace.
-/// Ancestor-handle binding, parent-directory durability, concurrent-writer serialization, backup
-/// rotation, migration, and recovery remain separate project-format work under #962.
+/// native no-replace primitive fail closed rather than falling back to reserve-then-replace. This
+/// ancestor check remains a path-based preflight rather than descriptor-bound protection against a
+/// concurrent parent-chain swap. Parent-directory durability, concurrent-writer serialization,
+/// backup rotation, migration, and recovery remain separate project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     publish_new_project_file_with_linker(target, content, |source, destination| {
         fs::hard_link(source, destination)
@@ -410,9 +422,7 @@ where
     }
 
     let parent = project_parent(target);
-    let parent_metadata =
-        fs::symlink_metadata(parent).map_err(|_| PROJECT_STAGE_ERROR.to_string())?;
-    if !metadata_is_safe_project_directory(&parent_metadata) {
+    if !project_parent_chain_is_safe(parent) {
         return Err(PROJECT_STAGE_ERROR.to_string());
     }
 
