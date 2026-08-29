@@ -1568,6 +1568,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   if (value.cutoffPlan !== undefined && value.cutoffPlanSource === undefined) {
     return invalidField(`${path}.cutoffPlanSource`);
   }
+  if (value.cutoffPlanSource !== undefined && value.cutoffPlan === undefined) {
+    return invalidField(`${path}.cutoffPlan`);
+  }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);
   }

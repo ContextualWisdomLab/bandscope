@@ -861,6 +861,15 @@ describe("shared type helpers", () => {
     })).toThrow("scoreAttachments[0].fileName");
   });
 
+  it("rejects cutoff provenance without cutoff text", () => {
+    const song = createDemoRehearsalSong();
+    delete song.sections[0]!.roles[0]!.cutoffPlan;
+    song.sections[0]!.roles[0]!.cutoffPlanSource = "model";
+
+    expect(isRehearsalSong(song)).toBe(false);
+    expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[0].cutoffPlan");
+  });
+
   it("reports the first invalid field path for nested contract failures", () => {
     const roleSparse = createDemoRehearsalSong() as unknown as {
       sections: Array<{ roles: unknown[] }>;
