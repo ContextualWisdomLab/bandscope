@@ -12,6 +12,10 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalTauriInternals = Object.getOwnPropertyDescriptor(
+  window,
+  "__TAURI_INTERNALS__",
+);
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -36,6 +40,18 @@ function createLocalSourceBootstrap(): ProjectBootstrapSummary {
   };
 }
 
+function installPlayableAudioMocks() {
+  Object.defineProperty(window, "__TAURI_INTERNALS__", {
+    configurable: true,
+    value: {
+      convertFileSrc: (path: string) => `asset://localhost/${path}`,
+    },
+  });
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+}
+
 describe("Workspace", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
@@ -48,6 +64,16 @@ describe("Workspace", () => {
       configurable: true,
       value: originalRevokeObjectUrl,
     });
+    if (originalTauriInternals) {
+      Object.defineProperty(
+        window,
+        "__TAURI_INTERNALS__",
+        originalTauriInternals,
+      );
+    } else {
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__;
+    }
   });
 
   it("updates practice progress immutably through onSongUpdate", () => {
@@ -147,6 +173,7 @@ describe("Workspace", () => {
 
   it("starts the selected section loop from the role action when local audio is available", () => {
     setNavigatorLanguage("en-US");
+    installPlayableAudioMocks();
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
