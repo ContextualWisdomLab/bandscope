@@ -79,12 +79,18 @@ describe("tapTempoReading", () => {
 });
 
 describe("songNeedsTapTempo", () => {
-  it("hides the tap control when the song already has a trusted tempo", () => {
+  it("hides the tap control for every stored tempo admitted by the shared song contract", () => {
     const song = createDemoRehearsalSong();
     expect(songNeedsTapTempo(song)).toBe(false);
     song.tempo = undefined;
     expect(songNeedsTapTempo(song)).toBe(true);
     song.tempo = 12;
+    expect(songNeedsTapTempo(song)).toBe(false);
+    song.tempo = 401;
+    expect(songNeedsTapTempo(song)).toBe(false);
+    song.tempo = Number.NaN;
+    expect(songNeedsTapTempo(song)).toBe(true);
+    song.tempo = -1;
     expect(songNeedsTapTempo(song)).toBe(true);
     expect(songNeedsTapTempo(null)).toBe(true);
   });
