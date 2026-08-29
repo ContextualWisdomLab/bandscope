@@ -1,2 +1,2 @@
 export { RehearsalSettings } from "./RehearsalSettings";
-export { admittedAudioFormats, settingsNextAction } from "./rehearsalSettings";
+export { admittedAudioFormats, settingsNextAction } from "./settingsModel";
