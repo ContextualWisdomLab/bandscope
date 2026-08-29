@@ -251,6 +251,32 @@ describe("Workspace", () => {
     expect(within(playerSections).queryByRole("button", { name: /chorus/i })).toBeNull();
   });
 
+  it("clears a role that is absent after replacing the song", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const replacement = createDemoRehearsalSong();
+    replacement.sections = replacement.sections.map((section) => ({
+      ...section,
+      roles: section.roles.filter((role) => role.id !== "lead-vocal"),
+    }));
+
+    const { rerender } = render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+    expect(screen.getByTestId("rehearsal-loop-role-filter")).toHaveTextContent(
+      "Showing sections that include Lead Vocal.",
+    );
+
+    rerender(<Workspace song={replacement} />);
+
+    expect(screen.queryByTestId("rehearsal-loop-role-filter")).toBeNull();
+    expect(
+      screen.getByRole("tab", { name: "All Roles", selected: true }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("rehearsal-loop-next-action")).not.toHaveTextContent(
+      /No playable sections include Lead Vocal/i,
+    );
+  });
+
   it("enables bass transcription from selected role metadata rather than role id text", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {

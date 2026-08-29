@@ -156,6 +156,44 @@ describe("RehearsalPlayer", () => {
     );
   });
 
+  it("keeps the selected loop by section ID when an earlier section is filtered out", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = structuredClone(song.sections[0]!);
+    verse.id = "verse-no-lead-vocal";
+    verse.roles = verse.roles.filter((role) => role.id !== "lead-vocal");
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [verse, chorus];
+
+    const { rerender } = render(<RehearsalPlayer song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: /chorus/i }));
+    expect(
+      screen
+        .getByRole("button", { name: /chorus/i })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+
+    rerender(
+      <RehearsalPlayer
+        song={song}
+        activeRole="lead-vocal"
+        activeRoleName="Lead Vocal"
+      />,
+    );
+
+    expect(
+      screen
+        .getByRole("button", { name: /chorus/i })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /Map chorus from 0:40–1:04/i,
+    );
+  });
+
   it("explains when the active role has no playable sections", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
