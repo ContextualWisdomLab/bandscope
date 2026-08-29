@@ -143,3 +143,41 @@ fn new_project_never_clobbers_a_target_that_appears_concurrently() {
     );
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
+fn existing_project_never_clobbers_a_target_swapped_after_authority_snapshot() {
+    let root = test_dir("existing-target-race");
+    let target = root.join("setlist.bscope");
+    let parked = root.join("parked-authorized.bscope");
+    let stage = root.join("candidate.stage");
+    let authorized = br#"{\"id\":\"authorized\"}"#;
+    let racer = br#"{\"id\":\"racer\"}"#;
+    let candidate = br#"{\"id\":\"candidate\"}"#;
+    fs::write(&target, authorized).expect("authorized fixture should be written");
+    fs::write(&stage, candidate).expect("candidate stage should be written");
+
+    let expected = project_persistence::project_file_identity(&target)
+        .expect("the selected target identity should be capturable");
+    fs::rename(&target, &parked).expect("authorized target should be parked by the racer");
+    fs::write(&target, racer).expect("racer should replace the selected pathname");
+
+    let error = project_persistence::replace_existing_project_file(&stage, &target, &expected)
+        .expect_err("replacement must fail closed when target identity changed after validation");
+
+    assert_eq!(error, "Could not publish the project safely.");
+    assert_eq!(
+        fs::read(&target).expect("racer target should remain readable"),
+        racer,
+        "the save must not clobber a different file that won the pathname"
+    );
+    assert_eq!(
+        fs::read(&parked).expect("authorized project should remain readable"),
+        authorized
+    );
+    assert!(
+        !stage.exists(),
+        "the rejected candidate stage should be cleaned after a successful rollback"
+    );
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
