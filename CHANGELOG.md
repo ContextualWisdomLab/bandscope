@@ -22,6 +22,7 @@
 - Refuse last-component symlink following during Linux/macOS project handle acquisition and make that acquisition non-blocking so a preflight-to-open path swap cannot redirect the loader or stall it on a special file.
 - Preserve first-save crash safety on filesystems without hard-link support by publishing the fully synced staging file with an OS-native atomic no-replace rename, so a crash cannot leave an empty reserved final path.
 - Reject a stale existing-project replacement when the selected target changes file identity while replacement bytes are staged; native exchange/backup publication restores the competing target instead of clobbering it.
+- Recover an interrupted existing-project replacement from a bounded, same-directory identity journal when the target is selected again, while leaving mismatched files untouched.
 
 ## [0.1.3] - 2026-04-29
 

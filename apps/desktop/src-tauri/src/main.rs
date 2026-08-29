@@ -752,6 +752,7 @@ fn save_project(payload: Value) -> Result<(), String> {
 
     let content = serde_json::to_string_pretty(&parsed)
         .map_err(|_| "Failed to serialize project".to_string())?;
+    project_persistence::recover_project_publication(&path)?;
     project_persistence::publish_new_project_file(&path, content.as_bytes())?;
 
     Ok(())
@@ -764,6 +765,7 @@ fn load_project() -> Result<RehearsalSongPayload, String> {
         .pick_file()
         .ok_or_else(|| "User cancelled".to_string())?;
 
+    project_persistence::recover_project_publication(&path)?;
     let content = project_persistence::read_project_file(&path)?;
     project_payload_from_content(&content)
 }
