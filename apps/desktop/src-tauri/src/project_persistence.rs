@@ -166,6 +166,135 @@ fn rename_noreplace(_source: &Path, _destination: &Path) -> std::io::Result<()> 
     ))
 }
 
+#[cfg(target_os = "linux")]
+fn rename_exchange(left: &Path, right: &Path) -> std::io::Result<()> {
+    use std::{ffi::CString, os::unix::ffi::OsStrExt};
+
+    const AT_FDCWD: i32 = -100;
+    const RENAME_EXCHANGE: u32 = 2;
+
+    extern "C" {
+        fn renameat2(
+            olddirfd: i32,
+            oldpath: *const std::os::raw::c_char,
+            newdirfd: i32,
+            newpath: *const std::os::raw::c_char,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let left = CString::new(left.as_os_str().as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "project exchange path contains NUL",
+        )
+    })?;
+    let right = CString::new(right.as_os_str().as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "project exchange path contains NUL",
+        )
+    })?;
+
+    let result = unsafe {
+        renameat2(
+            AT_FDCWD,
+            left.as_ptr(),
+            AT_FDCWD,
+            right.as_ptr(),
+            RENAME_EXCHANGE,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn rename_exchange(left: &Path, right: &Path) -> std::io::Result<()> {
+    use std::{ffi::CString, os::unix::ffi::OsStrExt};
+
+    const RENAME_SWAP: u32 = 0x0000_0002;
+
+    extern "C" {
+        fn renamex_np(
+            from: *const std::os::raw::c_char,
+            to: *const std::os::raw::c_char,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let left = CString::new(left.as_os_str().as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "project exchange path contains NUL",
+        )
+    })?;
+    let right = CString::new(right.as_os_str().as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "project exchange path contains NUL",
+        )
+    })?;
+
+    let result = unsafe { renamex_np(left.as_ptr(), right.as_ptr(), RENAME_SWAP) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(windows)]
+fn replace_file_with_backup(
+    replaced: &Path,
+    replacement: &Path,
+    backup: &Path,
+) -> std::io::Result<()> {
+    use std::{os::windows::ffi::OsStrExt, ptr};
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        #[link_name = "ReplaceFileW"]
+        fn replace_file_w(
+            replaced_file_name: *const u16,
+            replacement_file_name: *const u16,
+            backup_file_name: *const u16,
+            replace_flags: u32,
+            exclude: *mut std::ffi::c_void,
+            reserved: *mut std::ffi::c_void,
+        ) -> i32;
+    }
+
+    let wide = |path: &Path| {
+        path.as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>()
+    };
+    let replaced = wide(replaced);
+    let replacement = wide(replacement);
+    let backup = wide(backup);
+
+    let result = unsafe {
+        replace_file_w(
+            replaced.as_ptr(),
+            replacement.as_ptr(),
+            backup.as_ptr(),
+            0,
+            ptr::null_mut(),
+            ptr::null_mut(),
+        )
+    };
+    if result != 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
 #[cfg(windows)]
 pub(crate) fn open_project_file(target: &Path) -> std::io::Result<File> {
     use std::os::windows::fs::OpenOptionsExt;
@@ -288,6 +417,113 @@ fn metadata_is_safe_project_directory(metadata: &fs::Metadata) -> bool {
 #[cfg(not(windows))]
 fn metadata_is_safe_project_directory(metadata: &fs::Metadata) -> bool {
     metadata.is_dir() && !metadata.file_type().is_symlink()
+}
+
+#[cfg(unix)]
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct ProjectFileIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(unix)]
+pub(crate) fn project_file_identity(target: &Path) -> Result<ProjectFileIdentity, String> {
+    use std::os::unix::fs::MetadataExt;
+
+    let metadata = fs::symlink_metadata(target).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    if !metadata_is_regular_project_file(&metadata) {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+    Ok(ProjectFileIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(windows)]
+pub(crate) type ProjectFileIdentity = WindowsFileIdentity;
+
+#[cfg(windows)]
+pub(crate) fn project_file_identity(target: &Path) -> Result<ProjectFileIdentity, String> {
+    let file = open_project_file(target).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    if !metadata_is_regular_project_file(&metadata) {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+    windows_file_identity(&file).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())
+}
+
+#[cfg(not(any(unix, windows)))]
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct ProjectFileIdentity;
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) fn project_file_identity(_target: &Path) -> Result<ProjectFileIdentity, String> {
+    Err(PROJECT_PUBLISH_ERROR.to_string())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub(crate) fn replace_existing_project_file(
+    stage: &Path,
+    target: &Path,
+    expected: &ProjectFileIdentity,
+) -> Result<(), String> {
+    let candidate = project_file_identity(stage)?;
+    if rename_exchange(stage, target).is_err() {
+        remove_stage(stage);
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+
+    let displaced = project_file_identity(stage);
+    if displaced.as_ref().is_ok_and(|identity| identity == expected) {
+        remove_stage(stage);
+        return Ok(());
+    }
+
+    let target_is_candidate =
+        project_file_identity(target).is_ok_and(|identity| identity == candidate);
+    if target_is_candidate && rename_exchange(stage, target).is_ok() {
+        remove_stage(stage);
+    }
+    Err(PROJECT_PUBLISH_ERROR.to_string())
+}
+
+#[cfg(windows)]
+pub(crate) fn replace_existing_project_file(
+    stage: &Path,
+    target: &Path,
+    expected: &ProjectFileIdentity,
+) -> Result<(), String> {
+    let candidate = project_file_identity(stage)?;
+    let backup = staging_path(target)?;
+    if replace_file_with_backup(target, stage, &backup).is_err() {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+
+    let displaced = project_file_identity(&backup);
+    if displaced.as_ref().is_ok_and(|identity| identity == expected) {
+        remove_stage(&backup);
+        return Ok(());
+    }
+
+    let target_is_candidate =
+        project_file_identity(target).is_ok_and(|identity| identity == candidate);
+    if target_is_candidate && replace_file_with_backup(target, &backup, stage).is_ok() {
+        remove_stage(stage);
+    }
+    Err(PROJECT_PUBLISH_ERROR.to_string())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+pub(crate) fn replace_existing_project_file(
+    stage: &Path,
+    _target: &Path,
+    _expected: &ProjectFileIdentity,
+) -> Result<(), String> {
+    remove_stage(stage);
+    Err(PROJECT_PUBLISH_ERROR.to_string())
 }
 
 #[cfg(any(target_os = "macos", test))]
@@ -424,18 +660,18 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// root-owned `/etc`, `/tmp`, and `/var` aliases are admitted, and each must resolve to its exact
 /// `/private` system directory; arbitrary root-level aliases remain fail-closed. This rejects
 /// user-writable static ancestor-link redirection without breaking normal paths below macOS system
-/// aliases. `File::create_new` makes staging non-clobbering. A new destination first uses a hard link
-/// to the synced staging inode. When that filesystem does not support hard links, Linux uses
-/// `renameat2(RENAME_NOREPLACE)`, macOS uses `renamex_np(RENAME_EXCL)`, and Windows uses
-/// `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so the fully synced staging file becomes the
-/// final name without first materializing an empty final path. An existing destination at either
-/// no-clobber boundary fails closed. If the save dialog selected an existing regular file, the synced
-/// staging file is atomically renamed over that directory entry; symlink/reparse/special targets fail
-/// closed. Filesystems that do not support the native no-replace primitive fail closed rather than
-/// falling back to reserve-then-replace. This ancestor check remains a path-based preflight rather
-/// than descriptor-bound protection against a concurrent parent-chain swap. Parent-directory
-/// durability, concurrent-writer serialization, backup rotation, migration, and recovery remain
-/// separate project-format work under #962.
+/// aliases. `File::create_new` makes staging non-clobbering. If the selected target exists, its native
+/// identity is captured before staging. Linux and macOS then atomically exchange the synced staging
+/// inode with the target and accept the publication only when the displaced inode still matches that
+/// captured identity; a mismatch is exchanged back before returning an error. Windows uses
+/// `ReplaceFileW` with a unique same-directory backup, validates the displaced file's native identity,
+/// and restores it when the snapshot no longer matches. For a destination that was absent at the
+/// snapshot, a hard link is attempted first; Linux then uses `renameat2(RENAME_NOREPLACE)`, macOS uses
+/// `renamex_np(RENAME_EXCL)`, and Windows uses `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so a
+/// concurrently appearing destination is not clobbered. Filesystems without the required native
+/// primitive fail closed. These checks do not claim descriptor-bound protection for a parent-chain
+/// swap, authority before the first post-dialog identity snapshot, or crash recovery if a process is
+/// terminated during a mismatch rollback; those remain project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     publish_new_project_file_with_linker(target, content, |source, destination| {
         fs::hard_link(source, destination)
@@ -462,6 +698,17 @@ where
         return Err(PROJECT_STAGE_ERROR.to_string());
     }
 
+    let expected_target = match fs::symlink_metadata(target) {
+        Ok(metadata) => {
+            if !metadata_is_regular_project_file(&metadata) {
+                return Err(PROJECT_PUBLISH_ERROR.to_string());
+            }
+            Some(project_file_identity(target)?)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(_) => return Err(PROJECT_PUBLISH_ERROR.to_string()),
+    };
+
     let stage = staging_path(target)?;
     let mut staged = File::create_new(&stage).map_err(|_| PROJECT_STAGE_ERROR.to_string())?;
     if staged.write_all(content).is_err() || staged.sync_all().is_err() {
@@ -471,27 +718,8 @@ where
     }
     drop(staged);
 
-    let existing_target = match fs::symlink_metadata(target) {
-        Ok(metadata) => {
-            if !metadata_is_regular_project_file(&metadata) {
-                remove_stage(&stage);
-                return Err(PROJECT_PUBLISH_ERROR.to_string());
-            }
-            true
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
-        Err(_) => {
-            remove_stage(&stage);
-            return Err(PROJECT_PUBLISH_ERROR.to_string());
-        }
-    };
-
-    if existing_target {
-        if fs::rename(&stage, target).is_err() {
-            remove_stage(&stage);
-            return Err(PROJECT_PUBLISH_ERROR.to_string());
-        }
-        return Ok(());
+    if let Some(expected) = expected_target {
+        return replace_existing_project_file(&stage, target, &expected);
     }
 
     if let Err(error) = link(&stage, target) {
