@@ -580,6 +580,42 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
     validate_hit_plan_provenance(parsed)
 }
 
+/// Mirrors the shared-types plan whitespace policy, including BOM and NEL.
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Reject blank or Unicode line-separated hit guidance without normalizing user text.
+fn is_valid_hit_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
 fn validate_hit_plan_provenance(
     payload: RehearsalSongPayload,
 ) -> Result<RehearsalSongPayload, String> {
@@ -591,9 +627,11 @@ fn validate_hit_plan_provenance(
             {
                 return Err("Invalid project file format".to_string());
             }
-            if role.hit_plan.as_ref().is_some_and(|hit_plan| {
-                hit_plan.trim().is_empty() || hit_plan.contains('\n') || hit_plan.contains('\r')
-            }) {
+            if role
+                .hit_plan
+                .as_deref()
+                .is_some_and(|hit_plan| !is_valid_hit_plan(hit_plan))
+            {
                 return Err("Invalid project file format".to_string());
             }
             if role.hit_plan.is_none() && role.hit_plan_source.is_some() {
@@ -949,6 +987,39 @@ mod tests {
             project_payload_from_content(r#"{"sections":[{"timeRange":{"start":0,"end":1}}]}"#)
                 .expect_err("timed but incomplete payload should fail closed");
         assert_eq!(error, "Invalid project file format");
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_invalid_hit_plan_provenance() {
+        for hit_plan in [
+            "",
+            "   ",
+            "\u{FEFF}",
+            "\u{0085}",
+            "land here\nthen move",
+            "land here\rthen move",
+            "land here\u{0085}then move",
+            "land here\u{2028}then move",
+            "land here\u{2029}then move",
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["sections"][0]["roles"][0]["hitPlan"] = json!(hit_plan);
+            payload["sections"][0]["roles"][0]["hitPlanSource"] = json!("model");
+            let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+            assert!(project_payload_from_content(&content).is_err());
+        }
+
+        let mut source_only = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        source_only["sections"][0]["roles"][0]["hitPlanSource"] = json!("model");
+        let content = serde_json::to_string(&source_only).expect("payload should serialize");
+        assert!(project_payload_from_content(&content).is_err());
+
+        let mut padded_plan = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        padded_plan["sections"][0]["roles"][0]["hitPlan"] = json!("\u{FEFF}Land the hit\u{FEFF}");
+        padded_plan["sections"][0]["roles"][0]["hitPlanSource"] = json!("model");
+        let content = serde_json::to_string(&padded_plan).expect("payload should serialize");
+        assert!(project_payload_from_content(&content).is_ok());
     }
 
     #[test]

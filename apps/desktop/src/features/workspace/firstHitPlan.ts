@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type ProvenanceSource,
   type RehearsalRole,
   type RehearsalSection,
@@ -153,10 +154,10 @@ function ownedHitPlan(role: unknown): OwnedHitPlan | null {
   if (typeof hitPlan !== "string") {
     return null;
   }
-  const trimmed = hitPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(hitPlan)) {
     return null;
   }
+  const trimmed = hitPlan.trim();
   const hitPlanSource = ownDataValue(role, "hitPlanSource");
   if (hitPlanSource !== "model" && hitPlanSource !== "user") {
     return null;

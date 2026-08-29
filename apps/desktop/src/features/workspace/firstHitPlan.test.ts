@@ -142,6 +142,15 @@ describe("resolveFirstHitPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded hit text", () => {
+    for (const hitPlan of ["Keep\u0085hit", "Keep\u2028hit", "Keep\u2029hit"]) {
+      expect(resolveFirstHitPlan(withHitSection({ hitPlan }))).toBeNull();
+    }
+    expect(resolveFirstHitPlan(withHitSection({ hitPlan: "\uFEFF Keep hit \uFEFF" }))?.hitPlan).toBe(
+      "Keep hit"
+    );
+  });
+
   it("skips a hit plan without explicit provenance", () => {
     const song = withHitSection();
     delete song.sections[0]!.roles[0]!.hitPlanSource;
