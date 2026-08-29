@@ -1,3 +1,4 @@
+import type { RehearsalSong } from "@bandscope/shared-types";
 import { fillRangeCopy } from "./firstRangeSqueeze";
 
 /** Inclusive lower bound for a rehearsal-usable tap tempo. */
@@ -12,6 +13,9 @@ export const MAX_TAP_HISTORY = 8;
 export const TAP_GAP_RESET_MS = 3_500;
 /** Reject a window whose fastest and slowest intervals disagree by more than 2×. */
 export const MAX_INTERVAL_SPREAD = 2;
+
+const TAP_TEMPO_SESSION_KEYS = new WeakMap<RehearsalSong, string>();
+let nextTapTempoSession = 1;
 
 /** Session-only tap timestamps. Never persisted onto the song contract. */
 export type TapTempoState = {
@@ -65,55 +69,33 @@ function median(values: number[]): number {
   return sorted[middle]!;
 }
 
-/** Return a bounded text scalar for a session-identity projection. */
-function identityText(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
+/**
+ * Return the in-memory identity of one loaded song instance.
+ *
+ * The key is tied to the object instance delivered by the load/analysis boundary,
+ * not to musical content. Two distinct loaded songs therefore cannot collide even
+ * when their ids, titles, timings, and harmony happen to match.
+ */
+export function tapTempoSessionKey(song: RehearsalSong, _projectId: unknown = null): string {
+  const existing = TAP_TEMPO_SESSION_KEYS.get(song);
+  if (existing) {
+    return existing;
+  }
 
-/** Return a finite numeric scalar for a session-identity projection. */
-function identityNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  const sessionKey = `tap-tempo-session-${nextTapTempoSession}`;
+  nextTapTempoSession += 1;
+  TAP_TEMPO_SESSION_KEYS.set(song, sessionKey);
+  return sessionKey;
 }
 
 /**
- * Build a stable identity for the song instance that owns session taps.
+ * Preserve the current tap session when BandScope creates an immutable edit of a song.
  *
- * Project identity is preferred when available. The fallback deliberately uses
- * only song/form identity fields that the mounted rehearsal editor does not
- * mutate. Harmony, ranges, groove labels, practice progress, collaboration, and
- * other editable rehearsal content are excluded so ordinary same-song edits do
- * not remount TapTempo and erase the player's active tap window.
- *
- * Section ids/timing still distinguish same-id analysis results when no project
- * identity is available, while a title change also represents a different loaded
- * song for the current local project boundary.
+ * Only the workspace's supported edit path calls this function. New objects arriving
+ * from load/analysis are intentionally left unmarked and receive a fresh session key.
  */
-export function tapTempoSessionKey(song: unknown, projectId: unknown = null): string {
-  const projectKey = identityText(projectId);
-  if (!isRuntimeObject(song)) {
-    return JSON.stringify([projectKey, null]);
-  }
-
-  const sections = Array.isArray(song.sections)
-    ? song.sections.map((sectionValue) => {
-        if (!isRuntimeObject(sectionValue)) {
-          return null;
-        }
-        const timeRange = isRuntimeObject(sectionValue.timeRange) ? sectionValue.timeRange : null;
-        return [
-          identityText(sectionValue.id),
-          timeRange ? identityNumber(timeRange.start) : null,
-          timeRange ? identityNumber(timeRange.end) : null
-        ];
-      })
-    : [];
-
-  return JSON.stringify([
-    projectKey,
-    identityText(song.id),
-    identityText(song.title),
-    sections
-  ]);
+export function inheritTapTempoSession(sourceSong: RehearsalSong, updatedSong: RehearsalSong): void {
+  TAP_TEMPO_SESSION_KEYS.set(updatedSong, tapTempoSessionKey(sourceSong));
 }
 
 /**
