@@ -613,7 +613,7 @@ export function App() {
             <button
               type="button"
               aria-current={currentView === "settings" ? "page" : undefined}
-              aria-label={`${t("settingsOpenHint")} ${t("compactViewSuffix")}`}
+              aria-label={t("settingsOpenHint")}
               title={t("settingsOpenHint")}
               onClick={() => handleNavSelect("settings")}
               className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${

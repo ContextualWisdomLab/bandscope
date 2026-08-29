@@ -1580,8 +1580,8 @@ describe("App", () => {
       expect(settingsButton).not.toHaveAttribute("aria-disabled");
       expect(settingsButton).not.toHaveAttribute("disabled");
     }
-    fireEvent.click(screen.getByRole("button", { name: "See which audio this device can open" }));
-    expect(screen.getByRole("button", { name: "See which audio this device can open" })).toHaveAttribute(
+    fireEvent.click(screen.getByRole("button", { name: /See which audio this device can open.*compact/i }));
+    expect(screen.getByRole("button", { name: /See which audio this device can open.*compact/i })).toHaveAttribute(
       "aria-current",
       "page"
     );
