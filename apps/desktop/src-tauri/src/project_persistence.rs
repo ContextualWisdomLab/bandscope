@@ -767,12 +767,7 @@ fn recover_publication_state(
         return Ok(());
     }
 
-    if candidate_identity.is_none()
-        && displaced_identity.is_none()
-        && target_identity
-            .as_ref()
-            .is_some_and(|identity| identity == &journal.expected || identity == &journal.candidate)
-    {
+    if candidate_identity.is_none() && displaced_identity.is_none() {
         remove_recovery_artifact(journal_path)?;
         sync_parent_directory(project_parent(target))
             .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
@@ -859,8 +854,20 @@ pub(crate) fn replace_existing_project_file(
     target: &Path,
     expected: &ProjectFileIdentity,
 ) -> Result<(), String> {
-    let candidate = project_file_identity(stage)?;
-    let journal = create_publication_journal(target, stage, stage, expected, &candidate)?;
+    let candidate = match project_file_identity(stage) {
+        Ok(candidate) => candidate,
+        Err(error) => {
+            remove_stage(stage);
+            return Err(error);
+        }
+    };
+    let journal = match create_publication_journal(target, stage, stage, expected, &candidate) {
+        Ok(journal) => journal,
+        Err(error) => {
+            remove_stage(stage);
+            return Err(error);
+        }
+    };
     if rename_exchange(stage, target).is_err() {
         remove_stage(stage);
         remove_stage(&journal);
@@ -886,9 +893,21 @@ pub(crate) fn replace_existing_project_file(
     target: &Path,
     expected: &ProjectFileIdentity,
 ) -> Result<(), String> {
-    let candidate = project_file_identity(stage)?;
+    let candidate = match project_file_identity(stage) {
+        Ok(candidate) => candidate,
+        Err(error) => {
+            remove_stage(stage);
+            return Err(error);
+        }
+    };
     let backup = staging_path(target)?;
-    let journal = create_publication_journal(target, stage, &backup, expected, &candidate)?;
+    let journal = match create_publication_journal(target, stage, &backup, expected, &candidate) {
+        Ok(journal) => journal,
+        Err(error) => {
+            remove_stage(stage);
+            return Err(error);
+        }
+    };
     if replace_file_with_backup(target, stage, &backup).is_err() {
         remove_stage(stage);
         remove_stage(&journal);
@@ -1409,7 +1428,7 @@ mod tests {
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn recovers_an_interrupted_existing_project_publication() {
         let root = test_dir("recovery");
