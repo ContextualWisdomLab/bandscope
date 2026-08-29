@@ -138,13 +138,16 @@ fn deserialize_tempo<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let tempo = Option::<f64>::deserialize(deserializer)?;
-    if tempo.is_some_and(|value| !value.is_finite() || value <= 0.0) {
+    let value = Value::deserialize(deserializer)?;
+    let Some(tempo) = value.as_f64() else {
+        return Err(serde::de::Error::custom("tempo must be a positive number"));
+    };
+    if !tempo.is_finite() || tempo <= 0.0 {
         return Err(serde::de::Error::custom(
             "tempo must be positive and finite",
         ));
     }
-    Ok(tempo)
+    Ok(Some(tempo))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -992,6 +995,16 @@ mod tests {
             serde_json::to_value(&parsed).expect("tempo-bearing song should serialize back");
 
         assert_eq!(serialized["tempo"], json!(128.5));
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_tempo_values() {
+        for tempo in [json!(null), json!(0), json!(-1), json!("128")] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["tempo"] = tempo;
+
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
     }
 
     #[test]
