@@ -25,6 +25,12 @@ describe("RehearsalPlayer", () => {
     render(<RehearsalPlayer song={song} hasLocalAudio={false} />);
 
     expect(
+      screen.getByTestId("rehearsal-loop-next-action").getAttribute("role"),
+    ).toBe("status");
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").getAttribute("aria-live"),
+    ).toBe("polite");
+    expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
     ).toMatch(/Map verse from 0:10–0:30\. Choose a local song first/i);
     expect(

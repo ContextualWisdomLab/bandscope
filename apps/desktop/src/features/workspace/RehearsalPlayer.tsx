@@ -185,6 +185,8 @@ export function RehearsalPlayer({
       </p>
       <p
         className="mt-2 text-sm leading-6 text-slate-200"
+        role="status"
+        aria-live="polite"
         data-testid="rehearsal-loop-next-action"
       >
         {nextAction}
