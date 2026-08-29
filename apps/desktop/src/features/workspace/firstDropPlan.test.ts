@@ -137,6 +137,14 @@ describe("resolveFirstDropPlan", () => {
     expect(formatDropPlanTime(-4)).toBe("0:00");
   });
 
+  it("preserves long user-authored drop guidance verbatim", () => {
+    const dropPlan = `Hit this drop with ${"A".repeat(170)}; come in together when the texture fills.`;
+    const resolved = resolveFirstDropPlan(withDropSection({ dropPlan, source: "user" }));
+
+    expect(resolved?.dropPlanSource).toBe("user");
+    expect(resolved?.dropPlan).toBe(dropPlan);
+  });
+
   it("does not invent a drop plan from groove, cue, simplification, overlap, range, chords, function labels, setup notes, transposition plans, vamp plans, fill plans, tuning plans, dynamics plans, articulation plans, hook plans, solo plans, pad plans, hit plans, cutoff plans, turnaround plans, pickup plans, breakdown plans, confirmed overrides, harmonic explanations, or confidence notes", () => {
     const song = withDropSection();
     delete song.sections[1]!.roles.find((role) => role.id === "lead-vocal")!.dropPlan;

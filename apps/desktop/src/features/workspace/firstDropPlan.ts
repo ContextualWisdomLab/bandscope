@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -169,15 +170,15 @@ function ownedDropPlan(role: unknown): OwnedDropPlan | null {
   if (dropPlanSource === undefined) {
     return null;
   }
-  const trimmed = dropPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(dropPlan)) {
     return null;
   }
   if (dropPlanSource === "model") {
+    const trimmed = dropPlan.trim();
     return boundedGeneratedDropPlan(trimmed);
   }
   return {
-    text: truncateCodePoints(trimmed, MAX_DROP_PLAN_CHARACTERS),
+    text: dropPlan,
     source: dropPlanSource,
     guidance: null
   };

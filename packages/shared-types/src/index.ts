@@ -409,6 +409,48 @@ function isOneOf<T extends string>(options: readonly T[], value: unknown): value
   return typeof value === "string" && options.includes(value as T);
 }
 
+/** Return whether a code point belongs to the cross-language plan whitespace set. */
+function isPlanWhitespaceCodePoint(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x0009 && codePoint <= 0x000d) ||
+    codePoint === 0x0020 ||
+    codePoint === 0x0085 ||
+    codePoint === 0x00a0 ||
+    codePoint === 0x1680 ||
+    (codePoint >= 0x2000 && codePoint <= 0x200a) ||
+    codePoint === 0x2028 ||
+    codePoint === 0x2029 ||
+    codePoint === 0x202f ||
+    codePoint === 0x205f ||
+    codePoint === 0x3000 ||
+    codePoint === 0xfeff
+  );
+}
+
+/** Return whether a plan is non-empty and contains no Unicode line separator. */
+export function isNonEmptySingleLineText(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  let hasNonWhitespace = false;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)!;
+    if (
+      codePoint === 0x000a ||
+      codePoint === 0x000d ||
+      codePoint === 0x0085 ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029
+    ) {
+      return false;
+    }
+    if (!isPlanWhitespaceCodePoint(codePoint)) {
+      hasNonWhitespace = true;
+    }
+  }
+  return hasNonWhitespace;
+}
+
 /** Documented. */
 function invalidField(path: string): string {
   return `Invalid rehearsal song contract: invalid field '${path}'`;
@@ -1594,12 +1636,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
 
   if (
     value.dropPlan !== undefined &&
-    (
-      typeof value.dropPlan !== "string" ||
-      value.dropPlan.trim().length === 0 ||
-      value.dropPlan.includes("\n") ||
-      value.dropPlan.includes("\r")
-    )
+    !isNonEmptySingleLineText(value.dropPlan)
   ) {
     return invalidField(`${path}.dropPlan`);
   }

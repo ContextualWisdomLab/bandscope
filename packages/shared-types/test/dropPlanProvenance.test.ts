@@ -34,14 +34,42 @@ describe("dropPlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/dropPlanSource/);
   });
 
-  it.each(["", "   ", "land here\nthen hold", "land here\rthen hold"])(
-    "rejects a drop plan source with blank or multiline copy %j",
-    (dropPlan) => {
-      const song = createDemoRehearsalSong();
-      const role = song.sections[0]!.roles[0]!;
-      role.dropPlan = dropPlan;
-      role.dropPlanSource = "model";
-      expect(() => parseRehearsalSong(song)).toThrow(/dropPlan/);
-    }
-  );
+  it.each([
+    "",
+    "   ",
+    "\u0009",
+    "\u000B",
+    "\u000C",
+    "\u000D",
+    "\u0085",
+    "\u00A0",
+    "\u1680",
+    "\u2000",
+    "\u200A",
+    "\u2028",
+    "\u2029",
+    "\u202F",
+    "\u205F",
+    "\u3000",
+    "\uFEFF",
+    "land here\nthen hold",
+    "land here\rthen hold",
+    "land here\u0085then hold",
+    "land here\u2028then hold",
+    "land here\u2029then hold"
+  ])("rejects invalid drop-plan copy %j", (dropPlan) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.dropPlan = dropPlan;
+    role.dropPlanSource = "model";
+    expect(() => parseRehearsalSong(song)).toThrow(/dropPlan/);
+  });
+
+  it("accepts Unicode-padded single-line drop-plan copy", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.dropPlan = "\uFEFF Hit this drop; come in together when the texture fills.\u3000";
+    role.dropPlanSource = "model";
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.dropPlan).toContain("Hit this drop");
+  });
 });

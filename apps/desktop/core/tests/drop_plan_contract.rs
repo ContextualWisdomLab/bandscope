@@ -175,7 +175,30 @@ fn project_contract_rejects_drop_plan_without_source() {
 
 #[test]
 fn project_contract_rejects_invalid_drop_plan_copy_with_source() {
-    for drop_plan in ["", "   ", "land here\nthen hold", "land here\rthen hold"] {
+    for drop_plan in [
+        "",
+        "   ",
+        "\u{0009}",
+        "\u{000B}",
+        "\u{000C}",
+        "\u{000D}",
+        "\u{0085}",
+        "\u{00A0}",
+        "\u{1680}",
+        "\u{2000}",
+        "\u{200A}",
+        "\u{2028}",
+        "\u{2029}",
+        "\u{202F}",
+        "\u{205F}",
+        "\u{3000}",
+        "\u{FEFF}",
+        "land here\nthen hold",
+        "land here\rthen hold",
+        "land here\u{0085}then hold",
+        "land here\u{2028}then hold",
+        "land here\u{2029}then hold",
+    ] {
         let mut payload = song_with_drop_plan();
         payload["sections"][0]["roles"][0]["dropPlan"] = json!(drop_plan);
         let content = serde_json::to_string(&payload).expect("fixture should serialize");
@@ -185,6 +208,16 @@ fn project_contract_rejects_invalid_drop_plan_copy_with_source() {
             "native persisted contract must reject blank or multiline sourced drop-plan copy"
         );
     }
+}
+
+#[test]
+fn project_contract_accepts_unicode_padded_single_line_drop_plan() {
+    let mut payload = song_with_drop_plan();
+    payload["sections"][0]["roles"][0]["dropPlan"] =
+        json!("\u{FEFF} Hit this drop; come in together when the texture fills.\u{3000}");
+    let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+    assert!(project_payload_from_content(&content).is_ok());
 }
 
 #[test]
