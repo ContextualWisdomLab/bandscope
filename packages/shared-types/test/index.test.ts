@@ -835,7 +835,15 @@ describe("shared type helpers", () => {
   });
 
   it("keeps optional solo plans aligned with Rust project loading", () => {
-    for (const soloPlan of ["", "   ", "hold here\nthen move", "hold here\rthen move"]) {
+    for (const soloPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "hold here\nthen move",
+      "hold here\rthen move",
+      "hold here\u0085then move"
+    ]) {
       const song = createDemoRehearsalSong();
       song.sections[0]!.roles[1]!.soloPlan = soloPlan;
 
@@ -844,7 +852,7 @@ describe("shared type helpers", () => {
     }
 
     const paddedPlan = createDemoRehearsalSong();
-    paddedPlan.sections[0]!.roles[1]!.soloPlan = "  Hold the space  ";
+    paddedPlan.sections[0]!.roles[1]!.soloPlan = "\uFEFF Hold the space \uFEFF";
     expect(isRehearsalSong(paddedPlan)).toBe(true);
   });
 
