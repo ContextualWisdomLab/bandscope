@@ -157,6 +157,7 @@
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}.",
   "rangesEmptyState": "Choose a song on the rehearsal map first. Ranges will name tonight's playable spans after analysis.",
   "rangesUnnamedSpan": "Confirm the high and low notes by ear before treating this as a playable span.",
+  "rangesOneNoteToCheck": "Check {count} written note on your instrument.",
   "rangesNotesToCheck": "Check {count} written notes on your instrument.",
   "playerEmptyState": "Open the rehearsal map and choose a song first. This window does not play audio yet.",
   "playerNextMapLoopTitle": "Tonight's first loop",

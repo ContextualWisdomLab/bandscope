@@ -51,7 +51,7 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
 
   const runtimeSong: unknown = song;
   const sections =
-    typeof runtimeSong === "object" && runtimeSong !== null && !Array.isArray(runtimeSong) && Array.isArray((runtimeSong as { sections?: unknown }).sections)
+    typeof runtimeSong === "object" && !Array.isArray(runtimeSong) && Array.isArray((runtimeSong as { sections?: unknown }).sections)
       ? (runtimeSong as { sections: unknown[] }).sections
       : [];
 
@@ -101,7 +101,7 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
                   <article
                     key={roleId}
                     className="min-w-[16rem] flex-1 rounded-2xl border border-white/10 bg-slate-950/70 p-4"
-                    data-testid={`range-card-${roleId}`}
+                    data-testid={`range-card-${sectionIndex}-${roleId}`}
                   >
                     <p className="text-sm font-bold text-white">{roleName}</p>
                     {validatedRange ? (
@@ -118,9 +118,9 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
                     )}
                     {overlapWarnings.length > 0 ? (
                       <ul className="mt-3 space-y-2" aria-label={t("overlapWarning")}>
-                        {overlapWarnings.map((warning) => (
+                        {overlapWarnings.map((warning, warningIndex) => (
                           <li
-                            key={warning}
+                            key={`${warning}-${warningIndex}`}
                             className="rounded-lg border border-rose-300/20 bg-rose-300/[0.08] px-2 py-1 text-xs leading-5 text-rose-100"
                           >
                             {warning}
@@ -130,7 +130,10 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
                     ) : null}
                     {transcriptionCount > 0 ? (
                       <p className="mt-3 text-xs leading-5 text-cyan-100">
-                        {fillRangeCopy(t("rangesNotesToCheck"), { count: String(transcriptionCount) })}
+                        {fillRangeCopy(
+                          t(transcriptionCount === 1 ? "rangesOneNoteToCheck" : "rangesNotesToCheck"),
+                          { count: String(transcriptionCount) }
+                        )}
                       </p>
                     ) : null}
                   </article>
