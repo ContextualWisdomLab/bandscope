@@ -291,7 +291,7 @@ PR #1070 (`feat(workspace): count in tonight's first click before the range`) is
 
 Local evidence at this head is desktop full `242 passed` across 21 files, statements `99.37%`, branches `98.48%`, functions `100%`, lines `99.35%`, desktop ESLint, TypeScript typecheck, and `git diff --check` with npm `10.9.9`. The preceding hosted head failed only because the four exported tempo/count-in constants lacked the repository's required JSDoc placement; the constants were corrected without changing behavior and the new head emitted no completed failures at capture.
 
-At the immediate post-push hosted snapshot, #1070 was `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, with `reviewDecision=REVIEW_REQUIRED`, unresolved review threads `0`, and qualifying approvals `0`; 2 checks were in progress and 19 were queued. This remains partial #961 evidence and is not protected merge evidence until the same SHA has terminal-success gates and a qualifying independent approval.
+At the immediate post-push hosted snapshot, #1070 was `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, with `reviewDecision=REVIEW_REQUIRED`, unresolved review threads `0`, and qualifying approvals `0`; 2 checks were in progress and 19 were queued. A later same-head query showed `noema-review` failed during sidecar preflight with `request_failed status=413 code=request_too_large`, matching the external provider limit already observed on #970; no source-test failure was identified. This remains partial #961 evidence and is not protected merge evidence until the same SHA has terminal-success gates and a qualifying independent approval.
 
 #### Security Notes
 
