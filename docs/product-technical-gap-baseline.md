@@ -285,7 +285,21 @@ At the hosted snapshot after push, #1071 was `OPEN`, non-draft, `MERGEABLE`, wit
 - The handler dispatches only existing `start`, `pause`, and `stop` transport transitions; it adds no file, URL, subprocess, IPC, WebView, network, model, or export authority.
 - Validation points are editable-target suppression, unavailable-action behavior, localized shortcut guidance, count-in/pause/stop transitions, and exact-head hosted review/check rechecks.
 
-### 4.13 2026-08-30 project persistence current-head snapshot
+### 4.13 2026-08-30 first count-in current-head snapshot
+
+PR #1070 (`feat(workspace): count in tonight's first click before the range`) is on the protected `develop` base `749511c3ad4000090048718f685c6bee6b3d2c25` at current head `92d8ffe3df69f33f43367e610cc2ffa08105e768`. It adds a bounded four-beat local Web Audio click from the existing trusted song tempo and first named section, with fail-closed copy and keyboard-accessible start/stop behavior. It does not add file, URL, subprocess, IPC, WebView, network, model, or persistence authority, and it does not claim stem playback or automatic project-state recovery.
+
+Local evidence at this head is desktop full `242 passed` across 21 files, statements `99.37%`, branches `98.48%`, functions `100%`, lines `99.35%`, desktop ESLint, TypeScript typecheck, and `git diff --check` with npm `10.9.9`. The preceding hosted head failed only because the four exported tempo/count-in constants lacked the repository's required JSDoc placement; the constants were corrected without changing behavior and the new head emitted no completed failures at capture.
+
+At the immediate post-push hosted snapshot, #1070 was `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, with `reviewDecision=REVIEW_REQUIRED`, unresolved review threads `0`, and qualifying approvals `0`; 2 checks were in progress and 19 were queued. This remains partial #961 evidence and is not protected merge evidence until the same SHA has terminal-success gates and a qualifying independent approval.
+
+#### Security Notes
+
+- Runtime song tempo and section labels are untrusted; click authority is restricted to finite 20–400 BPM and bounded beat scheduling.
+- The only new runtime boundary is the in-process Web Audio oscillator graph; missing audio hosts, malformed plans, and unavailable tempo fail closed without logging paths or payloads.
+- Validation points are bounded scheduling, stop/replay cleanup, keyboard/focus-safe control behavior, localized fallback copy, and exact-head hosted gate rechecks.
+
+### 4.14 2026-08-30 project persistence current-head snapshot
 
 PR #970 (`fix(project): stage saves before atomic publication`) is on the protected `develop` base `749511c3ad4000090048718f685c6bee6b3d2c25` at current head `9b7e3e90c03d775b2cc1181d6aaac2a66c8f1223`. The slice stages and syncs bounded project bytes before publication, preserves an existing known-good target across replacement races, fails closed for symlink/reparse and unsafe ancestor paths, and adds durable target-scoped recovery. The latest follow-up also sets the Windows workflow checkout environment required by the supply-chain verifier, derives recovery names from the canonical full target path with a bounded dual key, accepts a case alias only when it resolves to the same regular file, strips executable/special Unix permission bits from project data, recognizes completed rollback after an interrupted cleanup, and runs all persistence integration tests in the Windows workflow. Global startup recovery, backup rotation, versioned migration, and descriptor-bound parent authority remain Issue #962 follow-up scope.
 
