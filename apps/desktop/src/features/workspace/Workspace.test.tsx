@@ -196,6 +196,93 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first hand part that clashes with the band", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-hand-part");
+    expect(callout).toHaveTextContent("Tonight's first hand part");
+    expect(callout).toHaveTextContent(
+      "Keyboard 1 Right Hand clashes in verse. Hear that hand against the band before the verse."
+    );
+  });
+
+  it("asks for an ear check when no hand part is named", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      roleType: role.roleType === "hand" ? "instrument" : role.roleType
+    }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-hand-part")).toHaveTextContent(
+      "Tonight's first hand part still needs an ear check. Confirm the left or right hand voicing before the first section."
+    );
+  });
+
+  it("still names the song-level first hand when the selected role is an instrument", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("first-hand-part")).toHaveTextContent(
+      "Keyboard 1 Right Hand clashes in verse. Hear that hand against the band before the verse."
+    );
+  });
+
+  it("limits the hand callout to the selected hand role", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const rightHand = song.sections[0]!.roles.find((role) => role.id === "keys-right")!;
+    song.sections[0]!.roles.push({
+      ...rightHand,
+      id: "keys-left",
+      name: "Keyboard 1 Left Hand",
+      overlapWarnings: []
+    });
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Keyboard 1 Left Hand" }));
+
+    expect(screen.getByTestId("first-hand-part")).toHaveTextContent(
+      "Keyboard 1 Left Hand carries the verse voicing. Lock that hand in on the keys before the verse."
+    );
+  });
+
+  it("asks the keyboard player to lock a named hand when no clash is present", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      overlapWarnings: []
+    }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-hand-part")).toHaveTextContent(
+      "Keyboard 1 Right Hand carries the verse voicing. Lock that hand in on the keys before the verse."
+    );
+  });
+
+  it("names tonight's first hand part in Korean", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-hand-part");
+    expect(callout).toHaveTextContent("오늘 먼저 잡을 건반 손");
+    expect(callout).toHaveTextContent(
+      "verse의 Keyboard 1 Right Hand가 다른 파트와 겹칩니다. verse 들어가기 전에 그 손을 밴드 소리에 맞춰 들어 보세요."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
