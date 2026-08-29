@@ -835,7 +835,15 @@ describe("shared type helpers", () => {
   });
 
   it("keeps optional pad plans aligned with Rust project loading", () => {
-    for (const padPlan of ["", "   ", "keep here\nthen move", "keep here\rthen move"]) {
+    for (const padPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "keep here\nthen move",
+      "keep here\rthen move",
+      "keep here\u0085then move"
+    ]) {
       const song = createDemoRehearsalSong();
       song.sections[0]!.roles[0]!.padPlan = padPlan;
 
@@ -844,7 +852,7 @@ describe("shared type helpers", () => {
     }
 
     const paddedPlan = createDemoRehearsalSong();
-    paddedPlan.sections[0]!.roles[0]!.padPlan = "  Keep the space  ";
+    paddedPlan.sections[0]!.roles[0]!.padPlan = "\uFEFF Keep the space \uFEFF";
     expect(isRehearsalSong(paddedPlan)).toBe(true);
   });
 

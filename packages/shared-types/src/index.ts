@@ -409,9 +409,46 @@ function isOneOf<T extends string>(options: readonly T[], value: unknown): value
   return typeof value === "string" && options.includes(value as T);
 }
 
-/** Return whether a user-facing optional plan is non-empty and single-line. */
+/** Return whether a code point is in the cross-language plan whitespace set. */
+function isPlanWhitespaceCodePoint(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x0009 && codePoint <= 0x000d) ||
+    codePoint === 0x0020 ||
+    codePoint === 0x0085 ||
+    codePoint === 0x00a0 ||
+    codePoint === 0x1680 ||
+    (codePoint >= 0x2000 && codePoint <= 0x200a) ||
+    codePoint === 0x2028 ||
+    codePoint === 0x2029 ||
+    codePoint === 0x202f ||
+    codePoint === 0x205f ||
+    codePoint === 0x3000 ||
+    codePoint === 0xfeff
+  );
+}
+
+/** Apply one explicit cross-language Unicode whitespace policy to plan text. */
 function isNonEmptySingleLineText(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0 && !value.includes("\n") && !value.includes("\r");
+  if (typeof value !== "string") {
+    return false;
+  }
+  let hasNonWhitespace = false;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)!;
+    if (
+      codePoint === 0x000a ||
+      codePoint === 0x000d ||
+      codePoint === 0x0085 ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029
+    ) {
+      return false;
+    }
+    if (!isPlanWhitespaceCodePoint(codePoint)) {
+      hasNonWhitespace = true;
+    }
+  }
+  return hasNonWhitespace;
 }
 
 /** Documented. */
