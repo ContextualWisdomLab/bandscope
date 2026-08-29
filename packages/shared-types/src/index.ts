@@ -420,6 +420,8 @@ export function isNonEmptySingleLineText(value: unknown): value is string {
     if (
       codePoint === 0x000a ||
       codePoint === 0x000d ||
+      codePoint === 0x000b ||
+      codePoint === 0x000c ||
       codePoint === 0x0085 ||
       codePoint === 0x2028 ||
       codePoint === 0x2029

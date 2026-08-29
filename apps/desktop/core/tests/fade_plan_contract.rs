@@ -133,6 +133,8 @@ fn project_contract_rejects_invalid_fade_plan_copy_with_source() {
         "\u{00A0}\u{2003}\u{3000}",
         "fade here\nthen hold",
         "fade here\rthen hold",
+        "fade here\u{000B}then hold",
+        "fade here\u{000C}then hold",
         "fade here\u{0085}then hold",
         "fade here\u{2028}then hold",
         "fade here\u{2029}then hold",

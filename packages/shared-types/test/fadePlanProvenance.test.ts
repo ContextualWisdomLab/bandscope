@@ -40,6 +40,8 @@ describe("fadePlan provenance", () => {
     "\u00a0\u2003\u3000",
     "fade here\nthen hold",
     "fade here\rthen hold",
+    "fade here\u000bthen hold",
+    "fade here\u000cthen hold",
     "fade here\u0085then hold",
     "fade here\u2028then hold",
     "fade here\u2029then hold"

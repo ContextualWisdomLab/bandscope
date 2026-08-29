@@ -598,7 +598,7 @@ fn is_valid_fade_plan(value: &str) -> bool {
     for character in value.chars() {
         if matches!(
             character,
-            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+            '\n' | '\r' | '\u{000B}' | '\u{000C}' | '\u{0085}' | '\u{2028}' | '\u{2029}'
         ) {
             return false;
         }
