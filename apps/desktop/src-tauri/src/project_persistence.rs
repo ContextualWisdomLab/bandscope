@@ -541,29 +541,44 @@ fn generated_stage_name(name: &JournalPathName) -> bool {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn journal_target_key(target: &Path) -> Result<u64, String> {
-    let name = journal_path_name(target)?;
-    let mut hash = 0xcbf29ce484222325u64;
+pub(crate) fn journal_target_key(target: &Path) -> Result<String, String> {
+    let canonical_target = fs::canonicalize(target).unwrap_or_else(|_| target.to_path_buf());
+    // ponytail: bounded dual-hash names avoid oversized filenames; journal target/path identity
+    // validation prevents redirects, with a journal index as the upgrade path for hostile collisions.
+    let mut primary = 0xcbf29ce484222325u64;
+    let mut secondary = 0x84222325cbf29ce4u64;
+    let mut update = |byte: u8| {
+        primary ^= u64::from(byte);
+        primary = primary.wrapping_mul(0x100000001b3);
+        secondary ^= u64::from(byte);
+        secondary = secondary.wrapping_mul(0x100000001b3);
+    };
     #[cfg(unix)]
-    for byte in name {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    #[cfg(windows)]
-    for unit in name {
-        for byte in unit.to_le_bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x100000001b3);
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        for byte in canonical_target.as_os_str().as_bytes() {
+            update(*byte);
         }
     }
-    Ok(hash)
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+
+        for unit in canonical_target.as_os_str().encode_wide() {
+            for byte in unit.to_le_bytes() {
+                update(byte);
+            }
+        }
+    }
+    Ok(format!("{primary:016x}{secondary:016x}"))
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn publication_journal_path(target: &Path, published: bool) -> Result<PathBuf, String> {
     let phase = if published { "published" } else { "prepared" };
     Ok(project_parent(target).join(format!(
-        ".bandscope-recovery-{:016x}.{}.journal",
+        ".bandscope-recovery-{}.{}.journal",
         journal_target_key(target)?,
         phase
     )))
@@ -777,6 +792,31 @@ fn recover_publication_state(
     Err(PROJECT_RECOVERY_ERROR.to_string())
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn journal_target_matches(
+    target: &Path,
+    parent: &Path,
+    journal_target_name: &JournalPathName,
+) -> bool {
+    let Ok(target_name) = journal_path_name(target) else {
+        return false;
+    };
+    if target_name == *journal_target_name {
+        return true;
+    }
+    let Some(journal_target) = path_from_journal_name(parent, journal_target_name) else {
+        return false;
+    };
+    let Ok(Some(target_identity)) = project_file_identity_if_present(target) else {
+        return false;
+    };
+    let Ok(Some(journal_identity)) = project_file_identity_if_present(&journal_target) else {
+        return false;
+    };
+    target_identity == journal_identity
+        && fs::canonicalize(target).ok() == fs::canonicalize(journal_target).ok()
+}
+
 /// Repairs one durable, adjacent publication journal when its target is selected again.
 ///
 /// Security Notes: journal names are derived from the selected target and stage names are generated
@@ -785,7 +825,6 @@ fn recover_publication_state(
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
     let parent = project_parent(target);
-    let target_name = journal_path_name(target)?;
     let prepared_path = publication_journal_path(target, false)?;
     let published_path = publication_journal_path(target, true)?;
     let prepared_exists = recovery_artifact_exists(&prepared_path)?;
@@ -819,7 +858,7 @@ pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
     .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
     let journal: PublicationJournal =
         serde_json::from_str(&content).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
-    if journal.target_name != target_name {
+    if !journal_target_matches(target, parent, &journal.target_name) {
         return Err(PROJECT_RECOVERY_ERROR.to_string());
     }
     if journal.version != 1
@@ -1083,7 +1122,8 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// user-writable static ancestor-link redirection without breaking normal paths below macOS system
 /// aliases. `File::create_new` makes staging non-clobbering. If the selected target exists, its native
 /// identity and permissions are captured from the same pre-staging metadata snapshot on Unix; the
-/// staged inode receives those permissions after its bytes are written and before it is synced.
+/// staged inode receives the existing read/write permission bits after its bytes are written and
+/// before it is synced; executable and special bits are never copied to project data.
 /// Linux and macOS then atomically exchange the synced staging inode with the target and accept the
 /// publication only when the displaced inode still matches that captured identity; a mismatch is
 /// exchanged back before returning an error. Windows uses `ReplaceFileW` with a unique same-directory
@@ -1145,7 +1185,10 @@ where
     }
     #[cfg(unix)]
     if let Some((_, permissions)) = expected_target.as_ref() {
-        if staged.set_permissions(permissions.clone()).is_err() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let data_permissions = fs::Permissions::from_mode(permissions.mode() & 0o666);
+        if staged.set_permissions(data_permissions).is_err() {
             drop(staged);
             remove_stage(&stage);
             return Err(PROJECT_STAGE_ERROR.to_string());
@@ -1292,6 +1335,48 @@ mod tests {
 
         assert!(target.is_file());
         fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn recovers_a_case_alias_of_the_selected_target() {
+        let root = test_dir("case-alias");
+        let target = root.join("Setlist.bscope");
+        let alias = root.join("setlist.bscope");
+        let stage = super::staging_path(&target).expect("candidate stage path should be derivable");
+        let displaced =
+            super::staging_path(&target).expect("displaced stage path should be derivable");
+        let original = br#"{"id":"original"}"#;
+        let candidate = br#"{"id":"candidate"}"#;
+        fs::write(&target, original).expect("original fixture should be written");
+        if fs::symlink_metadata(&alias).is_err() {
+            fs::remove_dir_all(root).expect("case-sensitive fixture directory should be removable");
+            return;
+        }
+        fs::write(&stage, candidate).expect("candidate fixture should be written");
+
+        let expected = super::project_file_identity(&target)
+            .expect("original target identity should be capturable");
+        let candidate_identity =
+            super::project_file_identity(&stage).expect("candidate identity should be capturable");
+        let journal = super::create_publication_journal(
+            &target,
+            &stage,
+            &displaced,
+            &expected,
+            &candidate_identity,
+        )
+        .expect("the recovery journal should be durable before publication");
+        fs::rename(&target, &displaced).expect("original target should be displaced");
+        fs::rename(&stage, &target).expect("candidate should become the target");
+
+        super::recover_project_publication(&alias)
+            .expect("recovery should resolve the case-insensitive target alias");
+
+        assert_eq!(fs::read(&target).expect("recovered target should be readable"), original);
+        assert!(!journal.exists(), "the recovered journal should be removed");
+        assert!(!displaced.exists(), "the displaced artifact should be removed");
+        fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
 
     #[test]

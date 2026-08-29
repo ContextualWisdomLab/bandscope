@@ -5,7 +5,6 @@ mod project_persistence;
 mod unix_recovery_cleanup {
     use super::project_persistence;
     use std::{
-        ffi::OsStr,
         fs,
         os::unix::ffi::OsStrExt,
         path::{Path, PathBuf},
@@ -25,19 +24,11 @@ mod unix_recovery_cleanup {
         path
     }
 
-    fn target_key(name: &OsStr) -> u64 {
-        let mut hash = 0xcbf29ce484222325u64;
-        for byte in name.as_bytes() {
-            hash ^= u64::from(*byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-        hash
-    }
-
     fn prepared_journal_path(target: &Path) -> PathBuf {
         target.parent().expect("fixture target should have a parent").join(format!(
-            ".bandscope-recovery-{:016x}.prepared.journal",
-            target_key(target.file_name().expect("fixture target should have a name"))
+            ".bandscope-recovery-{}.prepared.journal",
+            project_persistence::journal_target_key(target)
+                .expect("fixture target key should be derivable")
         ))
     }
 
@@ -112,7 +103,6 @@ mod unix_recovery_cleanup {
 mod windows_recovery_cleanup {
     use super::project_persistence;
     use std::{
-        ffi::OsStr,
         fs,
         os::windows::ffi::OsStrExt,
         path::{Path, PathBuf},
@@ -132,21 +122,11 @@ mod windows_recovery_cleanup {
         path
     }
 
-    fn target_key(name: &OsStr) -> u64 {
-        let mut hash = 0xcbf29ce484222325u64;
-        for unit in name.encode_wide() {
-            for byte in unit.to_le_bytes() {
-                hash ^= u64::from(byte);
-                hash = hash.wrapping_mul(0x100000001b3);
-            }
-        }
-        hash
-    }
-
     fn prepared_journal_path(target: &Path) -> PathBuf {
         target.parent().expect("fixture target should have a parent").join(format!(
-            ".bandscope-recovery-{:016x}.prepared.journal",
-            target_key(target.file_name().expect("fixture target should have a name"))
+            ".bandscope-recovery-{}.prepared.journal",
+            project_persistence::journal_target_key(target)
+                .expect("fixture target key should be derivable")
         ))
     }
 
