@@ -790,9 +790,6 @@ fn recover_publication_state(
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
     let parent = project_parent(target);
-    if !project_parent_chain_is_safe(parent) {
-        return Err(PROJECT_RECOVERY_ERROR.to_string());
-    }
     let target_name = journal_path_name(target)?;
     let prepared_path = publication_journal_path(target, false)?;
     let published_path = publication_journal_path(target, true)?;
@@ -810,6 +807,9 @@ pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
     }) else {
         return Ok(());
     };
+    if !project_parent_chain_is_safe(parent) {
+        return Err(PROJECT_RECOVERY_ERROR.to_string());
+    }
     let metadata = fs::symlink_metadata(&journal_path)
         .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
     if !metadata_is_regular_project_file(&metadata) {
