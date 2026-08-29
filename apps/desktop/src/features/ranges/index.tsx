@@ -38,7 +38,10 @@ export function RangesFeature(props: {
 }) {
   const { title, song, activeRole = null } = props;
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const safeSong = song && isSafeRuntimeValue(song) ? song : null;
+  const safeSong = useMemo(
+    () => (song && isSafeRuntimeValue(song) ? song : null),
+    [song],
+  );
   const firstRange = useMemo(
     () => (safeSong ? firstRangeSqueeze(safeSong, activeRole) : null),
     [activeRole, safeSong],

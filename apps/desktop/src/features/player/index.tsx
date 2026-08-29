@@ -56,7 +56,10 @@ export function firstNamedSection(song: RehearsalSong | null | undefined): First
 export function PlayerFeature(props: { title: string; song?: RehearsalSong | null }) {
   const { title, song } = props;
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const safeSong = song && isSafeRuntimeValue(song) ? song : null;
+  const safeSong = useMemo(
+    () => (song && isSafeRuntimeValue(song) ? song : null),
+    [song],
+  );
   const namedSection = useMemo(() => firstNamedSection(safeSong), [safeSong]);
   const songTitle = meaningfulRangeText(
     isRuntimeObject(safeSong) ? ownDataProperty(safeSong, "title") : undefined
