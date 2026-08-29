@@ -1691,7 +1691,7 @@ function validateTempoStability(value: unknown, path: string): string | null {
   if (extraKey) {
     return extraKey;
   }
-  if (typeof value.bpmMedian !== "number" || !Number.isFinite(value.bpmMedian) || value.bpmMedian < 0) {
+  if (typeof value.bpmMedian !== "number" || !Number.isFinite(value.bpmMedian) || value.bpmMedian <= 0) {
     return invalidField(`${path}.bpmMedian`);
   }
   if (typeof value.bpmStdev !== "number" || !Number.isFinite(value.bpmStdev) || value.bpmStdev < 0) {

@@ -1048,6 +1048,10 @@ describe("shared type helpers", () => {
         tempoChanges: [{ time: 32.5, fromBpm: 120, toBpm: 0 }]
       }
     })).toThrow("tempoStability.tempoChanges[0].toBpm");
+    expect(() => parseRehearsalSong({
+      ...song,
+      tempoStability: { ...song.tempoStability, bpmMedian: 0 }
+    })).toThrow("tempoStability.bpmMedian");
   });
 
   it("validates practiceProgress successfully when valid", () => {
