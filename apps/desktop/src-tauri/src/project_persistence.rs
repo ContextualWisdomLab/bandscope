@@ -427,17 +427,22 @@ pub(crate) struct ProjectFileIdentity {
 }
 
 #[cfg(unix)]
-pub(crate) fn project_file_identity(target: &Path) -> Result<ProjectFileIdentity, String> {
+fn project_file_identity_from_metadata(metadata: &fs::Metadata) -> ProjectFileIdentity {
     use std::os::unix::fs::MetadataExt;
 
+    ProjectFileIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    }
+}
+
+#[cfg(unix)]
+pub(crate) fn project_file_identity(target: &Path) -> Result<ProjectFileIdentity, String> {
     let metadata = fs::symlink_metadata(target).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
     if !metadata_is_regular_project_file(&metadata) {
         return Err(PROJECT_PUBLISH_ERROR.to_string());
     }
-    Ok(ProjectFileIdentity {
-        device: metadata.dev(),
-        inode: metadata.ino(),
-    })
+    Ok(project_file_identity_from_metadata(&metadata))
 }
 
 #[cfg(windows)]
@@ -661,17 +666,19 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// `/private` system directory; arbitrary root-level aliases remain fail-closed. This rejects
 /// user-writable static ancestor-link redirection without breaking normal paths below macOS system
 /// aliases. `File::create_new` makes staging non-clobbering. If the selected target exists, its native
-/// identity is captured before staging. Linux and macOS then atomically exchange the synced staging
-/// inode with the target and accept the publication only when the displaced inode still matches that
-/// captured identity; a mismatch is exchanged back before returning an error. Windows uses
-/// `ReplaceFileW` with a unique same-directory backup, validates the displaced file's native identity,
-/// and restores it when the snapshot no longer matches. For a destination that was absent at the
-/// snapshot, a hard link is attempted first; Linux then uses `renameat2(RENAME_NOREPLACE)`, macOS uses
-/// `renamex_np(RENAME_EXCL)`, and Windows uses `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so a
-/// concurrently appearing destination is not clobbered. Filesystems without the required native
-/// primitive fail closed. These checks do not claim descriptor-bound protection for a parent-chain
-/// swap, authority before the first post-dialog identity snapshot, or crash recovery if a process is
-/// terminated during a mismatch rollback; those remain project-format work under #962.
+/// identity and permissions are captured from the same pre-staging metadata snapshot on Unix; the
+/// staged inode receives those permissions after its bytes are written and before it is synced.
+/// Linux and macOS then atomically exchange the synced staging inode with the target and accept the
+/// publication only when the displaced inode still matches that captured identity; a mismatch is
+/// exchanged back before returning an error. Windows uses `ReplaceFileW` with a unique same-directory
+/// backup, validates the displaced file's native identity, and restores it when the snapshot no longer
+/// matches. For a destination that was absent at the snapshot, a hard link is attempted first; Linux
+/// then uses `renameat2(RENAME_NOREPLACE)`, macOS uses `renamex_np(RENAME_EXCL)`, and Windows uses
+/// `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so a concurrently appearing destination is not
+/// clobbered. Filesystems without the required native primitive fail closed. These checks do not claim
+/// descriptor-bound protection for a parent-chain swap, authority before the first post-dialog identity
+/// snapshot, or crash recovery if a process is terminated during a mismatch rollback; those remain
+/// project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     publish_new_project_file_with_linker(target, content, |source, destination| {
         fs::hard_link(source, destination)
@@ -703,7 +710,11 @@ where
             if !metadata_is_regular_project_file(&metadata) {
                 return Err(PROJECT_PUBLISH_ERROR.to_string());
             }
-            Some(project_file_identity(target)?)
+            #[cfg(unix)]
+            let identity = project_file_identity_from_metadata(&metadata);
+            #[cfg(not(unix))]
+            let identity = project_file_identity(target)?;
+            Some((identity, metadata.permissions()))
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(_) => return Err(PROJECT_PUBLISH_ERROR.to_string()),
@@ -711,14 +722,27 @@ where
 
     let stage = staging_path(target)?;
     let mut staged = File::create_new(&stage).map_err(|_| PROJECT_STAGE_ERROR.to_string())?;
-    if staged.write_all(content).is_err() || staged.sync_all().is_err() {
+    if staged.write_all(content).is_err() {
+        drop(staged);
+        remove_stage(&stage);
+        return Err(PROJECT_STAGE_ERROR.to_string());
+    }
+    #[cfg(unix)]
+    if let Some((_, permissions)) = expected_target.as_ref() {
+        if staged.set_permissions(permissions.clone()).is_err() {
+            drop(staged);
+            remove_stage(&stage);
+            return Err(PROJECT_STAGE_ERROR.to_string());
+        }
+    }
+    if staged.sync_all().is_err() {
         drop(staged);
         remove_stage(&stage);
         return Err(PROJECT_STAGE_ERROR.to_string());
     }
     drop(staged);
 
-    if let Some(expected) = expected_target {
+    if let Some((expected, _)) = expected_target {
         return replace_existing_project_file(&stage, target, &expected);
     }
 
