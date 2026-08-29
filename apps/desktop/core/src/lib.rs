@@ -122,10 +122,29 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_tempo",
+        skip_serializing_if = "Option::is_none"
+    )]
+    tempo: Option<f64>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+fn deserialize_tempo<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let tempo = Option::<f64>::deserialize(deserializer)?;
+    if tempo.is_some_and(|value| !value.is_finite() || value <= 0.0) {
+        return Err(serde::de::Error::custom(
+            "tempo must be positive and finite",
+        ));
+    }
+    Ok(tempo)
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -960,6 +979,38 @@ mod tests {
             .expect("shared rehearsal song contract should deserialize in Tauri");
 
         assert_eq!(parsed.sections[0].id, "verse-1");
+    }
+
+    #[test]
+    fn rehearsal_song_payload_round_trips_tempo() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["tempo"] = json!(128.5);
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("optional tempo should deserialize in Tauri");
+        let serialized =
+            serde_json::to_value(&parsed).expect("tempo-bearing song should serialize back");
+
+        assert_eq!(serialized["tempo"], json!(128.5));
+    }
+
+    #[test]
+    fn analysis_job_status_round_trips_tempo_in_result() {
+        let mut result = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        result["tempo"] = json!(128.5);
+        let status = json!({
+            "jobId": "job-1",
+            "state": "succeeded",
+            "requestedAt": "2026-03-12T00:00:00Z",
+            "updatedAt": "2026-03-12T00:00:01Z",
+            "result": result
+        });
+
+        let parsed = serde_json::from_value::<AnalysisJobStatus>(status)
+            .expect("analysis status with tempo should deserialize");
+        let serialized = serde_json::to_value(parsed).expect("analysis status should serialize");
+
+        assert_eq!(serialized["result"]["tempo"], json!(128.5));
     }
 
     #[test]

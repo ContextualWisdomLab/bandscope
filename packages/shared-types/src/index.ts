@@ -15,6 +15,11 @@ const SECTION_FORM_LABELS = [
 ] as const;
 export /** Documented. */
 const MAX_SECTION_TIME_SECONDS = 4_294_967_295;
+const MAX_RITARDANDO_PLAN_CHARACTERS = 180;
+const RITARDANDO_PLAN_PREFIX = "Ease this part from ";
+const RITARDANDO_PLAN_SUFFIX = " BPM; let the next downbeat land later.";
+const HALF_TIME_RATIO_MIN = 0.45;
+const HALF_TIME_RATIO_MAX = 0.55;
 
 /** Documented. */
 export type SectionFormLabel = (typeof SECTION_FORM_LABELS)[number];
@@ -445,6 +450,40 @@ export function isNonEmptySingleLineText(value: unknown): value is string {
     }
   }
   return hasNonWhitespace;
+}
+
+/** Return whether model ritardando copy preserves the engine's tempo semantics. */
+function isValidModelRitardandoPlan(value: string): boolean {
+  if (value.length > MAX_RITARDANDO_PLAN_CHARACTERS) {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (
+    !trimmed.startsWith(RITARDANDO_PLAN_PREFIX) ||
+    !trimmed.endsWith(RITARDANDO_PLAN_SUFFIX)
+  ) {
+    return false;
+  }
+  const inner = trimmed.slice(RITARDANDO_PLAN_PREFIX.length, -RITARDANDO_PLAN_SUFFIX.length);
+  const match = inner.match(/^(\d+(?:\.\d+)?) BPM into (\d+(?:\.\d+)?)$/u);
+  if (!match) {
+    return false;
+  }
+  const fromBpm = Number(match[1]);
+  const toBpm = Number(match[2]);
+  if (
+    !Number.isFinite(fromBpm) ||
+    !Number.isFinite(toBpm) ||
+    fromBpm <= 0 ||
+    toBpm <= 0
+  ) {
+    return false;
+  }
+  if (toBpm >= fromBpm) {
+    return false;
+  }
+  const ratio = toBpm / fromBpm;
+  return ratio < HALF_TIME_RATIO_MIN || ratio > HALF_TIME_RATIO_MAX;
 }
 
 /** Documented. */
@@ -1648,6 +1687,12 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.ritardandoPlan !== undefined && value.ritardandoPlanSource === undefined) {
     return invalidField(`${path}.ritardandoPlanSource`);
+  }
+  if (
+    value.ritardandoPlanSource === "model" &&
+    !isValidModelRitardandoPlan(value.ritardandoPlan!)
+  ) {
+    return invalidField(`${path}.ritardandoPlan`);
   }
   if (
     value.ritardandoPlanAtSeconds !== undefined &&
