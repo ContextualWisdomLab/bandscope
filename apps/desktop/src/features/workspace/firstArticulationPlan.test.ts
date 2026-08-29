@@ -131,6 +131,15 @@ describe("resolveFirstArticulationPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded articulation text", () => {
+    for (const articulationPlan of ["Play\u0085here", "Play\u2028here", "Play\u2029here"]) {
+      expect(resolveFirstArticulationPlan(withArticulationSection({ articulationPlan }))).toBeNull();
+    }
+    expect(resolveFirstArticulationPlan(withArticulationSection({ articulationPlan: "\uFEFF Play here \uFEFF" }))?.articulationPlan).toBe(
+      "Play here"
+    );
+  });
+
   it("prefers the earlier of two articulation plans", () => {
     const song = withArticulationSection({
       id: "verse-late",

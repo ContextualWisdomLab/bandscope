@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -90,10 +91,10 @@ function ownedArticulationPlan(role: unknown): string | null {
   if (typeof articulationPlan !== "string") {
     return null;
   }
-  const trimmed = articulationPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(articulationPlan)) {
     return null;
   }
+  const trimmed = articulationPlan.trim();
   return truncateCodePoints(trimmed, MAX_ARTICULATION_PLAN_CHARACTERS);
 }
 
