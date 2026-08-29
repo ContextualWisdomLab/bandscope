@@ -204,6 +204,13 @@ describe("resolveFirstSwellPlan", () => {
     ).toBeNull();
   });
 
+  it("preserves long user-authored swell copy verbatim", () => {
+    const swellPlan = `${"Grow together. ".repeat(20)}Keep the landing clear.`;
+    expect(
+      resolveFirstSwellPlan(withSwellSection({ swellPlan, swellPlanSource: "user" }))?.swellPlan
+    ).toBe(swellPlan);
+  });
+
   it("prefers the earlier of two swell plans", () => {
     const song = withSwellSection({
       id: "chorus-late-swell",

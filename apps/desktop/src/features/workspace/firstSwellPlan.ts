@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -166,15 +167,15 @@ function ownedSwellPlan(role: unknown): OwnedSwellPlan | null {
   if (swellPlanSource !== "model" && swellPlanSource !== "user") {
     return null;
   }
-  const trimmed = swellPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(swellPlan)) {
     return null;
   }
   if (swellPlanSource === "model") {
+    const trimmed = swellPlan.trim();
     return boundedGeneratedSwellPlan(trimmed);
   }
   return {
-    text: truncateCodePoints(trimmed, MAX_SWELL_PLAN_CHARACTERS),
+    text: swellPlan,
     source: swellPlanSource,
     guidance: null
   };

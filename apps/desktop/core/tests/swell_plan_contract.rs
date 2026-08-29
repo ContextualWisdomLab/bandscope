@@ -73,7 +73,8 @@ fn project_contract_round_trips_swell_plan_provenance() {
 
     let parsed = project_payload_from_content(&content)
         .expect("native project contract must accept shared swell-plan fields");
-    let serialized = serde_json::to_value(parsed).expect("native project contract should serialize");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
 
     assert_eq!(
         serialized["sections"][0]["roles"][0]["swellPlan"],
@@ -117,7 +118,16 @@ fn project_contract_rejects_swell_plan_without_source() {
 
 #[test]
 fn project_contract_rejects_invalid_swell_plan_copy_with_source() {
-    for swell_plan in ["", "   ", "swell here\nthen hold", "swell here\rthen hold"] {
+    for swell_plan in [
+        "",
+        "   ",
+        "\u{00A0}\u{2003}\u{3000}",
+        "swell here\nthen hold",
+        "swell here\rthen hold",
+        "swell here\u{0085}then hold",
+        "swell here\u{2028}then hold",
+        "swell here\u{2029}then hold",
+    ] {
         let mut payload = song_with_swell_plan();
         payload["sections"][0]["roles"][0]["swellPlan"] = json!(swell_plan);
         let content = serde_json::to_string(&payload).expect("fixture should serialize");
@@ -138,5 +148,23 @@ fn project_contract_rejects_unknown_swell_plan_source() {
     assert!(
         project_payload_from_content(&content).is_err(),
         "native persisted contract must reject provenance outside model/user"
+    );
+}
+
+#[test]
+fn project_contract_preserves_padded_single_line_swell_copy() {
+    let mut payload = song_with_swell_plan();
+    payload["sections"][0]["roles"][0]["swellPlan"] = json!("  Grow together. \u{00A0}");
+    payload["sections"][0]["roles"][0]["swellPlanSource"] = json!("user");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    let parsed = project_payload_from_content(&content)
+        .expect("native persisted contract must preserve padded single-line copy");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
+
+    assert_eq!(
+        serialized["sections"][0]["roles"][0]["swellPlan"],
+        payload["sections"][0]["roles"][0]["swellPlan"]
     );
 }

@@ -34,7 +34,16 @@ describe("swellPlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/swellPlanSource/);
   });
 
-  it.each(["", "   ", "swell here\nthen hold", "swell here\rthen hold"])(
+  it.each([
+    "",
+    "   ",
+    "\u00a0\u2003\u3000",
+    "swell here\nthen hold",
+    "swell here\rthen hold",
+    "swell here\u0085then hold",
+    "swell here\u2028then hold",
+    "swell here\u2029then hold"
+  ])(
     "rejects a swell plan source with blank or multiline copy %j",
     (swellPlan) => {
       const song = createDemoRehearsalSong();
@@ -44,4 +53,13 @@ describe("swellPlan provenance", () => {
       expect(() => parseRehearsalSong(song)).toThrow(/swellPlan/);
     }
   );
+
+  it("accepts padded single-line swell copy without normalizing it", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.swellPlan = "  Grow together. \u00a0";
+    role.swellPlanSource = "user";
+
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.swellPlan).toBe(role.swellPlan);
+  });
 });
