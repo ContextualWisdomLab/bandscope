@@ -153,6 +153,16 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstCountInTitle": "Tonight's first count-in",
+  "workspaceFirstCountInReady": "Count in {beats} at {tempo} BPM, then check tonight's first range before the {sectionLabel}.",
+  "workspaceFirstCountInReadyNoSection": "Count in {beats} at {tempo} BPM, then name the first section so the room knows where it starts.",
+  "workspaceFirstCountInMissing": "Tonight's first count-in still needs a tempo. Count the first section in by ear before you start.",
+  "workspaceFirstCountInAction": "Count in",
+  "workspaceFirstCountInActionLabel": "Count in {beats} at {tempo} BPM",
+  "workspaceFirstCountInPlaying": "Counting in",
+  "workspaceFirstCountInStop": "Stop count-in",
+  "workspaceFirstCountInDone": "Now check that span on your instrument.",
+  "workspaceFirstCountInUnavailable": "This browser cannot play a click. Count {beats} by ear, then check the range.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
