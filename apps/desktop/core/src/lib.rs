@@ -590,15 +590,16 @@ fn is_valid_riff_plan(value: &str) -> bool {
     has_non_whitespace
 }
 
-fn validate_riff_plan(payload: RehearsalSongPayload) -> Result<RehearsalSongPayload, String> {
-    for section in &payload.sections {
-        for role in &section.roles {
+fn validate_riff_plan(mut payload: RehearsalSongPayload) -> Result<RehearsalSongPayload, String> {
+    for section in &mut payload.sections {
+        for role in &mut section.roles {
             if role
                 .riff_plan
                 .as_deref()
                 .is_some_and(|riff_plan| !is_valid_riff_plan(riff_plan))
             {
-                return Err("Invalid project file format".to_string());
+                // Keep legacy projects loadable while the shared save boundary rejects new invalid values.
+                role.riff_plan = None;
             }
         }
     }
@@ -961,7 +962,9 @@ mod tests {
             payload["sections"][0]["roles"][0]["riffPlan"] = json!(riff_plan);
             let content = serde_json::to_string(&payload).expect("payload should serialize");
 
-            assert!(project_payload_from_content(&content).is_err());
+            let parsed = project_payload_from_content(&content)
+                .expect("legacy invalid riff plans should be dropped while loading");
+            assert!(parsed.sections[0].roles[0].riff_plan.is_none());
         }
     }
 
