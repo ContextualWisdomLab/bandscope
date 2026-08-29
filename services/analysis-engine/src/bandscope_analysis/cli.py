@@ -198,7 +198,7 @@ def _read_bounded_job_file(path: str) -> bytes:
     authority = classify_windows_job_path_authority(path)
     if authority is not None:
         path = f"class={authority}"
-        logger.warning("Security: rejected job path authority %s", path)
+        logger.warning("Security: rejected job path authority: %s", path)
         raise OSError("job path must use the local regular-file namespace")
 
     before = os.lstat(path)
