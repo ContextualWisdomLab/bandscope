@@ -15,6 +15,47 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Read one own data-property value without invoking accessors or Proxy get traps. */
+function ownDataValue(record: Record<string, unknown>, property: string): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(record, property);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Snapshot own section slots without invoking array index or iteration get traps. */
+function ownSectionValues(value: unknown): unknown[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  let lengthDescriptor: PropertyDescriptor | undefined;
+  try {
+    lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
+  } catch {
+    return null;
+  }
+  const length = lengthDescriptor && "value" in lengthDescriptor ? lengthDescriptor.value : undefined;
+  if (!Number.isSafeInteger(length) || length < 0) {
+    return null;
+  }
+
+  const sections: unknown[] = [];
+  for (let index = 0; index < length; index += 1) {
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (descriptor && "value" in descriptor) {
+        sections.push(descriptor.value);
+      }
+    } catch {
+      return null;
+    }
+  }
+  return sections;
+}
+
 /**
  * Return a rehearsal-usable BPM or fail closed.
  *
@@ -39,25 +80,31 @@ export function formatTempoBpm(tempoBpm: number): string {
 /**
  * Pick tonight's first click: a trusted song tempo plus the first named section.
  *
- * Runtime roots and collection members are treated as untrusted; malformed
- * evidence is isolated instead of becoming click-track authority.
+ * Runtime roots and collection members are treated as untrusted; only snapshotted
+ * own data-property values can become click-track authority. Malformed evidence is
+ * isolated instead of becoming buyer-visible guidance.
  */
 export function firstClickPlan(song: RehearsalSong): FirstClickPlan | null {
   const runtimeSong: unknown = song;
-  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
+  if (!isRuntimeObject(runtimeSong)) {
     return null;
   }
 
-  const tempoBpm = trustedTempoBpm(runtimeSong.tempo);
+  const sections = ownSectionValues(ownDataValue(runtimeSong, "sections"));
+  if (sections === null) {
+    return null;
+  }
+
+  const tempoBpm = trustedTempoBpm(ownDataValue(runtimeSong, "tempo"));
   if (tempoBpm === null) {
     return null;
   }
 
-  for (const sectionValue of runtimeSong.sections) {
+  for (const sectionValue of sections) {
     if (!isRuntimeObject(sectionValue)) {
       continue;
     }
-    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    const sectionLabel = meaningfulRangeText(ownDataValue(sectionValue, "label"));
     if (!sectionLabel) {
       continue;
     }
