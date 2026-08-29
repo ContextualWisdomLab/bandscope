@@ -40,6 +40,132 @@ fn remove_stage(path: &Path) {
     let _ = fs::remove_file(path);
 }
 
+#[cfg(target_os = "linux")]
+fn rename_noreplace(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::{ffi::CString, os::unix::ffi::OsStrExt};
+
+    const AT_FDCWD: i32 = -100;
+    const RENAME_NOREPLACE: u32 = 1;
+
+    extern "C" {
+        fn renameat2(
+            olddirfd: i32,
+            oldpath: *const std::os::raw::c_char,
+            newdirfd: i32,
+            newpath: *const std::os::raw::c_char,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let source = CString::new(source.as_os_str().as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "project staging path contains NUL",
+        )
+    })?;
+    let destination = CString::new(destination.as_os_str().as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "project destination path contains NUL",
+        )
+    })?;
+
+    let result = unsafe {
+        renameat2(
+            AT_FDCWD,
+            source.as_ptr(),
+            AT_FDCWD,
+            destination.as_ptr(),
+            RENAME_NOREPLACE,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn rename_noreplace(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::{ffi::CString, os::unix::ffi::OsStrExt};
+
+    const RENAME_EXCL: u32 = 0x0000_0004;
+
+    extern "C" {
+        fn renamex_np(
+            from: *const std::os::raw::c_char,
+            to: *const std::os::raw::c_char,
+            flags: u32,
+        ) -> i32;
+    }
+
+    let source = CString::new(source.as_os_str().as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "project staging path contains NUL",
+        )
+    })?;
+    let destination = CString::new(destination.as_os_str().as_bytes()).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "project destination path contains NUL",
+        )
+    })?;
+
+    let result = unsafe { renamex_np(source.as_ptr(), destination.as_ptr(), RENAME_EXCL) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(windows)]
+fn rename_noreplace(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x0000_0008;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        #[link_name = "MoveFileExW"]
+        fn move_file_ex_w(existing: *const u16, new: *const u16, flags: u32) -> i32;
+    }
+
+    let source = source
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let destination = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+
+    let result = unsafe {
+        move_file_ex_w(
+            source.as_ptr(),
+            destination.as_ptr(),
+            MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result != 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn rename_noreplace(_source: &Path, _destination: &Path) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "atomic no-replace project publication is unsupported on this platform",
+    ))
+}
+
 #[cfg(windows)]
 pub(crate) fn open_project_file(target: &Path) -> std::io::Result<File> {
     use std::os::windows::fs::OpenOptionsExt;
@@ -253,13 +379,15 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// The directly selected parent must itself be a real directory rather than a symlink/reparse point
 /// before any staging artifact is created. `File::create_new` makes staging non-clobbering. A new
 /// destination first uses a hard link to the synced staging inode. When that filesystem does not
-/// support hard links, the publisher reserves the still-absent destination with `File::create_new`
-/// and atomically renames the fully synced stage over that reservation. `AlreadyExists` at either
-/// publication boundary fails closed without clobbering the competing file. If the save dialog
+/// support hard links, Linux uses `renameat2(RENAME_NOREPLACE)`, macOS uses
+/// `renamex_np(RENAME_EXCL)`, and Windows uses `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so
+/// the fully synced staging file becomes the final name without first materializing an empty final
+/// path. An existing destination at either no-clobber boundary fails closed. If the save dialog
 /// selected an existing regular file, the synced staging file is atomically renamed over that
-/// directory entry; symlink/reparse/special targets fail closed. Ancestor-handle binding,
-/// parent-directory durability, concurrent-writer serialization, backup rotation, migration, and
-/// recovery remain separate project-format work under #962.
+/// directory entry; symlink/reparse/special targets fail closed. Filesystems that do not support the
+/// native no-replace primitive fail closed rather than falling back to reserve-then-replace.
+/// Ancestor-handle binding, parent-directory durability, concurrent-writer serialization, backup
+/// rotation, migration, and recovery remain separate project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     publish_new_project_file_with_linker(target, content, |source, destination| {
         fs::hard_link(source, destination)
@@ -326,9 +454,9 @@ where
             return Err(PROJECT_EXISTS_ERROR.to_string());
         }
 
-        let reserved = match File::create_new(target) {
-            Ok(file) => file,
-            Err(reserve_error) if reserve_error.kind() == std::io::ErrorKind::AlreadyExists => {
+        match rename_noreplace(&stage, target) {
+            Ok(()) => return Ok(()),
+            Err(publish_error) if publish_error.kind() == std::io::ErrorKind::AlreadyExists => {
                 remove_stage(&stage);
                 return Err(PROJECT_EXISTS_ERROR.to_string());
             }
@@ -336,14 +464,7 @@ where
                 remove_stage(&stage);
                 return Err(PROJECT_PUBLISH_ERROR.to_string());
             }
-        };
-        drop(reserved);
-
-        if fs::rename(&stage, target).is_err() {
-            remove_stage(&stage);
-            return Err(PROJECT_PUBLISH_ERROR.to_string());
         }
-        return Ok(());
     }
 
     // Both names reference the already-synced inode at this point. Cleanup failure does not make the
@@ -375,6 +496,52 @@ mod tests {
         ));
         fs::create_dir_all(&path).expect("test directory should be created");
         path
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[test]
+    fn native_no_replace_rename_preserves_a_competing_destination() {
+        let root = test_dir("rename-noreplace-conflict");
+        let stage = root.join("candidate.stage");
+        let target = root.join("setlist.bscope");
+        let candidate = br#"{\"id\":\"candidate\"}"#;
+        let competing = br#"{\"id\":\"competing\"}"#;
+        fs::write(&stage, candidate).expect("candidate stage should be written");
+        fs::write(&target, competing).expect("competing target should be written");
+
+        let error = super::rename_noreplace(&stage, &target)
+            .expect_err("native no-replace rename must refuse an existing target");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(
+            fs::read(&target).expect("competing target should remain readable"),
+            competing
+        );
+        assert_eq!(
+            fs::read(&stage).expect("candidate stage should remain after conflict"),
+            candidate
+        );
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[test]
+    fn native_no_replace_rename_publishes_when_destination_is_absent() {
+        let root = test_dir("rename-noreplace-new");
+        let stage = root.join("candidate.stage");
+        let target = root.join("setlist.bscope");
+        let candidate = br#"{\"id\":\"candidate\"}"#;
+        fs::write(&stage, candidate).expect("candidate stage should be written");
+
+        super::rename_noreplace(&stage, &target)
+            .expect("native no-replace rename should publish an absent target");
+
+        assert_eq!(
+            fs::read(&target).expect("published target should be readable"),
+            candidate
+        );
+        assert!(!stage.exists());
+        fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
     #[test]
