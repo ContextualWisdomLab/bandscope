@@ -94,6 +94,22 @@ describe("firstHandPart", () => {
     });
   });
 
+  it("does not invoke accessors while resolving untrusted hand-part evidence", () => {
+    const song = createDemoRehearsalSong();
+    let getterCalls = 0;
+    const runtimeSong = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(runtimeSong, "sections", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return song.sections;
+      }
+    });
+
+    expect(firstHandPart(runtimeSong as unknown as RehearsalSong)).toBeNull();
+    expect(getterCalls).toBe(0);
+  });
+
   it("returns null when the selected role is missing", () => {
     expect(firstHandPart(createDemoRehearsalSong(), "missing-role")).toBeNull();
   });
