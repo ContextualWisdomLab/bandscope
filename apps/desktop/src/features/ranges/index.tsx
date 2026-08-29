@@ -80,14 +80,14 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
           <div key={sectionId} className="space-y-3">
             <h3 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">{sectionLabel}</h3>
             <div className="flex flex-wrap gap-3">
-              {sectionRecord.roles.map((roleValue, roleIndex) => {
+              {sectionRecord.roles.map((roleValue) => {
                 if (typeof roleValue !== "object" || roleValue === null || Array.isArray(roleValue)) {
                   return null;
                 }
                 const roleRecord = roleValue as Record<string, unknown>;
                 const roleName = meaningfulRangeText(roleRecord.name);
-                const roleId = meaningfulRangeText(roleRecord.id) ?? `role-${sectionIndex}-${roleIndex}`;
-                if (!roleName) {
+                const roleId = meaningfulRangeText(roleRecord.id);
+                if (!roleId || !roleName) {
                   return null;
                 }
                 const rangeRecord =
