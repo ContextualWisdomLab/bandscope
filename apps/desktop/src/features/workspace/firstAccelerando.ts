@@ -1,13 +1,13 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
 } from "@bandscope/shared-types";
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
-const MAX_ACCELERANDO_PLAN_CHARACTERS = 180;
 const SECTION_FORM_LABEL_SET = new Set<string>(SECTION_FORM_LABELS);
 const NAMED_ACCELERANDO_ROLE_IDS = new Set(["bass-guitar", "lead-vocal"]);
 const ACCELERANDO_PLAN_PREFIX = "Push this part from ";
@@ -122,20 +122,6 @@ function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
   return items;
 }
 
-/** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
-function truncateCodePoints(value: string, maximum: number): string {
-  let codePoints = 0;
-  let endIndex = 0;
-  for (const character of value) {
-    if (codePoints >= maximum) {
-      break;
-    }
-    endIndex += character.length;
-    codePoints += 1;
-  }
-  return endIndex === value.length ? value : value.slice(0, endIndex);
-}
-
 /** Preserve the engine accelerando template while enforcing the engine's speeding semantics. */
 function boundedGeneratedAccelerandoPlan(value: string): OwnedAccelerandoPlan | null {
   if (
@@ -190,15 +176,15 @@ function ownedAccelerandoPlan(role: unknown): OwnedAccelerandoPlan | null {
   if (accelerandoPlanSource !== "model" && accelerandoPlanSource !== "user") {
     return null;
   }
-  const trimmed = accelerandoPlan.trim();
-  if (trimmed.length === 0 || accelerandoPlan.includes("\n") || accelerandoPlan.includes("\r")) {
+  if (!isNonEmptySingleLineText(accelerandoPlan)) {
     return null;
   }
   if (accelerandoPlanSource === "model") {
+    const trimmed = accelerandoPlan.trim();
     return boundedGeneratedAccelerandoPlan(trimmed);
   }
   return {
-    text: truncateCodePoints(trimmed, MAX_ACCELERANDO_PLAN_CHARACTERS),
+    text: accelerandoPlan,
     source: accelerandoPlanSource,
     guidance: null
   };

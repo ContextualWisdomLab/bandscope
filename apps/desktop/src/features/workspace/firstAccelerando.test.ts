@@ -175,14 +175,15 @@ describe("resolveFirstAccelerandoPlan", () => {
     );
   });
 
-  it("admits bounded user copy without requiring the engine template", () => {
+  it("preserves long user-authored copy without requiring the engine template", () => {
+    const accelerandoPlan = `Push the phrase early ${"A".repeat(170)} into the downbeat.`;
     const resolved = resolveFirstAccelerandoPlan(
       withAccelerandoSection({
-        accelerandoPlan: "Push the phrase early into the downbeat.",
+        accelerandoPlan,
         source: "user"
       })
     );
-    expect(resolved?.accelerandoPlan).toBe("Push the phrase early into the downbeat.");
+    expect(resolved?.accelerandoPlan).toBe(accelerandoPlan);
     expect(resolved?.accelerandoPlanSource).toBe("user");
   });
 

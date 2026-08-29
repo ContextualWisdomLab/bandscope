@@ -127,7 +127,30 @@ fn project_contract_rejects_accelerando_plan_without_source() {
 
 #[test]
 fn project_contract_rejects_invalid_accelerando_plan_copy_with_source() {
-    for accelerando_plan in ["", "   ", "push here\nthen hold", "push here\rthen hold"] {
+    for accelerando_plan in [
+        "",
+        "   ",
+        "\u{0009}",
+        "\u{000B}",
+        "\u{000C}",
+        "\u{000D}",
+        "\u{0085}",
+        "\u{00A0}",
+        "\u{1680}",
+        "\u{2000}",
+        "\u{200A}",
+        "\u{2028}",
+        "\u{2029}",
+        "\u{202F}",
+        "\u{205F}",
+        "\u{3000}",
+        "\u{FEFF}",
+        "push here\nthen hold",
+        "push here\rthen hold",
+        "push here\u{0085}then hold",
+        "push here\u{2028}then hold",
+        "push here\u{2029}then hold",
+    ] {
         let mut payload = song_with_accelerando_plan();
         payload["sections"][0]["roles"][0]["accelerandoPlan"] = json!(accelerando_plan);
         let content = serde_json::to_string(&payload).expect("fixture should serialize");
@@ -137,6 +160,17 @@ fn project_contract_rejects_invalid_accelerando_plan_copy_with_source() {
             "native persisted contract must reject blank or multiline sourced accelerando-plan copy"
         );
     }
+}
+
+#[test]
+fn project_contract_accepts_unicode_padded_single_line_accelerando_plan() {
+    let mut payload = song_with_accelerando_plan();
+    payload["sections"][0]["roles"][0]["accelerandoPlan"] = json!(
+        "\u{FEFF} Push this part from 80 BPM into 120 BPM; let the next downbeat arrive sooner.\u{3000}"
+    );
+    let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+    assert!(project_payload_from_content(&content).is_ok());
 }
 
 #[test]

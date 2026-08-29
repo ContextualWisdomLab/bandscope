@@ -574,6 +574,41 @@ pub fn is_youtube_video_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
 }
 
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Mirrors shared-types plan validation without normalizing persisted text.
+fn is_valid_accelerando_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
 fn validate_accelerando_plan_provenance(
     payload: RehearsalSongPayload,
 ) -> Result<RehearsalSongPayload, String> {
@@ -581,12 +616,8 @@ fn validate_accelerando_plan_provenance(
         for role in &section.roles {
             if role
                 .accelerando_plan
-                .as_ref()
-                .is_some_and(|accelerando_plan| {
-                    accelerando_plan.trim().is_empty()
-                        || accelerando_plan.contains('\n')
-                        || accelerando_plan.contains('\r')
-                })
+                .as_deref()
+                .is_some_and(|accelerando_plan| !is_valid_accelerando_plan(accelerando_plan))
             {
                 return Err("Invalid project file format".to_string());
             }

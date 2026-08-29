@@ -37,14 +37,44 @@ describe("accelerandoPlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/accelerandoPlanSource/);
   });
 
-  it.each(["", "   ", "push here\nthen hold", "push here\rthen hold"])(
-    "rejects an accelerando plan source with blank or multiline copy %j",
-    (accelerandoPlan) => {
-      const song = createDemoRehearsalSong();
-      const role = song.sections[0]!.roles[0]!;
-      role.accelerandoPlan = accelerandoPlan;
-      role.accelerandoPlanSource = "model";
-      expect(() => parseRehearsalSong(song)).toThrow(/accelerandoPlan/);
-    }
-  );
+  it.each([
+    "",
+    "   ",
+    "\u0009",
+    "\u000B",
+    "\u000C",
+    "\u000D",
+    "\u0085",
+    "\u00A0",
+    "\u1680",
+    "\u2000",
+    "\u200A",
+    "\u2028",
+    "\u2029",
+    "\u202F",
+    "\u205F",
+    "\u3000",
+    "\uFEFF",
+    "push here\nthen hold",
+    "push here\rthen hold",
+    "push here\u0085then hold",
+    "push here\u2028then hold",
+    "push here\u2029then hold"
+  ])("rejects invalid accelerando-plan copy %j", (accelerandoPlan) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.accelerandoPlan = accelerandoPlan;
+    role.accelerandoPlanSource = "model";
+    expect(() => parseRehearsalSong(song)).toThrow(/accelerandoPlan/);
+  });
+
+  it("accepts Unicode-padded single-line accelerando-plan copy", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.accelerandoPlan = `\uFEFF ${DEMO_ACCELERANDO_PLAN} \u3000`;
+    role.accelerandoPlanSource = "model";
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.accelerandoPlan).toContain(
+      "Push this part"
+    );
+  });
 });
