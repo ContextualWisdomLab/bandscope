@@ -409,6 +409,11 @@ function isOneOf<T extends string>(options: readonly T[], value: unknown): value
   return typeof value === "string" && options.includes(value as T);
 }
 
+/** Return whether a user-facing optional plan is non-empty and single-line. */
+function isNonEmptySingleLineText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && !value.includes("\n") && !value.includes("\r");
+}
+
 /** Documented. */
 function invalidField(path: string): string {
   return `Invalid rehearsal song contract: invalid field '${path}'`;
@@ -1556,7 +1561,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
   }
-  if (value.padPlan !== undefined && typeof value.padPlan !== "string") {
+  if (value.padPlan !== undefined && !isNonEmptySingleLineText(value.padPlan)) {
     return invalidField(`${path}.padPlan`);
   }
   if (!isDenseArray(value.manualOverrides)) {
