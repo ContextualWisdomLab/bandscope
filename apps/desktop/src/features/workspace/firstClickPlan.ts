@@ -15,6 +15,53 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Return whether an object graph exposes only own data properties. */
+function hasDataPropertyGraph(
+  value: unknown,
+  seen = new WeakSet<object>()
+): boolean {
+  if (typeof value !== "object" || value === null) {
+    return true;
+  }
+  if (seen.has(value)) {
+    return true;
+  }
+  seen.add(value);
+
+  let keys: (string | symbol)[];
+  try {
+    keys = Reflect.ownKeys(value);
+  } catch {
+    return false;
+  }
+  for (const key of keys) {
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, key);
+    } catch {
+      return false;
+    }
+    if (!descriptor || !("value" in descriptor) || !hasDataPropertyGraph(descriptor.value, seen)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Reject accessors and Proxy containers before descriptor reads accept data. */
+function isSafeRuntimeValue(value: unknown): boolean {
+  if (!hasDataPropertyGraph(value)) {
+    return false;
+  }
+  try {
+    // The clone is intentionally discarded: ownDataValue still rejects accessors.
+    structuredClone(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Read one own data-property value without invoking accessors or Proxy get traps. */
 function ownDataValue(record: Record<string, unknown>, property: string): unknown {
   try {
@@ -87,7 +134,7 @@ export function formatTempoBpm(tempoBpm: number): string {
  */
 export function firstClickPlan(song: RehearsalSong): FirstClickPlan | null {
   const runtimeSong: unknown = song;
-  if (!isRuntimeObject(runtimeSong)) {
+  if (!isRuntimeObject(runtimeSong) || !isSafeRuntimeValue(runtimeSong)) {
     return null;
   }
 

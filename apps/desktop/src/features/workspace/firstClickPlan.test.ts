@@ -75,7 +75,7 @@ describe("firstClickPlan", () => {
     });
   });
 
-  it("uses owned data values instead of Proxy get-trap substitutions", () => {
+  it("rejects Proxy roots instead of trusting substituted runtime values", () => {
     const song = createDemoRehearsalSong();
     const firstSection = song.sections[0]!;
     const sectionProxy = new Proxy(firstSection, {
@@ -99,9 +99,25 @@ describe("firstClickPlan", () => {
       }
     });
 
-    expect(firstClickPlan(songProxy as RehearsalSong)).toEqual({
-      tempoBpm: 120,
-      sectionLabel: "verse"
+    expect(firstClickPlan(songProxy as RehearsalSong)).toBeNull();
+  });
+
+  it("rejects Proxy descriptor traps that fabricate data properties", () => {
+    const song = createDemoRehearsalSong();
+    const forged = new Proxy(song, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === "tempo") {
+          return {
+            configurable: true,
+            enumerable: true,
+            value: 360,
+            writable: true
+          };
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      }
     });
+
+    expect(firstClickPlan(forged as RehearsalSong)).toBeNull();
   });
 });
