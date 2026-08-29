@@ -250,6 +250,45 @@ describe("RehearsalPlayer", () => {
     expect(audio.currentTime).toBe(10);
   });
 
+  it("caps long media boundary timers before the browser timeout limit", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const convertFileSrc = vi.fn((path: string) => `asset://localhost/${path}`);
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: { convertFileSrc },
+    });
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.timeRange = {
+      start: 10,
+      end: 10 + 2_147_483_648,
+    };
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath="/Users/test/Music/rehearsal.wav"
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(setTimeoutSpy).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      2_147_483_647,
+    );
+  });
+
   it("keeps a live loop running across unrelated song metadata updates", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();

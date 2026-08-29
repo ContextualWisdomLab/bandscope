@@ -324,7 +324,7 @@ export function RehearsalPlayer({
         } else {
           scheduleLoopBoundary();
         }
-      }, remainingSeconds * 1000);
+      }, Math.min(remainingSeconds * 1000, 2_147_483_647));
     };
     /** Keep the map playhead aligned with the scoped audio element. */
     const syncPlayhead = () => {
