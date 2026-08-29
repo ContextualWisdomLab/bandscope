@@ -605,6 +605,7 @@ export function RehearsalPlayer({
       const target = event.target;
       if (
         event.defaultPrevented ||
+        event.repeat ||
         (target instanceof HTMLElement &&
           (target.isContentEditable ||
             target.closest("button, a, input, select, textarea")))

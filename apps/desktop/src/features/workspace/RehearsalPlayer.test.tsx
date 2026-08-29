@@ -515,12 +515,14 @@ describe("RehearsalPlayer", () => {
     expect(play).not.toHaveBeenCalled();
 
     fireEvent.keyDown(window, { key: " " });
+    fireEvent.keyDown(window, { key: " ", repeat: true });
     expect(start).toBeDisabled();
     expect(play).toHaveBeenCalled();
     act(() => {
       vi.advanceTimersByTime(2000);
     });
     fireEvent.keyDown(window, { key: " " });
+    fireEvent.keyDown(window, { key: " ", repeat: true });
     expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
       /paused/i,
     );
