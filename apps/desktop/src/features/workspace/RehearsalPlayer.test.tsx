@@ -188,6 +188,49 @@ describe("RehearsalPlayer", () => {
     expect(verse).toHaveFocus();
   });
 
+  it("lets the selected cue keep a manual range correction in the song map", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    expect(screen.getByTestId("rehearsal-loop-boundary-editor")).toHaveTextContent(
+      "Manual cue correction",
+    );
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "12" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange).toEqual({
+      start: 12,
+      end: 30,
+    });
+    expect(song.sections[0]!.timeRange.start).toBe(10);
+  });
+
+  it("rejects a boundary correction that would invert the selected cue", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const end = screen.getByRole("spinbutton", {
+      name: "End time (seconds)",
+    });
+    fireEvent.change(end, { target: { value: "5" } });
+    fireEvent.blur(end);
+
+    expect(onSongUpdate).not.toHaveBeenCalled();
+    expect(end).toHaveValue(30);
+    expect(end).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("rehearsal-loop-boundary-editor")).toHaveTextContent(
+      "with the end after the start",
+    );
+  });
+
   it("keeps the selected loop by section ID when an earlier section is filtered out", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

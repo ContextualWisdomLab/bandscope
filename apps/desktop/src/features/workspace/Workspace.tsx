@@ -375,6 +375,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <RehearsalPlayer
             song={song}
+            onSongUpdate={onSongUpdate}
             hasLocalAudio={hasLocalAudio}
             audioSourcePath={parsedSourceBootstrap?.source.sourcePath ?? null}
             activeRole={resolvedActiveRole}
