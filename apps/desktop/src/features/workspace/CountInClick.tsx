@@ -37,7 +37,7 @@ export function CountInClick({ plan, t, engine }: CountInClickProps) {
       inFlight.current = false;
       defaultEngine.stop();
     };
-  }, [defaultEngine, plan]);
+  }, [defaultEngine, plan?.beats, plan?.intervalMs, plan?.sectionLabel, plan?.tempoBpm]);
 
   const guidance = useMemo(() => {
     if (!plan) {
