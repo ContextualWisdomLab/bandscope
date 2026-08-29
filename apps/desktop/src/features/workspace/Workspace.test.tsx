@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   createDemoRehearsalSong,
   type ProjectBootstrapSummary,
@@ -229,6 +229,26 @@ describe("Workspace", () => {
     expect(
       screen.queryByRole("button", { name: /Loop section coming soon/i }),
     ).toBeNull();
+  });
+
+  it("passes the selected role into the player section filter", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    chorus.roles = chorus.roles.filter((role) => role.id !== "lead-vocal");
+    song.sections.push(chorus);
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    const playerSections = screen.getByRole("group", {
+      name: "Playable sections for Lead Vocal",
+    });
+    expect(within(playerSections).getByRole("button", { name: /verse/i })).toBeTruthy();
+    expect(within(playerSections).queryByRole("button", { name: /chorus/i })).toBeNull();
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {

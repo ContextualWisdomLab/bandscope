@@ -13,6 +13,7 @@ import {
   rehearsalPlaybackRates,
   reduceRehearsalTransport,
   resolveLoopWindow,
+  resolveLoopWindows,
   resolveRehearsalTempo,
   wrapPlayhead,
 } from "./rehearsalTransport";
@@ -57,6 +58,27 @@ describe("rehearsalTransport", () => {
     expect(window?.sectionId).toBe("chorus-1");
     expect(window?.startSeconds).toBe(40);
     expect(window?.endSeconds).toBe(64);
+  });
+
+  it("filters loop windows to sections containing the selected role", () => {
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    chorus.roles = chorus.roles.filter((role) => role.id !== "lead-vocal");
+    song.sections.push(chorus);
+
+    expect(
+      resolveLoopWindows(song, "lead-vocal").map((window) => window.sectionId),
+    ).toEqual(["verse-1"]);
+    expect(
+      resolveLoopWindows(song, "bass-guitar").map((window) => window.sectionId),
+    ).toEqual(["verse-1", "chorus-1"]);
+    expect(resolveLoopWindows(song).map((window) => window.sectionId)).toEqual([
+      "verse-1",
+      "chorus-1",
+    ]);
   });
 
   it("rejects a sparse hostile section array without scanning its declared length", () => {

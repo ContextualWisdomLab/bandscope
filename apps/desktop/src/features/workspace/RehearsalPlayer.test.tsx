@@ -128,6 +128,53 @@ describe("RehearsalPlayer", () => {
     ).not.toMatch(/Count in 4 beats/i);
   });
 
+  it("limits the section picker to sections containing the active role", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    chorus.roles = chorus.roles.filter((role) => role.id !== "lead-vocal");
+    song.sections.push(chorus);
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        activeRole="lead-vocal"
+        activeRoleName="Lead Vocal"
+      />,
+    );
+
+    expect(
+      screen.getByRole("group", { name: "Playable sections for Lead Vocal" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /verse/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /chorus/i })).toBeNull();
+    expect(screen.getByTestId("rehearsal-loop-role-filter")).toHaveTextContent(
+      "Showing sections that include Lead Vocal.",
+    );
+  });
+
+  it("explains when the active role has no playable sections", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = [];
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        activeRole="lead-vocal"
+        activeRoleName="Lead Vocal"
+      />,
+    );
+
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      "No playable sections include Lead Vocal yet.",
+    );
+    expect(screen.queryByRole("group")).toBeNull();
+  });
+
   it("stops active count-in and loop ticking when local-audio authority is revoked", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();

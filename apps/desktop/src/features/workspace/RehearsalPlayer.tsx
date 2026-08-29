@@ -33,6 +33,8 @@ interface RehearsalPlayerProps {
   song: RehearsalSong;
   hasLocalAudio?: boolean;
   audioSourcePath?: string | null;
+  activeRole?: string | null;
+  activeRoleName?: string | null;
   startNonce?: number;
 }
 
@@ -94,10 +96,15 @@ export function RehearsalPlayer({
   song,
   hasLocalAudio = false,
   audioSourcePath = null,
+  activeRole = null,
+  activeRoleName = null,
   startNonce = 0,
 }: RehearsalPlayerProps): ReactElement {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const playableLoops = useMemo(() => resolveLoopWindows(song), [song]);
+  const playableLoops = useMemo(
+    () => resolveLoopWindows(song, activeRole),
+    [activeRole, song],
+  );
   const [selectedSectionIndex, setSelectedSectionIndex] = useState(0);
   const selectedRendererIndex = playableLoops[selectedSectionIndex]
     ? selectedSectionIndex
@@ -397,10 +404,20 @@ export function RehearsalPlayer({
   ]);
 
   const actionKey = nextActionTemplateKey(transport, hasPlayableAudio);
-  const nextAction = fillRehearsalCopy(
-    t(actionKey as TranslationKey),
-    nextActionValues(transport),
-  );
+  const nextAction =
+    activeRoleName && playableLoops.length === 0
+      ? fillRehearsalCopy(t("workspaceLoopNoRoleSections"), {
+          roleName: activeRoleName,
+        })
+      : fillRehearsalCopy(
+          t(actionKey as TranslationKey),
+          nextActionValues(transport),
+        );
+  const sectionPickerLabel = activeRoleName
+    ? fillRehearsalCopy(t("workspaceLoopSectionPickerForRole"), {
+        roleName: activeRoleName,
+      })
+    : t("workspaceLoopSectionPickerLabel");
   const canStart =
     transport.loop !== null &&
     hasPlayableAudio &&
@@ -429,11 +446,21 @@ export function RehearsalPlayer({
       >
         {nextAction}
       </p>
+      {activeRoleName && playableLoops.length > 0 ? (
+        <p
+          className="mt-3 text-xs font-semibold text-cyan-100"
+          data-testid="rehearsal-loop-role-filter"
+        >
+          {fillRehearsalCopy(t("workspaceLoopRoleFilterHint"), {
+            roleName: activeRoleName,
+          })}
+        </p>
+      ) : null}
       {playableLoops.length > 0 ? (
         <div
           className="mt-3 flex flex-wrap gap-2"
           role="group"
-          aria-label={t("workspaceLoopSectionPickerLabel")}
+          aria-label={sectionPickerLabel}
         >
           {playableLoops.map((loop, index) => {
             const selected = index === selectedRendererIndex;

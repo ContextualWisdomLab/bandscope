@@ -369,6 +369,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             song={song}
             hasLocalAudio={hasLocalAudio}
             audioSourcePath={parsedSourceBootstrap?.source.sourcePath ?? null}
+            activeRole={activeRole}
+            activeRoleName={activeRole ? activeRoleDetails?.name ?? activeRole : null}
             startNonce={loopStartNonce}
           />
 
