@@ -698,8 +698,10 @@ def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | Non
     if not cache_root:
         return None
     # Keep the v1 feature namespace stable while final result caches evolve independently.
-    stem_cache_base = Path(cache_root) / "analysis-cache-v1" / _local_audio_cache_digest(
-        request, FEATURE_CACHE_SCHEMA_VERSION
+    stem_cache_base = (
+        Path(cache_root)
+        / "analysis-cache-v1"
+        / _local_audio_cache_digest(request, FEATURE_CACHE_SCHEMA_VERSION)
     )
     return (
         stem_cache_base.with_suffix(".features.json"),
