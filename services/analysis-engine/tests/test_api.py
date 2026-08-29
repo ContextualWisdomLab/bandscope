@@ -775,7 +775,10 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
         }
         cache_files = list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
         assert len([path for path in cache_files if not path.name.endswith(".features.json")]) == 1
-        assert len([path for path in cache_files if path.name.endswith(".features.json")]) == 1
+        feature_cache_files = list(
+            (tmp_path / "cache" / "analysis-cache-v1").glob("*.features.json")
+        )
+        assert len(feature_cache_files) == 1
 
         cached_updates = list(
             run_analysis_job_updates("job-cache-2", payload, "2026-03-12T00:00:00Z")
@@ -912,6 +915,7 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
     metadata_path, arrays_path = _feature_cache_paths(request) or (None, None)
     assert metadata_path is not None
     assert arrays_path is not None
+    assert metadata_path.parent.name == "analysis-cache-v1"
 
     features = {
         "stems": {
@@ -955,6 +959,16 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "bandscope_analysis.api._load_cached_local_audio_features",
             return_value=loaded,
         ),
+        patch("bandscope_analysis.api.TemporalAnalyzer") as temporal_analyzer,
+        patch(
+            "bandscope_analysis.api.analyze_tempo_stability",
+            return_value={
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.5,
+                "stability": "steady",
+                "tempo_changes": [],
+            },
+        ),
         patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
@@ -963,13 +977,20 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
         ),
         patch("bandscope_analysis.api._store_cached_local_audio_features") as store_features,
     ):
+        temporal_analyzer.return_value.analyze.return_value = {
+            "bpm": 120.0,
+            "beat_times": [float(index) for index in range(8)],
+        }
         updates = list(run_analysis_job_updates("job-feature-hit", request, "2026-03-12T00:00:00Z"))
 
     assert updates[1]["progressLabel"] == "Loaded reusable stems... (45%)"
     assert updates[1]["cacheStatus"] == "miss"
     assert updates[-1]["state"] == "succeeded"
+    assert updates[-1]["result"]["tempoStability"]["stability"] == "steady"
     separator_class.return_value.separate.assert_not_called()
     store_features.assert_not_called()
+    temporal_analyzer.return_value.analyze.assert_called_once()
+    assert list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
 
 
 def test_stem_work_arrays_path_requires_local_temp_root(tmp_path) -> None:

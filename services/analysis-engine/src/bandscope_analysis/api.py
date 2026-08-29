@@ -671,26 +671,36 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     if not cache_root:
         return None
 
+    digest = _local_audio_cache_digest(request, ANALYSIS_CACHE_SCHEMA_VERSION)
+    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
+
+
+def _local_audio_cache_digest(request: AnalysisJobRequest, schema_version: int) -> str:
+    """Return a stable local-audio cache digest for an independent schema namespace."""
     local_source = request["localSource"]
     key_payload = {
-        "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
+        "schemaVersion": schema_version,
         "projectId": request.get("projectId", ""),
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
     }
-    digest = hashlib.sha256(
+    return hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
     """Return metadata + array cache paths for intermediate local-audio features."""
-    analysis_cache_path = _analysis_cache_path(request)
-    if analysis_cache_path is None:
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
-    stem_cache_base = analysis_cache_path.with_suffix("")
+    cache_root = request.get("cacheRoot")
+    if not cache_root:
+        return None
+    # Keep the v1 feature namespace stable while final result caches evolve independently.
+    stem_cache_base = Path(cache_root) / "analysis-cache-v1" / _local_audio_cache_digest(
+        request, FEATURE_CACHE_SCHEMA_VERSION
+    )
     return (
         stem_cache_base.with_suffix(".features.json"),
         stem_cache_base.with_suffix(".features.npz"),
