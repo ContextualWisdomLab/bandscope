@@ -137,6 +137,20 @@ PR #1059 (`feat(tempo): surface tempo movement rehearsal cues`)의 현재 증거
 
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
 
+### 4.3 2026-08-30 canonical audio-resource current-head snapshot
+
+PR #985 (`feat(analysis): enforce one canonical audio resource policy (#781)`)의 새 current head는 `0e2486a33bb83a644f71fc0e7e57f090c7fcdb02`이며, base는 `develop@749511c3ad4000090048718f685c6bee6b3d2c25`이다. `33d14e44bf7f41dda51b0ee246f7caae088101b9`에서 fast-forward한 후, 숫자 메타데이터가 `float()` 변환에서 overflow할 때도 원시 `OverflowError`를 누출하지 않고 payload-free `non_finite_metadata` 정책 오류로 닫히도록 공용 검증 경계를 보강했다. `10**1000` 회귀 테스트도 추가했다.
+
+push 직후 동일 head를 다시 조회한 결과 PR은 `OPEN`, `DRAFT`, `MERGEABLE`, `BLOCKED`, `REVIEW_REQUIRED`이며 review thread unresolved count는 0이다. CodeRabbit은 draft라 review를 건너뛴 성공 상태이고, 나머지 hosted Checks는 당시 pending이었다. formal qualifying independent approval은 없으므로 이 증거만으로 병합하지 않는다. 동일 Gap의 이전 draft #866에는 #985를 canonical successor로 남겼고, 중복 PR을 독립적으로 병합하지 않는다.
+
+로컬 검증은 `services/analysis-engine`에서 targeted policy `59 passed`, 전체 Python `756 passed, 24 skipped`, coverage `100.00%`, Ruff 및 `git diff --check` 성공이다. 이 검증은 새 head의 로컬 증거이며 hosted required gate나 실오디오 정확도 acceptance를 대체하지 않는다.
+
+#### Security Notes
+
+- 숫자 메타데이터는 caller/decoder가 공급하는 untrusted input이며, finite·정수성 검증 전에 실패할 수 있는 Python numeric conversion도 payload-free policy error로 정규화한다.
+- 수정은 파일 열기, 디코드, URL, subprocess, IPC 경계를 추가하지 않으며, 기존 encoded/decoded resource budget과 local-only 분석 경계를 유지한다.
+- `10**1000` overflow 회귀 테스트는 예외 타입과 stable reason code가 외부에 노출되는 경계를 확인한다.
+
 현재 merge blocker의 권위 있는 설정도 함께 확인했다. active ruleset `18156473`은 `develop`에 승인 1개, review thread resolution, 16개 required status context를 요구한다. branch-protection REST 응답의 `required_approving_review_count=0`보다 ruleset의 더 엄격한 승인 규칙이 우선하므로, `MERGEABLE`만으로 merge-ready라고 판단하지 않는다. 승인·필수 Checks·thread resolution이 모두 현재 head에 대해 충족될 때만 병합한다.
 
 이 snapshot에서 위 PR 중 병합된 것은 없다. `mergeable=true`는 protected review/required-check 완료를 뜻하지 않으며, 승인·current-head review·필수 gate가 모두 충족되지 않은 PR은 병합하지 않았다. admin/self-approval, force-push, protected gate bypass도 사용하지 않았다.
