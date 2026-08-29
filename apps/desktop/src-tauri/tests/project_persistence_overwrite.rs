@@ -181,3 +181,45 @@ fn existing_project_never_clobbers_a_target_swapped_after_authority_snapshot() {
     );
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
+
+#[cfg(windows)]
+#[test]
+fn failed_windows_replace_removes_the_candidate_stage() {
+    let root = test_dir("windows-replace-failure-cleanup");
+    let target = root.join("setlist.bscope");
+    let stage = root.join("candidate.stage");
+    let known_good = br#"{\"id\":\"known-good\"}"#;
+    let candidate = br#"{\"id\":\"candidate\"}"#;
+    fs::write(&target, known_good).expect("known-good fixture should be written");
+    fs::write(&stage, candidate).expect("candidate stage should be written");
+
+    let expected = project_persistence::project_file_identity(&target)
+        .expect("the selected target identity should be capturable");
+    let mut permissions = fs::metadata(&target)
+        .expect("known-good metadata should be readable")
+        .permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&target, permissions)
+        .expect("the fixture should make ReplaceFileW reject the target");
+
+    let error = project_persistence::replace_existing_project_file(&stage, &target, &expected)
+        .expect_err("a failed native replacement must fail closed");
+
+    assert_eq!(error, "Could not publish the project safely.");
+    assert!(
+        !stage.exists(),
+        "a failed ReplaceFileW attempt must remove the owned candidate stage"
+    );
+    assert_eq!(
+        fs::read(&target).expect("known-good target should remain readable"),
+        known_good
+    );
+
+    let mut permissions = fs::metadata(&target)
+        .expect("known-good metadata should remain readable")
+        .permissions();
+    permissions.set_readonly(false);
+    fs::set_permissions(&target, permissions)
+        .expect("the fixture should restore write permission before cleanup");
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
