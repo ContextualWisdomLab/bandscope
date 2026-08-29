@@ -9,32 +9,46 @@ export type FirstNamedSection = {
   label: string;
 };
 
+/** Return whether an untrusted runtime value is a non-array object record. */
+function isRuntimeObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Read an owned data-property value without invoking an accessor or Proxy get trap. */
+function ownDataProperty(record: Record<string, unknown>, property: string): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(record, property);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Pick the first named section window without treating malformed evidence as a loop. */
 export function firstNamedSection(song: RehearsalSong | null | undefined): FirstNamedSection | null {
   const runtimeSong: unknown = song;
-  if (typeof runtimeSong !== "object" || runtimeSong === null || Array.isArray(runtimeSong)) {
+  if (!isRuntimeObject(runtimeSong)) {
     return null;
   }
-  const sections = (runtimeSong as { sections?: unknown }).sections;
+  const sections = ownDataProperty(runtimeSong, "sections");
   if (!Array.isArray(sections)) {
     return null;
   }
   for (const sectionValue of sections) {
-    if (typeof sectionValue !== "object" || sectionValue === null || Array.isArray(sectionValue)) {
+    if (!isRuntimeObject(sectionValue)) {
       continue;
     }
-    const sectionRecord = sectionValue as Record<string, unknown>;
-    const id = meaningfulRangeText(sectionRecord.id);
-    const label = meaningfulRangeText(sectionRecord.label);
+    const id = meaningfulRangeText(ownDataProperty(sectionValue, "id"));
+    const label = meaningfulRangeText(ownDataProperty(sectionValue, "label"));
     if (!id || !label) {
       continue;
     }
-    const timeRange =
-      typeof sectionRecord.timeRange === "object" && sectionRecord.timeRange !== null && !Array.isArray(sectionRecord.timeRange)
-        ? (sectionRecord.timeRange as Record<string, unknown>)
-        : null;
-    const start = timeRange?.start;
-    const end = timeRange?.end;
+    const timeRange = ownDataProperty(sectionValue, "timeRange");
+    if (!isRuntimeObject(timeRange)) {
+      continue;
+    }
+    const start = ownDataProperty(timeRange, "start");
+    const end = ownDataProperty(timeRange, "end");
     if (typeof start !== "number" || typeof end !== "number" || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
       continue;
     }
