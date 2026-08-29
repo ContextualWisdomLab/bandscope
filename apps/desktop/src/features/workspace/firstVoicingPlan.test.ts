@@ -133,6 +133,15 @@ describe("resolveFirstVoicingPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded voicing text", () => {
+    for (const voicingPlan of ["Play\u0085here", "Play\u2028here", "Play\u2029here"]) {
+      expect(resolveFirstVoicingPlan(withVoicingSection({ voicingPlan }))).toBeNull();
+    }
+    expect(resolveFirstVoicingPlan(withVoicingSection({ voicingPlan: "\uFEFF Play here \uFEFF" }))?.voicingPlan).toBe(
+      "Play here"
+    );
+  });
+
   it("prefers the earlier of two voicing plans", () => {
     const song = withVoicingSection({
       id: "verse-late",

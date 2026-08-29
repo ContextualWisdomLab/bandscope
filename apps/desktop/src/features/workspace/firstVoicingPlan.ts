@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -143,10 +144,10 @@ function ownedVoicingPlan(role: unknown): string | null {
   if (descriptor === null || typeof descriptor.value !== "string") {
     return null;
   }
-  const trimmed = descriptor.value.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(descriptor.value)) {
     return null;
   }
+  const trimmed = descriptor.value.trim();
   return truncateCodePoints(trimmed, MAX_VOICING_PLAN_CHARACTERS);
 }
 

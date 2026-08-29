@@ -178,6 +178,30 @@ pub struct ManualOverridePayload {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TranscriptionNotePayload {
+    pitch: String,
+    onset: f64,
+    offset: f64,
+    velocity: f64,
+}
+
+fn deserialize_practice_progress<'de, D>(deserializer: D) -> Result<Option<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let progress = Option::<u8>::deserialize(deserializer)?;
+    if let Some(value) = progress {
+        if value > 100 {
+            return Err(serde::de::Error::custom(
+                "practiceProgress must be between 0 and 100",
+            ));
+        }
+    }
+    Ok(progress)
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
     id: String,
     name: String,
@@ -190,7 +214,19 @@ pub struct RehearsalRolePayload {
     simplification: String,
     setup_note: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    harmonic_explanation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transposition_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     voicing_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transcription: Option<Vec<TranscriptionNotePayload>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_practice_progress",
+        skip_serializing_if = "Option::is_none"
+    )]
+    practice_progress: Option<u8>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
 }
@@ -554,14 +590,50 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
     validate_voicing_plan(parsed)
 }
 
+/// Mirrors the shared-types plan whitespace policy, including BOM and NEL.
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Reject blank or Unicode line-separated voicing guidance without normalizing user text.
+fn is_valid_voicing_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
 fn validate_voicing_plan(payload: RehearsalSongPayload) -> Result<RehearsalSongPayload, String> {
     for section in &payload.sections {
         for role in &section.roles {
-            if role.voicing_plan.as_ref().is_some_and(|voicing_plan| {
-                voicing_plan.trim().is_empty()
-                    || voicing_plan.contains('\n')
-                    || voicing_plan.contains('\r')
-            }) {
+            if role
+                .voicing_plan
+                .as_deref()
+                .is_some_and(|voicing_plan| !is_valid_voicing_plan(voicing_plan))
+            {
                 return Err("Invalid project file format".to_string());
             }
         }
@@ -755,6 +827,7 @@ mod tests {
                                 "functionLabel": "vi pedal anchor",
                                 "source": "model"
                             },
+                            "harmonicExplanation": "The landing keeps the tonal floor clear.",
                             "cue": {
                                 "kind": "transition",
                                 "value": "Hold through the pickup before the downbeat."
@@ -771,7 +844,15 @@ mod tests {
                             "rehearsalPriority": "high",
                             "simplification": "Stay on roots if the chorus entrance gets muddy.",
                             "setupNote": "Keep the attack short so the verse breathes.",
+                            "transpositionPlan": "Keep the landing shape a whole step lower if needed.",
                             "voicingPlan": "Keep the verse voicing in first inversion so the top line still sings over the guitars.",
+                            "transcription": [{
+                                "pitch": "C#4",
+                                "onset": 1.0,
+                                "offset": 1.5,
+                                "velocity": 0.8
+                            }],
+                            "practiceProgress": 50,
                             "manualOverrides": [],
                             "overlapWarnings": [
                                 "Density warning: competing with Keyboard Left Hand in low register."
@@ -808,6 +889,22 @@ mod tests {
             parsed.sections[0].roles[0].voicing_plan.as_deref(),
             Some("Keep the verse voicing in first inversion so the top line still sings over the guitars.")
         );
+        assert_eq!(
+            parsed.sections[0].roles[0].harmonic_explanation.as_deref(),
+            Some("The landing keeps the tonal floor clear.")
+        );
+        assert_eq!(
+            parsed.sections[0].roles[0].transposition_plan.as_deref(),
+            Some("Keep the landing shape a whole step lower if needed.")
+        );
+        assert_eq!(
+            parsed.sections[0].roles[0]
+                .transcription
+                .as_ref()
+                .map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(parsed.sections[0].roles[0].practice_progress, Some(50));
     }
 
     #[test]
@@ -920,13 +1017,38 @@ mod tests {
 
     #[test]
     fn project_payload_from_content_rejects_invalid_voicing_plan() {
-        for voicing_plan in ["", "   ", "voice here\nthen move", "voice here\rthen move"] {
+        for voicing_plan in [
+            "",
+            "   ",
+            "\u{FEFF}",
+            "\u{0085}",
+            "voice here\nthen move",
+            "voice here\rthen move",
+            "voice here\u{0085}then move",
+            "voice here\u{2028}then move",
+            "voice here\u{2029}then move",
+        ] {
             let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
             payload["sections"][0]["roles"][0]["voicingPlan"] = json!(voicing_plan);
             let content = serde_json::to_string(&payload).expect("payload should serialize");
 
             assert!(project_payload_from_content(&content).is_err());
         }
+
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]["roles"][0]["voicingPlan"] =
+            json!("\u{FEFF}Voice the string\u{FEFF}");
+        let content = serde_json::to_string(&payload).expect("padded plan should serialize");
+        assert!(project_payload_from_content(&content).is_ok());
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_practice_progress_above_shared_bound() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]["roles"][0]["practiceProgress"] = json!(101);
+        let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+        assert!(project_payload_from_content(&content).is_err());
     }
 
     #[test]
