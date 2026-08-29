@@ -490,6 +490,46 @@ describe("RehearsalPlayer", () => {
     expect(seek).toHaveValue("18.5");
   });
 
+  it("supports transport shortcuts without capturing field editing", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const { play } = installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(
+      <RehearsalPlayer
+        song={song}
+        onSongUpdate={onSongUpdate}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+
+    const start = screen.getByRole("button", { name: /Start the count-in/i });
+    const boundaryStart = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    boundaryStart.focus();
+    fireEvent.keyDown(boundaryStart, { key: " " });
+    expect(start).toBeEnabled();
+    expect(play).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: " " });
+    expect(start).toBeDisabled();
+    expect(play).toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    fireEvent.keyDown(window, { key: " " });
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /paused/i,
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /Start the count-in/i,
+    );
+  });
+
   it("caps long media boundary timers before the browser timeout limit", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
