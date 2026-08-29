@@ -165,6 +165,16 @@ def test_read_pcm_wav_rejects_resource_excesses(tmp_path: Path) -> None:
         read_pcm_wav(too_long)
 
 
+def test_click_tempo_file_applies_wav_resource_limits(tmp_path: Path) -> None:
+    """Tempo acceptance must use the same header guard as chord acceptance."""
+    path = tmp_path / "too-many-channels-tempo.wav"
+    audio = np.zeros((8, MAX_ACCURACY_CHANNELS + 1), dtype=np.float32)
+    digest = write_pcm_wav(path, audio, DEFAULT_SAMPLE_RATE)
+
+    with pytest.raises(ValueError, match="too many channels"):
+        evaluate_click_tempo_file(path, digest)
+
+
 def test_read_pcm_wav_rejects_uninspectable_or_non_finite_header(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -14,6 +14,7 @@ from bandscope_analysis.accuracy.fixtures import (
     C_MAJOR_LABEL,
     DEFAULT_CLICK_BPM,
     DEFAULT_SAMPLE_RATE,
+    _validate_wav_header,
     read_pcm_wav,
     read_verified_fixture_bytes,
 )
@@ -33,6 +34,7 @@ def _verified_fixture_path(audio_path: Path, expected_sha256: str) -> Iterator[P
     with TemporaryDirectory(prefix="bandscope-accuracy-") as temp_dir:
         verified_path = Path(temp_dir) / "verified.wav"
         verified_path.write_bytes(payload)
+        _validate_wav_header(verified_path)
         yield verified_path
 
 

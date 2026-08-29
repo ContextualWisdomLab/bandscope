@@ -151,19 +151,8 @@ def write_pcm_wav(path: Path, audio: NDArray[np.floating], sample_rate: int) -> 
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def read_pcm_wav(path: Path) -> tuple[NDArray[np.float32], int]:
-    """Decode a WAV file to mono float32 PCM.
-
-    Args:
-        path: Existing WAV path written by ``write_pcm_wav``.
-
-    Returns:
-        A tuple of mono samples and the file sample rate.
-
-    Raises:
-        ValueError: If the header exceeds the acceptance resource limits or the
-            file has no samples after decode.
-    """
+def _validate_wav_header(path: Path) -> None:
+    """Validate WAV resource metadata before allocating decoded PCM."""
     try:
         info = sf.info(path)
     except Exception as error:
@@ -183,6 +172,21 @@ def read_pcm_wav(path: Path) -> tuple[NDArray[np.float32], int]:
             f"(max {MAX_ACCURACY_DURATION_SECONDS} seconds)"
         )
 
+
+def read_pcm_wav(path: Path) -> tuple[NDArray[np.float32], int]:
+    """Decode a WAV file to mono float32 PCM.
+
+    Args:
+        path: Existing WAV path written by ``write_pcm_wav``.
+
+    Returns:
+        A tuple of mono samples and the file sample rate.
+
+    Raises:
+        ValueError: If the header exceeds the acceptance resource limits or the
+            file has no samples after decode.
+    """
+    _validate_wav_header(path)
     audio, sample_rate = sf.read(path, dtype="float32", always_2d=False)
     samples = np.asarray(audio, dtype=np.float32)
     if samples.ndim > 1:
