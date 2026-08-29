@@ -18,4 +18,4 @@ The ready rehearsal map plays a local Web Audio click for a trusted song tempo s
 
 ## Primary standard
 
-W3C. (2025). *Web Audio API*. World Wide Web Consortium. https://www.w3.org/TR/webaudio/
+W3C. (2024). *Web Audio API 1.1*. World Wide Web Consortium. https://www.w3.org/TR/2024/WD-webaudio-1.1-20241105/
