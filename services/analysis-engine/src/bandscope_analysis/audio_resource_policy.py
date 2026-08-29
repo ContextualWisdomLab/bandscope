@@ -130,10 +130,8 @@ def _require_finite_number(value: object) -> float:
         _raise("non_finite_metadata")
     try:
         number = float(value)
-    except (OverflowError, TypeError, ValueError) as error:
-        raise AudioResourcePolicyError(
-            "non_finite_metadata", POLICY_MESSAGES["non_finite_metadata"]
-        ) from error
+    except (OverflowError, TypeError, ValueError):
+        _raise("non_finite_metadata")
     if not np.isfinite(number):
         _raise("non_finite_metadata")
     return number
