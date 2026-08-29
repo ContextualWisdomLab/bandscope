@@ -5,7 +5,7 @@ Base revision: `develop@749511c3ad4000090048718f685c6bee6b3d2c25` (feat(workspac
 
 ## 1. 목적과 범위 (Purpose & Scope)
 
-이 문서는 ADR/설계 문서(`ARCHITECTURE.md`, `docs/plans/*`), 브랜드 소스(`docs/brand-story.md`), 보안 소스(`docs/security/app-security.md`), 그리고 현재 저장소 상태(코드, 열린 PR 134건, 열린 이슈)를 대조하여 다음을 한 곳에 모은 baseline이다.
+이 문서는 ADR/설계 문서(`ARCHITECTURE.md`, `docs/plans/*`), 브랜드 소스(`docs/brand-story.md`), 보안 소스(`docs/security/app-security.md`), 그리고 현재 저장소 상태(코드, 열린 PR 135건, 열린 이슈)를 대조하여 다음을 한 곳에 모은 baseline이다.
 
 - 기능 명세(functional spec)와 PRD/TRD로 승격되지 않은 요구사항의 공백
 - 구현된 코드와 문서가 선언하는 제품 범위 사이의 기술 Gap
@@ -94,7 +94,7 @@ flowchart LR
 
 ## 4. 현재 열린 PR 기반 Gap 분석 (Open-PR Gap Analysis)
 
-현재 open PR은 134건이다(2026-08-29 Asia/Seoul 기준 REST inventory). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
+현재 open PR은 135건이다(2026-08-29 Asia/Seoul 기준 REST inventory). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
 
 ### 4.1 2026-08-29 exact-head 운영 snapshot
 
@@ -116,6 +116,7 @@ flowchart LR
 | #985 | `33d14e44bf7f41dda51b0ee246f7caae088101b9` | canonical audio resource ceiling을 desktop local/YouTube handoff와 Python defense-in-depth에 연결; current Checks 31 pass, 2 failure, 0 pending; `DRAFT/MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
 | #892 | `914428825a902f538971caf4c6f9f35390219a4d` | decoded WAV C-major acceptance와 silent aliased fixture fail-closed 보강; current Checks 28 pass, 3 failure, 0 pending; `DRAFT/MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
 | #1051 | `d3622b6a21ddf8ab58aa17bb565e803bf5c257ce` | WCAG 2.2 키보드 skip navigation과 focusable main landmark 최소 기준; current Checks 6 pass, 0 failure, 20 pending; `MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
+| #1052 | `8505e4538d8efd29ad6567dfc5b5ee46ec4f1184` | Ranges/Player의 playable-span·다음 instrument check 노출, 단수형 카피·다중 구간 test id·불필요한 null 비교 보강; current Checks 20 success, 1 failure(`opencode-review`), 9 in progress, 1 queued, 2 neutral; `MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
 
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
 
@@ -146,7 +147,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 | I. 테스트 현실성 (decoded WAV acceptance, known-take chord recovery, real YouTube known-stem benchmark, branch coverage) | #892, #891, #828, #861 | synthetic fixture에서 실오디오 기반 acceptance로 이동 시작 | Issue #770(실오디오 MIR accuracy benchmark) 체계화, RMSE/SI-SDR 임계값 정책 |
 | J. 의존성/빌드 위생 (react, storybook, base-ui, lucide, sonner, codeql-action, setup-uv, uv group, numba, uuid, time, rust pinning, node floor, orphaned Actions identity) | #920, #942, #922, #921, #926, #927, #924, #931, #936, #919, #918, #754, #944, #896, #895 | 공급망/런타임 최신화 유지 | Dependabot train 정리(Issue #966), jsdom 30 전환 완료 |
 
-시리즈 전체에 대한 종합 판단: 이 시리즈는 "계약(contract) 필드 추가 + 첫 노출" 단계다. 착지해도 (1) plan 값의 생성 로직, (2) plan들 사이 우선순위/중복 정책, (3) 재분석 시 override 보존 round-trip, (4) 협업 영속화는 여전히 Gap으로 남는다. 또한 134건이 develop 기준으로부터 장기간 분기되어 있어 rebase 비용과 exact-head CI 증적 요구(PR 본문 명시)로 인한 merge train 정체가 자체적으로 기술 위험이다(Issue #966).
+시리즈 전체에 대한 종합 판단: 이 시리즈는 "계약(contract) 필드 추가 + 첫 노출" 단계다. 착지해도 (1) plan 값의 생성 로직, (2) plan들 사이 우선순위/중복 정책, (3) 재분석 시 override 보존 round-trip, (4) 협업 영속화는 여전히 Gap으로 남는다. 또한 135건이 develop 기준으로부터 장기간 분기되어 있어 rebase 비용과 exact-head CI 증적 요구(PR 본문 명시)로 인한 merge train 정체가 자체적으로 기술 위험이다(Issue #966).
 
 ## 5. 기술 Gap 목록 (Technical Gaps)
 
@@ -253,7 +254,7 @@ flowchart TD
    - Why: 대용량/악성 파일로 인한 메모리 폭주는 첫 사용 경험을 깬다. 보안 gate이자 안정성 gate다.
    - Acceptance: 파일 크기/길이 상한이 intake에서 강제되고, 초과 입력은 안전 실패 카피로 거부된다. quickcheck 통과.
 3. **merge train 정리 (Issue #966)**
-   - Why: 134개 open PR의 exact-head CI 요구는 모든 후속 기능을 정체시킨다.
+   - Why: 135개 open PR의 exact-head CI 요구는 모든 후속 기능을 정체시킨다.
    - Acceptance: dependency-aware train 정의 후 open PR이 cluster A-J 단위로 수렴하고, 중복 PR이 canonical PR로 link된다.
 4. **filesystem path containment 재구축 (Issue #852, PR #858)**
    - Why: 로컬 데스크톱 앱의 최상위 신뢰경계. 우회 시 임의 파일 접근으로 이어진다.
@@ -339,7 +340,7 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   ```bash
   mkdir -p /tmp/opencode
   gh api --paginate 'repos/ContextualWisdomLab/bandscope/pulls?state=open&per_page=100' \
-    --jq '.[].number' | wc -l   # 134
+    --jq '.[].number' | wc -l   # 135
   gh pr view 1021 --json title,body       # 시리즈 패턴 샘플
   ```
 - Exact-head PR snapshot (capture time, protected base, current head, same-head Checks and reviews):
