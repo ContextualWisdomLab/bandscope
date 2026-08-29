@@ -33,5 +33,10 @@ jobs:
           persist-credentials: false
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal
+      - name: Prepare compile-only frontendDist fixture
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force apps/desktop/dist | Out-Null
+          Set-Content -Path apps/desktop/dist/index.html -Value '<!doctype html><title>BandScope test fixture</title>' -NoNewline
       - name: Run Windows recovery-cleanup regression
         run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --test project_persistence_recovery_cleanup
