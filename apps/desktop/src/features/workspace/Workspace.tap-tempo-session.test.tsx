@@ -45,4 +45,39 @@ describe("Workspace tap-tempo session ownership", () => {
 
     expect(screen.getByTestId("tap-lamp-0").className).toContain("bg-amber-300");
   });
+
+  it("preserves session taps across a harmony edit to the current song", () => {
+    const song = createDemoRehearsalSong();
+    song.tempo = undefined;
+    const { rerender } = render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /tap the groove to set tonight's tempo/i }));
+    expect(screen.getByTestId("tap-lamp-0").className).toContain("bg-amber-300");
+
+    let changedHarmony = false;
+    const harmonyUpdate = {
+      ...song,
+      sections: song.sections.map((section) => ({
+        ...section,
+        roles: section.roles.map((role) => {
+          if (changedHarmony || !role.harmony) {
+            return role;
+          }
+          changedHarmony = true;
+          return {
+            ...role,
+            harmony: {
+              ...role.harmony,
+              chord: `${role.harmony.chord}sus4`
+            }
+          };
+        })
+      }))
+    };
+    expect(changedHarmony).toBe(true);
+
+    rerender(<Workspace song={harmonyUpdate} />);
+
+    expect(screen.getByTestId("tap-lamp-0").className).toContain("bg-amber-300");
+  });
 });
