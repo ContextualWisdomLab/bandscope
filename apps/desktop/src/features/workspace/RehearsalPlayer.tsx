@@ -48,6 +48,13 @@ function resolveAudioSourceUrl(
   }
 }
 
+/** Return whether a source path can be converted into a playable native asset URL. */
+export function isPlayableAudioSource(
+  sourcePath: string | null | undefined,
+): boolean {
+  return resolveAudioSourceUrl(sourcePath) !== null;
+}
+
 /** Return the displayed map-clock progress for the current loop. */
 function loopProgressPercent(state: RehearsalTransportState): number {
   if (!state.loop) {
@@ -107,6 +114,12 @@ export function RehearsalPlayer({
     [audioSourcePath],
   );
   const hasPlayableAudio = hasLocalAudio && audioSourceUrl !== null;
+  const hasNativeAudioConversionError = Boolean(
+    hasLocalAudio &&
+      audioSourcePath &&
+      !audioSourcePath.startsWith("browser://") &&
+      audioSourceUrl === null,
+  );
   const [playbackError, setPlaybackError] = useState(false);
 
   const handlePlaybackError = useCallback(() => {
@@ -160,13 +173,13 @@ export function RehearsalPlayer({
     } else {
       audio.removeAttribute("src");
     }
-    setPlaybackError(false);
+    setPlaybackError(hasNativeAudioConversionError);
     return () => {
       if (!audio.paused) {
         audio.pause();
       }
     };
-  }, [audioSourceUrl]);
+  }, [audioSourceUrl, hasNativeAudioConversionError]);
 
   useEffect(() => {
     const nextLoop = playableLoops[selectedRendererIndex] ?? null;
