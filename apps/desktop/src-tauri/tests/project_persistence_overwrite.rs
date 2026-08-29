@@ -83,6 +83,37 @@ fn new_project_uses_reserved_rename_when_hard_links_are_unsupported() {
 }
 
 #[test]
+fn fallback_never_clobbers_a_target_created_after_hard_link_failure() {
+    let root = test_dir("fallback-race");
+    let target = root.join("setlist.bscope");
+    let content = br#"{\"id\":\"candidate\"}"#;
+    let racer = br#"{\"id\":\"racer\"}"#;
+
+    let error = project_persistence::publish_new_project_file_with_linker(
+        &target,
+        content,
+        |_stage, target| {
+            fs::write(target, racer)?;
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "hard-link publication became unavailable after a racer won the name",
+            ))
+        },
+    )
+    .expect_err("the reserved-rename fallback must not clobber a concurrent target");
+
+    assert_eq!(
+        error,
+        "Project file already exists. Choose a new file name."
+    );
+    assert_eq!(
+        fs::read(&target).expect("racer project should remain readable"),
+        racer
+    );
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
+
+#[test]
 fn new_project_never_clobbers_a_target_that_appears_concurrently() {
     let root = test_dir("no-hard-link-race");
     let target = root.join("setlist.bscope");
