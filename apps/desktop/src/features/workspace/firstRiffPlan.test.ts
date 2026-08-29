@@ -138,6 +138,15 @@ describe("resolveFirstRiffPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded riff text", () => {
+    for (const riffPlan of ["Keep\u0085riff", "Keep\u2028riff", "Keep\u2029riff"]) {
+      expect(resolveFirstRiffPlan(withRiffSection({ riffPlan }))).toBeNull();
+    }
+    expect(resolveFirstRiffPlan(withRiffSection({ riffPlan: "\uFEFF Keep riff \uFEFF" }))?.riffPlan).toBe(
+      "Keep riff"
+    );
+  });
+
   it("prefers the earlier of two riff plans", () => {
     const song = withRiffSection({
       id: "verse-late",

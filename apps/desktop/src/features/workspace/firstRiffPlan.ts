@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -103,10 +104,10 @@ function ownedRiffPlan(role: unknown): string | null {
   if (typeof riffPlan !== "string") {
     return null;
   }
-  const trimmed = riffPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(riffPlan)) {
     return null;
   }
+  const trimmed = riffPlan.trim();
   return truncateCodePoints(trimmed, MAX_RIFF_PLAN_CHARACTERS);
 }
 
