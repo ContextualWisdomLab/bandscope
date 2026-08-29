@@ -85,7 +85,7 @@ flowchart LR
 | 수동 수정 + provenance | `ManualOverride[]`, `ProvenanceSource = model\|user` | 구현됨 |
 | 내보내기(cue-sheet CSV, chart JSON) | `exports/chart.py`, `src/lib/export.ts` (filename sanitize, CSV escape) | 구현됨 |
 | 악보(score) 보기 | `features/score/ScoreView.tsx`, `ScoreViewer.tsx`, `pdfjs.ts` | 부분구현 (PDF 뷰잉; PDF 바이트 검증은 PR 진행 중, 자동 채보 없음) |
-| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate를 연결했으나 role filter와 protected merge는 미완료) |
+| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate, PR #1066에서 선택 역할별 section picker를 연결했으나 role-specific stem playback과 protected merge는 미완료) |
 | 협업(assignment/comment/approval) UI | `packages/shared-types` 타입만 존재 | 미구현 (UI 참조 0건; PR 시리즈가 첫 화면 진행 중) |
 | pad/solo/riff/hook/fill/voicing/articulation/dynamics/tuning/capo/vamp 등 plan 필드 | 없음 (shared-types에 미존재) | 미구현 (PR 시리즈가 추가 예정) |
 | 라이선싱/데모곡 first-run | 없음 | 미구현 (PR #1009, Issue #964; diagnostics/privacy boundary는 Issue #963) |
@@ -214,6 +214,20 @@ PR #1065 (`fix(audio): preserve compressed path decoder support`)의 current hea
 - untrusted local audio는 #985의 resolved-path/size policy 경계와 decoder metadata의 sample-rate/channel/duration 검증을 통과해야 한다.
 - 기존 fixed local audioread route만 재사용하며 network, generic exec/read/write API, 새 ffmpeg subprocess, IPC, WebView 경계를 추가하지 않는다. fallback 실패는 payload-free `malformed_header`로 닫고 policy 위반 reason code는 보존한다.
 - 검증 지점은 libsndfile 성공 경로, compressed fallback, fallback 실패, decoder policy rejection, 실제 AAC/M4A path acceptance다.
+
+### 4.8 2026-08-30 role-filtered rehearsal loop current-head snapshot
+
+PR #1066 (`feat(player): filter loops by rehearsal role`)의 current head는 `39927fbbaf0c4f7fb5d84d5ba6086f6c5f748064`이며, base는 #1063 branch `codex/playback-rate-control@e517a9875d9eae13113c56d7b2b433ed9a3a7888`이다. 기존 RoleSwitcher의 active role을 RehearsalPlayer에 연결해 선택 역할이 실제로 포함된 playable section만 loop picker에 표시한다. 전체 SectionRoadmap의 form context는 유지하며, role-specific stem playback이 생겼다고 주장하지 않는다. 역할이 없는 section은 fail-closed로 제외하고, 선택 역할에 playable section이 없으면 All Roles 또는 역할 배치를 안내하는 한/영 copy를 표시한다.
+
+동일 head의 local evidence는 targeted `52 passed`, desktop full `258 passed` across 23 files, desktop statements/branches/functions/lines `100.00%`, desktop lint/typecheck, and pinned npm `./scripts/harness/quickcheck.sh` pass이다. Harness Python `679 passed, 24 skipped`, Python coverage `100.00%`, shared-types `20 passed`, shared-types coverage `100.00%`, and Vite build also passed. Full Python suite prints the existing macOS Demucs child-process segmentation-fault traceback during one mocked CLI test, but parent pytest/harness completes successfully. No real audio/stem-output evidence is claimed.
+
+현재 hosted 상태는 #1066 current head에서 `OPEN`, non-draft, `MERGEABLE`, `UNSTABLE`이며, CodeRabbit/Devin review는 capture 시점에 pending, formal `reviewDecision` 없음, unresolved thread 0, qualifying independent approval 없음이다. 따라서 protected merge evidence가 충족되기 전에는 병합하지 않는다.
+
+#### Security Notes
+
+- role ID is selected through existing RoleSwitcher allowlist; transport snapshot reads section/role ids via own data descriptors and excludes malformed/sparse arrays.
+- no new file/URL/subprocess/IPC/WebView/network/model boundary; no stem playback claim.
+- validation points are all-role restoration, selected-role filtering, no-role-section copy, keyboard/aria role picker semantics, and existing desktop/full harness gates.
 
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
@@ -466,6 +480,7 @@ WHATWG. (n.d.). *HTML Standard: Media elements*. Retrieved August 30, 2026, from
   - 2026-08-30 PR #1063 current-head verification: head `e517a9875d9eae13113c56d7b2b433ed9a3a7888`, base `codex/real-audio-loop@949154375304ebef41e03d2e8bfde3ae86a40714`; pinned-npm `./scripts/harness/quickcheck.sh` passed with Python `679 passed, 24 skipped` and 100% coverage, desktop `254` tests and 100% configured coverage, shared-types `20` tests and 100% configured coverage, Vite build, and repository gates. Tests cover bounded `0.75x/1x/1.25x` input, count-in and boundary timing under non-default rates, active-rate rescheduling, pitch-preservation assignment, and source replacement persistence. Hosted Devin and CodeRabbit statuses were pass, CodeRabbit was skipped for the stacked non-default base, unresolved thread count was 0, and no qualifying independent approval existed. This remains mocked-media evidence, not real-device sound-output or audio-analysis accuracy acceptance.
   - 2026-08-30 PR #1064 current-head verification: head `9d2fec2855793e4d7cd1bab19f874a163e7538e4`, base `cursor/bc-d6780991-1682-480d-b362-be2cddbcd28e-bb43@fa2abea4f0063db55490b6f392d28315a975cf59`; targeted accuracy `43 passed`, full Python `768 passed, 24 skipped`, and production statements/branches/functions/lines `100.00%`. Bounded fixture byte/header validation, fail-closed file-growth/read-error tests, and tempo-evaluator reuse of the header guard pass; this is resource-safety evidence for decoded fixture acceptance, not known-take accuracy or stem SI-SDR evidence. Hosted CodeRabbit/Devin status was pass, unresolved thread count was 0, and no qualifying independent approval existed.
   - 2026-08-30 PR #1065 current-head verification: head `669d1d0122861a3398f91029ce386667cd2c09d4`, base `feat/canonical-audio-resource-policy-781@b8a6db4fda36b5c07f5f30b4bd9195d5f4e2c431`; targeted audio/temporal/separation `54 passed, 1 skipped`, full Python `760 passed, 24 skipped`, and production statements/branches/functions/lines `100.00%`. A real 5-second AAC/M4A path passed metadata preflight and `TemporalAnalyzer`; fallback failure and policy rejection remain payload-free/fail-closed. Hosted CodeRabbit was skipped for the stacked non-default base, Devin passed, unresolved thread count was 0, and no qualifying independent approval existed.
+  - 2026-08-30 PR #1066 current-head verification: head `39927fbbaf0c4f7fb5d84d5ba6086f6c5f748064`, base `codex/playback-rate-control@e517a9875d9eae13113c56d7b2b433ed9a3a7888`; targeted `52 passed`, desktop `258 passed` across 23 files and 100% configured coverage, full harness Python `679 passed, 24 skipped` with 100% coverage, shared-types 20/100%, lint/typecheck/build and repo gates passed. Selected-role section filtering, all-role restoration, and no-role-section guidance are covered; this remains loop-target/UI evidence, not role-specific stems or real-device audio output. Hosted CodeRabbit/Devin were pending at capture, unresolved 0, and no qualifying independent approval existed.
   - `sed -n '70,110p' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py` -> hand-set transition prior 확인
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
