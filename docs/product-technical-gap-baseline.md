@@ -5,7 +5,7 @@ Base revision: `develop@749511c3ad4000090048718f685c6bee6b3d2c25` (feat(workspac
 
 ## 1. 목적과 범위 (Purpose & Scope)
 
-이 문서는 ADR/설계 문서(`ARCHITECTURE.md`, `docs/plans/*`), 브랜드 소스(`docs/brand-story.md`), 보안 소스(`docs/security/app-security.md`), 그리고 현재 저장소 상태(코드, 열린 PR 135건, 열린 이슈)를 대조하여 다음을 한 곳에 모은 baseline이다.
+이 문서는 ADR/설계 문서(`ARCHITECTURE.md`, `docs/plans/*`), 브랜드 소스(`docs/brand-story.md`), 보안 소스(`docs/security/app-security.md`), 그리고 현재 저장소 상태(코드, 열린 PR 136건, 열린 이슈)를 대조하여 다음을 한 곳에 모은 baseline이다.
 
 - 기능 명세(functional spec)와 PRD/TRD로 승격되지 않은 요구사항의 공백
 - 구현된 코드와 문서가 선언하는 제품 범위 사이의 기술 Gap
@@ -94,29 +94,32 @@ flowchart LR
 
 ## 4. 현재 열린 PR 기반 Gap 분석 (Open-PR Gap Analysis)
 
-현재 open PR은 135건이다(2026-08-29 Asia/Seoul 기준 REST inventory). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
+현재 open PR은 136건이다(2026-08-29 Asia/Seoul 기준 REST inventory). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
 
 ### 4.1 2026-08-29 exact-head 운영 snapshot
 
-아래 표는 protected base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`에 대해 GitHub REST API로 다시 읽은 대표 PR의 current head와 그 head의 Checks/review 상태다. 아래 재실행 명령은 capture 시각의 open PR 전체에 대해 각 current head, 동일 SHA의 check-runs, reviews, protected base를 JSON으로 묶는다. 이전 SHA의 Checks는 현재 증적으로 재사용하지 않았다.
+아래 표는 protected base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`에 대해 GitHub REST API로 다시 읽은 대표 PR의 current head와 그 head의 Checks/review 상태다. Capture 시각은 `2026-08-29T08:11:32Z` (`2026-08-29 17:11:32 Asia/Seoul`)이며, 이후 재실행 결과는 이 snapshot의 증적으로 재사용하지 않는다. 아래 재실행 명령은 capture 시각의 open PR 전체에 대해 각 current head, 동일 SHA의 check-runs, reviews, protected base를 JSON으로 묶는다. 이전 SHA의 Checks는 현재 증적으로 재사용하지 않았다.
 
 | PR | current head | current 상태와 traceability |
 |---|---|---|
-| #1040 | `191189d52f25486028425f1266de9bc6dcb71c93` | drop-plan copy/provenance 양방향 검증을 shared-types와 native parser에 보강; current Checks 32 pass, 2 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
-| #1045 | `995e3fc5475f47117c9eb15f3eb1e0a6dbd249c0` | swell-plan copy/provenance 양방향 검증과 feature-cache schema 분리를 보강하고 role payload TypedDict를 정렬; current Checks 32 pass, 1 failure, 1 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
-| #1046 | `5c655995664c9d1faba60c0ae9ff896ea11c0c57` | fade-plan copy/provenance 양방향 검증과 외부 song 교체 identity reset을 보강; current Checks 32 pass, 2 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
-| #1047 | `bc63d8a0235ed72566e557681abd6b3958ed714e` | ritardando plan 누락 JSDoc·copy/provenance 양방향 검증과 `ritardando.py` mypy 타입 계약을 보강; 관련 Python/desktop 검증 완료; current Checks 32 pass, 2 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
-| #1048 | `28038721b473c1f64b6914312f48704d64e09c6a` | accelerando plan copy/provenance 양방향 검증과 beat-grid 경계 계약을 보강; current Checks 32 pass, 1 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
-| #1049 | `c34480961bd66485f59122f4d15c5948e8d95ac6` | fermata plan 작업 중인 Draft PR; current Checks 32 pass, 1 failure, 0 pending; `DRAFT/BLOCKED`, qualifying independent approval 없음 |
-| #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | Python 보안 lock baseline; current Checks 34 pass, 0 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
-| #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
-| #1025 | `b7214228c4cbde01913c43e1df33f250c820024a` | 이 문서 PR의 마지막 캡처 head이며 protected base는 `749511c3ad4000090048718f685c6bee6b3d2c25`; 캡처 시 Checks 33 success, 1 failure(`opencode-review`), 2 neutral, 9 skipped; `MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
-| #970 | `54d8966ee6734f7d6305c8bf7d503c1721a37840` | atomic project publication과 bounded load 보강, hard-link 불가 첫 저장 fail-closed; current Checks 29 pass, 1 failure(`opencode-review`), 3 pending; `MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
-| #858 | `f1f5e877f07aa7486cd343ddfe8aa45a9d628bbd` | analysis/cache/temp/project path authority와 redacted logging test 계약 보강; current Checks 31 pass, 1 failure(`opencode-review`), 0 pending; `DRAFT/MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
-| #985 | `33d14e44bf7f41dda51b0ee246f7caae088101b9` | canonical audio resource ceiling을 desktop local/YouTube handoff와 Python defense-in-depth에 연결; current Checks 31 pass, 2 failure, 0 pending; `DRAFT/MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
-| #892 | `914428825a902f538971caf4c6f9f35390219a4d` | decoded WAV C-major acceptance와 silent aliased fixture fail-closed 보강; current Checks 28 pass, 3 failure, 0 pending; `DRAFT/MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
-| #1051 | `d3622b6a21ddf8ab58aa17bb565e803bf5c257ce` | WCAG 2.2 키보드 skip navigation과 focusable main landmark 최소 기준; current Checks 32 success, 1 failure(`opencode-review`), 2 neutral, 7 skipped; `MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
-| #1052 | `1f9a4ef75e563fe318f7761a400094b0d4ebff73` | Ranges/Player의 buyer-visible 노출, canonical first-range callout 단일화, active-role 연동, 첫 playable span 보존, 단수형 카피·다중 구간 selector·runtime object guard 보강; current Checks 31 success, 1 failure(`opencode-review`), 1 in progress, 1 queued, 2 neutral, 7 skipped; `MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
+| #1053 | `720c823bea91689c69c26877f20b4acd9feedf83` | Settings에서 분석 전/후의 audio next action과 Ranges 이동을 buyer-visible하게 연결; required `opencode-review` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1052 | `b737906aba0b95251109e53434dd8860ff6664fd` | Ranges/Player의 buyer-visible 노출, canonical first-range callout 단일화, active-role 연동, 첫 playable span 보존, 단수형 카피·다중 구간 selector·runtime object guard 보강; required `opencode-review`·`strix` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1051 | `d3622b6a21ddf8ab58aa17bb565e803bf5c257ce` | WCAG 2.2 키보드 skip navigation과 focusable main landmark 최소 기준; required `opencode-review` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1049 | `7795ff40a308cae392ce9804e624d64695a49d12` | fermata plan의 첫 섹션 next action을 추가하는 Draft PR; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1048 | `8f8b2da7815741f4af96c70510951d01a4d302fc` | accelerando plan copy/provenance 양방향 검증과 beat-grid 경계 계약을 보강; required `opencode-review`·`strix` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1047 | `f2879edf8fae3dc9058ebdbc042c4f79bc243006` | ritardando plan 누락 JSDoc·copy/provenance 양방향 검증과 `ritardando.py` mypy 타입 계약을 보강; required `opencode-review`·`strix` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1046 | `c13314677adb0d1ae60a7d2786e858fa6b0f9306` | fade-plan copy/provenance 양방향 검증과 외부 song 교체 identity reset을 보강; required `opencode-review`·`strix` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1045 | `0b03fb7b20473b808fce06a4c6a178de46f2e778` | swell-plan copy/provenance 양방향 검증과 feature-cache schema 분리를 보강; required `opencode-review`·`strix` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | Python 보안 lock baseline; required Checks pass; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
+| #1040 | `693732df2b9790c2f3292b23b15b01d2e6ca822a` | drop-plan copy/provenance 양방향 검증을 shared-types와 native parser에 보강; required `opencode-review` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | customer-facing copy, safe error localization, valid/invalid YouTube guidance를 정리; required checks pass, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #1025 | `70c8003b162f794ef37f9d104a210e8a92fd35e1` | 이 문서 PR의 current head; protected base는 `749511c3ad4000090048718f685c6bee6b3d2c25`, required `opencode-review` failure, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #970 | `abb39bf7bd4f9ee6fc88bdd8db80d9a4a8113545` | atomic project publication과 bounded load 보강, hard-link 불가 첫 저장 fail-closed; required `opencode-review`·`strix` failure, `MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
+| #858 | `f1f5e877f07aa7486cd343ddfe8aa45a9d628bbd` | analysis/cache/temp/project path authority와 redacted logging test 계약 보강; required `opencode-review` failure, `DRAFT/MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
+| #985 | `33d14e44bf7f41dda51b0ee246f7caae088101b9` | canonical audio resource ceiling을 desktop local/YouTube handoff와 Python defense-in-depth에 연결; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #892 | `fa2abea4f0063db55490b6f392d28315a975cf59` | decoded WAV C-major acceptance와 silent aliased fixture fail-closed 보강; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #891 | `9220af2921438cb51a290ab4e4314e2fd321671d` | known-take verse/chorus chord recovery acceptance; required checks pass, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #866 | `505a595d481f8ba03abd8d13e7c17202918c833f` | canonical local-audio resource policy; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `CHANGES_REQUESTED`, qualifying independent approval 없음 |
 
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
 
@@ -147,7 +150,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 | I. 테스트 현실성 (decoded WAV acceptance, known-take chord recovery, real YouTube known-stem benchmark, branch coverage) | #892, #891, #828, #861 | synthetic fixture에서 실오디오 기반 acceptance로 이동 시작 | Issue #770(실오디오 MIR accuracy benchmark) 체계화, RMSE/SI-SDR 임계값 정책 |
 | J. 의존성/빌드 위생 (react, storybook, base-ui, lucide, sonner, codeql-action, setup-uv, uv group, numba, uuid, time, rust pinning, node floor, orphaned Actions identity) | #920, #942, #922, #921, #926, #927, #924, #931, #936, #919, #918, #754, #944, #896, #895 | 공급망/런타임 최신화 유지 | Dependabot train 정리(Issue #966), jsdom 30 전환 완료 |
 
-시리즈 전체에 대한 종합 판단: 이 시리즈는 "계약(contract) 필드 추가 + 첫 노출" 단계다. 착지해도 (1) plan 값의 생성 로직, (2) plan들 사이 우선순위/중복 정책, (3) 재분석 시 override 보존 round-trip, (4) 협업 영속화는 여전히 Gap으로 남는다. 또한 135건이 develop 기준으로부터 장기간 분기되어 있어 rebase 비용과 exact-head CI 증적 요구(PR 본문 명시)로 인한 merge train 정체가 자체적으로 기술 위험이다(Issue #966).
+시리즈 전체에 대한 종합 판단: 이 시리즈는 "계약(contract) 필드 추가 + 첫 노출" 단계다. 착지해도 (1) plan 값의 생성 로직, (2) plan들 사이 우선순위/중복 정책, (3) 재분석 시 override 보존 round-trip, (4) 협업 영속화는 여전히 Gap으로 남는다. 또한 136건이 develop 기준으로부터 장기간 분기되어 있어 rebase 비용과 exact-head CI 증적 요구(PR 본문 명시)로 인한 merge train 정체가 자체적으로 기술 위험이다(Issue #966).
 
 ## 5. 기술 Gap 목록 (Technical Gaps)
 
@@ -174,6 +177,8 @@ capability cluster 분류와 착지 후 남는 Gap:
 (j) **Design token/Storybook** — shadcn/ui 프리미티브 중 stories는 button/checkbox/dialog 3개뿐이고, rehearsal 도메인 컴포넌트(GrooveMap, SectionRoadmap, RoleSwitcher 등) stories는 없다. Storybook token PR #897이 진행 중.
 
 (k) **패키징/릴리스 준비** — `CHANGELOG.md`, `VERSION`, `release.yml`, `build-baseline.yml` 존재. Windows/macOS amd64+arm64 build gate가 protected branch 요건이다(ARCHITECTURE.md). 남는 Gap: 서명/공증/자동 업데이트 롤백 증적(Issue #960), crash-safe project format/autosave/migration(Issue #962), redacted diagnostics/support bundle(Issue #963).
+
+(l) **운영 관측(2026-08-29 current-head Strix 장애)** — 중앙 Strix 게이트의 ContextualWisdomLab/.github#1397@`02487b4490b195c91752ba7a2d78e6d6849e1e8f` 실행은 `openai/orchestrator/free`에 세 번 bounded retry했지만 모두 HTTP 500 `internal_error`를 반환했고 vulnerability report artifact를 만들지 못해 fail-closed 되었다. 같은 외부 `strix` failure가 BandScope #1052에서도 관측된다. 이는 변경 파일의 취약점 발견이 아니라 중앙 provider/routing 운영 증적이며, repo 단위 우회는 금지하고 중앙 게이트 운영에서 복구해야 한다.
 
 ## 6. UML 보완점
 
@@ -254,7 +259,7 @@ flowchart TD
    - Why: 대용량/악성 파일로 인한 메모리 폭주는 첫 사용 경험을 깬다. 보안 gate이자 안정성 gate다.
    - Acceptance: 파일 크기/길이 상한이 intake에서 강제되고, 초과 입력은 안전 실패 카피로 거부된다. quickcheck 통과.
 3. **merge train 정리 (Issue #966)**
-   - Why: 135개 open PR의 exact-head CI 요구는 모든 후속 기능을 정체시킨다.
+   - Why: 136개 open PR의 exact-head CI 요구는 모든 후속 기능을 정체시킨다.
    - Acceptance: dependency-aware train 정의 후 open PR이 cluster A-J 단위로 수렴하고, 중복 PR이 canonical PR로 link된다.
 4. **filesystem path containment 재구축 (Issue #852, PR #858)**
    - Why: 로컬 데스크톱 앱의 최상위 신뢰경계. 우회 시 임의 파일 접근으로 이어진다.
@@ -340,7 +345,7 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   ```bash
   mkdir -p /tmp/opencode
   gh api --paginate 'repos/ContextualWisdomLab/bandscope/pulls?state=open&per_page=100' \
-    --jq '.[].number' | wc -l   # 135
+    --jq '.[].number' | wc -l   # 136
   gh pr view 1021 --json title,body       # 시리즈 패턴 샘플
   ```
 - Exact-head PR snapshot (capture time, protected base, current head, same-head Checks and reviews):
