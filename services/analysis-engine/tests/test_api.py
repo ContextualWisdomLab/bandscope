@@ -5,6 +5,7 @@ import time
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from bandscope_analysis.api import (
     _build_local_audio_features,
@@ -398,6 +399,175 @@ def test_build_demo_rehearsal_song_with_tempo() -> None:
     """Ensure build_demo_rehearsal_song incorporates tempo from audio features."""
     song = build_demo_rehearsal_song({"bpm": 120.4})
     assert song.get("tempo") == 120
+
+
+def test_build_demo_rehearsal_song_with_tempo_stability() -> None:
+    """Ensure tempo movement is mapped to the shared camel-case contract."""
+    song = build_demo_rehearsal_song(
+        {
+            "bpm": 120,
+            "tempo_stability": {
+                "bpm_median": 120.0,
+                "bpm_stdev": 1.25,
+                "stability": "variable",
+                "tempo_changes": [{"time": 32.5, "from_bpm": 120.0, "to_bpm": 96.0}],
+            },
+        }
+    )
+
+    assert song["tempoStability"] == {
+        "bpmMedian": 120.0,
+        "bpmStdev": 1.25,
+        "stability": "variable",
+        "tempoChanges": [{"time": 32.5, "fromBpm": 120.0, "toBpm": 96.0}],
+    }
+
+
+def test_build_demo_rehearsal_song_ignores_malformed_tempo_stability() -> None:
+    """Malformed optional tempo data must not become buyer-visible guidance."""
+    missing_changes = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {"tempo_changes": {}},
+        }
+    )
+    invalid_change = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [{"time": "unknown", "from_bpm": 120.0, "to_bpm": 96.0}],
+            },
+        }
+    )
+    out_of_range_change = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [{"time": -1.0, "from_bpm": 120.0, "to_bpm": 96.0}],
+            },
+        }
+    )
+    malformed_summary = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": "unknown",
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [],
+            },
+        }
+    )
+    safe_default = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": 0.0,
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [],
+            },
+        }
+    )
+    foreign_change = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [None],
+            },
+        }
+    )
+
+    assert "tempoStability" not in missing_changes
+    assert "tempoStability" not in invalid_change
+    assert "tempoStability" not in out_of_range_change
+    assert "tempoStability" not in malformed_summary
+    assert "tempoStability" not in safe_default
+    assert "tempoStability" not in foreign_change
+
+
+def test_build_local_temporal_features_omits_raw_audio_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tempo features retain only rehearsal data, never the source path."""
+    from bandscope_analysis.api import _build_local_temporal_features
+
+    class FakeTemporalAnalyzer:
+        """Return representative decoded temporal features."""
+
+        def analyze(self, _source_path: str) -> dict[str, object]:
+            return {
+                "audio_path": "/private/original.wav",
+                "bpm": 120.0,
+                "beat_times": [float(index) * 0.5 for index in range(10)],
+            }
+
+    monkeypatch.setattr("bandscope_analysis.api.TemporalAnalyzer", FakeTemporalAnalyzer)
+    request = {
+        "sourceKind": "local_audio",
+        "sourceLabel": "rehearsal.wav",
+        "roleFocus": [],
+        "localSource": {
+            "sourcePath": "/private/original.wav",
+            "fileName": "rehearsal.wav",
+            "extension": "wav",
+            "fileSizeBytes": 10,
+        },
+    }
+
+    features = _build_local_temporal_features(request)
+
+    assert features is not None
+    assert features["bpm"] == 120.0
+    assert "audio_path" not in features
+    assert features["tempo_stability"]["stability"] == "steady"
+
+
+def test_build_local_temporal_features_skips_non_local_requests() -> None:
+    """Demo jobs do not perform a second local-audio decode."""
+    from bandscope_analysis.api import _build_local_temporal_features
+
+    assert (
+        _build_local_temporal_features(
+            {
+                "sourceKind": "demo",
+                "sourceLabel": "demo",
+                "roleFocus": [],
+            }
+        )
+        is None
+    )
+
+
+def test_build_local_temporal_features_falls_back_when_decode_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tempo decode failure must not fail an otherwise usable rehearsal job."""
+    from bandscope_analysis.api import _build_local_temporal_features
+
+    class FailingTemporalAnalyzer:
+        """Raise the same safe decoder error as malformed local audio."""
+
+        def analyze(self, _source_path: str) -> dict[str, object]:
+            raise ValueError("decoder failed")
+
+    monkeypatch.setattr("bandscope_analysis.api.TemporalAnalyzer", FailingTemporalAnalyzer)
+    request = {
+        "sourceKind": "local_audio",
+        "sourceLabel": "rehearsal.wav",
+        "roleFocus": [],
+        "localSource": {
+            "sourcePath": "/private/original.wav",
+            "fileName": "rehearsal.wav",
+            "extension": "wav",
+            "fileSizeBytes": 10,
+        },
+    }
+
+    assert _build_local_temporal_features(request) is None
 
 
 def test_coerce_tempo_bpm() -> None:

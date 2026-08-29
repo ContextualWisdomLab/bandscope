@@ -19,6 +19,7 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal import TemporalAnalyzer, analyze_tempo_stability
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,23 @@ class RangePayload(TypedDict):
 
     lowestNote: str
     highestNote: str
+
+
+class TempoChangePayload(TypedDict):
+    """Typed sustained tempo change payload returned in rehearsal results."""
+
+    time: float
+    fromBpm: float
+    toBpm: float
+
+
+class TempoStabilityPayload(TypedDict):
+    """Typed tempo movement summary returned in rehearsal results."""
+
+    bpmMedian: float
+    bpmStdev: float
+    stability: Literal["steady", "loose", "variable"]
+    tempoChanges: list[TempoChangePayload]
 
 
 class HarmonyPayload(TypedDict):
@@ -160,6 +178,7 @@ class RehearsalSong(TypedDict):
     id: str
     title: str
     tempo: NotRequired[int]
+    tempoStability: NotRequired[TempoStabilityPayload]
     sections: list[RehearsalSectionPayload]
     exportSummary: ExportSummaryPayload
 
@@ -510,12 +529,62 @@ def _coerce_tempo_bpm(bpm_val: Any) -> int | None:
 
 
 def _apply_tempo(song: RehearsalSong, audio_features: dict[str, Any] | None) -> None:
-    """Attach a sanitized integer tempo property to a rehearsal song."""
+    """Attach sanitized tempo guidance to a rehearsal song."""
     if not audio_features:
         return
     bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
     if bpm is not None:
         song["tempo"] = bpm
+    stability = audio_features.get("tempo_stability")
+    if not isinstance(stability, dict):
+        return
+    changes = stability.get("tempo_changes")
+    if not isinstance(changes, list):
+        return
+    try:
+        bpm_median = float(stability["bpm_median"])
+        bpm_stdev = float(stability["bpm_stdev"])
+        stability_label = stability["stability"]
+    except (KeyError, TypeError, ValueError):
+        return
+    if (
+        not np.isfinite(bpm_median)
+        or bpm_median <= 0
+        or not np.isfinite(bpm_stdev)
+        or bpm_stdev < 0
+        or stability_label not in ("steady", "loose", "variable")
+    ):
+        return
+
+    normalized_changes: list[TempoChangePayload] = []
+    for change in changes:
+        if not isinstance(change, dict):
+            return
+        try:
+            normalized_change: TempoChangePayload = {
+                "time": float(change["time"]),
+                "fromBpm": float(change["from_bpm"]),
+                "toBpm": float(change["to_bpm"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return
+        if (
+            not np.isfinite(normalized_change["time"])
+            or normalized_change["time"] < 0
+            or not np.isfinite(normalized_change["fromBpm"])
+            or normalized_change["fromBpm"] <= 0
+            or not np.isfinite(normalized_change["toBpm"])
+            or normalized_change["toBpm"] <= 0
+        ):
+            return
+        normalized_changes.append(normalized_change)
+
+    song["tempoStability"] = {
+        "bpmMedian": bpm_median,
+        "bpmStdev": bpm_stdev,
+        "stability": cast(Literal["steady", "loose", "variable"], stability_label),
+        "tempoChanges": normalized_changes,
+    }
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
@@ -1039,6 +1108,24 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
     }
 
 
+def _build_local_temporal_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
+    """Build bounded tempo guidance without retaining raw decode metadata."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+
+    try:
+        temporal = TemporalAnalyzer().analyze(request["localSource"]["sourcePath"])
+        stability = analyze_tempo_stability(temporal["beat_times"])
+        return {
+            "title": request["sourceLabel"],
+            "bpm": temporal["bpm"],
+            "tempo_stability": stability,
+        }
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        logger.warning("Tempo movement analysis unavailable; continuing with safe fallback.")
+        return None
+
+
 def run_analysis_job_updates(
     job_id: str,
     payload: object,
@@ -1191,6 +1278,10 @@ def run_analysis_job_updates(
             cache_status=cache_status,
         )
     )
+
+    temporal_features = _build_local_temporal_features(request)
+    if temporal_features is not None:
+        audio_features = {**(audio_features or {}), **temporal_features}
 
     result = build_demo_rehearsal_song(audio_features)
     updates.append(

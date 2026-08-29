@@ -65,6 +65,8 @@ export function generateChartSummaryJson(song: RehearsalSong): string {
   const summary = {
     title: song.title,
     headline: song.exportSummary?.headline || "",
+    tempo: song.tempo,
+    tempoStability: song.tempoStability,
     sections: song.sections.map(s => ({
       label: s.label,
       groove: s.groove,

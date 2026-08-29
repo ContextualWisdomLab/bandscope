@@ -387,9 +387,11 @@ def test_cli_main_temporal_analyzer_mock_success(
 
     class FakeAnalyzerSuccess:
         def analyze(self, path):
-            return {"bpm": 120.0, "beats": []}
+            return {"bpm": 120.0, "beats": [], "beat_times": []}
 
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr("bandscope_analysis.api.TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr("bandscope_analysis.api._build_local_audio_features", lambda _request: None)
     monkeypatch.setattr(
         "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
         lambda self, y, sr: None,
