@@ -379,7 +379,7 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   - `sed -n '70,110p' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py` -> hand-set transition prior 확인
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
-  - `head -30 services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json` -> runtime consumer가 없는 inventory-only 휴리스틱 manifest 확인
+  - `test -z "$(git grep -n 'bandsplit-v1\\|bandsplit' -- ':!docs/product-technical-gap-baseline.md' ':!supply-chain/supplemental-component-inventory.json' ':!services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json' || true)"` -> manifest/inventory/문서 자체를 제외한 runtime consumer 0건 확인
   - `find apps/desktop/src/features/workspace -type f -name '*.tsx' -print0 | xargs -0 grep -hEo 'aria-[[:alnum:]_-]+' | wc -l` -> 56 attribute tokens (2026-08-29 current checkout)
   - `grep -rln "RehearsalAssignment\|RehearsalCollaboration" apps/desktop/src` -> 0건(UI 미구현 확인)
   - `grep -rn "loop" apps/desktop/src/features/player/index.tsx` -> 0건(loop 미구현 확인)
