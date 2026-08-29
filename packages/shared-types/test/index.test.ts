@@ -834,6 +834,20 @@ describe("shared type helpers", () => {
     })).toThrow("exportSummary.format");
   });
 
+  it("keeps optional solo plans aligned with Rust project loading", () => {
+    for (const soloPlan of ["", "   ", "hold here\nthen move", "hold here\rthen move"]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[1]!.soloPlan = soloPlan;
+
+      expect(isRehearsalSong(song)).toBe(false);
+      expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[1].soloPlan");
+    }
+
+    const paddedPlan = createDemoRehearsalSong();
+    paddedPlan.sections[0]!.roles[1]!.soloPlan = "  Hold the space  ";
+    expect(isRehearsalSong(paddedPlan)).toBe(true);
+  });
+
   it("round-trips score attachment metadata and rejects malformed entries", () => {
     const song = createDemoRehearsalSong() as unknown as Record<string, unknown>;
     const attachment = { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" };
