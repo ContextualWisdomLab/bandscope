@@ -384,7 +384,9 @@ class RoleExtractor:
         if source_count >= 3:
             return f"{_PICKUP_PLAN_PREFIX}{_PICKUP_PLAN_BAND_TARGET}{_PICKUP_PLAN_SUFFIX}"
 
-        partner_ids = [candidate_id for candidate_id in named_source_ids if candidate_id != role_id]
+        partner_ids = [
+            candidate_id for candidate_id in named_source_ids if candidate_id != role_id
+        ]
         other_name: str | None = None
         if partner_ids:
             other_id = partner_ids[0]
