@@ -181,10 +181,10 @@ export function FirstDropPlanCallout({ song, workspaceInstanceKey }: FirstDropPl
         className="mt-3 min-h-11 bg-gradient-to-r from-amber-300 to-rose-300 font-black text-slate-950"
         onClick={(event) => {
           const renderer = resolveDropPlanRenderer(event.currentTarget);
-          const target =
-            renderer?.querySelector<HTMLElement>(
-              `[data-section-index="${named.sectionIndex}"]`
-            ) ?? null;
+          const targets = renderer?.querySelectorAll<HTMLElement>(
+            `[data-section-index="${named.sectionIndex}"]`
+          );
+          const target = targets?.length === 1 ? (targets[0] ?? null) : null;
           if (typeof target?.scrollIntoView !== "function") {
             setNavigationFailed(true);
             return;

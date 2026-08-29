@@ -164,4 +164,20 @@ describe("FirstDropPlanCallout", () => {
     expect(screen.getByText(/Land Lead Vocal together at 0:30 when the texture fills./)).toBeTruthy();
     expect(screen.getByText(DEMO_DROP_PLAN)).toBeTruthy();
   });
+
+  it("fails closed when the named section target is ambiguous", () => {
+    const { grid } = appendSongStructureTarget();
+    const renderer = grid.querySelector('[data-testid="song-structure-grid"]');
+    const duplicate = document.createElement("div");
+    duplicate.dataset.sectionIndex = "1";
+    renderer?.appendChild(duplicate);
+
+    render(<FirstDropPlanCallout song={songWithDropPlan()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal drop at 0:30" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Could not open this drop on the song map. Use the map below to find the section."
+    );
+  });
 });
