@@ -1,5 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import {
   createTranslator,
@@ -22,10 +30,25 @@ import {
 interface RehearsalPlayerProps {
   song: RehearsalSong;
   hasLocalAudio?: boolean;
+  audioSourcePath?: string | null;
   startNonce?: number;
 }
 
 const PLAYHEAD_TICK_SECONDS = 0.1;
+
+/** Convert a validated native source path into a scoped Tauri asset URL. */
+function resolveAudioSourceUrl(
+  sourcePath: string | null | undefined,
+): string | null {
+  if (!sourcePath || sourcePath.startsWith("browser://")) {
+    return null;
+  }
+  try {
+    return convertFileSrc(sourcePath);
+  } catch {
+    return null;
+  }
+}
 
 /** Return the displayed map-clock progress for the current loop. */
 function loopProgressPercent(state: RehearsalTransportState): number {
@@ -63,6 +86,7 @@ function hasSameLoopTiming(
 export function RehearsalPlayer({
   song,
   hasLocalAudio = false,
+  audioSourcePath = null,
   startNonce = 0,
 }: RehearsalPlayerProps): ReactElement {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
@@ -78,6 +102,71 @@ export function RehearsalPlayer({
     }),
   );
   const lastHandledStartNonce = useRef(0);
+  const restartAudioOnLoopRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioSourceUrl = useMemo(
+    () => resolveAudioSourceUrl(audioSourcePath),
+    [audioSourcePath],
+  );
+  const [playbackError, setPlaybackError] = useState(false);
+
+  const handlePlaybackError = useCallback(() => {
+    setPlaybackError(true);
+    setTransport((current) => {
+      if (current.phase === "idle" || current.phase === "armed") {
+        return current;
+      }
+      return reduceRehearsalTransport(current, { type: "stop" });
+    });
+  }, []);
+
+  const startAudio = useCallback(
+    (loop: RehearsalLoopWindow, resume: boolean) => {
+      const audio = audioRef.current;
+      if (!audio || !audioSourceUrl) {
+        return;
+      }
+      try {
+        restartAudioOnLoopRef.current = !resume;
+        if (!resume) {
+          audio.currentTime = loop.startSeconds;
+          audio.volume = 0;
+        } else {
+          audio.volume = 1;
+        }
+        const playPromise = audio.play();
+        if (playPromise) {
+          void playPromise.catch(handlePlaybackError);
+        }
+      } catch {
+        handlePlaybackError();
+      }
+    },
+    [audioSourceUrl, handlePlaybackError],
+  );
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return undefined;
+    }
+    if (!audio.paused) {
+      audio.pause();
+    }
+    audio.volume = 1;
+    if (audioSourceUrl) {
+      audio.src = audioSourceUrl;
+      audio.load();
+    } else {
+      audio.removeAttribute("src");
+    }
+    setPlaybackError(false);
+    return () => {
+      if (!audio.paused) {
+        audio.pause();
+      }
+    };
+  }, [audioSourceUrl]);
 
   useEffect(() => {
     const nextLoop = playableLoops[selectedRendererIndex] ?? null;
@@ -107,15 +196,25 @@ export function RehearsalPlayer({
     if (!hasLocalAudio) {
       return;
     }
+    const selectedLoop = playableLoops[selectedRendererIndex] ?? null;
+    if (selectedLoop) {
+      setPlaybackError(false);
+      startAudio(selectedLoop, false);
+    }
     setTransport((current) => {
-      const selectedLoop = playableLoops[selectedRendererIndex] ?? null;
       const armed = reduceRehearsalTransport(current, {
         type: "arm",
         loop: selectedLoop,
       });
       return reduceRehearsalTransport(armed, { type: "start" });
     });
-  }, [startNonce, hasLocalAudio, playableLoops, selectedRendererIndex]);
+  }, [
+    startAudio,
+    startNonce,
+    hasLocalAudio,
+    playableLoops,
+    selectedRendererIndex,
+  ]);
 
   useEffect(() => {
     if (hasLocalAudio) {
@@ -142,7 +241,84 @@ export function RehearsalPlayer({
   }, [transport.phase, transport.loop]);
 
   useEffect(() => {
-    if (transport.phase !== "looping" || !transport.loop) {
+    if (!audioSourceUrl || !transport.loop) {
+      return undefined;
+    }
+    const audio = audioRef.current;
+    if (!audio) {
+      return undefined;
+    }
+    if (transport.phase === "looping") {
+      try {
+        if (restartAudioOnLoopRef.current) {
+          audio.currentTime = transport.loop.startSeconds;
+          restartAudioOnLoopRef.current = false;
+        }
+        audio.volume = 1;
+        const playPromise = audio.play();
+        if (playPromise) {
+          void playPromise.catch(handlePlaybackError);
+        }
+      } catch {
+        handlePlaybackError();
+      }
+    } else if (
+      transport.phase === "armed" ||
+      transport.phase === "paused" ||
+      transport.phase === "idle"
+    ) {
+      if (!audio.paused) {
+        audio.pause();
+      }
+      audio.volume = 1;
+    }
+    return undefined;
+  }, [audioSourceUrl, handlePlaybackError, transport.phase, transport.loop]);
+
+  useEffect(() => {
+    if (!audioSourceUrl || transport.phase !== "looping" || !transport.loop) {
+      return undefined;
+    }
+    const audio = audioRef.current;
+    if (!audio) {
+      return undefined;
+    }
+    const loop = transport.loop;
+    /** Keep the map playhead aligned with the scoped audio element. */
+    const syncPlayhead = () => {
+      if (audio.currentTime >= loop.endSeconds) {
+        try {
+          audio.currentTime = loop.startSeconds;
+          const playPromise = audio.play();
+          if (playPromise) {
+            void playPromise.catch(handlePlaybackError);
+          }
+        } catch {
+          handlePlaybackError();
+          return;
+        }
+      }
+      setTransport((current) =>
+        reduceRehearsalTransport(current, {
+          type: "sync",
+          playheadSeconds: audio.currentTime,
+        }),
+      );
+    };
+    /** Stop the transport when the media element can no longer play. */
+    const failPlayback = () => handlePlaybackError();
+    audio.addEventListener("timeupdate", syncPlayhead);
+    audio.addEventListener("error", failPlayback);
+    audio.addEventListener("ended", failPlayback);
+    return () => {
+      audio.removeEventListener("timeupdate", syncPlayhead);
+      audio.removeEventListener("error", failPlayback);
+      audio.removeEventListener("ended", failPlayback);
+    };
+  }, [audioSourceUrl, handlePlaybackError, transport.phase, transport.loop]);
+
+  useEffect(() => {
+    if (audioSourceUrl || transport.phase !== "looping" || !transport.loop) {
       return undefined;
     }
     const timer = window.setInterval(() => {
@@ -154,7 +330,7 @@ export function RehearsalPlayer({
       );
     }, PLAYHEAD_TICK_SECONDS * 1000);
     return () => window.clearInterval(timer);
-  }, [transport.phase, transport.loop]);
+  }, [audioSourceUrl, transport.phase, transport.loop]);
 
   const actionKey = nextActionTemplateKey(transport, hasLocalAudio);
   const nextAction = fillRehearsalCopy(
@@ -246,6 +422,14 @@ export function RehearsalPlayer({
             if (!canStart) {
               return;
             }
+            setPlaybackError(false);
+            if (transport.loop) {
+              startAudio(
+                transport.loop,
+                transport.phase === "paused" &&
+                  transport.countInRemainingBeats === 0,
+              );
+            }
             setTransport((current) =>
               reduceRehearsalTransport(current, { type: "start" }),
             );
@@ -282,6 +466,22 @@ export function RehearsalPlayer({
           {t("workspaceLoopStop")}
         </Button>
       </div>
+      {playbackError ? (
+        <p
+          className="mt-3 text-sm font-semibold text-amber-200"
+          role="alert"
+          data-testid="rehearsal-loop-audio-error"
+        >
+          {t("workspaceLoopAudioError")}
+        </p>
+      ) : null}
+      <audio
+        ref={audioRef}
+        data-testid="rehearsal-loop-audio"
+        preload="metadata"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
     </section>
   );
 }

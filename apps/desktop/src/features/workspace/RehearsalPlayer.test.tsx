@@ -4,6 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { RehearsalPlayer } from "./RehearsalPlayer";
 
 const originalLanguage = navigator.language;
+const originalTauriInternals = Object.getOwnPropertyDescriptor(
+  window,
+  "__TAURI_INTERNALS__",
+);
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -17,6 +21,16 @@ describe("RehearsalPlayer", () => {
     setNavigatorLanguage(originalLanguage);
     vi.useRealTimers();
     vi.restoreAllMocks();
+    if (originalTauriInternals) {
+      Object.defineProperty(
+        window,
+        "__TAURI_INTERNALS__",
+        originalTauriInternals,
+      );
+    } else {
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__;
+    }
   });
 
   it("names the first playable loop and blocks starting before local audio exists", () => {
@@ -28,7 +42,9 @@ describe("RehearsalPlayer", () => {
       screen.getByTestId("rehearsal-loop-next-action").getAttribute("role"),
     ).toBe("status");
     expect(
-      screen.getByTestId("rehearsal-loop-next-action").getAttribute("aria-live"),
+      screen
+        .getByTestId("rehearsal-loop-next-action")
+        .getAttribute("aria-live"),
     ).toBe("polite");
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
@@ -46,11 +62,7 @@ describe("RehearsalPlayer", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     render(
-      <RehearsalPlayer
-        song={song}
-        hasLocalAudio={false}
-        startNonce={1}
-      />,
+      <RehearsalPlayer song={song} hasLocalAudio={false} startNonce={1} />,
     );
 
     expect(
@@ -151,6 +163,65 @@ describe("RehearsalPlayer", () => {
     ).toContain("%");
   });
 
+  it("uses the scoped native asset as the media clock for a real loop", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const convertFileSrc = vi.fn((path: string) => `asset://localhost/${path}`);
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: { convertFileSrc },
+    });
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    const song = createDemoRehearsalSong();
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath="/Users/test/Music/rehearsal.wav"
+      />,
+    );
+
+    const audio = screen.getByTestId(
+      "rehearsal-loop-audio",
+    ) as HTMLAudioElement;
+    expect(convertFileSrc).toHaveBeenCalledWith(
+      "/Users/test/Music/rehearsal.wav",
+      "asset",
+    );
+    expect(audio.src).toContain("asset://localhost/");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    expect(play).toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    Object.defineProperty(audio, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 17.5,
+    });
+    fireEvent(audio, new Event("timeupdate"));
+    expect(
+      screen.getByTestId("rehearsal-loop-playhead").getAttribute("style"),
+    ).toContain("37.5%");
+
+    Object.defineProperty(audio, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 31,
+    });
+    fireEvent(audio, new Event("timeupdate"));
+    expect(audio.currentTime).toBe(10);
+  });
+
   it("keeps a live loop running across unrelated song metadata updates", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
@@ -176,9 +247,7 @@ describe("RehearsalPlayer", () => {
           ? {
               ...section,
               roles: section.roles.map((role, roleIndex) =>
-                roleIndex === 0
-                  ? { ...role, practiceProgress: 50 }
-                  : role,
+                roleIndex === 0 ? { ...role, practiceProgress: 50 } : role,
               ),
             }
           : section,
@@ -260,13 +329,7 @@ describe("RehearsalPlayer", () => {
       },
     ];
 
-    render(
-      <RehearsalPlayer
-        song={song}
-        hasLocalAudio={true}
-        startNonce={1}
-      />,
-    );
+    render(<RehearsalPlayer song={song} hasLocalAudio={true} startNonce={1} />);
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
     ).toMatch(/Count in 4 beats/i);

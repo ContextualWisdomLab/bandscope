@@ -37,6 +37,7 @@ export type RehearsalTransportEvent =
   | { type: "arm"; loop: RehearsalLoopWindow | null }
   | { type: "start" }
   | { type: "beat" }
+  | { type: "sync"; playheadSeconds: number }
   | { type: "tick"; deltaSeconds: number }
   | { type: "pause" }
   | { type: "stop" };
@@ -319,6 +320,18 @@ export function reduceRehearsalTransport(
         };
       }
       return { ...state, countInRemainingBeats: remaining };
+    }
+    case "sync": {
+      if (state.phase !== "looping" || !state.loop) {
+        return state;
+      }
+      const playhead = Number.isFinite(event.playheadSeconds)
+        ? Math.max(state.loop.startSeconds, event.playheadSeconds)
+        : state.loop.startSeconds;
+      return {
+        ...state,
+        playheadSeconds: wrapPlayhead(playhead, state.loop),
+      };
     }
     case "tick": {
       if (state.phase !== "looping" || !state.loop) {

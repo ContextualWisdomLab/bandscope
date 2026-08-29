@@ -108,6 +108,31 @@ describe("rehearsalTransport", () => {
     expect(wrapPlayhead(loop!.endSeconds, loop!)).toBe(loop!.startSeconds);
   });
 
+  it("syncs the map clock from an admitted media playhead", () => {
+    const loop = resolveLoopWindow(createDemoRehearsalSong());
+    const looping = {
+      ...reduceRehearsalTransport(createIdleTransportState(), {
+        type: "arm",
+        loop,
+      }),
+      phase: "looping" as const,
+      countInRemainingBeats: 0,
+    };
+
+    const synced = reduceRehearsalTransport(looping, {
+      type: "sync",
+      playheadSeconds: 17.25,
+    });
+
+    expect(synced.playheadSeconds).toBe(17.25);
+    expect(
+      reduceRehearsalTransport(looping, {
+        type: "sync",
+        playheadSeconds: Number.NaN,
+      }).playheadSeconds,
+    ).toBe(loop!.startSeconds);
+  });
+
   it("resumes the remaining count-in beats after pausing during count-in", () => {
     const song = createDemoRehearsalSong();
     const loop = resolveLoopWindow(song);

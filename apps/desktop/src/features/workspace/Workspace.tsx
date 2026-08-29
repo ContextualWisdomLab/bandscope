@@ -124,7 +124,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [loopStartNonce, setLoopStartNonce] = useState(0);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const hasLocalAudio = safeProjectBootstrapSummary(sourceBootstrap) !== null;
+  const parsedSourceBootstrap = useMemo(
+    () => safeProjectBootstrapSummary(sourceBootstrap),
+    [sourceBootstrap],
+  );
+  const hasLocalAudio = parsedSourceBootstrap !== null;
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -361,6 +365,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <RehearsalPlayer
             song={song}
             hasLocalAudio={hasLocalAudio}
+            audioSourcePath={parsedSourceBootstrap?.source.sourcePath ?? null}
             startNonce={loopStartNonce}
           />
 
