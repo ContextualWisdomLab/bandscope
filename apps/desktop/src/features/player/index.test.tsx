@@ -38,6 +38,23 @@ describe("firstNamedSection", () => {
     expect(firstNamedSection(song)).toEqual({ id: "chorus-1", label: "chorus" });
   });
 
+  it("uses owned section data instead of Proxy get substitutions", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      new Proxy(verse, {
+        get(target, property, receiver) {
+          if (property === "id") return "spoofed-section";
+          if (property === "label") return "chorus";
+          if (property === "timeRange") return { start: 90, end: 100 };
+          return Reflect.get(target, property, receiver);
+        }
+      })
+    ];
+
+    expect(firstNamedSection(song)).toEqual({ id: "verse-1", label: "verse" });
+  });
+
   it("rejects malformed roots instead of inventing a loop", () => {
     expect(firstNamedSection(null)).toBeNull();
     expect(firstNamedSection({ sections: "bad" } as never)).toBeNull();
