@@ -127,7 +127,16 @@ fn project_contract_rejects_ritardando_plan_without_source() {
 
 #[test]
 fn project_contract_rejects_invalid_ritardando_plan_copy_with_source() {
-    for ritardando_plan in ["", "   ", "ease here\nthen hold", "ease here\rthen hold"] {
+    for ritardando_plan in [
+        "",
+        "   ",
+        "\u{00A0}\u{2003}\u{3000}",
+        "ease here\nthen hold",
+        "ease here\rthen hold",
+        "ease here\u{0085}then hold",
+        "ease here\u{2028}then hold",
+        "ease here\u{2029}then hold",
+    ] {
         let mut payload = song_with_ritardando_plan();
         payload["sections"][0]["roles"][0]["ritardandoPlan"] = json!(ritardando_plan);
         let content = serde_json::to_string(&payload).expect("fixture should serialize");
@@ -137,6 +146,25 @@ fn project_contract_rejects_invalid_ritardando_plan_copy_with_source() {
             "native persisted contract must reject blank or multiline sourced ritardando-plan copy"
         );
     }
+}
+
+#[test]
+fn project_contract_preserves_padded_single_line_ritardando_copy() {
+    let mut payload = song_with_ritardando_plan();
+    payload["sections"][0]["roles"][0]["ritardandoPlan"] =
+        json!("  Ease the phrase late. \u{00A0}");
+    payload["sections"][0]["roles"][0]["ritardandoPlanSource"] = json!("user");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    let parsed = project_payload_from_content(&content)
+        .expect("native persisted contract must preserve padded single-line copy");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
+
+    assert_eq!(
+        serialized["sections"][0]["roles"][0]["ritardandoPlan"],
+        payload["sections"][0]["roles"][0]["ritardandoPlan"]
+    );
 }
 
 #[test]

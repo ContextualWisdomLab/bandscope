@@ -191,6 +191,14 @@ describe("resolveFirstRitardandoPlan", () => {
     expect(resolved?.ritardandoPlanSource).toBe("user");
   });
 
+  it("preserves long user-authored ritardando copy verbatim", () => {
+    const ritardandoPlan = `${"Ease the phrase late. ".repeat(20)}Keep the landing clear.`;
+    expect(
+      resolveFirstRitardandoPlan(withRitardandoSection({ ritardandoPlan, source: "user" }))
+        ?.ritardandoPlan
+    ).toBe(ritardandoPlan);
+  });
+
   it("rejects plan copy without explicit provenance", () => {
     const song = withRitardandoSection();
     delete song.sections[0]!.roles.find((role) => role.id === "lead-vocal")!.ritardandoPlanSource;

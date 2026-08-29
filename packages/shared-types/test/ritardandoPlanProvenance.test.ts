@@ -37,7 +37,16 @@ describe("ritardandoPlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlanSource/);
   });
 
-  it.each(["", "   ", "ease here\nthen hold", "ease here\rthen hold"])(
+  it.each([
+    "",
+    "   ",
+    "\u00a0\u2003\u3000",
+    "ease here\nthen hold",
+    "ease here\rthen hold",
+    "ease here\u0085then hold",
+    "ease here\u2028then hold",
+    "ease here\u2029then hold"
+  ])(
     "rejects a ritardando plan source with blank or multiline copy %j",
     (ritardandoPlan) => {
       const song = createDemoRehearsalSong();
@@ -47,4 +56,15 @@ describe("ritardandoPlan provenance", () => {
       expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlan/);
     }
   );
+
+  it("accepts padded single-line ritardando copy without normalizing it", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = "  Ease the phrase late. \u00a0";
+    role.ritardandoPlanSource = "user";
+
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.ritardandoPlan).toBe(
+      role.ritardandoPlan
+    );
+  });
 });

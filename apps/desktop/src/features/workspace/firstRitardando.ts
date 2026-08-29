@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -122,20 +123,6 @@ function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
   return items;
 }
 
-/** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
-function truncateCodePoints(value: string, maximum: number): string {
-  let codePoints = 0;
-  let endIndex = 0;
-  for (const character of value) {
-    if (codePoints >= maximum) {
-      break;
-    }
-    endIndex += character.length;
-    codePoints += 1;
-  }
-  return endIndex === value.length ? value : value.slice(0, endIndex);
-}
-
 /** Preserve the engine ritardando template while enforcing the engine's slowing semantics. */
 function boundedGeneratedRitardandoPlan(value: string): OwnedRitardandoPlan | null {
   if (value.length > MAX_RITARDANDO_PLAN_CHARACTERS) {
@@ -200,15 +187,15 @@ function ownedRitardandoPlan(role: unknown): OwnedRitardandoPlan | null {
   if (ritardandoPlanSource === undefined) {
     return null;
   }
-  const trimmed = ritardandoPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(ritardandoPlan)) {
     return null;
   }
   if (ritardandoPlanSource === "model") {
+    const trimmed = ritardandoPlan.trim();
     return boundedGeneratedRitardandoPlan(trimmed);
   }
   return {
-    text: truncateCodePoints(trimmed, MAX_RITARDANDO_PLAN_CHARACTERS),
+    text: ritardandoPlan,
     source: ritardandoPlanSource,
     guidance: null
   };
