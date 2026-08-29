@@ -59,6 +59,20 @@ describe("firstRangeSqueeze", () => {
     });
   });
 
+  it("returns the first playable span when a later span has a clash warning", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      overlapWarnings: []
+    };
+
+    expect(firstRangeSqueeze(song)).toMatchObject({
+      sectionLabel: "verse",
+      roleName: "Bass Guitar",
+      overlapWarning: undefined
+    });
+  });
+
   it("falls back to the first named span when clashes are only none sentinels", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles = song.sections[0]!.roles.map((role, index) => ({

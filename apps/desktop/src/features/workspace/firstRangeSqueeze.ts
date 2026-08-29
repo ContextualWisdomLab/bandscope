@@ -87,9 +87,9 @@ export function playableRange(
 /**
  * Pick the first playable range a player should check before the next section.
  *
- * Prefers a named span that also carries a clash warning so the board names
- * the squeeze that will waste rehearsal time. Falls back to the first named
- * span when no clash is present. Runtime roots and collection members are
+ * Returns the first named span that passes playable-range validation. Any
+ * warning attached to that span is preserved for copy selection. Runtime
+ * roots and collection members are
  * treated as untrusted; malformed evidence is isolated instead of crashing
  * the buyer-visible workspace or becoming playable-range authority.
  */
@@ -101,8 +101,6 @@ export function firstRangeSqueeze(
   if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
-
-  let fallback: FirstRangeSqueeze | null = null;
 
   for (const sectionValue of runtimeSong.sections) {
     if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
@@ -149,17 +147,11 @@ export function firstRangeSqueeze(
         overlapWarning
       };
 
-      if (overlapWarning) {
-        return candidate;
-      }
-
-      if (!fallback) {
-        fallback = candidate;
-      }
+      return candidate;
     }
   }
 
-  return fallback;
+  return null;
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
