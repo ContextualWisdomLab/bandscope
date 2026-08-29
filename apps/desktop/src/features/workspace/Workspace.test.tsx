@@ -279,7 +279,7 @@ describe("Workspace", () => {
     const callout = screen.getByTestId("first-hand-part");
     expect(callout).toHaveTextContent("오늘 먼저 잡을 건반 손");
     expect(callout).toHaveTextContent(
-      "verse의 Keyboard 1 Right Hand가 다른 파트와 겹칩니다. verse 들어가기 전에 그 손을 밴드 소리에 맞춰 들어 보세요."
+      "verse의 Keyboard 1 Right Hand가 다른 파트와 겹칩니다. verse 들어가기 전에 그 손이 밴드와 어떻게 겹치는지 들어 보세요."
     );
   });
 
