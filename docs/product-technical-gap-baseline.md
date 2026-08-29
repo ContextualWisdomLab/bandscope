@@ -273,15 +273,15 @@ At the latest hosted snapshot, #1069 was `OPEN`, non-draft, `MERGEABLE`, and `CL
 
 ### 4.12 2026-08-30 safe transport keyboard shortcuts current-head snapshot
 
-PR #1071 (`feat(player): add safe transport shortcuts`) is stacked on #1069 at base `8a5160a797ae9f0a360aeb300ed42c35728a71e1` and current head `c37e589150a864cbb4472290c858c1e1ebda0d60`. The rehearsal player now exposes localized visible guidance for Space play/pause and Escape stop. The window handler ignores editable fields and focused interactive controls, and dispatches only the existing bounded transport actions; it does not add a second clock or a new source authority. Restart-key binding, durable autosave, real-device timing, and role-specific stem playback remain out of scope.
+PR #1071 (`feat(player): add safe transport shortcuts`) is stacked on #1069 at base `8a5160a797ae9f0a360aeb300ed42c35728a71e1` and current head `dbd15a9f22bc94cd0676ac0c552a55a872f6c2b6`. The rehearsal player now exposes localized visible guidance for Space play/pause and Escape stop. The window handler ignores editable fields, focused interactive controls, and repeated keydown events, and dispatches only the existing bounded transport actions; it does not add a second clock or a new source authority. Restart-key binding, durable autosave, real-device timing, and role-specific stem playback remain out of scope.
 
-Local evidence is targeted RehearsalPlayer `25 passed`, desktop full `266 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The shortcut test verifies that a focused boundary input does not start playback, Space transitions count-in to the loop and pauses it, and Escape resets the selected loop. This is mocked media evidence, not real speaker output or real-audio accuracy evidence.
+Local evidence is targeted RehearsalPlayer `25 passed`, desktop full `266 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The shortcut test verifies that a focused boundary input does not start playback, repeated Space keydown events do not toggle twice, Space transitions count-in to the loop and pauses it, and Escape resets the selected loop. This is mocked media evidence, not real speaker output or real-audio accuracy evidence.
 
 At the hosted snapshot after push, #1071 was `OPEN`, non-draft, `MERGEABLE`, with merge recalculation `unstable` while stacked refs settled; its base was #1069's exact head, no formal review decision or qualifying independent approval existed, unresolved review threads were `0`, and no check-runs had been emitted. This remains partial #961 evidence and is not protected merge evidence.
 
 #### Security Notes
 
-- Shortcuts are ignored when the event target is editable or interactive, preventing transport actions while typing or operating a focused control.
+- Shortcuts are ignored when the event target is editable or interactive, and repeated keydown events are ignored, preventing transport actions while typing or holding a key.
 - The handler dispatches only existing `start`, `pause`, and `stop` transport transitions; it adds no file, URL, subprocess, IPC, WebView, network, model, or export authority.
 - Validation points are editable-target suppression, unavailable-action behavior, localized shortcut guidance, count-in/pause/stop transitions, and exact-head hosted review/check rechecks.
 
