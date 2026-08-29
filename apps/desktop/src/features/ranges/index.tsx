@@ -4,6 +4,7 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import {
   fillRangeCopy,
   firstRangeSqueeze,
+  isSafeRuntimeValue,
   meaningfulRangeText,
   ownDataProperty,
   playableRange
@@ -37,9 +38,10 @@ export function RangesFeature(props: {
 }) {
   const { title, song, activeRole = null } = props;
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const safeSong = song && isSafeRuntimeValue(song) ? song : null;
   const firstRange = useMemo(
-    () => (song ? firstRangeSqueeze(song, activeRole) : null),
-    [activeRole, song],
+    () => (safeSong ? firstRangeSqueeze(safeSong, activeRole) : null),
+    [activeRole, safeSong],
   );
   const firstRangeCopy = firstRange
     ? fillRangeCopy(
@@ -62,7 +64,7 @@ export function RangesFeature(props: {
     );
   }
 
-  const runtimeSong: unknown = song;
+  const runtimeSong: unknown = safeSong;
   const songSections = isRuntimeObject(runtimeSong) ? ownDataProperty(runtimeSong, "sections") : undefined;
   const sections = Array.isArray(songSections) ? songSections : [];
 

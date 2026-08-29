@@ -38,7 +38,7 @@ describe("firstNamedSection", () => {
     expect(firstNamedSection(song)).toEqual({ id: "chorus-1", label: "chorus" });
   });
 
-  it("uses owned section data instead of Proxy get substitutions", () => {
+  it("rejects Proxy section data instead of trusting descriptor reads", () => {
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
     song.sections = [
@@ -52,7 +52,26 @@ describe("firstNamedSection", () => {
       })
     ];
 
-    expect(firstNamedSection(song)).toEqual({ id: "verse-1", label: "verse" });
+    expect(firstNamedSection(song)).toBeNull();
+  });
+
+  it("rejects Proxy descriptor traps before they can forge a loop", () => {
+    const song = createDemoRehearsalSong();
+    const forged = new Proxy(song, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === "sections") {
+          return {
+            configurable: true,
+            enumerable: true,
+            value: [{ id: "spoofed", label: "spoofed", timeRange: { start: 1, end: 2 } }],
+            writable: true
+          };
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      }
+    });
+
+    expect(firstNamedSection(forged as RehearsalSong)).toBeNull();
   });
 
   it("rejects malformed roots instead of inventing a loop", () => {

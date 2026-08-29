@@ -136,7 +136,7 @@ describe("firstRangeSqueeze", () => {
     });
   });
 
-  it("uses owned range evidence instead of Proxy substitutions", () => {
+  it("rejects Proxy range evidence instead of trusting descriptor reads", () => {
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
     song.sections = [
@@ -149,7 +149,37 @@ describe("firstRangeSqueeze", () => {
       })
     ];
 
-    expect(firstRangeSqueeze(song)).toMatchObject({ sectionLabel: "verse", roleName: "Bass Guitar" });
+    expect(firstRangeSqueeze(song)).toBeNull();
+  });
+
+  it("rejects Proxy descriptor traps before they can forge range evidence", () => {
+    const song = createDemoRehearsalSong();
+    const forged = new Proxy(song, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === "sections") {
+          return { configurable: true, enumerable: true, value: [], writable: true };
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      }
+    });
+
+    expect(firstRangeSqueeze(forged as RehearsalSong)).toBeNull();
+  });
+
+  it("does not invoke accessor evidence while rejecting it", () => {
+    const song = createDemoRehearsalSong();
+    let invoked = false;
+    Object.defineProperty(song, "sections", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        invoked = true;
+        return [];
+      }
+    });
+
+    expect(firstRangeSqueeze(song)).toBeNull();
+    expect(invoked).toBe(false);
   });
 
   it("limits the squeeze to the selected role", () => {

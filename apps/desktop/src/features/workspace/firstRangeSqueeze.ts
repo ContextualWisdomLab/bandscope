@@ -34,6 +34,49 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Return whether an object graph contains only cloneable own data properties. */
+function hasDataPropertyGraph(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (typeof value !== "object" || value === null) {
+    return true;
+  }
+  if (seen.has(value)) {
+    return true;
+  }
+  seen.add(value);
+
+  let keys: (string | symbol)[];
+  try {
+    keys = Reflect.ownKeys(value);
+  } catch {
+    return false;
+  }
+  for (const key of keys) {
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, key);
+    } catch {
+      return false;
+    }
+    if (!descriptor || !("value" in descriptor) || !hasDataPropertyGraph(descriptor.value, seen)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Reject accessors and Proxy containers before descriptor reads accept data. */
+export function isSafeRuntimeValue(value: unknown): boolean {
+  if (!hasDataPropertyGraph(value)) {
+    return false;
+  }
+  try {
+    structuredClone(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Read an owned data-property without invoking an accessor or Proxy get trap. */
 export function ownDataProperty(record: Record<string, unknown>, property: string): unknown {
   try {
@@ -108,6 +151,9 @@ export function firstRangeSqueeze(
   activeRole: string | null = null
 ): FirstRangeSqueeze | null {
   const runtimeSong: unknown = song;
+  if (!isRuntimeObject(runtimeSong) || !isSafeRuntimeValue(runtimeSong)) {
+    return null;
+  }
   const sections = isRuntimeObject(runtimeSong) ? ownDataProperty(runtimeSong, "sections") : undefined;
   if (!Array.isArray(sections)) {
     return null;

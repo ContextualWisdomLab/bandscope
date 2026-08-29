@@ -1,7 +1,12 @@
 import { useMemo } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
-import { fillRangeCopy, meaningfulRangeText, ownDataProperty } from "../workspace/firstRangeSqueeze";
+import {
+  fillRangeCopy,
+  isSafeRuntimeValue,
+  meaningfulRangeText,
+  ownDataProperty
+} from "../workspace/firstRangeSqueeze";
 
 /** Tonight's first named section a player should loop from the rehearsal map. */
 export type FirstNamedSection = {
@@ -17,7 +22,7 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
 /** Pick the first named section window without treating malformed evidence as a loop. */
 export function firstNamedSection(song: RehearsalSong | null | undefined): FirstNamedSection | null {
   const runtimeSong: unknown = song;
-  if (!isRuntimeObject(runtimeSong)) {
+  if (!isRuntimeObject(runtimeSong) || !isSafeRuntimeValue(runtimeSong)) {
     return null;
   }
   const sections = ownDataProperty(runtimeSong, "sections");
@@ -51,9 +56,10 @@ export function firstNamedSection(song: RehearsalSong | null | undefined): First
 export function PlayerFeature(props: { title: string; song?: RehearsalSong | null }) {
   const { title, song } = props;
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const namedSection = useMemo(() => firstNamedSection(song), [song]);
+  const safeSong = song && isSafeRuntimeValue(song) ? song : null;
+  const namedSection = useMemo(() => firstNamedSection(safeSong), [safeSong]);
   const songTitle = meaningfulRangeText(
-    isRuntimeObject(song) ? ownDataProperty(song as unknown as Record<string, unknown>, "title") : undefined
+    isRuntimeObject(safeSong) ? ownDataProperty(safeSong, "title") : undefined
   );
 
   if (!song) {

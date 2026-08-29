@@ -114,7 +114,7 @@ describe("RangesFeature", () => {
     expect(screen.getByTestId("range-card-1-bass-guitar-0")).toBeTruthy();
   });
 
-  it("uses owned section and role evidence instead of Proxy substitutions", () => {
+  it("rejects Proxy section evidence instead of trusting descriptor reads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
@@ -130,7 +130,7 @@ describe("RangesFeature", () => {
 
     render(<RangesFeature title="Ranges" song={song} />);
 
-    expect(screen.getByText("verse")).toBeTruthy();
-    expect(screen.getByTestId("range-card-0-bass-guitar-0")).toBeTruthy();
+    expect(screen.queryByText("spoofed-section")).toBeNull();
+    expect(screen.queryByTestId("range-card-0-bass-guitar-0")).toBeNull();
   });
 });
