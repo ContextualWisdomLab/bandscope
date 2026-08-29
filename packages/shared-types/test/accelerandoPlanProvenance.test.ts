@@ -13,6 +13,15 @@ describe("accelerandoPlan provenance", () => {
     expect(parseRehearsalSong(song).sections[0]!.roles[0]!.accelerandoPlanSource).toBe(source);
   });
 
+  it("round-trips the precise tempo-change time", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.accelerandoPlan = DEMO_ACCELERANDO_PLAN;
+    role.accelerandoPlanSource = "model";
+    role.accelerandoPlanAtSeconds = 12.375;
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.accelerandoPlanAtSeconds).toBe(12.375);
+  });
+
   it("rejects an unknown accelerando plan source", () => {
     const song = createDemoRehearsalSong();
     const role = song.sections[0]!.roles[0]!;
@@ -35,6 +44,22 @@ describe("accelerandoPlan provenance", () => {
     role.accelerandoPlan = DEMO_ACCELERANDO_PLAN;
     delete role.accelerandoPlanSource;
     expect(() => parseRehearsalSong(song)).toThrow(/accelerandoPlanSource/);
+  });
+
+  it.each([Number.NaN, -1, 4_294_967_296])("rejects invalid accelerando-plan timing %s", (time) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.accelerandoPlan = DEMO_ACCELERANDO_PLAN;
+    role.accelerandoPlanSource = "model";
+    role.accelerandoPlanAtSeconds = time;
+    expect(() => parseRehearsalSong(song)).toThrow(/accelerandoPlanAtSeconds/);
+  });
+
+  it("rejects accelerando-plan timing without its plan copy", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.accelerandoPlanAtSeconds = 12.375;
+    expect(() => parseRehearsalSong(song)).toThrow(/accelerandoPlanAtSeconds/);
   });
 
   it.each([

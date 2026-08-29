@@ -37,6 +37,7 @@ type OwnedAccelerandoPlan = Readonly<{
   text: string;
   source: AccelerandoPlanSource;
   guidance: AccelerandoPlanGuidance | null;
+  atSeconds: number | null;
 }>;
 
 /** Tonight's first accelerando plan: the earliest corroborated speeding on a named vocal or bass. */
@@ -159,7 +160,8 @@ function boundedGeneratedAccelerandoPlan(value: string): OwnedAccelerandoPlan | 
   return {
     text: `${ACCELERANDO_PLAN_PREFIX}${fromBpm}${ACCELERANDO_PLAN_MIDDLE}${toBpm}${ACCELERANDO_PLAN_SUFFIX}`,
     source: "model",
-    guidance: { kind: "tempo", fromBpm, toBpm }
+    guidance: { kind: "tempo", fromBpm, toBpm },
+    atSeconds: null
   };
 }
 
@@ -170,6 +172,7 @@ function ownedAccelerandoPlan(role: unknown): OwnedAccelerandoPlan | null {
   }
   const accelerandoPlan = ownDataValue(role, "accelerandoPlan");
   const accelerandoPlanSource = ownDataValue(role, "accelerandoPlanSource");
+  const accelerandoPlanAtSeconds = ownDataValue(role, "accelerandoPlanAtSeconds");
   if (typeof accelerandoPlan !== "string") {
     return null;
   }
@@ -179,14 +182,27 @@ function ownedAccelerandoPlan(role: unknown): OwnedAccelerandoPlan | null {
   if (!isNonEmptySingleLineText(accelerandoPlan)) {
     return null;
   }
+  if (
+    accelerandoPlanAtSeconds !== undefined &&
+    (typeof accelerandoPlanAtSeconds !== "number" ||
+      !Number.isFinite(accelerandoPlanAtSeconds) ||
+      accelerandoPlanAtSeconds < 0 ||
+      accelerandoPlanAtSeconds > MAX_SECTION_TIME_SECONDS)
+  ) {
+    return null;
+  }
   if (accelerandoPlanSource === "model") {
     const trimmed = accelerandoPlan.trim();
-    return boundedGeneratedAccelerandoPlan(trimmed);
+    const bounded = boundedGeneratedAccelerandoPlan(trimmed);
+    return bounded === null
+      ? null
+      : { ...bounded, atSeconds: (accelerandoPlanAtSeconds as number | undefined) ?? null };
   }
   return {
     text: accelerandoPlan,
     source: accelerandoPlanSource,
-    guidance: null
+    guidance: null,
+    atSeconds: (accelerandoPlanAtSeconds as number | undefined) ?? null
   };
 }
 
@@ -374,7 +390,8 @@ function resolveSafeFirstAccelerandoPlan(song: RehearsalSong): FirstAccelerandoP
                   ...metadata,
                   accelerandoPlan: accelerandoPlan.text,
                   accelerandoPlanSource: accelerandoPlan.source,
-                  accelerandoPlanGuidance: accelerandoPlan.guidance
+                  accelerandoPlanGuidance: accelerandoPlan.guidance,
+                  atSeconds: accelerandoPlan.atSeconds
                 }
               ];
         })
@@ -394,7 +411,7 @@ function resolveSafeFirstAccelerandoPlan(song: RehearsalSong): FirstAccelerandoP
           accelerandoPlan: landingRole.accelerandoPlan,
           accelerandoPlanSource: landingRole.accelerandoPlanSource,
           accelerandoPlanGuidance: landingRole.accelerandoPlanGuidance,
-          atSeconds: timeRange.start
+          atSeconds: landingRole.atSeconds ?? timeRange.start
         }
       ];
     })

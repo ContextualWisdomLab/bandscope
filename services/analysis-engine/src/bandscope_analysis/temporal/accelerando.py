@@ -159,8 +159,31 @@ def _active_role_ids(section: Mapping[str, Any]) -> set[str]:
     return active
 
 
-def _section_contains(section: Mapping[str, Any], time: float) -> bool:
+def _section_contains(
+    section: Mapping[str, Any],
+    time: float,
+    precise_boundary: Sequence[float] | None = None,
+) -> bool:
     """Return whether a section window contains a tempo-change time."""
+    if precise_boundary is not None:
+        if (
+            not isinstance(precise_boundary, Sequence)
+            or isinstance(precise_boundary, (str, bytes))
+            or len(precise_boundary) != 2
+            or any(
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not isfinite(value)
+                for value in precise_boundary
+            )
+        ):
+            return False
+        precise_start, precise_end = (float(value) for value in precise_boundary)
+        return (
+            precise_start >= 0
+            and precise_end > precise_start
+            and precise_start <= time < precise_end
+        )
     time_range = section.get("timeRange")
     if not isinstance(time_range, Mapping):
         return False
@@ -232,12 +255,17 @@ def derive_beat_times(mix: Any, sr: Any) -> list[float] | None:
         return None
 
 
-def apply_accelerando_plan(song: Mapping[str, Any], beat_times: Sequence[float] | None) -> None:
+def apply_accelerando_plan(
+    song: Mapping[str, Any],
+    beat_times: Sequence[float] | None,
+    section_boundaries: Sequence[Sequence[float]] | None = None,
+) -> None:
     """Attach the first corroborated accelerando plan, failing closed on bad input.
 
     Args:
         song: Mutable rehearsal-song mapping with section/role topology.
         beat_times: Beat onset times in seconds used by tempo-stability.
+        section_boundaries: Optional unrounded section boundaries aligned to sections.
     """
     if (
         beat_times is None
@@ -256,8 +284,18 @@ def apply_accelerando_plan(song: Mapping[str, Any], beat_times: Sequence[float] 
         sections = song.get("sections")
         if not isinstance(sections, list):
             return
-        for section in sections:
-            if not isinstance(section, Mapping) or not _section_contains(section, change["time"]):
+        for section_index, section in enumerate(sections):
+            precise_boundary = None
+            if (
+                section_boundaries is not None
+                and isinstance(section_boundaries, Sequence)
+                and not isinstance(section_boundaries, (str, bytes))
+                and section_index < len(section_boundaries)
+            ):
+                precise_boundary = section_boundaries[section_index]
+            if not isinstance(section, Mapping) or not _section_contains(
+                section, change["time"], precise_boundary
+            ):
                 continue
             landing = _pick_landing_role(section)
             if landing is None:
@@ -271,6 +309,7 @@ def apply_accelerando_plan(song: Mapping[str, Any], beat_times: Sequence[float] 
                 stamped = dict(landing)
                 stamped["accelerandoPlan"] = copy
                 stamped["accelerandoPlanSource"] = "model"
+                stamped["accelerandoPlanAtSeconds"] = change["time"]
                 roles[index] = stamped
                 return
             return

@@ -54,7 +54,8 @@ fn song_with_accelerando_plan() -> Value {
                         }],
                         "practiceProgress": 50,
                         "accelerandoPlan": "Push this part from 80 BPM into 120 BPM; let the next downbeat arrive sooner.",
-                        "accelerandoPlanSource": "model"
+                        "accelerandoPlanSource": "model",
+                        "accelerandoPlanAtSeconds": 12.375
                     }
                 ],
                 "partGraph": [
@@ -92,6 +93,10 @@ fn project_contract_round_trips_accelerando_plan_provenance() {
     assert_eq!(
         serialized["sections"][0]["roles"][0]["accelerandoPlanSource"],
         json!("model")
+    );
+    assert_eq!(
+        serialized["sections"][0]["roles"][0]["accelerandoPlanAtSeconds"],
+        json!(12.375)
     );
 }
 
@@ -183,6 +188,30 @@ fn project_contract_rejects_unknown_accelerando_plan_source() {
         project_payload_from_content(&content).is_err(),
         "native persisted contract must reject provenance outside model/user"
     );
+}
+
+#[test]
+fn project_contract_rejects_invalid_accelerando_plan_timing() {
+    for time in [-1.0, 4_294_967_296.0] {
+        let mut payload = song_with_accelerando_plan();
+        payload["sections"][0]["roles"][0]["accelerandoPlanAtSeconds"] = json!(time);
+        let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+        assert!(project_payload_from_content(&content).is_err());
+    }
+}
+
+#[test]
+fn project_contract_rejects_accelerando_plan_timing_without_copy() {
+    let mut payload = song_with_accelerando_plan();
+    let role = payload["sections"][0]["roles"][0]
+        .as_object_mut()
+        .expect("role fixture should be an object");
+    role.remove("accelerandoPlan");
+    role.remove("accelerandoPlanSource");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(project_payload_from_content(&content).is_err());
 }
 
 #[test]

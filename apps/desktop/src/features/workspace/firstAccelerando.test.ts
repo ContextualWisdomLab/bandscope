@@ -11,6 +11,7 @@ function withAccelerandoSection(
     start?: number;
     end?: number;
     accelerandoPlan?: string;
+    accelerandoPlanAtSeconds?: number;
     source?: "model" | "user";
     label?: "intro" | "verse" | "chorus" | "bridge" | "outro";
     roleId?: string;
@@ -40,6 +41,9 @@ function withAccelerandoSection(
     roleType: overrides.roleType ?? (roleId === "lead-vocal" ? "vocal" : "instrument"),
     rehearsalPriority: overrides.priority ?? "high",
     accelerandoPlan: overrides.accelerandoPlan ?? DEMO_ACCELERANDO_PLAN,
+    ...(overrides.accelerandoPlanAtSeconds !== undefined
+      ? { accelerandoPlanAtSeconds: overrides.accelerandoPlanAtSeconds }
+      : {}),
     ...(overrides.source ? { accelerandoPlanSource: overrides.source } : { accelerandoPlanSource: "model" as const })
   };
   const current = structuredClone(verse);
@@ -79,6 +83,13 @@ describe("resolveFirstAccelerandoPlan", () => {
     expect(formatAccelerandoPlanTime(resolved?.atSeconds ?? -1)).toBe("0:00");
     expect(formatAccelerandoPlanTime(Number.NaN)).toBe("0:00");
     expect(formatAccelerandoPlanTime(-4)).toBe("0:00");
+  });
+
+  it("uses the detected tempo-change time instead of the section start", () => {
+    const resolved = resolveFirstAccelerandoPlan(
+      withAccelerandoSection({ start: 10, accelerandoPlanAtSeconds: 12.375 })
+    );
+    expect(resolved?.atSeconds).toBe(12.375);
   });
 
   it("does not invent an accelardando plan from groove, cue, simplification, overlap, range, chords, function labels, setup notes, transposition plans, or confidence notes", () => {
@@ -152,6 +163,13 @@ describe("resolveFirstAccelerandoPlan", () => {
       resolveFirstAccelerandoPlan(withAccelerandoSection({ accelerandoPlan: "slow down here" }))
     ).toBeNull();
   });
+
+  it.each([Number.NaN, -1, 4_294_967_296])(
+    "rejects malformed accelerando-plan timing %s",
+    (accelerandoPlanAtSeconds) => {
+      expect(resolveFirstAccelerandoPlan(withAccelerandoSection({ accelerandoPlanAtSeconds }))).toBeNull();
+    }
+  );
 
   it("rejects model copy that is not a genuine non-double-time speeding", () => {
     expect(
