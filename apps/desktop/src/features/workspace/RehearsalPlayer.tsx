@@ -266,9 +266,9 @@ export function RehearsalPlayer({
       setTransport((current) =>
         reduceRehearsalTransport(current, { type: "beat" }),
       );
-    }, beatDurationMs(transport.loop.tempoBpm));
+    }, beatDurationMs(transport.loop.tempoBpm) / transport.playbackRate);
     return () => window.clearInterval(timer);
-  }, [transport.phase, transport.loop]);
+  }, [transport.phase, transport.loop, transport.playbackRate]);
 
   useEffect(() => {
     if (!audioSourceUrl || !transport.loop) {
@@ -314,6 +314,7 @@ export function RehearsalPlayer({
       return undefined;
     }
     const loop = transport.loop;
+    const playbackRate = transport.playbackRate;
     let boundaryTimer: number | undefined;
     /** Cancel the pending media-clock boundary check. */
     const clearBoundaryTimer = () => {
@@ -354,7 +355,12 @@ export function RehearsalPlayer({
         } else {
           scheduleLoopBoundary();
         }
-      }, Math.min(remainingSeconds * 1000, 2_147_483_647));
+      },
+        Math.min(
+          (remainingSeconds / playbackRate) * 1000,
+          2_147_483_647,
+        ),
+      );
     };
     /** Keep the map playhead aligned with the scoped audio element. */
     const syncPlayhead = () => {
@@ -382,7 +388,13 @@ export function RehearsalPlayer({
       audio.removeEventListener("error", failPlayback);
       audio.removeEventListener("ended", failPlayback);
     };
-  }, [audioSourceUrl, handlePlaybackError, transport.phase, transport.loop]);
+  }, [
+    audioSourceUrl,
+    handlePlaybackError,
+    transport.phase,
+    transport.loop,
+    transport.playbackRate,
+  ]);
 
   const actionKey = nextActionTemplateKey(transport, hasPlayableAudio);
   const nextAction = fillRehearsalCopy(

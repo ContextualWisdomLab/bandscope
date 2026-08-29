@@ -343,6 +343,83 @@ describe("RehearsalPlayer", () => {
     );
   });
 
+  it.each([
+    { rate: "0.75", beforeLoopMs: 2000, remainingMs: 700 },
+    { rate: "1.25", beforeLoopMs: 1500, remainingMs: 200 },
+  ])(
+    "keeps the count-in aligned with playback rate $rate",
+    ({ rate, beforeLoopMs, remainingMs }) => {
+      setNavigatorLanguage("en-US");
+      vi.useFakeTimers();
+      installPlayableAudioMocks();
+      const song = createDemoRehearsalSong();
+
+      render(
+        <RehearsalPlayer
+          song={song}
+          hasLocalAudio={true}
+          audioSourcePath={audioSourcePath}
+        />,
+      );
+      fireEvent.change(screen.getByRole("combobox", { name: /Playback speed/i }), {
+        target: { value: rate },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: /Start the count-in/i }),
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(beforeLoopMs);
+      });
+      expect(
+        screen.getByTestId("rehearsal-loop-next-action").textContent,
+      ).not.toMatch(/looping/i);
+
+      act(() => {
+        vi.advanceTimersByTime(remainingMs);
+      });
+      expect(
+        screen.getByTestId("rehearsal-loop-next-action").textContent,
+      ).toMatch(/looping/i);
+    },
+  );
+
+  it("scales and reschedules section boundaries when playback rate changes", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: /Playback speed/i }), {
+      target: { value: "1.25" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(1600);
+    });
+
+    expect(setTimeoutSpy.mock.calls.at(-1)?.[1]).toBeCloseTo(16_000, 5);
+
+    fireEvent.change(screen.getByRole("combobox", { name: /Playback speed/i }), {
+      target: { value: "0.75" },
+    });
+
+    expect(setTimeoutSpy.mock.calls.at(-1)?.[1]).toBeCloseTo(
+      20_000 / 0.75,
+      5,
+    );
+  });
+
   it("applies supported playback speed while preserving pitch when available", () => {
     setNavigatorLanguage("en-US");
     const { play } = installPlayableAudioMocks();
