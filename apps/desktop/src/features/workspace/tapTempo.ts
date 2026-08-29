@@ -119,8 +119,8 @@ export function tapTempoSessionKey(song: unknown, projectId: unknown = null): st
 /**
  * Admit only a finite rehearsal-usable BPM in 20–400.
  *
- * Non-numeric, non-finite, non-positive, and out-of-range values are not
- * click authority. This is not a tempo detector and does not invent MIR.
+ * This bound applies to tempo measured from taps. Stored song tempo follows the
+ * shared RehearsalSong contract, which accepts any finite positive BPM.
  */
 export function trustedTempoBpm(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -211,14 +211,15 @@ export function tapTempoReading(state: TapTempoState | unknown): TapTempoReading
 /**
  * Return whether the ready map still needs a session tap tempo.
  *
- * Missing, non-finite, or out-of-range `song.tempo` is not click authority.
- * A trusted stored tempo hides the tap control so it cannot override analysis.
+ * A stored tempo uses the shared song-contract authority: finite and positive.
+ * That same value is already displayed by the workspace badge, so it must also
+ * suppress session tapping even when it is outside the narrower 20–400 tap range.
  */
 export function songNeedsTapTempo(song: unknown): boolean {
   if (!isRuntimeObject(song)) {
     return true;
   }
-  return trustedTempoBpm(song.tempo) === null;
+  return typeof song.tempo !== "number" || !Number.isFinite(song.tempo) || song.tempo <= 0;
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
