@@ -110,6 +110,24 @@ describe("firstHandPart", () => {
     expect(getterCalls).toBe(0);
   });
 
+  it("does not invoke nested collection accessors", () => {
+    const song = createDemoRehearsalSong();
+    let getterCalls = 0;
+    const runtimeSection: Record<string, unknown> = { label: "verse" };
+    Object.defineProperty(runtimeSection, "roles", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return song.sections[0]!.roles;
+      }
+    });
+
+    expect(
+      firstHandPart({ sections: [runtimeSection] } as unknown as RehearsalSong)
+    ).toBeNull();
+    expect(getterCalls).toBe(0);
+  });
+
   it("returns null when the selected role is missing", () => {
     expect(firstHandPart(createDemoRehearsalSong(), "missing-role")).toBeNull();
   });
