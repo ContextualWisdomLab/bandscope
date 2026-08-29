@@ -44,6 +44,11 @@ const ACCENT_FREQUENCY_HZ = 1200;
 const TAP_FREQUENCY_HZ = 800;
 const CLICK_SECONDS = 0.05;
 
+type LiveClickNode = {
+  oscillator: CountInOscillator;
+  gain: CountInGain;
+};
+
 /**
  * Return a Web Audio context factory when the host exposes AudioContext.
  *
@@ -72,40 +77,62 @@ export function createWebAudioCountInEngine(
   contextFactory: CountInContextFactory | null = defaultCountInContextFactory()
 ): CountInClickEngine {
   let context: CountInAudioContext | null = null;
-  const liveOscillators: CountInOscillator[] = [];
+  const liveNodes: LiveClickNode[] = [];
+  let playbackGeneration = 0;
+  let completionTimer: ReturnType<typeof setTimeout> | null = null;
+  let finishPendingPlayback: (() => void) | null = null;
 
-  const stop = (): void => {
-    while (liveOscillators.length > 0) {
-      const oscillator = liveOscillators.pop();
-      if (!oscillator) {
+  /** Release tracked audio graph nodes, optionally stopping scheduled oscillators first. */
+  const releaseLiveNodes = (stopOscillators: boolean): void => {
+    while (liveNodes.length > 0) {
+      const node = liveNodes.pop();
+      if (!node) {
         continue;
       }
-      try {
-        oscillator.stop();
-      } catch {
-        // Already stopped oscillators throw; the engine still releases them.
+      if (stopOscillators) {
+        try {
+          node.oscillator.stop();
+        } catch {
+          // Already stopped oscillators throw; the engine still releases them.
+        }
       }
       try {
-        oscillator.disconnect();
+        node.oscillator.disconnect();
       } catch {
-        // Disconnect is best-effort after stop.
+        // Disconnect is best-effort after stop or natural completion.
+      }
+      try {
+        node.gain.disconnect();
+      } catch {
+        // Gain disconnect is best-effort after its oscillator is released.
       }
     }
   };
 
+  /** Resolve and clear any completion wait owned by the current playback. */
+  const settlePendingPlayback = (): void => {
+    if (completionTimer !== null) {
+      globalThis.clearTimeout(completionTimer);
+      completionTimer = null;
+    }
+    const finish = finishPendingPlayback;
+    finishPendingPlayback = null;
+    finish?.();
+  };
+
+  /** Invalidate pending playback and release every currently tracked audio node. */
+  const stop = (): void => {
+    playbackGeneration += 1;
+    settlePendingPlayback();
+    releaseLiveNodes(true);
+  };
+
   return {
     available: contextFactory !== null,
+    /** Play one trusted count-in unless a later stop or play invalidates it. */
     async play(plan: FirstCountInPlan): Promise<void> {
       if (!contextFactory) {
         throw new Error("Count-in click is unavailable.");
-      }
-
-      stop();
-      if (!context) {
-        context = contextFactory();
-      }
-      if (context.state === "suspended") {
-        await context.resume();
       }
 
       const onsets = countInOnsetsMs(plan);
@@ -113,27 +140,51 @@ export function createWebAudioCountInEngine(
         throw new Error("Count-in click has no trusted beats.");
       }
 
-      const origin = context.currentTime + 0.02;
-      for (const [index, onsetMs] of onsets.entries()) {
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        const when = origin + onsetMs / 1000;
-        oscillator.type = "square";
-        oscillator.frequency.value = index === 0 ? ACCENT_FREQUENCY_HZ : TAP_FREQUENCY_HZ;
-        gain.gain.setValueAtTime(0.0001, when);
-        gain.gain.exponentialRampToValueAtTime(0.12, when + 0.002);
-        gain.gain.exponentialRampToValueAtTime(0.0001, when + CLICK_SECONDS);
-        oscillator.connect(gain);
-        gain.connect(context.destination);
-        oscillator.start(when);
-        oscillator.stop(when + CLICK_SECONDS + 0.01);
-        liveOscillators.push(oscillator);
+      stop();
+      const generation = playbackGeneration;
+      if (!context) {
+        context = contextFactory();
+      }
+      if (context.state === "suspended") {
+        await context.resume();
+      }
+      if (playbackGeneration !== generation) {
+        return;
+      }
+
+      try {
+        const origin = context.currentTime + 0.02;
+        for (const [index, onsetMs] of onsets.entries()) {
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          liveNodes.push({ oscillator, gain });
+          const when = origin + onsetMs / 1000;
+          oscillator.type = "square";
+          oscillator.frequency.value = index === 0 ? ACCENT_FREQUENCY_HZ : TAP_FREQUENCY_HZ;
+          gain.gain.setValueAtTime(0.0001, when);
+          gain.gain.exponentialRampToValueAtTime(0.12, when + 0.002);
+          gain.gain.exponentialRampToValueAtTime(0.0001, when + CLICK_SECONDS);
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start(when);
+          oscillator.stop(when + CLICK_SECONDS + 0.01);
+        }
+      } catch (error) {
+        releaseLiveNodes(true);
+        throw error;
       }
 
       const lastOnset = onsets[onsets.length - 1] ?? 0;
       await new Promise<void>((resolve) => {
-        globalThis.setTimeout(() => {
-          resolve();
+        finishPendingPlayback = resolve;
+        completionTimer = globalThis.setTimeout(() => {
+          completionTimer = null;
+          const finish = finishPendingPlayback;
+          finishPendingPlayback = null;
+          if (playbackGeneration === generation) {
+            releaseLiveNodes(false);
+          }
+          finish?.();
         }, lastOnset + CLICK_SECONDS * 1000 + 40);
       });
     },

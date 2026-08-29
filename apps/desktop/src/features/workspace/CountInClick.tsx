@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createWebAudioCountInEngine, type CountInClickEngine } from "./countInClickEngine";
@@ -27,6 +27,18 @@ export function CountInClick({ plan, t, engine }: CountInClickProps) {
   const playGeneration = useRef(0);
   const inFlight = useRef(false);
 
+  useEffect(() => {
+    playGeneration.current += 1;
+    inFlight.current = false;
+    setStatus("idle");
+
+    return () => {
+      playGeneration.current += 1;
+      inFlight.current = false;
+      defaultEngine.stop();
+    };
+  }, [defaultEngine, plan]);
+
   const guidance = useMemo(() => {
     if (!plan) {
       return t("workspaceFirstCountInMissing");
@@ -46,6 +58,7 @@ export function CountInClick({ plan, t, engine }: CountInClickProps) {
     beats: String(plan?.beats ?? 4)
   });
 
+  /** Start the active count-in unless playback is unavailable or already in flight. */
   const handleCountIn = async (): Promise<void> => {
     if (!plan || !engineRef.current.available || inFlight.current) {
       return;
@@ -71,6 +84,7 @@ export function CountInClick({ plan, t, engine }: CountInClickProps) {
     }
   };
 
+  /** Stop the active count-in and invalidate any completion still in flight. */
   const handleStop = (): void => {
     playGeneration.current += 1;
     inFlight.current = false;

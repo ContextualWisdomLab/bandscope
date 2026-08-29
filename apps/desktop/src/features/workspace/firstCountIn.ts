@@ -107,7 +107,11 @@ export function countInOnsetsMs(plan: FirstCountInPlan | unknown): number[] {
   const onsets: number[] = [];
   const safeBeats = Math.floor(beats);
   for (let beat = 0; beat < safeBeats; beat += 1) {
-    onsets.push(beat * intervalMs);
+    const onsetMs = beat * intervalMs;
+    if (!Number.isFinite(onsetMs)) {
+      return [];
+    }
+    onsets.push(onsetMs);
   }
   return onsets;
 }
