@@ -108,10 +108,13 @@ flowchart LR
 | #1047 | `bc63d8a0235ed72566e557681abd6b3958ed714e` | ritardando plan 누락 JSDoc·copy/provenance 양방향 검증과 `ritardando.py` mypy 타입 계약을 보강; 관련 Python/desktop 검증 완료; current Checks 32 pass, 2 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
 | #1048 | `28038721b473c1f64b6914312f48704d64e09c6a` | accelerando plan copy/provenance 양방향 검증과 beat-grid 경계 계약을 보강; current Checks 32 pass, 1 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
 | #1049 | `c34480961bd66485f59122f4d15c5948e8d95ac6` | fermata plan 작업 중인 Draft PR; current Checks 32 pass, 1 failure, 0 pending; `DRAFT/BLOCKED`, qualifying independent approval 없음 |
-| #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | source/coverage/security/build/release 및 `opencode-review`/`strix` terminal success; reviews는 COMMENTED뿐이며 qualifying approval 없음 |
+| #1033 | `046db562497a8104fa525f56a6437eb13fbf4760` | Python 보안 lock baseline; current Checks 34 pass, 0 failure, 0 pending; `REVIEW_REQUIRED/BLOCKED`, qualifying independent approval 없음 |
 | #1034 | `98a99e1bff4b63f5294d8c9a5cbdaf312b235403` | source/coverage/security/build/release terminal success; `opencode-review` success; qualifying independent approval 없음 |
-| #1025 | `29136fbb794264b2a2c587eaccb061248cf3b96e` | 이 문서 PR의 current head이며 base는 `749511c3ad4000090048718f685c6bee6b3d2c25`; current Checks 33 pass, 1 failure(`opencode-review`), 0 pending; `MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
-| #970 | `0bab0e8fbb80b3acd83773e0dddf636570df3ecc` | atomic project publication과 긴 파일명 staging 경계 수정; base가 `7ad56cf0065d068ec6463d92726de4855a6e201d`로 현재 develop보다 뒤처져 `BEHIND`; current Checks 27 pass, 1 failure, 3 pending; qualifying independent approval 없음 |
+| #1025 | `2cd38b2278e6db3866797394f81876c15a07f2c3` | 이 문서 PR의 current head이며 protected base는 `749511c3ad4000090048718f685c6bee6b3d2c25`; current Checks 33 pass, 1 failure(`opencode-review`), 0 pending; `MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
+| #970 | `54d8966ee6734f7d6305c8bf7d503c1721a37840` | atomic project publication과 bounded load 보강, hard-link 불가 첫 저장 fail-closed; current Checks 29 pass, 1 failure(`opencode-review`), 3 pending; `MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
+| #858 | `f1f5e877f07aa7486cd343ddfe8aa45a9d628bbd` | analysis/cache/temp/project path authority와 redacted logging test 계약 보강; current Checks 31 pass, 1 failure(`opencode-review`), 0 pending; `DRAFT/MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
+| #985 | `33d14e44bf7f41dda51b0ee246f7caae088101b9` | canonical audio resource ceiling을 desktop local/YouTube handoff와 Python defense-in-depth에 연결; current Checks 31 pass, 2 failure, 0 pending; `DRAFT/MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
+| #892 | `914428825a902f538971caf4c6f9f35390219a4d` | decoded WAV C-major acceptance와 silent aliased fixture fail-closed 보강; current Checks 28 pass, 3 failure, 0 pending; `DRAFT/MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
 
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
 
