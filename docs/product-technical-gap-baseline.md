@@ -348,6 +348,26 @@ At the source-push capture after `d3337cf7`, #1073 was `OPEN`, non-draft, `MERGE
 
 PR #1009 (`feat(activation): license a demo song and name first-run next actions`) is on protected `develop@749511c3ad4000090048718f685c6bee6b3d2c25` at current head `6c4fe958ae18705d9800b88d1b3cc886b2e70c29`. Its bundled `late-night-set.wav` is a real file-backed 2.0-second, mono, 22.05 kHz PCM fixture. Running the repository's actual Python DSP entry points against those bytes produced `120.1853 BPM`, one detected beat at `1.021678s`, one `verse` segment covering `0.0–2.0s`, and one `Am` chord segment with low confidence. This is direct file analysis evidence, not a mocked result.
 
+Reproduce the probe from a checkout of PR #1009 at the exact head above with:
+
+```bash
+uv run --project services/analysis-engine --locked python - <<'PY'
+import json
+from pathlib import Path
+import librosa
+from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
+from bandscope_analysis.sections.segmenter import segment_with_boundaries
+from bandscope_analysis.temporal import TemporalAnalyzer
+
+path = Path("apps/desktop/src-tauri/resources/demo/late-night-set.wav")
+temporal = TemporalAnalyzer().analyze(path)
+y, sr = librosa.load(path, sr=44100, mono=True)
+chords = ChordRecognizer().recognize(y, sr)
+sections, boundaries = segment_with_boundaries(y, sr, float(len(y) / sr))
+print(json.dumps({"temporal": temporal, "chords": chords, "sections": sections, "boundaries": boundaries}, default=str))
+PY
+```
+
 The fixture is intentionally too short and tonally simple to qualify buyer-facing form or harmony accuracy: the segmenter reports `Audio too short for structural analysis`, and the chord recognizer marks the single-tone result low confidence. The probe therefore confirms that the real decode/temporal/form/harmony code path executes while preserving the P0 gap for known-take, multi-section, musically representative accuracy acceptance. The branch remains `OPEN`, non-draft, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, with unresolved review threads `0`, no qualifying independent approval, and a failed current-head `opencode-review`; no protected merge is claimed.
 
 #### Security Notes
