@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it } from "vitest";
+import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
+import { useState } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
+
+function EditableWorkspace({ initialSong }: { initialSong: RehearsalSong }) {
+  const [song, setSong] = useState(initialSong);
+  return <Workspace song={song} onSongUpdate={setSong} />;
+}
 
 describe("Workspace tap-tempo session ownership", () => {
   it("resets session taps when a different tempo-less song replaces a same-id analysis result", () => {
@@ -24,60 +30,41 @@ describe("Workspace tap-tempo session ownership", () => {
     expect(screen.getByRole("button", { name: /reset tonight's tap tempo/i })).toBeDisabled();
   });
 
-  it("preserves session taps across an immutable practice-progress update to the same song", () => {
-    const song = createDemoRehearsalSong();
-    song.tempo = undefined;
-    const { rerender } = render(<Workspace song={song} />);
+  it("resets session taps when a distinct loaded song collides on projected identity", () => {
+    const firstSong = createDemoRehearsalSong();
+    firstSong.tempo = undefined;
+    const nextSong = structuredClone(firstSong);
+    nextSong.sections[0]!.roles[0]!.harmony.chord = `${nextSong.sections[0]!.roles[0]!.harmony.chord}sus4`;
 
+    expect(nextSong.id).toBe(firstSong.id);
+    expect(nextSong.title).toBe(firstSong.title);
+    expect(nextSong.sections.map(({ id, timeRange }) => ({ id, timeRange }))).toEqual(
+      firstSong.sections.map(({ id, timeRange }) => ({ id, timeRange }))
+    );
+
+    const { rerender } = render(<Workspace song={firstSong} />);
     fireEvent.click(screen.getByRole("button", { name: /tap the groove to set tonight's tempo/i }));
     expect(screen.getByTestId("tap-lamp-0").className).toContain("bg-amber-300");
 
-    const progressOnlyUpdate = {
-      ...song,
-      sections: song.sections.map((section, sectionIndex) => ({
-        ...section,
-        roles: section.roles.map((role, roleIndex) =>
-          sectionIndex === 0 && roleIndex === 0 ? { ...role, practiceProgress: 60 } : role
-        )
-      }))
-    };
-    rerender(<Workspace song={progressOnlyUpdate} />);
+    rerender(<Workspace song={nextSong} />);
 
-    expect(screen.getByTestId("tap-lamp-0").className).toContain("bg-amber-300");
+    expect(screen.getByTestId("tap-lamp-0").className).toContain("bg-white/15");
+    expect(screen.getByRole("button", { name: /reset tonight's tap tempo/i })).toBeDisabled();
   });
 
-  it("preserves session taps across a harmony edit to the current song", () => {
+  it("preserves session taps when the supported chord editor updates the current song", () => {
     const song = createDemoRehearsalSong();
     song.tempo = undefined;
-    const { rerender } = render(<Workspace song={song} />);
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue("Dm7");
 
+    render(<EditableWorkspace initialSong={song} />);
     fireEvent.click(screen.getByRole("button", { name: /tap the groove to set tonight's tempo/i }));
     expect(screen.getByTestId("tap-lamp-0").className).toContain("bg-amber-300");
 
-    let changedHarmony = false;
-    const harmonyUpdate = {
-      ...song,
-      sections: song.sections.map((section) => ({
-        ...section,
-        roles: section.roles.map((role) => {
-          if (changedHarmony || !role.harmony) {
-            return role;
-          }
-          changedHarmony = true;
-          return {
-            ...role,
-            harmony: {
-              ...role.harmony,
-              chord: `${role.harmony.chord}sus4`
-            }
-          };
-        })
-      }))
-    };
-    expect(changedHarmony).toBe(true);
+    fireEvent.click(screen.getAllByRole("button", { name: /edit chord for/i })[0]!);
 
-    rerender(<Workspace song={harmonyUpdate} />);
-
+    expect(prompt).toHaveBeenCalled();
     expect(screen.getByTestId("tap-lamp-0").className).toContain("bg-amber-300");
+    prompt.mockRestore();
   });
 });
