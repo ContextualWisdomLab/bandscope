@@ -290,13 +290,30 @@ fn metadata_is_safe_project_directory(metadata: &fs::Metadata) -> bool {
     metadata.is_dir() && !metadata.file_type().is_symlink()
 }
 
+#[cfg(target_os = "macos")]
+fn metadata_is_trusted_macos_root_directory_alias(path: &Path, metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    metadata.file_type().is_symlink()
+        && metadata.uid() == 0
+        && path.parent() == Some(Path::new("/"))
+        && fs::metadata(path).is_ok_and(|target_metadata| target_metadata.is_dir())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn metadata_is_trusted_macos_root_directory_alias(_path: &Path, _metadata: &fs::Metadata) -> bool {
+    false
+}
+
 fn project_parent_chain_is_safe(parent: &Path) -> bool {
     parent
         .ancestors()
         .filter(|ancestor| !ancestor.as_os_str().is_empty())
         .all(|ancestor| {
-            fs::symlink_metadata(ancestor)
-                .is_ok_and(|metadata| metadata_is_safe_project_directory(&metadata))
+            fs::symlink_metadata(ancestor).is_ok_and(|metadata| {
+                metadata_is_safe_project_directory(&metadata)
+                    || metadata_is_trusted_macos_root_directory_alias(ancestor, &metadata)
+            })
         })
 }
 
@@ -387,19 +404,22 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// Publishes a selected project only after its complete bounded bytes are staged and synced.
 ///
 /// The selected parent and each lexical ancestor must be a real directory rather than a
-/// symlink/reparse point before any staging artifact is created. This rejects static ancestor-link
-/// redirection without following the link into another authority boundary. `File::create_new` makes
-/// staging non-clobbering. A new destination first uses a hard link to the synced staging inode. When
-/// that filesystem does not support hard links, Linux uses `renameat2(RENAME_NOREPLACE)`, macOS uses
-/// `renamex_np(RENAME_EXCL)`, and Windows uses `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so
-/// the fully synced staging file becomes the final name without first materializing an empty final
-/// path. An existing destination at either no-clobber boundary fails closed. If the save dialog
-/// selected an existing regular file, the synced staging file is atomically renamed over that
-/// directory entry; symlink/reparse/special targets fail closed. Filesystems that do not support the
-/// native no-replace primitive fail closed rather than falling back to reserve-then-replace. This
-/// ancestor check remains a path-based preflight rather than descriptor-bound protection against a
-/// concurrent parent-chain swap. Parent-directory durability, concurrent-writer serialization,
-/// backup rotation, migration, and recovery remain separate project-format work under #962.
+/// symlink/reparse point before any staging artifact is created. On macOS, a root-owned top-level
+/// directory symlink whose resolved target is a directory is treated as trusted OS path
+/// normalization (for example the system `/var` alias); deeper links remain fail-closed. This rejects
+/// user-writable static ancestor-link redirection without breaking normal paths below macOS system
+/// aliases. `File::create_new` makes staging non-clobbering. A new destination first uses a hard link
+/// to the synced staging inode. When that filesystem does not support hard links, Linux uses
+/// `renameat2(RENAME_NOREPLACE)`, macOS uses `renamex_np(RENAME_EXCL)`, and Windows uses
+/// `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so the fully synced staging file becomes the
+/// final name without first materializing an empty final path. An existing destination at either
+/// no-clobber boundary fails closed. If the save dialog selected an existing regular file, the synced
+/// staging file is atomically renamed over that directory entry; symlink/reparse/special targets fail
+/// closed. Filesystems that do not support the native no-replace primitive fail closed rather than
+/// falling back to reserve-then-replace. This ancestor check remains a path-based preflight rather
+/// than descriptor-bound protection against a concurrent parent-chain swap. Parent-directory
+/// durability, concurrent-writer serialization, backup rotation, migration, and recovery remain
+/// separate project-format work under #962.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     publish_new_project_file_with_linker(target, content, |source, destination| {
         fs::hard_link(source, destination)
