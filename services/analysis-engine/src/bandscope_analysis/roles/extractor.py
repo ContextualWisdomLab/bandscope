@@ -354,13 +354,17 @@ class RoleExtractor:
         becoming active after an abutting rest, with at least one other distinct
         source already active on the landing downbeat. Mixed-source landing is
         the evidence. Heuristic fallback topology and first-section (no previous
-        activity) produce no plan. A lone entrance is not a pickup.
+        activity) produce no plan. A lone entrance is not a pickup. The shared
+        accompaniment stem can corroborate another role but cannot identify a
+        specific keys or guitar owner, so it never owns a named pickup.
         """
         if (
             previous_role_activity is None
             or previous_role_activity.get(role_id, False)
             or not role_activity.get(role_id, False)
         ):
+            return None
+        if role_id in _OTHER_STEM_ROLE_IDS:
             return None
 
         landing_role_ids = [
