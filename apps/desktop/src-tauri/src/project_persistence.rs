@@ -485,7 +485,8 @@ type JournalPathName = Vec<u16>;
 struct PublicationJournal {
     version: u8,
     target_name: JournalPathName,
-    stage_name: JournalPathName,
+    candidate_name: JournalPathName,
+    displaced_name: JournalPathName,
     expected: ProjectFileIdentity,
     candidate: ProjectFileIdentity,
 }
@@ -540,17 +541,32 @@ fn generated_stage_name(name: &JournalPathName) -> bool {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn recovery_journal_name(path: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
-        return false;
-    };
-    let Some(uuid) = name
-        .strip_prefix(".bandscope-recovery-")
-        .and_then(|value| value.strip_suffix(".journal"))
-    else {
-        return false;
-    };
-    uuid::Uuid::parse_str(uuid).is_ok()
+fn journal_target_key(target: &Path) -> Result<u64, String> {
+    let name = journal_path_name(target)?;
+    let mut hash = 0xcbf29ce484222325u64;
+    #[cfg(unix)]
+    for byte in name {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    #[cfg(windows)]
+    for unit in name {
+        for byte in unit.to_le_bytes() {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+    Ok(hash)
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn publication_journal_path(target: &Path, published: bool) -> Result<PathBuf, String> {
+    let phase = if published { "published" } else { "prepared" };
+    Ok(project_parent(target).join(format!(
+        ".bandscope-recovery-{:016x}.{}.journal",
+        journal_target_key(target)?,
+        phase
+    )))
 }
 
 #[cfg(unix)]
@@ -568,18 +584,17 @@ fn sync_parent_directory(_parent: &Path) -> std::io::Result<()> {
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn create_publication_journal(
     target: &Path,
-    stage: &Path,
+    candidate_stage: &Path,
+    displaced: &Path,
     expected: &ProjectFileIdentity,
     candidate: &ProjectFileIdentity,
 ) -> Result<PathBuf, String> {
-    let journal_path = project_parent(target).join(format!(
-        ".bandscope-recovery-{}.journal",
-        uuid::Uuid::new_v4()
-    ));
+    let journal_path = publication_journal_path(target, false)?;
     let journal = PublicationJournal {
         version: 1,
         target_name: journal_path_name(target)?,
-        stage_name: journal_path_name(stage)?,
+        candidate_name: journal_path_name(candidate_stage)?,
+        displaced_name: journal_path_name(displaced)?,
         expected: expected.clone(),
         candidate: candidate.clone(),
     };
@@ -616,50 +631,149 @@ fn project_file_identity_if_present(
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn remove_recovery_artifact(path: &Path) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(PROJECT_RECOVERY_ERROR.to_string()),
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn recovery_artifact_exists(path: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(_) => Err(PROJECT_RECOVERY_ERROR.to_string()),
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn promote_publication_journal(prepared: &Path, target: &Path) -> Result<PathBuf, String> {
+    let published = publication_journal_path(target, true)?;
+    rename_noreplace(prepared, &published).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    sync_parent_directory(project_parent(target))
+        .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    Ok(published)
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn finish_successful_publication(
+    prepared: &Path,
+    stage: &Path,
+    target: &Path,
+) -> Result<(), String> {
+    let published = promote_publication_journal(prepared, target)?;
+    remove_stage(stage);
+    if matches!(
+        fs::symlink_metadata(stage),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    ) && sync_parent_directory(project_parent(target)).is_ok()
+    {
+        remove_stage(&published);
+        let _ = sync_parent_directory(project_parent(target));
+    }
+    Ok(())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn finish_rolled_back_publication(stage: &Path, journal: &Path, target: &Path) {
+    if sync_parent_directory(project_parent(target)).is_err()
+        || remove_recovery_artifact(stage).is_err()
+        || sync_parent_directory(project_parent(target)).is_err()
+        || remove_recovery_artifact(journal).is_err()
+    {
+        return;
+    }
+    let _ = sync_parent_directory(project_parent(target));
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn recover_publication_state(
     target: &Path,
     journal_path: &Path,
     journal: &PublicationJournal,
-    stage: &Path,
+    candidate_stage: &Path,
+    displaced: &Path,
+    published: bool,
 ) -> Result<(), String> {
     let target_identity = project_file_identity_if_present(target)?;
-    let stage_identity = project_file_identity_if_present(stage)?;
+    let candidate_identity = project_file_identity_if_present(candidate_stage)?;
+    let displaced_identity = if displaced == candidate_stage {
+        candidate_identity.clone()
+    } else {
+        project_file_identity_if_present(displaced)?
+    };
 
-    if target_identity.as_ref() == Some(&journal.candidate)
-        && stage_identity.as_ref() == Some(&journal.expected)
-    {
-        #[cfg(any(target_os = "linux", target_os = "macos"))]
-        if rename_exchange(stage, target).is_err() {
+    if published {
+        if target_identity.as_ref() != Some(&journal.candidate)
+            || (displaced_identity.is_some()
+                && displaced_identity.as_ref() != Some(&journal.expected))
+            || (displaced != candidate_stage && candidate_identity.is_some())
+        {
             return Err(PROJECT_RECOVERY_ERROR.to_string());
         }
+        if displaced_identity.is_some() {
+            remove_recovery_artifact(displaced)?;
+            sync_parent_directory(project_parent(target))
+                .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+        }
+        remove_recovery_artifact(journal_path)?;
+        sync_parent_directory(project_parent(target))
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+        return Ok(());
+    }
+
+    if target_identity.as_ref() == Some(&journal.candidate)
+        && displaced_identity.as_ref() == Some(&journal.expected)
+    {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        if rename_exchange(displaced, target).is_err() {
+            return Err(PROJECT_RECOVERY_ERROR.to_string());
+        }
+        sync_parent_directory(project_parent(target))
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
 
         #[cfg(windows)]
         {
-            let rollback_stage = staging_path(target)?;
-            if replace_file_with_backup(target, stage, &rollback_stage).is_err() {
+            if replace_file_with_backup(target, displaced, candidate_stage).is_err() {
                 return Err(PROJECT_RECOVERY_ERROR.to_string());
             }
-            remove_stage(&rollback_stage);
         }
-        remove_stage(stage);
-        remove_stage(journal_path);
+        remove_recovery_artifact(candidate_stage)?;
+        if displaced != candidate_stage {
+            remove_recovery_artifact(displaced)?;
+        }
+        sync_parent_directory(project_parent(target))
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+        remove_recovery_artifact(journal_path)?;
+        sync_parent_directory(project_parent(target))
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
         return Ok(());
     }
 
     if target_identity.as_ref() == Some(&journal.expected)
-        && stage_identity.as_ref() == Some(&journal.candidate)
+        && candidate_identity.as_ref() == Some(&journal.candidate)
+        && (displaced_identity.is_none() || displaced == candidate_stage)
     {
-        remove_stage(stage);
-        remove_stage(journal_path);
+        remove_recovery_artifact(candidate_stage)?;
+        sync_parent_directory(project_parent(target))
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+        remove_recovery_artifact(journal_path)?;
+        sync_parent_directory(project_parent(target))
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
         return Ok(());
     }
 
-    if stage_identity.is_none()
+    if candidate_identity.is_none()
+        && displaced_identity.is_none()
         && target_identity
             .as_ref()
             .is_some_and(|identity| identity == &journal.expected || identity == &journal.candidate)
     {
-        remove_stage(journal_path);
+        remove_recovery_artifact(journal_path)?;
+        sync_parent_directory(project_parent(target))
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
         return Ok(());
     }
 
@@ -668,9 +782,10 @@ fn recover_publication_state(
 
 /// Repairs one durable, adjacent publication journal when its target is selected again.
 ///
-/// Security Notes: journal and stage names are constrained to generated same-directory names;
-/// target, journal, and stage paths must stay regular non-link files; journal reads use the bounded
-/// no-follow project reader; mismatched identities fail closed without deleting either file.
+/// Security Notes: journal names are derived from the selected target and stage names are generated
+/// UUID-based same-directory names; target, journal, and stage paths must stay regular non-link files;
+/// journal reads use the bounded no-follow project reader; mismatched identities fail closed without
+/// deleting either file.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
     let parent = project_parent(target);
@@ -678,34 +793,57 @@ pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
         return Err(PROJECT_RECOVERY_ERROR.to_string());
     }
     let target_name = journal_path_name(target)?;
-    for entry in fs::read_dir(parent).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())? {
-        let entry = entry.map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
-        let journal_path = entry.path();
-        if !recovery_journal_name(&journal_path) {
-            continue;
-        }
-        let metadata = fs::symlink_metadata(&journal_path)
-            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
-        if !metadata_is_regular_project_file(&metadata) {
-            return Err(PROJECT_RECOVERY_ERROR.to_string());
-        }
-        let content = read_project_file(&journal_path)
-            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
-        if content.len() > MAX_RECOVERY_JOURNAL_BYTES {
-            return Err(PROJECT_RECOVERY_ERROR.to_string());
-        }
-        let journal: PublicationJournal =
-            serde_json::from_str(&content).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
-        if journal.target_name != target_name {
-            continue;
-        }
-        if journal.version != 1 || !generated_stage_name(&journal.stage_name) {
-            return Err(PROJECT_RECOVERY_ERROR.to_string());
-        }
-        let stage = path_from_journal_name(parent, &journal.stage_name)
-            .ok_or_else(|| PROJECT_RECOVERY_ERROR.to_string())?;
-        recover_publication_state(target, &journal_path, &journal, &stage)?;
+    let prepared_path = publication_journal_path(target, false)?;
+    let published_path = publication_journal_path(target, true)?;
+    let prepared_exists = recovery_artifact_exists(&prepared_path)?;
+    let published_exists = recovery_artifact_exists(&published_path)?;
+    if prepared_exists && published_exists {
+        return Err(PROJECT_RECOVERY_ERROR.to_string());
     }
+    let Some((journal_path, published)) = (if prepared_exists {
+        Some((prepared_path, false))
+    } else if published_exists {
+        Some((published_path, true))
+    } else {
+        None
+    }) else {
+        return Ok(());
+    };
+    let metadata = fs::symlink_metadata(&journal_path)
+        .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    if !metadata_is_regular_project_file(&metadata) {
+        return Err(PROJECT_RECOVERY_ERROR.to_string());
+    }
+    let content = read_project_file_with_opener(
+        &journal_path,
+        open_project_file,
+        MAX_RECOVERY_JOURNAL_BYTES,
+        PROJECT_RECOVERY_ERROR,
+    )
+    .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    let journal: PublicationJournal =
+        serde_json::from_str(&content).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    if journal.target_name != target_name {
+        return Err(PROJECT_RECOVERY_ERROR.to_string());
+    }
+    if journal.version != 1
+        || !generated_stage_name(&journal.candidate_name)
+        || !generated_stage_name(&journal.displaced_name)
+    {
+        return Err(PROJECT_RECOVERY_ERROR.to_string());
+    }
+    let candidate_stage = path_from_journal_name(parent, &journal.candidate_name)
+        .ok_or_else(|| PROJECT_RECOVERY_ERROR.to_string())?;
+    let displaced = path_from_journal_name(parent, &journal.displaced_name)
+        .ok_or_else(|| PROJECT_RECOVERY_ERROR.to_string())?;
+    recover_publication_state(
+        target,
+        &journal_path,
+        &journal,
+        &candidate_stage,
+        &displaced,
+        published,
+    )?;
     Ok(())
 }
 
@@ -721,7 +859,7 @@ pub(crate) fn replace_existing_project_file(
     expected: &ProjectFileIdentity,
 ) -> Result<(), String> {
     let candidate = project_file_identity(stage)?;
-    let journal = create_publication_journal(target, stage, expected, &candidate)?;
+    let journal = create_publication_journal(target, stage, stage, expected, &candidate)?;
     if rename_exchange(stage, target).is_err() {
         remove_stage(stage);
         remove_stage(&journal);
@@ -730,16 +868,13 @@ pub(crate) fn replace_existing_project_file(
 
     let displaced = project_file_identity(stage);
     if displaced.as_ref().is_ok_and(|identity| identity == expected) {
-        remove_stage(stage);
-        remove_stage(&journal);
-        return Ok(());
+        return finish_successful_publication(&journal, stage, target);
     }
 
     let target_is_candidate =
         project_file_identity(target).is_ok_and(|identity| identity == candidate);
     if target_is_candidate && rename_exchange(stage, target).is_ok() {
-        remove_stage(stage);
-        remove_stage(&journal);
+        finish_rolled_back_publication(stage, &journal, target);
     }
     Err(PROJECT_PUBLISH_ERROR.to_string())
 }
@@ -752,7 +887,7 @@ pub(crate) fn replace_existing_project_file(
 ) -> Result<(), String> {
     let candidate = project_file_identity(stage)?;
     let backup = staging_path(target)?;
-    let journal = create_publication_journal(target, &backup, expected, &candidate)?;
+    let journal = create_publication_journal(target, stage, &backup, expected, &candidate)?;
     if replace_file_with_backup(target, stage, &backup).is_err() {
         remove_stage(stage);
         remove_stage(&journal);
@@ -761,16 +896,13 @@ pub(crate) fn replace_existing_project_file(
 
     let displaced = project_file_identity(&backup);
     if displaced.as_ref().is_ok_and(|identity| identity == expected) {
-        remove_stage(&backup);
-        remove_stage(&journal);
-        return Ok(());
+        return finish_successful_publication(&journal, &backup, target);
     }
 
     let target_is_candidate =
         project_file_identity(target).is_ok_and(|identity| identity == candidate);
     if target_is_candidate && replace_file_with_backup(target, &backup, stage).is_ok() {
-        remove_stage(stage);
-        remove_stage(&journal);
+        finish_rolled_back_publication(stage, &journal, target);
     }
     Err(PROJECT_PUBLISH_ERROR.to_string())
 }
@@ -828,7 +960,12 @@ fn project_parent_chain_is_safe(parent: &Path) -> bool {
         })
 }
 
-fn read_project_file_with_opener<F>(target: &Path, open_file: F) -> Result<String, String>
+fn read_project_file_with_opener<F>(
+    target: &Path,
+    open_file: F,
+    max_bytes: usize,
+    too_large_error: &str,
+) -> Result<String, String>
 where
     F: FnOnce(&Path) -> std::io::Result<File>,
 {
@@ -887,13 +1024,13 @@ where
     #[cfg(not(any(unix, windows)))]
     return Err(PROJECT_READ_ERROR.to_string());
 
-    let mut reader = file.take((MAX_PROJECT_FILE_BYTES + 1) as u64);
+    let mut reader = file.take((max_bytes + 1) as u64);
     let mut bytes = Vec::new();
     reader
         .read_to_end(&mut bytes)
         .map_err(|_| PROJECT_READ_ERROR.to_string())?;
-    if bytes.len() > MAX_PROJECT_FILE_BYTES {
-        return Err(PROJECT_TOO_LARGE_ERROR.to_string());
+    if bytes.len() > max_bytes {
+        return Err(too_large_error.to_string());
     }
     String::from_utf8(bytes).map_err(|_| PROJECT_READ_ERROR.to_string())
 }
@@ -909,7 +1046,12 @@ where
 /// fail closed until their no-follow open contract is explicitly modeled. The reader remains capped
 /// at `MAX_PROJECT_FILE_BYTES + 1`; backup rotation and migration semantics remain later #962 work.
 pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
-    read_project_file_with_opener(target, open_project_file)
+    read_project_file_with_opener(
+        target,
+        open_project_file,
+        MAX_PROJECT_FILE_BYTES,
+        PROJECT_TOO_LARGE_ERROR,
+    )
 }
 
 /// Publishes a selected project only after its complete bounded bytes are staged and synced.
@@ -1029,7 +1171,7 @@ where
 mod tests {
     use super::{
         publish_new_project_file, read_project_file, read_project_file_with_opener,
-        MAX_PROJECT_FILE_BYTES,
+        MAX_PROJECT_FILE_BYTES, PROJECT_TOO_LARGE_ERROR,
     };
     use std::{
         fs,
@@ -1243,7 +1385,7 @@ mod tests {
             fs::rename(path, &parked)?;
             fs::rename(&replacement, path)?;
             fs::File::open(path)
-        })
+        }, MAX_PROJECT_FILE_BYTES, PROJECT_TOO_LARGE_ERROR)
         .expect_err("a path replacement between preflight and open must fail closed");
 
         assert_eq!(error, "Failed to read file");
@@ -1283,6 +1425,7 @@ mod tests {
         let journal = super::create_publication_journal(
             &target,
             &stage,
+            &stage,
             &expected,
             &candidate_identity,
         )
@@ -1295,6 +1438,66 @@ mod tests {
         assert_eq!(fs::read(&target).expect("target should remain readable"), known_good);
         assert!(!stage.exists(), "the interrupted candidate should be cleaned");
         assert!(!journal.exists(), "the recovery journal should be cleaned");
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn cleans_a_durable_published_journal_after_target_exchange() {
+        let root = test_dir("published-recovery");
+        let target = root.join("setlist.bscope");
+        let stage = root.join(format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4()));
+        let known_good = br#"{"id":"known-good"}"#;
+        let candidate = br#"{"id":"candidate"}"#;
+        fs::write(&target, known_good).expect("known-good fixture should be written");
+        fs::write(&stage, candidate).expect("candidate fixture should be written");
+
+        let expected = super::project_file_identity(&target).expect("target identity should exist");
+        let candidate_identity =
+            super::project_file_identity(&stage).expect("candidate identity should exist");
+        let prepared = super::create_publication_journal(
+            &target,
+            &stage,
+            &stage,
+            &expected,
+            &candidate_identity,
+        )
+        .expect("the recovery journal should be durable before publication");
+        super::rename_exchange(&stage, &target).expect("fixture should model target exchange");
+        let published = super::publication_journal_path(&target, true)
+            .expect("published journal path should be derivable");
+        super::rename_noreplace(&prepared, &published)
+            .expect("fixture should model the durable published marker");
+
+        super::recover_project_publication(&target)
+            .expect("the next selection should clean the completed publication");
+
+        assert_eq!(fs::read(&target).expect("target should remain readable"), candidate);
+        assert!(!stage.exists(), "the displaced known-good stage should be cleaned");
+        assert!(!published.exists(), "the published journal should be cleaned");
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[test]
+    fn unrelated_incomplete_journals_do_not_block_project_recovery() {
+        let root = test_dir("unrelated-recovery");
+        let target = root.join("selected.bscope");
+        let unrelated = root.join("other.bscope");
+        fs::write(&target, br#"{"id":"selected"}"#).expect("target fixture should be written");
+        fs::write(
+            super::publication_journal_path(&unrelated, false)
+                .expect("unrelated journal path should be derivable"),
+            b"{",
+        )
+        .expect("the incomplete unrelated journal should be written");
+
+        super::recover_project_publication(&target)
+            .expect("an unrelated incomplete journal must not block recovery");
+        assert_eq!(
+            fs::read(&target).expect("target should remain readable"),
+            br#"{"id":"selected"}"#
+        );
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
