@@ -590,14 +590,50 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
     validate_tuning_plan(parsed)
 }
 
+/// Mirrors the shared-types plan whitespace policy, including BOM and NEL.
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Reject blank or Unicode line-separated tuning guidance without normalizing user text.
+fn is_valid_tuning_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
 fn validate_tuning_plan(payload: RehearsalSongPayload) -> Result<RehearsalSongPayload, String> {
     for section in &payload.sections {
         for role in &section.roles {
-            if role.tuning_plan.as_ref().is_some_and(|tuning_plan| {
-                tuning_plan.trim().is_empty()
-                    || tuning_plan.contains('\n')
-                    || tuning_plan.contains('\r')
-            }) {
+            if role
+                .tuning_plan
+                .as_deref()
+                .is_some_and(|tuning_plan| !is_valid_tuning_plan(tuning_plan))
+            {
                 return Err("Invalid project file format".to_string());
             }
         }
@@ -956,13 +992,28 @@ mod tests {
 
     #[test]
     fn project_payload_from_content_rejects_invalid_tuning_plan() {
-        for tuning_plan in ["", "   ", "tune here\nthen move", "tune here\rthen move"] {
+        for tuning_plan in [
+            "",
+            "   ",
+            "\u{FEFF}",
+            "\u{0085}",
+            "tune here\nthen move",
+            "tune here\rthen move",
+            "tune here\u{0085}then move",
+            "tune here\u{2028}then move",
+            "tune here\u{2029}then move",
+        ] {
             let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
             payload["sections"][0]["roles"][0]["tuningPlan"] = json!(tuning_plan);
             let content = serde_json::to_string(&payload).expect("payload should serialize");
 
             assert!(project_payload_from_content(&content).is_err());
         }
+
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]["roles"][0]["tuningPlan"] = json!("\u{FEFF}Tune the string\u{FEFF}");
+        let content = serde_json::to_string(&payload).expect("padded plan should serialize");
+        assert!(project_payload_from_content(&content).is_ok());
     }
 
     #[test]

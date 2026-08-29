@@ -125,6 +125,15 @@ describe("resolveFirstTuningPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded tuning text", () => {
+    for (const tuningPlan of ["Tune\u0085here", "Tune\u2028here", "Tune\u2029here"]) {
+      expect(resolveFirstTuningPlan(withTuningSection({ tuningPlan }))).toBeNull();
+    }
+    expect(resolveFirstTuningPlan(withTuningSection({ tuningPlan: "\uFEFF Tune here \uFEFF" }))?.tuningPlan).toBe(
+      "Tune here"
+    );
+  });
+
   it("prefers the earlier of two tuning plans", () => {
     const song = withTuningSection({
       id: "verse-late",
