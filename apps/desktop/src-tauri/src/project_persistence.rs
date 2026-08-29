@@ -725,7 +725,9 @@ fn recover_publication_state(
     }
 
     if target_identity.as_ref() == Some(&journal.candidate)
-        && displaced_identity.as_ref() == Some(&journal.expected)
+        && displaced_identity
+            .as_ref()
+            .is_some_and(|identity| identity != &journal.candidate)
     {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         if rename_exchange(displaced, target).is_err() {
@@ -784,8 +786,7 @@ fn recover_publication_state(
 ///
 /// Security Notes: journal names are derived from the selected target and stage names are generated
 /// UUID-based same-directory names; target, journal, and stage paths must stay regular non-link files;
-/// journal reads use the bounded no-follow project reader; mismatched identities fail closed without
-/// deleting either file.
+/// journal reads use the bounded no-follow project reader; unrecognized identity pairs fail closed.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
     let parent = project_parent(target);
@@ -1437,6 +1438,47 @@ mod tests {
 
         assert_eq!(fs::read(&target).expect("target should remain readable"), known_good);
         assert!(!stage.exists(), "the interrupted candidate should be cleaned");
+        assert!(!journal.exists(), "the recovery journal should be cleaned");
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn recovers_a_competing_file_preserved_by_an_interrupted_exchange() {
+        let root = test_dir("raced-recovery");
+        let target = root.join("setlist.bscope");
+        let parked = root.join("parked-authorized.bscope");
+        let stage = root.join(format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4()));
+        let authorized = br#"{"id":"authorized"}"#;
+        let racer = br#"{"id":"racer"}"#;
+        let candidate = br#"{"id":"candidate"}"#;
+        fs::write(&target, authorized).expect("authorized fixture should be written");
+        fs::write(&stage, candidate).expect("candidate fixture should be written");
+
+        let expected = super::project_file_identity(&target).expect("target identity should exist");
+        let candidate_identity =
+            super::project_file_identity(&stage).expect("candidate identity should exist");
+        let journal = super::create_publication_journal(
+            &target,
+            &stage,
+            &stage,
+            &expected,
+            &candidate_identity,
+        )
+        .expect("the recovery journal should be durable before publication");
+        fs::rename(&target, &parked).expect("authorized target should be parked by the racer");
+        fs::write(&target, racer).expect("racer should win the target pathname");
+        super::rename_exchange(&stage, &target).expect("fixture should model interrupted exchange");
+
+        super::recover_project_publication(&target)
+            .expect("the preserved competing file should be restored");
+
+        assert_eq!(fs::read(&target).expect("target should remain readable"), racer);
+        assert_eq!(
+            fs::read(&parked).expect("the authorized file should remain readable"),
+            authorized
+        );
+        assert!(!stage.exists(), "the candidate should be cleaned");
         assert!(!journal.exists(), "the recovery journal should be cleaned");
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
