@@ -133,7 +133,7 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Preserve the engine breakdown template while bounding its model-owned target and localization guidance. */
+/** Preserve model template bounds while leaving user-owned rehearsal guidance verbatim. */
 function boundedGeneratedBreakdownPlan(value: string): OwnedBreakdownPlan | null {
   if (value === BREAKDOWN_PLAN_SOLO) {
     return { text: BREAKDOWN_PLAN_SOLO, source: "model", guidance: { kind: "solo" } };
@@ -177,15 +177,20 @@ function ownedBreakdownPlan(role: unknown): OwnedBreakdownPlan | null {
   if (!isNonEmptySingleLineText(breakdownPlan)) {
     return null;
   }
-  const trimmed = breakdownPlan.trim();
   if (breakdownPlanSource === "model") {
+    const trimmed = breakdownPlan.trim();
     const generatedPlan = boundedGeneratedBreakdownPlan(trimmed);
     if (generatedPlan !== null) {
       return generatedPlan;
     }
+    return {
+      text: truncateCodePoints(trimmed, MAX_BREAKDOWN_PLAN_CHARACTERS),
+      source: breakdownPlanSource,
+      guidance: null
+    };
   }
   return {
-    text: truncateCodePoints(trimmed, MAX_BREAKDOWN_PLAN_CHARACTERS),
+    text: breakdownPlan,
     source: breakdownPlanSource,
     guidance: null
   };

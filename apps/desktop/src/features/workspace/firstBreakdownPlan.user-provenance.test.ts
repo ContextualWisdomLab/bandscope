@@ -43,14 +43,13 @@ function userPlanSong(breakdownPlan: string) {
 }
 
 describe("resolveFirstBreakdownPlan user provenance", () => {
-  it("bounds user-authored generated-shape copy as user text instead of rewriting the target", () => {
+  it("preserves long user-authored generated-shape copy instead of rewriting the target", () => {
     const breakdownPlan = `${GENERATED_PREFIX}${"A".repeat(170)}${GENERATED_SUFFIX}`;
-    const expected = Array.from(breakdownPlan).slice(0, 180).join("");
 
     const resolved = resolveFirstBreakdownPlan(userPlanSong(breakdownPlan));
 
     expect(resolved?.breakdownPlanSource).toBe("user");
-    expect(resolved?.breakdownPlan).toBe(expected);
-    expect(resolved?.breakdownPlan?.endsWith(GENERATED_SUFFIX)).toBe(false);
+    expect(resolved?.breakdownPlan).toBe(breakdownPlan);
+    expect(resolved?.breakdownPlan?.endsWith(GENERATED_SUFFIX)).toBe(true);
   });
 });
