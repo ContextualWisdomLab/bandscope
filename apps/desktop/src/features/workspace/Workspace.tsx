@@ -6,7 +6,7 @@ import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { TapTempo } from "./TapTempo";
-import { songNeedsTapTempo, tapTempoSessionKey } from "./tapTempo";
+import { inheritTapTempoSession, songNeedsTapTempo, tapTempoSessionKey } from "./tapTempo";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -125,6 +125,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
+  /** Preserve tap-session ownership only for updates emitted by this mounted workspace. */
+  const forwardSongUpdate = (updatedSong: RehearsalSong) => {
+    if (!onSongUpdate) return;
+    inheritTapTempoSession(song, updatedSong);
+    onSongUpdate(updatedSong);
+  };
+
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
     const map = new Map<string, RehearsalRole>();
@@ -190,7 +197,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       })
     };
 
-    onSongUpdate(nextSong);
+    forwardSongUpdate(nextSong);
   };
   const collaborationAssignments = useMemo(
     () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
@@ -508,7 +515,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SectionRoadmap
             song={song}
             activeRole={activeRole}
-            onSongUpdate={onSongUpdate}
+            onSongUpdate={onSongUpdate ? forwardSongUpdate : undefined}
           />
           </section>
         </CardContent>
