@@ -34,8 +34,6 @@ interface RehearsalPlayerProps {
   startNonce?: number;
 }
 
-const PLAYHEAD_TICK_SECONDS = 0.1;
-
 /** Convert a validated native source path into a scoped Tauri asset URL. */
 function resolveAudioSourceUrl(
   sourcePath: string | null | undefined,
@@ -108,6 +106,7 @@ export function RehearsalPlayer({
     () => resolveAudioSourceUrl(audioSourcePath),
     [audioSourcePath],
   );
+  const hasPlayableAudio = hasLocalAudio && audioSourceUrl !== null;
   const [playbackError, setPlaybackError] = useState(false);
 
   const handlePlaybackError = useCallback(() => {
@@ -124,6 +123,7 @@ export function RehearsalPlayer({
     (loop: RehearsalLoopWindow, resume: boolean) => {
       const audio = audioRef.current;
       if (!audio || !audioSourceUrl) {
+        handlePlaybackError();
         return;
       }
       try {
@@ -193,7 +193,7 @@ export function RehearsalPlayer({
       return;
     }
     lastHandledStartNonce.current = startNonce;
-    if (!hasLocalAudio) {
+    if (!hasPlayableAudio) {
       return;
     }
     const selectedLoop = playableLoops[selectedRendererIndex] ?? null;
@@ -211,13 +211,13 @@ export function RehearsalPlayer({
   }, [
     startAudio,
     startNonce,
-    hasLocalAudio,
+    hasPlayableAudio,
     playableLoops,
     selectedRendererIndex,
   ]);
 
   useEffect(() => {
-    if (hasLocalAudio) {
+    if (hasPlayableAudio) {
       return;
     }
     setTransport((current) => {
@@ -226,7 +226,7 @@ export function RehearsalPlayer({
       }
       return reduceRehearsalTransport(current, { type: "stop" });
     });
-  }, [hasLocalAudio]);
+  }, [hasPlayableAudio]);
 
   useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
@@ -354,29 +354,14 @@ export function RehearsalPlayer({
     };
   }, [audioSourceUrl, handlePlaybackError, transport.phase, transport.loop]);
 
-  useEffect(() => {
-    if (audioSourceUrl || transport.phase !== "looping" || !transport.loop) {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      setTransport((current) =>
-        reduceRehearsalTransport(current, {
-          type: "tick",
-          deltaSeconds: PLAYHEAD_TICK_SECONDS,
-        }),
-      );
-    }, PLAYHEAD_TICK_SECONDS * 1000);
-    return () => window.clearInterval(timer);
-  }, [audioSourceUrl, transport.phase, transport.loop]);
-
-  const actionKey = nextActionTemplateKey(transport, hasLocalAudio);
+  const actionKey = nextActionTemplateKey(transport, hasPlayableAudio);
   const nextAction = fillRehearsalCopy(
     t(actionKey as TranslationKey),
     nextActionValues(transport),
   );
   const canStart =
     transport.loop !== null &&
-    hasLocalAudio &&
+    hasPlayableAudio &&
     (transport.phase === "armed" || transport.phase === "paused");
   const canPause =
     transport.phase === "counting-in" || transport.phase === "looping";
