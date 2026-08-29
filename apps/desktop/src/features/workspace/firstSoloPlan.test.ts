@@ -136,6 +136,15 @@ describe("resolveFirstSoloPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded solo text", () => {
+    for (const soloPlan of ["Keep\u0085here", "Keep\u2028here", "Keep\u2029here"]) {
+      expect(resolveFirstSoloPlan(withSoloSection({ soloPlan }))).toBeNull();
+    }
+    expect(resolveFirstSoloPlan(withSoloSection({ soloPlan: "\uFEFF Keep here \uFEFF" }))?.soloPlan).toBe(
+      "Keep here"
+    );
+  });
+
   it("prefers the earlier of two solo plans", () => {
     const song = withSoloSection({
       id: "verse-late-solo",

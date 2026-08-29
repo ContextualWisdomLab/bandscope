@@ -428,7 +428,7 @@ function isPlanWhitespaceCodePoint(codePoint: number): boolean {
 }
 
 /** Apply one explicit cross-language Unicode whitespace policy to plan text. */
-function isNonEmptySingleLineText(value: unknown): value is string {
+export function isNonEmptySingleLineText(value: unknown): value is string {
   if (typeof value !== "string") {
     return false;
   }
