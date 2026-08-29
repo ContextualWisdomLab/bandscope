@@ -9,6 +9,10 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from bandscope_analysis.api import (
+    _analysis_cache_path,
+    _feature_cache_paths,
+    _load_cached_analysis,
+    _load_cached_temporal_features,
     get_analysis_status,
     run_analysis_job,
     run_analysis_job_updates,
@@ -94,20 +98,31 @@ def main() -> int:
         and validated_request["sourceKind"] == "local_audio"
         and "localSource" in validated_request
     ):
-        local_source = validated_request["localSource"]
-        audio_path = local_source["sourcePath"]
-        file_name = local_source["fileName"]
-        logging.info("Extracting temporal features from %s...", file_name)
-        try:
-            temporal_analyzer = TemporalAnalyzer()
-            features = temporal_analyzer.analyze(audio_path)
-            temporal_features = cast(dict[str, Any], features)
-            logging.info(f"Extracted BPM: {features['bpm']}")
-        except Exception:
-            logging.warning(
-                "Temporal analysis failed for %s; continuing with safe fallback.",
-                file_name,
-            )
+        cache_path = _analysis_cache_path(validated_request)
+        cached_result = _load_cached_analysis(cache_path) if cache_path is not None else None
+        feature_paths = _feature_cache_paths(validated_request)
+        cached_temporal = (
+            _load_cached_temporal_features(feature_paths[0])
+            if cached_result is None and feature_paths is not None
+            else None
+        )
+        if cached_result is None and cached_temporal is not None:
+            temporal_features = cast(dict[str, Any], cached_temporal)
+        elif cached_result is None:
+            local_source = validated_request["localSource"]
+            audio_path = local_source["sourcePath"]
+            file_name = local_source["fileName"]
+            logging.info("Extracting temporal features from %s...", file_name)
+            try:
+                temporal_analyzer = TemporalAnalyzer()
+                features = temporal_analyzer.analyze(audio_path)
+                temporal_features = cast(dict[str, Any], features)
+                logging.info(f"Extracted BPM: {features['bpm']}")
+            except Exception:
+                logging.warning(
+                    "Temporal analysis failed for %s; continuing with safe fallback.",
+                    file_name,
+                )
 
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     if progress_jsonl:

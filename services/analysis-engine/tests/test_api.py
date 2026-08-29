@@ -1,5 +1,6 @@
 """Tests for the public analysis-engine API helpers."""
 
+import json
 import queue
 import time
 from unittest.mock import patch
@@ -8,9 +9,11 @@ import numpy as np
 
 from bandscope_analysis.api import (
     _build_local_audio_features,
+    _coerce_cached_temporal_features,
     _feature_cache_paths,
     _load_cached_analysis,
     _load_cached_local_audio_features,
+    _load_cached_temporal_features,
     _run_stem_separation_with_timeout,
     _stem_separation_worker,
     _stem_work_arrays_path,
@@ -730,6 +733,11 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "chunk_count": 1,
             "notes": "Separated selected local audio into 4 canonical stems.",
         },
+        "bpm": 120.0,
+        "beat_times": [0.0, 0.5, 1.0],
+        "downbeat_times": [0.0],
+        "duration_seconds": 1.0,
+        "sample_rate": 22050,
     }
     assert _store_cached_local_audio_features(metadata_path, arrays_path, request, features) is True
 
@@ -742,6 +750,16 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
         "bass": "instrument",
         "drums": "instrument",
         "other": "instrument",
+    }
+    assert loaded["bpm"] == 120.0
+    assert loaded["beat_times"] == [0.0, 0.5, 1.0]
+    assert loaded["downbeat_times"] == [0.0]
+    assert _load_cached_temporal_features(metadata_path) == {
+        "bpm": 120.0,
+        "beat_times": [0.0, 0.5, 1.0],
+        "downbeat_times": [0.0],
+        "duration_seconds": 1.0,
+        "sample_rate": 22050,
     }
 
     with (
@@ -876,6 +894,41 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     )
     with patch("bandscope_analysis.api.np.load", return_value=BadArchive()):
         assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
+def test_cached_temporal_features_reject_malformed_payloads(tmp_path) -> None:
+    """Ensure temporal cache metadata cannot inject malformed analysis values."""
+    assert _coerce_cached_temporal_features(None) is None
+    assert _coerce_cached_temporal_features(
+        {
+            "bpm": 120.0,
+            "beat_times": "not-a-list",
+            "downbeat_times": [0.0],
+            "duration_seconds": 1.0,
+            "sample_rate": 22050,
+        }
+    ) is None
+
+    metadata_path = tmp_path / "features.json"
+    metadata_path.write_text("[]", encoding="utf-8")
+    assert _load_cached_temporal_features(metadata_path) is None
+    metadata_path.write_text('{"schemaVersion": 999}', encoding="utf-8")
+    assert _load_cached_temporal_features(metadata_path) is None
+
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "sampleRate": 22050,
+                "separation": {},
+                "stemKeys": ["bass"],
+                "stemRoleTypes": {"bass": "instrument"},
+                "temporalFeatures": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert _load_cached_local_audio_features(metadata_path, tmp_path / "features.npz") is None
 
 
 def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:

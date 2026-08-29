@@ -444,6 +444,109 @@ def test_cli_main_temporal_analyzer_mock_success(
     assert res["result"]["tempo"] == 120
 
 
+def test_cli_main_skips_temporal_analysis_when_cached_result_exists(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """Ensure a complete cached result avoids decoding and beat tracking again."""
+    audio_path = tmp_path / "test.wav"
+    write_short_wav(audio_path)
+    request = {
+        "sourceKind": "local_audio",
+        "projectId": "p1",
+        "sourceLabel": "test.wav",
+        "roleFocus": [],
+        "localSource": {
+            "sourcePath": str(audio_path),
+            "fileName": "test.wav",
+            "extension": "wav",
+            "fileSizeBytes": audio_path.stat().st_size,
+        },
+        "cacheRoot": str(tmp_path / "cache"),
+    }
+    stdin = io.StringIO(json.dumps({"jobId": "job-cached", "request": request}))
+    stdout = io.StringIO()
+
+    class ExplodingAnalyzer:
+        def analyze(self, _path):
+            raise AssertionError("cached local audio reached temporal analysis")
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", ExplodingAnalyzer)
+    monkeypatch.setattr(cli, "_load_cached_analysis", lambda _path: {"cached": True})
+    monkeypatch.setattr(
+        cli,
+        "run_analysis_job",
+        lambda *args: {
+            "jobId": args[0],
+            "state": "succeeded",
+            "result": {"cached": True},
+        },
+    )
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+
+    assert cli.main() == 0
+    assert json.loads(stdout.getvalue())["result"] == {"cached": True}
+
+
+def test_cli_main_reuses_cached_temporal_features(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """Ensure cached temporal metadata avoids a second audio decode."""
+    audio_path = tmp_path / "test.wav"
+    write_short_wav(audio_path)
+    request = {
+        "sourceKind": "local_audio",
+        "projectId": "p1",
+        "sourceLabel": "test.wav",
+        "roleFocus": [],
+        "localSource": {
+            "sourcePath": str(audio_path),
+            "fileName": "test.wav",
+            "extension": "wav",
+            "fileSizeBytes": audio_path.stat().st_size,
+        },
+        "cacheRoot": str(tmp_path / "cache"),
+    }
+    stdin = io.StringIO(json.dumps({"jobId": "job-feature-cache", "request": request}))
+    stdout = io.StringIO()
+
+    class ExplodingAnalyzer:
+        def analyze(self, _path):
+            raise AssertionError("cached temporal features reached audio analysis")
+
+    monkeypatch.setattr(cli, "TemporalAnalyzer", ExplodingAnalyzer)
+    monkeypatch.setattr(cli, "_load_cached_analysis", lambda _path: None)
+    monkeypatch.setattr(
+        cli,
+        "_load_cached_temporal_features",
+        lambda _path: {
+            "bpm": 120.0,
+            "beat_times": [0.0, 0.5],
+            "downbeat_times": [0.0],
+            "duration_seconds": 1.0,
+            "sample_rate": 22050,
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "run_analysis_job",
+        lambda *args: {
+            "jobId": args[0],
+            "state": "succeeded",
+            "result": {"cachedTemporal": True},
+        },
+    )
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+
+    assert cli.main() == 0
+    assert json.loads(stdout.getvalue())["result"] == {"cachedTemporal": True}
+
+
 def test_cli_main_progress_jsonl_streams_status_updates(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

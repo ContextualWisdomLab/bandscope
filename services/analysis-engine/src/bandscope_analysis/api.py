@@ -199,6 +199,7 @@ class CachedFeaturePayload(TypedDict):
     separation: dict[str, object]
     stemKeys: list[str]
     stemRoleTypes: dict[str, str]
+    temporalFeatures: NotRequired[dict[str, object]]
 
 
 class StemSeparationTimedOut(RuntimeError):
@@ -540,6 +541,40 @@ def _coerce_beat_times(audio_features: dict[str, Any] | None) -> list[float] | N
     return times
 
 
+def _coerce_cached_temporal_features(value: object) -> dict[str, object] | None:
+    """Return JSON-safe temporal features for the reusable feature cache."""
+    if not isinstance(value, dict):
+        return None
+    bpm = value.get("bpm")
+    duration_seconds = value.get("duration_seconds")
+    sample_rate = value.get("sample_rate")
+    if (
+        isinstance(bpm, bool)
+        or not isinstance(bpm, (int, float))
+        or not np.isfinite(bpm)
+        or bpm <= 0
+        or isinstance(duration_seconds, bool)
+        or not isinstance(duration_seconds, (int, float))
+        or not np.isfinite(duration_seconds)
+        or duration_seconds < 0
+        or isinstance(sample_rate, bool)
+        or not isinstance(sample_rate, int)
+        or sample_rate <= 0
+    ):
+        return None
+    beat_times = _coerce_beat_times({"beat_times": value.get("beat_times")})
+    downbeat_times = _coerce_beat_times({"beat_times": value.get("downbeat_times")})
+    if beat_times is None or downbeat_times is None:
+        return None
+    return {
+        "bpm": float(bpm),
+        "beat_times": beat_times,
+        "downbeat_times": downbeat_times,
+        "duration_seconds": float(duration_seconds),
+        "sample_rate": sample_rate,
+    }
+
+
 def _apply_accelerando(
     song: RehearsalSong,
     mix: Any,
@@ -778,6 +813,11 @@ def _load_cached_local_audio_features(
     stem_role_types = _normalize_stem_role_types(metadata_payload.get("stemRoleTypes"), stem_keys)
     if stem_role_types is None:
         return None
+    temporal_features = None
+    if "temporalFeatures" in metadata_payload:
+        temporal_features = _coerce_cached_temporal_features(metadata_payload["temporalFeatures"])
+        if temporal_features is None:
+            return None
 
     try:
         with np.load(arrays_path, allow_pickle=False) as stems_archive:
@@ -793,7 +833,7 @@ def _load_cached_local_audio_features(
     except (OSError, ValueError):
         return None
 
-    return {
+    loaded = {
         "stems": stems,
         "sr": metadata_payload["sampleRate"],
         "stem_role_types": stem_role_types,
@@ -803,6 +843,23 @@ def _load_cached_local_audio_features(
             "notes": separation.get("notes"),
         },
     }
+    if temporal_features is not None:
+        loaded.update(temporal_features)
+    return loaded
+
+
+def _load_cached_temporal_features(metadata_path: Path) -> dict[str, object] | None:
+    """Load only cached temporal metadata so the CLI can skip audio decoding."""
+    try:
+        with metadata_path.open("r", encoding="utf-8") as metadata_file:
+            metadata_payload = json.load(metadata_file)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(metadata_payload, dict):
+        return None
+    if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
+        return None
+    return _coerce_cached_temporal_features(metadata_payload.get("temporalFeatures"))
 
 
 def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
@@ -863,6 +920,9 @@ def _store_cached_local_audio_features(
         "stemKeys": stem_keys,
         "stemRoleTypes": stem_role_types,
     }
+    temporal_features = _coerce_cached_temporal_features(audio_features)
+    if temporal_features is not None:
+        metadata_payload["temporalFeatures"] = temporal_features
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
