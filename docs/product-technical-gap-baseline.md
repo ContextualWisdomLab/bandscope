@@ -245,17 +245,31 @@ After the current head completed hosted review, #1067 is `OPEN`, non-draft, `MER
 
 ### 4.10 2026-08-30 manual cue-boundary correction current-head snapshot
 
-PR #1068 (`feat(player): allow manual cue boundary corrections`) is stacked on #1067 at base `04396d9b4ebfd50ad598ffaf1edb33df3de70840` and current head `9c61a803a7cc951d31015fb22ca275d64f1830f7`. The selected playable cue now exposes accessible whole-second start/end editors. Values are bounded by the shared section limit and must remain ordered; accepted changes immutably update the selected `song.sections[].timeRange`, so the existing Save Project action carries the corrected map into the current project file contract. Invalid edits restore the previous value and expose `aria-invalid` plus localized guidance. The slice does not claim automatic save, a persisted detected-vs-user provenance field, real-device timing, or role-specific stem playback.
+PR #1068 (`feat(player): allow manual cue boundary corrections`) is stacked on #1067 at base `04396d9b4ebfd50ad598ffaf1edb33df3de70840` and current head `81efbe3716632acbbff72626258ef0b09b00fbde`. The selected playable cue now exposes accessible whole-second start/end editors. Values are bounded by the shared section limit and must remain ordered; accepted changes immutably update the selected `song.sections[].timeRange`, so the existing Save Project action carries the corrected map into the current project file contract. Invalid edits restore the previous value and expose `aria-invalid` plus localized guidance. A Devin review found and the new head fixed a keyboard focus loss caused by key-based editor remount during Tab navigation; the new regression test confirms focus reaches the end field with the accepted start value. The slice does not claim automatic save, a persisted detected-vs-user provenance field, real-device timing, or role-specific stem playback.
 
-Local evidence is targeted RehearsalPlayer `23 passed`, desktop full `263 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The tests cover immutable song-map update, range inversion rejection, localized existing player behavior, role filtering, and keyboard cue navigation. No new file, URL, subprocess, IPC, WebView, network, model, or export boundary is introduced.
+Local evidence is targeted RehearsalPlayer `24 passed`, desktop full `264 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The tests cover immutable song-map update, range inversion rejection, Tab focus retention, localized existing player behavior, role filtering, and keyboard cue navigation. No new file, URL, subprocess, IPC, WebView, network, model, or export boundary is introduced.
 
-At the first hosted snapshot after push, #1068 is `OPEN`, non-draft, `MERGEABLE`, and `CLEAN` with base `codex/player-keyboard-cues-20260830`; GitHub had not yet emitted check-runs or a formal review decision, unresolved review threads were `0`, and no qualifying independent approval existed. This is therefore partial #961 evidence only, not protected merge evidence; re-query the exact head and same-SHA Checks after every push.
+At the latest hosted snapshot after the focus fix, #1068 is `OPEN`, non-draft, `MERGEABLE`, and `CLEAN` with base `codex/player-keyboard-cues-20260830`; GitHub had not yet emitted check-runs or a formal review decision, unresolved review threads were `0` after the Devin bug response and resolution, and no qualifying independent approval existed. This is therefore partial #961 evidence only, not protected merge evidence; re-query the exact head and same-SHA Checks after every push.
 
 #### Security Notes
 
 - The inputs are untrusted UI strings admitted only as safe integer seconds within `0..MAX_SECTION_TIME_SECONDS` and an ordered start/end pair before `onSongUpdate`.
 - The update reuses the existing in-memory song authority and Save Project path; it does not create localStorage, a competing project store, filesystem access, URL intake, subprocesses, IPC, WebView, network, or model behavior.
 - Validation points are boundary-limit rejection, inversion rejection, immutable section update, localized error text, accessible labels/descriptions, and existing full desktop/repository gates.
+
+### 4.11 2026-08-30 bounded cue seek current-head snapshot
+
+PR #1069 (`feat(player): add bounded cue seeking`) is stacked on #1068 and current head `8a5160a797ae9f0a360aeb300ed42c35728a71e1`. The selected loop now exposes an accessible range control while the local media clock is looping or paused after count-in. The transport state machine clamps requests to the selected cue and maps an endpoint seek back to the loop start; the existing scoped `<audio>` element and one transport state remain the authorities. Count-in seeking, restart-key binding, durable autosave, real-device timing, and role-specific stem playback remain out of scope.
+
+Local evidence is targeted RehearsalPlayer/rehearsalTransport `37 passed`, desktop full `265 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The seek test verifies the actual mocked scoped media clock is updated, while reducer tests cover count-in rejection, lower/upper bounds, and valid in-loop movement. This is mocked media evidence, not real speaker output or real-audio accuracy evidence.
+
+At the hosted snapshot after push, #1069 was `OPEN`, non-draft, with no formal review decision, no qualifying independent approval, and no emitted check-runs yet; its base ref was the #1068 branch. The branch base later advanced to #1068 focus-fix head and must be rechecked before treating the stack as synchronized. This remains partial #961 evidence and is not protected merge evidence.
+
+#### Security Notes
+
+- Seek input is a bounded native range value; the reducer clamps finite values and rejects seeking during count-in before changing the media clock.
+- The change reuses the existing scoped local-audio asset and transport state; it adds no path, URL, subprocess, IPC, WebView, network, model, or export authority.
+- Validation points are count-in rejection, loop-boundary clamping, paused/live seek behavior, media-clock assignment, accessible label/description, and exact-head hosted gate rechecks.
 
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
