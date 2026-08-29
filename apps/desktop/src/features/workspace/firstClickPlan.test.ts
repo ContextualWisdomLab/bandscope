@@ -74,4 +74,34 @@ describe("firstClickPlan", () => {
       sectionLabel: null
     });
   });
+
+  it("uses owned data values instead of Proxy get-trap substitutions", () => {
+    const song = createDemoRehearsalSong();
+    const firstSection = song.sections[0]!;
+    const sectionProxy = new Proxy(firstSection, {
+      get(target, property, receiver) {
+        if (property === "label") {
+          return "proxy-section";
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    const runtimeSong = { ...song, sections: [sectionProxy] };
+    const songProxy = new Proxy(runtimeSong, {
+      get(target, property, receiver) {
+        if (property === "tempo") {
+          return 222;
+        }
+        if (property === "sections") {
+          return [{ ...firstSection, label: "proxy-root-section" }];
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+
+    expect(firstClickPlan(songProxy as RehearsalSong)).toEqual({
+      tempoBpm: 120,
+      sectionLabel: "verse"
+    });
+  });
 });
