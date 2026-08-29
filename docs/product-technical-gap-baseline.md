@@ -88,7 +88,7 @@ flowchart LR
 | 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate, PR #1066에서 선택 역할별 section picker, PR #1068에서 선택 cue의 수치 start/end 수동 보정, PR #1069에서 bounded seek, PR #1071에서 안전한 transport 단축키를 연결했으나 role-specific stem playback과 protected merge는 미완료) |
 | 협업(assignment/comment/approval) UI | `packages/shared-types` 타입만 존재 | 미구현 (UI 참조 0건; PR 시리즈가 첫 화면 진행 중) |
 | pad/solo/riff/hook/fill/voicing/articulation/dynamics/tuning/capo/vamp 등 plan 필드 | 없음 (shared-types에 미존재) | 미구현 (PR 시리즈가 추가 예정) |
-| 라이선싱/데모곡 first-run | 없음 | 미구현 (PR #1009, Issue #964; diagnostics/privacy boundary는 Issue #963) |
+| 라이선싱/데모곡 first-run | `apps/desktop/src-tauri/resources/demo/*`, PR #1009 | 부분구현 (번들 provenance/license와 first-run 경로는 PR #1009에 있으나 아직 protected `develop`에 착지하지 않음; 오프라인 활성화와 P0 실오디오 정확도는 미완료) |
 | 자동 저장/crash-safe 프로젝트 포맷 | atomic publication과 bounded load의 일부가 PR #970에 구현됨 | 부분구현 (자동 저장, versioned migration, global recovery scan은 Issue #962) |
 | 서명/공증 배포+롤백 증적 | `.github/workflows/release.yml` 존재 | 부분구현 (Issue #960) |
 
@@ -343,6 +343,18 @@ At the source-push capture after `d3337cf7`, #1073 was `OPEN`, non-draft, `MERGE
 - Project files and all envelope fields are untrusted; serde `deny_unknown_fields`, explicit version dispatch, bounded existing reads, and fail-closed parse errors prevent silently accepting a changed schema.
 - Persistence continues through the existing safe atomic publisher and bounded filesystem authority; this PR adds no generic path or write API, URL, subprocess, IPC, WebView, network, model, or payload logging boundary.
 - Validation points are the v1 round trip, golden fixture load, unknown-field rejection, unsupported-version rejection, legacy compatibility, tempo preservation, full persistence suite, and exact-head hosted check/review/approval/thread re-query.
+
+### 4.17 2026-08-30 bundled demo real-audio probe
+
+PR #1009 (`feat(activation): license a demo song and name first-run next actions`) is on protected `develop@749511c3ad4000090048718f685c6bee6b3d2c25` at current head `6c4fe958ae18705d9800b88d1b3cc886b2e70c29`. Its bundled `late-night-set.wav` is a real file-backed 2.0-second, mono, 22.05 kHz PCM fixture. Running the repository's actual Python DSP entry points against those bytes produced `120.1853 BPM`, one detected beat at `1.021678s`, one `verse` segment covering `0.0–2.0s`, and one `Am` chord segment with low confidence. This is direct file analysis evidence, not a mocked result.
+
+The fixture is intentionally too short and tonally simple to qualify buyer-facing form or harmony accuracy: the segmenter reports `Audio too short for structural analysis`, and the chord recognizer marks the single-tone result low confidence. The probe therefore confirms that the real decode/temporal/form/harmony code path executes while preserving the P0 gap for known-take, multi-section, musically representative accuracy acceptance. The branch remains `OPEN`, non-draft, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, with unresolved review threads `0`, no qualifying independent approval, and a failed current-head `opencode-review`; no protected merge is claimed.
+
+#### Security Notes
+
+- The demo bytes are repository-bundled and provenance-tracked; the probe uses the existing bounded local-audio decoder and adds no network, URL, generic subprocess, IPC, WebView, or model-download path.
+- The analyzer bounds file size and decoded duration before feature extraction, and low-confidence results remain visible rather than being presented as authoritative buyer-facing accuracy.
+- Validation points are the exact fixture bytes, finite BPM/beat output, bounded section/chord output, low-confidence handling, provenance/license manifest, and exact-head hosted review/check/approval re-query.
 
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
