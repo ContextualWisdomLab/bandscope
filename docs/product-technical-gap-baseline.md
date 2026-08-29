@@ -1,6 +1,6 @@
 # BandScope Product-Technical Gap Baseline
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 Base revision: `develop@749511c3ad4000090048718f685c6bee6b3d2c25` (feat(workspace): name tonight's first playable range on the map, #957)
 
 ## 1. 목적과 범위 (Purpose & Scope)
@@ -78,7 +78,7 @@ flowchart LR
 | 파트 겹침 경고 | `roles/overlap.py`, `RehearsalRole.overlapWarnings` | 구현됨 |
 | 단순화 가이드 | `roles/priority.py` 연계, `RehearsalRole.simplification` 필드 | 구현됨 (문자열 필드 중심) |
 | 전조/카포/튜닝 큐 | `chords/transposition.py`, `chords/capo.py`, `roles/tuning.py` | 구현됨 (계산), 워크스페이스 노출은 PR 진행 중 |
-| 그루브/타이밍/히트 큐 | `temporal/groove.py`, `temporal/hits.py`, `temporal/stability.py` | 구현됨 |
+| 그루브/타이밍/히트/tempo-stability 큐 | `temporal/groove.py`, `temporal/hits.py`, `temporal/stability.py`, PR #1059 | 구현됨 (tempo-stability 노출은 #1059 open stacked PR) |
 | 진입/이탈/카운트/가사 큐 앵커 | `sections/anchors.py`, `CueAnchorKind = lyric\|count\|transition` | 부분구현 |
 | 신뢰도 표시(section/role 수준) | `ConfidenceMarker(low/medium/high)` + `features/workspace/ConfidenceBadge.tsx` | 구현됨 |
 | 리허설 우선순위 | `roles/priority.py`, `RehearsalPriority`, `PracticeProgress.tsx` | 구현됨 (규칙 기반 휴리스틱) |
@@ -121,6 +121,20 @@ flowchart LR
 | #891 | `9220af2921438cb51a290ab4e4314e2fd321671d` | known-take verse/chorus chord recovery acceptance; required checks pass, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
 | #866 | `505a595d481f8ba03abd8d13e7c17202918c833f` | canonical local-audio resource policy; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `CHANGES_REQUESTED`, qualifying independent approval 없음 |
 
+### 4.2 2026-08-30 tempo-stability current-head snapshot
+
+PR #1059 (`feat(tempo): surface tempo movement rehearsal cues`)의 현재 증거는 head `3d2aaa27804bd6113e8e9aee8aff611976698b40`, base `fix/temporal-log-privacy@b11b1e0c1756921c64524d691fb4fac440abc65b`이다. 이 PR은 #1055에 stacked되어 있으며 `OPEN`, `MERGEABLE`, `CLEAN`이지만 formal `reviewDecision`이 없고 qualifying independent approval도 없다. 동일 head의 Devin Review와 CodeRabbit status는 성공으로 보였고, CodeRabbit은 non-default base라 review를 건너뛴 상태이며, review thread unresolved count는 0이다. 따라서 이는 구현/리뷰 증거이지 보호 브랜치 병합 증거가 아니다. 다음 push 뒤에는 반드시 head, 동일 SHA Checks, reviews, threads를 다시 조회한다.
+
+구현 범위는 shared contract의 `TempoStability`/`TempoChange`, API의 validated tempo mapping과 local-only orchestration, Workspace의 en/ko rehearsal copy, chart JSON export, 그리고 final analysis cache v2와 reusable stem-feature cache v1의 독립 namespace다. PR branch에서 생성한 임시 click-track WAV를 실제 `TemporalAnalyzer`와 `analyze_tempo_stability`에 통과시킨 별도 probe는 `120.2 BPM`, `15 beats`, `steady`, `0 tempo changes`를 반환했다. 이 파일은 source tree나 CI fixture가 아니므로 P0 실오디오 정확도 acceptance를 대체하지 않는다.
+
+검증 증적은 pinned npm shim을 사용한 `./scripts/harness/quickcheck.sh` 성공이며, Python `684 passed, 24 skipped`, Python coverage `100.00%`, desktop `218` tests와 configured coverage `100%`, shared-types `21` tests, typecheck/mypy/Ruff/Bandit/security/supply-chain/GitHub bootstrap checks 및 Vite build 성공을 포함한다. 이 결과는 위 exact head에서 실행한 local evidence로만 취급한다.
+
+#### Security Notes
+
+- tempo 분석은 기존 validated local-audio 경계 안에 있으며 새 network, URL, subprocess, WebView, IPC 경계를 추가하지 않는다.
+- cache/export payload에는 raw `audio_path`와 `beat_times`를 넣지 않고, shared/API 계약은 finite·positive tempo만 허용한다.
+- final result cache는 schema v2로 pre-feature 결과를 재사용하지 않으며, 호환 가능한 stem features는 독립된 v1 namespace를 유지한다.
+
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
 
 현재 merge blocker의 권위 있는 설정도 함께 확인했다. active ruleset `18156473`은 `develop`에 승인 1개, review thread resolution, 16개 required status context를 요구한다. branch-protection REST 응답의 `required_approving_review_count=0`보다 ruleset의 더 엄격한 승인 규칙이 우선하므로, `MERGEABLE`만으로 merge-ready라고 판단하지 않는다. 승인·필수 Checks·thread resolution이 모두 현재 head에 대해 충족될 때만 병합한다.
@@ -162,7 +176,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 (c) **임의 가중치 vs 문헌 기반 값** — `chord_recognizer._build_transition_matrix()`는 `self_prob=0.8`, `related_prob=0.03`, uniform baseline `0.01/n` 등 hand-set 상수를 쓴다("Encodes musical priors" 주석). 방향성(fifth/fourth/relative/parallel)은 음악 이론에 근거하지만 수치는 문헌 교정(calibration)되어 있지 않다. `roles/priority.py`는 숫자 가중치 없는 if-then 규칙이다. PR #732(relative-key prior correction)처럼 사후 수정이 발생해왔다. 교정 방향은 주석 코퍼스(예: Burgoyne et al., 2011의 McGill Billboard)에서 전이 행렬을 최대우도로 추정하고, 관련 HMM/화음인식 문헌(Logan & Chu, 2000; Pauwels & Peeters, 2013; Boulanger-Lewandowski et al., 2013)은 모델링 맥락으로만 사용하며 현재 transition 수치의 parameter source로 간주하지 않는 것이다. tonal pitch space 거리 기반 스무딩(Harte, 2010) 등 대안과 현재 hand-set 값의 코드 복원 RMSE/accuracy 차이를 정량 비교한 뒤, 우세한 값을 상수가 아닌 데이터 산출물로 고정한다.
 
-(d) **테스트 현실성** — `test_numeric_parity.py`(Rust-Python parity), `test_api.py` 등은 합성 입력 기반이다. 현재 PR checkout의 Git tree 및 9장 `find` 검증 기준 test 경로에 `.wav`/`.mp3` 실오디오 fixture가 없다. 실오디오 acceptance는 PR #892(decoded WAV C major), #891(known take verse/chorus recovery)이 열려 있고, 실 YouTube known-stem benchmark는 draft PR #828 + Issue #770 상태다. 별도 exploratory probe로 CC0 공개 피아노 녹음 `FurElise.ogg`(Wikimedia Commons, 176.59초)를 실제 디코더·`TemporalAnalyzer`·SSM segmenter·`ChordRecognizer`에 통과시킨 결과는 각각 `147.7 BPM/404 beats/101 downbeats`, 20개 section, 261개 chord time-segment였지만 harmony confidence가 대부분 low였다. 동일 develop production job은 성공 envelope를 반환했으나 tempo가 없고 arrangement role harmony가 남아 있어, 이 probe는 runtime 연결성 확인이지 정확도 acceptance가 아니다. RMSE/SI-SDR 스타일 정량 임계값 acceptance gate는 아직 없다.
+(d) **테스트 현실성** — `test_numeric_parity.py`(Rust-Python parity), `test_api.py` 등은 합성 입력 기반이다. 현재 PR checkout의 Git tree 및 9장 `find` 검증 기준 test 경로에 `.wav`/`.mp3` 실오디오 fixture가 없다. 실오디오 acceptance는 PR #892(decoded WAV C major), #891(known take verse/chorus recovery)이 열려 있고, 실 YouTube known-stem benchmark는 draft PR #828 + Issue #770 상태다. 별도 exploratory probe로 CC0 공개 피아노 녹음 `FurElise.ogg`(Wikimedia Commons, 176.59초)를 실제 디코더·`TemporalAnalyzer`·SSM segmenter·`ChordRecognizer`에 통과시킨 결과는 각각 `147.7 BPM/404 beats/101 downbeats`, 20개 section, 261개 chord time-segment였지만 harmony confidence가 대부분 low였다. 동일 develop production job은 성공 envelope를 반환했으나 tempo가 없고 arrangement role harmony가 남아 있어, 이 probe는 runtime 연결성 확인이지 정확도 acceptance가 아니다. PR #1059의 click-track probe도 tempo cue 연결성과 fail-closed 경로만 확인하며 known-take 정확도 gate가 아니다. RMSE/SI-SDR 스타일 정량 임계값 acceptance gate는 아직 없다.
 
 (e) **커버리지/docstring 100%** — Python은 `--cov-fail-under=100` + Ruff D100-D107 docstring 100%가 gate로 작동한다(AGENTS.md, roadmap-completion 문서). JS workspace의 **2026-08-25 snapshot 실측**(source tree commit `d303c93e5e7d9199edb6ce596dcb9a8753f3a5fa`)은 desktop(469 stmts/357 branches/105 funcs)과 shared-types(717 stmts/643 branches/59 funcs) 모두 statements/branches/functions/lines 100%였다. 재실행 명령과 결과 artifact 경로는 각각 `npm run test --workspace @bandscope/desktop` -> `apps/desktop/coverage/coverage-summary.json`, `npm run test --workspace @bandscope/shared-types` -> `packages/shared-types/coverage/coverage-summary.json`이다. 이 수치는 현재 영구 gate를 뜻하지 않는다. gate threshold(`vite.config.ts`, `vitest.config.ts`)는 90으로 Python보다 낮아, 리그레션 시 90~99% 구간이 무단 통과될 수 있다. Gate 상향은 Backlog #10.
 
@@ -377,6 +391,7 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   - `find services/analysis-engine -name "*.py"` -> 모듈 목록(chords/sections/roles/ranges/temporal/separation/transcription/youtube/exports)
   - `find . -type f \( -path '*/tests/*' -o -path '*/test/*' \) \( -iname '*.wav' -o -iname '*.mp3' \) -not -path './.git/*'` -> 0건(현재 PR checkout에서 test 실오디오 fixture 부재 확인)
   - 2026-08-29 exploratory runtime probe: [Wikimedia Commons CC0 `FurElise.ogg`](https://commons.wikimedia.org/wiki/File:FurElise.ogg), SHA-256 `8deefb57df989a2b53a6bdd3e59813b6c34d61dca666caa39e53fa9597b378e3`, 실제 decoded duration `176.5867573696145`초. `TemporalAnalyzer` -> `147.65625 BPM`, `404` beats, `101` downbeats; `segment_with_boundaries` -> `20` sections; `ChordRecognizer` -> `261` time-segments, mostly `low` confidence. 이는 test fixture가 아니며 CI acceptance로 재사용하지 않는다.
+  - 2026-08-30 PR #1059 current-head verification: head `3d2aaa27804bd6113e8e9aee8aff611976698b40`; `./scripts/harness/quickcheck.sh` -> Python `684 passed, 24 skipped`, 100% coverage, desktop `218` tests, shared-types `21` tests, Vite build and repository gates passed. The real click-track probe -> `120.2 BPM`, `15` beats, `steady`, `0` tempo changes. This is a local branch/probe result, not merged-branch or CI real-audio accuracy acceptance.
   - `sed -n '70,110p' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py` -> hand-set transition prior 확인
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
