@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -169,15 +170,15 @@ function ownedFadePlan(role: unknown): OwnedFadePlan | null {
   if (fadePlanSource === undefined) {
     return null;
   }
-  const trimmed = fadePlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(fadePlan)) {
     return null;
   }
   if (fadePlanSource === "model") {
+    const trimmed = fadePlan.trim();
     return boundedGeneratedFadePlan(trimmed);
   }
   return {
-    text: truncateCodePoints(trimmed, MAX_FADE_PLAN_CHARACTERS),
+    text: fadePlan,
     source: fadePlanSource,
     guidance: null
   };

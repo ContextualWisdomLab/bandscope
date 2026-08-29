@@ -204,6 +204,13 @@ describe("resolveFirstFadePlan", () => {
     ).toBeNull();
   });
 
+  it("preserves long user-authored fade copy verbatim", () => {
+    const fadePlan = `${"Fade together. ".repeat(20)}Keep the landing clear.`;
+    expect(
+      resolveFirstFadePlan(withFadeSection({ fadePlan, source: "user" }))?.fadePlan
+    ).toBe(fadePlan);
+  });
+
   it("prefers the earlier of two fade plans", () => {
     const song = withFadeSection({
       id: "chorus-late-fade",

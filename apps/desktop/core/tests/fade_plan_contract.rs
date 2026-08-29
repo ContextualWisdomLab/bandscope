@@ -127,7 +127,16 @@ fn project_contract_rejects_fade_plan_without_source() {
 
 #[test]
 fn project_contract_rejects_invalid_fade_plan_copy_with_source() {
-    for fade_plan in ["", "   ", "fade here\nthen hold", "fade here\rthen hold"] {
+    for fade_plan in [
+        "",
+        "   ",
+        "\u{00A0}\u{2003}\u{3000}",
+        "fade here\nthen hold",
+        "fade here\rthen hold",
+        "fade here\u{0085}then hold",
+        "fade here\u{2028}then hold",
+        "fade here\u{2029}then hold",
+    ] {
         let mut payload = song_with_fade_plan();
         payload["sections"][0]["roles"][0]["fadePlan"] = json!(fade_plan);
         let content = serde_json::to_string(&payload).expect("fixture should serialize");
@@ -148,6 +157,24 @@ fn project_contract_rejects_unknown_fade_plan_source() {
     assert!(
         project_payload_from_content(&content).is_err(),
         "native persisted contract must reject provenance outside model/user"
+    );
+}
+
+#[test]
+fn project_contract_preserves_padded_single_line_fade_copy() {
+    let mut payload = song_with_fade_plan();
+    payload["sections"][0]["roles"][0]["fadePlan"] = json!("  Fade together. \u{00A0}");
+    payload["sections"][0]["roles"][0]["fadePlanSource"] = json!("user");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    let parsed = project_payload_from_content(&content)
+        .expect("native persisted contract must preserve padded single-line copy");
+    let serialized =
+        serde_json::to_value(parsed).expect("native project contract should serialize");
+
+    assert_eq!(
+        serialized["sections"][0]["roles"][0]["fadePlan"],
+        payload["sections"][0]["roles"][0]["fadePlan"]
     );
 }
 

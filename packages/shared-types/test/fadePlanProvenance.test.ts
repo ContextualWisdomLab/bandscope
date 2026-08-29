@@ -34,7 +34,16 @@ describe("fadePlan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/fadePlanSource/);
   });
 
-  it.each(["", "   ", "fade here\nthen hold", "fade here\rthen hold"])(
+  it.each([
+    "",
+    "   ",
+    "\u00a0\u2003\u3000",
+    "fade here\nthen hold",
+    "fade here\rthen hold",
+    "fade here\u0085then hold",
+    "fade here\u2028then hold",
+    "fade here\u2029then hold"
+  ])(
     "rejects a fade plan source with blank or multiline copy %j",
     (fadePlan) => {
       const song = createDemoRehearsalSong();
@@ -44,4 +53,13 @@ describe("fadePlan provenance", () => {
       expect(() => parseRehearsalSong(song)).toThrow(/fadePlan/);
     }
   );
+
+  it("accepts padded single-line fade copy without normalizing it", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.fadePlan = "  Fade together. \u00a0";
+    role.fadePlanSource = "user";
+
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.fadePlan).toBe(role.fadePlan);
+  });
 });
