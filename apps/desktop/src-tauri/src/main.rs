@@ -750,8 +750,7 @@ fn save_project(payload: Value) -> Result<(), String> {
         .save_file()
         .ok_or_else(|| "User cancelled".to_string())?;
 
-    let content = serde_json::to_string_pretty(&parsed)
-        .map_err(|_| "Failed to serialize project".to_string())?;
+    let content = project_content_for_payload(&parsed)?;
     project_persistence::recover_project_publication(&path)?;
     project_persistence::publish_new_project_file(&path, content.as_bytes())?;
 
