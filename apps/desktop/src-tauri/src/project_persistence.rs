@@ -692,15 +692,20 @@ fn finish_successful_publication(
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn finish_rolled_back_publication(stage: &Path, journal: &Path, target: &Path) {
-    if sync_parent_directory(project_parent(target)).is_err()
-        || remove_recovery_artifact(stage).is_err()
-        || sync_parent_directory(project_parent(target)).is_err()
-        || remove_recovery_artifact(journal).is_err()
-    {
-        return;
-    }
-    let _ = sync_parent_directory(project_parent(target));
+fn finish_rolled_back_publication(
+    stage: &Path,
+    journal: &Path,
+    target: &Path,
+) -> Result<(), String> {
+    sync_parent_directory(project_parent(target))
+        .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    remove_recovery_artifact(stage)?;
+    sync_parent_directory(project_parent(target))
+        .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    remove_recovery_artifact(journal)?;
+    sync_parent_directory(project_parent(target))
+        .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    Ok(())
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -780,6 +785,16 @@ fn recover_publication_state(
         sync_parent_directory(project_parent(target))
             .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
         return Ok(());
+    }
+
+    let rollback_artifact_consumed = displaced == candidate_stage || displaced_identity.is_none();
+    if target_identity
+        .as_ref()
+        .is_some_and(|identity| identity != &journal.expected && identity != &journal.candidate)
+        && candidate_identity.as_ref() == Some(&journal.candidate)
+        && rollback_artifact_consumed
+    {
+        return finish_rolled_back_publication(candidate_stage, journal_path, target);
     }
 
     if candidate_identity.is_none() && displaced_identity.is_none() {
@@ -921,7 +936,7 @@ pub(crate) fn replace_existing_project_file(
     let target_is_candidate =
         project_file_identity(target).is_ok_and(|identity| identity == candidate);
     if target_is_candidate && rename_exchange(stage, target).is_ok() {
-        finish_rolled_back_publication(stage, &journal, target);
+        let _ = finish_rolled_back_publication(stage, &journal, target);
     }
     Err(PROJECT_PUBLISH_ERROR.to_string())
 }
@@ -961,7 +976,7 @@ pub(crate) fn replace_existing_project_file(
     let target_is_candidate =
         project_file_identity(target).is_ok_and(|identity| identity == candidate);
     if target_is_candidate && replace_file_with_backup(target, &backup, stage).is_ok() {
-        finish_rolled_back_publication(stage, &journal, target);
+        let _ = finish_rolled_back_publication(stage, &journal, target);
     }
     Err(PROJECT_PUBLISH_ERROR.to_string())
 }
@@ -1376,6 +1391,47 @@ mod tests {
         assert_eq!(fs::read(&target).expect("recovered target should be readable"), original);
         assert!(!journal.exists(), "the recovered journal should be removed");
         assert!(!displaced.exists(), "the displaced artifact should be removed");
+        fs::remove_dir_all(root).expect("fixture directory should be removable");
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[test]
+    fn cleans_a_completed_rollback_after_process_interruption() {
+        let root = test_dir("completed-rollback");
+        let target = root.join("setlist.bscope");
+        let stage = super::staging_path(&target).expect("candidate stage path should be derivable");
+        let displaced = if cfg!(windows) {
+            super::staging_path(&target).expect("backup path should be derivable")
+        } else {
+            stage.clone()
+        };
+        let original = br#"{"id":"original"}"#;
+        let candidate = br#"{"id":"candidate"}"#;
+        let competing = br#"{"id":"competing"}"#;
+        fs::write(&target, original).expect("original fixture should be written");
+        fs::write(&stage, candidate).expect("candidate fixture should be written");
+        let expected = super::project_file_identity(&target)
+            .expect("original target identity should be capturable");
+        let candidate_identity =
+            super::project_file_identity(&stage).expect("candidate identity should be capturable");
+        let journal = super::create_publication_journal(
+            &target,
+            &stage,
+            &displaced,
+            &expected,
+            &candidate_identity,
+        )
+        .expect("the recovery journal should be durable before publication");
+
+        fs::remove_file(&target).expect("the original target should be replaced by the racer");
+        fs::write(&target, competing).expect("the competing target should be written");
+        super::recover_project_publication(&target)
+            .expect("completed rollback state should be safely cleaned");
+
+        assert_eq!(fs::read(&target).expect("competing target should remain readable"), competing);
+        assert!(!stage.exists(), "the owned candidate should be removed");
+        assert!(!displaced.exists(), "the consumed rollback artifact should be absent");
+        assert!(!journal.exists(), "the completed rollback journal should be removed");
         fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
 
