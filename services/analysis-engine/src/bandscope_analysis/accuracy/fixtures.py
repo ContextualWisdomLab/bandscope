@@ -17,6 +17,10 @@ DEFAULT_CLICK_BPM = 120.0
 C4_HZ = 261.63
 E4_HZ = 329.63
 G4_HZ = 392.00
+MAX_ACCURACY_FILE_BYTES = 100 * 1024 * 1024
+MAX_ACCURACY_DURATION_SECONDS = 15 * 60
+MAX_ACCURACY_CHANNELS = 8
+MAX_ACCURACY_SAMPLE_RATE = 192_000
 _CLICK_FREQUENCY_HZ = 1_000.0
 _CLICK_DURATION_SECONDS = 0.01
 _CLICK_DECAY = 80.0
@@ -157,8 +161,28 @@ def read_pcm_wav(path: Path) -> tuple[NDArray[np.float32], int]:
         A tuple of mono samples and the file sample rate.
 
     Raises:
-        ValueError: If the file has no samples after decode.
+        ValueError: If the header exceeds the acceptance resource limits or the
+            file has no samples after decode.
     """
+    try:
+        info = sf.info(path)
+    except Exception as error:
+        raise ValueError("WAV header could not be inspected") from error
+
+    if info.channels > MAX_ACCURACY_CHANNELS:
+        raise ValueError(
+            f"WAV has too many channels: {info.channels} (max {MAX_ACCURACY_CHANNELS})"
+        )
+    if info.samplerate <= 0 or info.samplerate > MAX_ACCURACY_SAMPLE_RATE:
+        raise ValueError(f"WAV sample rate is outside the supported range: {info.samplerate}")
+    if not np.isfinite(info.duration):
+        raise ValueError("WAV duration must be finite")
+    if info.duration > MAX_ACCURACY_DURATION_SECONDS:
+        raise ValueError(
+            f"WAV is too long for accuracy analysis: {info.duration:g} seconds "
+            f"(max {MAX_ACCURACY_DURATION_SECONDS} seconds)"
+        )
+
     audio, sample_rate = sf.read(path, dtype="float32", always_2d=False)
     samples = np.asarray(audio, dtype=np.float32)
     if samples.ndim > 1:
@@ -179,9 +203,26 @@ def read_verified_fixture_bytes(path: Path, expected_sha256: str) -> bytes:
         The exact bytes whose SHA-256 matched ``expected_sha256``.
 
     Raises:
-        ValueError: If the snapshot digest does not match.
+        ValueError: If the file exceeds the byte limit, cannot be read, or the
+            snapshot digest does not match.
     """
-    payload = path.read_bytes()
+    try:
+        file_size = path.stat().st_size
+    except OSError as error:
+        raise ValueError("Accuracy fixture could not be inspected") from error
+    if file_size > MAX_ACCURACY_FILE_BYTES:
+        raise ValueError(
+            f"Accuracy fixture is too large: {file_size} bytes "
+            f"(max {MAX_ACCURACY_FILE_BYTES} bytes)"
+        )
+
+    try:
+        with path.open("rb") as fileobj:
+            payload = fileobj.read(MAX_ACCURACY_FILE_BYTES + 1)
+    except OSError as error:
+        raise ValueError("Accuracy fixture could not be read") from error
+    if len(payload) > MAX_ACCURACY_FILE_BYTES:
+        raise ValueError(f"Accuracy fixture is too large (max {MAX_ACCURACY_FILE_BYTES} bytes)")
     actual = hashlib.sha256(payload).hexdigest()
     if actual != expected_sha256:
         raise ValueError("Accuracy fixture checksum mismatch")

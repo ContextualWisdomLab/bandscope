@@ -8,15 +8,21 @@ matrices are not acceptance evidence.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import soundfile as sf
 
+import bandscope_analysis.accuracy.fixtures as fixture_helpers
 from bandscope_analysis.accuracy import (
     C_MAJOR_LABEL,
     DEFAULT_CLICK_BPM,
     DEFAULT_SAMPLE_RATE,
+    MAX_ACCURACY_CHANNELS,
+    MAX_ACCURACY_DURATION_SECONDS,
+    MAX_ACCURACY_FILE_BYTES,
+    MAX_ACCURACY_SAMPLE_RATE,
     build_case_report,
     duration_weighted_chord_recall,
     evaluate_c_major_file,
@@ -25,6 +31,7 @@ from bandscope_analysis.accuracy import (
     parse_case_report,
     read_pcm_wav,
     read_product_version,
+    read_verified_fixture_bytes,
     render_c_major_triad,
     render_click_track,
     tempo_acc1,
@@ -130,6 +137,106 @@ def test_read_pcm_wav_rejects_empty_file(tmp_path: Path) -> None:
     sf.write(path, np.zeros(0, dtype=np.float32), DEFAULT_SAMPLE_RATE)
     with pytest.raises(ValueError, match="no samples"):
         read_pcm_wav(path)
+
+
+def test_read_pcm_wav_rejects_resource_excesses(tmp_path: Path) -> None:
+    """WAV decode must reject excessive channels, rates, and duration first."""
+    too_many_channels = tmp_path / "too-many-channels.wav"
+    sf.write(
+        too_many_channels,
+        np.zeros((8, MAX_ACCURACY_CHANNELS + 1), dtype=np.float32),
+        DEFAULT_SAMPLE_RATE,
+    )
+    with pytest.raises(ValueError, match="too many channels"):
+        read_pcm_wav(too_many_channels)
+
+    too_fast = tmp_path / "too-fast.wav"
+    sf.write(too_fast, np.zeros(8, dtype=np.float32), MAX_ACCURACY_SAMPLE_RATE + 1)
+    with pytest.raises(ValueError, match="sample rate"):
+        read_pcm_wav(too_fast)
+
+    too_long = tmp_path / "too-long.wav"
+    sf.write(
+        too_long,
+        np.zeros(MAX_ACCURACY_DURATION_SECONDS + 1, dtype=np.float32),
+        1,
+    )
+    with pytest.raises(ValueError, match="too long"):
+        read_pcm_wav(too_long)
+
+
+def test_read_pcm_wav_rejects_uninspectable_or_non_finite_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Header inspection must fail closed before an unbounded decode attempt."""
+    path = tmp_path / "header.wav"
+    path.write_bytes(b"not-a-wav")
+
+    def raise_info(_path: Path) -> object:
+        raise RuntimeError("invalid header")
+
+    monkeypatch.setattr(sf, "info", raise_info)
+    with pytest.raises(ValueError, match="header could not be inspected"):
+        read_pcm_wav(path)
+
+    monkeypatch.setattr(
+        sf,
+        "info",
+        lambda _path: SimpleNamespace(
+            channels=1,
+            samplerate=DEFAULT_SAMPLE_RATE,
+            duration=float("nan"),
+        ),
+    )
+    with pytest.raises(ValueError, match="duration must be finite"):
+        read_pcm_wav(path)
+
+
+def test_read_verified_fixture_rejects_oversized_file(tmp_path: Path) -> None:
+    """Digest verification must not read an over-sized fixture into memory."""
+    path = tmp_path / "oversized.wav"
+    with path.open("wb") as fileobj:
+        fileobj.truncate(MAX_ACCURACY_FILE_BYTES + 1)
+
+    with pytest.raises(ValueError, match="too large"):
+        read_verified_fixture_bytes(path, "0" * 64)
+
+
+def test_read_verified_fixture_normalizes_file_inspection_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fixture reads must expose stable errors when stat or open fails."""
+    path = tmp_path / "fixture.wav"
+    path.write_bytes(b"fixture")
+
+    def raise_stat(_path: Path) -> object:
+        raise OSError("stat denied")
+
+    monkeypatch.setattr(Path, "stat", raise_stat)
+    with pytest.raises(ValueError, match="could not be inspected"):
+        read_verified_fixture_bytes(path, "0" * 64)
+
+    monkeypatch.undo()
+
+    def raise_open(_path: Path, *_args: object, **_kwargs: object) -> object:
+        raise OSError("open denied")
+
+    monkeypatch.setattr(Path, "open", raise_open)
+    with pytest.raises(ValueError, match="could not be read"):
+        read_verified_fixture_bytes(path, "0" * 64)
+
+
+def test_read_verified_fixture_rejects_growth_after_stat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file that grows after stat must not be hashed as truncated evidence."""
+    path = tmp_path / "grown.wav"
+    path.write_bytes(b"12345")
+    monkeypatch.setattr(fixture_helpers, "MAX_ACCURACY_FILE_BYTES", 4)
+    monkeypatch.setattr(Path, "stat", lambda _path: SimpleNamespace(st_size=4))
+
+    with pytest.raises(ValueError, match="too large"):
+        read_verified_fixture_bytes(path, "0" * 64)
 
 
 def test_pipeline_surfaces_c_on_active_lead_vocal() -> None:

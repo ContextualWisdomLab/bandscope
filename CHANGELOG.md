@@ -23,6 +23,7 @@
 - Reject non-finite tempo estimates, ground-truth BPM values, and Acc1 tolerances as invalid accuracy evidence instead of recording them as ordinary misses.
 - Union overlapping matching chord-estimate intervals before duration-weighted recall so acceptance scores cannot double-count annotated time or exceed 100%.
 - Reject malformed accuracy-report provenance, including non-hex SHA-256 text and non-finite metric values, before acceptance evidence is consumed.
+- Bound accuracy fixture byte size, channel count, sample rate, and decoded duration before checksum staging or PCM allocation.
 - Score the C major acceptance case from checksummed on-disk WAV bytes instead of the pre-write in-memory triad.
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
