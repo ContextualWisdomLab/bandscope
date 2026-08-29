@@ -14,7 +14,7 @@ env:
   GIT_CONFIG_COUNT: "1"
   GIT_CONFIG_KEY_0: init.defaultBranch
   GIT_CONFIG_VALUE_0: develop
-  EXPECTED_NPM_VERSION: "10.9.8"
+  EXPECTED_NPM_VERSION: "10.9.9"
 
 jobs:
   node-minimum-compatibility:
@@ -28,14 +28,12 @@ jobs:
         with:
           node-version: 22.22.2
           package-manager-cache: false
-      - name: Bootstrap exact repository npm generator
-        shell: bash
+      - name: Activate pinned npm runtime
+        run: corepack enable npm
+      - name: Verify exact npm lockfile generator and bundled tar
         run: |
-          mkdir -p "$RUNNER_TEMP/corepack-bin"
-          corepack enable npm --install-directory "$RUNNER_TEMP/corepack-bin"
-          corepack install
-          echo "$RUNNER_TEMP/corepack-bin" >> "$GITHUB_PATH"
-          test "$(PATH="$RUNNER_TEMP/corepack-bin:$PATH" npm --version)" = "$EXPECTED_NPM_VERSION"
+          test "$(npm --version)" = "$EXPECTED_NPM_VERSION"
+          npm run check:npm-runtime
       - name: Install frozen Node dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0

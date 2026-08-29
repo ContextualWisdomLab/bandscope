@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_NODE_ENGINE = ">=22.22.2 <23"
 EXPECTED_NODE_FLOOR = (22, 22, 2)
-EXPECTED_NPM_VERSION = "10.9.8"
+EXPECTED_NPM_VERSION = "10.9.9"
 EXPECTED_JSDOM_RANGE = "^30.0.1"
 
 
@@ -52,8 +52,10 @@ def test_jsdom_30_is_adopted_in_manifest_and_lock() -> None:
 
 
 def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
-    """Exercise the exact Node floor after bootstrapping the canonical npm generator."""
-    workflow = (ROOT / ".github/workflows/node-minimum-compatibility.yml").read_text(encoding="utf-8")
+    """Exercise the exact Node floor after activating the reviewed npm runtime."""
+    workflow = (ROOT / ".github/workflows/node-minimum-compatibility.yml").read_text(
+        encoding="utf-8"
+    )
 
     match = re.search(
         r"(?ms)^  node-minimum-compatibility:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:\n|\Z)",
@@ -66,14 +68,10 @@ def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
         "node-version: 22.22.2",
         "package-manager-cache: false",
         f'EXPECTED_NPM_VERSION: "{EXPECTED_NPM_VERSION}"',
-        'mkdir -p "$RUNNER_TEMP/corepack-bin"',
-        'corepack enable npm --install-directory "$RUNNER_TEMP/corepack-bin"',
-        "corepack install",
-        'echo "$RUNNER_TEMP/corepack-bin" >> "$GITHUB_PATH"',
-        'test "$(PATH="$RUNNER_TEMP/corepack-bin:$PATH" npm --version)" = "$EXPECTED_NPM_VERSION"',
-        "npm install --package-lock-only --ignore-scripts --no-audit --no-fund",
-        "git diff --exit-code -- package-lock.json",
-        "npm ci",
+        "corepack enable npm",
+        'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"',
+        "npm run check:npm-runtime",
+        "npm ci --ignore-scripts --no-audit --no-fund",
         "npm run lint",
         "npm run typecheck",
         "npm run test",
@@ -85,16 +83,16 @@ def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
     for fragment in required_fragments:
         assert fragment in body, f"minimum-version job is missing: {fragment}"
 
-    assert "npm install --global" not in body, (
-        "minimum-version workflow must not bootstrap npm through an unpinned npm install command"
-    )
+    for mutable_command in ("npm install ", "npm update ", "npx "):
+        assert mutable_command not in body, (
+            f"minimum-version workflow must not resolve dependencies mutably: {mutable_command.strip()}"
+        )
 
     setup_node = body.split("- uses: actions/setup-node@", maxsplit=1)[1].split(
-        "- name: Bootstrap exact repository npm generator", maxsplit=1
+        "- name: Activate pinned npm runtime", maxsplit=1
     )[0]
-    assert "cache: npm" not in setup_node, (
-        "setup-node must not invoke bundled npm cache discovery before npm 10.9.8 is bootstrapped"
-    )
+    assert "cache: npm" not in setup_node
+    assert "package-manager-cache: false" in setup_node
 
 
 def test_repository_no_longer_advertises_node_22_13_floor() -> None:
@@ -110,9 +108,5 @@ def test_repository_no_longer_advertises_node_22_13_floor() -> None:
         "docs/operations/deploy-runbook.md",
     )
 
-    stale = [
-        path
-        for path in audited_paths
-        if "22.13" in (ROOT / path).read_text(encoding="utf-8")
-    ]
+    stale = [path for path in audited_paths if "22.13" in (ROOT / path).read_text(encoding="utf-8")]
     assert stale == []
