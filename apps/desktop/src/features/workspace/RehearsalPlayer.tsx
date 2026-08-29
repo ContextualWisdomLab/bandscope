@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactElement,
 } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
@@ -115,6 +116,34 @@ export function RehearsalPlayer({
     playableLoops.find((loop) => loopSelectionKey(loop) === selectedLoopKey) ??
     playableLoops[0] ??
     null;
+  const handleSectionKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+        return;
+      }
+      const selectedIndex = selectedLoop
+        ? playableLoops.indexOf(selectedLoop)
+        : -1;
+      const nextIndex =
+        selectedIndex + (event.key === "ArrowRight" ? 1 : -1);
+      if (
+        selectedIndex < 0 ||
+        nextIndex < 0 ||
+        nextIndex >= playableLoops.length
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const nextLoop = playableLoops[nextIndex];
+      setSelectedLoopKey(loopSelectionKey(nextLoop));
+      document
+        .getElementById(
+          `rehearsal-loop-section-${loopSelectionKey(nextLoop)}-${nextIndex}`,
+        )
+        ?.focus();
+    },
+    [playableLoops, selectedLoop],
+  );
   const [transport, setTransport] = useState<RehearsalTransportState>(() =>
     reduceRehearsalTransport(createIdleTransportState(), {
       type: "arm",
@@ -479,13 +508,16 @@ export function RehearsalPlayer({
                 type="button"
                 variant={selected ? "default" : "outline"}
                 size="sm"
+                id={`rehearsal-loop-section-${selectionKey}-${index}`}
                 aria-pressed={selected}
+                aria-keyshortcuts="ArrowLeft ArrowRight"
                 className={
                   selected
                     ? "min-h-10 border-cyan-300/30 bg-cyan-300 font-semibold text-slate-950"
                     : "min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100"
                 }
                 onClick={() => setSelectedLoopKey(selectionKey)}
+                onKeyDown={handleSectionKeyDown}
               >
                 <span>{loop.sectionLabel}</span>
                 <span> · </span>
@@ -497,6 +529,14 @@ export function RehearsalPlayer({
             );
           })}
         </div>
+      ) : null}
+      {playableLoops.length > 1 ? (
+        <p
+          className="mt-2 text-xs text-slate-400"
+          data-testid="rehearsal-loop-keyboard-hint"
+        >
+          {t("workspaceLoopSectionKeyboardHint")}
+        </p>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <label className="flex min-h-11 items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">

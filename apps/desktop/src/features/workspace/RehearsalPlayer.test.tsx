@@ -156,6 +156,34 @@ describe("RehearsalPlayer", () => {
     );
   });
 
+  it("moves section cues with the arrow keys and keeps the selected cue focused", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [song.sections[0]!, chorus];
+
+    render(<RehearsalPlayer song={song} />);
+
+    const verse = screen.getByRole("button", { name: /verse/i });
+    const chorusButton = screen.getByRole("button", { name: /chorus/i });
+    expect(
+      screen.getByTestId("rehearsal-loop-keyboard-hint"),
+    ).toHaveTextContent("Use Left and Right Arrow to move between section cues.");
+
+    fireEvent.keyDown(verse, { key: "ArrowRight" });
+    expect(chorusButton).toHaveAttribute("aria-pressed", "true");
+    expect(chorusButton).toHaveFocus();
+
+    fireEvent.keyDown(chorusButton, { key: "ArrowRight" });
+    expect(chorusButton).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(chorusButton, { key: "ArrowLeft" });
+    expect(verse).toHaveAttribute("aria-pressed", "true");
+    expect(verse).toHaveFocus();
+  });
+
   it("keeps the selected loop by section ID when an earlier section is filtered out", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

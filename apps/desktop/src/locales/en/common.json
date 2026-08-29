@@ -153,6 +153,7 @@
   "workspaceLoopTitle": "Tonight's loop",
   "workspaceLoopSectionPickerLabel": "Playable sections",
   "workspaceLoopSectionPickerForRole": "Playable sections for {roleName}",
+  "workspaceLoopSectionKeyboardHint": "Use Left and Right Arrow to move between section cues.",
   "workspaceLoopRoleFilterHint": "Showing sections that include {roleName}.",
   "workspaceLoopNoRoleSections": "No playable sections include {roleName} yet. Choose All Roles or map this role first.",
   "workspaceLoopStart": "Start the count-in",
