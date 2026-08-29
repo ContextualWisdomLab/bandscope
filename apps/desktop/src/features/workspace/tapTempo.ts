@@ -1,18 +1,24 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { fillRangeCopy } from "./firstRangeSqueeze";
 
-/** Inclusive lower bound for a rehearsal-usable tap tempo. */
-export const MIN_TRUSTED_TEMPO_BPM = 20;
-/** Inclusive upper bound for a rehearsal-usable tap tempo. */
-export const MAX_TRUSTED_TEMPO_BPM = 400;
-/** Four taps yield three intervals, the minimum for a median BPM. */
-export const MIN_TAP_COUNT = 4;
-/** Sliding window so a long groove cannot grow without bound. */
-export const MAX_TAP_HISTORY = 8;
-/** A pause longer than a 20 BPM interval starts a new tap group. */
-export const TAP_GAP_RESET_MS = 3_500;
-/** Reject a window whose fastest and slowest intervals disagree by more than 2×. */
-export const MAX_INTERVAL_SPREAD = 2;
+export /**
+ * Inclusive lower bound for a rehearsal-usable tap tempo.
+ */ const MIN_TRUSTED_TEMPO_BPM = 20;
+export /**
+ * Inclusive upper bound for a rehearsal-usable tap tempo.
+ */ const MAX_TRUSTED_TEMPO_BPM = 400;
+export /**
+ * Four taps yield three intervals, the minimum for a median BPM.
+ */ const MIN_TAP_COUNT = 4;
+export /**
+ * Sliding window so a long groove cannot grow without bound.
+ */ const MAX_TAP_HISTORY = 8;
+export /**
+ * A pause longer than a 20 BPM interval starts a new tap group.
+ */ const TAP_GAP_RESET_MS = 3_500;
+export /**
+ * Reject a window whose fastest and slowest intervals disagree by more than 2×.
+ */ const MAX_INTERVAL_SPREAD = 2;
 
 const TAP_TEMPO_SESSION_KEYS = new WeakMap<RehearsalSong, string>();
 let nextTapTempoSession = 1;
@@ -76,7 +82,7 @@ function median(values: number[]): number {
  * not to musical content. Two distinct loaded songs therefore cannot collide even
  * when their ids, titles, timings, and harmony happen to match.
  */
-export function tapTempoSessionKey(song: RehearsalSong, _projectId: unknown = null): string {
+export function tapTempoSessionKey(song: RehearsalSong): string {
   const existing = TAP_TEMPO_SESSION_KEYS.get(song);
   if (existing) {
     return existing;

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { createTranslator } from "../../i18n";
-import { TapTempo } from "./TapTempo";
+import { TapTempo } from "./TapTempoPanel";
 
 const t = createTranslator("en");
 
