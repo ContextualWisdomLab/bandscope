@@ -5,7 +5,7 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { admittedAudioFormats, settingsNextAction } from "./rehearsalSettings";
+import { admittedAudioFormats, settingsNextAction } from "./settingsModel";
 
 interface RehearsalSettingsProps {
   songReady: boolean;
