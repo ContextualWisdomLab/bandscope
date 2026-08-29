@@ -2,20 +2,28 @@
 
 ## Decision
 
-BandScope records npm `10.9.8` as the approved generator for root workspace dependency updates. The root manifest records that decision through:
+BandScope records npm `10.9.9` as the approved generator for root workspace dependency updates. The root manifest records that decision through:
 
-- `packageManager: npm@10.9.8` as package-manager selection metadata; and
+- `packageManager: npm@10.9.9` as package-manager selection metadata; and
 - `devEngines.packageManager` with `onFail: error` as npm's source-tree command gate.
 
 The npm version is intentionally not repeated under `engines`. npm serializes `engines` into the root lock package, so adding an npm-only source-tool constraint there creates lock metadata churn unrelated to dependency resolution. `devEngines` and the explicit CI assertion enforce the approved generator while the published `engines.node` range remains the runtime compatibility contract.
 
-Primary CI does **not** regenerate or update `package-lock.json`. It uses Node `22.22.3`, verifies npm `10.9.8`, and validates the committed lock with `npm ci --ignore-scripts --no-audit --no-fund`. The gate then rejects any manifest or lockfile working-tree change. The normal verification job performs the repository's reviewed `npm ci` installation before lint, typecheck, tests, build, and security checks.
+Primary CI does **not** regenerate or update `package-lock.json`. It uses Node `22.22.3`, enables the npm shim supplied by the Node-bundled Corepack, resolves the project-pinned npm `10.9.9`, verifies that exact npm runtime and its own bundled `tar` package before dependency consumption, and validates the committed lock with `npm ci --ignore-scripts --no-audit --no-fund`. The gate then rejects any manifest or lockfile working-tree change. The normal verification jobs repeat the same runtime provenance gate before the repository's reviewed `npm ci` installation.
 
-The coordinated jsdom 30 migration raises BandScope's Node 22 runtime floor to `>=22.22.2 <23`. This runtime floor and the npm generator identity remain separate contracts: upstream Node `v22.22.2` bundles npm `10.9.7`, while BandScope's reviewed lock generator remains npm `10.9.8`. The exact-minimum compatibility lane therefore installs Node `22.22.2` without npm-cache discovery, explicitly bootstraps npm `10.9.8` before repository dependency consumption, verifies that generator identity, and only then runs the frozen install and full product verification. This preserves the exact runtime floor without weakening lockfile provenance.
+The Node runtime support decision remains separate. This change does not raise the public `>=22.13 <23` Node range; a coordinated Node-floor migration is tracked independently.
+
+## Why the npm runtime was advanced
+
+The prior approved npm `10.9.8` bundled `tar 7.5.11`. GitHub's reviewed advisory GHSA-23hp-3jrh-7fpw / CVE-2026-59873 marks `tar <=7.5.18` affected by an unbounded decompression/parse denial-of-service vulnerability and records `7.5.19` as the patched floor. npm `10.9.9` updates its bundled `tar` to `7.5.22`.
+
+The Node 22 distribution line still bundled npm `10.9.8` when this repair was made, so merely advancing the Node 22 patch selector did not remove the vulnerable package-manager runtime. BandScope therefore keeps the supported Node 22 contract and activates the repository-pinned npm `10.9.9` through bundled Corepack before any `npm ci` step. `scripts/checks/verify_npm_runtime.mjs`, executed through that npm runtime, locates the running npm package via `npm_execpath`, verifies npm `10.9.9`, reads npm's own `node_modules/tar/package.json`, and rejects a tar version below `7.5.19` before dependency extraction is allowed.
+
+This is a package-manager execution boundary, not an application dependency override. BandScope does not add `tar` to the application graph or suppress the advisory.
 
 ## Why generator provenance still matters
 
-npm documents `package-lock.json` as the location-keyed description of the exact dependency tree. Lockfile version 3 is intended for npm 9 and newer. npm also notes that package-manager versions and tree-shaping configuration can affect the generated dependency graph and metadata. Dependency updates therefore use the reviewed npm `10.9.8` toolchain, and reviewers examine the complete generated lock diff together with its manifest change.
+npm documents `package-lock.json` as the location-keyed description of the exact dependency tree. Lockfile version 3 is intended for npm 9 and newer. npm also notes that package-manager versions and tree-shaping configuration can affect the generated dependency graph and metadata. Dependency updates therefore use the reviewed npm `10.9.9` toolchain, and reviewers examine the complete generated lock diff together with its manifest change.
 
 That provenance is distinct from CI validation. `npm ci` is the immutable consumption path: it requires a lockfile, rejects manifest/lock dependency disagreement, removes an existing `node_modules`, and never writes the manifest or lock. CI relies on that frozen behavior instead of running `npm install`, `npm update`, or `npx` commands that may perform mutable resolution.
 
@@ -25,36 +33,30 @@ The root lock also retains `peer: true` on the platform-specific `node_modules/@
 
 ```mermaid
 flowchart LR
-    M[package.json dependency intent] --> G[approved npm 10.9.8 update toolchain]
+    M[package.json dependency intent] --> C[Corepack enables project-pinned npm 10.9.9]
+    C --> R[verify npm 10.9.9 and bundled tar >= 7.5.19]
+    R --> G[approved npm update toolchain]
     G --> L[reviewed package-lock.json v3]
     L --> V[npm ci frozen validation, lifecycle disabled]
     V --> D{manifest or lock drift?}
     D -->|yes| F[fail closed]
     D -->|no| S[verify SRI and generator-sensitive metadata]
-    S --> C[normal npm ci and repository checks]
+    S --> N[normal npm ci and repository checks]
 ```
-
-## Minimum-runtime verification
-
-jsdom `30.0.1` declares Node `^22.22.2 || ^24.15.0 || >=26.0.0`. BandScope intentionally remains on the Node 22 line for this migration, so its supported interval is `>=22.22.2 <23`. The dedicated `.github/workflows/node-minimum-compatibility.yml` lane exists to prove the exact lower boundary rather than inferring compatibility from a newer CI patch release.
-
-The first exact-minimum run exposed an ordering defect: `actions/setup-node` with npm caching enabled executes `npm config get cache` during setup. On Node `22.22.2`, that command runs the bundled npm `10.9.7` inside the checked-out BandScope tree, where `devEngines.packageManager` correctly rejects any npm other than `10.9.8`. The repaired lane therefore does not enable setup-node's npm cache before bootstrap. It installs the approved npm in runner-owned temporary context, verifies `10.9.8`, and only then allows npm to consume repository state.
-
-This is not a relaxation of `devEngines`; the failure demonstrated that the gate was working as intended. The correction moves tool bootstrap ahead of the first repository-scoped npm invocation while preserving read-only checkout credentials, exact action pins, frozen dependency consumption, and the full lint/typecheck/test/build/Storybook/Tauri acceptance surface.
 
 ## Security and operational boundary
 
+- Every primary CI job that consumes npm dependencies activates the project-pinned npm runtime and runs `check:npm-runtime` before its first `npm ci`.
+- The runtime check fails closed unless the executing npm is exactly `10.9.9` and its own bundled `tar` is at least `7.5.19`.
 - CI lock validation must not run `npm install`, `npm update`, `npx`, or another mutable dependency-resolution command.
-- Dependency PRs change manifest intent and the complete lock artifact produced by the approved npm `10.9.8` update toolchain; reviewers reject unexplained lock churn rather than hand-editing records.
+- Dependency PRs change manifest intent and the complete lock artifact produced by the approved npm `10.9.9` update toolchain; reviewers reject unexplained lock churn rather than hand-editing records.
 - Platform-specific root `@esbuild/*` lock records must retain their expected `peer: true` metadata. Missing markers are treated as generator drift, not as an acceptable side effect of an unrelated dependency update.
 - The lock-validation job disables dependency lifecycle scripts. The normal clean install retains the repository's reviewed execution behavior.
-- The exact npm version check occurs before either frozen install; a different bundled or globally installed npm cannot provide acceptance evidence.
-- The exact-minimum Node lane must not invoke repository-scoped npm cache discovery before npm `10.9.8` is bootstrapped.
 - Registry-resolved package records require SRI evidence in the committed lock.
 - Install-shaping flags that affect the dependency tree, such as `legacy-peer-deps` or `install-links`, must be committed in project configuration and applied consistently to generation and `npm ci`.
 - The root `package-lock.json` remains the sole npm workspace lock. Nested workspace locks are prohibited.
 
-`packageManager` alone is not the enforcement boundary for npm because Corepack's npm shim is not enabled by default in Node distributions. Enforcement is provided by npm `devEngines`, the explicit CI version assertion, the frozen `npm ci` contract, and repository tests that prohibit mutable resolution in the lock gate.
+`packageManager` alone is not the enforcement boundary for npm because Node distributions do not enable Corepack's npm shim by default. Enforcement is provided by explicit `corepack enable npm`, npm `devEngines`, the exact runtime/tar provenance check, the frozen `npm ci` contract, and repository tests that prohibit mutable resolution in the lock gate.
 
 ## Verification
 
@@ -62,47 +64,42 @@ This is not a relaxation of `devEngines`; the failure demonstrated that the gate
 
 1. the manifest's approved npm metadata and Node/runtime separation;
 2. the exact Node/npm identity used by primary CI;
-3. frozen `npm ci` lock validation with lifecycle execution disabled;
-4. absence of `npm install`, `npm update`, and `npx` from the lock-validation job;
-5. a clean manifest/lock working tree after validation;
-6. package-lock version 3;
-7. SRI evidence for every public npm-registry artifact in the root lock; and
-8. preservation of `peer: true` on every root `node_modules/@esbuild/*` platform record.
-
-`services/analysis-engine/tests/test_node_runtime_contract.py` separately verifies the `>=22.22.2 <23` runtime interval, jsdom `30.0.1` manifest/lock alignment, the exact-minimum workflow, npm-before-cache bootstrap ordering, the full compatibility acceptance surface, and absence of the superseded Node floor from canonical runtime/build documentation.
+3. Corepack activation and npm runtime/tar verification before every primary npm dependency-consumption step;
+4. frozen `npm ci` lock validation with lifecycle execution disabled;
+5. absence of `npm install`, `npm update`, and `npx` from the lock-validation job;
+6. a clean manifest/lock working tree after validation;
+7. package-lock version 3;
+8. SRI evidence for every public npm-registry artifact in the root lock; and
+9. preservation of `peer: true` on every root `node_modules/@esbuild/*` platform record.
 
 The exact PDF.js and Undici baseline is covered separately by `test_high_security_dependency_baseline.py` and the desktop PDF loader tests.
 
-A dependency update is mergeable only after the updated manifest and complete generated lock are reviewed together and the exact current head passes frozen lock validation, normal install, lint, strict typecheck, measured tests, production build, Rust/Tauri checks, security/supply-chain gates, current review, independent approval, and branch protection without bypass.
+A dependency update is mergeable only after the updated manifest and complete generated lock are reviewed together and the exact current head passes npm runtime provenance, frozen lock validation, normal install, lint, strict typecheck, measured tests, production build, Rust/Tauri checks, security/supply-chain gates, current review, independent approval, and branch protection without bypass.
 
 ## Claim boundary
 
-CI proves that the committed manifest and lock can be consumed as a frozen pair by the approved toolchain, that public-registry lock entries carry integrity evidence, and that the known generator-sensitive `@esbuild/*` peer markers remain present. It does **not** claim that resolving mutable manifest ranges again at a later time will reproduce byte-identical lock metadata. When a dependency update is needed, npm `10.9.8` remains the approved generator and its entire resulting lock diff is review evidence.
-
-The Node-minimum lane proves only the repository's selected Node 22 lower boundary with the approved npm generator and current product checks. It does not broaden BandScope support to Node 24 or 26 merely because upstream jsdom supports those lines.
+CI proves that the committed manifest and lock can be consumed as a frozen pair by the approved toolchain, that the npm runtime used for dependency extraction is the reviewed version with a non-vulnerable bundled tar floor, that public-registry lock entries carry integrity evidence, and that the known generator-sensitive `@esbuild/*` peer markers remain present. It does **not** claim that resolving mutable manifest ranges again at a later time will reproduce byte-identical lock metadata. When a dependency update is needed, npm `10.9.9` remains the approved generator and its entire resulting lock diff is review evidence.
 
 ## Incident response and rollback
 
-When an update produces unexpected lock churn:
+When an update produces unexpected lock churn or npm runtime provenance fails:
 
-1. preserve the exact head SHA, npm and Node versions, project npm configuration, original lock blob SHA, generated lock, and relevant CI run IDs;
-2. determine whether manifest intent, npm, project configuration, registry metadata, or transitive dependency resolution changed;
-3. never accept a partial or hand-edited lock to satisfy a validator;
+1. preserve the exact head SHA, npm, bundled tar and Node versions, project npm configuration, original lock blob SHA, generated lock, and relevant CI run IDs;
+2. determine whether manifest intent, npm, project configuration, registry metadata, transitive dependency resolution, or the package-manager runtime changed;
+3. never accept a partial or hand-edited lock or disable the runtime check to satisfy a validator;
 4. regenerate the complete lock in a dedicated update branch using the reviewed npm version, then review the full diff before relying on it; and
-5. if rollback is necessary, restore the prior manifest and complete lock together, then rerun the entire exact-head gate.
-
-For an exact-minimum runtime failure, preserve the setup-node environment detail, bundled npm identity, first npm invocation, bootstrap command, and exact workflow job log. Do not weaken `devEngines` to accommodate a bundled npm mismatch; repair ordering so the approved generator is authoritative before repository-scoped npm commands execute.
+5. if rollback is necessary, restore the prior manifest and complete lock together, then rerun the entire exact-head gate. Do not roll back to a package-manager runtime with a known unfixed extraction vulnerability without an explicit temporary security exception.
 
 ## References
 
-jsdom contributors. (2026). *jsdom 30.0.1 package manifest* [Source code]. GitHub. https://github.com/jsdom/jsdom/blob/v30.0.1/package.json
+GitHub. (2026). *node-tar: Decompression/parse DoS via unlimited input* (GHSA-23hp-3jrh-7fpw; CVE-2026-59873) [Security advisory]. https://github.com/advisories/GHSA-23hp-3jrh-7fpw
 
-Node.js contributors. (2026). *Node.js v22.22.2 bundled npm package manifest* [Source code]. GitHub. https://github.com/nodejs/node/blob/v22.22.2/deps/npm/package.json
+Node.js contributors. (2026). *Corepack* [Software documentation]. GitHub. https://github.com/nodejs/corepack
 
-npm, Inc. (2026). *npm ci*. npm Docs. https://docs.npmjs.com/cli/v11/commands/npm-ci/
+npm, Inc. (2026). *npm 10.9.9* [Software release]. GitHub. https://github.com/npm/cli/releases/tag/v10.9.9
+
+npm, Inc. (2026). *npm ci*. npm Docs. https://docs.npmjs.com/cli/v10/commands/npm-ci/
 
 npm, Inc. (2026). *package-lock.json*. npm Docs. https://docs.npmjs.com/cli/v10/configuring-npm/package-lock-json/
 
-npm, Inc. (2026). *package.json*. npm Docs. https://docs.npmjs.com/cli/configuring-npm/package-json/
-
-Node.js contributors. (2026). *Corepack* [Software documentation]. GitHub. https://github.com/nodejs/corepack
+npm, Inc. (2026). *package.json*. npm Docs. https://docs.npmjs.com/cli/v10/configuring-npm/package-json/

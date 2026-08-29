@@ -46,6 +46,8 @@ describe("score PDF.js boundary", () => {
     };
     expect(hardenedParameters.data).toEqual(source);
     expect(hardenedParameters.data).not.toBe(source);
+    source[0] = 0x00;
+    expect(hardenedParameters.data[0]).toBe(0x25);
     expect(hardenedParameters.enableXfa).toBe(false);
     expect(hardenedParameters.useWorkerFetch).toBe(false);
   });
