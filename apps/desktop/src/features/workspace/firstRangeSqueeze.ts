@@ -34,6 +34,16 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Read an owned data-property without invoking an accessor or Proxy get trap. */
+export function ownDataProperty(record: Record<string, unknown>, property: string): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(record, property);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Return trimmed copy that is not a blank or `none` sentinel. */
 export function meaningfulRangeText(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -98,40 +108,47 @@ export function firstRangeSqueeze(
   activeRole: string | null = null
 ): FirstRangeSqueeze | null {
   const runtimeSong: unknown = song;
-  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
+  const sections = isRuntimeObject(runtimeSong) ? ownDataProperty(runtimeSong, "sections") : undefined;
+  if (!Array.isArray(sections)) {
     return null;
   }
 
-  for (const sectionValue of runtimeSong.sections) {
-    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+  for (const sectionValue of sections) {
+    const roles = isRuntimeObject(sectionValue) ? ownDataProperty(sectionValue, "roles") : undefined;
+    if (!isRuntimeObject(sectionValue) || !Array.isArray(roles)) {
       continue;
     }
-    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    const sectionLabel = meaningfulRangeText(ownDataProperty(sectionValue, "label"));
     if (!sectionLabel) {
       continue;
     }
 
-    for (const roleValue of sectionValue.roles) {
+    for (const roleValue of roles) {
       if (!isRuntimeObject(roleValue)) {
         continue;
       }
-      const roleId = meaningfulRangeText(roleValue.id);
-      const roleName = meaningfulRangeText(roleValue.name);
+      const roleId = meaningfulRangeText(ownDataProperty(roleValue, "id"));
+      const roleName = meaningfulRangeText(ownDataProperty(roleValue, "name"));
       if (!roleId || !roleName || (activeRole && roleId !== activeRole)) {
         continue;
       }
-      if (!isRuntimeObject(roleValue.range)) {
+      const rangeValue = ownDataProperty(roleValue, "range");
+      if (!isRuntimeObject(rangeValue)) {
         continue;
       }
 
-      const range = playableRange(roleValue.range.lowestNote, roleValue.range.highestNote);
+      const range = playableRange(
+        ownDataProperty(rangeValue, "lowestNote"),
+        ownDataProperty(rangeValue, "highestNote")
+      );
       if (!range) {
         continue;
       }
 
       let overlapWarning: string | undefined;
-      if (Array.isArray(roleValue.overlapWarnings)) {
-        for (const warning of roleValue.overlapWarnings) {
+      const overlapWarnings = ownDataProperty(roleValue, "overlapWarnings");
+      if (Array.isArray(overlapWarnings)) {
+        for (const warning of overlapWarnings) {
           const meaningfulWarning = meaningfulRangeText(warning);
           if (meaningfulWarning) {
             overlapWarning = meaningfulWarning;

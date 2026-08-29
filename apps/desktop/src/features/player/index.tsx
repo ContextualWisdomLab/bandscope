@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
-import { fillRangeCopy, meaningfulRangeText } from "../workspace/firstRangeSqueeze";
+import { fillRangeCopy, meaningfulRangeText, ownDataProperty } from "../workspace/firstRangeSqueeze";
 
 /** Tonight's first named section a player should loop from the rehearsal map. */
 export type FirstNamedSection = {
@@ -12,16 +12,6 @@ export type FirstNamedSection = {
 /** Return whether an untrusted runtime value is a non-array object record. */
 function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Read an owned data-property value without invoking an accessor or Proxy get trap. */
-function ownDataProperty(record: Record<string, unknown>, property: string): unknown {
-  try {
-    const descriptor = Object.getOwnPropertyDescriptor(record, property);
-    return descriptor && "value" in descriptor ? descriptor.value : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /** Pick the first named section window without treating malformed evidence as a loop. */
@@ -62,6 +52,9 @@ export function PlayerFeature(props: { title: string; song?: RehearsalSong | nul
   const { title, song } = props;
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const namedSection = useMemo(() => firstNamedSection(song), [song]);
+  const songTitle = meaningfulRangeText(
+    isRuntimeObject(song) ? ownDataProperty(song as unknown as Record<string, unknown>, "title") : undefined
+  );
 
   if (!song) {
     return (
@@ -88,9 +81,9 @@ export function PlayerFeature(props: { title: string; song?: RehearsalSong | nul
         <p className="mt-2 text-sm leading-6 text-slate-100">{nextAction}</p>
         <p className="mt-2 text-sm leading-6 text-slate-300">{t("playerNoAudioYet")}</p>
       </section>
-      {namedSection ? (
+      {namedSection && songTitle ? (
         <p className="text-sm font-semibold text-slate-200" data-testid="player-song-title">
-          {song.title}
+          {songTitle}
         </p>
       ) : null}
     </section>

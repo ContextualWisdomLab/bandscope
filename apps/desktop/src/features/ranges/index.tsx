@@ -5,6 +5,7 @@ import {
   fillRangeCopy,
   firstRangeSqueeze,
   meaningfulRangeText,
+  ownDataProperty,
   playableRange
 } from "../workspace/firstRangeSqueeze";
 
@@ -62,7 +63,7 @@ export function RangesFeature(props: {
   }
 
   const runtimeSong: unknown = song;
-  const songSections = isRuntimeObject(runtimeSong) ? runtimeSong.sections : undefined;
+  const songSections = isRuntimeObject(runtimeSong) ? ownDataProperty(runtimeSong, "sections") : undefined;
   const sections = Array.isArray(songSections) ? songSections : [];
 
   return (
@@ -81,32 +82,35 @@ export function RangesFeature(props: {
           return null;
         }
         const sectionRecord = sectionValue;
-        const sectionLabel = meaningfulRangeText(sectionRecord.label);
-        const sectionId = meaningfulRangeText(sectionRecord.id) ?? `section-${sectionIndex}`;
-        if (!sectionLabel || !Array.isArray(sectionRecord.roles)) {
+        const sectionLabel = meaningfulRangeText(ownDataProperty(sectionRecord, "label"));
+        const sectionId = meaningfulRangeText(ownDataProperty(sectionRecord, "id")) ?? `section-${sectionIndex}`;
+        const roles = ownDataProperty(sectionRecord, "roles");
+        if (!sectionLabel || !Array.isArray(roles)) {
           return null;
         }
         return (
           <div key={sectionId} className="space-y-3">
             <h3 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">{sectionLabel}</h3>
             <div className="flex flex-wrap gap-3">
-              {sectionRecord.roles.map((roleValue, roleIndex) => {
+              {roles.map((roleValue, roleIndex) => {
                 if (!isRuntimeObject(roleValue)) {
                   return null;
                 }
                 const roleRecord = roleValue;
-                const roleName = meaningfulRangeText(roleRecord.name);
-                const roleId = meaningfulRangeText(roleRecord.id);
+                const roleName = meaningfulRangeText(ownDataProperty(roleRecord, "name"));
+                const roleId = meaningfulRangeText(ownDataProperty(roleRecord, "id"));
                 if (!roleId || !roleName) {
                   return null;
                 }
-                const rangeRecord =
-                  typeof roleRecord.range === "object" && roleRecord.range !== null && !Array.isArray(roleRecord.range)
-                    ? (roleRecord.range as Record<string, unknown>)
-                    : {};
-                const validatedRange = playableRange(rangeRecord.lowestNote, rangeRecord.highestNote);
-                const overlapWarnings = namedOverlapWarnings(roleRecord.overlapWarnings);
-                const transcriptionCount = Array.isArray(roleRecord.transcription) ? roleRecord.transcription.length : 0;
+                const rangeValue = ownDataProperty(roleRecord, "range");
+                const rangeRecord = isRuntimeObject(rangeValue) ? rangeValue : {};
+                const validatedRange = playableRange(
+                  ownDataProperty(rangeRecord, "lowestNote"),
+                  ownDataProperty(rangeRecord, "highestNote")
+                );
+                const overlapWarnings = namedOverlapWarnings(ownDataProperty(roleRecord, "overlapWarnings"));
+                const transcription = ownDataProperty(roleRecord, "transcription");
+                const transcriptionCount = Array.isArray(transcription) ? transcription.length : 0;
                 return (
                   <article
                     key={`${sectionIndex}-${roleId}-${roleIndex}`}

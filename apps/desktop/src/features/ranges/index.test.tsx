@@ -113,4 +113,24 @@ describe("RangesFeature", () => {
     expect(screen.getByTestId("range-card-0-bass-guitar-0")).toBeTruthy();
     expect(screen.getByTestId("range-card-1-bass-guitar-0")).toBeTruthy();
   });
+
+  it("uses owned section and role evidence instead of Proxy substitutions", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      new Proxy(verse, {
+        get(target, property, receiver) {
+          if (property === "label") return "spoofed-section";
+          if (property === "roles") return [];
+          return Reflect.get(target, property, receiver);
+        }
+      })
+    ];
+
+    render(<RangesFeature title="Ranges" song={song} />);
+
+    expect(screen.getByText("verse")).toBeTruthy();
+    expect(screen.getByTestId("range-card-0-bass-guitar-0")).toBeTruthy();
+  });
 });

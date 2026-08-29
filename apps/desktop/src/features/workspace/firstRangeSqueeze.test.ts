@@ -136,6 +136,22 @@ describe("firstRangeSqueeze", () => {
     });
   });
 
+  it("uses owned range evidence instead of Proxy substitutions", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      new Proxy(verse, {
+        get(target, property, receiver) {
+          if (property === "label") return "spoofed-section";
+          if (property === "roles") return [];
+          return Reflect.get(target, property, receiver);
+        }
+      })
+    ];
+
+    expect(firstRangeSqueeze(song)).toMatchObject({ sectionLabel: "verse", roleName: "Bass Guitar" });
+  });
+
   it("limits the squeeze to the selected role", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong(), "lead-vocal");
 
