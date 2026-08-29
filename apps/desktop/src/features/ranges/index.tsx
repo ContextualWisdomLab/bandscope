@@ -24,10 +24,17 @@ function namedOverlapWarnings(warnings: unknown): string[] {
 }
 
 /** Render per-role playable spans and the next instrument check for the loaded song. */
-export function RangesFeature(props: { title: string; song?: RehearsalSong | null }) {
-  const { title, song } = props;
+export function RangesFeature(props: {
+  title: string;
+  song?: RehearsalSong | null;
+  activeRole?: string | null;
+}) {
+  const { title, song, activeRole = null } = props;
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const firstRange = useMemo(() => (song ? firstRangeSqueeze(song) : null), [song]);
+  const firstRange = useMemo(
+    () => (song ? firstRangeSqueeze(song, activeRole) : null),
+    [activeRole, song],
+  );
   const firstRangeCopy = firstRange
     ? fillRangeCopy(
         t(firstRange.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
@@ -80,7 +87,7 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
           <div key={sectionId} className="space-y-3">
             <h3 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">{sectionLabel}</h3>
             <div className="flex flex-wrap gap-3">
-              {sectionRecord.roles.map((roleValue) => {
+              {sectionRecord.roles.map((roleValue, roleIndex) => {
                 if (typeof roleValue !== "object" || roleValue === null || Array.isArray(roleValue)) {
                   return null;
                 }
@@ -99,7 +106,7 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
                 const transcriptionCount = Array.isArray(roleRecord.transcription) ? roleRecord.transcription.length : 0;
                 return (
                   <article
-                    key={roleId}
+                    key={`${sectionIndex}-${roleId}-${roleIndex}`}
                     className="min-w-[16rem] flex-1 rounded-2xl border border-white/10 bg-slate-950/70 p-4"
                     data-testid={`range-card-${sectionIndex}-${roleId}`}
                   >

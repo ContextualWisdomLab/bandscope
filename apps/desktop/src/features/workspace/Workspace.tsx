@@ -4,7 +4,6 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { RangesFeature } from "../ranges";
 import { PlayerFeature } from "../player";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
@@ -153,18 +152,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
-  const firstRange = useMemo(() => firstRangeSqueeze(song, activeRole), [activeRole, song]);
-  const firstRangeCopy = firstRange
-    ? fillRangeCopy(
-        t(firstRange.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
-        {
-          roleName: firstRange.roleName,
-          lowestNote: firstRange.lowestNote,
-          highestNote: firstRange.highestNote,
-          sectionLabel: firstRange.sectionLabel
-        }
-      )
-    : t("workspaceFirstRangeMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -303,17 +290,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         </CardHeader>
 
         <CardContent className="space-y-6 bg-[linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.86))] p-5 md:p-7">
-          <section
-            className="rounded-2xl border border-fuchsia-300/20 bg-fuchsia-300/[0.07] p-4"
-            data-testid="first-range-squeeze"
-            aria-label={t("workspaceFirstRangeTitle")}
-          >
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
-          </section>
-
           <div className="grid gap-4 xl:grid-cols-2" data-testid="workspace-rehearsal-surfaces">
-            <RangesFeature title="Ranges" song={song} />
+            <RangesFeature title="Ranges" song={song} activeRole={activeRole} />
             <PlayerFeature title="Player" song={song} />
           </div>
 
