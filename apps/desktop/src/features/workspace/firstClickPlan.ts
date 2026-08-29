@@ -37,8 +37,9 @@ function ownSectionValues(value: unknown): unknown[] | null {
   } catch {
     return null;
   }
-  const length = lengthDescriptor && "value" in lengthDescriptor ? lengthDescriptor.value : undefined;
-  if (!Number.isSafeInteger(length) || length < 0) {
+  const length =
+    lengthDescriptor && "value" in lengthDescriptor ? lengthDescriptor.value : undefined;
+  if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
     return null;
   }
 
