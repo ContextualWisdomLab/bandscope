@@ -554,12 +554,50 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
     validate_hook_plan(parsed)
 }
 
+/// Mirrors the shared-types plan whitespace policy, including BOM and NEL.
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Reject blank or Unicode line-separated hook guidance without normalizing user text.
+fn is_valid_hook_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
 fn validate_hook_plan(payload: RehearsalSongPayload) -> Result<RehearsalSongPayload, String> {
     for section in &payload.sections {
         for role in &section.roles {
-            if role.hook_plan.as_ref().is_some_and(|hook_plan| {
-                hook_plan.trim().is_empty() || hook_plan.contains('\n') || hook_plan.contains('\r')
-            }) {
+            if role
+                .hook_plan
+                .as_deref()
+                .is_some_and(|hook_plan| !is_valid_hook_plan(hook_plan))
+            {
                 return Err("Invalid project file format".to_string());
             }
         }

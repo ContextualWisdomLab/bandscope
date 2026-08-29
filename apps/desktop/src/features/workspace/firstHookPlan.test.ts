@@ -134,6 +134,15 @@ describe("resolveFirstHookPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded hook text", () => {
+    for (const hookPlan of ["Keep\u0085melody", "Keep\u2028melody", "Keep\u2029melody"]) {
+      expect(resolveFirstHookPlan(withHookSection({ hookPlan }))).toBeNull();
+    }
+    expect(resolveFirstHookPlan(withHookSection({ hookPlan: "\uFEFF Keep melody \uFEFF" }))?.hookPlan).toBe(
+      "Keep melody"
+    );
+  });
+
   it("prefers the earlier of two hook plans", () => {
     const song = withHookSection({
       id: "verse-late",

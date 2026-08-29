@@ -834,6 +834,30 @@ describe("shared type helpers", () => {
     })).toThrow("exportSummary.format");
   });
 
+  it("keeps optional hook plans aligned with Rust project loading", () => {
+    for (const hookPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "Keep the melody\nthen move",
+      "Keep the melody\rthen move",
+      "Keep the melody\u0085then move",
+      "Keep the melody\u2028then move",
+      "Keep the melody\u2029then move"
+    ]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[0]!.hookPlan = hookPlan;
+
+      expect(isRehearsalSong(song)).toBe(false);
+      expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[0].hookPlan");
+    }
+
+    const paddedPlan = createDemoRehearsalSong();
+    paddedPlan.sections[0]!.roles[0]!.hookPlan = "\uFEFF Keep the melody \uFEFF";
+    expect(isRehearsalSong(paddedPlan)).toBe(true);
+  });
+
   it("round-trips score attachment metadata and rejects malformed entries", () => {
     const song = createDemoRehearsalSong() as unknown as Record<string, unknown>;
     const attachment = { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" };
