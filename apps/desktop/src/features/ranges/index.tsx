@@ -8,6 +8,11 @@ import {
   playableRange
 } from "../workspace/firstRangeSqueeze";
 
+/** Return whether an untrusted runtime value is a plain object record. */
+function isRuntimeObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /** Return trimmed clash copy from untrusted overlap-warning evidence. */
 function namedOverlapWarnings(warnings: unknown): string[] {
   if (!Array.isArray(warnings)) {
@@ -57,10 +62,8 @@ export function RangesFeature(props: {
   }
 
   const runtimeSong: unknown = song;
-  const sections =
-    typeof runtimeSong === "object" && runtimeSong !== null && !Array.isArray(runtimeSong) && Array.isArray((runtimeSong as { sections?: unknown }).sections)
-      ? (runtimeSong as { sections: unknown[] }).sections
-      : [];
+  const songSections = isRuntimeObject(runtimeSong) ? runtimeSong.sections : undefined;
+  const sections = Array.isArray(songSections) ? songSections : [];
 
   return (
     <section className="space-y-5 text-slate-100">
@@ -74,10 +77,10 @@ export function RangesFeature(props: {
         <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
       </section>
       {sections.map((sectionValue, sectionIndex) => {
-        if (typeof sectionValue !== "object" || sectionValue === null || Array.isArray(sectionValue)) {
+        if (!isRuntimeObject(sectionValue)) {
           return null;
         }
-        const sectionRecord = sectionValue as Record<string, unknown>;
+        const sectionRecord = sectionValue;
         const sectionLabel = meaningfulRangeText(sectionRecord.label);
         const sectionId = meaningfulRangeText(sectionRecord.id) ?? `section-${sectionIndex}`;
         if (!sectionLabel || !Array.isArray(sectionRecord.roles)) {
@@ -88,10 +91,10 @@ export function RangesFeature(props: {
             <h3 className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">{sectionLabel}</h3>
             <div className="flex flex-wrap gap-3">
               {sectionRecord.roles.map((roleValue, roleIndex) => {
-                if (typeof roleValue !== "object" || roleValue === null || Array.isArray(roleValue)) {
+                if (!isRuntimeObject(roleValue)) {
                   return null;
                 }
-                const roleRecord = roleValue as Record<string, unknown>;
+                const roleRecord = roleValue;
                 const roleName = meaningfulRangeText(roleRecord.name);
                 const roleId = meaningfulRangeText(roleRecord.id);
                 if (!roleId || !roleName) {
