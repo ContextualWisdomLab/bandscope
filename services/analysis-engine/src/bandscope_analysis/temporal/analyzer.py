@@ -1,4 +1,8 @@
-"""Temporal analyzer implementation for audio ingestion and beat tracking."""
+"""Temporal analyzer implementation for audio ingestion and beat tracking.
+
+Security Notes:
+- Logs use generic local-audio context and exception types, never source paths.
+"""
 
 from __future__ import annotations
 
@@ -73,7 +77,7 @@ class TemporalAnalyzer:
         if not path.exists() or not path.is_file():
             raise FileNotFoundError(f"Audio file not found: {path_str}")
 
-        logger.info(f"Loading and decoding audio: {path_str}")
+        logger.info("Loading and decoding selected local audio")
 
         try:
             with path.open("rb") as fileobj:
@@ -128,7 +132,11 @@ class TemporalAnalyzer:
 
             bpm_val = float(tempo[0]) if isinstance(tempo, np.ndarray) else float(tempo)
 
-            logger.info(f"Analysis complete: {bpm_val:.1f} BPM, {len(beat_times)} beats detected.")
+            logger.info(
+                "Analysis complete for selected local audio: %.1f BPM, %d beats detected.",
+                bpm_val,
+                len(beat_times),
+            )
 
             return {
                 "bpm": bpm_val,
@@ -140,5 +148,5 @@ class TemporalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Failed to analyze audio {path_str}: {e}")
+            logger.error("Failed to analyze selected local audio: %s", type(e).__name__)
             raise ValueError(f"Temporal analysis failed: {e}") from e
