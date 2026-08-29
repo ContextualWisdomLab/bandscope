@@ -85,7 +85,7 @@ flowchart LR
 | 수동 수정 + provenance | `ManualOverride[]`, `ProvenanceSource = model\|user` | 구현됨 |
 | 내보내기(cue-sheet CSV, chart JSON) | `exports/chart.py`, `src/lib/export.ts` (filename sanitize, CSV escape) | 구현됨 |
 | 악보(score) 보기 | `features/score/ScoreView.tsx`, `ScoreViewer.tsx`, `pdfjs.ts` | 부분구현 (PDF 뷰잉; PDF 바이트 검증은 PR 진행 중, 자동 채보 없음) |
-| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate, PR #1066에서 선택 역할별 section picker를 연결했으나 role-specific stem playback과 protected merge는 미완료) |
+| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate, PR #1066에서 선택 역할별 section picker, PR #1068에서 선택 cue의 수치 start/end 수동 보정을 연결했으나 role-specific stem playback과 protected merge는 미완료) |
 | 협업(assignment/comment/approval) UI | `packages/shared-types` 타입만 존재 | 미구현 (UI 참조 0건; PR 시리즈가 첫 화면 진행 중) |
 | pad/solo/riff/hook/fill/voicing/articulation/dynamics/tuning/capo/vamp 등 plan 필드 | 없음 (shared-types에 미존재) | 미구현 (PR 시리즈가 추가 예정) |
 | 라이선싱/데모곡 first-run | 없음 | 미구현 (PR #1009, Issue #964; diagnostics/privacy boundary는 Issue #963) |
@@ -242,6 +242,20 @@ After the current head completed hosted review, #1067 is `OPEN`, non-draft, `MER
 - The handler only changes the existing validated loop selection and DOM focus; it does not admit file paths, URLs, subprocesses, IPC, WebView, network, model, or export inputs.
 - Movement is bounded at the first and last playable cue, and malformed sections remain excluded by the existing descriptor-snapshot transport resolver.
 - Validation points are keyboard boundary behavior, focus retention, localized shortcut copy, existing aria-pressed semantics, and full repository gates.
+
+### 4.10 2026-08-30 manual cue-boundary correction current-head snapshot
+
+PR #1068 (`feat(player): allow manual cue boundary corrections`) is stacked on #1067 at base `04396d9b4ebfd50ad598ffaf1edb33df3de70840` and current head `9c61a803a7cc951d31015fb22ca275d64f1830f7`. The selected playable cue now exposes accessible whole-second start/end editors. Values are bounded by the shared section limit and must remain ordered; accepted changes immutably update the selected `song.sections[].timeRange`, so the existing Save Project action carries the corrected map into the current project file contract. Invalid edits restore the previous value and expose `aria-invalid` plus localized guidance. The slice does not claim automatic save, a persisted detected-vs-user provenance field, real-device timing, or role-specific stem playback.
+
+Local evidence is targeted RehearsalPlayer `23 passed`, desktop full `263 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The tests cover immutable song-map update, range inversion rejection, localized existing player behavior, role filtering, and keyboard cue navigation. No new file, URL, subprocess, IPC, WebView, network, model, or export boundary is introduced.
+
+At the first hosted snapshot after push, #1068 is `OPEN`, non-draft, `MERGEABLE`, and `CLEAN` with base `codex/player-keyboard-cues-20260830`; GitHub had not yet emitted check-runs or a formal review decision, unresolved review threads were `0`, and no qualifying independent approval existed. This is therefore partial #961 evidence only, not protected merge evidence; re-query the exact head and same-SHA Checks after every push.
+
+#### Security Notes
+
+- The inputs are untrusted UI strings admitted only as safe integer seconds within `0..MAX_SECTION_TIME_SECONDS` and an ordered start/end pair before `onSongUpdate`.
+- The update reuses the existing in-memory song authority and Save Project path; it does not create localStorage, a competing project store, filesystem access, URL intake, subprocesses, IPC, WebView, network, or model behavior.
+- Validation points are boundary-limit rejection, inversion rejection, immutable section update, localized error text, accessible labels/descriptions, and existing full desktop/repository gates.
 
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
