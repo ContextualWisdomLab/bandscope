@@ -1,5 +1,6 @@
 """Tests for the public analysis-engine API helpers."""
 
+import json
 import queue
 import time
 from unittest.mock import patch
@@ -713,6 +714,16 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
 
     with (
         patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
+        patch("bandscope_analysis.api.TemporalAnalyzer") as temporal_analyzer,
+        patch(
+            "bandscope_analysis.api.analyze_tempo_stability",
+            return_value={
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.5,
+                "stability": "steady",
+                "tempo_changes": [],
+            },
+        ),
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
@@ -737,6 +748,10 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             },
             "separation_notes": "Separated selected local audio into 4 canonical stems.",
         }
+        temporal_analyzer.return_value.analyze.return_value = {
+            "bpm": 120.0,
+            "beat_times": [float(index) for index in range(8)],
+        }
 
         updates = list(run_analysis_job_updates("job-cache", payload, "2026-03-12T00:00:00Z"))
 
@@ -752,7 +767,13 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             ("succeeded", "ready", 100),
         ]
         assert updates[-1]["cacheStatus"] == "stored"
-        cache_files = list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))
+        assert updates[-1]["result"]["tempoStability"] == {
+            "bpmMedian": 120.0,
+            "bpmStdev": 0.5,
+            "stability": "steady",
+            "tempoChanges": [],
+        }
+        cache_files = list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
         assert len([path for path in cache_files if not path.name.endswith(".features.json")]) == 1
         assert len([path for path in cache_files if path.name.endswith(".features.json")]) == 1
 
@@ -764,6 +785,8 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     assert cached_updates[-1]["progressStage"] == "ready"
     assert cached_updates[-1]["progressPercent"] == 100
     assert cached_updates[-1]["cacheStatus"] == "hit"
+    assert cached_updates[-1]["result"]["tempoStability"]["stability"] == "steady"
+    temporal_analyzer.return_value.analyze.assert_called_once()
 
 
 def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:
@@ -822,6 +845,14 @@ def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
     ):
         cache_path.write_text(content, encoding="utf-8")
         assert _load_cached_analysis(cache_path) is None
+
+    legacy_result = build_demo_rehearsal_song()
+    cache_path.write_text(
+        json.dumps({"schemaVersion": 1, "source": {}, "result": legacy_result}),
+        encoding="utf-8",
+    )
+    assert "tempoStability" not in legacy_result
+    assert _load_cached_analysis(cache_path) is None
 
 
 def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp_path) -> None:
