@@ -764,6 +764,30 @@ describe("shared type helpers", () => {
     expect(second.collaboration?.assignments).toHaveLength(2);
   });
 
+  it("keeps optional fill plans aligned with Rust project loading", () => {
+    for (const fillPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "fill here\nthen move",
+      "fill here\rthen move",
+      "fill here\u0085then move",
+      "fill here\u2028then move",
+      "fill here\u2029then move"
+    ]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[0]!.fillPlan = fillPlan;
+
+      expect(isRehearsalSong(song)).toBe(false);
+      expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[0].fillPlan");
+    }
+
+    const paddedPlan = createDemoRehearsalSong();
+    paddedPlan.sections[0]!.roles[0]!.fillPlan = "\uFEFF Fill the string \uFEFF";
+    expect(isRehearsalSong(paddedPlan)).toBe(true);
+  });
+
   it("validates and parses rehearsal song payloads", () => {
     const song = createDemoRehearsalSong();
     const malformedSong = createDemoRehearsalSong() as unknown as {

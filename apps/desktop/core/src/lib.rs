@@ -554,12 +554,50 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
     validate_fill_plan(parsed)
 }
 
+/// Mirrors the shared-types plan whitespace policy, including BOM and NEL.
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Reject blank or Unicode line-separated fill guidance without normalizing user text.
+fn is_valid_fill_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
 fn validate_fill_plan(payload: RehearsalSongPayload) -> Result<RehearsalSongPayload, String> {
     for section in &payload.sections {
         for role in &section.roles {
-            if role.fill_plan.as_ref().is_some_and(|fill_plan| {
-                fill_plan.trim().is_empty() || fill_plan.contains('\n') || fill_plan.contains('\r')
-            }) {
+            if role
+                .fill_plan
+                .as_deref()
+                .is_some_and(|fill_plan| !is_valid_fill_plan(fill_plan))
+            {
                 return Err("Invalid project file format".to_string());
             }
         }
@@ -918,13 +956,28 @@ mod tests {
 
     #[test]
     fn project_payload_from_content_rejects_invalid_fill_plan() {
-        for fill_plan in ["", "   ", "fill here\nthen move", "fill here\rthen move"] {
+        for fill_plan in [
+            "",
+            "   ",
+            "\u{FEFF}",
+            "\u{0085}",
+            "fill here\nthen move",
+            "fill here\rthen move",
+            "fill here\u{0085}then move",
+            "fill here\u{2028}then move",
+            "fill here\u{2029}then move",
+        ] {
             let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
             payload["sections"][0]["roles"][0]["fillPlan"] = json!(fill_plan);
             let content = serde_json::to_string(&payload).expect("payload should serialize");
 
             assert!(project_payload_from_content(&content).is_err());
         }
+
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]["roles"][0]["fillPlan"] = json!("\u{FEFF}Fill the string\u{FEFF}");
+        let content = serde_json::to_string(&payload).expect("payload should serialize");
+        assert!(project_payload_from_content(&content).is_ok());
     }
 
     #[test]

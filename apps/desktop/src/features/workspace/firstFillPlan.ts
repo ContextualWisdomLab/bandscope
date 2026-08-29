@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -117,10 +118,10 @@ function ownedFillPlan(role: unknown): string | null {
   if (typeof fillPlan !== "string") {
     return null;
   }
-  const trimmed = fillPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(fillPlan)) {
     return null;
   }
+  const trimmed = fillPlan.trim();
   return truncateCodePoints(trimmed, MAX_FILL_PLAN_CHARACTERS);
 }
 

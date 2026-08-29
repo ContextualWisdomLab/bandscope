@@ -131,6 +131,15 @@ describe("resolveFirstFillPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded fill text", () => {
+    for (const fillPlan of ["Fill\u0085here", "Fill\u2028here", "Fill\u2029here"]) {
+      expect(resolveFirstFillPlan(withFillSection({ fillPlan }))).toBeNull();
+    }
+    expect(resolveFirstFillPlan(withFillSection({ fillPlan: "\uFEFF Fill here \uFEFF" }))?.fillPlan).toBe(
+      "Fill here"
+    );
+  });
+
   it("prefers the earlier of two fill plans", () => {
     const song = withFillSection({
       id: "verse-late",
