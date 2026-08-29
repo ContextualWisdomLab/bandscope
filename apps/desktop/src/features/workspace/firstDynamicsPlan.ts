@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -103,8 +104,8 @@ function ownedDynamicsPlan(role: unknown): string | null {
   if (!isRuntimeObject(role)) return null;
   const dynamicsPlan = ownDataValue(role, "dynamicsPlan");
   if (typeof dynamicsPlan !== "string") return null;
+  if (!isNonEmptySingleLineText(dynamicsPlan)) return null;
   const trimmed = dynamicsPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) return null;
   return truncateCodePoints(trimmed, MAX_DYNAMICS_PLAN_CHARACTERS);
 }
 

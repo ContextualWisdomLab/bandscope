@@ -129,6 +129,15 @@ describe("resolveFirstDynamicsPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded dynamics text", () => {
+    for (const dynamicsPlan of ["Hold\u0085here", "Hold\u2028here", "Hold\u2029here"]) {
+      expect(resolveFirstDynamicsPlan(withDynamicsSection({ dynamicsPlan }))).toBeNull();
+    }
+    expect(resolveFirstDynamicsPlan(withDynamicsSection({ dynamicsPlan: "\uFEFF Hold here \uFEFF" }))?.dynamicsPlan).toBe(
+      "Hold here"
+    );
+  });
+
   it("prefers the earlier of two dynamics plans", () => {
     const song = withDynamicsSection({
       id: "verse-late",
