@@ -602,26 +602,49 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     if not cache_root:
         return None
 
+    digest = _local_audio_cache_digest(request, ANALYSIS_CACHE_SCHEMA_VERSION)
+    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
+
+
+def _local_audio_cache_digest(request: AnalysisJobRequest, schema_version: int) -> str:
+    """Return a schema-scoped digest for a local-audio source."""
     local_source = request["localSource"]
     key_payload = {
-        "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
+        "schemaVersion": schema_version,
         "projectId": request.get("projectId", ""),
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
     }
-    digest = hashlib.sha256(
+    return hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
     """Return metadata + array cache paths for intermediate local-audio features."""
-    analysis_cache_path = _analysis_cache_path(request)
-    if analysis_cache_path is None:
+    cache_root = request.get("cacheRoot")
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
-    stem_cache_base = analysis_cache_path.with_suffix("")
+    digest = _local_audio_cache_digest(request, FEATURE_CACHE_SCHEMA_VERSION)
+    if not cache_root:
+        return None
+    stem_cache_base = Path(cache_root) / "feature-cache-v1" / digest
+    return (
+        stem_cache_base.with_suffix(".json"),
+        stem_cache_base.with_suffix(".npz"),
+    )
+
+
+def _legacy_feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
+    """Return the pre-v2 feature paths so existing reusable stems remain readable."""
+    cache_root = request.get("cacheRoot")
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+    digest = _local_audio_cache_digest(request, FEATURE_CACHE_SCHEMA_VERSION)
+    if not cache_root:
+        return None
+    stem_cache_base = Path(cache_root) / "analysis-cache-v1" / digest
     return (
         stem_cache_base.with_suffix(".features.json"),
         stem_cache_base.with_suffix(".features.npz"),
@@ -1091,6 +1114,11 @@ def run_analysis_job_updates(
         "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
     )
     feature_cache_paths = _feature_cache_paths(request)
+    feature_cache_candidates = tuple(
+        candidate
+        for candidate in (feature_cache_paths, _legacy_feature_cache_paths(request))
+        if candidate is not None
+    )
     updates = [
         _build_job_status(
             job_id=job_id,
@@ -1104,8 +1132,8 @@ def run_analysis_job_updates(
     ]
     audio_features: dict[str, Any] | None = None
     feature_cache_hit = False
-    if feature_cache_paths is not None:
-        cached_features = _load_cached_local_audio_features(*feature_cache_paths)
+    for candidate_paths in feature_cache_candidates:
+        cached_features = _load_cached_local_audio_features(*candidate_paths)
         if cached_features is not None:
             audio_features = cached_features
             feature_cache_hit = True
@@ -1120,6 +1148,7 @@ def run_analysis_job_updates(
                     cache_status=cache_status,
                 )
             )
+            break
 
     if audio_features is None:
         updates.append(
