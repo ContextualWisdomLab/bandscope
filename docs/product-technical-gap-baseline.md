@@ -328,6 +328,22 @@ At the latest exact-head query, #970 was `OPEN`, non-draft, `MERGEABLE`, `BLOCKE
 - Existing Unix read/write bits are retained for replacement data while executable and special bits are removed. The Windows workflow is opt-in by changed persistence paths and inherits the repository checkout-default-branch environment contract; no runtime network, URL, subprocess, IPC, WebView, model, or export boundary is added.
 - Validation points are the complete local Tauri suite, cross-platform case-alias cfg test, executable-bit regression, supply-chain verifier, Windows persistence workflow, and exact-head hosted check/review/approval/thread re-query.
 
+### 4.16 2026-08-30 versioned project-format current-head snapshot
+
+PR #1073 (`feat(project): add versioned project file envelope`) is stacked on PR #970's exact branch base `9b7e3e90c03d775b2cc1181d6aaac2a66c8f1223` at current head `64820be4f840a211ad5f29e7619e61ea83baf72a`. It adds the smallest canonical v1 envelope around the existing compatibility song payload: `projectFormatVersion` is explicit, the current envelope rejects unknown fields, unsupported versions fail closed, legacy raw song files remain readable, and tempo is persisted as an optional typed field. The checked-in golden fixture is `apps/desktop/core/testdata/project-v1.json`; save now emits the envelope through the existing atomic publisher.
+
+This slice deliberately does not claim the complete Issue #962 format. Typed source/derived/decision/handoff/preferences/volatile sections, autosave, backup rotation, migration receipts, rollback UX, and recovery comparison remain follow-up work. No competing player localStorage/session store was added; #961 durable player state must use the canonical project authority after its state machine is stable.
+
+Local evidence at this head is `corepack npm run build --workspace apps/desktop`, core tests `22 passed`, the full Tauri suite (`19` source tests and integration targets `1`, `20`, `20`, `20`, `24`, `21`, `21`, `21`, and `0` platform-excluded tests), Tauri clippy with `-D warnings`, `cargo fmt --all -- --check`, `python3 scripts/checks/verify_supply_chain.py`, the documentation and security-notes verifiers, and `git diff --check`. The first Tauri attempt lacked the generated frontend `dist`; the build was run before the passing final suite and is not a source failure.
+
+At the current hosted snapshot, #1073 was `OPEN`, non-draft, `MERGEABLE`, `UNSTABLE`, with `reviewDecision=null`, qualifying approvals `0`, unresolved review threads `0`, and no emitted check-runs because its base is a non-default stacked branch. This is not protected merge evidence; the branch must be re-queried after its base and hosted gates settle.
+
+#### Security Notes
+
+- Project files and all envelope fields are untrusted; serde `deny_unknown_fields`, explicit version dispatch, bounded existing reads, and fail-closed parse errors prevent silently accepting a changed schema.
+- Persistence continues through the existing safe atomic publisher and bounded filesystem authority; this PR adds no generic path or write API, URL, subprocess, IPC, WebView, network, model, or payload logging boundary.
+- Validation points are the v1 round trip, golden fixture load, unknown-field rejection, unsupported-version rejection, legacy compatibility, tempo preservation, full persistence suite, and exact-head hosted check/review/approval/thread re-query.
+
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
 capability cluster 분류와 착지 후 남는 Gap:
