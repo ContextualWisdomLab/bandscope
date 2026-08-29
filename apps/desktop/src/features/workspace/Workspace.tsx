@@ -5,6 +5,8 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { RangesFeature } from "../ranges";
+import { PlayerFeature } from "../player";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -309,6 +311,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
           </section>
+
+          <div className="grid gap-4 xl:grid-cols-2" data-testid="workspace-rehearsal-surfaces">
+            <RangesFeature title="Ranges" song={song} />
+            <PlayerFeature title="Player" song={song} />
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
