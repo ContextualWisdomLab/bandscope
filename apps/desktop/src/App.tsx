@@ -537,6 +537,12 @@ export function App() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--bandscope-bg)] text-slate-100 selection:bg-cyan-300/30">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-slate-950 focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-white focus:ring-2 focus:ring-cyan-300"
+      >
+        {t("skipToMainContent")}
+      </a>
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(15,120,255,0.22),transparent_28%),radial-gradient(circle_at_78%_0%,rgba(124,58,237,0.20),transparent_30%),linear-gradient(180deg,#07111f_0%,#020713_55%,#020611_100%)]" />
       <div className="pointer-events-none fixed inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:46px_46px]" />
 
@@ -635,7 +641,7 @@ export function App() {
           </div>
         </aside>
 
-        <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
+        <main id="main-content" tabIndex={-1} className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
