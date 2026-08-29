@@ -259,11 +259,11 @@ At the latest hosted snapshot after the focus fix, #1068 is `OPEN`, non-draft, `
 
 ### 4.11 2026-08-30 bounded cue seek current-head snapshot
 
-PR #1069 (`feat(player): add bounded cue seeking`) is stacked on #1068 and current head `8a5160a797ae9f0a360aeb300ed42c35728a71e1`. The selected loop now exposes an accessible range control while the local media clock is looping or paused after count-in. The transport state machine clamps requests to the selected cue and maps an endpoint seek back to the loop start; the existing scoped `<audio>` element and one transport state remain the authorities. Count-in seeking, restart-key binding, durable autosave, real-device timing, and role-specific stem playback remain out of scope.
+PR #1069 (`feat(player): add bounded cue seeking`) is stacked on #1068 at base `81efbe3716632acbbff72626258ef0b09b00fbde` and current head `8a5160a797ae9f0a360aeb300ed42c35728a71e1`. The selected loop now exposes an accessible range control while the local media clock is looping or paused after count-in. The transport state machine clamps requests to the selected cue and maps an endpoint seek back to the loop start; the existing scoped `<audio>` element and one transport state remain the authorities. Count-in seeking, restart-key binding, durable autosave, real-device timing, and role-specific stem playback remain out of scope.
 
 Local evidence is targeted RehearsalPlayer/rehearsalTransport `37 passed`, desktop full `265 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The seek test verifies the actual mocked scoped media clock is updated, while reducer tests cover count-in rejection, lower/upper bounds, and valid in-loop movement. This is mocked media evidence, not real speaker output or real-audio accuracy evidence.
 
-At the hosted snapshot after push, #1069 was `OPEN`, non-draft, with no formal review decision, no qualifying independent approval, and no emitted check-runs yet; its base ref was the #1068 branch. The branch base later advanced to #1068 focus-fix head and must be rechecked before treating the stack as synchronized. This remains partial #961 evidence and is not protected merge evidence.
+At the latest hosted snapshot, #1069 was `OPEN`, non-draft, `MERGEABLE`, and `CLEAN` with the base ref synchronized to #1068's focus-fix head; it had no formal review decision, no qualifying independent approval, and no emitted check-runs yet. This remains partial #961 evidence and is not protected merge evidence.
 
 #### Security Notes
 
