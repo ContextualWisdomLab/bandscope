@@ -76,12 +76,17 @@ function identityNumber(value: unknown): number | null {
 }
 
 /**
- * Build a deterministic identity for the song instance that owns session taps.
+ * Build a stable identity for the song instance that owns session taps.
  *
- * Project identity is preferred when available, then paired with stable musical
- * structure because analysis-engine songs can reuse ids such as `analyzed-song`.
- * Mutable practice progress and collaboration state are deliberately excluded so
- * ordinary same-song rehearsal updates do not erase the player's active tap window.
+ * Project identity is preferred when available. The fallback deliberately uses
+ * only song/form identity fields that the mounted rehearsal editor does not
+ * mutate. Harmony, ranges, groove labels, practice progress, collaboration, and
+ * other editable rehearsal content are excluded so ordinary same-song edits do
+ * not remount TapTempo and erase the player's active tap window.
+ *
+ * Section ids/timing still distinguish same-id analysis results when no project
+ * identity is available, while a title change also represents a different loaded
+ * song for the current local project boundary.
  */
 export function tapTempoSessionKey(song: unknown, projectId: unknown = null): string {
   const projectKey = identityText(projectId);
@@ -95,31 +100,10 @@ export function tapTempoSessionKey(song: unknown, projectId: unknown = null): st
           return null;
         }
         const timeRange = isRuntimeObject(sectionValue.timeRange) ? sectionValue.timeRange : null;
-        const roles = Array.isArray(sectionValue.roles)
-          ? sectionValue.roles.map((roleValue) => {
-              if (!isRuntimeObject(roleValue)) {
-                return null;
-              }
-              const harmony = isRuntimeObject(roleValue.harmony) ? roleValue.harmony : null;
-              const range = isRuntimeObject(roleValue.range) ? roleValue.range : null;
-              return [
-                identityText(roleValue.id),
-                identityText(roleValue.name),
-                identityText(roleValue.roleType),
-                harmony ? identityText(harmony.chord) : "",
-                harmony ? identityText(harmony.functionLabel) : "",
-                range ? identityText(range.lowestNote) : "",
-                range ? identityText(range.highestNote) : ""
-              ];
-            })
-          : [];
         return [
           identityText(sectionValue.id),
-          identityText(sectionValue.label),
-          identityText(sectionValue.groove),
           timeRange ? identityNumber(timeRange.start) : null,
-          timeRange ? identityNumber(timeRange.end) : null,
-          roles
+          timeRange ? identityNumber(timeRange.end) : null
         ];
       })
     : [];
