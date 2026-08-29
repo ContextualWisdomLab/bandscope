@@ -85,7 +85,7 @@ flowchart LR
 | 수동 수정 + provenance | `ManualOverride[]`, `ProvenanceSource = model\|user` | 구현됨 |
 | 내보내기(cue-sheet CSV, chart JSON) | `exports/chart.py`, `src/lib/export.ts` (filename sanitize, CSV escape) | 구현됨 |
 | 악보(score) 보기 | `features/score/ScoreView.tsx`, `ScoreViewer.tsx`, `pdfjs.ts` | 부분구현 (PDF 뷰잉; PDF 바이트 검증은 PR 진행 중, 자동 채보 없음) |
-| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생을 연결했으나 role filter와 protected merge는 미완료) |
+| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate를 연결했으나 role filter와 protected merge는 미완료) |
 | 협업(assignment/comment/approval) UI | `packages/shared-types` 타입만 존재 | 미구현 (UI 참조 0건; PR 시리즈가 첫 화면 진행 중) |
 | pad/solo/riff/hook/fill/voicing/articulation/dynamics/tuning/capo/vamp 등 plan 필드 | 없음 (shared-types에 미존재) | 미구현 (PR 시리즈가 추가 예정) |
 | 라이선싱/데모곡 first-run | 없음 | 미구현 (PR #1009, Issue #964; diagnostics/privacy boundary는 Issue #963) |
@@ -153,15 +153,15 @@ push 직후 동일 head를 다시 조회한 결과 PR은 `OPEN`, `DRAFT`, `MERGE
 
 ### 4.4 2026-08-30 real-audio loop current-head snapshot
 
-PR #1062 (`feat(player): play real audio section loops`)의 current head는 `5187e038bb6ae0918d972a26fe4e3f3b594387eb`이며, base는 stacked branch `feat/rehearsal-player-first-section-loop@7a59047b004faa7a0b584f3d6d68c94889a452d5`이다. Tauri asset protocol은 startup scope를 비워 두고 native file-dialog 또는 validated YouTube-cache 경로의 canonical exact file만 runtime allowlist에 추가한다. `RehearsalPlayer`는 실제 `<audio>` element의 `timeupdate`를 playhead clock으로 사용하고, count-in·pause/resume·scheduled section-boundary restart·localized playback error를 제공한다. PR #971의 timer-only first-section loop보다 구현 경계는 진전됐지만, role filter는 아직 없고 real-device sound-output acceptance도 수행하지 않았다.
+PR #1062 (`feat(player): play real audio section loops`)의 current head는 `949154375304ebef41e03d2e8bfde3ae86a40714`이며, base는 stacked branch `feat/rehearsal-player-first-section-loop@7a59047b004faa7a0b584f3d6d68c94889a452d5`이다. Tauri asset protocol은 startup scope를 비워 두고 native file-dialog 또는 validated YouTube-cache 경로의 canonical exact file만 runtime allowlist에 추가한다. `RehearsalPlayer`는 실제 `<audio>` element의 `timeupdate`를 playhead clock으로 사용하고, count-in·pause/resume·scheduled section-boundary restart·localized playback error를 제공한다. Browser-only source는 loop action과 start를 fail-closed로 비활성화하고, native asset URL 변환 실패는 missing-audio copy와 구분해 playback error를 표시한다. PR #971의 timer-only first-section loop보다 구현 경계는 진전됐지만, role filter는 아직 없고 real-device sound-output acceptance도 수행하지 않았다.
 
-동일 head의 로컬 증적은 desktop frontend `246 passed`와 statements/branches/functions/lines `100%`, Rust core `19 passed`, Tauri `cargo check --locked` 및 binary tests 통과, Vite/lint/typecheck와 docs/security-pattern/supply-chain/GitHub-bootstrap gates 통과다. native media element와 `convertFileSrc`를 검증하는 테스트는 실제 source URL·재생·`timeupdate`·scheduled boundary·long-timer clamp·loop reset을 확인하지만, mocked media 환경이므로 실제 스피커 출력이나 known-take 분석 정확도 gate를 대체하지 않는다.
+동일 head의 로컬 증적은 desktop frontend `249 passed`와 statements/branches/functions/lines `100%`, Vite/lint/typecheck 통과다. native media element와 `convertFileSrc`를 검증하는 테스트는 실제 source URL·재생·`timeupdate`·scheduled boundary·long-timer clamp·loop reset·browser/native source authority를 확인하지만, mocked media 환경이므로 실제 스피커 출력이나 known-take 분석 정확도 gate를 대체하지 않는다.
 
 #### Security Notes
 
 - asset protocol `scope: []`에서 시작하며 generic filesystem IPC, directory scope, arbitrary JS path access를 추가하지 않는다. 선택된 canonical file 하나만 allowlist에 넣는다.
 - media error는 path나 raw metadata를 로그에 남기지 않고 재생을 중지한 뒤 재시도 가능한 localized status를 표시한다.
-- hosted PR 상태는 최종 current-head 조회에서 `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, Devin/CodeRabbit status pass, unresolved thread 0, formal qualifying independent approval 없음이다. CodeRabbit은 stacked non-default base라 review를 skipped했고, 이 base에는 보호된 `develop` required checks의 merge evidence가 없다. 따라서 이 PR은 병합하지 않는다.
+- hosted PR 상태는 current head `949154375304ebef41e03d2e8bfde3ae86a40714`에서 `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, Devin/CodeRabbit status pass, unresolved thread 0, formal qualifying independent approval 없음이다. CodeRabbit은 stacked non-default base라 review를 skipped했고, 이 base에는 보호된 `develop` required checks의 merge evidence가 없다. 따라서 이 PR은 병합하지 않는다.
 
 현재 merge blocker의 권위 있는 설정도 함께 확인했다. active ruleset `18156473`은 `develop`에 승인 1개, review thread resolution, 16개 required status context를 요구한다. branch-protection REST 응답의 `required_approving_review_count=0`보다 ruleset의 더 엄격한 승인 규칙이 우선하므로, `MERGEABLE`만으로 merge-ready라고 판단하지 않는다. 승인·필수 Checks·thread resolution이 모두 현재 head에 대해 충족될 때만 병합한다.
 
@@ -172,6 +172,20 @@ PR #1062 (`feat(player): play real audio section loops`)의 current head는 `518
 - 이 변경은 runtime code, 파일/URL intake, subprocess, IPC, 모델, 로그, export 동작을 변경하지 않고 현재 상태와 traceability만 갱신한다.
 - 근거는 각 PR의 API current head SHA와 동일 SHA의 check-runs/reviews이며, stale/cancelled predecessor run은 성공 증적에서 제외한다.
 - 명령 출력과 문서에는 secret 값이나 raw audio/사용자 경로를 기록하지 않는다.
+
+### 4.5 2026-08-30 bounded rehearsal playback-rate current-head snapshot
+
+PR #1063 (`feat(player): add bounded rehearsal playback rates`)의 current head는 `e517a9875d9eae13113c56d7b2b433ed9a3a7888`이며, base는 stacked branch `codex/real-audio-loop@949154375304ebef41e03d2e8bfde3ae86a40714`이다. 구현은 임의 rate를 허용하지 않고 `0.75x`, `1x`, `1.25x`만 transport 계약으로 허용한다. native `<audio>`의 `playbackRate`에 값을 적용하고, 브라우저가 `preservesPitch`를 노출할 때 true를 유지한다. HTML Standard의 media contract상 `playbackRate=1`은 정상 속도이며 유효 재생 속도는 media clock에 영향을 주므로, count-in beat 간격은 `beatDurationMs(tempo) / playbackRate`, section boundary wall-clock delay는 남은 media seconds를 playback rate로 나눈 값으로 계산하고 rate 변경 시 boundary timer를 재예약한다. source 교체 뒤에도 선택한 rate를 다시 적용한다.
+
+동일 head의 로컬 증적은 desktop frontend `254 passed`와 statements/branches/functions/lines `100%`, Vite/lint/typecheck 통과다. 테스트는 두 non-default rate의 count-in 전환, 재생 중 rate 변경에 따른 boundary 재예약, native media rate/pitch-preservation, source 교체 후 rate 보존을 검증한다. 이는 mocked media clock 증적이며, 실제 오디오 파일의 음질·음정 및 실제 장치별 `preservesPitch` 동작을 보증하지 않는다.
+
+현재 hosted 상태는 current head `e517a9875d9eae13113c56d7b2b433ed9a3a7888`에서 `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, Devin/CodeRabbit status pass, unresolved thread 0이며, CodeRabbit은 stacked non-default base라 review를 skipped했다. formal qualifying independent approval은 없다. 따라서 #1063도 보호된 merge evidence가 충족될 때까지 병합하지 않는다.
+
+#### Security Notes
+
+- 재생 속도는 고정된 세 값만 허용하며, raw path·URL intake·filesystem scope·subprocess·IPC 경계를 추가하지 않는다. 기존 #1062의 exact-file Tauri asset allowlist와 `asset:`/`http://asset.localhost` CSP 범위를 그대로 상속한다.
+- rate 변경은 media element 속성 및 transport timer만 갱신하며, browser-only source와 변환 실패 source는 기존 fail-closed 권한/오류 경계를 유지한다.
+- 검증 지점은 rate 입력의 런타임 검증, count-in/boundary rescheduling, source 변경 cleanup, localized status이며, real-device sound-output와 known-take accuracy는 별도 P0 Gap으로 남긴다.
 
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
@@ -335,7 +349,7 @@ flowchart TD
 
 ## 8. APA 7th 참고문헌 (References)
 
-본 문서에서 실제 인용한 개념(MIR novelty kernel, chord-recognition 연구 맥락, Viterbi 디코딩, 소스 분리 평가, librosa, 접근성 표준)에 한정한다.
+본 문서에서 실제 인용한 개념(MIR novelty kernel, chord-recognition 연구 맥락, Viterbi 디코딩, 소스 분리 평가, librosa, 접근성 표준, HTML media playback contract)에 한정한다.
 
 2026-08-29 최신성 점검: [WCAG 2.2](https://www.w3.org/TR/2024/REC-WCAG22-20241212/)는 W3C Recommendation이며, W3C는 2025년 ISO/IEC 40500:2025 승인 사실과 최신 WCAG 2.2 사용을 안내한다. 보안 개발 수명주기에는 [NIST SSDF 1.1](https://csrc.nist.gov/pubs/sp/800/218/final)을 기준으로 삼고, MIR acceptance 설계에는 [ISMIR 2024 proceedings](https://ismir.net/conferences/ismir-2024/)의 구조 분석·notewise source-separation 평가·다중 stem 연구를 보조 근거로 반영한다. 이 문헌은 기존 휴리스틱을 자동으로 정답으로 취급하지 않으며, 실제 오디오 benchmark와 provenance·재현성 증적을 요구하는 근거로만 사용한다.
 
@@ -372,6 +386,8 @@ Souppaya, M., Scarfone, K., & Dodson, D. (2022). Secure software development fra
 Watcharasupat, K. N., & Lerch, A. (2024). A stem-agnostic single-decoder system for music source separation beyond four stems. In Proceedings of the 25th International Society for Music Information Retrieval Conference (pp. 1051–1059). ISMIR. https://arxiv.org/abs/2406.18747
 
 World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2.2. https://www.w3.org/TR/2024/REC-WCAG22-20241212/
+
+WHATWG. (n.d.). *HTML Standard: Media elements*. Retrieved August 30, 2026, from https://html.spec.whatwg.org/multipage/media.html
 
 참고: 위 항목 중 DOI가 확실치 않은 항목은 DOI 없이 plain APA로 기술했다(조작 금지 원칙). 코드 내 개념 대응: Foote(1999)=checkerboard novelty, Viterbi(1967)=Viterbi 디코딩 알고리즘, Boulanger-Lewandowski et al.(2013)=오디오 화음 인식 연구 맥락(현재 hand-set transition prior 수치의 근거는 아님), Défossez et al.(2019)=Demucs htdemucs, Le Roux et al.(2019)=SI-SDR(audio_separator.py 주석 언급), Müller(2015)/McFee et al.(2015)=섹션/코드/음역 분석 기반 라이브러리. 현재 transition prior 수치의 문헌·교정 데이터 근거가 없는 점은 5장 (c) 및 P2-11의 미해결 Gap으로 유지한다.
 
@@ -418,7 +434,8 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   - `find . -type f \( -path '*/tests/*' -o -path '*/test/*' \) \( -iname '*.wav' -o -iname '*.mp3' \) -not -path './.git/*'` -> 0건(현재 PR checkout에서 test 실오디오 fixture 부재 확인)
   - 2026-08-29 exploratory runtime probe: [Wikimedia Commons CC0 `FurElise.ogg`](https://commons.wikimedia.org/wiki/File:FurElise.ogg), SHA-256 `8deefb57df989a2b53a6bdd3e59813b6c34d61dca666caa39e53fa9597b378e3`, 실제 decoded duration `176.5867573696145`초. `TemporalAnalyzer` -> `147.65625 BPM`, `404` beats, `101` downbeats; `segment_with_boundaries` -> `20` sections; `ChordRecognizer` -> `261` time-segments, mostly `low` confidence. 이는 test fixture가 아니며 CI acceptance로 재사용하지 않는다.
   - 2026-08-30 PR #1059 current-head verification: head `3d2aaa27804bd6113e8e9aee8aff611976698b40`; `./scripts/harness/quickcheck.sh` -> Python `684 passed, 24 skipped`, 100% coverage, desktop `218` tests, shared-types `21` tests, Vite build and repository gates passed. The real click-track probe -> `120.2 BPM`, `15` beats, `steady`, `0` tempo changes. This is a local branch/probe result, not merged-branch or CI real-audio accuracy acceptance.
-  - 2026-08-30 PR #1062 current-head verification: head `5187e038bb6ae0918d972a26fe4e3f3b594387eb`, base `feat/rehearsal-player-first-section-loop@7a59047b004faa7a0b584f3d6d68c94889a452d5`; desktop `246` tests and 100% configured coverage, Rust core `19` tests, Tauri locked check/binary tests, Vite/lint/typecheck and repository security/supply-chain/bootstrap gates passed. The media test verifies `convertFileSrc`, both platform CSP asset origins, actual `<audio>` playback calls, `timeupdate` synchronization, scheduled boundary handling, long-timer clamping, and bounded loop reset under mocked media; it is not real-device sound-output or real-audio accuracy acceptance. Hosted Devin and CodeRabbit statuses were pass, unresolved thread count was 0, and no qualifying independent approval existed at capture.
+  - 2026-08-30 PR #1062 current-head verification: head `949154375304ebef41e03d2e8bfde3ae86a40714`, base `feat/rehearsal-player-first-section-loop@7a59047b004faa7a0b584f3d6d68c94889a452d5`; desktop `249` tests and 100% configured coverage, Vite/lint/typecheck passed. The media test verifies `convertFileSrc`, both platform CSP asset origins, actual `<audio>` playback calls, `timeupdate` synchronization, scheduled boundary handling, long-timer clamping, bounded loop reset, browser-only authority rejection, and native conversion-failure error copy under mocked media; it is not real-device sound-output or real-audio accuracy acceptance. Hosted Devin and CodeRabbit statuses were pass, unresolved thread count was 0, and no qualifying independent approval existed at capture.
+  - 2026-08-30 PR #1063 current-head verification: head `e517a9875d9eae13113c56d7b2b433ed9a3a7888`, base `codex/real-audio-loop@949154375304ebef41e03d2e8bfde3ae86a40714`; desktop `254` tests and 100% configured coverage, Vite/lint/typecheck passed. Tests cover bounded `0.75x/1x/1.25x` input, count-in and boundary timing under non-default rates, active-rate rescheduling, pitch-preservation assignment, and source replacement persistence. Hosted Devin and CodeRabbit statuses were pass, CodeRabbit was skipped for the stacked non-default base, unresolved thread count was 0, and no qualifying independent approval existed. This remains mocked-media evidence, not real-device sound-output or audio-analysis accuracy acceptance.
   - `sed -n '70,110p' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py` -> hand-set transition prior 확인
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
