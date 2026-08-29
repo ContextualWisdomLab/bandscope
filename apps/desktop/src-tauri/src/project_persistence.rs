@@ -290,14 +290,30 @@ fn metadata_is_safe_project_directory(metadata: &fs::Metadata) -> bool {
     metadata.is_dir() && !metadata.file_type().is_symlink()
 }
 
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn trusted_macos_root_alias_target(path: &Path) -> Option<&'static Path> {
+    match path.to_str()? {
+        "/etc" => Some(Path::new("/private/etc")),
+        "/tmp" => Some(Path::new("/private/tmp")),
+        "/var" => Some(Path::new("/private/var")),
+        _ => None,
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn metadata_is_trusted_macos_root_directory_alias(path: &Path, metadata: &fs::Metadata) -> bool {
     use std::os::unix::fs::MetadataExt;
 
+    let Some(expected_target) = trusted_macos_root_alias_target(path) else {
+        return false;
+    };
+
     metadata.file_type().is_symlink()
         && metadata.uid() == 0
         && path.parent() == Some(Path::new("/"))
-        && fs::metadata(path).is_ok_and(|target_metadata| target_metadata.is_dir())
+        && fs::canonicalize(path).is_ok_and(|resolved| resolved == expected_target)
+        && fs::symlink_metadata(expected_target)
+            .is_ok_and(|target_metadata| metadata_is_safe_project_directory(&target_metadata))
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -404,9 +420,9 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// Publishes a selected project only after its complete bounded bytes are staged and synced.
 ///
 /// The selected parent and each lexical ancestor must be a real directory rather than a
-/// symlink/reparse point before any staging artifact is created. On macOS, a root-owned top-level
-/// directory symlink whose resolved target is a directory is treated as trusted OS path
-/// normalization (for example the system `/var` alias); deeper links remain fail-closed. This rejects
+/// symlink/reparse point before any staging artifact is created. On macOS, only the canonical
+/// root-owned `/etc`, `/tmp`, and `/var` aliases are admitted, and each must resolve to its exact
+/// `/private` system directory; arbitrary root-level aliases remain fail-closed. This rejects
 /// user-writable static ancestor-link redirection without breaking normal paths below macOS system
 /// aliases. `File::create_new` makes staging non-clobbering. A new destination first uses a hard link
 /// to the synced staging inode. When that filesystem does not support hard links, Linux uses
@@ -725,7 +741,7 @@ mod tests {
         .expect_err("a path replacement between preflight and open must fail closed");
 
         assert_eq!(error, "Failed to read file");
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("test fixture should be removable");
     }
 
     #[test]
