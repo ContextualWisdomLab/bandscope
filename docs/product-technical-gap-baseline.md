@@ -85,7 +85,7 @@ flowchart LR
 | 수동 수정 + provenance | `ManualOverride[]`, `ProvenanceSource = model\|user` | 구현됨 |
 | 내보내기(cue-sheet CSV, chart JSON) | `exports/chart.py`, `src/lib/export.ts` (filename sanitize, CSV escape) | 구현됨 |
 | 악보(score) 보기 | `features/score/ScoreView.tsx`, `ScoreViewer.tsx`, `pdfjs.ts` | 부분구현 (PDF 뷰잉; PDF 바이트 검증은 PR 진행 중, 자동 채보 없음) |
-| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate, PR #1066에서 선택 역할별 section picker, PR #1068에서 선택 cue의 수치 start/end 수동 보정을 연결했으나 role-specific stem playback과 protected merge는 미완료) |
+| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate, PR #1066에서 선택 역할별 section picker, PR #1068에서 선택 cue의 수치 start/end 수동 보정, PR #1069에서 bounded seek, PR #1071에서 안전한 transport 단축키를 연결했으나 role-specific stem playback과 protected merge는 미완료) |
 | 협업(assignment/comment/approval) UI | `packages/shared-types` 타입만 존재 | 미구현 (UI 참조 0건; PR 시리즈가 첫 화면 진행 중) |
 | pad/solo/riff/hook/fill/voicing/articulation/dynamics/tuning/capo/vamp 등 plan 필드 | 없음 (shared-types에 미존재) | 미구현 (PR 시리즈가 추가 예정) |
 | 라이선싱/데모곡 first-run | 없음 | 미구현 (PR #1009, Issue #964; diagnostics/privacy boundary는 Issue #963) |
@@ -270,6 +270,20 @@ At the latest hosted snapshot, #1069 was `OPEN`, non-draft, `MERGEABLE`, and `CL
 - Seek input is a bounded native range value; the reducer clamps finite values and rejects seeking during count-in before changing the media clock.
 - The change reuses the existing scoped local-audio asset and transport state; it adds no path, URL, subprocess, IPC, WebView, network, model, or export authority.
 - Validation points are count-in rejection, loop-boundary clamping, paused/live seek behavior, media-clock assignment, accessible label/description, and exact-head hosted gate rechecks.
+
+### 4.12 2026-08-30 safe transport keyboard shortcuts current-head snapshot
+
+PR #1071 (`feat(player): add safe transport shortcuts`) is stacked on #1069 at base `8a5160a797ae9f0a360aeb300ed42c35728a71e1` and current head `c37e589150a864cbb4472290c858c1e1ebda0d60`. The rehearsal player now exposes localized visible guidance for Space play/pause and Escape stop. The window handler ignores editable fields and focused interactive controls, and dispatches only the existing bounded transport actions; it does not add a second clock or a new source authority. Restart-key binding, durable autosave, real-device timing, and role-specific stem playback remain out of scope.
+
+Local evidence is targeted RehearsalPlayer `25 passed`, desktop full `266 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The shortcut test verifies that a focused boundary input does not start playback, Space transitions count-in to the loop and pauses it, and Escape resets the selected loop. This is mocked media evidence, not real speaker output or real-audio accuracy evidence.
+
+At the hosted snapshot after push, #1071 was `OPEN`, non-draft, `MERGEABLE`, with merge recalculation `unstable` while stacked refs settled; its base was #1069's exact head, no formal review decision or qualifying independent approval existed, unresolved review threads were `0`, and no check-runs had been emitted. This remains partial #961 evidence and is not protected merge evidence.
+
+#### Security Notes
+
+- Shortcuts are ignored when the event target is editable or interactive, preventing transport actions while typing or operating a focused control.
+- The handler dispatches only existing `start`, `pause`, and `stop` transport transitions; it adds no file, URL, subprocess, IPC, WebView, network, model, or export authority.
+- Validation points are editable-target suppression, unavailable-action behavior, localized shortcut guidance, count-in/pause/stop transitions, and exact-head hosted review/check rechecks.
 
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
