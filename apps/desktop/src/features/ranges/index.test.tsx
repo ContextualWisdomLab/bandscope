@@ -41,7 +41,7 @@ describe("RangesFeature", () => {
     expect(screen.getByText("Density warning: competing with Keyboard Left Hand in low register.")).toBeTruthy();
   });
 
-  it("keeps an id-less named playable role aligned with the first-range callout", () => {
+  it("rejects an id-less role instead of presenting it as a playable card", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
@@ -51,10 +51,8 @@ describe("RangesFeature", () => {
 
     render(<RangesFeature title="Ranges" song={song} />);
 
-    expect(screen.getByTestId("range-card-0-role-0-0")).toHaveTextContent("Bass Guitar");
-    expect(screen.getByTestId("ranges-first-span")).toHaveTextContent(
-      "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
-    );
+    expect(screen.queryByTestId("range-card-0-role-0-0")).toBeNull();
+    expect(screen.getByTestId("ranges-first-span")).not.toHaveTextContent("Bass Guitar sits C#2–E3");
   });
 
   it("rejects inverted spans instead of calling them playable", () => {
