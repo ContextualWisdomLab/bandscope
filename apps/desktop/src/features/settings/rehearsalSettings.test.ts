@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { admittedAudioFormats, settingsNextAction } from "./rehearsalSettings";
+import { admittedAudioFormats, settingsNextAction } from "./settingsModel";
 
 describe("admittedAudioFormats", () => {
   it("keeps the canonical local-audio extensions in first-seen order", () => {
