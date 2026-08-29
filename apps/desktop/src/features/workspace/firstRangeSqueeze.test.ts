@@ -47,7 +47,7 @@ describe("playableRange", () => {
 });
 
 describe("firstRangeSqueeze", () => {
-  it("prefers the first named span that also carries a clash warning", () => {
+  it("returns the first playable span and preserves its clash warning", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong());
 
     expect(squeeze).toEqual({
