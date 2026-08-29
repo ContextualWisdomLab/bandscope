@@ -76,6 +76,22 @@ describe("SectionRoadmap", () => {
     expect(screen.queryByText(/Set the click to/i)).toBeNull();
   });
 
+  it("does not invoke a tempo accessor while deriving the click next action", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const tempoGetter = vi.fn(() => 120);
+    Object.defineProperty(song, "tempo", {
+      configurable: true,
+      enumerable: true,
+      get: tempoGetter
+    });
+
+    render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
+
+    expect(tempoGetter).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Set the click to/i)).toBeNull();
+  });
+
   it("omits the click next action when the section is unlabeled", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
