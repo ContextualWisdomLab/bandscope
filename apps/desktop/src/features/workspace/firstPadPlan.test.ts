@@ -138,6 +138,15 @@ describe("resolveFirstPadPlan", () => {
     ).toBeNull();
   });
 
+  it("skips Unicode line separators and accepts BOM-padded pad text", () => {
+    for (const padPlan of ["Keep\u0085here", "Keep\u2028here", "Keep\u2029here"]) {
+      expect(resolveFirstPadPlan(withPadSection({ padPlan }))).toBeNull();
+    }
+    expect(resolveFirstPadPlan(withPadSection({ padPlan: "\uFEFF Keep here \uFEFF" }))?.padPlan).toBe(
+      "Keep here"
+    );
+  });
+
   it("prefers the earlier of two pad plans", () => {
     const song = withPadSection({
       id: "verse-late-pad",
