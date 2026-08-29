@@ -284,19 +284,54 @@ export function RehearsalPlayer({
       return undefined;
     }
     const loop = transport.loop;
+    let boundaryTimer: number | undefined;
+    /** Cancel the pending media-clock boundary check. */
+    const clearBoundaryTimer = () => {
+      if (boundaryTimer !== undefined) {
+        window.clearTimeout(boundaryTimer);
+        boundaryTimer = undefined;
+      }
+    };
+    /** Restart media at the exact selected section boundary. */
+    const restartLoop = () => {
+      try {
+        audio.currentTime = loop.startSeconds;
+        const playPromise = audio.play();
+        if (playPromise) {
+          void playPromise.catch(handlePlaybackError);
+        }
+      } catch {
+        handlePlaybackError();
+        return;
+      }
+      scheduleLoopBoundary();
+    };
+    /** Schedule a media-clock boundary check and reschedule if timers fire early. */
+    const scheduleLoopBoundary = () => {
+      clearBoundaryTimer();
+      const remainingSeconds = loop.endSeconds - audio.currentTime;
+      if (!Number.isFinite(remainingSeconds)) {
+        return;
+      }
+      if (remainingSeconds <= 0) {
+        restartLoop();
+        return;
+      }
+      boundaryTimer = window.setTimeout(() => {
+        boundaryTimer = undefined;
+        if (audio.currentTime >= loop.endSeconds) {
+          restartLoop();
+        } else {
+          scheduleLoopBoundary();
+        }
+      }, remainingSeconds * 1000);
+    };
     /** Keep the map playhead aligned with the scoped audio element. */
     const syncPlayhead = () => {
       if (audio.currentTime >= loop.endSeconds) {
-        try {
-          audio.currentTime = loop.startSeconds;
-          const playPromise = audio.play();
-          if (playPromise) {
-            void playPromise.catch(handlePlaybackError);
-          }
-        } catch {
-          handlePlaybackError();
-          return;
-        }
+        restartLoop();
+      } else {
+        scheduleLoopBoundary();
       }
       setTransport((current) =>
         reduceRehearsalTransport(current, {
@@ -310,7 +345,9 @@ export function RehearsalPlayer({
     audio.addEventListener("timeupdate", syncPlayhead);
     audio.addEventListener("error", failPlayback);
     audio.addEventListener("ended", failPlayback);
+    scheduleLoopBoundary();
     return () => {
+      clearBoundaryTimer();
       audio.removeEventListener("timeupdate", syncPlayhead);
       audio.removeEventListener("error", failPlayback);
       audio.removeEventListener("ended", failPlayback);

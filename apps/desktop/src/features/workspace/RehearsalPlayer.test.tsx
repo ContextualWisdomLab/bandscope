@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +10,7 @@ const originalTauriInternals = Object.getOwnPropertyDescriptor(
   window,
   "__TAURI_INTERNALS__",
 );
+const tauriConfigPath = resolve(process.cwd(), "src-tauri/tauri.conf.json");
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -31,6 +34,23 @@ describe("RehearsalPlayer", () => {
       delete (window as Window & { __TAURI_INTERNALS__?: unknown })
         .__TAURI_INTERNALS__;
     }
+  });
+
+  it("allows both platform Tauri asset origins in the media CSP", () => {
+    const config = JSON.parse(readFileSync(tauriConfigPath, "utf8")) as {
+      app: { security: { csp: string } };
+    };
+    const mediaDirective = config.app.security.csp
+      .split(";")
+      .find((directive) => directive.trim().startsWith("media-src "));
+    const sources = mediaDirective?.trim().split(/\s+/).slice(1) ?? [];
+
+    expect(sources).toEqual(
+      expect.arrayContaining(["asset:", "http://asset.localhost"]),
+    );
+    expect(sources).not.toContain("*");
+    expect(sources).not.toContain("http:");
+    expect(sources).not.toContain("https:");
   });
 
   it("names the first playable loop and blocks starting before local audio exists", () => {
@@ -216,9 +236,17 @@ describe("RehearsalPlayer", () => {
     Object.defineProperty(audio, "currentTime", {
       configurable: true,
       writable: true,
-      value: 31,
+      value: 29.9,
     });
     fireEvent(audio, new Event("timeupdate"));
+    Object.defineProperty(audio, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 30,
+    });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
     expect(audio.currentTime).toBe(10);
   });
 
