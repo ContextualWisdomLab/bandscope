@@ -94,7 +94,7 @@ flowchart LR
 
 ## 4. 현재 열린 PR 기반 Gap 분석 (Open-PR Gap Analysis)
 
-현재 open PR은 133건이다(2026-08-29 Asia/Seoul 기준 REST inventory). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
+현재 open PR은 134건이다(2026-08-29 Asia/Seoul 기준 REST inventory). 아래 표는 그중 대표적인 PR을 뽑은 snapshot이며, 대부분은 동일 패턴의 시리즈다.
 
 ### 4.1 2026-08-29 exact-head 운영 snapshot
 
@@ -115,6 +115,7 @@ flowchart LR
 | #858 | `f1f5e877f07aa7486cd343ddfe8aa45a9d628bbd` | analysis/cache/temp/project path authority와 redacted logging test 계약 보강; current Checks 31 pass, 1 failure(`opencode-review`), 0 pending; `DRAFT/MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
 | #985 | `33d14e44bf7f41dda51b0ee246f7caae088101b9` | canonical audio resource ceiling을 desktop local/YouTube handoff와 Python defense-in-depth에 연결; current Checks 31 pass, 2 failure, 0 pending; `DRAFT/MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
 | #892 | `914428825a902f538971caf4c6f9f35390219a4d` | decoded WAV C-major acceptance와 silent aliased fixture fail-closed 보강; current Checks 28 pass, 3 failure, 0 pending; `DRAFT/MERGEABLE/BLOCKED`, qualifying independent approval 없음 |
+| #1051 | `d3622b6a21ddf8ab58aa17bb565e803bf5c257ce` | WCAG 2.2 키보드 skip navigation과 focusable main landmark 최소 기준; current Checks 6 pass, 0 failure, 20 pending; `MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
 
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
 
@@ -141,7 +142,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 | E. First-run/activation/실패 복구 (first-run card/license demo song/local intake 실패/import 실패/analysis 실패/save 실패/help) | #974, #1009, #981, #982, #976, #984, #972, #898 | 빈 상태/오류 상태의 next-action 카피 완성 | 라이선싱 백엔드, 데모곡 번들 정책, 오프라인 활성화 |
 | F. 보안/신뢰경계 (log redaction x4, quick-xml RustSec, filesystem authority, canonical audio policy, CSV NUL/전각 우회 차단, credential drop, PDF bound reads, npm baseline) | #956, #951, #950, #949, #948, #858, #985/#781, #941, #894, #865, #783 | app-security.md 규칙의 코드 반영 마무리 | Issue #852(경계 재구축), #542(예외 추적), 모델 artifact checksum/signature 파이프라인 |
 | G. 성능 (Bolt 시리즈: 관측 확률 벡터화, GrooveMap maxTime O(1), chart dedupe O(N), chord change count O(1), checkerboard/HMM 벡터화) | #999, #859, #849, #834, #746, #732 | 핫패스 최적화. Rust 커널 포팅과 같은 방향의 Python 측 보완 | Demucs 가속 admission/parity/performance qualification, 대용량 파일 스트리밍, UI 가상화 |
-| H. 접근성/디자인 시스템 (tooltip aria-disabled, icon tooltip, Storybook tokens, Figma drift check) | #833, #731, #897, #969 | WCAG 대응 시작점 | Issue #965(Figma/Storybook/shipped UI 정합 + WCAG 2.2 AA gate) 전체 |
+| H. 접근성/디자인 시스템 (tooltip aria-disabled, icon tooltip, skip navigation, Storybook tokens, Figma drift check) | #833, #731, #897, #969, #1051 | WCAG 대응 시작점과 키보드 우회 경로 기준선 | Issue #965(Figma/Storybook/shipped UI 정합 + WCAG 2.2 AA gate) 전체 |
 | I. 테스트 현실성 (decoded WAV acceptance, known-take chord recovery, real YouTube known-stem benchmark, branch coverage) | #892, #891, #828, #861 | synthetic fixture에서 실오디오 기반 acceptance로 이동 시작 | Issue #770(실오디오 MIR accuracy benchmark) 체계화, RMSE/SI-SDR 임계값 정책 |
 | J. 의존성/빌드 위생 (react, storybook, base-ui, lucide, sonner, codeql-action, setup-uv, uv group, numba, uuid, time, rust pinning, node floor, orphaned Actions identity) | #920, #942, #922, #921, #926, #927, #924, #931, #936, #919, #918, #754, #944, #896, #895 | 공급망/런타임 최신화 유지 | Dependabot train 정리(Issue #966), jsdom 30 전환 완료 |
 
@@ -167,7 +168,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 (h) **i18n/현지화** — `src/i18n` + `locales/en`, `locales/ko` 존재, 하드코딩 한국어 문자열 미탐지(workspace tsx grep 0건), interpolation hardening PR #744 진행. en/ko 2개 언어뿐이며, PR 시리즈가 추가할 다수의 카피 키가 locales에 아직 없다.
 
-(i) **접근성** — 2026-08-29 current checkout에서 workspace 컴포넌트의 `aria-*` attribute token은 56개였다. WCAG 2.2 AA gate는 Issue #965로 열려 있고, Figma/Storybook/shipped UI 정합 점검도 미완이다. tooltip/a11y PR(#833, #731)이 진행 중.
+(i) **접근성** — 2026-08-29 current checkout에서 workspace 컴포넌트의 `aria-*` attribute token은 56개였다. WCAG 2.2 AA gate는 Issue #965로 열려 있고, Figma/Storybook/shipped UI 정합 점검도 미완이다. tooltip/a11y PR(#833, #731)과 skip navigation 기준선 PR #1051이 진행 중.
 
 (j) **Design token/Storybook** — shadcn/ui 프리미티브 중 stories는 button/checkbox/dialog 3개뿐이고, rehearsal 도메인 컴포넌트(GrooveMap, SectionRoadmap, RoleSwitcher 등) stories는 없다. Storybook token PR #897이 진행 중.
 
@@ -268,7 +269,7 @@ flowchart TD
    - Acceptance: 버전 필드를 가진 프로젝트 포맷, 저장 실패 시 known-good 보존(PRx #970 방향), migration 테스트.
 8. **Demucs 플랫폼 커버리지 + 모델 artifact 검증**
    - Acceptance: x86 macOS 폴백 경로가 명시되고(현재 demucs 미설치 시 불가), CPU-default 경로와 선택 가능한 비-CPU device 경로의 admission/parity/performance 지원 범위가 명문화·검증되며, 모델 checkpoint checksum 검증이 intake pipeline에 있다.
-9. **WCAG 2.2 AA gate (Issue #965) + rehearsal 컴포넌트 Storybook tokens (PR #897)**
+9. **WCAG 2.2 AA gate (Issue #965) + keyboard skip navigation (PR #1051) + rehearsal 컴포넌트 Storybook tokens (PR #897)**
    - Acceptance: axe 기반 자동 점검이 CI에 있고, GrooveMap/SectionRoadmap/RoleSwitcher stories가 token 기반으로 존재한다.
 10. **JS coverage 90% -> 100% 상향 또는 Python과 동일한 기준 명문화**
     - Acceptance: vite.config/vitest thresholds 상향 또는 "Python 100%, JS 90%" 정책이 acceptance-criteria.md에 명시된다.
