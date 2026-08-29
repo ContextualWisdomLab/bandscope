@@ -65,6 +65,73 @@ function median(values: number[]): number {
   return sorted[middle]!;
 }
 
+/** Return a bounded text scalar for a session-identity projection. */
+function identityText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+/** Return a finite numeric scalar for a session-identity projection. */
+function identityNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Build a deterministic identity for the song instance that owns session taps.
+ *
+ * Project identity is preferred when available, then paired with stable musical
+ * structure because analysis-engine songs can reuse ids such as `analyzed-song`.
+ * Mutable practice progress and collaboration state are deliberately excluded so
+ * ordinary same-song rehearsal updates do not erase the player's active tap window.
+ */
+export function tapTempoSessionKey(song: unknown, projectId: unknown = null): string {
+  const projectKey = identityText(projectId);
+  if (!isRuntimeObject(song)) {
+    return JSON.stringify([projectKey, null]);
+  }
+
+  const sections = Array.isArray(song.sections)
+    ? song.sections.map((sectionValue) => {
+        if (!isRuntimeObject(sectionValue)) {
+          return null;
+        }
+        const timeRange = isRuntimeObject(sectionValue.timeRange) ? sectionValue.timeRange : null;
+        const roles = Array.isArray(sectionValue.roles)
+          ? sectionValue.roles.map((roleValue) => {
+              if (!isRuntimeObject(roleValue)) {
+                return null;
+              }
+              const harmony = isRuntimeObject(roleValue.harmony) ? roleValue.harmony : null;
+              const range = isRuntimeObject(roleValue.range) ? roleValue.range : null;
+              return [
+                identityText(roleValue.id),
+                identityText(roleValue.name),
+                identityText(roleValue.roleType),
+                harmony ? identityText(harmony.chord) : "",
+                harmony ? identityText(harmony.functionLabel) : "",
+                range ? identityText(range.lowestNote) : "",
+                range ? identityText(range.highestNote) : ""
+              ];
+            })
+          : [];
+        return [
+          identityText(sectionValue.id),
+          identityText(sectionValue.label),
+          identityText(sectionValue.groove),
+          timeRange ? identityNumber(timeRange.start) : null,
+          timeRange ? identityNumber(timeRange.end) : null,
+          roles
+        ];
+      })
+    : [];
+
+  return JSON.stringify([
+    projectKey,
+    identityText(song.id),
+    identityText(song.title),
+    sections
+  ]);
+}
+
 /**
  * Admit only a finite rehearsal-usable BPM in 20–400.
  *
