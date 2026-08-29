@@ -899,15 +899,18 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
 def test_cached_temporal_features_reject_malformed_payloads(tmp_path) -> None:
     """Ensure temporal cache metadata cannot inject malformed analysis values."""
     assert _coerce_cached_temporal_features(None) is None
-    assert _coerce_cached_temporal_features(
-        {
-            "bpm": 120.0,
-            "beat_times": "not-a-list",
-            "downbeat_times": [0.0],
-            "duration_seconds": 1.0,
-            "sample_rate": 22050,
-        }
-    ) is None
+    assert (
+        _coerce_cached_temporal_features(
+            {
+                "bpm": 120.0,
+                "beat_times": "not-a-list",
+                "downbeat_times": [0.0],
+                "duration_seconds": 1.0,
+                "sample_rate": 22050,
+            }
+        )
+        is None
+    )
 
     metadata_path = tmp_path / "features.json"
     metadata_path.write_text("[]", encoding="utf-8")
