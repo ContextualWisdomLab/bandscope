@@ -6,9 +6,11 @@ import {
   createLoopWindow,
   fillRehearsalCopy,
   formatRehearsalClock,
+  isRehearsalPlaybackRate,
   isPlayableLoopSection,
   nextActionTemplateKey,
   nextActionValues,
+  rehearsalPlaybackRates,
   reduceRehearsalTransport,
   resolveLoopWindow,
   resolveRehearsalTempo,
@@ -78,6 +80,30 @@ describe("rehearsalTransport", () => {
       tempoAssumed: false,
     });
     expect(beatDurationMs(120)).toBe(500);
+  });
+
+  it("keeps playback speed inside the supported media contract", () => {
+    const loop = resolveLoopWindow(createDemoRehearsalSong());
+    const armed = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+
+    expect(rehearsalPlaybackRates()).toEqual([0.75, 1, 1.25]);
+    expect(isRehearsalPlaybackRate(0.75)).toBe(true);
+    expect(isRehearsalPlaybackRate(2)).toBe(false);
+    expect(
+      reduceRehearsalTransport(armed, {
+        type: "set-playback-rate",
+        rate: 0.75,
+      }).playbackRate,
+    ).toBe(0.75);
+    expect(
+      reduceRehearsalTransport(armed, {
+        type: "set-playback-rate",
+        rate: 2 as never,
+      }),
+    ).toBe(armed);
   });
 
   it("counts in four beats then wraps the playhead inside the section", () => {

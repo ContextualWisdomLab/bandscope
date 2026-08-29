@@ -158,6 +158,8 @@
   "workspaceLoopPause": "Pause rehearsal clock",
   "workspaceLoopStop": "Stop and reset rehearsal clock",
   "workspaceLoopAudioError": "Could not play this local audio. Choose the song again and retry.",
+  "workspaceLoopPlaybackRateLabel": "Playback speed",
+  "workspaceLoopPlaybackRateHint": "Pitch stays natural when the audio engine supports it.",
   "workspaceLoopIdle": "Add a section with a start and end time, then loop it here.",
   "workspaceLoopArmedNoAudio": "Map {section} from {start}–{end}. Choose a local song first to start the rehearsal clock.",
   "workspaceLoopArmedWithAudio": "Map {section} from {start}–{end}. Start the count-in to run the rehearsal clock.",

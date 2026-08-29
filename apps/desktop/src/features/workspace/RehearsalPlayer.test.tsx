@@ -10,6 +10,10 @@ const originalTauriInternals = Object.getOwnPropertyDescriptor(
   window,
   "__TAURI_INTERNALS__",
 );
+const originalPreservesPitch = Object.getOwnPropertyDescriptor(
+  HTMLMediaElement.prototype,
+  "preservesPitch",
+);
 const tauriConfigPath = resolve(process.cwd(), "src-tauri/tauri.conf.json");
 const audioSourcePath = "/Users/test/Music/rehearsal.wav";
 
@@ -28,6 +32,11 @@ function installPlayableAudioMocks() {
   });
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  Object.defineProperty(HTMLMediaElement.prototype, "preservesPitch", {
+    configurable: true,
+    writable: true,
+    value: false,
+  });
   const play = vi
     .spyOn(HTMLMediaElement.prototype, "play")
     .mockResolvedValue(undefined);
@@ -48,6 +57,17 @@ describe("RehearsalPlayer", () => {
     } else {
       delete (window as Window & { __TAURI_INTERNALS__?: unknown })
         .__TAURI_INTERNALS__;
+    }
+    if (originalPreservesPitch) {
+      Object.defineProperty(
+        HTMLMediaElement.prototype,
+        "preservesPitch",
+        originalPreservesPitch,
+      );
+    } else {
+      delete (HTMLMediaElement.prototype as HTMLMediaElement & {
+        preservesPitch?: boolean;
+      }).preservesPitch;
     }
   });
 
@@ -321,6 +341,46 @@ describe("RehearsalPlayer", () => {
       expect.any(Function),
       2_147_483_647,
     );
+  });
+
+  it("applies supported playback speed while preserving pitch when available", () => {
+    setNavigatorLanguage("en-US");
+    const { play } = installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+
+    const { rerender } = render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+
+    const audio = screen.getByTestId(
+      "rehearsal-loop-audio",
+    ) as HTMLAudioElement;
+    const rateSelect = screen.getByRole("combobox", {
+      name: /Playback speed/i,
+    }) as HTMLSelectElement;
+    expect(rateSelect.value).toBe("1");
+
+    fireEvent.change(rateSelect, { target: { value: "0.75" } });
+
+    expect(audio.playbackRate).toBe(0.75);
+    expect(audio.preservesPitch).toBe(true);
+    expect(
+      screen.getByText(/Pitch stays natural when the audio engine supports it/i),
+    ).toBeTruthy();
+    expect(play).not.toHaveBeenCalled();
+
+    rerender(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath="/Users/test/Music/second-rehearsal.wav"
+      />,
+    );
+    expect(audio.playbackRate).toBe(0.75);
   });
 
   it("keeps a live loop running across unrelated song metadata updates", () => {

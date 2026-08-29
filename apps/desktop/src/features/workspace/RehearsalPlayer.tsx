@@ -21,6 +21,8 @@ import {
   formatRehearsalClock,
   nextActionTemplateKey,
   nextActionValues,
+  isRehearsalPlaybackRate,
+  rehearsalPlaybackRates,
   reduceRehearsalTransport,
   resolveLoopWindows,
   type RehearsalLoopWindow,
@@ -187,6 +189,21 @@ export function RehearsalPlayer({
       return reduceRehearsalTransport(current, { type: "arm", loop: nextLoop });
     });
   }, [playableLoops, selectedRendererIndex]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    try {
+      audio.playbackRate = transport.playbackRate;
+      if ("preservesPitch" in audio) {
+        audio.preservesPitch = true;
+      }
+    } catch {
+      handlePlaybackError();
+    }
+  }, [audioSourceUrl, handlePlaybackError, transport.playbackRate]);
 
   useEffect(() => {
     if (startNonce <= lastHandledStartNonce.current) {
@@ -420,6 +437,41 @@ export function RehearsalPlayer({
           })}
         </div>
       ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <label className="flex min-h-11 items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
+          <span>{t("workspaceLoopPlaybackRateLabel")}</span>
+          <select
+            aria-describedby="rehearsal-loop-playback-rate-hint"
+            aria-label={t("workspaceLoopPlaybackRateLabel")}
+            className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold normal-case tracking-normal text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            data-testid="rehearsal-loop-playback-rate"
+            value={transport.playbackRate}
+            onChange={(event) => {
+              const nextRate = Number(event.currentTarget.value);
+              if (isRehearsalPlaybackRate(nextRate)) {
+                setTransport((current) =>
+                  reduceRehearsalTransport(current, {
+                    type: "set-playback-rate",
+                    rate: nextRate,
+                  }),
+                );
+              }
+            }}
+          >
+            {rehearsalPlaybackRates().map((rate) => (
+              <option key={rate} value={rate}>
+                {rate}×
+              </option>
+            ))}
+          </select>
+        </label>
+        <p
+          className="text-xs text-slate-400"
+          id="rehearsal-loop-playback-rate-hint"
+        >
+          {t("workspaceLoopPlaybackRateHint")}
+        </p>
+      </div>
       <div
         className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"
         aria-hidden="true"

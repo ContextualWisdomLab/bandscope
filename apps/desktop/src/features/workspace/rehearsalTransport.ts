@@ -8,6 +8,18 @@ const DEFAULT_REHEARSAL_TEMPO_BPM = 120;
 const DEFAULT_COUNT_IN_BEATS = 4;
 const MIN_REHEARSAL_TEMPO_BPM = 30;
 const MAX_REHEARSAL_TEMPO_BPM = 300;
+const DEFAULT_REHEARSAL_PLAYBACK_RATE = 1;
+
+/** Documented playback-rate choices supported by the rehearsal media contract. */
+const REHEARSAL_PLAYBACK_RATES = [0.75, 1, 1.25] as const;
+
+/** Playback-rate value accepted by the rehearsal media contract. */
+export type RehearsalPlaybackRate = (typeof REHEARSAL_PLAYBACK_RATES)[number];
+
+/** Return the supported playback-rate choices for the rehearsal control. */
+export function rehearsalPlaybackRates(): readonly RehearsalPlaybackRate[] {
+  return REHEARSAL_PLAYBACK_RATES;
+}
 
 /** Documented rehearsal transport phases for the first section loop. */
 export type RehearsalTransportPhase =
@@ -30,6 +42,7 @@ export interface RehearsalTransportState {
   loop: RehearsalLoopWindow | null;
   countInRemainingBeats: number;
   playheadSeconds: number;
+  playbackRate: RehearsalPlaybackRate;
 }
 
 /** Discrete transport commands that never inspect the filesystem. */
@@ -39,6 +52,7 @@ export type RehearsalTransportEvent =
   | { type: "beat" }
   | { type: "sync"; playheadSeconds: number }
   | { type: "tick"; deltaSeconds: number }
+  | { type: "set-playback-rate"; rate: RehearsalPlaybackRate }
   | { type: "pause" }
   | { type: "stop" };
 
@@ -52,6 +66,16 @@ type PlayableSectionSnapshot = Readonly<{
 /** Return true only for finite numeric values greater than or equal to zero. */
 export function isFiniteNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/** Return true only for playback rates supported by the rehearsal contract. */
+export function isRehearsalPlaybackRate(
+  value: unknown,
+): value is RehearsalPlaybackRate {
+  return (
+    typeof value === "number" &&
+    REHEARSAL_PLAYBACK_RATES.includes(value as RehearsalPlaybackRate)
+  );
 }
 
 /** Read one own data-property value without activating accessors or Proxy get traps. */
@@ -254,6 +278,7 @@ export function createIdleTransportState(): RehearsalTransportState {
     loop: null,
     countInRemainingBeats: 0,
     playheadSeconds: 0,
+    playbackRate: DEFAULT_REHEARSAL_PLAYBACK_RATE,
   };
 }
 
@@ -286,6 +311,7 @@ export function reduceRehearsalTransport(
         loop: event.loop,
         countInRemainingBeats: event.loop.countInBeats,
         playheadSeconds: event.loop.startSeconds,
+        playbackRate: state.playbackRate,
       };
     }
     case "start": {
@@ -348,6 +374,12 @@ export function reduceRehearsalTransport(
         ),
       };
     }
+    case "set-playback-rate": {
+      if (!isRehearsalPlaybackRate(event.rate)) {
+        return state;
+      }
+      return { ...state, playbackRate: event.rate };
+    }
     case "pause": {
       if (state.phase !== "looping" && state.phase !== "counting-in") {
         return state;
@@ -363,6 +395,7 @@ export function reduceRehearsalTransport(
         loop: state.loop,
         countInRemainingBeats: state.loop.countInBeats,
         playheadSeconds: state.loop.startSeconds,
+        playbackRate: state.playbackRate,
       };
     }
     default:
