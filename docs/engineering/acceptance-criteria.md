@@ -25,6 +25,9 @@ Run the narrowest passing set that covers touched areas, and do not claim succes
 - `npm run test`
 - `npm audit --workspaces --audit-level=high`
 
+The desktop Vitest coverage gate requires 100% lines, functions, branches, and
+statements for its configured source set.
+
 When CI/workflow files, supply-chain controls, or release/security docs are changed, also run:
 
 - `python3 scripts/checks/verify_supply_chain.py`
