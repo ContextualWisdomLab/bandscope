@@ -218,7 +218,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
     const settingsButtons = screen.getAllByRole("button", { name: /See which audio this device can open/i });
-    expect(settingsButtons).toHaveLength(2);
+    expect(settingsButtons).toHaveLength(3);
     for (const settingsButton of settingsButtons) {
       expect(settingsButton).not.toHaveAttribute("aria-disabled");
     }
@@ -1575,11 +1575,16 @@ describe("App", () => {
     render(<App />);
     const settingsButtons = screen.getAllByRole("button", { name: /See which audio this device can open/i });
     const helpButton = screen.getByRole("button", { name: "Help coming soon" });
-    expect(settingsButtons).toHaveLength(2);
+    expect(settingsButtons).toHaveLength(3);
     for (const settingsButton of settingsButtons) {
       expect(settingsButton).not.toHaveAttribute("aria-disabled");
       expect(settingsButton).not.toHaveAttribute("disabled");
     }
+    fireEvent.click(screen.getByRole("button", { name: "See which audio this device can open" }));
+    expect(screen.getByRole("button", { name: "See which audio this device can open" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
     expect(helpButton).toHaveAttribute("aria-disabled", "true");
     expect(helpButton).not.toHaveAttribute("disabled");
   });
