@@ -1,14 +1,18 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { fillRangeCopy, meaningfulRangeText } from "./firstRangeSqueeze";
 
-/** Inclusive lower bound for a rehearsal-usable click tempo. */
-export const MIN_TRUSTED_TEMPO_BPM = 20;
-/** Inclusive upper bound for a rehearsal-usable click tempo. */
-export const MAX_TRUSTED_TEMPO_BPM = 400;
-/** Default count-in length when meter is not present on the song contract. */
-export const DEFAULT_COUNT_IN_BEATS = 4;
-/** Hard ceiling so a malformed beat count cannot schedule unbounded clicks. */
-export const MAX_COUNT_IN_BEATS = 16;
+export /**
+ * Inclusive lower bound for a rehearsal-usable click tempo.
+ */ const MIN_TRUSTED_TEMPO_BPM = 20;
+export /**
+ * Inclusive upper bound for a rehearsal-usable click tempo.
+ */ const MAX_TRUSTED_TEMPO_BPM = 400;
+export /**
+ * Default count-in length when meter is not present on the song contract.
+ */ const DEFAULT_COUNT_IN_BEATS = 4;
+export /**
+ * Hard ceiling so a malformed beat count cannot schedule unbounded clicks.
+ */ const MAX_COUNT_IN_BEATS = 16;
 
 /** Tonight's first audible count-in plan for the ready rehearsal map. */
 export type FirstCountInPlan = {
