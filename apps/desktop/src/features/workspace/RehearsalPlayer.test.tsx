@@ -173,6 +173,10 @@ describe("RehearsalPlayer", () => {
       screen.getByTestId("rehearsal-loop-keyboard-hint"),
     ).toHaveTextContent("Use Left and Right Arrow to move between section cues.");
 
+    chorusButton.focus();
+    fireEvent.keyDown(chorusButton, { key: "ArrowLeft" });
+    expect(verse).toHaveFocus();
+
     fireEvent.keyDown(verse, { key: "ArrowRight" });
     expect(chorusButton).toHaveAttribute("aria-pressed", "true");
     expect(chorusButton).toHaveFocus();

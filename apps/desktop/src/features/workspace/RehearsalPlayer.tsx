@@ -121,13 +121,20 @@ export function RehearsalPlayer({
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
         return;
       }
+      const focusedIndex = Number(event.currentTarget.dataset.loopIndex);
       const selectedIndex = selectedLoop
         ? playableLoops.indexOf(selectedLoop)
         : -1;
+      const currentIndex =
+        Number.isSafeInteger(focusedIndex) &&
+        focusedIndex >= 0 &&
+        focusedIndex < playableLoops.length
+          ? focusedIndex
+          : selectedIndex;
       const nextIndex =
-        selectedIndex + (event.key === "ArrowRight" ? 1 : -1);
+        currentIndex + (event.key === "ArrowRight" ? 1 : -1);
       if (
-        selectedIndex < 0 ||
+        currentIndex < 0 ||
         nextIndex < 0 ||
         nextIndex >= playableLoops.length
       ) {
@@ -509,6 +516,7 @@ export function RehearsalPlayer({
                 variant={selected ? "default" : "outline"}
                 size="sm"
                 id={`rehearsal-loop-section-${selectionKey}-${index}`}
+                data-loop-index={index}
                 aria-pressed={selected}
                 aria-keyshortcuts="ArrowLeft ArrowRight"
                 className={
