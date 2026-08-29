@@ -49,12 +49,12 @@ fn confirmed_existing_project_is_replaced_after_new_bytes_are_staged() {
 }
 
 #[test]
-fn new_project_fails_closed_when_hard_links_are_unsupported() {
+fn new_project_uses_reserved_rename_when_hard_links_are_unsupported() {
     let root = test_dir("no-hard-link");
     let target = root.join("setlist.bscope");
     let content = br#"{\"id\":\"portable-new-save\"}"#;
 
-    let error = project_persistence::publish_new_project_file_with_linker(
+    project_persistence::publish_new_project_file_with_linker(
         &target,
         content,
         |_stage, _target| {
@@ -64,10 +64,21 @@ fn new_project_fails_closed_when_hard_links_are_unsupported() {
             ))
         },
     )
-    .expect_err("a filesystem without hard links must fail before direct publication");
+    .expect("a filesystem without hard links should publish through the reserved rename fallback");
 
-    assert_eq!(error, "Could not publish the project safely.");
-    assert!(!target.exists());
+    assert_eq!(
+        fs::read(&target).expect("fallback-published project should be readable"),
+        content
+    );
+    let names = fs::read_dir(&root)
+        .expect("test directory should be readable")
+        .map(|entry| {
+            entry
+                .expect("directory entry should be readable")
+                .file_name()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(names, vec![target.file_name().unwrap().to_os_string()]);
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
 
