@@ -498,12 +498,12 @@ fn journal_path_name(path: &Path) -> Result<JournalPathName, String> {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
-        return Ok(name.as_bytes().to_vec());
+        Ok(name.as_bytes().to_vec())
     }
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
-        return Ok(name.encode_wide().collect());
+        Ok(name.encode_wide().collect())
     }
 }
 
@@ -512,13 +512,13 @@ fn path_from_journal_name(parent: &Path, name: &JournalPathName) -> Option<PathB
     #[cfg(unix)]
     {
         use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
-        return Some(parent.join(OsStr::from_bytes(name)));
+        Some(parent.join(OsStr::from_bytes(name)))
     }
     #[cfg(windows)]
     {
         use std::ffi::OsString;
         use std::os::windows::ffi::OsStringExt;
-        return Some(parent.join(OsString::from_wide(name)));
+        Some(parent.join(OsString::from_wide(name)))
     }
 }
 
