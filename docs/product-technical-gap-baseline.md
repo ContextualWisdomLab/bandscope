@@ -293,6 +293,8 @@ Local evidence at this head is desktop full `242 passed` across 21 files, statem
 
 At the latest exact-head hosted query, #1070 remains `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, with `reviewDecision=REVIEW_REQUIRED`, unresolved review threads `0`, and qualifying approvals `0`. Repository CI/build/security/SBOM/supply-chain checks are successful, but `noema-review` failed with `request_failed status=413 code=request_too_large`, `strix` failed after the same provider error during gateway preflight, and `opencode-review` failed closed because no authenticated current-head verdict was present. These are external required-gate failures; no source-test failure was identified. This remains partial #961 evidence and is not protected merge evidence until the same SHA has terminal-success gates and a qualifying independent approval.
 
+The same-head rerun of the three provider gates preserved the distinction: Noema again stopped during sidecar preflight after its bounded-body probe, OpenCode again failed closed without an authenticated current-head verdict, and Strix reached healthz plus gateway chat/completions preflight but rejected all four primary OpenRouter `:free` routes with HTTP `429`; its fallback routes were listed as ready, yet the scanner ended with `STRIX_PROVIDER_UNAVAILABLE`. The rerun is therefore stronger evidence of provider capacity/backend unavailability, not a product or security finding, and still cannot be treated as a passing scan.
+
 #### Security Notes
 
 - Raw runtime song tempo and section labels are untrusted at intake; click authority is admitted only after finite 20–400 BPM validation and bounded beat scheduling.
