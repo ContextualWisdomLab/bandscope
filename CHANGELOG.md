@@ -16,6 +16,7 @@
 - Fail closed on malformed known YouTube duration metadata before `download=True`; Boolean, non-numeric, non-finite, zero, negative, and non-canonical numeric-subtype duration evidence can no longer authorize a media download through Python numeric coercion or subclass semantics.
 - Align YouTube download admission with that same 100 MiB encoded-byte ceiling: abort in-flight with yt-dlp `max_filesize` and a progress hook, reject announced oversize before `download=True`, delete owned `.part` / `.ytdl` / `-Frag*` siblings from that import directory on abort, reject a completed path that resolves outside the current import cache before post-download validation, cleanup, or success, and delete owned post-download artifacts that still exceed the policy. A 60 MiB import that the old 50 MB check rejected is now accepted; a file one byte over 100 MiB is not.
 - Bound native stored-score PDF reads to the 25 MiB product limit before heap allocation and revalidate PDF magic on the same opened descriptor, preventing an attached score that later grows from bypassing the local resource boundary.
+- Treat every zero-element NumPy layout as empty chord input, including shapes whose first dimension is non-zero, before feature extraction.
 
 ### Changed
 
