@@ -171,6 +171,37 @@ describe("Workspace", () => {
     ).toMatch(/Choose a local song first/i);
   });
 
+  it("keeps the role loop action unavailable for browser-only audio authority", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      id: "bass-guitar",
+      name: "Bass Guitar",
+    };
+    const browserSourceBootstrap = {
+      ...createLocalSourceBootstrap(),
+      source: {
+        ...createLocalSourceBootstrap().source,
+        sourcePath: "browser://selected-audio",
+      },
+    } satisfies ProjectBootstrapSummary;
+
+    render(
+      <Workspace song={song} sourceBootstrap={browserSourceBootstrap} />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const loopButton = screen.getByRole("button", {
+      name: "Start selected section loop",
+    });
+    expect(loopButton.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(loopButton);
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).not.toMatch(/count in 4 beats/i);
+  });
+
   it("starts the selected section loop from the role action when local audio is available", () => {
     setNavigatorLanguage("en-US");
     installPlayableAudioMocks();
