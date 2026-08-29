@@ -199,6 +199,18 @@ def test_role_extractor_groups_shared_other_stem_landing_for_pickup_plan() -> No
     )
 
 
+def test_role_extractor_does_not_assign_shared_other_pickup_to_specific_role() -> None:
+    """Do not invent a keys or guitar owner when the shared other stem enters."""
+    topologies = _extract_with_activity(
+        [
+            {"bass": True, "vocals": False, "other": False},
+            {"bass": True, "vocals": False, "other": True},
+        ]
+    )
+    for role_id in ("keys-left", "keys-right", "acoustic-guitar"):
+        assert "pickupPlan" not in topologies[1][role_id]
+
+
 def test_role_extractor_keeps_mixed_landings_as_shared_pickup_evidence() -> None:
     """Mixed landing is the pickup evidence, not an ambiguity."""
     topologies = _extract_with_activity(
