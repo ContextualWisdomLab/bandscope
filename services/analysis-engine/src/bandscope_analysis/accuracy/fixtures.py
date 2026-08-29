@@ -9,6 +9,8 @@ import numpy as np
 import soundfile as sf  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
+from bandscope_analysis.accuracy.numeric import is_finite_real
+
 C_MAJOR_LABEL = "C"
 DEFAULT_SAMPLE_RATE = 22_050
 DEFAULT_CLICK_BPM = 120.0
@@ -45,13 +47,9 @@ def render_c_major_triad(
         ValueError: If duration or sample rate is Boolean, non-finite, or not positive,
             or if their derived sample count is non-finite or below one sample.
     """
-    if (
-        isinstance(duration_seconds, bool)
-        or not np.isfinite(duration_seconds)
-        or duration_seconds <= 0
-    ):
+    if not is_finite_real(duration_seconds) or duration_seconds <= 0:
         raise ValueError("duration_seconds must be a finite positive non-Boolean number")
-    if isinstance(sample_rate, bool) or not np.isfinite(sample_rate) or sample_rate <= 0:
+    if not is_finite_real(sample_rate) or sample_rate <= 0:
         raise ValueError("sample_rate must be a finite positive non-Boolean number")
 
     sample_count = _fixture_sample_count(duration_seconds, sample_rate)
@@ -86,15 +84,11 @@ def render_click_track(
             than one sample, or if the click pulse itself is shorter than one
             sample at the requested rate.
     """
-    if isinstance(bpm, bool) or not np.isfinite(bpm) or bpm <= 0:
+    if not is_finite_real(bpm) or bpm <= 0:
         raise ValueError("bpm must be positive, finite, and non-Boolean")
-    if (
-        isinstance(duration_seconds, bool)
-        or not np.isfinite(duration_seconds)
-        or duration_seconds <= 0
-    ):
+    if not is_finite_real(duration_seconds) or duration_seconds <= 0:
         raise ValueError("duration_seconds must be a finite positive non-Boolean number")
-    if isinstance(sample_rate, bool) or not np.isfinite(sample_rate) or sample_rate <= 0:
+    if not is_finite_real(sample_rate) or sample_rate <= 0:
         raise ValueError("sample_rate must be a finite positive non-Boolean number")
 
     sample_count = _fixture_sample_count(duration_seconds, sample_rate)
@@ -146,7 +140,7 @@ def write_pcm_wav(path: Path, audio: NDArray[np.floating], sample_rate: int) -> 
     Raises:
         ValueError: If the sample rate is Boolean, non-finite, or not positive.
     """
-    if isinstance(sample_rate, bool) or not np.isfinite(sample_rate) or sample_rate <= 0:
+    if not is_finite_real(sample_rate) or sample_rate <= 0:
         raise ValueError("sample_rate must be a finite positive non-Boolean number")
     path.parent.mkdir(parents=True, exist_ok=True)
     sf.write(path, np.asarray(audio, dtype=np.float32), sample_rate)

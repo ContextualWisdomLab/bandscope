@@ -10,7 +10,7 @@ import pytest
 from bandscope_analysis.accuracy import evaluate_c_major_pcm, render_c_major_triad
 
 
-@pytest.mark.parametrize("sample_rate", [True, 0, -1, float("nan"), float("inf")])
+@pytest.mark.parametrize("sample_rate", [True, "22050", 0, -1, float("nan"), float("inf")])
 def test_c_major_pcm_rejects_invalid_sample_rate(sample_rate: object) -> None:
     """Invalid rate evidence must fail before production recognition or division."""
     audio = render_c_major_triad(duration_seconds=0.25)

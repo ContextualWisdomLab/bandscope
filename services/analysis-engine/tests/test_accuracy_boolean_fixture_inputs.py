@@ -98,3 +98,20 @@ def test_wav_writer_rejects_boolean_sample_rate(tmp_path: Path) -> None:
             np.zeros(4, dtype=np.float32),
             cast(Any, True),
         )
+
+
+@pytest.mark.parametrize("factory", [render_c_major_triad, render_click_track])
+def test_fixture_rejects_non_numeric_scalar_evidence(factory: Any) -> None:
+    """Non-numeric scalar evidence must use the documented ValueError boundary."""
+    with pytest.raises(ValueError):
+        factory(duration_seconds=cast(Any, "1.0"))
+
+
+def test_wav_writer_rejects_non_numeric_sample_rate(tmp_path: Path) -> None:
+    """A string sample rate must not reach the WAV encoder as implicit input."""
+    with pytest.raises(ValueError, match="sample_rate"):
+        write_pcm_wav(
+            tmp_path / "string-rate.wav",
+            np.zeros(4, dtype=np.float32),
+            cast(Any, "22050"),
+        )

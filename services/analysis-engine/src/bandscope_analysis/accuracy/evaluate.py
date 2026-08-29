@@ -19,6 +19,7 @@ from bandscope_analysis.accuracy.fixtures import (
 )
 from bandscope_analysis.accuracy.manifest import AccuracyCaseReport, build_case_report
 from bandscope_analysis.accuracy.metrics import duration_weighted_chord_recall, tempo_acc1
+from bandscope_analysis.accuracy.numeric import is_finite_real
 from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
 
@@ -56,7 +57,7 @@ def evaluate_c_major_pcm(
         ValueError: If PCM is empty, non-floating, non-finite, not mono, or the
             sample-rate evidence is Boolean, non-finite, or non-positive.
     """
-    if isinstance(sample_rate, bool) or not np.isfinite(sample_rate) or sample_rate <= 0:
+    if not is_finite_real(sample_rate) or sample_rate <= 0:
         raise ValueError("sample_rate must be a finite positive non-Boolean number")
     if (
         not isinstance(audio, np.ndarray)

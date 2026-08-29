@@ -295,6 +295,18 @@ def test_tempo_acc1_rejects_boolean_numeric_evidence(
         tempo_acc1(estimated_bpm, true_bpm, relative_tolerance)  # type: ignore[arg-type]
 
 
+def test_tempo_acc1_rejects_non_numeric_evidence() -> None:
+    """String metric inputs must fail at the accuracy boundary, not in math."""
+    with pytest.raises(ValueError, match="estimated_bpm"):
+        tempo_acc1("120", 120)  # type: ignore[arg-type]
+
+
+def test_duration_weighted_recall_rejects_non_numeric_evidence() -> None:
+    """String timing inputs must fail at the metric boundary, not in math."""
+    with pytest.raises(ValueError, match="annotation times"):
+        duration_weighted_chord_recall([], "C", "0", 1)  # type: ignore[arg-type]
+
+
 def test_parse_case_report_rejects_malformed_payloads() -> None:
     """Manifest parsing must fail closed on missing or mistyped fields."""
     valid = build_case_report(

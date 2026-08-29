@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
+
+from bandscope_analysis.accuracy.numeric import is_finite_real
 
 
 def duration_weighted_chord_recall(
@@ -39,24 +40,14 @@ def duration_weighted_chord_recall(
         ValueError: If annotation or estimate timing is Boolean, non-finite,
             empty, or reversed.
     """
-    if (
-        isinstance(start_seconds, bool)
-        or isinstance(end_seconds, bool)
-        or not math.isfinite(start_seconds)
-        or not math.isfinite(end_seconds)
-    ):
+    if not is_finite_real(start_seconds) or not is_finite_real(end_seconds):
         raise ValueError("annotation times must be finite numbers")
     if end_seconds <= start_seconds:
         raise ValueError("annotation end_seconds must be greater than start_seconds")
 
     matching_intervals: list[tuple[float, float]] = []
     for segment_start, segment_end, chord in segments:
-        if (
-            isinstance(segment_start, bool)
-            or isinstance(segment_end, bool)
-            or not math.isfinite(segment_start)
-            or not math.isfinite(segment_end)
-        ):
+        if not is_finite_real(segment_start) or not is_finite_real(segment_end):
             raise ValueError("segment times must be finite numbers")
         if segment_end <= segment_start:
             raise ValueError("segment end_seconds must be greater than start_seconds")
@@ -108,14 +99,10 @@ def tempo_acc1(
         ValueError: If any metric input is Boolean/non-finite, ``true_bpm`` is
             not positive, or the tolerance is negative.
     """
-    if isinstance(estimated_bpm, bool) or not math.isfinite(estimated_bpm):
+    if not is_finite_real(estimated_bpm):
         raise ValueError("estimated_bpm must be finite")
-    if isinstance(true_bpm, bool) or not math.isfinite(true_bpm) or true_bpm <= 0:
+    if not is_finite_real(true_bpm) or true_bpm <= 0:
         raise ValueError("true_bpm must be finite and positive")
-    if (
-        isinstance(relative_tolerance, bool)
-        or not math.isfinite(relative_tolerance)
-        or relative_tolerance < 0
-    ):
+    if not is_finite_real(relative_tolerance) or relative_tolerance < 0:
         raise ValueError("relative_tolerance must be finite and non-negative")
     return abs(estimated_bpm - true_bpm) / true_bpm <= relative_tolerance
