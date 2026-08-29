@@ -187,6 +187,20 @@ PR #1063 (`feat(player): add bounded rehearsal playback rates`)의 current head�
 - rate 변경은 media element 속성 및 transport timer만 갱신하며, browser-only source와 변환 실패 source는 기존 fail-closed 권한/오류 경계를 유지한다.
 - 검증 지점은 rate 입력의 런타임 검증, count-in/boundary rescheduling, source 변경 cleanup, localized status이며, real-device sound-output와 known-take accuracy는 별도 P0 Gap으로 남긴다.
 
+### 4.6 2026-08-30 bounded accuracy-fixture decode current-head snapshot
+
+PR #1064 (`fix(accuracy): bound fixture decode resources`)는 accuracy acceptance PR #892의 current head `fa2abea4f0063db55490b6f392d28315a975cf59` 위에 쌓은 head `b1ec3efd0d1fce6609603e037941fc0cb8c36f48`이다. checksum staging 전에 fixture bytes를 100 MiB로 제한하고, WAV header에서 채널 수(최대 8), sample rate(최대 192 kHz), decoded duration(최대 15분)을 확인한 뒤 PCM을 할당한다. stat 이후 파일 성장과 header/read 예외도 fail-closed 하며, 이 변경은 synthetic Tier 1 fixture의 자원 경계만 보강한다. known-take/공개 corpus의 음악 정확도나 stem SI-SDR gate를 대신하지 않는다.
+
+동일 head의 local evidence는 targeted accuracy acceptance `42 passed`, full Python `767 passed, 24 skipped`, production statements/branches/functions/lines `100.00%`, Ruff, mypy, docs validator, `git diff --check` 통과다. Full suite 중 기존 macOS Demucs child-process segmentation-fault traceback이 출력됐지만 부모 pytest는 완료됐고, 이 변경 경로의 acceptance 테스트는 성공했다.
+
+현재 hosted 상태는 #1064 current head에서 `OPEN`, non-draft, `MERGEABLE`, `UNSTABLE`, CodeRabbit pass(이 base에서는 review skipped), Devin Review pending, formal `reviewDecision` 없음, unresolved thread 0, qualifying independent approval 없음이다. 따라서 보호된 merge evidence가 충족되기 전에는 병합하지 않는다.
+
+#### Security Notes
+
+- untrusted fixture bytes는 stat/read 상한과 checksum 검증을 통과해야만 temporary staging 및 decode로 진행한다. WAV header의 채널·sample-rate·duration 상한은 decoder allocation 전에 적용한다.
+- 새 network, shell, runtime IPC, WebView, model, dependency authority는 추가하지 않으며, report에는 raw PCM이나 local path를 기록하지 않는다.
+- 검증 지점은 oversized fixture, file-growth race, unreadable header/file, excessive channel/rate/duration, checksum mismatch 및 정상 file-backed C/tempo acceptance다.
+
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
 capability cluster 분류와 착지 후 남는 Gap:
@@ -436,6 +450,7 @@ WHATWG. (n.d.). *HTML Standard: Media elements*. Retrieved August 30, 2026, from
   - 2026-08-30 PR #1059 current-head verification: head `3d2aaa27804bd6113e8e9aee8aff611976698b40`; `./scripts/harness/quickcheck.sh` -> Python `684 passed, 24 skipped`, 100% coverage, desktop `218` tests, shared-types `21` tests, Vite build and repository gates passed. The real click-track probe -> `120.2 BPM`, `15` beats, `steady`, `0` tempo changes. This is a local branch/probe result, not merged-branch or CI real-audio accuracy acceptance.
   - 2026-08-30 PR #1062 current-head verification: head `949154375304ebef41e03d2e8bfde3ae86a40714`, base `feat/rehearsal-player-first-section-loop@7a59047b004faa7a0b584f3d6d68c94889a452d5`; desktop `249` tests and 100% configured coverage, Vite/lint/typecheck passed. The media test verifies `convertFileSrc`, both platform CSP asset origins, actual `<audio>` playback calls, `timeupdate` synchronization, scheduled boundary handling, long-timer clamping, bounded loop reset, browser-only authority rejection, and native conversion-failure error copy under mocked media; it is not real-device sound-output or real-audio accuracy acceptance. Hosted Devin and CodeRabbit statuses were pass, unresolved thread count was 0, and no qualifying independent approval existed at capture.
   - 2026-08-30 PR #1063 current-head verification: head `e517a9875d9eae13113c56d7b2b433ed9a3a7888`, base `codex/real-audio-loop@949154375304ebef41e03d2e8bfde3ae86a40714`; pinned-npm `./scripts/harness/quickcheck.sh` passed with Python `679 passed, 24 skipped` and 100% coverage, desktop `254` tests and 100% configured coverage, shared-types `20` tests and 100% configured coverage, Vite build, and repository gates. Tests cover bounded `0.75x/1x/1.25x` input, count-in and boundary timing under non-default rates, active-rate rescheduling, pitch-preservation assignment, and source replacement persistence. Hosted Devin and CodeRabbit statuses were pass, CodeRabbit was skipped for the stacked non-default base, unresolved thread count was 0, and no qualifying independent approval existed. This remains mocked-media evidence, not real-device sound-output or audio-analysis accuracy acceptance.
+  - 2026-08-30 PR #1064 current-head verification: head `b1ec3efd0d1fce6609603e037941fc0cb8c36f48`, base `cursor/bc-d6780991-1682-480d-b362-be2cddbcd28e-bb43@fa2abea4f0063db55490b6f392d28315a975cf59`; targeted accuracy `42 passed`, full Python `767 passed, 24 skipped`, and production statements/branches/functions/lines `100.00%`. Bounded fixture byte/header validation and fail-closed file-growth/read-error tests pass; this is resource-safety evidence for decoded fixture acceptance, not known-take accuracy or stem SI-SDR evidence. Hosted Devin was pending at capture, CodeRabbit was skipped for the base, unresolved thread count was 0, and no qualifying independent approval existed.
   - `sed -n '70,110p' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py` -> hand-set transition prior 확인
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
