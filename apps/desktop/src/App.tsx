@@ -607,6 +607,21 @@ export function App() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              aria-current={currentView === "settings" ? "page" : undefined}
+              aria-label={`${t("settingsOpenHint")} ${t("compactViewSuffix")}`}
+              title={t("settingsOpenHint")}
+              onClick={() => handleNavSelect("settings")}
+              className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                currentView === "settings"
+                  ? "bg-blue-600/70 text-white"
+                  : "text-slate-200 hover:bg-white/5"
+              }`}
+            >
+              <Settings className="size-4" aria-hidden="true" />
+              {t("settingsOpenHint")}
+            </button>
           </nav>
 
           <div className="mt-auto space-y-5">

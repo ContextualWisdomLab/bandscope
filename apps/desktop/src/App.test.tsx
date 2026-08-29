@@ -217,7 +217,11 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /See which audio this device can open/i })).not.toHaveAttribute("aria-disabled");
+    const settingsButtons = screen.getAllByRole("button", { name: /See which audio this device can open/i });
+    expect(settingsButtons).toHaveLength(2);
+    for (const settingsButton of settingsButtons) {
+      expect(settingsButton).not.toHaveAttribute("aria-disabled");
+    }
     expect(fireEvent.click(screen.getByRole("button", { name: /help coming soon/i }))).toBe(false);
     const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
     const activePrimaryNavButton = within(primaryNav).getByRole("button", { name: "Workspace" });
@@ -1555,10 +1559,13 @@ describe("App", () => {
 
   it("keeps Help coming soon while Settings names the next audio action", () => {
     render(<App />);
-    const settingsButton = screen.getByRole("button", { name: "See which audio this device can open" });
+    const settingsButtons = screen.getAllByRole("button", { name: /See which audio this device can open/i });
     const helpButton = screen.getByRole("button", { name: "Help coming soon" });
-    expect(settingsButton).not.toHaveAttribute("aria-disabled");
-    expect(settingsButton).not.toHaveAttribute("disabled");
+    expect(settingsButtons).toHaveLength(2);
+    for (const settingsButton of settingsButtons) {
+      expect(settingsButton).not.toHaveAttribute("aria-disabled");
+      expect(settingsButton).not.toHaveAttribute("disabled");
+    }
     expect(helpButton).toHaveAttribute("aria-disabled", "true");
     expect(helpButton).not.toHaveAttribute("disabled");
   });
@@ -1567,8 +1574,8 @@ describe("App", () => {
     tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "See which audio this device can open" }));
-    expect(screen.getByRole("button", { name: "See which audio this device can open" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+    expect(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("Tonight's audio")).toBeTruthy();
     expect(screen.getByText(".wav")).toBeTruthy();
     expect(screen.getByText(".m4a")).toBeTruthy();
@@ -1594,7 +1601,7 @@ describe("App", () => {
         expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: "See which audio this device can open" }));
+      fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
       expect(screen.getByText(/Tonight's map is ready/i)).toBeTruthy();
       expect(screen.queryByText(/Song Timeline/i)).toBeNull();
 
