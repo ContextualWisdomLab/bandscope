@@ -128,7 +128,12 @@ def _require_finite_number(value: object) -> float:
     """Return a finite float or fail closed on malformed metadata."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         _raise("non_finite_metadata")
-    number = float(value)
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError) as error:
+        raise AudioResourcePolicyError(
+            "non_finite_metadata", POLICY_MESSAGES["non_finite_metadata"]
+        ) from error
     if not np.isfinite(number):
         _raise("non_finite_metadata")
     return number

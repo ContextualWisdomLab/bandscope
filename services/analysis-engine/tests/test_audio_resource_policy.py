@@ -67,7 +67,7 @@ def test_encoded_file_bytes_reject_empty_payloads() -> None:
 
 @pytest.mark.parametrize(
     "file_size",
-    [-1, 1.5, math.nan, math.inf, -math.inf, True, "12", None],
+    [-1, 1.5, 10**1000, math.nan, math.inf, -math.inf, True, "12", None],
 )
 def test_encoded_file_bytes_reject_malformed_sizes(file_size: object) -> None:
     """Boolean, fractional, non-finite, and non-numeric sizes fail closed."""
