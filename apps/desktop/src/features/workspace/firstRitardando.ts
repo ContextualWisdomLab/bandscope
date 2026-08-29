@@ -38,6 +38,7 @@ type OwnedRitardandoPlan = Readonly<{
   text: string;
   source: RitardandoPlanSource | null;
   guidance: RitardandoPlanGuidance | null;
+  atSeconds: number | null;
 }>;
 
 /** Tonight's first ritardando plan: the earliest corroborated slowing on a named vocal or bass. */
@@ -163,7 +164,8 @@ function boundedGeneratedRitardandoPlan(value: string): OwnedRitardandoPlan | nu
   return {
     text: `${RITARDANDO_PLAN_PREFIX}${fromBpm}${RITARDANDO_PLAN_MIDDLE}${toBpm}${RITARDANDO_PLAN_SUFFIX}`,
     source: "model",
-    guidance: { kind: "tempo", fromBpm, toBpm }
+    guidance: { kind: "tempo", fromBpm, toBpm },
+    atSeconds: null
   };
 }
 
@@ -174,6 +176,7 @@ function ownedRitardandoPlan(role: unknown): OwnedRitardandoPlan | null {
   }
   const ritardandoPlan = ownDataValue(role, "ritardandoPlan");
   const ritardandoPlanSource = ownDataValue(role, "ritardandoPlanSource");
+  const ritardandoPlanAtSeconds = ownDataValue(role, "ritardandoPlanAtSeconds");
   if (typeof ritardandoPlan !== "string") {
     return null;
   }
@@ -190,14 +193,27 @@ function ownedRitardandoPlan(role: unknown): OwnedRitardandoPlan | null {
   if (!isNonEmptySingleLineText(ritardandoPlan)) {
     return null;
   }
+  if (
+    ritardandoPlanAtSeconds !== undefined &&
+    (typeof ritardandoPlanAtSeconds !== "number" ||
+      !Number.isFinite(ritardandoPlanAtSeconds) ||
+      ritardandoPlanAtSeconds < 0 ||
+      ritardandoPlanAtSeconds > MAX_SECTION_TIME_SECONDS)
+  ) {
+    return null;
+  }
   if (ritardandoPlanSource === "model") {
     const trimmed = ritardandoPlan.trim();
-    return boundedGeneratedRitardandoPlan(trimmed);
+    const bounded = boundedGeneratedRitardandoPlan(trimmed);
+    return bounded === null
+      ? null
+      : { ...bounded, atSeconds: (ritardandoPlanAtSeconds as number | undefined) ?? null };
   }
   return {
     text: ritardandoPlan,
     source: ritardandoPlanSource,
-    guidance: null
+    guidance: null,
+    atSeconds: (ritardandoPlanAtSeconds as number | undefined) ?? null
   };
 }
 
@@ -385,7 +401,8 @@ function resolveSafeFirstRitardandoPlan(song: RehearsalSong): FirstRitardandoPla
                   ...metadata,
                   ritardandoPlan: ritardandoPlan.text,
                   ritardandoPlanSource: ritardandoPlan.source,
-                  ritardandoPlanGuidance: ritardandoPlan.guidance
+                  ritardandoPlanGuidance: ritardandoPlan.guidance,
+                  atSeconds: ritardandoPlan.atSeconds
                 }
               ];
         })
@@ -405,7 +422,7 @@ function resolveSafeFirstRitardandoPlan(song: RehearsalSong): FirstRitardandoPla
           ritardandoPlan: landingRole.ritardandoPlan,
           ritardandoPlanSource: landingRole.ritardandoPlanSource,
           ritardandoPlanGuidance: landingRole.ritardandoPlanGuidance,
-          atSeconds: timeRange.start
+          atSeconds: landingRole.atSeconds ?? timeRange.start
         }
       ];
     })

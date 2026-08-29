@@ -145,6 +145,7 @@ export type RehearsalRole = {
   practiceProgress?: number;
   ritardandoPlan?: string;
   ritardandoPlanSource?: ProvenanceSource;
+  ritardandoPlanAtSeconds?: number;
 };
 
 /** Documented. */
@@ -1541,7 +1542,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "transcription",
       "practiceProgress",
       "ritardandoPlan",
-      "ritardandoPlanSource"
+      "ritardandoPlanSource",
+      "ritardandoPlanAtSeconds"
     ],
     path
   );
@@ -1646,6 +1648,21 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.ritardandoPlan !== undefined && value.ritardandoPlanSource === undefined) {
     return invalidField(`${path}.ritardandoPlanSource`);
+  }
+  if (
+    value.ritardandoPlanAtSeconds !== undefined &&
+    (typeof value.ritardandoPlanAtSeconds !== "number" ||
+      !Number.isFinite(value.ritardandoPlanAtSeconds) ||
+      value.ritardandoPlanAtSeconds < 0 ||
+      value.ritardandoPlanAtSeconds > MAX_SECTION_TIME_SECONDS)
+  ) {
+    return invalidField(`${path}.ritardandoPlanAtSeconds`);
+  }
+  if (
+    value.ritardandoPlanAtSeconds !== undefined &&
+    (value.ritardandoPlan === undefined || value.ritardandoPlanSource === undefined)
+  ) {
+    return invalidField(`${path}.ritardandoPlanAtSeconds`);
   }
 
   return null;

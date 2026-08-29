@@ -11,6 +11,7 @@ function withRitardandoSection(
     start?: number;
     end?: number;
     ritardandoPlan?: string;
+    ritardandoPlanAtSeconds?: number;
     source?: "model" | "user";
     label?: "intro" | "verse" | "chorus" | "bridge" | "outro";
     roleId?: string;
@@ -40,6 +41,9 @@ function withRitardandoSection(
     roleType: overrides.roleType ?? (roleId === "lead-vocal" ? "vocal" : "instrument"),
     rehearsalPriority: overrides.priority ?? "high",
     ritardandoPlan: overrides.ritardandoPlan ?? DEMO_RITARDANDO_PLAN,
+    ...(overrides.ritardandoPlanAtSeconds !== undefined
+      ? { ritardandoPlanAtSeconds: overrides.ritardandoPlanAtSeconds }
+      : {}),
     ...(overrides.source ? { ritardandoPlanSource: overrides.source } : { ritardandoPlanSource: "model" as const })
   };
   const current = structuredClone(verse);
@@ -80,6 +84,22 @@ describe("resolveFirstRitardandoPlan", () => {
     expect(formatRitardandoPlanTime(Number.NaN)).toBe("0:00");
     expect(formatRitardandoPlanTime(-4)).toBe("0:00");
   });
+
+  it("uses the detected tempo-change time instead of the section start", () => {
+    const resolved = resolveFirstRitardandoPlan(
+      withRitardandoSection({ start: 10, ritardandoPlanAtSeconds: 12.375 })
+    );
+    expect(resolved?.atSeconds).toBe(12.375);
+  });
+
+  it.each([Number.NaN, -1, 4_294_967_296])(
+    "rejects malformed ritardando-plan timing %s",
+    (ritardandoPlanAtSeconds) => {
+      expect(
+        resolveFirstRitardandoPlan(withRitardandoSection({ ritardandoPlanAtSeconds }))
+      ).toBeNull();
+    }
+  );
 
   it("does not invent a ritardando plan from groove, cue, simplification, overlap, range, chords, function labels, setup notes, transposition plans, or confidence notes", () => {
     const song = withRitardandoSection();

@@ -120,6 +120,7 @@ class RehearsalRolePayload(TypedDict):
     overlapWarnings: list[str]
     ritardandoPlan: NotRequired[str]
     ritardandoPlanSource: NotRequired[Literal["model", "user"]]
+    ritardandoPlanAtSeconds: NotRequired[float]
 
 
 class PartGraphNodePayload(TypedDict):
@@ -462,7 +463,7 @@ def _build_from_pipeline(
         },
     }
     _apply_tempo(song, features)
-    _apply_ritardando(song, mix, sr, features)
+    _apply_ritardando(song, mix, sr, features, boundaries)
     return song
 
 
@@ -560,12 +561,13 @@ def _apply_ritardando(
     mix: Any,
     sr: int,
     audio_features: dict[str, Any] | None,
+    section_boundaries: list[tuple[float, float]] | None = None,
 ) -> None:
     """Stamp tonight's first ritardando from existing tempo-stability changes."""
     beat_times = _coerce_beat_times(audio_features)
     if beat_times is None:
         beat_times = derive_beat_times(mix, sr)
-    apply_ritardando_plan(song, beat_times)
+    apply_ritardando_plan(song, beat_times, section_boundaries)
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:

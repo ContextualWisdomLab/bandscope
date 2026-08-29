@@ -54,7 +54,8 @@ fn song_with_ritardando_plan() -> Value {
                         }],
                         "practiceProgress": 50,
                         "ritardandoPlan": "Ease this part from 120 BPM into 80 BPM; let the next downbeat land later.",
-                        "ritardandoPlanSource": "model"
+                        "ritardandoPlanSource": "model",
+                        "ritardandoPlanAtSeconds": 12.375
                     }
                 ],
                 "partGraph": [
@@ -92,6 +93,10 @@ fn project_contract_round_trips_ritardando_plan_provenance() {
     assert_eq!(
         serialized["sections"][0]["roles"][0]["ritardandoPlanSource"],
         json!("model")
+    );
+    assert_eq!(
+        serialized["sections"][0]["roles"][0]["ritardandoPlanAtSeconds"],
+        json!(12.375)
     );
 }
 
@@ -177,4 +182,15 @@ fn project_contract_rejects_unknown_ritardando_plan_source() {
         project_payload_from_content(&content).is_err(),
         "native persisted contract must reject provenance outside model/user"
     );
+}
+
+#[test]
+fn project_contract_rejects_invalid_ritardando_plan_timing() {
+    for time in [-1.0, 4_294_967_296.0] {
+        let mut payload = song_with_ritardando_plan();
+        payload["sections"][0]["roles"][0]["ritardandoPlanAtSeconds"] = json!(time);
+        let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+        assert!(project_payload_from_content(&content).is_err());
+    }
 }

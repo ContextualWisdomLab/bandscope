@@ -238,6 +238,8 @@ pub struct RehearsalRolePayload {
     ritardando_plan: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     ritardando_plan_source: Option<RitardandoPlanSourcePayload>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ritardando_plan_at_seconds: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -609,6 +611,8 @@ fn is_valid_ritardando_plan(value: &str) -> bool {
     has_non_whitespace
 }
 
+const MAX_SECTION_TIME_SECONDS: f64 = 4_294_967_295.0;
+
 fn validate_ritardando_plan_provenance(
     payload: RehearsalSongPayload,
 ) -> Result<RehearsalSongPayload, String> {
@@ -625,6 +629,16 @@ fn validate_ritardando_plan_provenance(
                 return Err("Invalid project file format".to_string());
             }
             if role.ritardando_plan.is_some() && role.ritardando_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.ritardando_plan_at_seconds.is_some_and(|time| {
+                !time.is_finite() || time < 0.0 || time > MAX_SECTION_TIME_SECONDS
+            }) {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.ritardando_plan_at_seconds.is_some()
+                && (role.ritardando_plan.is_none() || role.ritardando_plan_source.is_none())
+            {
                 return Err("Invalid project file format".to_string());
             }
         }

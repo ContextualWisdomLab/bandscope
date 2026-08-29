@@ -162,6 +162,9 @@ def test_apply_stamps_highest_priority_named_vocal() -> None:
     keys = next(role for role in song["sections"][0]["roles"] if role["id"] == "keys-right")
     assert vocal["ritardandoPlan"] == _RIT_PLAN
     assert vocal["ritardandoPlanSource"] == "model"
+    change = first_ritardando(analyze_tempo_stability(_beats_120_to_80())["tempo_changes"])
+    assert change is not None
+    assert vocal["ritardandoPlanAtSeconds"] == change["time"]
     assert "ritardandoPlan" not in bass
     assert "ritardandoPlan" not in keys
 
@@ -240,6 +243,11 @@ def test_apply_fails_closed_on_malformed_song_topology() -> None:
     """Malformed sections, ranges, and graph nodes never invent a rit."""
     apply_ritardando_plan({"sections": "nope"}, _beats_120_to_80())
     apply_ritardando_plan({"sections": [{"timeRange": "nope", "roles": []}]}, _beats_120_to_80())
+    apply_ritardando_plan(
+        _song_with_section(),
+        _beats_120_to_80(),
+        [(0.0,)],  # type: ignore[list-item]
+    )
     song = _song_with_section()
     song["sections"][0]["timeRange"] = {"start": True, "end": 16}
     apply_ritardando_plan(song, _beats_120_to_80())
@@ -364,6 +372,23 @@ def test_coerce_beat_times_and_pipeline_stamp(monkeypatch: pytest.MonkeyPatch) -
     unnamed = _song_with_section()
     _apply_ritardando(unnamed, np.zeros(0, dtype=np.float32), 22050, {"beat_times": "nope"})
     assert all("ritardandoPlan" not in role for role in unnamed["sections"][0]["roles"])
+
+
+def test_pipeline_uses_unrounded_boundaries_for_ritardando_section() -> None:
+    """A fractional structural boundary must not be truncated before section selection."""
+    earlier = _song_with_section(start=0, end=7)
+    later = _song_with_section(start=7, end=20)
+    song = earlier
+    song["sections"].extend(later["sections"])
+
+    apply_ritardando_plan(song, _beats_120_to_80(), [(0.0, 7.9), (7.9, 20.0)])
+
+    earlier_vocal = next(
+        role for role in song["sections"][0]["roles"] if role["id"] == "lead-vocal"
+    )
+    later_vocal = next(role for role in song["sections"][1]["roles"] if role["id"] == "lead-vocal")
+    assert earlier_vocal["ritardandoPlan"] == _RIT_PLAN
+    assert "ritardandoPlan" not in later_vocal
 
 
 def test_pipeline_stamps_ritardando_from_provided_beat_times() -> None:

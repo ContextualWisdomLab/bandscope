@@ -85,6 +85,7 @@ class RehearsalRole(TypedDict):
     overlapWarnings: list[str]
     ritardandoPlan: NotRequired[str]
     ritardandoPlanSource: NotRequired[Literal["model", "user"]]
+    ritardandoPlanAtSeconds: NotRequired[float]
 
 
 class PartGraphNode(TypedDict):

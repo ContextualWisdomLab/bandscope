@@ -13,6 +13,24 @@ describe("ritardandoPlan provenance", () => {
     expect(parseRehearsalSong(song).sections[0]!.roles[0]!.ritardandoPlanSource).toBe(source);
   });
 
+  it("round-trips the precise tempo-change time", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = DEMO_RITARDANDO_PLAN;
+    role.ritardandoPlanSource = "model";
+    role.ritardandoPlanAtSeconds = 12.375;
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.ritardandoPlanAtSeconds).toBe(12.375);
+  });
+
+  it.each([Number.NaN, -1, 4_294_967_296])("rejects invalid ritardando-plan timing %s", (time) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = DEMO_RITARDANDO_PLAN;
+    role.ritardandoPlanSource = "model";
+    role.ritardandoPlanAtSeconds = time;
+    expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlanAtSeconds/);
+  });
+
   it("rejects an unknown ritardando plan source", () => {
     const song = createDemoRehearsalSong();
     const role = song.sections[0]!.roles[0]!;
