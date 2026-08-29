@@ -51,7 +51,7 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
 
   const runtimeSong: unknown = song;
   const sections =
-    typeof runtimeSong === "object" && !Array.isArray(runtimeSong) && Array.isArray((runtimeSong as { sections?: unknown }).sections)
+    typeof runtimeSong === "object" && runtimeSong !== null && !Array.isArray(runtimeSong) && Array.isArray((runtimeSong as { sections?: unknown }).sections)
       ? (runtimeSong as { sections: unknown[] }).sections
       : [];
 
