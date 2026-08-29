@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type FocusEvent,
   type KeyboardEvent,
   type ReactElement,
@@ -547,6 +548,34 @@ export function RehearsalPlayer({
     },
     [onSongUpdate, selectedLoop, song],
   );
+  const canSeek =
+    transport.loop !== null &&
+    hasPlayableAudio &&
+    (transport.phase === "looping" ||
+      (transport.phase === "paused" && transport.countInRemainingBeats === 0));
+  const handleSeek = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      if (!canSeek || !transport.loop || !audioSourceUrl) {
+        return;
+      }
+      const nextTransport = reduceRehearsalTransport(transport, {
+        type: "seek",
+        playheadSeconds: Number(event.currentTarget.value),
+      });
+      try {
+        const audio = audioRef.current;
+        if (!audio) {
+          return;
+        }
+        audio.currentTime = nextTransport.playheadSeconds;
+        setPlaybackError(false);
+        setTransport(nextTransport);
+      } catch {
+        handlePlaybackError();
+      }
+    },
+    [audioSourceUrl, canSeek, handlePlaybackError, transport],
+  );
 
   return (
     <section
@@ -727,6 +756,31 @@ export function RehearsalPlayer({
         {formatRehearsalClock(transport.playheadSeconds)} /{" "}
         {formatRehearsalClock(transport.loop?.endSeconds ?? 0)}
       </p>
+      <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <label
+          className="flex flex-col gap-2 text-xs font-semibold text-slate-300"
+          htmlFor="rehearsal-loop-seek"
+        >
+          <span>{t("workspaceLoopSeekLabel")}</span>
+          <input
+            aria-describedby="rehearsal-loop-seek-hint"
+            aria-disabled={!canSeek}
+            className="accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="rehearsal-loop-seek"
+            disabled={!canSeek}
+            id="rehearsal-loop-seek"
+            max={transport.loop?.endSeconds ?? 0}
+            min={transport.loop?.startSeconds ?? 0}
+            onChange={handleSeek}
+            step={0.1}
+            type="range"
+            value={transport.playheadSeconds}
+          />
+        </label>
+        <p className="mt-2 text-xs text-slate-400" id="rehearsal-loop-seek-hint">
+          {t("workspaceLoopSeekHint")}
+        </p>
+      </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           type="button"

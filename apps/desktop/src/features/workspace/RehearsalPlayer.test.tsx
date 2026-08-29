@@ -464,6 +464,32 @@ describe("RehearsalPlayer", () => {
     expect(audio.currentTime).toBe(10);
   });
 
+  it("seeks the scoped media clock within a live loop", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+
+    const audio = screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement;
+    fireEvent.click(screen.getByRole("button", { name: /Start the count-in/i }));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    const seek = screen.getByRole("slider", { name: "Seek within this cue" });
+    fireEvent.change(seek, { target: { value: "18.5" } });
+
+    expect(audio.currentTime).toBe(18.5);
+    expect(seek).toHaveValue("18.5");
+  });
+
   it("caps long media boundary timers before the browser timeout limit", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
