@@ -21,6 +21,7 @@
 - Fail closed when a selected `.bscope` path changes file identity between preflight and handle acquisition; Windows opens reparse points without following them and compares native volume serial plus file-index identity across the acquisition boundary.
 - Refuse last-component symlink following during Linux/macOS project handle acquisition and make that acquisition non-blocking so a preflight-to-open path swap cannot redirect the loader or stall it on a special file.
 - Preserve first-save crash safety on filesystems without hard-link support by publishing the fully synced staging file with an OS-native atomic no-replace rename, so a crash cannot leave an empty reserved final path.
+- Reject a stale existing-project replacement when the selected target changes file identity while replacement bytes are staged; native exchange/backup publication restores the competing target instead of clobbering it.
 
 ## [0.1.3] - 2026-04-29
 
@@ -64,9 +65,9 @@
 - Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
 - Issue #40: Enforced 100% Python docstring and test coverage
 - Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Implemented secure local audio intake and project bootstrap
+- Issue #33: Engineered section, form, and cue anchor extraction pipeline
 - Issue #35: Engineered section, form, and cue anchor extraction pipeline
-- Issue #34: Implemented role extraction targets and part graph
+- Issue #34: Added role extraction targets and part graph
 - Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
 - Issue #28: Delivered practical rehearsal workspace UI
 - Issue #27: Supported manual overrides, provenance tracking, and local project persistence
