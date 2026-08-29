@@ -123,9 +123,18 @@ export function RehearsalPlayer({
     playableLoops.find((loop) => loopSelectionKey(loop) === selectedLoopKey) ??
     playableLoops[0] ??
     null;
+  const selectedBoundaryKey = selectedLoop ? loopSelectionKey(selectedLoop) : null;
+  const [boundaryDraft, setBoundaryDraft] = useState(() => ({
+    end: selectedLoop ? String(selectedLoop.endSeconds) : "",
+    start: selectedLoop ? String(selectedLoop.startSeconds) : "",
+  }));
   useEffect(() => {
     setBoundaryError(false);
-  }, [selectedLoopKey]);
+    setBoundaryDraft({
+      end: selectedLoop ? String(selectedLoop.endSeconds) : "",
+      start: selectedLoop ? String(selectedLoop.startSeconds) : "",
+    });
+  }, [selectedBoundaryKey, selectedLoop?.endSeconds, selectedLoop?.startSeconds]);
   const handleSectionKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
@@ -497,11 +506,14 @@ export function RehearsalPlayer({
           ? value < selectedLoop.endSeconds
           : value > selectedLoop.startSeconds);
       if (!valid) {
-        event.currentTarget.value = String(
+        const currentValue =
           boundary === "start"
             ? selectedLoop.startSeconds
-            : selectedLoop.endSeconds,
-        );
+            : selectedLoop.endSeconds;
+        setBoundaryDraft((current) => ({
+          ...current,
+          [boundary]: String(currentValue),
+        }));
         setBoundaryError(true);
         return;
       }
@@ -512,6 +524,10 @@ export function RehearsalPlayer({
           ? selectedLoop.startSeconds
           : selectedLoop.endSeconds;
       if (value === currentValue) {
+        setBoundaryDraft((current) => ({
+          ...current,
+          [boundary]: String(currentValue),
+        }));
         return;
       }
 
@@ -542,6 +558,10 @@ export function RehearsalPlayer({
         boundary === "start"
           ? { ...selectedLoop, startSeconds: value }
           : { ...selectedLoop, endSeconds: value };
+      setBoundaryDraft((current) => ({
+        ...current,
+        [boundary]: String(value),
+      }));
       setSelectedLoopKey(loopSelectionKey(nextLoop));
       onSongUpdate(nextSong);
     },
@@ -624,7 +644,6 @@ export function RehearsalPlayer({
       ) : null}
       {selectedLoop && onSongUpdate ? (
         <div
-          key={loopSelectionKey(selectedLoop)}
           className="mt-3 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.06] p-3"
           data-testid="rehearsal-loop-boundary-editor"
         >
@@ -651,13 +670,17 @@ export function RehearsalPlayer({
                 aria-describedby="rehearsal-loop-boundary-hint"
                 aria-invalid={boundaryError}
                 className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                defaultValue={selectedLoop.startSeconds}
                 id="rehearsal-loop-boundary-start"
                 max={MAX_SECTION_TIME_SECONDS}
                 min={0}
                 onBlur={(event) => handleBoundaryBlur("start", event)}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setBoundaryDraft((current) => ({ ...current, start: value }));
+                }}
                 step={1}
                 type="number"
+                value={boundaryDraft.start}
               />
             </label>
             <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs font-semibold text-slate-300">
@@ -666,13 +689,17 @@ export function RehearsalPlayer({
                 aria-describedby="rehearsal-loop-boundary-hint"
                 aria-invalid={boundaryError}
                 className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                defaultValue={selectedLoop.endSeconds}
                 id="rehearsal-loop-boundary-end"
                 max={MAX_SECTION_TIME_SECONDS}
                 min={0}
                 onBlur={(event) => handleBoundaryBlur("end", event)}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setBoundaryDraft((current) => ({ ...current, end: value }));
+                }}
                 step={1}
                 type="number"
+                value={boundaryDraft.end}
               />
             </label>
           </div>
