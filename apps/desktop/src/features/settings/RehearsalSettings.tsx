@@ -56,7 +56,7 @@ export function RehearsalSettings({ disabled, songReady, onChooseAudio, onOpenMa
           </p>
           <Button
             type="button"
-            disabled={disabled}
+            disabled={disabled && action === "choose-audio"}
             className="mt-4 min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
             onClick={action === "choose-audio" ? onChooseAudio : onOpenMap}
           >

@@ -63,4 +63,10 @@ describe("RehearsalSettings", () => {
 
     expect(screen.getByRole("button", { name: /Choose a supported file/i })).toBeDisabled();
   });
+
+  it("keeps the ready map action available while another import is busy", () => {
+    render(<RehearsalSettings disabled={true} songReady={true} onChooseAudio={() => undefined} onOpenMap={() => undefined} />);
+
+    expect(screen.getByRole("button", { name: /Open tonight's rehearsal map/i })).toBeEnabled();
+  });
 });
