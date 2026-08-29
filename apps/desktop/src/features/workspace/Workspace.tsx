@@ -76,8 +76,9 @@ function actionableOverlapWarnings(values: readonly string[]): string[] {
   const seen = new Set<string>();
   for (const value of values) {
     const normalized = actionableGuidanceText(value);
-    if (normalized && !seen.has(normalized)) {
-      seen.add(normalized);
+    const dedupeKey = normalized?.toLowerCase();
+    if (normalized && dedupeKey && !seen.has(dedupeKey)) {
+      seen.add(dedupeKey);
       warnings.push(normalized);
     }
   }

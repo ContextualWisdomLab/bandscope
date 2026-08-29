@@ -233,6 +233,7 @@ describe("Workspace", () => {
         " ",
         "  Leave the pickup to the lead vocal.  ",
         "Leave the pickup to the lead vocal.",
+        "LEAVE THE PICKUP TO THE LEAD VOCAL.",
         "NONE",
         "Double only after the chorus entrance."
       ]
