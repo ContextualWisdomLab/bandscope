@@ -109,12 +109,10 @@ export function RehearsalPlayer({
     }
     setTransport((current) => {
       const selectedLoop = playableLoops[selectedRendererIndex] ?? null;
-      const armed = current.loop
-        ? current
-        : reduceRehearsalTransport(current, {
-            type: "arm",
-            loop: selectedLoop,
-          });
+      const armed = reduceRehearsalTransport(current, {
+        type: "arm",
+        loop: selectedLoop,
+      });
       return reduceRehearsalTransport(armed, { type: "start" });
     });
   }, [startNonce, hasLocalAudio, playableLoops, selectedRendererIndex]);

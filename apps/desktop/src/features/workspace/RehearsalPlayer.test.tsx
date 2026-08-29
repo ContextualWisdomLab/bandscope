@@ -215,6 +215,33 @@ describe("RehearsalPlayer", () => {
     expect(startButton.disabled).toBe(false);
   });
 
+  it("restarts a paused loop from an external section-start request", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const song = createDemoRehearsalSong();
+    const { rerender } = render(
+      <RehearsalPlayer song={song} hasLocalAudio={true} startNonce={0} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Pause/i }));
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/paused/i);
+
+    rerender(
+      <RehearsalPlayer song={song} hasLocalAudio={true} startNonce={1} />,
+    );
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats/i);
+  });
+
   it("does not restart the count-in when section selection changes under the same start nonce", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
