@@ -118,7 +118,7 @@ flowchart LR
 | #858 | `f1f5e877f07aa7486cd343ddfe8aa45a9d628bbd` | analysis/cache/temp/project path authority와 redacted logging test 계약 보강; required `opencode-review` failure, `DRAFT/MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
 | #985 | `33d14e44bf7f41dda51b0ee246f7caae088101b9` | canonical audio resource ceiling을 desktop local/YouTube handoff와 Python defense-in-depth에 연결; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
 | #892 | `fa2abea4f0063db55490b6f392d28315a975cf59` | decoded WAV C-major acceptance와 silent aliased fixture fail-closed 보강; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
-| #891 | `9220af2921438cb51a290ab4e4314e2fd321671d` | known-take verse/chorus chord recovery acceptance; required checks pass, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #891 | `9220af2921438cb51a290ab4e4314e2fd321671d` | dry synthetic C→G/G→C two-section chord-recovery accuracy lock; real-master evidence가 아니며 required `opencode-review` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
 | #866 | `505a595d481f8ba03abd8d13e7c17202918c833f` | canonical local-audio resource policy; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `CHANGES_REQUESTED`, qualifying independent approval 없음 |
 
 ### 4.2 2026-08-30 tempo-stability current-head snapshot
