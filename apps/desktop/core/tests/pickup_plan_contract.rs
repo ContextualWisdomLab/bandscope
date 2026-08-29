@@ -118,13 +118,45 @@ fn project_contract_rejects_pickup_plan_without_source() {
 
 #[test]
 fn project_contract_rejects_invalid_pickup_plan_copy() {
-    for pickup_plan in ["", "   ", "land here\nthen hold", "land here\rthen hold"] {
+    for pickup_plan in [
+        "",
+        "   ",
+        "\u{0009}",
+        "\u{000B}",
+        "\u{000C}",
+        "\u{000D}",
+        "\u{0085}",
+        "\u{00A0}",
+        "\u{1680}",
+        "\u{2000}",
+        "\u{200A}",
+        "\u{2028}",
+        "\u{2029}",
+        "\u{202F}",
+        "\u{205F}",
+        "\u{3000}",
+        "\u{FEFF}",
+        "land here\nthen hold",
+        "land here\rthen hold",
+        "land here\u{0085}then hold",
+        "land here\u{2028}then hold",
+        "land here\u{2029}then hold",
+    ] {
         let mut payload = song_with_pickup_plan();
         payload["sections"][0]["roles"][0]["pickupPlan"] = json!(pickup_plan);
         let content = serde_json::to_string(&payload).expect("fixture should serialize");
 
         assert!(project_payload_from_content(&content).is_err());
     }
+}
+
+#[test]
+fn project_contract_accepts_unicode_padded_single_line_pickup_plan() {
+    let mut payload = song_with_pickup_plan();
+    payload["sections"][0]["roles"][0]["pickupPlan"] = json!("\u{FEFF} Land the downbeat \u{3000}");
+    let content = serde_json::to_string(&payload).expect("fixture should serialize");
+
+    assert!(project_payload_from_content(&content).is_ok());
 }
 
 #[test]

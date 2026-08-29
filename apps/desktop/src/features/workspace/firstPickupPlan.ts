@@ -1,6 +1,7 @@
 import {
   MAX_SECTION_TIME_SECONDS,
   SECTION_FORM_LABELS,
+  isNonEmptySingleLineText,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -168,10 +169,10 @@ function ownedPickupPlan(role: unknown): OwnedPickupPlan | null {
   if (pickupPlanSource === undefined) {
     return null;
   }
-  const trimmed = pickupPlan.trim();
-  if (trimmed.length === 0 || trimmed.includes("\n") || trimmed.includes("\r")) {
+  if (!isNonEmptySingleLineText(pickupPlan)) {
     return null;
   }
+  const trimmed = pickupPlan.trim();
   if (pickupPlanSource === "model") {
     const generatedPlan = boundedGeneratedPickupPlan(trimmed);
     if (generatedPlan !== null) {

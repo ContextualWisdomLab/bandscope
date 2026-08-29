@@ -580,6 +580,41 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
     validate_pickup_plan_provenance(parsed)
 }
 
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Mirrors shared-types plan validation without normalizing persisted text.
+fn is_valid_pickup_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
 fn validate_pickup_plan_provenance(
     payload: RehearsalSongPayload,
 ) -> Result<RehearsalSongPayload, String> {
@@ -591,11 +626,11 @@ fn validate_pickup_plan_provenance(
             {
                 return Err("Invalid project file format".to_string());
             }
-            if role.pickup_plan.as_ref().is_some_and(|pickup_plan| {
-                pickup_plan.trim().is_empty()
-                    || pickup_plan.contains('\n')
-                    || pickup_plan.contains('\r')
-            }) {
+            if role
+                .pickup_plan
+                .as_deref()
+                .is_some_and(|pickup_plan| !is_valid_pickup_plan(pickup_plan))
+            {
                 return Err("Invalid project file format".to_string());
             }
             if role.pickup_plan.is_none() && role.pickup_plan_source.is_some() {

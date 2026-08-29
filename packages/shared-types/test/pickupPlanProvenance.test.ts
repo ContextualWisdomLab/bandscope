@@ -37,15 +37,44 @@ describe("pickup plan provenance", () => {
     expect(() => parseRehearsalSong(song)).toThrow(/pickupPlanSource/);
   });
 
-  it.each(["", " \t ", "first line\nsecond line", "first line\rsecond line"])(
-    "rejects persisted pickup plans that the native loader cannot safely accept: %j",
-    (pickupPlan) => {
-      const song = createDemoRehearsalSong();
-      const role = song.sections[0]!.roles[0]!;
-      role.pickupPlan = pickupPlan;
-      role.pickupPlanSource = "model";
+  it.each([
+    "",
+    " \t ",
+    "\u0009",
+    "\u000b",
+    "\u000c",
+    "\u000d",
+    "\u0085",
+    "\u00a0",
+    "\u1680",
+    "\u2000",
+    "\u200a",
+    "\u2028",
+    "\u2029",
+    "\u202f",
+    "\u205f",
+    "\u3000",
+    "\ufeff",
+    "first line\nsecond line",
+    "first line\rsecond line",
+    "first line\u0085second line",
+    "first line\u2028second line",
+    "first line\u2029second line"
+  ])("rejects blank or multi-line persisted pickup plans: %j", (pickupPlan) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.pickupPlan = pickupPlan;
+    role.pickupPlanSource = "model";
 
-      expect(() => parseRehearsalSong(song)).toThrow(/pickupPlan/);
-    }
-  );
+    expect(() => parseRehearsalSong(song)).toThrow(/pickupPlan/);
+  });
+
+  it("accepts Unicode-padded single-line pickup plans", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.pickupPlan = "\ufeff Land the downbeat \u3000";
+    role.pickupPlanSource = "model";
+
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.pickupPlan).toBe(role.pickupPlan);
+  });
 });
