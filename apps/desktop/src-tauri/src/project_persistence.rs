@@ -504,6 +504,7 @@ pub(crate) fn replace_existing_project_file(
     let candidate = project_file_identity(stage)?;
     let backup = staging_path(target)?;
     if replace_file_with_backup(target, stage, &backup).is_err() {
+        remove_stage(stage);
         return Err(PROJECT_PUBLISH_ERROR.to_string());
     }
 
