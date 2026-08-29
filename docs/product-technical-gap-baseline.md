@@ -299,7 +299,21 @@ At the immediate post-push hosted snapshot, #1070 was `OPEN`, non-draft, `MERGEA
 - The only new runtime boundary is the in-process Web Audio oscillator graph; missing audio hosts, malformed plans, and unavailable tempo fail closed without logging paths or payloads.
 - Validation points are bounded scheduling, stop/replay cleanup, keyboard/focus-safe control behavior, localized fallback copy, and exact-head hosted gate rechecks.
 
-### 4.14 2026-08-30 project persistence current-head snapshot
+### 4.14 2026-08-30 tap-tempo current-head snapshot
+
+PR #1072 (`feat(workspace): tap a session tempo when the song has none`) is on the protected `develop` base `749511c3ad4000090048718f685c6bee6b3d2c25` at current head `31d854162004b76ad6749607f9ae811668d82ae1`. It offers a session-only four-tap median tempo for songs without a finite positive stored tempo, bounds the tap window and interval spread, resets after a long pause, and preserves taps only across the mounted workspace's supported immutable song edits. It does not write `song.tempo`, create localStorage, or compete with the canonical project persistence authority in #962.
+
+Local evidence at this head is desktop full `230 passed` across 20 files with statements/branches/functions/lines `100.00%`, desktop ESLint, TypeScript typecheck, and `git diff --check`. The preceding hosted head exposed a macOS case-insensitive module collision between `TapTempo.tsx` and `tapTempo.ts`, plus the repository's exported-constant JSDoc placement and an unused identity argument. The current head renames the component to `TapTempoPanel.tsx`, applies the existing lint-compatible JSDoc form, removes the unused argument, and changes no dependency or runtime trust boundary.
+
+At the immediate post-push hosted snapshot, #1072 was `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, with `reviewDecision=REVIEW_REQUIRED`, unresolved review threads `0`, and qualifying approvals `0`; 2 checks were in progress and 19 were queued. This remains partial #961 evidence and is not protected merge evidence until the same SHA has terminal-success gates and a qualifying independent approval.
+
+#### Security Notes
+
+- Runtime tempo values and tap timestamps are untrusted; finite timestamps, monotonic ordering, bounded history, and 20–400 BPM output are enforced.
+- Tap state remains in React memory and the component is keyed by loaded-song object identity; no project file, path, URL, subprocess, IPC, WebView, network, model, or log payload is added.
+- Validation points are long-gap reset, backwards-clock rejection, median/spread bounds, same-id replacement reset, supported-edit preservation, accessible controls, and exact-head hosted gate rechecks.
+
+### 4.15 2026-08-30 project persistence current-head snapshot
 
 PR #970 (`fix(project): stage saves before atomic publication`) is on the protected `develop` base `749511c3ad4000090048718f685c6bee6b3d2c25` at current head `9b7e3e90c03d775b2cc1181d6aaac2a66c8f1223`. The slice stages and syncs bounded project bytes before publication, preserves an existing known-good target across replacement races, fails closed for symlink/reparse and unsafe ancestor paths, and adds durable target-scoped recovery. The latest follow-up also sets the Windows workflow checkout environment required by the supply-chain verifier, derives recovery names from the canonical full target path with a bounded dual key, accepts a case alias only when it resolves to the same regular file, strips executable/special Unix permission bits from project data, recognizes completed rollback after an interrupted cleanup, and runs all persistence integration tests in the Windows workflow. Global startup recovery, backup rotation, versioned migration, and descriptor-bound parent authority remain Issue #962 follow-up scope.
 
