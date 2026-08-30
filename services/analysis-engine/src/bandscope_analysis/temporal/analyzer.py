@@ -95,7 +95,7 @@ class TemporalAnalyzer:
                         policy_rejection_message("encoded_file_too_large"),
                     )
 
-                preflight_audio_metadata(fileobj)
+                preflight_audio_metadata(path)
 
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
@@ -114,7 +114,7 @@ class TemporalAnalyzer:
                         )
                     # Load audio, converting to mono and standardizing sample rate
                     y, sr = librosa.load(
-                        fileobj,
+                        path,
                         sr=TARGET_SR,
                         mono=True,
                         duration=MAX_ANALYSIS_DURATION_SECONDS,

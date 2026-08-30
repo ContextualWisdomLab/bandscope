@@ -96,3 +96,84 @@ def test_preflight_maps_rewind_failures_to_payload_free_policy_error(mock_info: 
 
     assert error.value.reason == "malformed_header"
     assert "rewind failed" not in error.value.message
+
+
+def test_path_preflight_uses_local_decoder_metadata_for_compressed_containers(
+    tmp_path,
+) -> None:
+    """Path-backed M4A metadata should use the existing local decoder fallback."""
+    source = tmp_path / "rehearsal.m4a"
+    source.write_bytes(b"container")
+    descriptor = SimpleNamespace(duration=1.0, samplerate=44_100, channels=2)
+
+    with (
+        patch(
+            "bandscope_analysis.audio_metadata.soundfile.info",
+            side_effect=RuntimeError("container unsupported by libsndfile"),
+        ),
+        patch("bandscope_analysis.audio_metadata.audioread.audio_open") as audio_open,
+    ):
+        audio_open.return_value.__enter__.return_value = descriptor
+        preflight_audio_metadata(source)
+
+    audio_open.assert_called_once_with(str(source))
+
+
+def test_path_preflight_rejects_when_compressed_metadata_fallback_fails(tmp_path) -> None:
+    """Unavailable compressed-container metadata must fail closed without decoder detail."""
+    source = tmp_path / "unreadable.m4a"
+    source.write_bytes(b"container")
+
+    with (
+        patch(
+            "bandscope_analysis.audio_metadata.soundfile.info",
+            side_effect=RuntimeError("container unsupported by libsndfile"),
+        ),
+        patch(
+            "bandscope_analysis.audio_metadata.audioread.audio_open",
+            side_effect=RuntimeError("decoder detail"),
+        ),
+    ):
+        with pytest.raises(AudioResourcePolicyError) as error:
+            preflight_audio_metadata(source)
+
+    assert error.value.reason == "malformed_header"
+    assert "decoder detail" not in error.value.message
+
+
+def test_path_preflight_uses_libsndfile_metadata_when_available(tmp_path) -> None:
+    """Supported path containers should retain the bounded libsndfile probe."""
+    source = tmp_path / "rehearsal.wav"
+    source.write_bytes(b"container")
+
+    with (
+        patch(
+            "bandscope_analysis.audio_metadata.soundfile.info",
+            return_value=_info(),
+        ) as soundfile_info,
+        patch("bandscope_analysis.audio_metadata.audioread.audio_open") as audio_open,
+    ):
+        preflight_audio_metadata(source)
+
+    soundfile_info.assert_called_once_with(source)
+    audio_open.assert_not_called()
+
+
+def test_path_preflight_preserves_policy_errors_from_decoder_metadata(tmp_path) -> None:
+    """Compressed metadata that violates policy must keep its stable reason code."""
+    source = tmp_path / "surround.m4a"
+    source.write_bytes(b"container")
+    descriptor = SimpleNamespace(duration=1.0, samplerate=44_100, channels=3)
+
+    with (
+        patch(
+            "bandscope_analysis.audio_metadata.soundfile.info",
+            side_effect=RuntimeError("container unsupported by libsndfile"),
+        ),
+        patch("bandscope_analysis.audio_metadata.audioread.audio_open") as audio_open,
+    ):
+        audio_open.return_value.__enter__.return_value = descriptor
+        with pytest.raises(AudioResourcePolicyError) as error:
+            preflight_audio_metadata(source)
+
+    assert error.value.reason == "channel_count_unsupported"

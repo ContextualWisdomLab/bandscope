@@ -45,6 +45,11 @@ Audit metadata records `policy_version` and `reason` on
 5. Feature DSP (chromagram hop, pYIN 22 050 Hz, Demucs split) runs only on an
    admitted buffer.
 
+Path-backed temporal and separation intake keeps the path form for librosa's
+existing audioread fallback, so an M4A container that libsndfile cannot inspect
+can still be admitted from local decoder metadata. File-like stem bytes retain
+the libsndfile metadata contract.
+
 ## Consumers
 
 - `bandscope_analysis.audio_resource_policy` — versioned policy and validators
@@ -66,19 +71,22 @@ canonical validators and the old silent caps on the same branch.
 
 ## Security Notes
 
-- Attack surface: untrusted local files, YouTube containers, decoder output,
+- Attack surface: untrusted local files, YouTube containers, local decoder
+  fallback processes, decoder output,
   and caller-supplied NumPy arrays.
 - Trust boundary: this policy classifies resources only. It does not open
   files, follow paths, or talk to the network.
 - Mitigations: checked integer products, fail-closed non-finite metadata,
-  payload-free copy, decoded revalidation after untrusted headers.
+  payload-free copy, decoded revalidation after untrusted headers, and the
+  existing fixed audioread decoder path only for already-resolved local files.
 - Test points: inclusive ceilings, next-byte/next-millisecond rejections,
   empty and malformed metadata, decoded expansion, overflow, provenance.
 - Realistic threats: decompression bombs, huge channel counts, extreme
   sampling rates, integer overflow in size conversions, inconsistent
   feature-local caps that fail only after expensive work.
-- Remaining risk: duration still requires a decoder; GPU/VRAM budgets are not
-  part of policy version 1.
+- Remaining risk: compressed-container preflight depends on an available local
+  decoder and duration still requires decoder metadata; GPU/VRAM budgets are
+  not part of policy version 1.
 
 ## References
 

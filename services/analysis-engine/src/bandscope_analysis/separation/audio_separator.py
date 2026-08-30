@@ -206,7 +206,7 @@ class AudioStemSeparator:
                         policy_rejection_message("encoded_file_too_large"),
                     )
 
-                preflight_audio_metadata(fileobj)
+                preflight_audio_metadata(path)
 
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
@@ -221,7 +221,7 @@ class AudioStemSeparator:
                             module=module,
                         )
                     y, sr = librosa.load(
-                        fileobj,
+                        path,
                         sr=self.config.target_sample_rate,
                         mono=True,
                         duration=self.config.max_duration_seconds,
