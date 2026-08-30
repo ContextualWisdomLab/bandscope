@@ -122,7 +122,11 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_rehearsal_meter",
+        skip_serializing_if = "Option::is_none"
+    )]
     meter: Option<RehearsalMeterPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
@@ -166,6 +170,17 @@ impl<'de> Deserialize<'de> for RehearsalMeterPayload {
             beat_type: raw.beat_type,
         })
     }
+}
+
+fn deserialize_optional_rehearsal_meter<'de, D>(
+    deserializer: D,
+) -> Result<Option<RehearsalMeterPayload>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<RehearsalMeterPayload>::deserialize(deserializer)?
+        .map(Some)
+        .ok_or_else(|| serde::de::Error::custom("meter must be an object when present"))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -881,6 +896,7 @@ mod tests {
             json!({ "beats": 17, "beatType": 4 }),
             json!({ "beats": 4, "beatType": 3 }),
             json!({ "beats": 4, "beatType": 4, "confidence": "high" }),
+            Value::Null,
         ] {
             let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
             payload["meter"] = meter;
