@@ -196,6 +196,67 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first score check and the next Score action", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.scoreAttachments = [
+      { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" }
+    ];
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-score-check");
+    expect(callout).toHaveTextContent("Tonight's first score check");
+    expect(callout).toHaveTextContent(
+      "Open opener.pdf in Score and check Bass Guitar's C#2–E3 in verse against the page before the verse."
+    );
+  });
+
+  it("asks the player to add a score when no trusted attachment exists", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-score-check")).toHaveTextContent(
+      "Add a score in Score, or check tonight's first range by ear before the first section."
+    );
+  });
+
+  it("asks the player to mark the range on the page when the score is attached without a span", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.scoreAttachments = [
+      { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" }
+    ];
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      range: { lowestNote: "", highestNote: "none" },
+      overlapWarnings: []
+    }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-score-check")).toHaveTextContent(
+      "Open opener.pdf in Score and mark tonight's first range on the page."
+    );
+  });
+
+  it("limits the score-check range to the selected role", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.scoreAttachments = [
+      { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" }
+    ];
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-score-check")).toHaveTextContent(
+      "Open opener.pdf in Score and check Lead Vocal's G#3–C#5 in verse against the page before the verse."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
