@@ -41,18 +41,22 @@ describe("isTrustedCodaLabel", () => {
 });
 
 describe("firstNamedSectionLabel", () => {
-  it("returns the first meaningful section label and isolates malformed entries", () => {
-    const song = createDemoRehearsalSong();
-    expect(firstNamedSectionLabel(song)).toBe("verse");
-
-    song.sections[0]!.label = " none ";
-    expect(firstNamedSectionLabel(song)).toBe(song.sections[1]?.label);
+  it("returns the last meaningful section label and isolates malformed entries", () => {
+    expect(
+      firstNamedSectionLabel({
+        sections: [
+          { label: "intro" },
+          { label: " none " },
+          null,
+          { label: "outro" },
+          { label: "  " }
+        ]
+      })
+    ).toBe("outro");
 
     expect(firstNamedSectionLabel(null)).toBeUndefined();
     expect(firstNamedSectionLabel({ sections: "nope" })).toBeUndefined();
-    expect(
-      firstNamedSectionLabel({ sections: [null, "x", { label: "  " }, { label: "chorus" }] })
-    ).toBe("chorus");
+    expect(firstNamedSectionLabel({ sections: [null, "x", { label: "  " }] })).toBeUndefined();
   });
 });
 
@@ -60,7 +64,7 @@ describe("firstCodaPlan", () => {
   it("builds a Coda jump plan from the demo song", () => {
     expect(firstCodaPlan(createDemoRehearsalSong())).toEqual({
       label: "Coda",
-      sectionLabel: "verse"
+      sectionLabel: "outro"
     });
   });
 
