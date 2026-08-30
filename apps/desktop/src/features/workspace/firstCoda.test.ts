@@ -3,9 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   fillCodaCopy,
   firstCodaPlan,
-  firstNamedSectionLabel,
   isTrustedCodaLabel,
-  MAX_CODA_LABEL_LENGTH,
+  lastNamedSectionLabel,
   trustedCoda
 } from "./firstCoda";
 
@@ -26,7 +25,6 @@ describe("trustedCoda", () => {
     expect(trustedCoda({ text: "Coda" })).toBeNull();
     expect(trustedCoda(null)).toBeNull();
     expect(trustedCoda("Coda")).toBeNull();
-    expect(MAX_CODA_LABEL_LENGTH).toBe(6);
   });
 });
 
@@ -40,10 +38,10 @@ describe("isTrustedCodaLabel", () => {
   });
 });
 
-describe("firstNamedSectionLabel", () => {
+describe("lastNamedSectionLabel", () => {
   it("returns the last meaningful section label and isolates malformed entries", () => {
     expect(
-      firstNamedSectionLabel({
+      lastNamedSectionLabel({
         sections: [
           { label: "intro" },
           { label: " none " },
@@ -54,9 +52,9 @@ describe("firstNamedSectionLabel", () => {
       })
     ).toBe("outro");
 
-    expect(firstNamedSectionLabel(null)).toBeUndefined();
-    expect(firstNamedSectionLabel({ sections: "nope" })).toBeUndefined();
-    expect(firstNamedSectionLabel({ sections: [null, "x", { label: "  " }] })).toBeUndefined();
+    expect(lastNamedSectionLabel(null)).toBeUndefined();
+    expect(lastNamedSectionLabel({ sections: "nope" })).toBeUndefined();
+    expect(lastNamedSectionLabel({ sections: [null, "x", { label: "  " }] })).toBeUndefined();
   });
 });
 
@@ -64,6 +62,18 @@ describe("firstCodaPlan", () => {
   it("builds a Coda jump plan from the demo song", () => {
     expect(firstCodaPlan(createDemoRehearsalSong())).toEqual({
       label: "Coda",
+      sectionLabel: "verse"
+    });
+  });
+
+  it("uses the final meaningful section as the jump-after anchor", () => {
+    expect(
+      firstCodaPlan({
+        coda: { label: "Coda 2" },
+        sections: [{ label: "intro" }, { label: "bridge" }, { label: "outro" }]
+      })
+    ).toEqual({
+      label: "Coda 2",
       sectionLabel: "outro"
     });
   });
