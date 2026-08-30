@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   fillBarCopy,
   firstBarPlan,
-  firstNamedSectionLabel,
   MAX_MEASURE_START,
   MIN_MEASURE_START,
   trustedMeasureStart
@@ -21,22 +20,6 @@ describe("trustedMeasureStart", () => {
     expect(trustedMeasureStart("9")).toBeNull();
     expect(trustedMeasureStart(Number.NaN)).toBeNull();
     expect(trustedMeasureStart(null)).toBeNull();
-  });
-});
-
-describe("firstNamedSectionLabel", () => {
-  it("returns the first meaningful section label and isolates malformed entries", () => {
-    const song = createDemoRehearsalSong();
-    expect(firstNamedSectionLabel(song)).toBe("verse");
-
-    song.sections[0]!.label = " none " as typeof song.sections[0]["label"];
-    expect(firstNamedSectionLabel(song)).toBe(song.sections[1]?.label);
-
-    expect(firstNamedSectionLabel(null)).toBeUndefined();
-    expect(firstNamedSectionLabel({ sections: "nope" })).toBeUndefined();
-    expect(
-      firstNamedSectionLabel({ sections: [null, "x", { label: "  " }, { label: "chorus" }] })
-    ).toBe("chorus");
   });
 });
 

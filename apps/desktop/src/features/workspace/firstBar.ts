@@ -39,30 +39,6 @@ export function trustedMeasureStart(value: unknown): number | null {
 }
 
 /**
- * Return the first named section label, skipping blank/`none` sentinels.
- *
- * Runtime roots and collection members are untrusted. Malformed entries are
- * isolated instead of becoming bar-section authority.
- */
-export function firstNamedSectionLabel(song: unknown): string | undefined {
-  if (!isRuntimeObject(song) || !Array.isArray(song.sections)) {
-    return undefined;
-  }
-
-  for (const sectionValue of song.sections) {
-    if (!isRuntimeObject(sectionValue)) {
-      continue;
-    }
-    const label = meaningfulRangeText(sectionValue.label);
-    if (label) {
-      return label;
-    }
-  }
-
-  return undefined;
-}
-
-/**
  * Build tonight's first chart bar from a trusted stored measure number.
  *
  * Missing or unusable measureStart is not count-in authority. The next
