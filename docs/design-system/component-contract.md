@@ -4,7 +4,7 @@ This contract connects the BandScope Figma design system to production React com
 
 Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 
-The live design-system authority was re-verified on 2026-08-28. Page `45:86` (`31 Component Contract Catalog`) contains the component-to-code catalog and the current reusable `Overlap Warning List` component set at node `252:19`, with `Surface=Dark` and `Surface=Light` variants. The review board at node `252:2` shows both variants against their intended host surfaces and records exact token values, accessibility semantics, responsive wrapping, duplicate-evidence behavior, and the empty state. Older component links below remain traceability unless their specific node is freshly verified.
+The live design-system authority was re-verified on 2026-08-30. Page `45:86` (`31 Component Contract Catalog`) contains the current reusable `OverlapWarningItem` component set at node `254:81`, with `Surface=Dark` and `Surface=Light` variants. Contract frame `254:82` shows both variants against their intended host surfaces and records the no-warning state; live metadata confirms the older `252:19` node no longer exists and must not be used as design-gate evidence. Older component links below remain traceability unless their specific node is freshly verified.
 
 ## Canonical Components
 
@@ -27,7 +27,7 @@ The live design-system authority was re-verified on 2026-08-28. Page `45:86` (`3
 | BandScope Mark | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-163 | `apps/desktop/src/App.tsx` | Feature-local `BandScopeMark()` currently has no props; Figma size variants are visual guidance only. |
 | Metric Card | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-216 | `apps/desktop/src/App.tsx` | Feature-local `MetricCard({ icon, label, value, detail, accent? })`. Metrics follow source controls on mobile. |
 | Confidence Badge | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-239 | `apps/desktop/src/features/workspace/ConfidenceBadge.tsx` | Use `level: ConfidenceLevel` plus optional `size` (`"compact"` or `"default"`); the compact size remains the backward-compatible default. No `score` or `label` prop exists. |
-| Overlap Warning List | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=252-19 | `apps/desktop/src/features/workspace/OverlapWarningList.tsx` | Current reusable component set. Pass `warnings`; default dark surface is for Roadmap and `surface="light"` is required on light cards such as Ranges. |
+| Overlap Warning List | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=254-81 | `apps/desktop/src/features/workspace/OverlapWarningList.tsx` | Current reusable `OverlapWarningItem` component set. Pass `warnings`; default dark surface is for Roadmap and `surface="light"` is required on light cards such as Ranges. |
 | Rehearsal Callout | workspace next-action pattern | `apps/desktop/src/features/workspace/RehearsalCallout.tsx` | First practice action after analysis; keep a visible button. |
 | Status Pill | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-283 | `apps/desktop/src/features/workspace/Workspace.tsx` | Design pattern only. Current code uses `formatStatusLabel(status)` inside local badge-like markup. |
 | Role Switcher | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-337 | `apps/desktop/src/features/workspace/RoleSwitcher.tsx` | Use `roles`, `activeRole`, and `onRoleChange`; `null` means all roles. |
@@ -80,7 +80,7 @@ The live design-system authority was re-verified on 2026-08-28. Page `45:86` (`3
 
 ### Overlap Warnings
 
-- Current Figma authority is component set `252:19` on page `45:86`; review board `252:2` is the exact-value and state handoff.
+- Current Figma authority is the `OverlapWarningItem` component set `254:81` on page `45:86`; contract frame `254:82` is the current exact-state handoff. The former `252:19`/`252:2` references are stale and are not design-gate evidence.
 - `OverlapWarningList` defaults to `surface="dark"` so Section Roadmap keeps the established dark-workspace token set.
 - Ranges cards have a white background and must pass `surface="light"` so compact warning copy uses the dedicated light-surface tokens.
 - Storybook must retain both dark and light populated states plus the empty state; do not copy the warning markup into a feature-specific implementation.
