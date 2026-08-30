@@ -196,6 +196,43 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first part handoff and the next lock-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-part-handoff");
+    expect(callout).toHaveTextContent("Tonight's first handoff");
+    expect(callout).toHaveTextContent(
+      "Bass Guitar hands off to Lead Vocal in verse. Lock that pass before the verse."
+    );
+  });
+
+  it("keeps the selected receiver in tonight's first handoff", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-part-handoff")).toHaveTextContent(
+      "Bass Guitar hands off to Lead Vocal in verse. Lock that pass before the verse."
+    );
+  });
+
+  it("asks the player to pick a pass when the selected part is not on one", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Keyboard 1 Right Hand" }));
+
+    expect(screen.getByTestId("first-part-handoff")).toHaveTextContent(
+      "Tonight's first handoff still needs a pass. Pick who receives the next entrance and lock that pass before the first section."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -325,5 +362,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText("오늘 먼저 맞출 넘김")).toBeTruthy();
   });
 });
