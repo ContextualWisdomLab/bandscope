@@ -129,6 +129,16 @@ describe("firstScoreCheck", () => {
     });
   });
 
+  it("does not advertise openability without a live project workspace", () => {
+    expect(
+      firstScoreCheck(
+        songWithAttachments([{ id: TRUSTED_SCORE_ID, fileName: "opener.pdf" }]),
+        null,
+        false
+      )
+    ).toBeNull();
+  });
+
   it("still names the score when the selected part has no playable span", () => {
     expect(
       firstScoreCheck(
