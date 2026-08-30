@@ -2,9 +2,9 @@ import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
 import {
   fillSegnoCopy,
-  firstNamedSectionLabel,
   firstSegnoPlan,
   isTrustedSegnoLabel,
+  lastNamedSectionLabel,
   MAX_SEGNO_LABEL_LENGTH,
   trustedSegno
 } from "./firstSegno";
@@ -41,19 +41,23 @@ describe("isTrustedSegnoLabel", () => {
   });
 });
 
-describe("firstNamedSectionLabel", () => {
-  it("returns the first meaningful section label and isolates malformed entries", () => {
-    const song = createDemoRehearsalSong();
-    expect(firstNamedSectionLabel(song)).toBe("verse");
-
-    song.sections[0]!.label = " none ";
-    expect(firstNamedSectionLabel(song)).toBe(song.sections[1]?.label);
-
-    expect(firstNamedSectionLabel(null)).toBeUndefined();
-    expect(firstNamedSectionLabel({ sections: "nope" })).toBeUndefined();
+describe("lastNamedSectionLabel", () => {
+  it("returns the last meaningful section label and isolates malformed entries", () => {
     expect(
-      firstNamedSectionLabel({ sections: [null, "x", { label: "  " }, { label: "chorus" }] })
-    ).toBe("chorus");
+      lastNamedSectionLabel({
+        sections: [
+          { label: "intro" },
+          { label: " none " },
+          null,
+          { label: "outro" },
+          { label: "  " }
+        ]
+      })
+    ).toBe("outro");
+
+    expect(lastNamedSectionLabel(null)).toBeUndefined();
+    expect(lastNamedSectionLabel({ sections: "nope" })).toBeUndefined();
+    expect(lastNamedSectionLabel({ sections: [null, "x", { label: "  " }] })).toBeUndefined();
   });
 });
 

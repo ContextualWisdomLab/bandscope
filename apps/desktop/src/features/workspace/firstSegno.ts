@@ -53,17 +53,18 @@ export function isTrustedSegnoLabel(label: string): boolean {
 }
 
 /**
- * Return the first named section label, skipping blank/`none` sentinels.
+ * Return the last named section label, skipping blank/`none` sentinels.
  *
  * Runtime roots and collection members are untrusted. Malformed entries are
  * isolated instead of becoming segno-section authority.
  */
-export function firstNamedSectionLabel(song: unknown): string | undefined {
+export function lastNamedSectionLabel(song: unknown): string | undefined {
   if (!isRuntimeObject(song) || !Array.isArray(song.sections)) {
     return undefined;
   }
 
-  for (const sectionValue of song.sections) {
+  for (let index = song.sections.length - 1; index >= 0; index -= 1) {
+    const sectionValue = song.sections[index];
     if (!isRuntimeObject(sectionValue)) {
       continue;
     }
@@ -94,7 +95,7 @@ export function firstSegnoPlan(song: RehearsalSong | unknown): FirstSegnoPlan | 
 
   return {
     label: segno.label,
-    sectionLabel: firstNamedSectionLabel(song)
+    sectionLabel: lastNamedSectionLabel(song)
   };
 }
 
