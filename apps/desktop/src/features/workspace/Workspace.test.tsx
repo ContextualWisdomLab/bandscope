@@ -196,6 +196,72 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first come-in and the next return", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-come-in");
+    expect(callout).toHaveTextContent("Tonight's first come-in");
+    expect(callout).toHaveTextContent(
+      "Keyboard 1 Right Hand comes in on chorus. Play from the top after sitting out of verse."
+    );
+  });
+
+  it("keeps the selected active part on tonight's first come-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-come-in")).toHaveTextContent(
+      "Lead Vocal comes in on chorus. Play from the top after sitting out of verse."
+    );
+  });
+
+  it("asks the player to confirm the return when every part stays active", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-come-in")).toHaveTextContent(
+      "Tonight's first come-in still needs a return. Confirm where the sitting-out part comes back before the first section."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
