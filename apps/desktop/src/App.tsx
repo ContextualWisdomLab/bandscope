@@ -266,6 +266,12 @@ export function App() {
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
+  const workspaceSongInstanceTokenRef = useRef<object>({});
+
+  const replaceWorkspaceSong = useCallback((nextSong: RehearsalSong) => {
+    workspaceSongInstanceTokenRef.current = {};
+    setJobResult(nextSong);
+  }, []);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
@@ -285,7 +291,7 @@ export function App() {
   const applyJobStatus = useCallback((nextStatus: AnalysisJobStatus) => {
     setJobStatus(nextStatus);
     if (nextStatus.state === "succeeded" && nextStatus.result) {
-      setJobResult(nextStatus.result);
+      replaceWorkspaceSong(nextStatus.result);
       setJobResultBootstrap(activeAnalysisBootstrap);
       setActiveAnalysisBootstrap(null);
       setJobError(null);
@@ -294,7 +300,7 @@ export function App() {
       setActiveAnalysisBootstrap(null);
       setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
     }
-  }, [activeAnalysisBootstrap, t]);
+  }, [activeAnalysisBootstrap, replaceWorkspaceSong, t]);
 
   useEffect(() => {
     const targetPercent = jobStatus?.progressPercent;
@@ -398,7 +404,7 @@ export function App() {
       const nextStatus = await startAnalysisJob(selectedRequest);
       if (nextStatus.state === "succeeded" && nextStatus.result) {
         setJobStatus(nextStatus);
-        setJobResult(nextStatus.result);
+        replaceWorkspaceSong(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
         setActiveAnalysisBootstrap(null);
       } else {
@@ -474,7 +480,7 @@ export function App() {
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
-      setJobResult(song);
+      replaceWorkspaceSong(song);
       setJobResultBootstrap(null);
       setJobError(null);
       setSelectedBootstrap(null);
@@ -512,7 +518,14 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
+      return (
+        <Workspace
+          song={jobResult}
+          songInstanceToken={workspaceSongInstanceTokenRef.current}
+          sourceBootstrap={jobResultBootstrap}
+          onSongUpdate={handleSongUpdate}
+        />
+      );
     }
     return <EmptyState />;
   };

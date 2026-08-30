@@ -10,6 +10,7 @@ import {
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_HIT_PLAN_CHARACTERS = 180;
+const MIN_VISIBLE_HIT_PLAN_CHARACTERS = 16;
 const GENERATED_ACTIVITY_HIT_PLAN_PREFIX = "Land this hit with ";
 const GENERATED_ACTIVITY_HIT_PLAN_SUFFIX = "; don't drift past the downbeat.";
 const GENERATED_ACTIVITY_HIT_PLAN_FIXED_CHARACTERS = Array.from(
@@ -125,7 +126,10 @@ function truncateCodePoints(value: string, maximum: number): string {
 /** Preserve fitting user formatting while preventing over-limit indentation from hiding guidance. */
 function boundedUserHitPlan(value: string): string {
   const bounded = truncateCodePoints(value, MAX_HIT_PLAN_CHARACTERS);
-  return bounded === value
+  if (bounded === value) {
+    return bounded;
+  }
+  return Array.from(bounded.trimStart()).length >= MIN_VISIBLE_HIT_PLAN_CHARACTERS
     ? bounded
     : truncateCodePoints(value.trimStart(), MAX_HIT_PLAN_CHARACTERS);
 }

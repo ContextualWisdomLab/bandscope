@@ -11,12 +11,13 @@ import { formatHitPlanTime, resolveFirstHitPlan } from "./firstHitPlan";
 /** Props for the first hit-plan rehearsal callout. */
 export interface FirstHitPlanCalloutProps {
   song: RehearsalSong;
+  songInstanceToken?: object;
 }
 
 type HitPlanCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 
 type OpenedHitPlan = Readonly<{
-  songIdentity: RehearsalSong;
+  songIdentity: object;
   sectionId: string;
   sectionIndex: number;
   landingRoleId: string;
@@ -98,11 +99,11 @@ function resolveHitPlanRenderer(origin: HTMLElement): HTMLElement | null {
 }
 
 /** Name tonight's first hit plan and open the matching rendered map section. */
-export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
+export function FirstHitPlanCallout({ song, songInstanceToken }: FirstHitPlanCalloutProps) {
   const calloutId = `workspace-surface-hit-plan-${useId()}`;
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
-  const songIdentity = song;
+  const songIdentity = songInstanceToken ?? song;
   const named = useMemo(() => resolveFirstHitPlan(song), [song]);
   const [openedHitPlan, setOpenedHitPlan] = useState<OpenedHitPlan | null>(null);
 

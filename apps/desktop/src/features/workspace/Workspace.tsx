@@ -14,6 +14,7 @@ import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music
 
 interface WorkspaceProps {
   song: RehearsalSong;
+  songInstanceToken?: object;
   sourceBootstrap?: ProjectBootstrapSummary | null;
   onSongUpdate?: (song: RehearsalSong) => void;
 }
@@ -124,7 +125,12 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 });
 
 /** Documented. */
-export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
+export function Workspace({
+  song,
+  songInstanceToken,
+  sourceBootstrap = null,
+  onSongUpdate
+}: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
@@ -358,7 +364,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <FirstHitPlanCallout song={song} />
+          <FirstHitPlanCallout
+            song={song}
+            songInstanceToken={songInstanceToken ?? song}
+          />
 
           <SongStructure sections={song.sections} t={t} />
 

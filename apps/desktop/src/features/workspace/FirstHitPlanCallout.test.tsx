@@ -107,15 +107,20 @@ describe("FirstHitPlanCallout", () => {
 
   it("preserves armed guidance across immutable edits of the same owned song", () => {
     const song = songWithHitPlan();
+    const songInstanceToken = {};
     const { grid } = appendSongStructureTarget();
-    const { rerender } = render(<FirstHitPlanCallout song={song} />);
+    const { rerender } = render(
+      <FirstHitPlanCallout song={song} songInstanceToken={songInstanceToken} />
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar hit at 0:10" }));
     expect(
       screen.getByText(/Land that hit on Bass Guitar at 0:10 before the room starts./)
     ).toBeTruthy();
 
-    rerender(<FirstHitPlanCallout song={{ ...song }} />);
+    rerender(
+      <FirstHitPlanCallout song={{ ...song }} songInstanceToken={songInstanceToken} />
+    );
 
     expect(
       screen.getByText(/Land that hit on Bass Guitar at 0:10 before the room starts./)
