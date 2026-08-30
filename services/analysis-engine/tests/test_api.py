@@ -9,10 +9,12 @@ import numpy as np
 import pytest
 
 from bandscope_analysis.api import (
+    _analysis_cache_path,
     _build_local_audio_features,
     _feature_cache_paths,
     _load_cached_analysis,
     _load_cached_local_audio_features,
+    _local_audio_content_fingerprint,
     _run_stem_separation_with_timeout,
     _stem_separation_worker,
     _stem_work_arrays_path,
@@ -790,6 +792,74 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     assert cached_updates[-1]["cacheStatus"] == "hit"
     assert cached_updates[-1]["result"]["tempoStability"]["stability"] == "steady"
     temporal_analyzer.return_value.analyze.assert_called_once()
+
+
+def test_local_audio_cache_identity_changes_for_same_size_content_replacement(tmp_path) -> None:
+    """Ensure final, feature, and stem-work caches cannot reuse replaced audio."""
+    audio_path = tmp_path / "same-size.wav"
+    audio_path.write_bytes(b"AAAA")
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": audio_path.name,
+            "roleFocus": ["bass-guitar"],
+            "localSource": {
+                "sourcePath": str(audio_path),
+                "fileName": audio_path.name,
+                "extension": "wav",
+                "fileSizeBytes": audio_path.stat().st_size,
+            },
+            "cacheRoot": str(tmp_path / "cache"),
+            "tempRoot": str(tmp_path / "temp"),
+        }
+    )
+
+    original_analysis = _analysis_cache_path(request)
+    original_features = _feature_cache_paths(request)
+    original_stem_work = _stem_work_arrays_path(request)
+    assert original_analysis is not None
+    assert original_features is not None
+    assert original_stem_work is not None
+
+    audio_path.write_bytes(b"BBBB")
+    replacement_analysis = _analysis_cache_path(request)
+    replacement_features = _feature_cache_paths(request)
+    replacement_stem_work = _stem_work_arrays_path(request)
+    assert replacement_analysis != original_analysis
+    assert replacement_features != original_features
+    assert replacement_stem_work != original_stem_work
+
+    audio_path.write_bytes(b"AAAA")
+    assert _analysis_cache_path(request) == original_analysis
+    assert _feature_cache_paths(request) == original_features
+    assert _stem_work_arrays_path(request) == original_stem_work
+
+
+def test_local_audio_content_fingerprint_bounds_oversized_sources(tmp_path) -> None:
+    """Ensure oversized sources are identified without reading their full contents."""
+    audio_path = tmp_path / "oversized.wav"
+    oversized_bytes = 100 * 1024 * 1024 + 1
+    audio_path.write_bytes(b"")
+    with audio_path.open("r+b") as audio_file:
+        audio_file.truncate(oversized_bytes)
+
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": audio_path.name,
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": str(audio_path),
+                "fileName": audio_path.name,
+                "extension": "wav",
+                "fileSizeBytes": oversized_bytes,
+            },
+        }
+    )
+
+    assert _local_audio_content_fingerprint(request) == f"oversized:{oversized_bytes}"
 
 
 def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:

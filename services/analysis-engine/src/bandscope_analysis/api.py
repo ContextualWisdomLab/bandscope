@@ -1,4 +1,9 @@
-"""Public API helpers for the BandScope analysis baseline."""
+"""Public API helpers for the BandScope analysis baseline.
+
+Security Notes:
+- Local cache identity reads selected audio in bounded chunks and stores only a
+  digest; raw audio bytes and source paths never enter cache metadata or logs.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
 from bandscope_analysis.temporal import TemporalAnalyzer, analyze_tempo_stability
+from bandscope_analysis.temporal.analyzer import MAX_AUDIO_FILE_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -663,7 +669,25 @@ def _build_job_status(
     return status
 
 
-def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
+def _local_audio_content_fingerprint(request: AnalysisJobRequest) -> str:
+    """Return a bounded content identity without retaining audio bytes or paths."""
+    source_path = Path(request["localSource"]["sourcePath"])
+    try:
+        file_size = source_path.stat().st_size
+        if file_size > MAX_AUDIO_FILE_BYTES:
+            return f"oversized:{file_size}"
+        digest = hashlib.sha256()
+        with source_path.open("rb") as source_file:
+            for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return "unavailable"
+
+
+def _analysis_cache_path(
+    request: AnalysisJobRequest, source_fingerprint: str | None = None
+) -> Path | None:
     """Return the per-track cache path for a local-audio request when caching is enabled."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
@@ -671,11 +695,15 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     if not cache_root:
         return None
 
-    digest = _local_audio_cache_digest(request, ANALYSIS_CACHE_SCHEMA_VERSION)
+    digest = _local_audio_cache_digest(request, ANALYSIS_CACHE_SCHEMA_VERSION, source_fingerprint)
     return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
 
 
-def _local_audio_cache_digest(request: AnalysisJobRequest, schema_version: int) -> str:
+def _local_audio_cache_digest(
+    request: AnalysisJobRequest,
+    schema_version: int,
+    source_fingerprint: str | None = None,
+) -> str:
     """Return a stable local-audio cache digest for an independent schema namespace."""
     local_source = request["localSource"]
     key_payload = {
@@ -684,13 +712,18 @@ def _local_audio_cache_digest(request: AnalysisJobRequest, schema_version: int) 
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
+        "sourceFingerprint": source_fingerprint
+        if source_fingerprint is not None
+        else _local_audio_content_fingerprint(request),
     }
     return hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
 
 
-def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
+def _feature_cache_paths(
+    request: AnalysisJobRequest, source_fingerprint: str | None = None
+) -> tuple[Path, Path] | None:
     """Return metadata + array cache paths for intermediate local-audio features."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
@@ -701,7 +734,7 @@ def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | Non
     stem_cache_base = (
         Path(cache_root)
         / "analysis-cache-v1"
-        / _local_audio_cache_digest(request, FEATURE_CACHE_SCHEMA_VERSION)
+        / _local_audio_cache_digest(request, FEATURE_CACHE_SCHEMA_VERSION, source_fingerprint)
     )
     return (
         stem_cache_base.with_suffix(".features.json"),
@@ -709,7 +742,9 @@ def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | Non
     )
 
 
-def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
+def _stem_work_arrays_path(
+    request: AnalysisJobRequest, source_fingerprint: str | None = None
+) -> Path | None:
     """Return an app-temp stem array path for process handoff when available."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
@@ -724,6 +759,9 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
+        "sourceFingerprint": source_fingerprint
+        if source_fingerprint is not None
+        else _local_audio_content_fingerprint(request),
     }
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -749,7 +787,12 @@ def _load_cached_analysis(path: Path) -> RehearsalSong | None:
     return cast(RehearsalSong, result)
 
 
-def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: RehearsalSong) -> bool:
+def _store_cached_analysis(
+    path: Path,
+    request: AnalysisJobRequest,
+    result: RehearsalSong,
+    source_fingerprint: str | None = None,
+) -> bool:
     """Persist cache metadata without storing the original absolute source path."""
     if "localSource" not in request:
         return False
@@ -761,6 +804,9 @@ def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: Rehe
             "fileName": local_source["fileName"],
             "extension": local_source["extension"],
             "fileSizeBytes": local_source["fileSizeBytes"],
+            "sourceFingerprint": source_fingerprint
+            if source_fingerprint is not None
+            else _local_audio_content_fingerprint(request),
         },
         "result": result,
     }
@@ -873,6 +919,7 @@ def _store_cached_local_audio_features(
     arrays_path: Path,
     request: AnalysisJobRequest,
     audio_features: dict[str, Any],
+    source_fingerprint: str | None = None,
 ) -> bool:
     """Persist reusable local-audio features with atomic writes."""
     if "localSource" not in request:
@@ -899,6 +946,9 @@ def _store_cached_local_audio_features(
             "fileName": local_source["fileName"],
             "extension": local_source["extension"],
             "fileSizeBytes": local_source["fileSizeBytes"],
+            "sourceFingerprint": source_fingerprint
+            if source_fingerprint is not None
+            else _local_audio_content_fingerprint(request),
         },
         "sampleRate": sample_rate,
         "separation": {
@@ -1090,14 +1140,16 @@ def _run_stem_separation_with_timeout(
     raise RuntimeError(str(payload))
 
 
-def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
+def _build_local_audio_features(
+    request: AnalysisJobRequest, source_fingerprint: str | None = None
+) -> dict[str, Any] | None:
     """Build downstream audio features for a local-audio request."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
 
     separation_result = _run_stem_separation_with_timeout(
         request["localSource"]["sourcePath"],
-        arrays_path=_stem_work_arrays_path(request),
+        arrays_path=_stem_work_arrays_path(request, source_fingerprint),
     )
     if "sample_rate" not in separation_result:
         if "stem_role_types" not in separation_result and isinstance(
@@ -1159,7 +1211,12 @@ def run_analysis_job_updates(
             )
         ]
 
-    cache_path = _analysis_cache_path(request)
+    source_fingerprint = None
+    if request["sourceKind"] == "local_audio" and (
+        request.get("cacheRoot") is not None or request.get("tempRoot") is not None
+    ):
+        source_fingerprint = _local_audio_content_fingerprint(request)
+    cache_path = _analysis_cache_path(request, source_fingerprint)
     cache_status: AnalysisCacheStatus = "disabled" if cache_path is None else "miss"
     if cache_path is not None:
         cached_result = _load_cached_analysis(cache_path)
@@ -1189,7 +1246,7 @@ def run_analysis_job_updates(
     decode_label = (
         "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
     )
-    feature_cache_paths = _feature_cache_paths(request)
+    feature_cache_paths = _feature_cache_paths(request, source_fingerprint)
     updates = [
         _build_job_status(
             job_id=job_id,
@@ -1233,7 +1290,7 @@ def run_analysis_job_updates(
             )
         )
         try:
-            audio_features = _build_local_audio_features(request)
+            audio_features = _build_local_audio_features(request, source_fingerprint)
         except StemSeparationTimedOut:
             updates.append(
                 _build_job_status(
@@ -1310,11 +1367,17 @@ def run_analysis_job_updates(
     final_cache_status = cache_status
     if audio_features is not None and feature_cache_paths is not None and not feature_cache_hit:
         _store_cached_local_audio_features(
-            feature_cache_paths[0], feature_cache_paths[1], request, audio_features
+            feature_cache_paths[0],
+            feature_cache_paths[1],
+            request,
+            audio_features,
+            source_fingerprint,
         )
     if cache_path is not None:
         final_cache_status = (
-            "stored" if _store_cached_analysis(cache_path, request, result) else "miss"
+            "stored"
+            if _store_cached_analysis(cache_path, request, result, source_fingerprint)
+            else "miss"
         )
     updates.append(
         _build_job_status(
