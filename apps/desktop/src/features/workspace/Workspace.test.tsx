@@ -153,7 +153,7 @@ describe("Workspace", () => {
     );
   });
 
-  it("names tonight's first repeat and the next play-it-again", () => {
+  it("names tonight's first actionable repeat without inventing a section anchor", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
@@ -162,11 +162,12 @@ describe("Workspace", () => {
     const callout = screen.getByTestId("first-repeat");
     expect(callout).toHaveTextContent("Tonight's first repeat");
     expect(callout).toHaveTextContent(
-      "Tonight's first repeat is :|: play that passage again at :| from the first verse, then check tonight's first range."
+      "Tonight's first repeat is :|: play that passage again at :|, then check tonight's first range."
     );
+    expect(callout).not.toHaveTextContent("from the first verse");
   });
 
-  it("asks the room to stay on the map when the repeat is missing", () => {
+  it("asks the room for an actionable stored repeat when the repeat is missing", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     delete song.repeat;
@@ -174,20 +175,22 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-repeat")).toHaveTextContent(
-      "Tonight's first repeat still needs a label. Stay on tonight's map until the first repeat is marked, then check tonight's first range."
+      "Tonight's first actionable repeat is not marked yet. Mark the end-repeat or play count on the map, then check tonight's first range."
     );
   });
 
-  it("asks the room to name the first section after a trusted repeat", () => {
+  it("does not turn a start-repeat marker into play-it-again guidance", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
-    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+    song.repeat = { label: "|:" };
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByTestId("first-repeat")).toHaveTextContent(
-      "Tonight's first repeat is :|: play that passage again at :|, then name the first section so the room knows where it starts."
+    const callout = screen.getByTestId("first-repeat");
+    expect(callout).toHaveTextContent(
+      "Tonight's first actionable repeat is not marked yet. Mark the end-repeat or play count on the map, then check tonight's first range."
     );
+    expect(callout).not.toHaveTextContent("play that passage again at |:");
   });
 
   it("asks for an ear check when the selected part has no named span", () => {
