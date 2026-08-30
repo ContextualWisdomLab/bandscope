@@ -154,8 +154,8 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "workspaceFirstToCodaTitle": "오늘 먼저 맞출 투 코다",
-  "workspaceFirstToCodaReady": "오늘 첫 투 코다는 {label}입니다. {label}에서 코다로 건너뛰어 첫 {sectionLabel}부터 시작한 뒤, 오늘 첫 음역을 확인하세요.",
-  "workspaceFirstToCodaReadyNoSection": "오늘 첫 투 코다는 {label}입니다. {label}에서 코다로 건너뛴 다음, 첫 구간 이름을 정해 시작 위치를 공유하세요.",
+  "workspaceFirstToCodaReady": "오늘 첫 투 코다는 {label}입니다. {label}에서 점프 지시를 따르고 오늘 첫 음역을 확인하세요.",
+  "workspaceFirstToCodaReadyNoSection": "오늘 첫 투 코다는 {label}입니다. {label}에서 점프 지시를 따르고 오늘 첫 음역을 확인하세요.",
   "workspaceFirstToCodaMissing": "오늘 첫 투 코다는 아직 표시가 필요합니다. 첫 투 코다가 표시될 때까지 오늘 지도를 보고, 그다음 오늘 첫 음역을 확인하세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
