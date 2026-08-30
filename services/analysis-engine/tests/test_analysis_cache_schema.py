@@ -94,9 +94,7 @@ def test_new_analysis_schema_ignores_v1_result_but_reuses_v1_features(tmp_path) 
         patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
         patch("bandscope_analysis.api.build_demo_rehearsal_song", return_value=fresh_result),
     ):
-        updates = list(
-            run_analysis_job_updates("job-schema-v2", request, "2026-08-30T00:00:00Z")
-        )
+        updates = list(run_analysis_job_updates("job-schema-v2", request, "2026-08-30T00:00:00Z"))
 
     assert analysis_path.parent.name == "analysis-cache-v2"
     assert metadata_path.parent.name == "analysis-cache-v1"
