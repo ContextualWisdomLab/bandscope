@@ -6,7 +6,7 @@ import {
   detectPreferredLocale,
   translateSectionFormLabel
 } from "../../i18n";
-import { formatEarCheckTime, resolveFirstEarCheck } from "./firstEarCheck";
+import { formatEarCheckTime, resolveFirstEarCheckWithSectionIndex } from "./firstEarCheck";
 
 /** Props for the first ear-check rehearsal callout. */
 export interface FirstEarCheckCalloutProps {
@@ -26,15 +26,35 @@ type OpenedEarCheck = Readonly<{
 /** Bound the identity fingerprint so hostile or oversized songs cannot stall a render. */
 const MAX_EAR_CHECK_FINGERPRINT_SECTIONS = 32;
 
+/** Read one owned data value without invoking an accessor or ordinary Proxy get trap. */
+function ownedSongData(song: RehearsalSong, key: PropertyKey): unknown {
+  if (song === null || typeof song !== "object" || Array.isArray(song)) {
+    return undefined;
+  }
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(song, key);
+    return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+      ? descriptor.value
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Summarize bounded owned song content so distinct songs sharing an id do not share armed guidance. */
 function earCheckSongFingerprint(song: RehearsalSong): string | null {
   try {
-    const sections = Array.isArray(song.sections) ? song.sections : [];
+    const runtimeSections = ownedSongData(song, "sections");
+    const title = ownedSongData(song, "title");
+    if (!Array.isArray(runtimeSections) || typeof title !== "string") {
+      return null;
+    }
+    const sections = runtimeSections;
     if (sections.length > MAX_EAR_CHECK_FINGERPRINT_SECTIONS) {
       return null;
     }
     return JSON.stringify({
-      title: song.title,
+      title,
       sectionCount: sections.length,
       sections: sections.map((section) => ({
         id: section?.id,
@@ -49,21 +69,8 @@ function earCheckSongFingerprint(song: RehearsalSong): string | null {
 
 /** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
 function stableEarCheckSongId(song: RehearsalSong): string | null {
-  if (song === null || typeof song !== "object" || Array.isArray(song)) {
-    return null;
-  }
-  let descriptor: PropertyDescriptor | undefined;
-  try {
-    descriptor = Object.getOwnPropertyDescriptor(song, "id");
-  } catch {
-    return null;
-  }
-  return descriptor !== undefined &&
-    Object.prototype.hasOwnProperty.call(descriptor, "value") &&
-    typeof descriptor.value === "string" &&
-    descriptor.value.trim().length > 0
-    ? descriptor.value
-    : null;
+  const songId = ownedSongData(song, "id");
+  return typeof songId === "string" && songId.trim().length > 0 ? songId : null;
 }
 
 /**
@@ -186,13 +193,12 @@ export function FirstEarCheckCallout({ song }: FirstEarCheckCalloutProps) {
   const landmarkId = useId();
   const resolution = useMemo(() => {
     const songIdentity = stableEarCheckSongIdentity(song);
-    const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-    const earCheck = resolveFirstEarCheck(song);
-    const earCheckSectionIndex =
-      earCheck && Array.isArray(runtimeSong?.sections)
-        ? runtimeSong.sections.indexOf(earCheck.section)
-        : -1;
-    return { songIdentity, earCheck, earCheckSectionIndex } as const;
+    const earCheckResolution = resolveFirstEarCheckWithSectionIndex(song);
+    return {
+      songIdentity,
+      earCheck: earCheckResolution?.earCheck ?? null,
+      earCheckSectionIndex: earCheckResolution?.sectionIndex ?? -1
+    } as const;
   }, [song]);
   const { songIdentity, earCheck, earCheckSectionIndex } = resolution;
   const [openedEarCheck, setOpenedEarCheck] = useState<OpenedEarCheck | null>(null);
