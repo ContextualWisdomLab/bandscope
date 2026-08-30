@@ -1,10 +1,12 @@
 """Tests for the public analysis-engine API helpers."""
 
+import json
 import queue
 import time
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from bandscope_analysis.api import (
     _build_local_audio_features,
@@ -400,6 +402,175 @@ def test_build_demo_rehearsal_song_with_tempo() -> None:
     assert song.get("tempo") == 120
 
 
+def test_build_demo_rehearsal_song_with_tempo_stability() -> None:
+    """Ensure tempo movement is mapped to the shared camel-case contract."""
+    song = build_demo_rehearsal_song(
+        {
+            "bpm": 120,
+            "tempo_stability": {
+                "bpm_median": 120.0,
+                "bpm_stdev": 1.25,
+                "stability": "variable",
+                "tempo_changes": [{"time": 32.5, "from_bpm": 120.0, "to_bpm": 96.0}],
+            },
+        }
+    )
+
+    assert song["tempoStability"] == {
+        "bpmMedian": 120.0,
+        "bpmStdev": 1.25,
+        "stability": "variable",
+        "tempoChanges": [{"time": 32.5, "fromBpm": 120.0, "toBpm": 96.0}],
+    }
+
+
+def test_build_demo_rehearsal_song_ignores_malformed_tempo_stability() -> None:
+    """Malformed optional tempo data must not become buyer-visible guidance."""
+    missing_changes = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {"tempo_changes": {}},
+        }
+    )
+    invalid_change = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [{"time": "unknown", "from_bpm": 120.0, "to_bpm": 96.0}],
+            },
+        }
+    )
+    out_of_range_change = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [{"time": -1.0, "from_bpm": 120.0, "to_bpm": 96.0}],
+            },
+        }
+    )
+    malformed_summary = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": "unknown",
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [],
+            },
+        }
+    )
+    safe_default = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": 0.0,
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [],
+            },
+        }
+    )
+    foreign_change = build_demo_rehearsal_song(
+        {
+            "tempo_stability": {
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.0,
+                "stability": "steady",
+                "tempo_changes": [None],
+            },
+        }
+    )
+
+    assert "tempoStability" not in missing_changes
+    assert "tempoStability" not in invalid_change
+    assert "tempoStability" not in out_of_range_change
+    assert "tempoStability" not in malformed_summary
+    assert "tempoStability" not in safe_default
+    assert "tempoStability" not in foreign_change
+
+
+def test_build_local_temporal_features_omits_raw_audio_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tempo features retain only rehearsal data, never the source path."""
+    from bandscope_analysis.api import _build_local_temporal_features
+
+    class FakeTemporalAnalyzer:
+        """Return representative decoded temporal features."""
+
+        def analyze(self, _source_path: str) -> dict[str, object]:
+            return {
+                "audio_path": "/private/original.wav",
+                "bpm": 120.0,
+                "beat_times": [float(index) * 0.5 for index in range(10)],
+            }
+
+    monkeypatch.setattr("bandscope_analysis.api.TemporalAnalyzer", FakeTemporalAnalyzer)
+    request = {
+        "sourceKind": "local_audio",
+        "sourceLabel": "rehearsal.wav",
+        "roleFocus": [],
+        "localSource": {
+            "sourcePath": "/private/original.wav",
+            "fileName": "rehearsal.wav",
+            "extension": "wav",
+            "fileSizeBytes": 10,
+        },
+    }
+
+    features = _build_local_temporal_features(request)
+
+    assert features is not None
+    assert features["bpm"] == 120.0
+    assert "audio_path" not in features
+    assert features["tempo_stability"]["stability"] == "steady"
+
+
+def test_build_local_temporal_features_skips_non_local_requests() -> None:
+    """Demo jobs do not perform a second local-audio decode."""
+    from bandscope_analysis.api import _build_local_temporal_features
+
+    assert (
+        _build_local_temporal_features(
+            {
+                "sourceKind": "demo",
+                "sourceLabel": "demo",
+                "roleFocus": [],
+            }
+        )
+        is None
+    )
+
+
+def test_build_local_temporal_features_falls_back_when_decode_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tempo decode failure must not fail an otherwise usable rehearsal job."""
+    from bandscope_analysis.api import _build_local_temporal_features
+
+    class FailingTemporalAnalyzer:
+        """Raise the same safe decoder error as malformed local audio."""
+
+        def analyze(self, _source_path: str) -> dict[str, object]:
+            raise ValueError("decoder failed")
+
+    monkeypatch.setattr("bandscope_analysis.api.TemporalAnalyzer", FailingTemporalAnalyzer)
+    request = {
+        "sourceKind": "local_audio",
+        "sourceLabel": "rehearsal.wav",
+        "roleFocus": [],
+        "localSource": {
+            "sourcePath": "/private/original.wav",
+            "fileName": "rehearsal.wav",
+            "extension": "wav",
+            "fileSizeBytes": 10,
+        },
+    }
+
+    assert _build_local_temporal_features(request) is None
+
+
 def test_coerce_tempo_bpm() -> None:
     """Ensure _coerce_tempo_bpm handles various edge cases correctly."""
     import numpy as np
@@ -543,6 +714,16 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
 
     with (
         patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
+        patch("bandscope_analysis.api.TemporalAnalyzer") as temporal_analyzer,
+        patch(
+            "bandscope_analysis.api.analyze_tempo_stability",
+            return_value={
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.5,
+                "stability": "steady",
+                "tempo_changes": [],
+            },
+        ),
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
@@ -567,6 +748,10 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             },
             "separation_notes": "Separated selected local audio into 4 canonical stems.",
         }
+        temporal_analyzer.return_value.analyze.return_value = {
+            "bpm": 120.0,
+            "beat_times": [float(index) for index in range(8)],
+        }
 
         updates = list(run_analysis_job_updates("job-cache", payload, "2026-03-12T00:00:00Z"))
 
@@ -582,9 +767,18 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             ("succeeded", "ready", 100),
         ]
         assert updates[-1]["cacheStatus"] == "stored"
-        cache_files = list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))
+        assert updates[-1]["result"]["tempoStability"] == {
+            "bpmMedian": 120.0,
+            "bpmStdev": 0.5,
+            "stability": "steady",
+            "tempoChanges": [],
+        }
+        cache_files = list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
         assert len([path for path in cache_files if not path.name.endswith(".features.json")]) == 1
-        assert len([path for path in cache_files if path.name.endswith(".features.json")]) == 1
+        feature_cache_files = list(
+            (tmp_path / "cache" / "analysis-cache-v1").glob("*.features.json")
+        )
+        assert len(feature_cache_files) == 1
 
         cached_updates = list(
             run_analysis_job_updates("job-cache-2", payload, "2026-03-12T00:00:00Z")
@@ -594,6 +788,8 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     assert cached_updates[-1]["progressStage"] == "ready"
     assert cached_updates[-1]["progressPercent"] == 100
     assert cached_updates[-1]["cacheStatus"] == "hit"
+    assert cached_updates[-1]["result"]["tempoStability"]["stability"] == "steady"
+    temporal_analyzer.return_value.analyze.assert_called_once()
 
 
 def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> None:
@@ -649,9 +845,18 @@ def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
         "[]",
         '{"schemaVersion": 999, "result": {}}',
         '{"schemaVersion": 1, "result": []}',
+        '{"schemaVersion": 2, "result": []}',
     ):
         cache_path.write_text(content, encoding="utf-8")
         assert _load_cached_analysis(cache_path) is None
+
+    legacy_result = build_demo_rehearsal_song()
+    cache_path.write_text(
+        json.dumps({"schemaVersion": 1, "source": {}, "result": legacy_result}),
+        encoding="utf-8",
+    )
+    assert "tempoStability" not in legacy_result
+    assert _load_cached_analysis(cache_path) is None
 
 
 def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp_path) -> None:
@@ -710,6 +915,7 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
     metadata_path, arrays_path = _feature_cache_paths(request) or (None, None)
     assert metadata_path is not None
     assert arrays_path is not None
+    assert metadata_path.parent.name == "analysis-cache-v1"
 
     features = {
         "stems": {
@@ -753,6 +959,16 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "bandscope_analysis.api._load_cached_local_audio_features",
             return_value=loaded,
         ),
+        patch("bandscope_analysis.api.TemporalAnalyzer") as temporal_analyzer,
+        patch(
+            "bandscope_analysis.api.analyze_tempo_stability",
+            return_value={
+                "bpm_median": 120.0,
+                "bpm_stdev": 0.5,
+                "stability": "steady",
+                "tempo_changes": [],
+            },
+        ),
         patch("bandscope_analysis.api.AudioStemSeparator") as separator_class,
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
@@ -761,13 +977,20 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
         ),
         patch("bandscope_analysis.api._store_cached_local_audio_features") as store_features,
     ):
+        temporal_analyzer.return_value.analyze.return_value = {
+            "bpm": 120.0,
+            "beat_times": [float(index) for index in range(8)],
+        }
         updates = list(run_analysis_job_updates("job-feature-hit", request, "2026-03-12T00:00:00Z"))
 
     assert updates[1]["progressLabel"] == "Loaded reusable stems... (45%)"
     assert updates[1]["cacheStatus"] == "miss"
     assert updates[-1]["state"] == "succeeded"
+    assert updates[-1]["result"]["tempoStability"]["stability"] == "steady"
     separator_class.return_value.separate.assert_not_called()
     store_features.assert_not_called()
+    temporal_analyzer.return_value.analyze.assert_called_once()
+    assert list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
 
 
 def test_stem_work_arrays_path_requires_local_temp_root(tmp_path) -> None:

@@ -19,11 +19,12 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal import TemporalAnalyzer, analyze_tempo_stability
 
 logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
-ANALYSIS_CACHE_SCHEMA_VERSION = 1
+ANALYSIS_CACHE_SCHEMA_VERSION = 2
 FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
@@ -83,6 +84,23 @@ class RangePayload(TypedDict):
 
     lowestNote: str
     highestNote: str
+
+
+class TempoChangePayload(TypedDict):
+    """Typed sustained tempo change payload returned in rehearsal results."""
+
+    time: float
+    fromBpm: float
+    toBpm: float
+
+
+class TempoStabilityPayload(TypedDict):
+    """Typed tempo movement summary returned in rehearsal results."""
+
+    bpmMedian: float
+    bpmStdev: float
+    stability: Literal["steady", "loose", "variable"]
+    tempoChanges: list[TempoChangePayload]
 
 
 class HarmonyPayload(TypedDict):
@@ -160,6 +178,7 @@ class RehearsalSong(TypedDict):
     id: str
     title: str
     tempo: NotRequired[int]
+    tempoStability: NotRequired[TempoStabilityPayload]
     sections: list[RehearsalSectionPayload]
     exportSummary: ExportSummaryPayload
 
@@ -510,12 +529,62 @@ def _coerce_tempo_bpm(bpm_val: Any) -> int | None:
 
 
 def _apply_tempo(song: RehearsalSong, audio_features: dict[str, Any] | None) -> None:
-    """Attach a sanitized integer tempo property to a rehearsal song."""
+    """Attach sanitized tempo guidance to a rehearsal song."""
     if not audio_features:
         return
     bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
     if bpm is not None:
         song["tempo"] = bpm
+    stability = audio_features.get("tempo_stability")
+    if not isinstance(stability, dict):
+        return
+    changes = stability.get("tempo_changes")
+    if not isinstance(changes, list):
+        return
+    try:
+        bpm_median = float(stability["bpm_median"])
+        bpm_stdev = float(stability["bpm_stdev"])
+        stability_label = stability["stability"]
+    except (KeyError, TypeError, ValueError):
+        return
+    if (
+        not np.isfinite(bpm_median)
+        or bpm_median <= 0
+        or not np.isfinite(bpm_stdev)
+        or bpm_stdev < 0
+        or stability_label not in ("steady", "loose", "variable")
+    ):
+        return
+
+    normalized_changes: list[TempoChangePayload] = []
+    for change in changes:
+        if not isinstance(change, dict):
+            return
+        try:
+            normalized_change: TempoChangePayload = {
+                "time": float(change["time"]),
+                "fromBpm": float(change["from_bpm"]),
+                "toBpm": float(change["to_bpm"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return
+        if (
+            not np.isfinite(normalized_change["time"])
+            or normalized_change["time"] < 0
+            or not np.isfinite(normalized_change["fromBpm"])
+            or normalized_change["fromBpm"] <= 0
+            or not np.isfinite(normalized_change["toBpm"])
+            or normalized_change["toBpm"] <= 0
+        ):
+            return
+        normalized_changes.append(normalized_change)
+
+    song["tempoStability"] = {
+        "bpmMedian": bpm_median,
+        "bpmStdev": bpm_stdev,
+        "stability": cast(Literal["steady", "loose", "variable"], stability_label),
+        "tempoChanges": normalized_changes,
+    }
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
@@ -602,26 +671,38 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     if not cache_root:
         return None
 
+    digest = _local_audio_cache_digest(request, ANALYSIS_CACHE_SCHEMA_VERSION)
+    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
+
+
+def _local_audio_cache_digest(request: AnalysisJobRequest, schema_version: int) -> str:
+    """Return a stable local-audio cache digest for an independent schema namespace."""
     local_source = request["localSource"]
     key_payload = {
-        "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
+        "schemaVersion": schema_version,
         "projectId": request.get("projectId", ""),
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
     }
-    digest = hashlib.sha256(
+    return hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
     """Return metadata + array cache paths for intermediate local-audio features."""
-    analysis_cache_path = _analysis_cache_path(request)
-    if analysis_cache_path is None:
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
-    stem_cache_base = analysis_cache_path.with_suffix("")
+    cache_root = request.get("cacheRoot")
+    if not cache_root:
+        return None
+    # Keep the v1 feature namespace stable while final result caches evolve independently.
+    stem_cache_base = (
+        Path(cache_root)
+        / "analysis-cache-v1"
+        / _local_audio_cache_digest(request, FEATURE_CACHE_SCHEMA_VERSION)
+    )
     return (
         stem_cache_base.with_suffix(".features.json"),
         stem_cache_base.with_suffix(".features.npz"),
@@ -1039,6 +1120,24 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
     }
 
 
+def _build_local_temporal_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
+    """Build bounded tempo guidance without retaining raw decode metadata."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+
+    try:
+        temporal = TemporalAnalyzer().analyze(request["localSource"]["sourcePath"])
+        stability = analyze_tempo_stability(temporal["beat_times"])
+        return {
+            "title": request["sourceLabel"],
+            "bpm": temporal["bpm"],
+            "tempo_stability": stability,
+        }
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        logger.warning("Tempo movement analysis unavailable; continuing with safe fallback.")
+        return None
+
+
 def run_analysis_job_updates(
     job_id: str,
     payload: object,
@@ -1191,6 +1290,10 @@ def run_analysis_job_updates(
             cache_status=cache_status,
         )
     )
+
+    temporal_features = _build_local_temporal_features(request)
+    if temporal_features is not None:
+        audio_features = {**(audio_features or {}), **temporal_features}
 
     result = build_demo_rehearsal_song(audio_features)
     updates.append(

@@ -153,6 +153,12 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceTempoStabilityTitle": "템포 움직임",
+  "workspaceTempoStabilityMissing": "템포 움직임은 아직 실제 오디오 확인이 필요합니다. 합주 전에 시작 클릭을 귀로 맞춰 보세요.",
+  "workspaceTempoStabilitySteady": "박이 {bpm} BPM 주변에서 안정적입니다. 첫 번째 패스에서도 클릭을 고르게 유지해 보세요.",
+  "workspaceTempoStabilityLoose": "박이 {bpm} BPM 주변에서 조금 흔들립니다. 첫 번째 패스 전에 시작 클릭을 함께 정해 보세요.",
+  "workspaceTempoStabilityVariable": "박이 {bpm} BPM 주변에서 움직입니다. 합주 전에 표시된 전환을 확인해 보세요.",
+  "workspaceTempoChange": "약 {time}에서 템포가 {fromBpm}에서 {toBpm} BPM으로 움직입니다. 합주 전에 그 전환을 표시해 두세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }

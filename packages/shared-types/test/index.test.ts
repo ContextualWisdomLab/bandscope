@@ -1023,6 +1023,37 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates optional tempo stability guidance", () => {
+    const song = createDemoRehearsalSong();
+    song.tempoStability = {
+      bpmMedian: 120,
+      bpmStdev: 0.5,
+      stability: "variable",
+      tempoChanges: [{ time: 32.5, fromBpm: 120, toBpm: 96 }]
+    };
+    expect(isRehearsalSong(song)).toBe(true);
+    expect(parseRehearsalSong(song).tempoStability).toEqual(song.tempoStability);
+
+    expect(() => parseRehearsalSong({
+      ...song,
+      tempoStability: {
+        ...song.tempoStability,
+        tempoChanges: [{ time: -1, fromBpm: 120, toBpm: 96 }]
+      }
+    })).toThrow("tempoStability.tempoChanges[0].time");
+    expect(() => parseRehearsalSong({
+      ...song,
+      tempoStability: {
+        ...song.tempoStability,
+        tempoChanges: [{ time: 32.5, fromBpm: 120, toBpm: 0 }]
+      }
+    })).toThrow("tempoStability.tempoChanges[0].toBpm");
+    expect(() => parseRehearsalSong({
+      ...song,
+      tempoStability: { ...song.tempoStability, bpmMedian: 0 }
+    })).toThrow("tempoStability.bpmMedian");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;

@@ -169,6 +169,40 @@ describe("Workspace", () => {
     );
   });
 
+  it("names a sustained tempo transition from real-audio guidance", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.tempoStability = {
+      bpmMedian: 108,
+      bpmStdev: 18,
+      stability: "variable",
+      tempoChanges: [{ time: 62.4, fromBpm: 120, toBpm: 96 }]
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("tempo-stability")).toHaveTextContent(
+      "Tempo moves from 120 to 96 BPM around 1:02. Mark that transition before rehearsal."
+    );
+  });
+
+  it("keeps tempo movement guidance honest when only a steady pass is available", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.tempoStability = {
+      bpmMedian: 120,
+      bpmStdev: 0.5,
+      stability: "steady",
+      tempoChanges: []
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("tempo-stability")).toHaveTextContent(
+      "The pulse stays steady around 120 BPM. Keep the click even through the first pass."
+    );
+  });
+
   it("limits the range callout to the selected role", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

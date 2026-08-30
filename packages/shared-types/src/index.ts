@@ -160,6 +160,21 @@ export type SectionTimeRange = {
 };
 
 /** Documented. */
+export type TempoChange = {
+  time: number;
+  fromBpm: number;
+  toBpm: number;
+};
+
+/** Documented. */
+export type TempoStability = {
+  bpmMedian: number;
+  bpmStdev: number;
+  stability: "steady" | "loose" | "variable";
+  tempoChanges: TempoChange[];
+};
+
+/** Documented. */
 export type RehearsalSection = {
   id: string;
   label: SectionFormLabel;
@@ -223,6 +238,7 @@ export type RehearsalSong = {
   id: string;
   title: string;
   tempo?: number;
+  tempoStability?: TempoStability;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
   collaboration?: RehearsalCollaboration;
@@ -1646,6 +1662,57 @@ function validateSectionTimeRange(value: unknown, path: string): string | null {
 }
 
 /** Documented. */
+function validateTempoChange(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["time", "fromBpm", "toBpm"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.time !== "number" || !Number.isFinite(value.time) || value.time < 0) {
+    return invalidField(`${path}.time`);
+  }
+  if (typeof value.fromBpm !== "number" || !Number.isFinite(value.fromBpm) || value.fromBpm <= 0) {
+    return invalidField(`${path}.fromBpm`);
+  }
+  if (typeof value.toBpm !== "number" || !Number.isFinite(value.toBpm) || value.toBpm <= 0) {
+    return invalidField(`${path}.toBpm`);
+  }
+  return null;
+}
+
+/** Documented. */
+function validateTempoStability(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["bpmMedian", "bpmStdev", "stability", "tempoChanges"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.bpmMedian !== "number" || !Number.isFinite(value.bpmMedian) || value.bpmMedian <= 0) {
+    return invalidField(`${path}.bpmMedian`);
+  }
+  if (typeof value.bpmStdev !== "number" || !Number.isFinite(value.bpmStdev) || value.bpmStdev < 0) {
+    return invalidField(`${path}.bpmStdev`);
+  }
+  if (!isOneOf(["steady", "loose", "variable"] as const, value.stability)) {
+    return invalidField(`${path}.stability`);
+  }
+  if (!isDenseArray(value.tempoChanges)) {
+    return invalidField(`${path}.tempoChanges`);
+  }
+  for (const [index, change] of value.tempoChanges.entries()) {
+    const changeError = validateTempoChange(change, `${path}.tempoChanges[${index}]`);
+    if (changeError) {
+      return changeError;
+    }
+  }
+  return null;
+}
+
+/** Documented. */
 function validateRehearsalSection(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -1787,7 +1854,7 @@ function validateRehearsalSong(
   }
   const extraKey = unexpectedKey(
     normalized,
-    ["id", "title", "tempo", "sections", "exportSummary", "collaboration", "scoreAttachments"],
+    ["id", "title", "tempo", "tempoStability", "sections", "exportSummary", "collaboration", "scoreAttachments"],
     ""
   );
   if (extraKey) {
@@ -1804,6 +1871,12 @@ function validateRehearsalSong(
     (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)
   ) {
     return invalidField("tempo");
+  }
+  if (normalized.tempoStability !== undefined) {
+    const tempoStabilityError = validateTempoStability(normalized.tempoStability, "tempoStability");
+    if (tempoStabilityError) {
+      return tempoStabilityError;
+    }
   }
   if (!isDenseArray(normalized.sections)) {
     return invalidField("sections");

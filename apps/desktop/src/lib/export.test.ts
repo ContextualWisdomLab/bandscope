@@ -127,10 +127,21 @@ describe("export generation", () => {
   });
 
   it("generates chart summary JSON", () => {
-    const jsonStr = generateChartSummaryJson(mockSong);
+    const jsonStr = generateChartSummaryJson({
+      ...mockSong,
+      tempo: 120,
+      tempoStability: {
+        bpmMedian: 120,
+        bpmStdev: 0.5,
+        stability: "steady",
+        tempoChanges: []
+      }
+    });
     const parsed = JSON.parse(jsonStr);
     expect(parsed.title).toBe("Test");
     expect(parsed.sections[0].roles[0].chord).toBe("=Cmaj7");
+    expect(parsed.tempo).toBe(120);
+    expect(parsed.tempoStability.stability).toBe("steady");
   });
 
   it("generates chart summary JSON when headline is missing", () => {
