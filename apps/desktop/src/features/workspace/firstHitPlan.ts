@@ -35,6 +35,7 @@ export type FirstHitPlan = {
   sectionId: string;
   sectionLabel: RehearsalSection["label"];
   sectionIndex: number;
+  sectionRoleNames: readonly string[];
   landingRole: RehearsalRole;
   landingRoleId: string;
   landingRoleName: string;
@@ -107,7 +108,7 @@ function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
   return items;
 }
 
-/** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
+/** Bound buyer-visible model text by Unicode code points without splitting a surrogate pair. */
 function truncateCodePoints(value: string, maximum: number): string {
   let codePoints = 0;
   let endIndex = 0;
@@ -146,10 +147,7 @@ function boundedGeneratedActivityHitPlan(value: string): string | null {
 }
 
 /** Return a snapshotted own hit plan and explicit source, or null when it cannot be shown. */
-function ownedHitPlan(role: unknown): OwnedHitPlan | null {
-  if (!isRuntimeObject(role)) {
-    return null;
-  }
+function ownedHitPlan(role: RehearsalRole): OwnedHitPlan | null {
   const hitPlan = ownDataValue(role, "hitPlan");
   if (typeof hitPlan !== "string") {
     return null;
@@ -331,7 +329,8 @@ function resolveSafeFirstHitPlan(song: RehearsalSong): FirstHitPlan | null {
         return [];
       }
 
-      const plannedRoles = rankedActiveRoles(section as RehearsalSection).flatMap((metadata) => {
+      const activeRoles = rankedActiveRoles(section as RehearsalSection);
+      const plannedRoles = activeRoles.flatMap((metadata) => {
         const hitPlan = ownedHitPlan(metadata.role);
         return hitPlan === null ? [] : [{ ...metadata, ...hitPlan }];
       });
@@ -345,6 +344,7 @@ function resolveSafeFirstHitPlan(song: RehearsalSong): FirstHitPlan | null {
           sectionId,
           sectionLabel: sectionLabel as RehearsalSection["label"],
           sectionIndex,
+          sectionRoleNames: activeRoles.map((metadata) => metadata.name),
           landingRole: landingRole.role,
           landingRoleId: landingRole.id,
           landingRoleName: landingRole.name,
