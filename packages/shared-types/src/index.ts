@@ -177,12 +177,11 @@ export type ExportSummary = {
   focusSections: string[];
 };
 
-
 /** Documented. */
 export type PackState = "queued" | "analyzing" | "ready" | "failed";
 
 /** Documented. */
-export type SongRehearsalPack = 
+export type SongRehearsalPack =
   | {
       id: string;
       packState: "queued" | "analyzing";
@@ -395,7 +394,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** Documented. */
 function isDenseArray(value: unknown): value is unknown[] {
   if (!Array.isArray(value)) return false;
-  // Performance: avoid Array.from() allocation while keeping a one-time length boundary.
   const arrayLength = Number(value.length);
   if (!Number.isSafeInteger(arrayLength) || arrayLength < 0 || arrayLength > 0xffffffff) {
     return false;
@@ -468,7 +466,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           harmonicExplanation: "The bass holds the vi center so the rest of the section can lean into the pickup without losing the tonal floor.",
           cue: {
             kind: "transition",
-            value: "Hold through the pickup before the downbeat.",
+            value: "Hold through the pickup before the downbeat."
           },
           range: {
             lowestNote: "C#2",
@@ -484,9 +482,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
           manualOverrides: [],
-          overlapWarnings: [
-            "Density warning: competing with Keyboard Left Hand in low register."
-          ]
+          overlapWarnings: ["Density warning: competing with Keyboard Left Hand in low register."]
         },
         {
           id: "keys-right",
@@ -516,9 +512,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           setupNote: "Keep the patch bright enough to stay over the guitars.",
           transpositionPlan: "If the band rehearses in D, keep the voicing in first inversion so the top line still sings.",
           manualOverrides: [],
-          overlapWarnings: [
-            "Melodic overlap: top notes conflict with Lead Vocal range."
-          ]
+          overlapWarnings: ["Melodic overlap: top notes conflict with Lead Vocal range."]
         },
         {
           id: "lead-vocal",
@@ -558,9 +552,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
               source: "user"
             }
           ],
-          overlapWarnings: [
-            "Melodic overlap: competing with Keyboard 1 Right Hand."
-          ]
+          overlapWarnings: ["Melodic overlap: competing with Keyboard 1 Right Hand."]
         }
       ],
       partGraph: [
@@ -632,10 +624,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
 };
 
 /** Documented. */
-export function createDefaultProjectSummary(input: {
-  id: string;
-  title: string;
-}): ProjectSummary {
+export function createDefaultProjectSummary(input: { id: string; title: string }): ProjectSummary {
   return {
     id: input.id,
     title: input.title,
@@ -687,7 +676,6 @@ export function parseProjectSummary(value: unknown): ProjectSummary {
   if (validationError) {
     throw new Error(validationError);
   }
-
   return structuredClone(value as ProjectSummary);
 }
 
@@ -725,222 +713,108 @@ export function createProjectBootstrapSummary(input: {
 
 /** Documented. */
 function validateProjectBootstrapSummary(value: unknown): string | null {
-  if (!isRecord(value)) {
-    return "Invalid project bootstrap summary: invalid field 'root'";
-  }
+  if (!isRecord(value)) return "Invalid project bootstrap summary: invalid field 'root'";
   const allowedKeys = ["projectId", "sourceMode", "projectRoot", "cacheRoot", "tempRoot", "source"] as const;
   for (const key of Object.keys(value)) {
     if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) {
       return `Invalid project bootstrap summary: invalid field '${key}'`;
     }
   }
-  if (typeof value.projectId !== "string" || value.projectId.trim().length === 0) {
-    return "Invalid project bootstrap summary: invalid field 'projectId'";
-  }
-  if (value.sourceMode !== "reference") {
-    return "Invalid project bootstrap summary: invalid field 'sourceMode'";
-  }
-  if (typeof value.projectRoot !== "string" || value.projectRoot.trim().length === 0) {
-    return "Invalid project bootstrap summary: invalid field 'projectRoot'";
-  }
-  if (typeof value.cacheRoot !== "string" || value.cacheRoot.trim().length === 0) {
-    return "Invalid project bootstrap summary: invalid field 'cacheRoot'";
-  }
-  if (typeof value.tempRoot !== "string" || value.tempRoot.trim().length === 0) {
-    return "Invalid project bootstrap summary: invalid field 'tempRoot'";
-  }
+  if (typeof value.projectId !== "string" || value.projectId.trim().length === 0) return "Invalid project bootstrap summary: invalid field 'projectId'";
+  if (value.sourceMode !== "reference") return "Invalid project bootstrap summary: invalid field 'sourceMode'";
+  if (typeof value.projectRoot !== "string" || value.projectRoot.trim().length === 0) return "Invalid project bootstrap summary: invalid field 'projectRoot'";
+  if (typeof value.cacheRoot !== "string" || value.cacheRoot.trim().length === 0) return "Invalid project bootstrap summary: invalid field 'cacheRoot'";
+  if (typeof value.tempRoot !== "string" || value.tempRoot.trim().length === 0) return "Invalid project bootstrap summary: invalid field 'tempRoot'";
   const sourceError = validateLocalAudioSource(value.source);
-  if (sourceError) {
-    return sourceError.replace("Invalid local audio source", "Invalid project bootstrap summary.source");
-  }
-
+  if (sourceError) return sourceError.replace("Invalid local audio source", "Invalid project bootstrap summary.source");
   return null;
 }
 
 /** Documented. */
 export function parseProjectBootstrapSummary(value: unknown): ProjectBootstrapSummary {
   const validationError = validateProjectBootstrapSummary(value);
-  if (validationError) {
-    throw new Error(validationError);
-  }
-
+  if (validationError) throw new Error(validationError);
   return structuredClone(value as ProjectBootstrapSummary);
 }
 
 /** Documented. */
 function validateMetadataHandoffSourceAsset(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["referenceKind", "sourceMode", "fileName", "extension", "fileSizeBytes", "status"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (value.referenceKind !== "local_audio") {
-    return invalidField(`${path}.referenceKind`);
-  }
-  if (value.sourceMode !== "reference") {
-    return invalidField(`${path}.sourceMode`);
-  }
-  if (typeof value.fileName !== "string" || value.fileName.trim().length === 0) {
-    return invalidField(`${path}.fileName`);
-  }
-  if (!isOneOf(SUPPORTED_AUDIO_FORMATS, value.extension)) {
-    return invalidField(`${path}.extension`);
-  }
-  if (typeof value.fileSizeBytes !== "number" || !Number.isFinite(value.fileSizeBytes) || value.fileSizeBytes <= 0) {
-    return invalidField(`${path}.fileSizeBytes`);
-  }
-  if (!isOneOf(HANDOFF_ASSET_STATUSES, value.status)) {
-    return invalidField(`${path}.status`);
-  }
-
+  if (extraKey) return extraKey;
+  if (value.referenceKind !== "local_audio") return invalidField(`${path}.referenceKind`);
+  if (value.sourceMode !== "reference") return invalidField(`${path}.sourceMode`);
+  if (typeof value.fileName !== "string" || value.fileName.trim().length === 0) return invalidField(`${path}.fileName`);
+  if (!isOneOf(SUPPORTED_AUDIO_FORMATS, value.extension)) return invalidField(`${path}.extension`);
+  if (typeof value.fileSizeBytes !== "number" || !Number.isFinite(value.fileSizeBytes) || value.fileSizeBytes <= 0) return invalidField(`${path}.fileSizeBytes`);
+  if (!isOneOf(HANDOFF_ASSET_STATUSES, value.status)) return invalidField(`${path}.status`);
   return null;
 }
 
 /** Documented. */
 function validateMetadataHandoffRoleBucket(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["id", "name", "roleType", "confidence", "rehearsalPriority"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.id !== "string") {
-    return invalidField(`${path}.id`);
-  }
-  if (typeof value.name !== "string") {
-    return invalidField(`${path}.name`);
-  }
-  if (!isOneOf(ROLE_TYPES, value.roleType)) {
-    return invalidField(`${path}.roleType`);
-  }
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (typeof value.name !== "string") return invalidField(`${path}.name`);
+  if (!isOneOf(ROLE_TYPES, value.roleType)) return invalidField(`${path}.roleType`);
   const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);
-  if (confidenceError) {
-    return confidenceError;
-  }
-  if (!isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority)) {
-    return invalidField(`${path}.rehearsalPriority`);
-  }
-
+  if (confidenceError) return confidenceError;
+  if (!isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority)) return invalidField(`${path}.rehearsalPriority`);
   return null;
 }
 
 /** Documented. */
 function validateMetadataHandoffSection(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["id", "label", "timeRange", "confidence", "roleBuckets"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.id !== "string") {
-    return invalidField(`${path}.id`);
-  }
-  if (!isOneOf(SECTION_FORM_LABELS, value.label)) {
-    return invalidField(`${path}.label`);
-  }
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (!isOneOf(SECTION_FORM_LABELS, value.label)) return invalidField(`${path}.label`);
   const timeRangeError = validateSectionTimeRange(value.timeRange, `${path}.timeRange`);
-  if (timeRangeError) {
-    return timeRangeError;
-  }
+  if (timeRangeError) return timeRangeError;
   const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);
-  if (confidenceError) {
-    return confidenceError;
-  }
-  if (!isDenseArray(value.roleBuckets)) {
-    return invalidField(`${path}.roleBuckets`);
-  }
+  if (confidenceError) return confidenceError;
+  if (!isDenseArray(value.roleBuckets)) return invalidField(`${path}.roleBuckets`);
   for (const [index, role] of value.roleBuckets.entries()) {
     const roleError = validateMetadataHandoffRoleBucket(role, `${path}.roleBuckets[${index}]`);
-    if (roleError) {
-      return roleError;
-    }
+    if (roleError) return roleError;
   }
-
   return null;
 }
 
 /** Documented. */
 function validateMetadataHandoffArtifact(value: unknown): string | null {
-  if (!isRecord(value)) {
-    return invalidField("root");
-  }
-  const extraKey = unexpectedKey(
-    value,
-    ["artifactKind", "artifactVersion", "createdAt", "workspace", "song", "sections", "sourceAssets"],
-    ""
-  );
-  if (extraKey) {
-    return extraKey;
-  }
-  if (value.artifactKind !== "bandscope.metadata-handoff") {
-    return invalidField("artifactKind");
-  }
-  if (value.artifactVersion !== 1) {
-    return invalidField("artifactVersion");
-  }
-  if (typeof value.createdAt !== "string" || value.createdAt.trim().length === 0) {
-    return invalidField("createdAt");
-  }
-  if (!isRecord(value.workspace)) {
-    return invalidField("workspace");
-  }
+  if (!isRecord(value)) return invalidField("root");
+  const extraKey = unexpectedKey(value, ["artifactKind", "artifactVersion", "createdAt", "workspace", "song", "sections", "sourceAssets"], "");
+  if (extraKey) return extraKey;
+  if (value.artifactKind !== "bandscope.metadata-handoff") return invalidField("artifactKind");
+  if (value.artifactVersion !== 1) return invalidField("artifactVersion");
+  if (typeof value.createdAt !== "string" || value.createdAt.trim().length === 0) return invalidField("createdAt");
+  if (!isRecord(value.workspace)) return invalidField("workspace");
   const workspaceExtraKey = unexpectedKey(value.workspace, ["id", "title", "workspaceVersion"], "workspace");
-  if (workspaceExtraKey) {
-    return workspaceExtraKey;
-  }
-  if (typeof value.workspace.id !== "string") {
-    return invalidField("workspace.id");
-  }
-  if (typeof value.workspace.title !== "string") {
-    return invalidField("workspace.title");
-  }
-  if (
-    typeof value.workspace.workspaceVersion !== "number" ||
-    !Number.isInteger(value.workspace.workspaceVersion) ||
-    value.workspace.workspaceVersion < 1
-  ) {
-    return invalidField("workspace.workspaceVersion");
-  }
-  if (!isRecord(value.song)) {
-    return invalidField("song");
-  }
+  if (workspaceExtraKey) return workspaceExtraKey;
+  if (typeof value.workspace.id !== "string") return invalidField("workspace.id");
+  if (typeof value.workspace.title !== "string") return invalidField("workspace.title");
+  if (typeof value.workspace.workspaceVersion !== "number" || !Number.isInteger(value.workspace.workspaceVersion) || value.workspace.workspaceVersion < 1) return invalidField("workspace.workspaceVersion");
+  if (!isRecord(value.song)) return invalidField("song");
   const songExtraKey = unexpectedKey(value.song, ["id", "title", "exportSummary"], "song");
-  if (songExtraKey) {
-    return songExtraKey;
-  }
-  if (typeof value.song.id !== "string") {
-    return invalidField("song.id");
-  }
-  if (typeof value.song.title !== "string") {
-    return invalidField("song.title");
-  }
+  if (songExtraKey) return songExtraKey;
+  if (typeof value.song.id !== "string") return invalidField("song.id");
+  if (typeof value.song.title !== "string") return invalidField("song.title");
   const exportSummaryError = validateExportSummary(value.song.exportSummary, "song.exportSummary");
-  if (exportSummaryError) {
-    return exportSummaryError;
-  }
-  if (!isDenseArray(value.sections)) {
-    return invalidField("sections");
-  }
+  if (exportSummaryError) return exportSummaryError;
+  if (!isDenseArray(value.sections)) return invalidField("sections");
   for (const [index, section] of value.sections.entries()) {
     const sectionError = validateMetadataHandoffSection(section, `sections[${index}]`);
-    if (sectionError) {
-      return sectionError;
-    }
+    if (sectionError) return sectionError;
   }
-  if (!isDenseArray(value.sourceAssets)) {
-    return invalidField("sourceAssets");
-  }
+  if (!isDenseArray(value.sourceAssets)) return invalidField("sourceAssets");
   for (const [index, sourceAsset] of value.sourceAssets.entries()) {
     const sourceAssetError = validateMetadataHandoffSourceAsset(sourceAsset, `sourceAssets[${index}]`);
-    if (sourceAssetError) {
-      return sourceAssetError;
-    }
+    if (sourceAssetError) return sourceAssetError;
   }
-
   return null;
 }
 
@@ -952,251 +826,116 @@ export function isMetadataHandoffArtifact(value: unknown): value is MetadataHand
 /** Documented. */
 export function parseMetadataHandoffArtifact(value: unknown): MetadataHandoffArtifact {
   const validationError = validateMetadataHandoffArtifact(value);
-  if (validationError) {
-    throw new Error(validationError);
-  }
-
+  if (validationError) throw new Error(validationError);
   return structuredClone(value as MetadataHandoffArtifact);
 }
 
 /** Documented. */
 function validateLocalAudioSource(value: unknown): string | null {
-  if (!isRecord(value)) {
-    return "Invalid local audio source: invalid field 'root'";
-  }
+  if (!isRecord(value)) return "Invalid local audio source: invalid field 'root'";
   const allowedKeys = ["sourcePath", "fileName", "extension", "fileSizeBytes"] as const;
   for (const key of Object.keys(value)) {
-    if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) {
-      return `Invalid local audio source: invalid field '${key}'`;
-    }
+    if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) return `Invalid local audio source: invalid field '${key}'`;
   }
-  if (typeof value.sourcePath !== "string" || value.sourcePath.trim().length === 0) {
-    return "Invalid local audio source: invalid field 'sourcePath'";
-  }
-  if (typeof value.fileName !== "string" || value.fileName.trim().length === 0) {
-    return "Invalid local audio source: invalid field 'fileName'";
-  }
-  if (!isOneOf(SUPPORTED_AUDIO_FORMATS, value.extension)) {
-    return "Invalid local audio source: invalid field 'extension'";
-  }
-  if (typeof value.fileSizeBytes !== "number" || !Number.isFinite(value.fileSizeBytes) || value.fileSizeBytes <= 0) {
-    return "Invalid local audio source: invalid field 'fileSizeBytes'";
-  }
-
+  if (typeof value.sourcePath !== "string" || value.sourcePath.trim().length === 0) return "Invalid local audio source: invalid field 'sourcePath'";
+  if (typeof value.fileName !== "string" || value.fileName.trim().length === 0) return "Invalid local audio source: invalid field 'fileName'";
+  if (!isOneOf(SUPPORTED_AUDIO_FORMATS, value.extension)) return "Invalid local audio source: invalid field 'extension'";
+  if (typeof value.fileSizeBytes !== "number" || !Number.isFinite(value.fileSizeBytes) || value.fileSizeBytes <= 0) return "Invalid local audio source: invalid field 'fileSizeBytes'";
   return null;
 }
 
 /** Documented. */
 export function parseLocalAudioSource(value: unknown): LocalAudioSource {
   const validationError = validateLocalAudioSource(value);
-  if (validationError) {
-    throw new Error(validationError);
-  }
-
+  if (validationError) throw new Error(validationError);
   return structuredClone(value as LocalAudioSource);
 }
 
 /** Documented. */
 export function createAnalysisJobStatus(input:
-  | {
-      jobId: string;
-      state: "queued" | "running";
-      progressLabel?: string;
-      progressStage?: AnalysisJobStage;
-      progressPercent?: number;
-      cacheStatus?: AnalysisCacheStatus;
-      requestedAt?: string;
-      updatedAt?: string;
-    }
-  | {
-      jobId: string;
-      state: "succeeded";
-      result: RehearsalSong;
-      progressLabel?: string;
-      progressStage?: AnalysisJobStage;
-      progressPercent?: number;
-      cacheStatus?: AnalysisCacheStatus;
-      requestedAt?: string;
-      updatedAt?: string;
-    }
-  | {
-      jobId: string;
-      state: "failed";
-      error: AnalysisJobError;
-      progressLabel?: string;
-      progressStage?: AnalysisJobStage;
-      progressPercent?: number;
-      cacheStatus?: AnalysisCacheStatus;
-      requestedAt?: string;
-      updatedAt?: string;
-    }
+  | { jobId: string; state: "queued" | "running"; progressLabel?: string; progressStage?: AnalysisJobStage; progressPercent?: number; cacheStatus?: AnalysisCacheStatus; requestedAt?: string; updatedAt?: string }
+  | { jobId: string; state: "succeeded"; result: RehearsalSong; progressLabel?: string; progressStage?: AnalysisJobStage; progressPercent?: number; cacheStatus?: AnalysisCacheStatus; requestedAt?: string; updatedAt?: string }
+  | { jobId: string; state: "failed"; error: AnalysisJobError; progressLabel?: string; progressStage?: AnalysisJobStage; progressPercent?: number; cacheStatus?: AnalysisCacheStatus; requestedAt?: string; updatedAt?: string }
 ): AnalysisJobStatus {
   const now = new Date().toISOString();
   const status: AnalysisJobStatus = {
     jobId: input.jobId,
     state: input.state,
     requestedAt: input.requestedAt ?? now,
-    updatedAt: input.updatedAt ?? now,
+    updatedAt: input.updatedAt ?? now
   };
-
-  if (input.progressLabel !== undefined) {
-    status.progressLabel = input.progressLabel;
-  }
-  if (input.progressStage !== undefined) {
-    status.progressStage = input.progressStage;
-  }
-  if (input.progressPercent !== undefined) {
-    status.progressPercent = input.progressPercent;
-  }
-  if (input.cacheStatus !== undefined) {
-    status.cacheStatus = input.cacheStatus;
-  }
-  if ("result" in input) {
-    status.result = input.result;
-  }
-  if ("error" in input) {
-    status.error = input.error;
-  }
-
+  if (input.progressLabel !== undefined) status.progressLabel = input.progressLabel;
+  if (input.progressStage !== undefined) status.progressStage = input.progressStage;
+  if (input.progressPercent !== undefined) status.progressPercent = input.progressPercent;
+  if (input.cacheStatus !== undefined) status.cacheStatus = input.cacheStatus;
+  if ("result" in input) status.result = input.result;
+  if ("error" in input) status.error = input.error;
   return status;
 }
 
 /** Documented. */
 function validateAnalysisJobRequest(value: unknown): string | null {
-  if (!isRecord(value)) {
-    return "Invalid analysis job request: invalid field 'root'";
-  }
-  if (!isOneOf(ANALYSIS_SOURCE_KINDS, value.sourceKind)) {
-    return "Invalid analysis job request: invalid field 'sourceKind'";
-  }
-  if (typeof value.sourceLabel !== "string" || value.sourceLabel.trim().length === 0) {
-    return "Invalid analysis job request: invalid field 'sourceLabel'";
-  }
-  if (!isDenseArray(value.roleFocus)) {
-    return "Invalid analysis job request: invalid field 'roleFocus'";
-  }
+  if (!isRecord(value)) return "Invalid analysis job request: invalid field 'root'";
+  if (!isOneOf(ANALYSIS_SOURCE_KINDS, value.sourceKind)) return "Invalid analysis job request: invalid field 'sourceKind'";
+  if (typeof value.sourceLabel !== "string" || value.sourceLabel.trim().length === 0) return "Invalid analysis job request: invalid field 'sourceLabel'";
+  if (!isDenseArray(value.roleFocus)) return "Invalid analysis job request: invalid field 'roleFocus'";
   for (const [index, role] of value.roleFocus.entries()) {
-    if (typeof role !== "string") {
-      return `Invalid analysis job request: invalid field 'roleFocus[${index}]'`;
-    }
+    if (typeof role !== "string") return `Invalid analysis job request: invalid field 'roleFocus[${index}]'`;
   }
-  const allowedKeys = new Set(
-    value.sourceKind === "local_audio"
-      ? ["sourceKind", "projectId", "sourceLabel", "roleFocus"]
-      : ["sourceKind", "sourceLabel", "roleFocus"]
-  );
+  const allowedKeys = new Set(value.sourceKind === "local_audio" ? ["sourceKind", "projectId", "sourceLabel", "roleFocus"] : ["sourceKind", "sourceLabel", "roleFocus"]);
   for (const key of Object.keys(value)) {
-    if (!allowedKeys.has(key)) {
-      return `Invalid analysis job request: invalid field '${key}'`;
-    }
+    if (!allowedKeys.has(key)) return `Invalid analysis job request: invalid field '${key}'`;
   }
-  if (value.sourceKind === "local_audio") {
-    if (typeof value.projectId !== "string" || value.projectId.trim().length === 0) {
-      return "Invalid analysis job request: invalid field 'projectId'";
-    }
-  }
-  
+  if (value.sourceKind === "local_audio" && (typeof value.projectId !== "string" || value.projectId.trim().length === 0)) return "Invalid analysis job request: invalid field 'projectId'";
   return null;
 }
 
 /** Documented. */
 export function parseAnalysisJobRequest(value: unknown): AnalysisJobRequest {
   const validationError = validateAnalysisJobRequest(value);
-  if (validationError) {
-    throw new Error(validationError);
-  }
-
+  if (validationError) throw new Error(validationError);
   return structuredClone(value as AnalysisJobRequest);
 }
 
 /** Documented. */
 function validateAnalysisJobError(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["code", "message"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (!isOneOf(ANALYSIS_JOB_ERROR_CODES, value.code)) {
-    return invalidField(`${path}.code`);
-  }
-  if (typeof value.message !== "string") {
-    return invalidField(`${path}.message`);
-  }
-
+  if (extraKey) return extraKey;
+  if (!isOneOf(ANALYSIS_JOB_ERROR_CODES, value.code)) return invalidField(`${path}.code`);
+  if (typeof value.message !== "string") return invalidField(`${path}.message`);
   return null;
 }
 
 /** Documented. */
-function validateAnalysisJobStatus(
-  value: unknown,
-  options: ValidationOptions = STRICT_VALIDATION_OPTIONS
-): string | null {
-  if (!isRecord(value)) {
-    return invalidField("root");
-  }
+function validateAnalysisJobStatus(value: unknown, options: ValidationOptions = STRICT_VALIDATION_OPTIONS): string | null {
+  if (!isRecord(value)) return invalidField("root");
   const allowedKeysByState: Record<AnalysisJobState, string[]> = {
     queued: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "progressStage", "progressPercent", "cacheStatus"],
     running: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "progressStage", "progressPercent", "cacheStatus"],
     succeeded: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "progressStage", "progressPercent", "cacheStatus", "result"],
     failed: ["jobId", "state", "requestedAt", "updatedAt", "progressLabel", "progressStage", "progressPercent", "cacheStatus", "error"]
   };
-  if (typeof value.jobId !== "string") {
-    return invalidField("jobId");
-  }
-  if (!isOneOf(ANALYSIS_JOB_STATES, value.state)) {
-    return invalidField("state");
-  }
+  if (typeof value.jobId !== "string") return invalidField("jobId");
+  if (!isOneOf(ANALYSIS_JOB_STATES, value.state)) return invalidField("state");
   const extraKey = unexpectedKey(value, allowedKeysByState[value.state], "");
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.requestedAt !== "string") {
-    return invalidField("requestedAt");
-  }
-  if (typeof value.updatedAt !== "string") {
-    return invalidField("updatedAt");
-  }
-  if (value.progressLabel !== undefined && typeof value.progressLabel !== "string") {
-    return invalidField("progressLabel");
-  }
-  if (value.progressStage !== undefined && !isOneOf(ANALYSIS_JOB_STAGES, value.progressStage)) {
-    return invalidField("progressStage");
-  }
-  if (
-    value.progressPercent !== undefined &&
-    (
-      typeof value.progressPercent !== "number" ||
-      !Number.isInteger(value.progressPercent) ||
-      value.progressPercent < 0 ||
-      value.progressPercent > 100
-    )
-  ) {
-    return invalidField("progressPercent");
-  }
-  if (value.cacheStatus !== undefined && !isOneOf(ANALYSIS_CACHE_STATUSES, value.cacheStatus)) {
-    return invalidField("cacheStatus");
-  }
+  if (extraKey) return extraKey;
+  if (typeof value.requestedAt !== "string") return invalidField("requestedAt");
+  if (typeof value.updatedAt !== "string") return invalidField("updatedAt");
+  if (value.progressLabel !== undefined && typeof value.progressLabel !== "string") return invalidField("progressLabel");
+  if (value.progressStage !== undefined && !isOneOf(ANALYSIS_JOB_STAGES, value.progressStage)) return invalidField("progressStage");
+  if (value.progressPercent !== undefined && (typeof value.progressPercent !== "number" || !Number.isInteger(value.progressPercent) || value.progressPercent < 0 || value.progressPercent > 100)) return invalidField("progressPercent");
+  if (value.cacheStatus !== undefined && !isOneOf(ANALYSIS_CACHE_STATUSES, value.cacheStatus)) return invalidField("cacheStatus");
   if (value.result !== undefined) {
     const resultError = validateRehearsalSong(value.result, options);
-    if (resultError) {
-      return resultError;
-    }
+    if (resultError) return resultError;
   }
   if (value.error !== undefined) {
     const errorValidation = validateAnalysisJobError(value.error, "error");
-    if (errorValidation) {
-      return errorValidation;
-    }
+    if (errorValidation) return errorValidation;
   }
-  if (value.state === "succeeded" && value.result === undefined) {
-    return invalidField("result");
-  }
-  if (value.state === "failed" && value.error === undefined) {
-    return invalidField("error");
-  }
-
+  if (value.state === "succeeded" && value.result === undefined) return invalidField("result");
+  if (value.state === "failed" && value.error === undefined) return invalidField("error");
   return null;
 }
 
@@ -1208,664 +947,314 @@ export function isAnalysisJobStatus(value: unknown): value is AnalysisJobStatus 
 /** Documented. */
 export function parseAnalysisJobStatus(value: unknown): AnalysisJobStatus {
   const validationError = validateAnalysisJobStatus(value, LEGACY_VALIDATION_OPTIONS);
-  if (validationError) {
-    throw new Error(validationError);
-  }
-
+  if (validationError) throw new Error(validationError);
   const parsed = structuredClone(value as AnalysisJobStatus);
-  if (parsed.result !== undefined) {
-    parsed.result = parseRehearsalSong(parsed.result);
-  }
+  if (parsed.result !== undefined) parsed.result = parseRehearsalSong(parsed.result);
   return parsed;
 }
 
 /** Documented. */
 function validateConfidenceMarker(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["level", "source", "notes"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (!isOneOf(CONFIDENCE_LEVELS, value.level)) {
-    return invalidField(`${path}.level`);
-  }
-  if (!isOneOf(PROVENANCE_SOURCES, value.source)) {
-    return invalidField(`${path}.source`);
-  }
-  if (typeof value.notes !== "string") {
-    return invalidField(`${path}.notes`);
-  }
-
+  if (extraKey) return extraKey;
+  if (!isOneOf(CONFIDENCE_LEVELS, value.level)) return invalidField(`${path}.level`);
+  if (!isOneOf(PROVENANCE_SOURCES, value.source)) return invalidField(`${path}.source`);
+  if (typeof value.notes !== "string") return invalidField(`${path}.notes`);
   return null;
 }
 
 /** Documented. */
 function validateCueAnchor(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["kind", "value"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (!isOneOf(CUE_ANCHOR_KINDS, value.kind)) {
-    return invalidField(`${path}.kind`);
-  }
-  if (typeof value.value !== "string") {
-    return invalidField(`${path}.value`);
-  }
-
+  if (extraKey) return extraKey;
+  if (!isOneOf(CUE_ANCHOR_KINDS, value.kind)) return invalidField(`${path}.kind`);
+  if (typeof value.value !== "string") return invalidField(`${path}.value`);
   return null;
 }
 
 /** Documented. */
 function validateRangeSummary(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["lowestNote", "highestNote"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.lowestNote !== "string") {
-    return invalidField(`${path}.lowestNote`);
-  }
-  if (typeof value.highestNote !== "string") {
-    return invalidField(`${path}.highestNote`);
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.lowestNote !== "string") return invalidField(`${path}.lowestNote`);
+  if (typeof value.highestNote !== "string") return invalidField(`${path}.highestNote`);
   return null;
 }
 
 /** Documented. */
 function validateRehearsalHarmony(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["chord", "functionLabel", "source"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.chord !== "string") {
-    return invalidField(`${path}.chord`);
-  }
-  if (typeof value.functionLabel !== "string") {
-    return invalidField(`${path}.functionLabel`);
-  }
-  if (!isOneOf(PROVENANCE_SOURCES, value.source)) {
-    return invalidField(`${path}.source`);
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.chord !== "string") return invalidField(`${path}.chord`);
+  if (typeof value.functionLabel !== "string") return invalidField(`${path}.functionLabel`);
+  if (!isOneOf(PROVENANCE_SOURCES, value.source)) return invalidField(`${path}.source`);
   return null;
 }
 
 /** Documented. */
 function validateRehearsalAssignment(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["id", "assignee", "summary", "sectionId", "roleId", "status"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.id !== "string") {
-    return invalidField(`${path}.id`);
-  }
-  if (typeof value.assignee !== "string") {
-    return invalidField(`${path}.assignee`);
-  }
-  if (typeof value.summary !== "string") {
-    return invalidField(`${path}.summary`);
-  }
-  if (typeof value.sectionId !== "string") {
-    return invalidField(`${path}.sectionId`);
-  }
-  if (value.roleId !== undefined && typeof value.roleId !== "string") {
-    return invalidField(`${path}.roleId`);
-  }
-  if (!isOneOf(COLLABORATION_ASSIGNMENT_STATUSES, value.status)) {
-    return invalidField(`${path}.status`);
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (typeof value.assignee !== "string") return invalidField(`${path}.assignee`);
+  if (typeof value.summary !== "string") return invalidField(`${path}.summary`);
+  if (typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
+  if (value.roleId !== undefined && typeof value.roleId !== "string") return invalidField(`${path}.roleId`);
+  if (!isOneOf(COLLABORATION_ASSIGNMENT_STATUSES, value.status)) return invalidField(`${path}.status`);
   return null;
 }
 
 /** Documented. */
 function validateRehearsalComment(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["id", "author", "body", "sectionId", "roleId", "status"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.id !== "string") {
-    return invalidField(`${path}.id`);
-  }
-  if (typeof value.author !== "string") {
-    return invalidField(`${path}.author`);
-  }
-  if (typeof value.body !== "string") {
-    return invalidField(`${path}.body`);
-  }
-  if (typeof value.sectionId !== "string") {
-    return invalidField(`${path}.sectionId`);
-  }
-  if (value.roleId !== undefined && typeof value.roleId !== "string") {
-    return invalidField(`${path}.roleId`);
-  }
-  if (!isOneOf(COLLABORATION_COMMENT_STATUSES, value.status)) {
-    return invalidField(`${path}.status`);
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (typeof value.author !== "string") return invalidField(`${path}.author`);
+  if (typeof value.body !== "string") return invalidField(`${path}.body`);
+  if (typeof value.sectionId !== "string") return invalidField(`${path}.sectionId`);
+  if (value.roleId !== undefined && typeof value.roleId !== "string") return invalidField(`${path}.roleId`);
+  if (!isOneOf(COLLABORATION_COMMENT_STATUSES, value.status)) return invalidField(`${path}.status`);
   return null;
 }
 
 /** Documented. */
 function validateRehearsalApproval(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["id", "scope", "owner", "status"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.id !== "string") {
-    return invalidField(`${path}.id`);
-  }
-  if (typeof value.scope !== "string") {
-    return invalidField(`${path}.scope`);
-  }
-  if (typeof value.owner !== "string") {
-    return invalidField(`${path}.owner`);
-  }
-  if (!isOneOf(COLLABORATION_APPROVAL_STATUSES, value.status)) {
-    return invalidField(`${path}.status`);
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (typeof value.scope !== "string") return invalidField(`${path}.scope`);
+  if (typeof value.owner !== "string") return invalidField(`${path}.owner`);
+  if (!isOneOf(COLLABORATION_APPROVAL_STATUSES, value.status)) return invalidField(`${path}.status`);
   return null;
 }
 
 /** Documented. */
 function validateRehearsalCollaboration(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["syncMode", "syncNote", "assignments", "comments", "approvals"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (!isOneOf(COLLABORATION_SYNC_MODES, value.syncMode)) {
-    return invalidField(`${path}.syncMode`);
-  }
-  if (typeof value.syncNote !== "string") {
-    return invalidField(`${path}.syncNote`);
-  }
-  if (!isDenseArray(value.assignments)) {
-    return invalidField(`${path}.assignments`);
-  }
+  if (extraKey) return extraKey;
+  if (!isOneOf(COLLABORATION_SYNC_MODES, value.syncMode)) return invalidField(`${path}.syncMode`);
+  if (typeof value.syncNote !== "string") return invalidField(`${path}.syncNote`);
+  if (!isDenseArray(value.assignments)) return invalidField(`${path}.assignments`);
   for (const [index, assignment] of value.assignments.entries()) {
     const assignmentError = validateRehearsalAssignment(assignment, `${path}.assignments[${index}]`);
-    if (assignmentError) {
-      return assignmentError;
-    }
+    if (assignmentError) return assignmentError;
   }
-  if (!isDenseArray(value.comments)) {
-    return invalidField(`${path}.comments`);
-  }
+  if (!isDenseArray(value.comments)) return invalidField(`${path}.comments`);
   for (const [index, comment] of value.comments.entries()) {
     const commentError = validateRehearsalComment(comment, `${path}.comments[${index}]`);
-    if (commentError) {
-      return commentError;
-    }
+    if (commentError) return commentError;
   }
-  if (!isDenseArray(value.approvals)) {
-    return invalidField(`${path}.approvals`);
-  }
+  if (!isDenseArray(value.approvals)) return invalidField(`${path}.approvals`);
   for (const [index, approval] of value.approvals.entries()) {
     const approvalError = validateRehearsalApproval(approval, `${path}.approvals[${index}]`);
-    if (approvalError) {
-      return approvalError;
-    }
+    if (approvalError) return approvalError;
   }
-
   return null;
 }
 
 /** Documented. */
 function validateManualOverride(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["field", "value", "source"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (value.field !== "harmony") {
-    return invalidField(`${path}.field`);
-  }
-  if (value.source !== "user") {
-    return invalidField(`${path}.source`);
-  }
-
+  if (extraKey) return extraKey;
+  if (value.field !== "harmony") return invalidField(`${path}.field`);
+  if (value.source !== "user") return invalidField(`${path}.source`);
   const harmonyError = validateRehearsalHarmony(value.value, `${path}.value`);
-  if (harmonyError) {
-    return harmonyError;
-  }
+  if (harmonyError) return harmonyError;
   const harmonyValue = value.value as RehearsalHarmony;
-  if (harmonyValue.source !== "user") {
-    return invalidField(`${path}.value.source`);
-  }
-
+  if (harmonyValue.source !== "user") return invalidField(`${path}.value.source`);
   return null;
 }
 
 /** Documented. */
 function validateTranscriptionNote(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["pitch", "onset", "offset", "velocity"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.pitch !== "string") {
-    return invalidField(`${path}.pitch`);
-  }
-  if (typeof value.onset !== "number") {
-    return invalidField(`${path}.onset`);
-  }
-  if (typeof value.offset !== "number") {
-    return invalidField(`${path}.offset`);
-  }
-  if (typeof value.velocity !== "number") {
-    return invalidField(`${path}.velocity`);
-  }
+  if (extraKey) return extraKey;
+  if (typeof value.pitch !== "string") return invalidField(`${path}.pitch`);
+  if (typeof value.onset !== "number") return invalidField(`${path}.onset`);
+  if (typeof value.offset !== "number") return invalidField(`${path}.offset`);
+  if (typeof value.velocity !== "number") return invalidField(`${path}.velocity`);
   return null;
 }
 
 /** Documented. */
 function validateRehearsalRole(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
-  const extraKey = unexpectedKey(
-    value,
-    [
-      "id",
-      "name",
-      "roleType",
-      "harmony",
-      "harmonicExplanation",
-      "cue",
-      "range",
-      "confidence",
-      "rehearsalPriority",
-      "simplification",
-      "setupNote",
-      "transpositionPlan",
-      "manualOverrides",
-      "overlapWarnings",
-      "transcription",
-      "practiceProgress"
-    ],
-    path
-  );
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.id !== "string") {
-    return invalidField(`${path}.id`);
-  }
-  if (typeof value.name !== "string") {
-    return invalidField(`${path}.name`);
-  }
-  if (!isOneOf(ROLE_TYPES, value.roleType)) {
-    return invalidField(`${path}.roleType`);
-  }
-
+  if (!isRecord(value)) return invalidField(path);
+  const extraKey = unexpectedKey(value, ["id", "name", "roleType", "harmony", "harmonicExplanation", "cue", "range", "confidence", "rehearsalPriority", "simplification", "setupNote", "transpositionPlan", "manualOverrides", "overlapWarnings", "transcription", "practiceProgress"], path);
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (typeof value.name !== "string") return invalidField(`${path}.name`);
+  if (!isOneOf(ROLE_TYPES, value.roleType)) return invalidField(`${path}.roleType`);
   const harmonyError = validateRehearsalHarmony(value.harmony, `${path}.harmony`);
-  if (harmonyError) {
-    return harmonyError;
-  }
-  if (value.harmonicExplanation !== undefined && typeof value.harmonicExplanation !== "string") {
-    return invalidField(`${path}.harmonicExplanation`);
-  }
-
+  if (harmonyError) return harmonyError;
+  if (value.harmonicExplanation !== undefined && typeof value.harmonicExplanation !== "string") return invalidField(`${path}.harmonicExplanation`);
   const cueError = validateCueAnchor(value.cue, `${path}.cue`);
-  if (cueError) {
-    return cueError;
-  }
-
+  if (cueError) return cueError;
   const rangeError = validateRangeSummary(value.range, `${path}.range`);
-  if (rangeError) {
-    return rangeError;
-  }
-
+  if (rangeError) return rangeError;
   const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);
-  if (confidenceError) {
-    return confidenceError;
-  }
-
-  if (!isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority)) {
-    return invalidField(`${path}.rehearsalPriority`);
-  }
-  if (typeof value.simplification !== "string") {
-    return invalidField(`${path}.simplification`);
-  }
-  if (typeof value.setupNote !== "string") {
-    return invalidField(`${path}.setupNote`);
-  }
-  if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
-    return invalidField(`${path}.transpositionPlan`);
-  }
-  if (!isDenseArray(value.manualOverrides)) {
-    return invalidField(`${path}.manualOverrides`);
-  }
+  if (confidenceError) return confidenceError;
+  if (!isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority)) return invalidField(`${path}.rehearsalPriority`);
+  if (typeof value.simplification !== "string") return invalidField(`${path}.simplification`);
+  if (typeof value.setupNote !== "string") return invalidField(`${path}.setupNote`);
+  if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") return invalidField(`${path}.transpositionPlan`);
+  if (!isDenseArray(value.manualOverrides)) return invalidField(`${path}.manualOverrides`);
   for (const [index, override] of value.manualOverrides.entries()) {
     const overrideError = validateManualOverride(override, `${path}.manualOverrides[${index}]`);
-    if (overrideError) {
-      return overrideError;
-    }
+    if (overrideError) return overrideError;
   }
-  if (!isDenseArray(value.overlapWarnings)) {
-    return invalidField(`${path}.overlapWarnings`);
-  }
+  if (!isDenseArray(value.overlapWarnings)) return invalidField(`${path}.overlapWarnings`);
   for (const [index, warning] of value.overlapWarnings.entries()) {
-    if (typeof warning !== "string") {
-      return invalidField(`${path}.overlapWarnings[${index}]`);
-    }
+    if (typeof warning !== "string") return invalidField(`${path}.overlapWarnings[${index}]`);
   }
-
   if (value.transcription !== undefined) {
-    if (!isDenseArray(value.transcription)) {
-      return invalidField(`${path}.transcription`);
-    }
+    if (!isDenseArray(value.transcription)) return invalidField(`${path}.transcription`);
     for (const [index, note] of value.transcription.entries()) {
       const noteError = validateTranscriptionNote(note, `${path}.transcription[${index}]`);
-      if (noteError) {
-        return noteError;
-      }
+      if (noteError) return noteError;
     }
   }
-
-  if (value.practiceProgress !== undefined) {
-    if (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100) {
-      return invalidField(`${path}.practiceProgress`);
-    }
-  }
-
+  if (value.practiceProgress !== undefined && (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100)) return invalidField(`${path}.practiceProgress`);
   return null;
 }
 
 /** Documented. */
 function validatePartGraphNode(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["role_id", "is_active", "handoff_to", "handoff_from"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.role_id !== "string") {
-    return invalidField(`${path}.role_id`);
-  }
-  if (typeof value.is_active !== "boolean") {
-    return invalidField(`${path}.is_active`);
-  }
-  if (!isDenseArray(value.handoff_to)) {
-    return invalidField(`${path}.handoff_to`);
-  }
-  for (const [index, handoff] of value.handoff_to.entries()) {
-    if (typeof handoff !== "string") {
-      return invalidField(`${path}.handoff_to[${index}]`);
-    }
-  }
-  if (!isDenseArray(value.handoff_from)) {
-    return invalidField(`${path}.handoff_from`);
-  }
-  for (const [index, handoff] of value.handoff_from.entries()) {
-    if (typeof handoff !== "string") {
-      return invalidField(`${path}.handoff_from[${index}]`);
-    }
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.role_id !== "string") return invalidField(`${path}.role_id`);
+  if (typeof value.is_active !== "boolean") return invalidField(`${path}.is_active`);
+  if (!isDenseArray(value.handoff_to)) return invalidField(`${path}.handoff_to`);
+  for (const [index, handoff] of value.handoff_to.entries()) if (typeof handoff !== "string") return invalidField(`${path}.handoff_to[${index}]`);
+  if (!isDenseArray(value.handoff_from)) return invalidField(`${path}.handoff_from`);
+  for (const [index, handoff] of value.handoff_from.entries()) if (typeof handoff !== "string") return invalidField(`${path}.handoff_from[${index}]`);
   return null;
 }
 
 /** Documented. */
 function validateSectionTimeRange(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["start", "end"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.start !== "number" || !Number.isFinite(value.start) || !Number.isInteger(value.start) || value.start < 0 || value.start > MAX_SECTION_TIME_SECONDS) {
-    return invalidField(`${path}.start`);
-  }
-  if (typeof value.end !== "number" || !Number.isFinite(value.end) || !Number.isInteger(value.end) || value.end <= value.start || value.end > MAX_SECTION_TIME_SECONDS) {
-    return invalidField(`${path}.end`);
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.start !== "number" || !Number.isFinite(value.start) || !Number.isInteger(value.start) || value.start < 0 || value.start > MAX_SECTION_TIME_SECONDS) return invalidField(`${path}.start`);
+  if (typeof value.end !== "number" || !Number.isFinite(value.end) || !Number.isInteger(value.end) || value.end <= value.start || value.end > MAX_SECTION_TIME_SECONDS) return invalidField(`${path}.end`);
   return null;
 }
 
 /** Documented. */
 function validateRehearsalSection(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["id", "label", "groove", "timeRange", "confidence", "roles", "partGraph"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.id !== "string") {
-    return invalidField(`${path}.id`);
-  }
-  if (!isOneOf(SECTION_FORM_LABELS, value.label)) {
-    return invalidField(`${path}.label`);
-  }
-  if (typeof value.groove !== "string") {
-    return invalidField(`${path}.groove`);
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string") return invalidField(`${path}.id`);
+  if (!isOneOf(SECTION_FORM_LABELS, value.label)) return invalidField(`${path}.label`);
+  if (typeof value.groove !== "string") return invalidField(`${path}.groove`);
   const timeRangeError = validateSectionTimeRange(value.timeRange, `${path}.timeRange`);
-  if (timeRangeError) {
-    return timeRangeError;
-  }
-
+  if (timeRangeError) return timeRangeError;
   const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);
-  if (confidenceError) {
-    return confidenceError;
-  }
-
-  if (!isDenseArray(value.roles)) {
-    return invalidField(`${path}.roles`);
-  }
+  if (confidenceError) return confidenceError;
+  if (!isDenseArray(value.roles)) return invalidField(`${path}.roles`);
   for (const [index, role] of value.roles.entries()) {
     const roleError = validateRehearsalRole(role, `${path}.roles[${index}]`);
-    if (roleError) {
-      return roleError;
-    }
+    if (roleError) return roleError;
   }
-
-  if (!isDenseArray(value.partGraph)) {
-    return invalidField(`${path}.partGraph`);
-  }
+  if (!isDenseArray(value.partGraph)) return invalidField(`${path}.partGraph`);
   for (const [index, node] of value.partGraph.entries()) {
     const nodeError = validatePartGraphNode(node, `${path}.partGraph[${index}]`);
-    if (nodeError) {
-      return nodeError;
-    }
+    if (nodeError) return nodeError;
   }
-
   return null;
 }
 
 /** Documented. */
 function validateExportSummary(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["format", "headline", "focusSections"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (!isOneOf(EXPORT_FORMATS, value.format)) {
-    return invalidField(`${path}.format`);
-  }
-  if (typeof value.headline !== "string") {
-    return invalidField(`${path}.headline`);
-  }
-  if (!isDenseArray(value.focusSections)) {
-    return invalidField(`${path}.focusSections`);
-  }
-  for (const [index, section] of value.focusSections.entries()) {
-    if (typeof section !== "string") {
-      return invalidField(`${path}.focusSections[${index}]`);
-    }
-  }
-
+  if (extraKey) return extraKey;
+  if (!isOneOf(EXPORT_FORMATS, value.format)) return invalidField(`${path}.format`);
+  if (typeof value.headline !== "string") return invalidField(`${path}.headline`);
+  if (!isDenseArray(value.focusSections)) return invalidField(`${path}.focusSections`);
+  for (const [index, section] of value.focusSections.entries()) if (typeof section !== "string") return invalidField(`${path}.focusSections[${index}]`);
   return null;
 }
 
 /** Documented. */
 function legacySectionTimeRange(index: number): SectionTimeRange {
-  return {
-    start: index,
-    end: index + 1
-  };
+  return { start: index, end: index + 1 };
 }
 
 /** Documented. */
 function migrateLegacySectionTimeRanges(value: unknown): unknown {
-  if (!isRecord(value) || !isDenseArray(value.sections)) {
-    return value;
-  }
-
-  const migrated = structuredClone(value) as Record<string, unknown> & {
-    sections: unknown[];
-  };
+  if (!isRecord(value) || !isDenseArray(value.sections)) return value;
+  const migrated = structuredClone(value) as Record<string, unknown> & { sections: unknown[] };
   migrated.sections = migrated.sections.map((section, index) => {
-    if (!isRecord(section) || section.timeRange !== undefined) {
-      return section;
-    }
-
-    return {
-      ...section,
-      timeRange: legacySectionTimeRange(index)
-    };
+    if (!isRecord(section) || section.timeRange !== undefined) return section;
+    return { ...section, timeRange: legacySectionTimeRange(index) };
   });
-
   return migrated;
 }
 
 /** Documented. */
 function validateRehearsalDcAlCoda(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["label"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.label !== "string") {
+  if (extraKey) return extraKey;
+  if (!Object.prototype.hasOwnProperty.call(value, "label") || typeof value.label !== "string") {
     return invalidField(`${path}.label`);
   }
-  if (!/^D\.C\. al Coda(?: [1-9])?$/u.test(value.label)) {
-    return invalidField(`${path}.label`);
-  }
-
+  if (!/^D\.C\. al Coda(?: [1-9])?$/u.test(value.label)) return invalidField(`${path}.label`);
   return null;
 }
 
 /** Documented. */
 function validateScoreAttachment(value: unknown, path: string): string | null {
-  if (!isRecord(value)) {
-    return invalidField(path);
-  }
+  if (!isRecord(value)) return invalidField(path);
   const extraKey = unexpectedKey(value, ["id", "fileName"], path);
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof value.id !== "string" || value.id.length === 0) {
-    return invalidField(`${path}.id`);
-  }
-  if (typeof value.fileName !== "string" || value.fileName.length === 0) {
-    return invalidField(`${path}.fileName`);
-  }
-
+  if (extraKey) return extraKey;
+  if (typeof value.id !== "string" || value.id.length === 0) return invalidField(`${path}.id`);
+  if (typeof value.fileName !== "string" || value.fileName.length === 0) return invalidField(`${path}.fileName`);
   return null;
 }
 
 /** Documented. */
-function validateRehearsalSong(
-  value: unknown,
-  options: ValidationOptions = STRICT_VALIDATION_OPTIONS
-): string | null {
-  const normalized = options.acceptLegacySectionTimeRanges
-    ? migrateLegacySectionTimeRanges(value)
-    : value;
-  if (!isRecord(normalized)) {
-    return invalidField("root");
-  }
-  const extraKey = unexpectedKey(
-    normalized,
-    ["id", "title", "tempo", "dcAlCoda", "sections", "exportSummary", "collaboration", "scoreAttachments"],
-    ""
-  );
-  if (extraKey) {
-    return extraKey;
-  }
-  if (typeof normalized.id !== "string") {
-    return invalidField("id");
-  }
-  if (typeof normalized.title !== "string") {
-    return invalidField("title");
-  }
-  if (
-    normalized.tempo !== undefined &&
-    (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)
-  ) {
-    return invalidField("tempo");
-  }
+function validateRehearsalSong(value: unknown, options: ValidationOptions = STRICT_VALIDATION_OPTIONS): string | null {
+  const normalized = options.acceptLegacySectionTimeRanges ? migrateLegacySectionTimeRanges(value) : value;
+  if (!isRecord(normalized)) return invalidField("root");
+  const extraKey = unexpectedKey(normalized, ["id", "title", "tempo", "dcAlCoda", "sections", "exportSummary", "collaboration", "scoreAttachments"], "");
+  if (extraKey) return extraKey;
+  if (typeof normalized.id !== "string") return invalidField("id");
+  if (typeof normalized.title !== "string") return invalidField("title");
+  if (normalized.tempo !== undefined && (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)) return invalidField("tempo");
   if (normalized.dcAlCoda !== undefined) {
     const dcAlCodaError = validateRehearsalDcAlCoda(normalized.dcAlCoda, "dcAlCoda");
-    if (dcAlCodaError) {
-      return dcAlCodaError;
-    }
+    if (dcAlCodaError) return dcAlCodaError;
   }
-  if (!isDenseArray(normalized.sections)) {
-    return invalidField("sections");
-  }
+  if (!isDenseArray(normalized.sections)) return invalidField("sections");
   for (const [index, section] of normalized.sections.entries()) {
     const sectionError = validateRehearsalSection(section, `sections[${index}]`);
-    if (sectionError) {
-      return sectionError;
-    }
+    if (sectionError) return sectionError;
   }
   if (normalized.collaboration !== undefined) {
     const collaborationError = validateRehearsalCollaboration(normalized.collaboration, "collaboration");
-    if (collaborationError) {
-      return collaborationError;
-    }
+    if (collaborationError) return collaborationError;
   }
   if (normalized.scoreAttachments !== undefined) {
-    if (!isDenseArray(normalized.scoreAttachments)) {
-      return invalidField("scoreAttachments");
-    }
+    if (!isDenseArray(normalized.scoreAttachments)) return invalidField("scoreAttachments");
     for (const [index, attachment] of normalized.scoreAttachments.entries()) {
       const attachmentError = validateScoreAttachment(attachment, `scoreAttachments[${index}]`);
-      if (attachmentError) {
-        return attachmentError;
-      }
+      if (attachmentError) return attachmentError;
     }
   }
-
   return validateExportSummary(normalized.exportSummary, "exportSummary");
 }
 
@@ -1878,27 +1267,17 @@ export function isRehearsalSong(value: unknown): value is RehearsalSong {
 export function parseRehearsalSong(value: unknown): RehearsalSong {
   const migratedValue = migrateLegacySectionTimeRanges(value);
   const validationError = validateRehearsalSong(migratedValue);
-  if (validationError) {
-    throw new Error(validationError);
-  }
-
+  if (validationError) throw new Error(validationError);
   return structuredClone(migratedValue as RehearsalSong);
 }
 
-
 /** Documented. */
-function validateSongRehearsalPack(
-  value: unknown,
-  path: string,
-  options: ValidationOptions = STRICT_VALIDATION_OPTIONS
-): string | null {
+function validateSongRehearsalPack(value: unknown, path: string, options: ValidationOptions = STRICT_VALIDATION_OPTIONS): string | null {
   if (!isRecord(value)) return invalidField(path);
-  
   if (typeof value.id !== "string") return invalidField(`${path}.id`);
   if (!isOneOf(PACK_STATES, value.packState)) return invalidField(`${path}.packState`);
   if (typeof value.sourceLabel !== "string") return invalidField(`${path}.sourceLabel`);
   if (value.engineState !== undefined && !isOneOf(ANALYSIS_JOB_STATES, value.engineState)) return invalidField(`${path}.engineState`);
-  
   if (value.packState === "queued" || value.packState === "analyzing") {
     const extraKey = unexpectedKey(value, ["id", "packState", "engineState", "sourceLabel"], path);
     if (extraKey) return extraKey;
@@ -1924,17 +1303,12 @@ export function parseSongRehearsalPack(value: unknown): SongRehearsalPack {
   const validationError = validateSongRehearsalPack(value, "root", LEGACY_VALIDATION_OPTIONS);
   if (validationError) throw new Error(validationError);
   const parsed = structuredClone(value as SongRehearsalPack);
-  if (parsed.packState === "ready") {
-    parsed.song = parseRehearsalSong(parsed.song);
-  }
+  if (parsed.packState === "ready") parsed.song = parseRehearsalSong(parsed.song);
   return parsed;
 }
 
 /** Documented. */
-function validateRehearsalWorkspace(
-  value: unknown,
-  options: ValidationOptions = STRICT_VALIDATION_OPTIONS
-): string | null {
+function validateRehearsalWorkspace(value: unknown, options: ValidationOptions = STRICT_VALIDATION_OPTIONS): string | null {
   if (!isRecord(value)) return invalidField("root");
   const extraKey = unexpectedKey(value, ["id", "title", "songs", "workspaceVersion"], "");
   if (extraKey) return extraKey;
@@ -1942,7 +1316,6 @@ function validateRehearsalWorkspace(
   if (typeof value.title !== "string") return invalidField("title");
   if (typeof value.workspaceVersion !== "number") return invalidField("workspaceVersion");
   if (!isDenseArray(value.songs)) return invalidField("songs");
-  
   for (const [index, song] of value.songs.entries()) {
     const packError = validateSongRehearsalPack(song, `songs[${index}]`, options);
     if (packError) return packError;
@@ -1960,10 +1333,6 @@ export function parseRehearsalWorkspace(value: unknown): RehearsalWorkspace {
   const validationError = validateRehearsalWorkspace(value, LEGACY_VALIDATION_OPTIONS);
   if (validationError) throw new Error(validationError);
   const parsed = structuredClone(value as RehearsalWorkspace);
-  parsed.songs = parsed.songs.map((pack) => (
-    pack.packState === "ready"
-      ? { ...pack, song: parseRehearsalSong(pack.song) }
-      : pack
-  ));
+  parsed.songs = parsed.songs.map((pack) => (pack.packState === "ready" ? { ...pack, song: parseRehearsalSong(pack.song) } : pack));
   return parsed;
 }
