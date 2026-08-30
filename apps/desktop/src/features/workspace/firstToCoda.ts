@@ -1,12 +1,11 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
-import { fillRangeCopy, meaningfulRangeText } from "./firstRangeSqueeze";
+import { fillRangeCopy } from "./firstRangeSqueeze";
 
 export /** Inclusive maximum length for a rehearsal-usable To Coda label. */ const MAX_TO_CODA_LABEL_LENGTH = 9;
 
 /** Tonight's first named To Coda for the ready rehearsal map. */
 export type FirstToCodaPlan = {
   label: string;
-  sectionLabel?: string;
 };
 
 /** Stored song-level To Coda after lexical validation. */
@@ -47,9 +46,7 @@ export function trustedToCoda(value: unknown): TrustedToCoda | null {
   return { label: value.label };
 }
 
-/**
- * Return whether a To Coda label is a bounded Gould/MusicXML jump token.
- */
+/** Return whether a To Coda label is a bounded Gould/MusicXML jump token. */
 export function isTrustedToCodaLabel(label: string): boolean {
   if (label.length < 7 || label.length > MAX_TO_CODA_LABEL_LENGTH) {
     return false;
@@ -58,37 +55,11 @@ export function isTrustedToCodaLabel(label: string): boolean {
 }
 
 /**
- * Return the first named section label, skipping blank/`none` sentinels.
- *
- * Runtime roots and collection members are untrusted. This helper can describe
- * the song form, but it must not be used as To Coda destination authority unless
- * a future contract explicitly links a jump mark to a coda section.
- */
-export function firstNamedSectionLabel(song: unknown): string | undefined {
-  if (!isRuntimeObject(song) || !Array.isArray(song.sections)) {
-    return undefined;
-  }
-
-  for (const sectionValue of song.sections) {
-    if (!isRuntimeObject(sectionValue)) {
-      continue;
-    }
-    const label = meaningfulRangeText(sectionValue.label);
-    if (label) {
-      return label;
-    }
-  }
-
-  return undefined;
-}
-
-/**
  * Build tonight's first To Coda from a trusted stored chart jump mark.
  *
- * The song-level To Coda contract identifies the jump instruction but
- * carries no verified coda destination location. Do not invent that location
- * from the first named section; customer copy must stay generic until a
- * destination is explicitly represented and validated.
+ * The song-level To Coda contract identifies only the jump instruction and
+ * carries no verified coda destination location. Customer copy therefore stays
+ * target-agnostic until a future contract explicitly represents a destination.
  */
 export function firstToCodaPlan(song: RehearsalSong | unknown): FirstToCodaPlan | null {
   if (!isRuntimeObject(song)) {
@@ -100,10 +71,7 @@ export function firstToCodaPlan(song: RehearsalSong | unknown): FirstToCodaPlan 
     return null;
   }
 
-  return {
-    label: toCoda.label,
-    sectionLabel: undefined
-  };
+  return { label: toCoda.label };
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
