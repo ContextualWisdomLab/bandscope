@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   AlertCircle,
@@ -47,6 +47,8 @@ const MAX_ZOOM = 4;
  */
 export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const previousPageDisabledReasonId = useId();
+  const nextPageDisabledReasonId = useId();
   const [status, setStatus] = useState<ScoreViewerStatus>("LOADING");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
@@ -241,6 +243,10 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
   const pageIndicator = t("scoreViewerPageIndicator")
     .replace("{current}", String(pageNumber))
     .replace("{total}", String(pageCount));
+  const previousPageUnavailable = pageNumber <= 1;
+  const nextPageUnavailable = pageNumber >= pageCount;
+  const unavailableReasonClassName =
+    "pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-48 -translate-x-1/2 rounded-md border border-white/10 bg-slate-950 px-2 py-1 text-center text-xs text-slate-100 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100";
 
   return (
     <Card className="border-cyan-300/20 bg-slate-950/75 backdrop-blur-xl">
@@ -287,43 +293,65 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
-          <Button
-            variant="outline"
-            size="icon-lg"
-            className="size-14"
-            aria-label={t("scoreViewerPrevPage")}
-            title={pageNumber <= 1 ? t("scoreViewerPrevPageDisabled") : undefined}
-            aria-disabled={pageNumber <= 1}
-            onClick={(e) => {
-              if (pageNumber <= 1) {
-                e.preventDefault();
-                return;
-              }
-              goToPreviousPage();
-            }}
-          >
-            <ChevronLeft className="size-6" aria-hidden="true" />
-          </Button>
+          <span className="group relative inline-flex">
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-14"
+              aria-label={t("scoreViewerPrevPage")}
+              aria-disabled={previousPageUnavailable}
+              aria-describedby={previousPageUnavailable ? previousPageDisabledReasonId : undefined}
+              onClick={(e) => {
+                if (previousPageUnavailable) {
+                  e.preventDefault();
+                  return;
+                }
+                goToPreviousPage();
+              }}
+            >
+              <ChevronLeft className="size-6" aria-hidden="true" />
+            </Button>
+            {previousPageUnavailable && (
+              <span
+                id={previousPageDisabledReasonId}
+                role="tooltip"
+                className={unavailableReasonClassName}
+              >
+                {t("scoreViewerPrevPageDisabled")}
+              </span>
+            )}
+          </span>
           <span className="min-w-28 text-center text-sm font-semibold text-slate-200">
             {pageIndicator}
           </span>
-          <Button
-            variant="outline"
-            size="icon-lg"
-            className="size-14"
-            aria-label={t("scoreViewerNextPage")}
-            title={pageNumber >= pageCount ? t("scoreViewerNextPageDisabled") : undefined}
-            aria-disabled={pageNumber >= pageCount}
-            onClick={(e) => {
-              if (pageNumber >= pageCount) {
-                e.preventDefault();
-                return;
-              }
-              goToNextPage();
-            }}
-          >
-            <ChevronRight className="size-6" aria-hidden="true" />
-          </Button>
+          <span className="group relative inline-flex">
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-14"
+              aria-label={t("scoreViewerNextPage")}
+              aria-disabled={nextPageUnavailable}
+              aria-describedby={nextPageUnavailable ? nextPageDisabledReasonId : undefined}
+              onClick={(e) => {
+                if (nextPageUnavailable) {
+                  e.preventDefault();
+                  return;
+                }
+                goToNextPage();
+              }}
+            >
+              <ChevronRight className="size-6" aria-hidden="true" />
+            </Button>
+            {nextPageUnavailable && (
+              <span
+                id={nextPageDisabledReasonId}
+                role="tooltip"
+                className={unavailableReasonClassName}
+              >
+                {t("scoreViewerNextPageDisabled")}
+              </span>
+            )}
+          </span>
         </div>
       </CardContent>
     </Card>
