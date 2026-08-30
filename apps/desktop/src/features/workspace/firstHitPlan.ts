@@ -122,10 +122,10 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Preserve ordinary user formatting while keeping a pathological whitespace prefix from hiding guidance. */
+/** Preserve fitting user formatting while preventing over-limit indentation from hiding guidance. */
 function boundedUserHitPlan(value: string): string {
   const bounded = truncateCodePoints(value, MAX_HIT_PLAN_CHARACTERS);
-  return isNonEmptySingleLineText(bounded)
+  return bounded === value
     ? bounded
     : truncateCodePoints(value.trimStart(), MAX_HIT_PLAN_CHARACTERS);
 }
