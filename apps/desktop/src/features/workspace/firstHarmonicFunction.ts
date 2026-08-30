@@ -17,6 +17,8 @@ type RankedRoleMetadata = Readonly<{
 /** Tonight's first harmonic function: the earliest labeled section and the part that owns it. */
 export type FirstHarmonicFunction = {
   section: RehearsalSection;
+  sectionId: string;
+  sectionLabel: string;
   holdingRole: RehearsalRole;
   holdingRoleId: string;
   holdingRoleName: string;
@@ -50,12 +52,6 @@ function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Return whether a runtime record owns a stable data property rather than inherited/accessor state. */
-function hasOwnData(value: object, key: PropertyKey): boolean {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
-}
-
 /** Snapshot one owned data-property value without invoking a getter or Proxy get trap. */
 function ownDataValue(value: object, key: PropertyKey): unknown {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
@@ -64,21 +60,29 @@ function ownDataValue(value: object, key: PropertyKey): unknown {
     : undefined;
 }
 
-/** Return whether every numeric index is an own data element in a bounded runtime array. */
-function isDenseRuntimeArray(value: unknown): value is unknown[] {
+/** Snapshot every element of a bounded dense runtime array without invoking property getters. */
+function snapshotDenseRuntimeArray(value: unknown): unknown[] | null {
   if (!Array.isArray(value)) {
-    return false;
+    return null;
   }
-  const length = Number(value.length);
-  if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) {
-    return false;
+  const length = ownDataValue(value, "length");
+  if (
+    typeof length !== "number" ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > 0xffffffff
+  ) {
+    return null;
   }
+  const snapshot: unknown[] = [];
   for (let index = 0; index < length; index += 1) {
-    if (!hasOwnData(value, index)) {
-      return false;
+    const descriptor = Object.getOwnPropertyDescriptor(value, index);
+    if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+      return null;
     }
+    snapshot.push(descriptor.value);
   }
-  return true;
+  return snapshot;
 }
 
 /** Bound buyer-visible text by Unicode code points without splitting a surrogate pair. */
@@ -201,23 +205,20 @@ function pickHoldingRole(roles: RehearsalRole[]): RehearsalRole | null {
 
 /** Return ranked roles whose unique graph node is explicitly active. */
 function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
-  if (
-    !hasOwnData(section, "roles") ||
-    !hasOwnData(section, "partGraph") ||
-    !isDenseRuntimeArray(section.roles) ||
-    !isDenseRuntimeArray(section.partGraph)
-  ) {
+  const roles = snapshotDenseRuntimeArray(ownDataValue(section, "roles"));
+  const partGraph = snapshotDenseRuntimeArray(ownDataValue(section, "partGraph"));
+  if (!roles || !partGraph) {
     return [];
   }
 
-  const safeRoleIds = section.roles.flatMap((role) => {
+  const safeRoleIds = roles.flatMap((role) => {
     if (!isRuntimeObject(role)) {
       return [];
     }
     const id = ownDataValue(role, "id");
     return typeof id === "string" && id.trim().length > 0 ? [id] : [];
   });
-  const safeGraphRoleIds = section.partGraph.flatMap((node) => {
+  const safeGraphRoleIds = partGraph.flatMap((node) => {
     if (!isRuntimeObject(node)) {
       return [];
     }
@@ -227,7 +228,7 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
   const repeatedRoleIds = repeatedIds(safeRoleIds);
   const repeatedGraphRoleIds = repeatedIds(safeGraphRoleIds);
   const activeIds = new Set(
-    section.partGraph.flatMap((node) => {
+    partGraph.flatMap((node) => {
       if (!isRuntimeObject(node) || ownDataValue(node, "is_active") !== true) {
         return [];
       }
@@ -240,7 +241,7 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
     })
   );
 
-  return section.roles.filter((role) => {
+  return roles.filter((role) => {
     if (!isRuntimeObject(role)) {
       return false;
     }
@@ -255,32 +256,33 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
 
 /** Resolve a harmonic function after the runtime root has passed its structural boundary checks. */
 function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFunction | null {
-  if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+  if (!isRuntimeObject(song)) {
+    return null;
+  }
+  const sections = snapshotDenseRuntimeArray(ownDataValue(song, "sections"));
+  if (!sections) {
     return null;
   }
 
-  const candidates = song.sections
-    .map((section) => ({
-      section,
-      timeRange: isRuntimeObject(section) ? ownedBoundedTimeRange(section) : null
-    }))
-    .filter(
-      ({ section, timeRange }) =>
-        isRuntimeObject(section) &&
-        hasOwnData(section, "label") &&
-        typeof section.label === "string" &&
-        section.label.trim().length > 0 &&
-        hasOwnData(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        timeRange !== null
-    )
-    .flatMap(({ section, timeRange }) => {
-      if (!timeRange) {
+  const candidates = sections
+    .flatMap((section) => {
+      if (!isRuntimeObject(section)) {
+        return [];
+      }
+      const sectionId = ownDataValue(section, "id");
+      const sectionLabel = ownDataValue(section, "label");
+      const timeRange = ownedBoundedTimeRange(section as RehearsalSection);
+      if (
+        typeof sectionId !== "string" ||
+        sectionId.trim().length === 0 ||
+        typeof sectionLabel !== "string" ||
+        sectionLabel.trim().length === 0 ||
+        timeRange === null
+      ) {
         return [];
       }
       const holdingRole = pickHoldingRole(
-        rankedActiveRoles(section).filter((role) => ownedFunctionLabel(role) !== null)
+        rankedActiveRoles(section as RehearsalSection).filter((role) => ownedFunctionLabel(role) !== null)
       );
       if (!holdingRole) {
         return [];
@@ -292,7 +294,9 @@ function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFun
       }
       return [
         {
-          section,
+          section: section as RehearsalSection,
+          sectionId,
+          sectionLabel,
           holdingRole,
           holdingRoleId: holdingRoleMetadata.id,
           holdingRoleName: holdingRoleMetadata.name,
@@ -305,7 +309,7 @@ function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFun
       if (left.atSeconds !== right.atSeconds) {
         return left.atSeconds - right.atSeconds;
       }
-      return compareStableId(left.section.id, right.section.id);
+      return compareStableId(left.sectionId, right.sectionId);
     });
 
   return candidates[0] ?? null;
