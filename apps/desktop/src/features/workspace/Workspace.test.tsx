@@ -8,6 +8,19 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const LIVE_SCORE_BOOTSTRAP: ProjectBootstrapSummary = {
+  projectId: "project-1",
+  sourceMode: "reference",
+  projectRoot: "/tmp/bandscope/projects/project-1",
+  cacheRoot: "/tmp/bandscope/cache/project-1",
+  tempRoot: "/tmp/bandscope/temp/project-1",
+  source: {
+    sourcePath: "/Users/test/Music/late-night-set.wav",
+    fileName: "late-night-set.wav",
+    extension: "wav",
+    fileSizeBytes: 1_024_000
+  }
+};
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -203,12 +216,26 @@ describe("Workspace", () => {
       { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" }
     ];
 
-    render(<Workspace song={song} />);
+    render(<Workspace song={song} sourceBootstrap={LIVE_SCORE_BOOTSTRAP} />);
 
     const callout = screen.getByTestId("first-score-check");
     expect(callout).toHaveTextContent("Tonight's first score check");
     expect(callout).toHaveTextContent(
       "Open opener.pdf in Score and check Bass Guitar's C#2–E3 in verse against the page before the verse."
+    );
+  });
+
+  it("does not advertise a persisted score as openable after project reopen", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.scoreAttachments = [
+      { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" }
+    ];
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-score-check")).toHaveTextContent(
+      "Add a score in Score, or check tonight's first range by ear before the first section."
     );
   });
 
@@ -235,7 +262,7 @@ describe("Workspace", () => {
       overlapWarnings: []
     }));
 
-    render(<Workspace song={song} />);
+    render(<Workspace song={song} sourceBootstrap={LIVE_SCORE_BOOTSTRAP} />);
 
     expect(screen.getByTestId("first-score-check")).toHaveTextContent(
       "Open opener.pdf in Score and mark tonight's first range on the page."
@@ -249,7 +276,7 @@ describe("Workspace", () => {
       { id: "3f2c8f0e-1a2b-4c3d-8e9f-001122334455", fileName: "opener.pdf" }
     ];
 
-    render(<Workspace song={song} />);
+    render(<Workspace song={song} sourceBootstrap={LIVE_SCORE_BOOTSTRAP} />);
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
 
     expect(screen.getByTestId("first-score-check")).toHaveTextContent(
