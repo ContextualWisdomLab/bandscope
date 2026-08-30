@@ -634,9 +634,7 @@ def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | Non
         return None
 
     digest = _cache_digest(request, FEATURE_CACHE_SCHEMA_VERSION)
-    stem_cache_base = (
-        Path(cache_root) / f"analysis-cache-v{FEATURE_CACHE_SCHEMA_VERSION}" / digest
-    )
+    stem_cache_base = Path(cache_root) / f"analysis-cache-v{FEATURE_CACHE_SCHEMA_VERSION}" / digest
     return (
         stem_cache_base.with_suffix(".features.json"),
         stem_cache_base.with_suffix(".features.npz"),
