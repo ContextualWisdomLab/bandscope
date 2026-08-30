@@ -154,12 +154,30 @@ class ExportSummaryPayload(TypedDict):
     focusSections: list[str]
 
 
+class CodaPayload(TypedDict):
+    """Typed stored coda destination exposed by trusted demo songs."""
+
+    label: Literal[
+        "Coda",
+        "Coda 1",
+        "Coda 2",
+        "Coda 3",
+        "Coda 4",
+        "Coda 5",
+        "Coda 6",
+        "Coda 7",
+        "Coda 8",
+        "Coda 9",
+    ]
+
+
 class RehearsalSong(TypedDict):
     """Typed rehearsal song payload returned by the bootstrap engine."""
 
     id: str
     title: str
     tempo: NotRequired[int]
+    coda: NotRequired[CodaPayload]
     sections: list[RehearsalSectionPayload]
     exportSummary: ExportSummaryPayload
 
@@ -473,6 +491,7 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
     song: RehearsalSong = {
         "id": "demo-song",
         "title": "Late Night Set",
+        "coda": {"label": "Coda"},
         "sections": [
             {
                 "id": verse_section["id"],
