@@ -1023,6 +1023,49 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates dcAlFine correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.dcAlFine).toEqual({ label: "D.C. al Fine" });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.dcAlFine = { label: "D.C. al Fine 2" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).dcAlFine).toEqual({ label: "D.C. al Fine 2" });
+
+    const withoutDcAlFine = createDemoRehearsalSong();
+    delete withoutDcAlFine.dcAlFine;
+    expect(isRehearsalSong(withoutDcAlFine)).toBe(true);
+    expect(parseRehearsalSong(withoutDcAlFine)).toEqual(withoutDcAlFine);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: "D.C. al Fine" })).toThrow(
+      "dcAlFine"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: { label: 1 } })).toThrow(
+      "dcAlFine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: { label: "d.c. al fine" } })).toThrow(
+      "dcAlFine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: { label: "Da Capo" } })).toThrow(
+      "dcAlFine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: { label: "Fine" } })).toThrow(
+      "dcAlFine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: { label: "D.S. al Fine" } })).toThrow(
+      "dcAlFine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: { label: "D.C. al Coda" } })).toThrow(
+      "dcAlFine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: { label: "D.C." } })).toThrow(
+      "dcAlFine.label"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlFine: { label: "D.C. al Fine", extra: true } })
+    ).toThrow("dcAlFine.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;

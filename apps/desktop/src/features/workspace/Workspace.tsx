@@ -4,7 +4,8 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeSqueeze, meaningfulRangeText } from "./firstRangeSqueeze";
+import { fillDcAlFineCopy, firstDcAlFinePlan } from "./firstDcAlFine";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstDcAlFine = useMemo(() => firstDcAlFinePlan(song), [song]);
+  const firstSectionIsNamed = meaningfulRangeText(song.sections[0]?.label) !== undefined;
+  const firstDcAlFineCopy = firstDcAlFine
+    ? fillDcAlFineCopy(
+        t(firstSectionIsNamed ? "workspaceFirstDcAlFineReady" : "workspaceFirstDcAlFineReadyNoSection"),
+        {
+          label: firstDcAlFine.label
+        }
+      )
+    : t("workspaceFirstDcAlFineMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +319,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+          <section
+            className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4"
+            data-testid="first-dc-al-fine"
+            aria-label={t("workspaceFirstDcAlFineTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceFirstDcAlFineTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstDcAlFineCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
