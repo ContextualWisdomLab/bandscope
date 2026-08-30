@@ -20,4 +20,24 @@ describe("resolveFirstHitPlan user-authored copy", () => {
     expect(resolved?.hitPlanSource).toBe("user");
     expect(resolved?.hitPlan).toBe(userCopy);
   });
+
+  it("keeps bounded user guidance visible after a long leading-whitespace prefix", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections.find((candidate) => candidate.id === "verse-1");
+    const role = section?.roles.find((candidate) => candidate.id === "bass-guitar");
+    expect(role).toBeDefined();
+    if (!role) {
+      throw new Error("Demo hit-plan fixture is missing the expected Bass Guitar role.");
+    }
+
+    const guidance = "Hit the downbeat together.";
+    const userCopy = `${" ".repeat(180)}${guidance}`;
+    role.hitPlan = userCopy;
+    role.hitPlanSource = "user";
+
+    const resolved = resolveFirstHitPlan(song);
+    expect(resolved?.hitPlanSource).toBe("user");
+    expect(resolved?.hitPlan).toBe(guidance);
+    expect(role.hitPlan).toBe(userCopy);
+  });
 });
