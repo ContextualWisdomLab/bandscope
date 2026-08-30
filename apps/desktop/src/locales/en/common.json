@@ -162,6 +162,7 @@
   "workspaceLoopBoundaryError": "Use whole seconds from 0 to the limit, with the end after the start.",
   "workspaceLoopSeekLabel": "Seek within this cue",
   "workspaceLoopSeekHint": "Seek is available while the local rehearsal clock is running or paused.",
+  "workspaceLoopTransportKeyboardHint": "Space plays or pauses the clock; Escape stops it. Shortcuts stay quiet while you edit a field.",
   "workspaceLoopRoleFilterHint": "Showing sections that include {roleName}.",
   "workspaceLoopNoRoleSections": "No playable sections include {roleName} yet. Choose All Roles or map this role first.",
   "workspaceLoopStart": "Start the count-in",

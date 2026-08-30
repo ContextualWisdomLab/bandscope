@@ -6,7 +6,7 @@ import {
   useState,
   type ChangeEvent,
   type FocusEvent,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
 } from "react";
 import {
@@ -128,7 +128,7 @@ export function RehearsalPlayer({
     setBoundaryError(false);
   }, [selectedLoopKey]);
   const handleSectionKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLButtonElement>) => {
+    (event: ReactKeyboardEvent<HTMLButtonElement>) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
         return;
       }
@@ -576,6 +576,59 @@ export function RehearsalPlayer({
     },
     [audioSourceUrl, canSeek, handlePlaybackError, transport],
   );
+  const startOrResume = useCallback(() => {
+    if (!canStart) {
+      return;
+    }
+    setPlaybackError(false);
+    if (transport.loop) {
+      startAudio(
+        transport.loop,
+        transport.phase === "paused" && transport.countInRemainingBeats === 0,
+      );
+    }
+    setTransport((current) =>
+      reduceRehearsalTransport(current, { type: "start" }),
+    );
+  }, [canStart, startAudio, transport]);
+  const stopTransport = useCallback(() => {
+    if (!canStop) {
+      return;
+    }
+    setTransport((current) =>
+      reduceRehearsalTransport(current, { type: "stop" }),
+    );
+  }, [canStop]);
+  useEffect(() => {
+    /** Keep transport shortcuts out of editable controls. */
+    const handleTransportShortcut = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        (target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            target.closest("button, a, input, select, textarea")))
+      ) {
+        return;
+      }
+      if (event.key === " " && (canPause || canStart)) {
+        event.preventDefault();
+        if (canPause) {
+          setTransport((current) =>
+            reduceRehearsalTransport(current, { type: "pause" }),
+          );
+        } else {
+          startOrResume();
+        }
+      } else if (event.key === "Escape" && canStop) {
+        event.preventDefault();
+        stopTransport();
+      }
+    };
+    window.addEventListener("keydown", handleTransportShortcut);
+    return () => window.removeEventListener("keydown", handleTransportShortcut);
+  }, [canPause, canStart, canStop, startOrResume, stopTransport]);
 
   return (
     <section
@@ -781,28 +834,16 @@ export function RehearsalPlayer({
           {t("workspaceLoopSeekHint")}
         </p>
       </div>
+      <p className="mt-3 text-xs text-slate-400" data-testid="rehearsal-loop-transport-keyboard-hint">
+        {t("workspaceLoopTransportKeyboardHint")}
+      </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           type="button"
           disabled={!canStart}
           aria-disabled={!canStart}
           className="min-h-11 border-cyan-300/30 bg-cyan-300/15 font-semibold text-cyan-50 disabled:cursor-not-allowed disabled:opacity-70"
-          onClick={() => {
-            if (!canStart) {
-              return;
-            }
-            setPlaybackError(false);
-            if (transport.loop) {
-              startAudio(
-                transport.loop,
-                transport.phase === "paused" &&
-                  transport.countInRemainingBeats === 0,
-              );
-            }
-            setTransport((current) =>
-              reduceRehearsalTransport(current, { type: "start" }),
-            );
-          }}
+          onClick={startOrResume}
         >
           {startLabel}
         </Button>
@@ -826,11 +867,7 @@ export function RehearsalPlayer({
           disabled={!canStop}
           aria-disabled={!canStop}
           className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-          onClick={() =>
-            setTransport((current) =>
-              reduceRehearsalTransport(current, { type: "stop" }),
-            )
-          }
+          onClick={stopTransport}
         >
           {t("workspaceLoopStop")}
         </Button>
