@@ -165,6 +165,7 @@ export type RehearsalSection = {
   label: SectionFormLabel;
   groove: string;
   timeRange: SectionTimeRange;
+  measureStart?: number;
   confidence: ConfidenceMarker;
   roles: RehearsalRole[];
   partGraph: PartGraphNode[];
@@ -441,6 +442,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
         start: 10,
         end: 30
       },
+      measureStart: 9,
       confidence: {
         level: "medium",
         source: "model",
@@ -1650,7 +1652,7 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
   }
-  const extraKey = unexpectedKey(value, ["id", "label", "groove", "timeRange", "confidence", "roles", "partGraph"], path);
+  const extraKey = unexpectedKey(value, ["id", "label", "groove", "timeRange", "measureStart", "confidence", "roles", "partGraph"], path);
   if (extraKey) {
     return extraKey;
   }
@@ -1667,6 +1669,16 @@ function validateRehearsalSection(value: unknown, path: string): string | null {
   const timeRangeError = validateSectionTimeRange(value.timeRange, `${path}.timeRange`);
   if (timeRangeError) {
     return timeRangeError;
+  }
+  if (value.measureStart !== undefined) {
+    if (
+      typeof value.measureStart !== "number" ||
+      !Number.isInteger(value.measureStart) ||
+      value.measureStart < 1 ||
+      value.measureStart > 9_999
+    ) {
+      return invalidField(`${path}.measureStart`);
+    }
   }
 
   const confidenceError = validateConfidenceMarker(value.confidence, `${path}.confidence`);

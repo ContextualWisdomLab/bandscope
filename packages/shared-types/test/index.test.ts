@@ -1023,6 +1023,39 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates measureStart correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.sections[0]!.measureStart).toBe(9);
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.sections[0]!.measureStart = 1;
+    expect(isRehearsalSong(validSong)).toBe(true);
+    validSong.sections[0]!.measureStart = 9999;
+    expect(parseRehearsalSong(validSong).sections[0]!.measureStart).toBe(9999);
+
+    const withoutBar = createDemoRehearsalSong();
+    delete withoutBar.sections[0]!.measureStart;
+    expect(isRehearsalSong(withoutBar)).toBe(true);
+    expect(parseRehearsalSong(withoutBar)).toEqual(withoutBar);
+
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.measureStart = 0;
+    expect(() => parseRehearsalSong(song)).toThrow("sections[0].measureStart");
+
+    song.sections[0]!.measureStart = 1.5;
+    expect(() => parseRehearsalSong(song)).toThrow("sections[0].measureStart");
+
+    song.sections[0]!.measureStart = 10_000;
+    expect(() => parseRehearsalSong(song)).toThrow("sections[0].measureStart");
+
+    expect(() =>
+      parseRehearsalSong({
+        ...createDemoRehearsalSong(),
+        sections: [{ ...createDemoRehearsalSong().sections[0]!, measureStart: "9" }]
+      })
+    ).toThrow("sections[0].measureStart");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;

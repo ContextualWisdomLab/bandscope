@@ -23,6 +23,7 @@ BandScope models a song as rehearsal-facing roles, not only as a single global h
 ## Form, roadmap, and cue anchors
 
 - A section model should support intro, verse, pre-chorus, chorus, bridge, outro, tags, pickups, stops, and handoffs.
+- A stored section `measureStart` is the printed-chart measure number (MusicXML `measure` number), not a tempo-derived downbeat.
 - A rehearsal roadmap should expose who enters, who drops out, and where the band must re-enter together.
 - Cue anchors should support lyric phrases, count-based entries, or section-transition markers.
 
