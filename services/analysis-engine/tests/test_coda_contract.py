@@ -8,3 +8,10 @@ def test_native_demo_publishes_trusted_coda_destination() -> None:
     song = build_demo_rehearsal_song()
 
     assert song.get("coda") == {"label": "Coda"}
+
+
+def test_non_demo_fallback_does_not_invent_coda_authority() -> None:
+    """Local-analysis fallback must not manufacture a coda without stored evidence."""
+    song = build_demo_rehearsal_song({}, include_demo_coda=False)
+
+    assert "coda" not in song
