@@ -16,7 +16,7 @@ export interface FirstHitPlanCalloutProps {
 type HitPlanCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 
 type OpenedHitPlan = Readonly<{
-  songIdentity: unknown;
+  songIdentity: RehearsalSong;
   sectionId: string;
   sectionIndex: number;
   landingRoleId: string;
@@ -33,25 +33,6 @@ const GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS = new Set<string>([
   GENERATED_ACTIVITY_HIT_PLAN_BAND_TARGET,
   "Accompaniment"
 ]);
-
-/** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
-function stableHitPlanSongIdentity(song: RehearsalSong): unknown {
-  if (song === null || typeof song !== "object" || Array.isArray(song)) {
-    return song;
-  }
-  let descriptor: PropertyDescriptor | undefined;
-  try {
-    descriptor = Object.getOwnPropertyDescriptor(song, "id");
-  } catch {
-    return song;
-  }
-  return descriptor !== undefined &&
-    Object.prototype.hasOwnProperty.call(descriptor, "value") &&
-    typeof descriptor.value === "string" &&
-    descriptor.value.trim().length > 0
-    ? descriptor.value
-    : song;
-}
 
 /** Interpolate hit-plan placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatHitPlanCopy(template: string, values: HitPlanCopyValues): string {
@@ -121,7 +102,7 @@ export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
   const calloutId = `workspace-surface-hit-plan-${useId()}`;
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
-  const songIdentity = stableHitPlanSongIdentity(song);
+  const songIdentity = song;
   const named = useMemo(() => resolveFirstHitPlan(song), [song]);
   const [openedHitPlan, setOpenedHitPlan] = useState<OpenedHitPlan | null>(null);
 
