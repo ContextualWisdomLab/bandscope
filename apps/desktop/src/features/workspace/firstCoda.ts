@@ -1,8 +1,7 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { fillRangeCopy, meaningfulRangeText } from "./firstRangeSqueeze";
 
-/** Inclusive maximum length for a rehearsal-usable coda label. */
-export const MAX_CODA_LABEL_LENGTH = 6;
+const MAX_CODA_LABEL_LENGTH = 6;
 
 /** Tonight's first named coda for the ready rehearsal map. */
 export type FirstCodaPlan = {
@@ -53,17 +52,18 @@ export function isTrustedCodaLabel(label: string): boolean {
 }
 
 /**
- * Return the first named section label, skipping blank/`none` sentinels.
+ * Return the last named section label, skipping blank/`none` sentinels.
  *
  * Runtime roots and collection members are untrusted. Malformed entries are
  * isolated instead of becoming coda-section authority.
  */
-export function firstNamedSectionLabel(song: unknown): string | undefined {
+export function lastNamedSectionLabel(song: unknown): string | undefined {
   if (!isRuntimeObject(song) || !Array.isArray(song.sections)) {
     return undefined;
   }
 
-  for (const sectionValue of song.sections) {
+  for (let index = song.sections.length - 1; index >= 0; index -= 1) {
+    const sectionValue = song.sections[index];
     if (!isRuntimeObject(sectionValue)) {
       continue;
     }
@@ -94,7 +94,7 @@ export function firstCodaPlan(song: RehearsalSong | unknown): FirstCodaPlan | nu
 
   return {
     label: coda.label,
-    sectionLabel: firstNamedSectionLabel(song)
+    sectionLabel: lastNamedSectionLabel(song)
   };
 }
 
