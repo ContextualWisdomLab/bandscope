@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -570,6 +576,124 @@ describe("RehearsalPlayer", () => {
       vi.advanceTimersByTime(100);
     });
     expect(audio.currentTime).toBe(10);
+  });
+
+  it("seeks the scoped media clock within a live loop", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+
+    const audio = screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement;
+    fireEvent.click(screen.getByRole("button", { name: /Start the count-in/i }));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    const seek = screen.getByRole("slider", { name: "Seek within this cue" });
+    fireEvent.change(seek, { target: { value: "18.5" } });
+
+    expect(audio.currentTime).toBe(18.5);
+    expect(seek).toHaveValue("18.5");
+  });
+
+  it("supports transport shortcuts without capturing controls or modifiers", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const { play } = installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(
+      <RehearsalPlayer
+        song={song}
+        onSongUpdate={onSongUpdate}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+
+    const start = screen.getByRole("button", { name: /Start the count-in/i });
+    const boundaryStart = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    boundaryStart.focus();
+    fireEvent.keyDown(boundaryStart, { key: " " });
+    expect(start).toBeEnabled();
+    expect(play).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: " " });
+    fireEvent.keyDown(window, { key: " ", repeat: true });
+    expect(start).toBeDisabled();
+    expect(play).toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    fireEvent.keyDown(window, { key: " ", ctrlKey: true });
+    fireEvent.keyDown(window, { key: " ", shiftKey: true });
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /looping/i,
+    );
+    fireEvent.keyDown(window, { key: " " });
+    fireEvent.keyDown(window, { key: " ", repeat: true });
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /paused/i,
+    );
+    const stop = screen.getByRole("button", { name: /Stop/i });
+    stop.focus();
+    fireEvent.keyDown(stop, { key: "Escape", altKey: true });
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /paused/i,
+    );
+    fireEvent.keyDown(stop, { key: "Escape" });
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /Start the count-in/i,
+    );
+  });
+
+  it("preserves native Space behavior for focused scroll regions", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+
+    render(
+      <>
+        <RehearsalPlayer
+          song={song}
+          hasLocalAudio={true}
+          audioSourcePath={audioSourcePath}
+        />
+        <div
+          aria-label="Scrollable rehearsal timeline"
+          role="region"
+          tabIndex={0}
+        />
+      </>,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    const region = screen.getByRole("region", {
+      name: "Scrollable rehearsal timeline",
+    });
+    const event = createEvent.keyDown(region, { key: " " });
+    region.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/looping/i);
   });
 
   it("caps long media boundary timers before the browser timeout limit", () => {

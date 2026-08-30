@@ -4,8 +4,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type FocusEvent,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
 } from "react";
 import {
@@ -137,7 +138,7 @@ export function RehearsalPlayer({
     });
   }, [selectedBoundaryKey, selectedLoop?.endSeconds, selectedLoop?.startSeconds]);
   const handleSectionKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLButtonElement>) => {
+    (event: ReactKeyboardEvent<HTMLButtonElement>) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
         return;
       }
@@ -613,6 +614,110 @@ export function RehearsalPlayer({
     },
     [onSongUpdate, selectedLoop, song],
   );
+  const canSeek =
+    transport.loop !== null &&
+    hasPlayableAudio &&
+    (transport.phase === "looping" ||
+      (transport.phase === "paused" && transport.countInRemainingBeats === 0));
+  const handleSeek = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      if (!canSeek || !transport.loop || !audioSourceUrl) {
+        return;
+      }
+      const nextTransport = reduceRehearsalTransport(transport, {
+        type: "seek",
+        playheadSeconds: Number(event.currentTarget.value),
+      });
+      try {
+        const audio = audioRef.current;
+        if (!audio) {
+          return;
+        }
+        audio.currentTime = nextTransport.playheadSeconds;
+        setPlaybackError(false);
+        setTransport(nextTransport);
+      } catch {
+        handlePlaybackError();
+      }
+    },
+    [audioSourceUrl, canSeek, handlePlaybackError, transport],
+  );
+  const startOrResume = useCallback(() => {
+    if (!canStart) {
+      return;
+    }
+    setPlaybackError(false);
+    if (transport.loop) {
+      startAudio(
+        transport.loop,
+        transport.phase === "paused" && transport.countInRemainingBeats === 0,
+      );
+    }
+    setTransport((current) =>
+      reduceRehearsalTransport(current, { type: "start" }),
+    );
+  }, [canStart, startAudio, transport]);
+  const stopTransport = useCallback(() => {
+    if (!canStop) {
+      return;
+    }
+    setTransport((current) =>
+      reduceRehearsalTransport(current, { type: "stop" }),
+    );
+  }, [canStop]);
+  useEffect(() => {
+    /** Keep transport shortcuts out of editable controls. */
+    const handleTransportShortcut = (event: KeyboardEvent) => {
+      const target = event.target;
+      const targetIsButtonOrLink =
+        target instanceof Element && target.closest("button, a") !== null;
+      const targetIsScrollableRegion =
+        target instanceof Element &&
+        target.closest('[role="region"][tabindex="0"]') !== null;
+      const targetIsEditable =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("input, select, textarea") !== null);
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        targetIsEditable
+      ) {
+        return;
+      }
+      if (
+        event.key === " " &&
+        !targetIsButtonOrLink &&
+        !targetIsScrollableRegion &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        (canPause || canStart)
+      ) {
+        event.preventDefault();
+        if (canPause) {
+          setTransport((current) =>
+            reduceRehearsalTransport(current, { type: "pause" }),
+          );
+        } else {
+          startOrResume();
+        }
+      } else if (
+        event.key === "Escape" &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        canStop
+      ) {
+        event.preventDefault();
+        stopTransport();
+      }
+    };
+    window.addEventListener("keydown", handleTransportShortcut);
+    return () => window.removeEventListener("keydown", handleTransportShortcut);
+  }, [canPause, canStart, canStop, startOrResume, stopTransport]);
 
   return (
     <section
@@ -800,28 +905,41 @@ export function RehearsalPlayer({
         {formatRehearsalClock(transport.playheadSeconds)} /{" "}
         {formatRehearsalClock(transport.loop?.endSeconds ?? 0)}
       </p>
+      <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <label
+          className="flex flex-col gap-2 text-xs font-semibold text-slate-300"
+          htmlFor="rehearsal-loop-seek"
+        >
+          <span>{t("workspaceLoopSeekLabel")}</span>
+          <input
+            aria-describedby="rehearsal-loop-seek-hint"
+            aria-disabled={!canSeek}
+            className="accent-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="rehearsal-loop-seek"
+            disabled={!canSeek}
+            id="rehearsal-loop-seek"
+            max={transport.loop?.endSeconds ?? 0}
+            min={transport.loop?.startSeconds ?? 0}
+            onChange={handleSeek}
+            step={0.1}
+            type="range"
+            value={transport.playheadSeconds}
+          />
+        </label>
+        <p className="mt-2 text-xs text-slate-400" id="rehearsal-loop-seek-hint">
+          {t("workspaceLoopSeekHint")}
+        </p>
+      </div>
+      <p className="mt-3 text-xs text-slate-400" data-testid="rehearsal-loop-transport-keyboard-hint">
+        {t("workspaceLoopTransportKeyboardHint")}
+      </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           type="button"
           disabled={!canStart}
           aria-disabled={!canStart}
           className="min-h-11 border-cyan-300/30 bg-cyan-300/15 font-semibold text-cyan-50 disabled:cursor-not-allowed disabled:opacity-70"
-          onClick={() => {
-            if (!canStart) {
-              return;
-            }
-            setPlaybackError(false);
-            if (transport.loop) {
-              startAudio(
-                transport.loop,
-                transport.phase === "paused" &&
-                  transport.countInRemainingBeats === 0,
-              );
-            }
-            setTransport((current) =>
-              reduceRehearsalTransport(current, { type: "start" }),
-            );
-          }}
+          onClick={startOrResume}
         >
           {startLabel}
         </Button>
@@ -845,11 +963,7 @@ export function RehearsalPlayer({
           disabled={!canStop}
           aria-disabled={!canStop}
           className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-          onClick={() =>
-            setTransport((current) =>
-              reduceRehearsalTransport(current, { type: "stop" }),
-            )
-          }
+          onClick={stopTransport}
         >
           {t("workspaceLoopStop")}
         </Button>

@@ -181,6 +181,44 @@ describe("rehearsalTransport", () => {
     ).toBe(loop!.startSeconds);
   });
 
+  it("clamps seek to the loop and rejects it during count-in", () => {
+    const loop = resolveLoopWindow(createDemoRehearsalSong());
+    const armed = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+    expect(
+      reduceRehearsalTransport(armed, {
+        type: "seek",
+        playheadSeconds: 15,
+      }),
+    ).toBe(armed);
+
+    const looping = {
+      ...armed,
+      phase: "looping" as const,
+      countInRemainingBeats: 0,
+    };
+    expect(
+      reduceRehearsalTransport(looping, {
+        type: "seek",
+        playheadSeconds: -1,
+      }).playheadSeconds,
+    ).toBe(loop!.startSeconds);
+    expect(
+      reduceRehearsalTransport(looping, {
+        type: "seek",
+        playheadSeconds: loop!.endSeconds + 1,
+      }).playheadSeconds,
+    ).toBe(loop!.startSeconds);
+    expect(
+      reduceRehearsalTransport(looping, {
+        type: "seek",
+        playheadSeconds: 17.5,
+      }).playheadSeconds,
+    ).toBe(17.5);
+  });
+
   it("resumes the remaining count-in beats after pausing during count-in", () => {
     const song = createDemoRehearsalSong();
     const loop = resolveLoopWindow(song);

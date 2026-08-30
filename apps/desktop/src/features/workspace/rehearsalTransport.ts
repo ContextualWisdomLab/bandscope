@@ -53,6 +53,7 @@ export type RehearsalTransportEvent =
   | { type: "start" }
   | { type: "beat" }
   | { type: "sync"; playheadSeconds: number }
+  | { type: "seek"; playheadSeconds: number }
   | { type: "tick"; deltaSeconds: number }
   | { type: "set-playback-rate"; rate: RehearsalPlaybackRate }
   | { type: "pause" }
@@ -406,6 +407,29 @@ export function reduceRehearsalTransport(
       return {
         ...state,
         playheadSeconds: wrapPlayhead(playhead, state.loop),
+      };
+    }
+    case "seek": {
+      if (
+        !state.loop ||
+        (state.phase !== "looping" &&
+          !(state.phase === "paused" && state.countInRemainingBeats === 0))
+      ) {
+        return state;
+      }
+      const requested = Number.isFinite(event.playheadSeconds)
+        ? event.playheadSeconds
+        : state.loop.startSeconds;
+      const clamped = Math.min(
+        state.loop.endSeconds,
+        Math.max(state.loop.startSeconds, requested),
+      );
+      return {
+        ...state,
+        playheadSeconds:
+          clamped >= state.loop.endSeconds
+            ? state.loop.startSeconds
+            : clamped,
       };
     }
     case "tick": {
