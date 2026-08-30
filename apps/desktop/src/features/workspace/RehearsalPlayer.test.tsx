@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RehearsalPlayer } from "./RehearsalPlayer";
@@ -186,6 +187,73 @@ describe("RehearsalPlayer", () => {
     fireEvent.keyDown(chorusButton, { key: "ArrowLeft" });
     expect(verse).toHaveAttribute("aria-pressed", "true");
     expect(verse).toHaveFocus();
+  });
+
+  it("lets the selected cue keep a manual range correction in the song map", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    expect(screen.getByTestId("rehearsal-loop-boundary-editor")).toHaveTextContent(
+      "Manual cue correction",
+    );
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "12" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange).toEqual({
+      start: 12,
+      end: 30,
+    });
+    expect(song.sections[0]!.timeRange.start).toBe(10);
+  });
+
+  it("rejects a boundary correction that would invert the selected cue", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const end = screen.getByRole("spinbutton", {
+      name: "End time (seconds)",
+    });
+    fireEvent.change(end, { target: { value: "5" } });
+    fireEvent.blur(end);
+
+    expect(onSongUpdate).not.toHaveBeenCalled();
+    expect(end).toHaveValue(30);
+    expect(end).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("rehearsal-loop-boundary-editor")).toHaveTextContent(
+      "with the end after the start",
+    );
+  });
+
+  it("keeps focus on the next boundary field after a Tab correction", async () => {
+    setNavigatorLanguage("en-US");
+    const user = userEvent.setup();
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    const end = screen.getByRole("spinbutton", {
+      name: "End time (seconds)",
+    });
+    await user.click(start);
+    await user.clear(start);
+    await user.type(start, "12");
+    await user.tab();
+
+    expect(end).toHaveFocus();
+    expect(start).toHaveValue(12);
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange.start).toBe(12);
   });
 
   it("keeps the selected loop by section ID when an earlier section is filtered out", () => {

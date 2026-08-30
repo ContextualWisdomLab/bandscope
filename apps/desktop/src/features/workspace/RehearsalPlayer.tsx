@@ -4,10 +4,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type FocusEvent,
   type KeyboardEvent,
   type ReactElement,
 } from "react";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import {
+  MAX_SECTION_TIME_SECONDS,
+  type RehearsalSong,
+} from "@bandscope/shared-types";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +36,7 @@ import {
 
 interface RehearsalPlayerProps {
   song: RehearsalSong;
+  onSongUpdate?: (song: RehearsalSong) => void;
   hasLocalAudio?: boolean;
   audioSourcePath?: string | null;
   activeRole?: string | null;
@@ -100,6 +105,7 @@ function loopSelectionKey(loop: RehearsalLoopWindow): string {
 /** Render tonight's first section loop with a count-in and a named next action. */
 export function RehearsalPlayer({
   song,
+  onSongUpdate,
   hasLocalAudio = false,
   audioSourcePath = null,
   activeRole = null,
@@ -112,10 +118,23 @@ export function RehearsalPlayer({
     [activeRole, song],
   );
   const [selectedLoopKey, setSelectedLoopKey] = useState<string | null>(null);
+  const [boundaryError, setBoundaryError] = useState(false);
   const selectedLoop =
     playableLoops.find((loop) => loopSelectionKey(loop) === selectedLoopKey) ??
     playableLoops[0] ??
     null;
+  const selectedBoundaryKey = selectedLoop ? loopSelectionKey(selectedLoop) : null;
+  const [boundaryDraft, setBoundaryDraft] = useState(() => ({
+    end: selectedLoop ? String(selectedLoop.endSeconds) : "",
+    start: selectedLoop ? String(selectedLoop.startSeconds) : "",
+  }));
+  useEffect(() => {
+    setBoundaryError(false);
+    setBoundaryDraft({
+      end: selectedLoop ? String(selectedLoop.endSeconds) : "",
+      start: selectedLoop ? String(selectedLoop.startSeconds) : "",
+    });
+  }, [selectedBoundaryKey, selectedLoop?.endSeconds, selectedLoop?.startSeconds]);
   const handleSectionKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
@@ -471,6 +490,83 @@ export function RehearsalPlayer({
     transport.phase === "paused"
       ? t("workspaceLoopResume")
       : t("workspaceLoopStart");
+  const handleBoundaryBlur = useCallback(
+    (boundary: "start" | "end", event: FocusEvent<HTMLInputElement>) => {
+      if (!selectedLoop || !onSongUpdate) {
+        return;
+      }
+      const rawValue = event.currentTarget.value.trim();
+      const value = Number(rawValue);
+      const valid =
+        rawValue !== "" &&
+        Number.isSafeInteger(value) &&
+        value >= 0 &&
+        value <= MAX_SECTION_TIME_SECONDS &&
+        (boundary === "start"
+          ? value < selectedLoop.endSeconds
+          : value > selectedLoop.startSeconds);
+      if (!valid) {
+        const currentValue =
+          boundary === "start"
+            ? selectedLoop.startSeconds
+            : selectedLoop.endSeconds;
+        setBoundaryDraft((current) => ({
+          ...current,
+          [boundary]: String(currentValue),
+        }));
+        setBoundaryError(true);
+        return;
+      }
+
+      setBoundaryError(false);
+      const currentValue =
+        boundary === "start"
+          ? selectedLoop.startSeconds
+          : selectedLoop.endSeconds;
+      if (value === currentValue) {
+        setBoundaryDraft((current) => ({
+          ...current,
+          [boundary]: String(currentValue),
+        }));
+        return;
+      }
+
+      const sectionIndex = song.sections.findIndex(
+        (section) =>
+          section.id === selectedLoop.sectionId &&
+          section.timeRange.start === selectedLoop.startSeconds &&
+          section.timeRange.end === selectedLoop.endSeconds,
+      );
+      if (sectionIndex < 0) {
+        return;
+      }
+      const nextSong = {
+        ...song,
+        sections: song.sections.map((section, index) =>
+          index === sectionIndex
+            ? {
+                ...section,
+                timeRange: {
+                  ...section.timeRange,
+                  [boundary]: value,
+                },
+              }
+            : section,
+        ),
+      };
+      const nextLoop =
+        boundary === "start"
+          ? { ...selectedLoop, startSeconds: value }
+          : { ...selectedLoop, endSeconds: value };
+      setBoundaryDraft((current) => ({
+        ...current,
+        [boundary]: String(value),
+      }));
+      setSelectedLoopKey(loopSelectionKey(nextLoop));
+      onSongUpdate(nextSong);
+    },
+    [onSongUpdate, selectedLoop, song],
+  );
 
   return (
     <section
@@ -545,6 +641,69 @@ export function RehearsalPlayer({
         >
           {t("workspaceLoopSectionKeyboardHint")}
         </p>
+      ) : null}
+      {selectedLoop && onSongUpdate ? (
+        <div
+          className="mt-3 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.06] p-3"
+          data-testid="rehearsal-loop-boundary-editor"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-100">
+              {t("workspaceLoopBoundaryTitle")}
+            </p>
+            <span className="rounded-full border border-indigo-200/20 bg-indigo-200/10 px-2 py-1 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-indigo-100">
+              {t("workspaceLoopBoundaryCorrectionBadge")}
+            </span>
+          </div>
+          <p
+            className={`mt-2 text-xs ${boundaryError ? "text-amber-200" : "text-slate-400"}`}
+            id="rehearsal-loop-boundary-hint"
+          >
+            {boundaryError
+              ? t("workspaceLoopBoundaryError")
+              : t("workspaceLoopBoundaryHint")}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs font-semibold text-slate-300">
+              <span>{t("workspaceLoopBoundaryStartLabel")}</span>
+              <input
+                aria-describedby="rehearsal-loop-boundary-hint"
+                aria-invalid={boundaryError}
+                className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                id="rehearsal-loop-boundary-start"
+                max={MAX_SECTION_TIME_SECONDS}
+                min={0}
+                onBlur={(event) => handleBoundaryBlur("start", event)}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setBoundaryDraft((current) => ({ ...current, start: value }));
+                }}
+                step={1}
+                type="number"
+                value={boundaryDraft.start}
+              />
+            </label>
+            <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs font-semibold text-slate-300">
+              <span>{t("workspaceLoopBoundaryEndLabel")}</span>
+              <input
+                aria-describedby="rehearsal-loop-boundary-hint"
+                aria-invalid={boundaryError}
+                className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                id="rehearsal-loop-boundary-end"
+                max={MAX_SECTION_TIME_SECONDS}
+                min={0}
+                onBlur={(event) => handleBoundaryBlur("end", event)}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setBoundaryDraft((current) => ({ ...current, end: value }));
+                }}
+                step={1}
+                type="number"
+                value={boundaryDraft.end}
+              />
+            </label>
+          </div>
+        </div>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <label className="flex min-h-11 items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
