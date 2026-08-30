@@ -23,14 +23,13 @@ def _section(
     roles: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build a valid section whose part graph activates roles in list order."""
+    part_graph = [{"role_id": role["id"], "is_active": True} for role in roles]
     return {
         "id": section_id,
         "label": label,
         "timeRange": {"start": start, "end": end},
         "roles": roles,
-        "partGraph": [
-            {"role_id": role["id"], "is_active": True} for role in roles
-        ],
+        "partGraph": part_graph,
     }
 
 
@@ -64,7 +63,7 @@ def test_duplicate_display_names_and_cues_keep_first_occurrence_order() -> None:
 
 def test_duplicate_priorities_across_sections_keep_first_occurrence_order() -> None:
     """Repeated name/priority entries collapse once without reordering later entries."""
-    song = {
+    song: dict[str, Any] = {
         "title": "Order regression",
         "sections": [
             _section(
