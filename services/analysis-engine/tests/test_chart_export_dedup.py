@@ -5,6 +5,12 @@ from typing import Any
 from bandscope_analysis.exports import build_chart_text, build_cue_sheet_rows
 
 
+class _UnhashableText(str):
+    """String-like malformed payload value that cannot be a mapping key."""
+
+    __hash__: Any = None
+
+
 def _role(role_id: str, name: str, cue: str, priority: str = "") -> dict[str, Any]:
     """Build the minimal role evidence consumed by the chart export boundary."""
     return {
@@ -96,3 +102,30 @@ def test_duplicate_priorities_across_sections_keep_first_occurrence_order() -> N
         "  - Guitar: Lock chorus",
         "  - Bass: Watch cutoff",
     ]
+
+
+def test_unhashable_string_subclasses_fail_closed_in_public_exports() -> None:
+    """Malformed string-like ids, names, and cues are skipped instead of raising."""
+    section = _section(
+        "verse",
+        "verse",
+        0,
+        16,
+        [
+            _role(_UnhashableText("bad-id"), "Bad id", "Bad id cue"),
+            _role("guitar", _UnhashableText("Guitar"), _UnhashableText("Count in")),
+            _role("bass", "Bass", "Hold root"),
+        ],
+    )
+    song = {"sections": [section]}
+
+    assert build_cue_sheet_rows(song) == [
+        {
+            "section": "verse",
+            "start": "00:00",
+            "end": "00:16",
+            "cue": "Hold root",
+            "roles": ["Bass"],
+        }
+    ]
+    assert "roles: Bass" in build_chart_text(song)
