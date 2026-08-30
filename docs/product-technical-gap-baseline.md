@@ -1,6 +1,6 @@
 # BandScope Product-Technical Gap Baseline
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 Base revision: `develop@749511c3ad4000090048718f685c6bee6b3d2c25` (feat(workspace): name tonight's first playable range on the map, #957)
 
 ## 1. 목적과 범위 (Purpose & Scope)
@@ -78,18 +78,18 @@ flowchart LR
 | 파트 겹침 경고 | `roles/overlap.py`, `RehearsalRole.overlapWarnings` | 구현됨 |
 | 단순화 가이드 | `roles/priority.py` 연계, `RehearsalRole.simplification` 필드 | 구현됨 (문자열 필드 중심) |
 | 전조/카포/튜닝 큐 | `chords/transposition.py`, `chords/capo.py`, `roles/tuning.py` | 구현됨 (계산), 워크스페이스 노출은 PR 진행 중 |
-| 그루브/타이밍/히트 큐 | `temporal/groove.py`, `temporal/hits.py`, `temporal/stability.py` | 구현됨 |
+| 그루브/타이밍/히트/tempo-stability 큐 | `temporal/groove.py`, `temporal/hits.py`, `temporal/stability.py`, PR #1059 | 구현됨 (tempo-stability 노출은 #1059 open stacked PR) |
 | 진입/이탈/카운트/가사 큐 앵커 | `sections/anchors.py`, `CueAnchorKind = lyric\|count\|transition` | 부분구현 |
 | 신뢰도 표시(section/role 수준) | `ConfidenceMarker(low/medium/high)` + `features/workspace/ConfidenceBadge.tsx` | 구현됨 |
 | 리허설 우선순위 | `roles/priority.py`, `RehearsalPriority`, `PracticeProgress.tsx` | 구현됨 (규칙 기반 휴리스틱) |
 | 수동 수정 + provenance | `ManualOverride[]`, `ProvenanceSource = model\|user` | 구현됨 |
 | 내보내기(cue-sheet CSV, chart JSON) | `exports/chart.py`, `src/lib/export.ts` (filename sanitize, CSV escape) | 구현됨 |
 | 악보(score) 보기 | `features/score/ScoreView.tsx`, `ScoreViewer.tsx`, `pdfjs.ts` | 부분구현 (PDF 뷰잉; PDF 바이트 검증은 PR 진행 중, 자동 채보 없음) |
-| 루프 재생/역할별 재생 제어 | `features/player/index.tsx` | 미구현 (loop 미탐지, PR #903/#971 진행 중) |
+| 루프 재생/역할별 재생 제어 | `features/workspace/RehearsalPlayer.tsx` | 부분구현 (PR #1062에서 선택 섹션의 실제 오디오 loop 재생, PR #1063에서 bounded playback-rate, PR #1066에서 선택 역할별 section picker, PR #1068에서 선택 cue의 수치 start/end 수동 보정, PR #1069에서 bounded seek, PR #1071에서 안전한 transport 단축키를 연결했으나 role-specific stem playback과 protected merge는 미완료) |
 | 협업(assignment/comment/approval) UI | `packages/shared-types` 타입만 존재 | 미구현 (UI 참조 0건; PR 시리즈가 첫 화면 진행 중) |
 | pad/solo/riff/hook/fill/voicing/articulation/dynamics/tuning/capo/vamp 등 plan 필드 | 없음 (shared-types에 미존재) | 미구현 (PR 시리즈가 추가 예정) |
-| 라이선싱/데모곡 first-run | 없음 | 미구현 (PR #1009, Issue #964; diagnostics/privacy boundary는 Issue #963) |
-| 자동 저장/crash-safe 프로젝트 포맷 | 없음 | 미구현 (Issue #962) |
+| 라이선싱/데모곡 first-run | `apps/desktop/src-tauri/resources/demo/*`, PR #1009 | 부분구현 (번들 provenance/license와 first-run 경로는 PR #1009에 있으나 아직 protected `develop`에 착지하지 않음; 오프라인 활성화와 P0 실오디오 정확도는 미완료) |
+| 자동 저장/crash-safe 프로젝트 포맷 | atomic publication과 bounded load의 일부가 PR #970에 구현됨 | 부분구현 (자동 저장, versioned migration, global recovery scan은 Issue #962) |
 | 서명/공증 배포+롤백 증적 | `.github/workflows/release.yml` 존재 | 부분구현 (Issue #960) |
 
 ## 4. 현재 열린 PR 기반 Gap 분석 (Open-PR Gap Analysis)
@@ -118,10 +118,50 @@ flowchart LR
 | #858 | `f1f5e877f07aa7486cd343ddfe8aa45a9d628bbd` | analysis/cache/temp/project path authority와 redacted logging test 계약 보강; required `opencode-review` failure, `DRAFT/MERGEABLE/BLOCKED`, unresolved thread 0, qualifying independent approval 없음 |
 | #985 | `33d14e44bf7f41dda51b0ee246f7caae088101b9` | canonical audio resource ceiling을 desktop local/YouTube handoff와 Python defense-in-depth에 연결; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
 | #892 | `fa2abea4f0063db55490b6f392d28315a975cf59` | decoded WAV C-major acceptance와 silent aliased fixture fail-closed 보강; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
-| #891 | `9220af2921438cb51a290ab4e4314e2fd321671d` | known-take verse/chorus chord recovery acceptance; required checks pass, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
+| #891 | `9220af2921438cb51a290ab4e4314e2fd321671d` | dry synthetic C→G/G→C two-section chord-recovery accuracy lock; real-master evidence가 아니며 required `opencode-review` failure, `DRAFT/MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, qualifying independent approval 없음 |
 | #866 | `505a595d481f8ba03abd8d13e7c17202918c833f` | canonical local-audio resource policy; required `opencode-review`·`strix` failure, `DRAFT/MERGEABLE/BLOCKED`, `CHANGES_REQUESTED`, qualifying independent approval 없음 |
 
+### 4.2 2026-08-30 tempo-stability current-head snapshot
+
+PR #1059 (`feat(tempo): surface tempo movement rehearsal cues`)의 현재 증거는 head `3d2aaa27804bd6113e8e9aee8aff611976698b40`, base `fix/temporal-log-privacy@b11b1e0c1756921c64524d691fb4fac440abc65b`이다. 이 PR은 #1055에 stacked되어 있으며 `OPEN`, `MERGEABLE`, `CLEAN`이지만 formal `reviewDecision`이 없고 qualifying independent approval도 없다. 동일 head의 Devin Review와 CodeRabbit status는 성공으로 보였고, CodeRabbit은 non-default base라 review를 건너뛴 상태이며, review thread unresolved count는 0이다. 따라서 이는 구현/리뷰 증거이지 보호 브랜치 병합 증거가 아니다. 다음 push 뒤에는 반드시 head, 동일 SHA Checks, reviews, threads를 다시 조회한다.
+
+구현 범위는 shared contract의 `TempoStability`/`TempoChange`, API의 validated tempo mapping과 local-only orchestration, Workspace의 en/ko rehearsal copy, chart JSON export, 그리고 final analysis cache v2와 reusable stem-feature cache v1의 독립 namespace다. PR branch에서 생성한 임시 click-track WAV를 실제 `TemporalAnalyzer`와 `analyze_tempo_stability`에 통과시킨 별도 probe는 `120.2 BPM`, `15 beats`, `steady`, `0 tempo changes`를 반환했다. 이 파일은 source tree나 CI fixture가 아니므로 P0 실오디오 정확도 acceptance를 대체하지 않는다.
+
+검증 증적은 pinned npm shim을 사용한 `./scripts/harness/quickcheck.sh` 성공이며, Python `684 passed, 24 skipped`, Python coverage `100.00%`, desktop `218` tests와 configured coverage `100%`, shared-types `21` tests, typecheck/mypy/Ruff/Bandit/security/supply-chain/GitHub bootstrap checks 및 Vite build 성공을 포함한다. 이 결과는 위 exact head에서 실행한 local evidence로만 취급한다.
+
+#### Security Notes
+
+- tempo 분석은 기존 validated local-audio 경계 안에 있으며 새 network, URL, subprocess, WebView, IPC 경계를 추가하지 않는다.
+- cache/export payload에는 raw `audio_path`와 `beat_times`를 넣지 않고, shared/API 계약은 finite·positive tempo만 허용한다.
+- final result cache는 schema v2로 pre-feature 결과를 재사용하지 않으며, 호환 가능한 stem features는 독립된 v1 namespace를 유지한다.
+
 `#1025`의 과거 SHA(`3c459fd033ccd94ad6cc8df6092d9e1ce4a86e6b` 등)는 이 표의 current head가 아니므로, 해당 SHA의 Checks/review를 현재 증적으로 재사용하지 않는다.
+
+### 4.3 2026-08-30 canonical audio-resource current-head snapshot
+
+PR #985 (`feat(analysis): enforce one canonical audio resource policy (#781)`)의 current head는 `b8a6db4fda36b5c07f5f30b4bd9195d5f4e2c431`이며, base는 `develop@749511c3ad4000090048718f685c6bee6b3d2c25`이다. canonical resource policy를 local/YouTube handoff와 temporal, separation, transcription, chord 경계에 연결하고, byte/header/decoded duration budget과 payload-free policy error를 공용 경계에 적용한다. 이 head에서 문서가 약속한 MP3/M4A 중 M4A path-backed intake가 libsndfile file-like probe와 `librosa.load(fileobj)` 조합 때문에 막히는 실제 결함을 확인했고, 후속 PR #1065로 보완했다.
+
+동일 head의 hosted 상태는 `OPEN`, `DRAFT`, `MERGEABLE`, `BLOCKED`, `REVIEW_REQUIRED`이며 review thread unresolved count는 0이다. CodeRabbit은 draft라 review를 건너뛴 성공 상태이고, 일반 CI/build/security/supply-chain gate는 통과했다. `noema-review`는 sidecar `413 request_too_large`, `opencode-review`는 current-head verdict 부재, `strix`는 잘못된 `LLM_API_BASE` 설정으로 실패했다. 이는 source finding이 아닌 외부 review/provider 증거 실패이므로 우회하지 않는다. formal qualifying independent approval은 없고, 동일 Gap의 이전 draft #866에는 #985를 canonical successor로 남겼다.
+
+후속 #1065는 이 head 위에 stacked 되었으며, #985 소유 브랜치는 덮어쓰지 않았다.
+
+#### Security Notes
+
+- 숫자 메타데이터는 caller/decoder가 공급하는 untrusted input이며, finite·정수성 검증 전에 실패할 수 있는 Python numeric conversion도 payload-free policy error로 정규화한다.
+- 수정은 파일 열기, 디코드, URL, subprocess, IPC 경계를 추가하지 않으며, 기존 encoded/decoded resource budget과 local-only 분석 경계를 유지한다.
+- `10**1000` overflow 회귀 테스트는 예외 타입과 stable reason code가 외부에 노출되는 경계를 확인한다.
+
+### 4.4 2026-08-30 real-audio loop current-head snapshot
+
+PR #1062 (`feat(player): play real audio section loops`)의 current head는 `949154375304ebef41e03d2e8bfde3ae86a40714`이며, base는 stacked branch `feat/rehearsal-player-first-section-loop@7a59047b004faa7a0b584f3d6d68c94889a452d5`이다. Tauri asset protocol은 startup scope를 비워 두고 native file-dialog 또는 validated YouTube-cache 경로의 canonical exact file만 runtime allowlist에 추가한다. `RehearsalPlayer`는 실제 `<audio>` element의 `timeupdate`를 playhead clock으로 사용하고, count-in·pause/resume·scheduled section-boundary restart·localized playback error를 제공한다. Browser-only source는 loop action과 start를 fail-closed로 비활성화하고, native asset URL 변환 실패는 missing-audio copy와 구분해 playback error를 표시한다. PR #971의 timer-only first-section loop보다 구현 경계는 진전됐지만, role filter는 아직 없고 real-device sound-output acceptance도 수행하지 않았다.
+
+동일 head의 로컬 증적은 desktop frontend `249 passed`와 statements/branches/functions/lines `100%`, Vite/lint/typecheck 통과다. native media element와 `convertFileSrc`를 검증하는 테스트는 실제 source URL·재생·`timeupdate`·scheduled boundary·long-timer clamp·loop reset·browser/native source authority를 확인하지만, mocked media 환경이므로 실제 스피커 출력이나 known-take 분석 정확도 gate를 대체하지 않는다.
+
+#### Security Notes
+
+- asset protocol `scope: []`에서 시작하며 generic filesystem IPC, directory scope, arbitrary JS path access를 추가하지 않는다. 선택된 canonical file 하나만 allowlist에 넣는다.
+- media error는 path나 raw metadata를 로그에 남기지 않고 재생을 중지한 뒤 재시도 가능한 localized status를 표시한다.
+- hosted PR 상태는 current head `949154375304ebef41e03d2e8bfde3ae86a40714`에서 `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, Devin/CodeRabbit status pass, unresolved thread 0, formal qualifying independent approval 없음이다. CodeRabbit은 stacked non-default base라 review를 skipped했고, 이 base에는 보호된 `develop` required checks의 merge evidence가 없다. 따라서 이 PR은 병합하지 않는다.
 
 현재 merge blocker의 권위 있는 설정도 함께 확인했다. active ruleset `18156473`은 `develop`에 승인 1개, review thread resolution, 16개 required status context를 요구한다. branch-protection REST 응답의 `required_approving_review_count=0`보다 ruleset의 더 엄격한 승인 규칙이 우선하므로, `MERGEABLE`만으로 merge-ready라고 판단하지 않는다. 승인·필수 Checks·thread resolution이 모두 현재 head에 대해 충족될 때만 병합한다.
 
@@ -132,6 +172,263 @@ flowchart LR
 - 이 변경은 runtime code, 파일/URL intake, subprocess, IPC, 모델, 로그, export 동작을 변경하지 않고 현재 상태와 traceability만 갱신한다.
 - 근거는 각 PR의 API current head SHA와 동일 SHA의 check-runs/reviews이며, stale/cancelled predecessor run은 성공 증적에서 제외한다.
 - 명령 출력과 문서에는 secret 값이나 raw audio/사용자 경로를 기록하지 않는다.
+
+### 4.5 2026-08-30 bounded rehearsal playback-rate current-head snapshot
+
+PR #1063 (`feat(player): add bounded rehearsal playback rates`)의 current head는 `e517a9875d9eae13113c56d7b2b433ed9a3a7888`이며, base는 stacked branch `codex/real-audio-loop@949154375304ebef41e03d2e8bfde3ae86a40714`이다. 구현은 임의 rate를 허용하지 않고 `0.75x`, `1x`, `1.25x`만 transport 계약으로 허용한다. native `<audio>`의 `playbackRate`에 값을 적용하고, 브라우저가 `preservesPitch`를 노출할 때 true를 유지한다. HTML Standard의 media contract상 `playbackRate=1`은 정상 속도이며 유효 재생 속도는 media clock에 영향을 주므로, count-in beat 간격은 `beatDurationMs(tempo) / playbackRate`, section boundary wall-clock delay는 남은 media seconds를 playback rate로 나눈 값으로 계산하고 rate 변경 시 boundary timer를 재예약한다. source 교체 뒤에도 선택한 rate를 다시 적용한다.
+
+동일 head의 로컬 증적은 pinned npm 실행으로 `./scripts/harness/quickcheck.sh`를 끝까지 통과한 것이다. Python `679 passed, 24 skipped`, coverage `100.00%`, desktop `254 passed`와 statements/branches/functions/lines `100%`, shared-types `20 passed`와 동일 100% coverage, Vite build, lint/typecheck, docs/security/supply-chain/bootstrap/Ruff/Bandit/mypy gates가 통과했다. 테스트는 두 non-default rate의 count-in 전환, 재생 중 rate 변경에 따른 boundary 재예약, native media rate/pitch-preservation, source 교체 후 rate 보존을 검증한다. 이는 mocked media clock 증적이며, 실제 오디오 파일의 음질·음정 및 실제 장치별 `preservesPitch` 동작을 보증하지 않는다.
+
+현재 hosted 상태는 current head `e517a9875d9eae13113c56d7b2b433ed9a3a7888`에서 `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, Devin/CodeRabbit status pass, unresolved thread 0이며, CodeRabbit은 stacked non-default base라 review를 skipped했다. formal qualifying independent approval은 없다. 따라서 #1063도 보호된 merge evidence가 충족될 때까지 병합하지 않는다.
+
+#### Security Notes
+
+- 재생 속도는 고정된 세 값만 허용하며, raw path·URL intake·filesystem scope·subprocess·IPC 경계를 추가하지 않는다. 기존 #1062의 exact-file Tauri asset allowlist와 `asset:`/`http://asset.localhost` CSP 범위를 그대로 상속한다.
+- rate 변경은 media element 속성 및 transport timer만 갱신하며, browser-only source와 변환 실패 source는 기존 fail-closed 권한/오류 경계를 유지한다.
+- 검증 지점은 rate 입력의 런타임 검증, count-in/boundary rescheduling, source 변경 cleanup, localized status이며, real-device sound-output와 known-take accuracy는 별도 P0 Gap으로 남긴다.
+
+### 4.6 2026-08-30 bounded accuracy-fixture decode current-head snapshot
+
+PR #1064 (`fix(accuracy): bound fixture decode resources`)는 accuracy acceptance PR #892의 current head `fa2abea4f0063db55490b6f392d28315a975cf59` 위에 쌓은 current head `9d2fec2855793e4d7cd1bab19f874a163e7538e4`이다. checksum staging 전에 fixture bytes를 100 MiB로 제한하고, WAV header에서 채널 수(최대 8), sample rate(최대 192 kHz), decoded duration(최대 15분)을 확인한 뒤 PCM을 할당한다. stat 이후 파일 성장과 header/read 예외도 fail-closed 하며, tempo evaluator가 이 header guard를 우회하지 않도록 공통 validator를 staging 경계에서 호출한다. 이 변경은 synthetic Tier 1 fixture의 자원 경계만 보강한다. known-take/공개 corpus의 음악 정확도나 stem SI-SDR gate를 대신하지 않는다.
+
+동일 head의 local evidence는 targeted accuracy acceptance `43 passed`, full Python `768 passed, 24 skipped`, production statements/branches/functions/lines `100.00%`, Ruff, mypy, docs validator, `git diff --check` 통과다. Full suite 중 기존 macOS Demucs child-process segmentation-fault traceback이 출력됐지만 부모 pytest는 완료됐고, 이 변경 경로의 acceptance 테스트는 성공했다.
+
+현재 hosted 상태는 #1064 current head에서 `OPEN`, non-draft, `MERGEABLE`, `CLEAN`이며, CodeRabbit은 pass지만 review를 skipped했고 Devin은 pass다. formal `reviewDecision` 없음, unresolved thread 0, qualifying independent approval 없음이다. 따라서 보호된 merge evidence가 충족되기 전에는 병합하지 않는다.
+
+#### Security Notes
+
+- untrusted fixture bytes는 stat/read 상한과 checksum 검증을 통과해야만 temporary staging 및 decode로 진행한다. WAV header의 채널·sample-rate·duration 상한은 decoder allocation 전에 적용한다.
+- 새 network, shell, runtime IPC, WebView, model, dependency authority는 추가하지 않으며, report에는 raw PCM이나 local path를 기록하지 않는다.
+- 검증 지점은 oversized fixture, file-growth race, unreadable header/file, excessive channel/rate/duration, checksum mismatch 및 정상 file-backed C/tempo acceptance다.
+
+### 4.7 2026-08-30 compressed-container path fallback current-head snapshot
+
+PR #1065 (`fix(audio): preserve compressed path decoder support`)의 current head는 `669d1d0122861a3398f91029ce386667cd2c09d4`이며, base는 #985 branch `feat/canonical-audio-resource-policy-781@b8a6db4fda36b5c07f5f30b4bd9195d5f4e2c431`이다. path-backed temporal/separation intake는 libsndfile이 검사하지 못하는 compressed container에서 기존 local audioread fallback으로 metadata를 확인하고, path를 그대로 librosa에 전달해 기존 decoder fallback을 유지한다. file-like stem bytes는 기존 libsndfile metadata contract를 유지한다.
+
+동일 head의 local evidence는 targeted `54 passed, 1 skipped`, full Python `760 passed, 24 skipped`, statements/branches/functions/lines `100.00%`, Ruff, mypy, `uv lock --check`, `git diff --check`, 그리고 pinned npm 실행의 `./scripts/harness/quickcheck.sh` 성공이다. 실제 5초 AAC/M4A fixture도 preflight를 통과했고 `TemporalAnalyzer`가 `.m4a`, `5.0`초, `44.1 kHz`를 반환했다. Full Python suite 중 기존 macOS Demucs child-process segmentation-fault traceback이 출력됐지만 부모 pytest는 완료됐으며, 이 PR은 해당 unrelated runtime noise를 해결했다고 주장하지 않는다.
+
+현재 hosted 상태는 #1065 current head에서 `OPEN`, non-draft, `MERGEABLE`, `CLEAN`이다. CodeRabbit은 stacked non-default base라 skipped했고 Devin Review는 pass로 완료됐으며, formal `reviewDecision`과 unresolved thread는 없고 qualifying independent approval도 없다. 따라서 #1065 역시 protected merge evidence가 충족되기 전에는 병합하지 않는다.
+
+#### Security Notes
+
+- untrusted local audio는 #985의 resolved-path/size policy 경계와 decoder metadata의 sample-rate/channel/duration 검증을 통과해야 한다.
+- 기존 fixed local audioread route만 재사용하며 network, generic exec/read/write API, 새 ffmpeg subprocess, IPC, WebView 경계를 추가하지 않는다. fallback 실패는 payload-free `malformed_header`로 닫고 policy 위반 reason code는 보존한다.
+- 검증 지점은 libsndfile 성공 경로, compressed fallback, fallback 실패, decoder policy rejection, 실제 AAC/M4A path acceptance다.
+
+### 4.8 2026-08-30 role-filtered rehearsal loop current-head snapshot
+
+PR #1066 (`feat(player): filter loops by rehearsal role`)의 current head는 `43698a61377f9c2f7d01e65783089caceed8c1b5`이며, base는 #1063 branch `codex/playback-rate-control@e517a9875d9eae13113c56d7b2b433ed9a3a7888`이다. 기존 RoleSwitcher의 active role을 RehearsalPlayer에 연결해 선택 역할이 실제로 포함된 playable section만 loop picker에 표시한다. 전체 SectionRoadmap의 form context는 유지하며, role-specific stem playback이 생겼다고 주장하지 않는다. 역할이 없는 section은 fail-closed로 제외하고, 선택 역할에 playable section이 없으면 All Roles 또는 역할 배치를 안내하는 한/영 copy를 표시한다.
+
+동일 head의 local evidence는 targeted `54 passed`, desktop full `260 passed` across 23 files, desktop statements/branches/functions/lines `100.00%`, desktop lint/typecheck, and pinned npm `./scripts/harness/quickcheck.sh` pass이다. Harness Python `679 passed, 24 skipped`, Python coverage `100.00%`, shared-types `20 passed`, shared-types coverage `100.00%`, and Vite build also passed. Full Python suite prints the existing macOS Demucs child-process segmentation-fault traceback during one mocked CLI test, but parent pytest/harness completes successfully. No real audio/stem-output evidence is claimed.
+
+`43698a61377f9c2f7d01e65783089caceed8c1b5` push 후 같은 head를 재조회한 snapshot에서 #1066은 `OPEN`, non-draft, `MERGEABLE`, `CLEAN`이며, CodeRabbit은 stacked non-default base라 skipped했고 Devin Review는 pass로 완료됐다. 이전 `39927fbbaf0c4f7fb5d84d5ba6086f6c5f748064`에 달린 Devin bug thread 2개는 이 새 head에서 모두 resolved되어, current-head unresolved thread는 0이다. formal `reviewDecision`과 qualifying independent approval은 없다. 따라서 protected merge evidence가 충족되기 전에는 병합하지 않는다.
+
+#### Security Notes
+
+- role ID is selected through existing RoleSwitcher allowlist; transport snapshot reads section/role ids via own data descriptors and excludes malformed/sparse arrays.
+- no new file/URL/subprocess/IPC/WebView/network/model boundary; no stem playback claim.
+- validation points are all-role restoration, selected-role filtering, no-role-section copy, keyboard/aria role picker semantics, and existing desktop/full harness gates.
+
+### 4.9 2026-08-30 keyboard section cue navigation current-head snapshot
+
+PR #1067 (`feat(player): add keyboard section cue navigation`) is stacked on #1066 at base `43698a61377f9c2f7d01e65783089caceed8c1b5` and current head `04396d9b4ebfd50ad598ffaf1edb33df3de70840`. Existing playable section buttons now accept Left/Right Arrow to move the selected loop cue from the focused button within the bounded list, preserve focus on the newly selected cue, and expose the shortcut in localized visible copy. The change does not add playback or stem-source authority.
+
+Local evidence is targeted `21 passed`, desktop `261 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop lint/typecheck, and pinned-npm `./scripts/harness/quickcheck.sh` pass. The harness also reports Python `679 passed, 24 skipped` with 100% coverage, shared-types `20 passed` with 100% coverage, and a successful Vite build. The existing macOS Demucs child-process segmentation-fault traceback remains unrelated runtime noise during one mocked CLI test; the parent pytest completes successfully.
+
+After the current head completed hosted review, #1067 is `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, with CodeRabbit successful/skipped for the stacked non-default base and Devin Review pass; all review threads are resolved and no qualifying independent approval exists. This is keyboard cue-selection evidence, not real-device sound-output or real-audio accuracy acceptance.
+
+#### Security Notes
+
+- The handler only changes the existing validated loop selection and DOM focus; it does not admit file paths, URLs, subprocesses, IPC, WebView, network, model, or export inputs.
+- Movement is bounded at the first and last playable cue, and malformed sections remain excluded by the existing descriptor-snapshot transport resolver.
+- Validation points are keyboard boundary behavior, focus retention, localized shortcut copy, existing aria-pressed semantics, and full repository gates.
+
+### 4.10 2026-08-30 manual cue-boundary correction current-head snapshot
+
+PR #1068 (`feat(player): allow manual cue boundary corrections`) is stacked on #1067 at base `04396d9b4ebfd50ad598ffaf1edb33df3de70840` and current head `81efbe3716632acbbff72626258ef0b09b00fbde`. The selected playable cue now exposes accessible whole-second start/end editors. Values are bounded by the shared section limit and must remain ordered; accepted changes immutably update the selected `song.sections[].timeRange`, so the existing Save Project action carries the corrected map into the current project file contract. Invalid edits restore the previous value and expose `aria-invalid` plus localized guidance. A Devin review found and the new head fixed a keyboard focus loss caused by key-based editor remount during Tab navigation; the new regression test confirms focus reaches the end field with the accepted start value. The slice does not claim automatic save, a persisted detected-vs-user provenance field, real-device timing, or role-specific stem playback.
+
+Local evidence is targeted RehearsalPlayer `24 passed`, desktop full `264 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The tests cover immutable song-map update, range inversion rejection, Tab focus retention, localized existing player behavior, role filtering, and keyboard cue navigation. No new file, URL, subprocess, IPC, WebView, network, model, or export boundary is introduced.
+
+At the latest hosted snapshot after the focus fix, #1068 is `OPEN`, non-draft, `MERGEABLE`, and `CLEAN` with base `codex/player-keyboard-cues-20260830`; GitHub had not yet emitted check-runs or a formal review decision, unresolved review threads were `0` after the Devin bug response and resolution, and no qualifying independent approval existed. This is therefore partial #961 evidence only, not protected merge evidence; re-query the exact head and same-SHA Checks after every push.
+
+#### Security Notes
+
+- The inputs are untrusted UI strings admitted only as safe integer seconds within `0..MAX_SECTION_TIME_SECONDS` and an ordered start/end pair before `onSongUpdate`.
+- The update reuses the existing in-memory song authority and Save Project path; it does not create localStorage, a competing project store, filesystem access, URL intake, subprocesses, IPC, WebView, network, or model behavior.
+- Validation points are boundary-limit rejection, inversion rejection, immutable section update, localized error text, accessible labels/descriptions, and existing full desktop/repository gates.
+
+### 4.11 2026-08-30 bounded cue seek current-head snapshot
+
+PR #1069 (`feat(player): add bounded cue seeking`) is stacked on #1068 at base `81efbe3716632acbbff72626258ef0b09b00fbde` and current head `8a5160a797ae9f0a360aeb300ed42c35728a71e1`. The selected loop now exposes an accessible range control while the local media clock is looping or paused after count-in. The transport state machine clamps requests to the selected cue and maps an endpoint seek back to the loop start; the existing scoped `<audio>` element and one transport state remain the authorities. Count-in seeking, restart-key binding, durable autosave, real-device timing, and role-specific stem playback remain out of scope.
+
+Local evidence is targeted RehearsalPlayer/rehearsalTransport `37 passed`, desktop full `265 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The seek test verifies the actual mocked scoped media clock is updated, while reducer tests cover count-in rejection, lower/upper bounds, and valid in-loop movement. This is mocked media evidence, not real speaker output or real-audio accuracy evidence.
+
+At the latest hosted snapshot, #1069 was `OPEN`, non-draft, `MERGEABLE`, and `CLEAN` with the base ref synchronized to #1068's focus-fix head; it had no formal review decision, no qualifying independent approval, and no emitted check-runs yet. This remains partial #961 evidence and is not protected merge evidence.
+
+#### Security Notes
+
+- Seek input is a bounded native range value; the reducer clamps finite values and rejects seeking during count-in before changing the media clock.
+- The change reuses the existing scoped local-audio asset and transport state; it adds no path, URL, subprocess, IPC, WebView, network, model, or export authority.
+- Validation points are count-in rejection, loop-boundary clamping, paused/live seek behavior, media-clock assignment, accessible label/description, and exact-head hosted gate rechecks.
+
+### 4.12 2026-08-30 safe transport keyboard shortcuts current-head snapshot
+
+PR #1071 (`feat(player): add safe transport shortcuts`) is stacked on #1069 at base `8a5160a797ae9f0a360aeb300ed42c35728a71e1` and current head `dbd15a9f22bc94cd0676ac0c552a55a872f6c2b6`. The rehearsal player now exposes localized visible guidance for Space play/pause and Escape stop. The window handler ignores editable fields, focused interactive controls, and repeated keydown events, and dispatches only the existing bounded transport actions; it does not add a second clock or a new source authority. Restart-key binding, durable autosave, real-device timing, and role-specific stem playback remain out of scope.
+
+Local evidence is targeted RehearsalPlayer `25 passed`, desktop full `266 passed` across 23 files with statements/branches/functions/lines `100.00%`, desktop TypeScript typecheck, ESLint, and `git diff --check`. The shortcut test verifies that a focused boundary input does not start playback, repeated Space keydown events do not toggle twice, Space transitions count-in to the loop and pauses it, and Escape resets the selected loop. This is mocked media evidence, not real speaker output or real-audio accuracy evidence.
+
+At the hosted snapshot after push, #1071 was `OPEN`, non-draft, `MERGEABLE`, with merge recalculation `unstable` while stacked refs settled; its base was #1069's exact head, no formal review decision or qualifying independent approval existed, unresolved review threads were `0`, and no check-runs had been emitted. This remains partial #961 evidence and is not protected merge evidence.
+
+#### Security Notes
+
+- Shortcuts are ignored when the event target is editable or interactive, and repeated keydown events are ignored, preventing transport actions while typing or holding a key.
+- The handler dispatches only existing `start`, `pause`, and `stop` transport transitions; it adds no file, URL, subprocess, IPC, WebView, network, model, or export authority.
+- Validation points are editable-target suppression, unavailable-action behavior, localized shortcut guidance, count-in/pause/stop transitions, and exact-head hosted review/check rechecks.
+
+### 4.13 2026-08-30 first count-in current-head snapshot
+
+PR #1070 (`feat(workspace): count in tonight's first click before the range`) is on the protected `develop` base `749511c3ad4000090048718f685c6bee6b3d2c25` at current head `92d8ffe3df69f33f43367e610cc2ffa08105e768`. It adds a bounded four-beat local Web Audio click from the existing shared-contract-validated song tempo and first named section, with fail-closed copy and keyboard-accessible start/stop behavior. It does not add file, URL, subprocess, IPC, WebView, network, model, or persistence authority, and it does not claim stem playback or automatic project-state recovery.
+
+Local evidence at this head is desktop full `242 passed` across 21 files, statements `99.37%`, branches `98.48%`, functions `100%`, lines `99.35%`, desktop ESLint, TypeScript typecheck, and `git diff --check` with npm `10.9.9`. The preceding hosted head failed only because the four exported tempo/count-in constants lacked the repository's required JSDoc placement; the constants were corrected without changing behavior and the new head emitted no completed failures at capture.
+
+At the latest exact-head hosted query, #1070 remains `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, with `reviewDecision=REVIEW_REQUIRED`, unresolved review threads `0`, and qualifying approvals `0`. Repository CI/build/security/SBOM/supply-chain checks are successful, but `noema-review` failed with `request_failed status=413 code=request_too_large`, `strix` failed after the same provider error during gateway preflight, and `opencode-review` failed closed because no authenticated current-head verdict was present. These are external required-gate failures; no source-test failure was identified. This remains partial #961 evidence and is not protected merge evidence until the same SHA has terminal-success gates and a qualifying independent approval.
+
+The same-head rerun of the three provider gates preserved the distinction: Noema again stopped during sidecar preflight after its bounded-body probe, OpenCode again failed closed without an authenticated current-head verdict, and Strix reached healthz plus gateway chat/completions preflight but rejected all four primary OpenRouter `:free` routes with HTTP `429`; its fallback routes were listed as ready, yet the scanner ended with `STRIX_PROVIDER_UNAVAILABLE`. The rerun is therefore stronger evidence of provider capacity/backend unavailability, not a product or security finding, and still cannot be treated as a passing scan.
+
+#### Security Notes
+
+- Raw runtime song tempo and section labels are untrusted at intake; click authority is admitted only after finite 20–400 BPM validation and bounded beat scheduling.
+- The only new runtime boundary is the in-process Web Audio oscillator graph; missing audio hosts, malformed plans, and unavailable tempo fail closed without logging paths or payloads.
+- Validation points are bounded scheduling, stop/replay cleanup, keyboard/focus-safe control behavior, localized fallback copy, and exact-head hosted gate rechecks.
+
+### 4.14 2026-08-30 tap-tempo current-head snapshot
+
+PR #1072 (`feat(workspace): tap a session tempo when the song has none`) is on the protected `develop` base `749511c3ad4000090048718f685c6bee6b3d2c25` at current head `31d854162004b76ad6749607f9ae811668d82ae1`. It offers a session-only four-tap median tempo for songs without a finite positive stored tempo, bounds the tap window and interval spread, resets after a long pause, and preserves taps only across the mounted workspace's supported immutable song edits. It does not write `song.tempo`, create localStorage, or compete with the canonical project persistence authority in #962.
+
+Local evidence at this head is desktop full `230 passed` across 20 files with statements/branches/functions/lines `100.00%`, desktop ESLint, TypeScript typecheck, and `git diff --check`. The preceding hosted head exposed a macOS case-insensitive module collision between `TapTempo.tsx` and `tapTempo.ts`, plus the repository's exported-constant JSDoc placement and an unused identity argument. The current head renames the component to `TapTempoPanel.tsx`, applies the existing lint-compatible JSDoc form, removes the unused argument, and changes no dependency or runtime trust boundary.
+
+At the latest exact-head hosted query, #1072 remains `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, with no formal review decision, unresolved review threads `0`, and qualifying approvals `0`. Repository CI/build/security/SBOM/supply-chain checks are successful, but `noema-review` failed with `request_failed status=413 code=request_too_large`, `strix` failed when its gateway preflight could not reach the local sidecar after the same provider error, and `opencode-review` failed closed because no authenticated current-head verdict was present. These are external required-gate failures; no source-test failure was identified. This remains partial #961 evidence and is not protected merge evidence until the same SHA has terminal-success gates and a qualifying independent approval.
+
+#### Security Notes
+
+- Runtime tempo values and tap timestamps are untrusted; finite timestamps, monotonic ordering, bounded history, and 20–400 BPM output are enforced.
+- Tap state remains in React memory and the component is keyed by loaded-song object identity; no project file, path, URL, subprocess, IPC, WebView, network, model, or log payload is added.
+- Validation points are long-gap reset, backwards-clock rejection, median/spread bounds, same-id replacement reset, supported-edit preservation, accessible controls, and exact-head hosted gate rechecks.
+
+### 4.15 2026-08-30 project persistence current-head snapshot
+
+PR #970 (`fix(project): stage saves before atomic publication`) is on the protected `develop` base `749511c3ad4000090048718f685c6bee6b3d2c25` at current head `9b7e3e90c03d775b2cc1181d6aaac2a66c8f1223`. The slice stages and syncs bounded project bytes before publication, preserves an existing known-good target across replacement races, fails closed for symlink/reparse and unsafe ancestor paths, and adds durable target-scoped recovery. The latest follow-up also sets the Windows workflow checkout environment required by the supply-chain verifier, derives recovery names from the canonical full target path with a bounded dual key, accepts a case alias only when it resolves to the same regular file, strips executable/special Unix permission bits from project data, recognizes completed rollback after an interrupted cleanup, and runs all persistence integration tests in the Windows workflow. Global startup recovery, backup rotation, versioned migration, and descriptor-bound parent authority remain Issue #962 follow-up scope.
+
+Local evidence at this head is `cargo fmt --all -- --check`, `python3 scripts/checks/verify_supply_chain.py`, `git diff --check`, and the full Tauri persistence suite: source tests `19 passed`, integration targets `1`, `20`, `20`, `20`, `24`, `21`, `21`, `21`, and `0` tests where platform cfg excludes the Windows-only identity fixture; all reported tests passed. The local full harness reaches the repository gates but cannot complete in this environment because npm `11.13.0` violates the repository's pinned npm `10.9.9` devEngine. The previous hosted head failure was the missing workflow-level `GIT_CONFIG_*` environment; after fixing it, the latest exact-head snapshot had `17` successful, `2` in-progress, and `10` queued checks, plus a failed `noema-review`. Job `99166589344` recorded `request_failed status=413 code=request_too_large` while provisioning the review sidecar after credential minting; this is a provider request-size preflight failure, not a source-test finding, so no hosted pass is claimed.
+
+At the latest exact-head query, #970 was `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, with formal `reviewDecision=REVIEW_REQUIRED` and zero qualifying independent approvals. All twelve Devin review threads were answered and resolved after the current fixes; the failed Noema and Strix gates both recorded the external provider error `request_failed status=413 code=request_too_large` during sidecar preflight, while `opencode-review` failed closed because no authenticated current-head OpenCode verdict was present. The remaining hosted checks still require completion and a later same-SHA re-query. This is filesystem persistence evidence, not proof that autosave or protected-branch merge requirements are complete.
+
+#### Security Notes
+
+- Project bytes, target paths, journal contents, and filesystem metadata are untrusted. Reads remain bounded, no-follow, regular-file-only operations; publication requires a safe parent chain, staged sync, no-clobber behavior for new files, and identity validation for replacements and recovery.
+- Recovery key lookup uses the canonical full target path and bounded dual key; the journal stores the target name and recovery accepts a case alias only after regular-file identity and canonical-path agreement. The key remains bounded rather than a global journal index, so hostile hash-collision resistance is not claimed.
+- Existing Unix read/write bits are retained for replacement data while executable and special bits are removed. The Windows workflow is opt-in by changed persistence paths and inherits the repository checkout-default-branch environment contract; no runtime network, URL, subprocess, IPC, WebView, model, or export boundary is added.
+- Validation points are the complete local Tauri suite, cross-platform case-alias cfg test, executable-bit regression, supply-chain verifier, Windows persistence workflow, and exact-head hosted check/review/approval/thread re-query.
+
+### 4.16 2026-08-30 versioned project-format current-head snapshot
+
+PR #1073 (`feat(project): add versioned project file envelope`) is stacked on PR #970's exact branch base `9b7e3e90c03d775b2cc1181d6aaac2a66c8f1223` at current head `d3337cf7bbe20884a3c5330291b1b9f7dbe044f0`. It adds the smallest canonical v1 envelope around the existing compatibility song payload: `projectFormatVersion` is explicit and checked before version-specific decoding, the current envelope rejects unknown fields, unsupported versions fail closed even with a future nested schema, legacy raw song files remain readable, and tempo is persisted only when it is a finite positive number. The checked-in golden fixture is `apps/desktop/core/testdata/project-v1.json`; save now emits the envelope through the existing atomic publisher.
+
+This slice deliberately does not claim the complete Issue #962 format. Typed source/derived/decision/handoff/preferences/volatile sections, autosave, backup rotation, migration receipts, rollback UX, and recovery comparison remain follow-up work. No competing player localStorage/session store was added; #961 durable player state must use the canonical project authority after its state machine is stable.
+
+Local evidence at this head is `corepack npm run build --workspace apps/desktop`, core tests `23 passed`, the full Tauri suite (`19` source tests and integration targets `1`, `20`, `20`, `20`, `24`, `21`, `21`, `21`, and `0` platform-excluded tests), Tauri clippy with `-D warnings`, `cargo fmt --all -- --check`, `python3 scripts/checks/verify_supply_chain.py`, the documentation and security-notes verifiers, and `git diff --check`. The additional tests cover future envelopes with changed nested fields and invalid tempo values. The first Tauri attempt lacked the generated frontend `dist`; the build was run before the passing final suite and is not a source failure.
+
+At the source-push capture after `d3337cf7`, #1073 was `OPEN`, non-draft, `MERGEABLE`, `UNSTABLE`, with `reviewDecision=null`, qualifying approvals `0`, unresolved review threads `0` after the prior informational thread was answered, CodeRabbit successful, Devin Review pending, and no repository required check suite emitted because its base is a non-default stacked branch. A later same-head query recorded both CodeRabbit and Devin Review successful; formal review and protected required-check evidence remain absent. This is not protected merge evidence; the branch must be re-queried after its base and hosted gates settle.
+
+#### Security Notes
+
+- Project files and all envelope fields are untrusted; serde `deny_unknown_fields`, explicit version dispatch, bounded existing reads, and fail-closed parse errors prevent silently accepting a changed schema.
+- Persistence continues through the existing safe atomic publisher and bounded filesystem authority; this PR adds no generic path or write API, URL, subprocess, IPC, WebView, network, model, or payload logging boundary.
+- Validation points are the v1 round trip, golden fixture load, unknown-field rejection, unsupported-version rejection, legacy compatibility, tempo preservation, full persistence suite, and exact-head hosted check/review/approval/thread re-query.
+
+### 4.17 2026-08-30 bundled demo real-audio probe
+
+PR #1009 (`feat(activation): license a demo song and name first-run next actions`) is on protected `develop@749511c3ad4000090048718f685c6bee6b3d2c25` at current head `6c4fe958ae18705d9800b88d1b3cc886b2e70c29`. Its bundled `late-night-set.wav` is a real file-backed 2.0-second, mono, 22.05 kHz PCM fixture. Running the repository's actual Python DSP entry points against those bytes produced `120.1853 BPM`, one detected beat at `1.021678s`, one `verse` segment covering `0.0–2.0s`, and one `Am` chord segment with low confidence. This is direct file analysis evidence, not a mocked result.
+
+Reproduce the probe from a checkout of PR #1009 at the exact head above with:
+
+```bash
+uv run --project services/analysis-engine --locked python - <<'PY'
+import json
+from pathlib import Path
+import librosa
+from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
+from bandscope_analysis.sections.segmenter import segment_with_boundaries
+from bandscope_analysis.temporal import TemporalAnalyzer
+
+path = Path("apps/desktop/src-tauri/resources/demo/late-night-set.wav")
+temporal = TemporalAnalyzer().analyze(path)
+y, sr = librosa.load(path, sr=44100, mono=True)
+chords = ChordRecognizer().recognize(y, sr)
+sections, boundaries = segment_with_boundaries(y, sr, float(len(y) / sr))
+print(json.dumps({"temporal": temporal, "chords": chords, "sections": sections, "boundaries": boundaries}, default=str))
+PY
+```
+
+The fixture is intentionally too short and tonally simple to qualify buyer-facing form or harmony accuracy: the segmenter reports `Audio too short for structural analysis`, and the chord recognizer marks the single-tone result low confidence. The probe therefore confirms that the real decode/temporal/form/harmony code path executes while preserving the P0 gap for known-take, multi-section, musically representative accuracy acceptance. The branch remains `OPEN`, non-draft, `MERGEABLE/BLOCKED`, `REVIEW_REQUIRED`, with unresolved review threads `0`, no qualifying independent approval, and a failed current-head `opencode-review`; no protected merge is claimed.
+
+#### Security Notes
+
+- The demo bytes are repository-bundled and provenance-tracked; the probe uses the existing bounded local-audio decoder and adds no network, URL, generic subprocess, IPC, WebView, or model-download path.
+- The analyzer bounds file size and decoded duration before feature extraction, and low-confidence results remain visible rather than being presented as authoritative buyer-facing accuracy.
+- Validation points are the exact fixture bytes, finite BPM/beat output, bounded section/chord output, low-confidence handling, provenance/license manifest, and exact-head hosted review/check/approval re-query.
+
+### 4.18 2026-08-30 post-merge reconciliation
+
+The earlier sections are point-in-time captures and must not be read as the
+current hosted state. After those captures, the normal stacked merge sequence
+advanced the rehearsal-player line: #1062 merged at `949154375304ebef41e03d2e8bfde3ae86a40714`
+with merge commit `82ec4538a4452d38253509d142e72c7faa9c6b28`, #1063 merged at
+`d99c9358b4c7bdcbf7d090c287b40d8104f97ade` with merge commit
+`435cc020404b35d2f7aaeb777d4a049cfc45e416`, and #1069 merged at
+`b7fd15196a3ddb2855e367de3afa6515619d7931` with merge commit
+`e29739f92cf03a472b3bc8a61f92f569ca45a3cc`. The related role, cue, and
+transport slices #1066, #1067, and #1068 were also normally merged into their
+stacked parents. The current open umbrella PR #971 is `OPEN`, non-draft, and
+at head `e29739f92cf03a472b3bc8a61f92f569ca45a3cc` on protected
+`develop@749511c3ad4000090048718f685c6bee6b3d2c25`; this is stacked progress,
+not a protected `develop` merge.
+
+The canonical audio-resource line also advanced: #1065 merged its exact head
+`6bfe3c080026345d08dfbb7b637cdb07d7de3f6e` into the #985 branch with merge
+commit `209cc2fea4dea04876264bdf0cd8cb58c6b75eb5`. PR #985 remains draft and
+open on protected `develop`, now at head `209cc2fea4dea04876264bdf0cd8cb58c6b75eb5`.
+PR #892 likewise remains draft and open at head
+`9f50f446bb42b7ad1becf5377cdffd9b10e37b40`; #1064 is still stacked on that
+line. The #1071 and #1073 slices were normally merged into their respective
+stacked parents, but their parent PRs remain subject to their own current-head
+checks and protected-base gates.
+
+PRs #1070 (`92d8ffe3df69f33f43367e610cc2ffa08105e768`) and #1072
+(`759d571af92ddc6b13045e4f3ddc800cc44fcedd`) remain open, non-draft PRs on
+protected `develop`. Their repository/build/security/SBOM checks were
+successful at the captured heads, while Noema/Strix failed in the external
+provider or gateway preflight and OpenCode failed closed without an
+authenticated current-head verdict. They have no qualifying independent
+approval, so neither is merge evidence. Issue #770 and the known-take
+real-audio accuracy gap remain open; decoded or bundled fixture probes do not
+replace a representative known-take benchmark with quantitative accuracy
+thresholds.
+
+This reconciliation is a time-scoped snapshot. After every push or base-branch
+advance, re-fetch the exact PR head, same-SHA Checks, formal review decision,
+qualifying approval, unresolved threads, and merge state before changing the
+document or claiming readiness.
+
+#### Security Notes
+
+- This is documentation-only reconciliation; it adds no runtime file, URL,
+  subprocess, IPC, WebView, model, network, logging, or export boundary.
+- SHA values are repository metadata only; raw audio payloads, local paths, and
+  credentials are intentionally excluded. Stale predecessor evidence is kept
+  as historical context and explicitly superseded by the post-merge snapshot.
+- Validation points are the exact PR/base SHA queries, same-head hosted gate
+  results, review/approval/thread state, and re-query after any future push.
 
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
@@ -144,7 +441,7 @@ capability cluster 분류와 착지 후 남는 Gap:
 | C. 화성 설명/확정/귀확인 (harmonic function/explanation/confirmed chord/ear check/setup note/transposition/part handoff/playable range/overlap/groove/simpler take/tempo-starting chord setup) | #1005, #1003, #1002, #1001, #1004, #1006, #1007, #957, #992, #991, #990, #987 | brand-story의 "추정 + 귀로 확인" 프레임을 UI 언어로 구체화 | confidence 산출 근거의 정량화, confirmed override의 재분석 반영(round trip, Issue #739) |
 | D. 협업 최소면 (assignment/comment/approval/blocked/pending/open comment/export-priority actions/ready board) | #996, #997, #998, #1000, #900, #901 | shared-types의 collaboration 타입에 처음으로 UI가 붙음 | 동기화(syncMode local_only/planned_cloud), crash-safe 프로젝트 포맷(Issue #962), 권한 모델 |
 | E. First-run/activation/실패 복구 (first-run card/license demo song/local intake 실패/import 실패/analysis 실패/save 실패/help) | #974, #1009, #981, #982, #976, #984, #972, #898 | 빈 상태/오류 상태의 next-action 카피 완성 | 라이선싱 백엔드, 데모곡 번들 정책, 오프라인 활성화 |
-| F. 보안/신뢰경계 (log redaction x4, quick-xml RustSec, filesystem authority, canonical audio policy, CSV NUL/전각 우회 차단, credential drop, PDF bound reads, npm baseline) | #956, #951, #950, #949, #948, #858, #985/#781, #941, #894, #865, #783 | app-security.md 규칙의 코드 반영 마무리 | Issue #852(경계 재구축), #542(예외 추적), 모델 artifact checksum/signature 파이프라인 |
+| F. 보안/신뢰경계 (log redaction x4, quick-xml RustSec, filesystem authority, canonical audio policy, CSV NUL/전각 우회 차단, credential drop, PDF bound reads, npm baseline) | #956, #951, #950, #949, #948, #858, #985/#781/#1065, #941, #894, #865, #783 | app-security.md 규칙의 코드 반영 마무리 | Issue #852(경계 재구축), #542(예외 추적), 모델 artifact checksum/signature 파이프라인 |
 | G. 성능 (Bolt 시리즈: 관측 확률 벡터화, GrooveMap maxTime O(1), chart dedupe O(N), chord change count O(1), checkerboard/HMM 벡터화) | #999, #859, #849, #834, #746, #732 | 핫패스 최적화. Rust 커널 포팅과 같은 방향의 Python 측 보완 | Demucs 가속 admission/parity/performance qualification, 대용량 파일 스트리밍, UI 가상화 |
 | H. 접근성/디자인 시스템 (tooltip aria-disabled, icon tooltip, skip navigation, Storybook tokens, Figma drift check) | #833, #731, #897, #969, #1051 | WCAG 대응 시작점과 키보드 우회 경로 기준선 | Issue #965(Figma/Storybook/shipped UI 정합 + WCAG 2.2 AA gate) 전체 |
 | I. 테스트 현실성 (decoded WAV acceptance, known-take chord recovery, real YouTube known-stem benchmark, branch coverage) | #892, #891, #828, #861 | synthetic fixture에서 실오디오 기반 acceptance로 이동 시작 | Issue #770(실오디오 MIR accuracy benchmark) 체계화, RMSE/SI-SDR 임계값 정책 |
@@ -162,11 +459,11 @@ capability cluster 분류와 착지 후 남는 Gap:
 
 (c) **임의 가중치 vs 문헌 기반 값** — `chord_recognizer._build_transition_matrix()`는 `self_prob=0.8`, `related_prob=0.03`, uniform baseline `0.01/n` 등 hand-set 상수를 쓴다("Encodes musical priors" 주석). 방향성(fifth/fourth/relative/parallel)은 음악 이론에 근거하지만 수치는 문헌 교정(calibration)되어 있지 않다. `roles/priority.py`는 숫자 가중치 없는 if-then 규칙이다. PR #732(relative-key prior correction)처럼 사후 수정이 발생해왔다. 교정 방향은 주석 코퍼스(예: Burgoyne et al., 2011의 McGill Billboard)에서 전이 행렬을 최대우도로 추정하고, 관련 HMM/화음인식 문헌(Logan & Chu, 2000; Pauwels & Peeters, 2013; Boulanger-Lewandowski et al., 2013)은 모델링 맥락으로만 사용하며 현재 transition 수치의 parameter source로 간주하지 않는 것이다. tonal pitch space 거리 기반 스무딩(Harte, 2010) 등 대안과 현재 hand-set 값의 코드 복원 RMSE/accuracy 차이를 정량 비교한 뒤, 우세한 값을 상수가 아닌 데이터 산출물로 고정한다.
 
-(d) **테스트 현실성** — `test_numeric_parity.py`(Rust-Python parity), `test_api.py` 등은 합성 입력 기반이다. 현재 PR checkout의 Git tree 및 9장 `find` 검증 기준 test 경로에 `.wav`/`.mp3` 실오디오 fixture가 없다. 실오디오 acceptance는 PR #892(decoded WAV C major), #891(known take verse/chorus recovery)이 열려 있고, 실 YouTube known-stem benchmark는 draft PR #828 + Issue #770 상태다. 별도 exploratory probe로 CC0 공개 피아노 녹음 `FurElise.ogg`(Wikimedia Commons, 176.59초)를 실제 디코더·`TemporalAnalyzer`·SSM segmenter·`ChordRecognizer`에 통과시킨 결과는 각각 `147.7 BPM/404 beats/101 downbeats`, 20개 section, 261개 chord time-segment였지만 harmony confidence가 대부분 low였다. 동일 develop production job은 성공 envelope를 반환했으나 tempo가 없고 arrangement role harmony가 남아 있어, 이 probe는 runtime 연결성 확인이지 정확도 acceptance가 아니다. RMSE/SI-SDR 스타일 정량 임계값 acceptance gate는 아직 없다.
+(d) **테스트 현실성** — `test_numeric_parity.py`(Rust-Python parity), `test_api.py` 등은 합성 입력 기반이다. 현재 PR checkout의 Git tree 및 9장 `find` 검증 기준 test 경로에 `.wav`/`.mp3` 실오디오 fixture가 없다. 실오디오 acceptance는 PR #892(decoded WAV C major), #891(known take verse/chorus recovery)이 열려 있고, 실 YouTube known-stem benchmark는 draft PR #828 + Issue #770 상태다. 별도 exploratory probe로 CC0 공개 피아노 녹음 `FurElise.ogg`(Wikimedia Commons, 176.59초)를 실제 디코더·`TemporalAnalyzer`·SSM segmenter·`ChordRecognizer`에 통과시킨 결과는 각각 `147.7 BPM/404 beats/101 downbeats`, 20개 section, 261개 chord time-segment였지만 harmony confidence가 대부분 low였다. 동일 develop production job은 성공 envelope를 반환했으나 tempo가 없고 arrangement role harmony가 남아 있어, 이 probe는 runtime 연결성 확인이지 정확도 acceptance가 아니다. PR #1059의 click-track probe도 tempo cue 연결성과 fail-closed 경로만 확인하며 known-take 정확도 gate가 아니다. RMSE/SI-SDR 스타일 정량 임계값 acceptance gate는 아직 없다.
 
 (e) **커버리지/docstring 100%** — Python은 `--cov-fail-under=100` + Ruff D100-D107 docstring 100%가 gate로 작동한다(AGENTS.md, roadmap-completion 문서). JS workspace의 **2026-08-25 snapshot 실측**(source tree commit `d303c93e5e7d9199edb6ce596dcb9a8753f3a5fa`)은 desktop(469 stmts/357 branches/105 funcs)과 shared-types(717 stmts/643 branches/59 funcs) 모두 statements/branches/functions/lines 100%였다. 재실행 명령과 결과 artifact 경로는 각각 `npm run test --workspace @bandscope/desktop` -> `apps/desktop/coverage/coverage-summary.json`, `npm run test --workspace @bandscope/shared-types` -> `packages/shared-types/coverage/coverage-summary.json`이다. 이 수치는 현재 영구 gate를 뜻하지 않는다. gate threshold(`vite.config.ts`, `vitest.config.ts`)는 90으로 Python보다 낮아, 리그레션 시 90~99% 구간이 무단 통과될 수 있다. Gate 상향은 Backlog #10.
 
-(f) **보안 체크리스트 잔여 항목** — 구현된 것: allowlisted stdin/stdout subprocess, Tauri CSP, path guards(#727 착지), CSV escape/sanitize, shell=False. 열린 것: canonical audio resource budget(#985 draft, Issue #781), filesystem path containment 재구축(Issue #852, #858 진행), native PDF read bounding(#865, #750), quick-xml RustSec 예외(#948, Issue #542), npm/PDF.js/nanoid/undici baseline(#783). 모델 artifact(Demucs checkpoint) checksum/signature 검증 파이프라인은 문서(app-security.md "Models") 요구 대비 미구현.
+(f) **보안 체크리스트 잔여 항목** — 구현된 것: allowlisted stdin/stdout subprocess, Tauri CSP, path guards(#727 착지), CSV escape/sanitize, shell=False. 열린 것: canonical audio resource budget(#985/#1065 draft, Issue #781), filesystem path containment 재구축(Issue #852, #858 진행), native PDF read bounding(#865, #750), quick-xml RustSec 예외(#948, Issue #542), npm/PDF.js/nanoid/undici baseline(#783). 모델 artifact(Demucs checkpoint) checksum/signature 검증 파이프라인은 문서(app-security.md "Models") 요구 대비 미구현.
 
 (g) **운영 관측(2026-08-25 strix 공급자 장애)** — 중앙 Strix 게이트가 NVIDIA NIM 소진 시 최종 폴백 `openai-direct/gpt-5.4`를 NIM 엣지 API base로 라우팅해 `404 page not found`로 실패 닫기(fail-closed)하여 전 조직 PR 큐가 정체했다. 근본 원인 수정은 ContextualWisdomLab/.github#1324(openai-direct 폴백 전용 API base 라우팅 + 회귀 계약 테스트)로 추적했고, bandscope 의존성 CVE(pdfjs-dist CVE-2026-16633 등)는 canonical owner #783으로 일원화했다. 운영 교훈: required 스캐너의 공급자 장애는 repo 단위 우회가 아니라 중앙 게이트 계약 수정으로만 풀어야 한다.
 
@@ -295,7 +592,7 @@ flowchart TD
 
 ## 8. APA 7th 참고문헌 (References)
 
-본 문서에서 실제 인용한 개념(MIR novelty kernel, chord-recognition 연구 맥락, Viterbi 디코딩, 소스 분리 평가, librosa, 접근성 표준)에 한정한다.
+본 문서에서 실제 인용한 개념(MIR novelty kernel, chord-recognition 연구 맥락, Viterbi 디코딩, 소스 분리 평가, librosa, 접근성 표준, HTML media playback contract)에 한정한다.
 
 2026-08-29 최신성 점검: [WCAG 2.2](https://www.w3.org/TR/2024/REC-WCAG22-20241212/)는 W3C Recommendation이며, W3C는 2025년 ISO/IEC 40500:2025 승인 사실과 최신 WCAG 2.2 사용을 안내한다. 보안 개발 수명주기에는 [NIST SSDF 1.1](https://csrc.nist.gov/pubs/sp/800/218/final)을 기준으로 삼고, MIR acceptance 설계에는 [ISMIR 2024 proceedings](https://ismir.net/conferences/ismir-2024/)의 구조 분석·notewise source-separation 평가·다중 stem 연구를 보조 근거로 반영한다. 이 문헌은 기존 휴리스틱을 자동으로 정답으로 취급하지 않으며, 실제 오디오 benchmark와 provenance·재현성 증적을 요구하는 근거로만 사용한다.
 
@@ -332,6 +629,8 @@ Souppaya, M., Scarfone, K., & Dodson, D. (2022). Secure software development fra
 Watcharasupat, K. N., & Lerch, A. (2024). A stem-agnostic single-decoder system for music source separation beyond four stems. In Proceedings of the 25th International Society for Music Information Retrieval Conference (pp. 1051–1059). ISMIR. https://arxiv.org/abs/2406.18747
 
 World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2.2. https://www.w3.org/TR/2024/REC-WCAG22-20241212/
+
+WHATWG. (n.d.). *HTML Standard: Media elements*. Retrieved August 30, 2026, from https://html.spec.whatwg.org/multipage/media.html
 
 참고: 위 항목 중 DOI가 확실치 않은 항목은 DOI 없이 plain APA로 기술했다(조작 금지 원칙). 코드 내 개념 대응: Foote(1999)=checkerboard novelty, Viterbi(1967)=Viterbi 디코딩 알고리즘, Boulanger-Lewandowski et al.(2013)=오디오 화음 인식 연구 맥락(현재 hand-set transition prior 수치의 근거는 아님), Défossez et al.(2019)=Demucs htdemucs, Le Roux et al.(2019)=SI-SDR(audio_separator.py 주석 언급), Müller(2015)/McFee et al.(2015)=섹션/코드/음역 분석 기반 라이브러리. 현재 transition prior 수치의 문헌·교정 데이터 근거가 없는 점은 5장 (c) 및 P2-11의 미해결 Gap으로 유지한다.
 
@@ -377,6 +676,20 @@ World Wide Web Consortium. (2024). Web Content Accessibility Guidelines (WCAG) 2
   - `find services/analysis-engine -name "*.py"` -> 모듈 목록(chords/sections/roles/ranges/temporal/separation/transcription/youtube/exports)
   - `find . -type f \( -path '*/tests/*' -o -path '*/test/*' \) \( -iname '*.wav' -o -iname '*.mp3' \) -not -path './.git/*'` -> 0건(현재 PR checkout에서 test 실오디오 fixture 부재 확인)
   - 2026-08-29 exploratory runtime probe: [Wikimedia Commons CC0 `FurElise.ogg`](https://commons.wikimedia.org/wiki/File:FurElise.ogg), SHA-256 `8deefb57df989a2b53a6bdd3e59813b6c34d61dca666caa39e53fa9597b378e3`, 실제 decoded duration `176.5867573696145`초. `TemporalAnalyzer` -> `147.65625 BPM`, `404` beats, `101` downbeats; `segment_with_boundaries` -> `20` sections; `ChordRecognizer` -> `261` time-segments, mostly `low` confidence. 이는 test fixture가 아니며 CI acceptance로 재사용하지 않는다.
+  - 2026-08-30 PR #1059 current-head verification: head `3d2aaa27804bd6113e8e9aee8aff611976698b40`; `./scripts/harness/quickcheck.sh` -> Python `684 passed, 24 skipped`, 100% coverage, desktop `218` tests, shared-types `21` tests, Vite build and repository gates passed. The real click-track probe -> `120.2 BPM`, `15` beats, `steady`, `0` tempo changes. This is a local branch/probe result, not merged-branch or CI real-audio accuracy acceptance.
+  - 2026-08-30 PR #1062 current-head verification: head `949154375304ebef41e03d2e8bfde3ae86a40714`, base `feat/rehearsal-player-first-section-loop@7a59047b004faa7a0b584f3d6d68c94889a452d5`; desktop `249` tests and 100% configured coverage, Vite/lint/typecheck passed. The media test verifies `convertFileSrc`, both platform CSP asset origins, actual `<audio>` playback calls, `timeupdate` synchronization, scheduled boundary handling, long-timer clamping, bounded loop reset, browser-only authority rejection, and native conversion-failure error copy under mocked media; it is not real-device sound-output or real-audio accuracy acceptance. Hosted Devin and CodeRabbit statuses were pass, unresolved thread count was 0, and no qualifying independent approval existed at capture.
+  - 2026-08-30 PR #1063 current-head verification: head `e517a9875d9eae13113c56d7b2b433ed9a3a7888`, base `codex/real-audio-loop@949154375304ebef41e03d2e8bfde3ae86a40714`; pinned-npm `./scripts/harness/quickcheck.sh` passed with Python `679 passed, 24 skipped` and 100% coverage, desktop `254` tests and 100% configured coverage, shared-types `20` tests and 100% configured coverage, Vite build, and repository gates. Tests cover bounded `0.75x/1x/1.25x` input, count-in and boundary timing under non-default rates, active-rate rescheduling, pitch-preservation assignment, and source replacement persistence. Hosted Devin and CodeRabbit statuses were pass, CodeRabbit was skipped for the stacked non-default base, unresolved thread count was 0, and no qualifying independent approval existed. This remains mocked-media evidence, not real-device sound-output or audio-analysis accuracy acceptance.
+  - 2026-08-30 PR #1064 current-head verification: head `9d2fec2855793e4d7cd1bab19f874a163e7538e4`, base `cursor/bc-d6780991-1682-480d-b362-be2cddbcd28e-bb43@fa2abea4f0063db55490b6f392d28315a975cf59`; targeted accuracy `43 passed`, full Python `768 passed, 24 skipped`, and production statements/branches/functions/lines `100.00%`. Bounded fixture byte/header validation, fail-closed file-growth/read-error tests, and tempo-evaluator reuse of the header guard pass; this is resource-safety evidence for decoded fixture acceptance, not known-take accuracy or stem SI-SDR evidence. Hosted CodeRabbit/Devin status was pass, unresolved thread count was 0, and no qualifying independent approval existed.
+  - 2026-08-30 PR #1065 current-head verification: head `669d1d0122861a3398f91029ce386667cd2c09d4`, base `feat/canonical-audio-resource-policy-781@b8a6db4fda36b5c07f5f30b4bd9195d5f4e2c431`; targeted audio/temporal/separation `54 passed, 1 skipped`, full Python `760 passed, 24 skipped`, and production statements/branches/functions/lines `100.00%`. A real 5-second AAC/M4A path passed metadata preflight and `TemporalAnalyzer`; fallback failure and policy rejection remain payload-free/fail-closed. Hosted CodeRabbit was skipped for the stacked non-default base, Devin passed, unresolved thread count was 0, and no qualifying independent approval existed.
+  - 2026-08-30 PR #1066 current-head verification: head `43698a61377f9c2f7d01e65783089caceed8c1b5`, base `codex/playback-rate-control@e517a9875d9eae13113c56d7b2b433ed9a3a7888`; targeted `54 passed`, desktop `260 passed` across 23 files and 100% configured coverage, full harness Python `679 passed, 24 skipped` with 100% coverage, shared-types 20/100%, lint/typecheck/build and repo gates passed. Selected-role section filtering, stable selection after an earlier section is filtered, stale-role clearing after song replacement, all-role restoration, and no-role-section guidance are covered; this remains loop-target/UI evidence, not role-specific stems or real-device audio output. Hosted CodeRabbit was skipped for the stacked non-default base, Devin passed on the 43698 head, its two prior bug threads were resolved on that head, unresolved 0, and no qualifying independent approval existed.
+  - 2026-08-30 PR #1067 current-head verification: head `04396d9b4ebfd50ad598ffaf1edb33df3de70840`, base `codex/player-role-filter-20260830@43698a61377f9c2f7d01e65783089caceed8c1b5`; targeted `21 passed`, desktop `261 passed` across 23 files and 100% configured coverage, full harness Python `679 passed, 24 skipped` with 100% coverage, shared-types `20 passed` with 100% coverage, lint/typecheck/build and repo gates passed. Left/Right Arrow cue movement from the focused button, bounded first/last behavior, focus retention, and localized shortcut copy are covered; this remains keyboard cue-selection evidence, not real-device sound-output or real-audio accuracy acceptance. Current hosted state is CodeRabbit successful/skipped for the stacked non-default base, Devin Review pass, all review threads resolved, and no qualifying independent approval.
+  - 2026-08-30 PR #1068 current-head verification: head `81efbe3716632acbbff72626258ef0b09b00fbde`, base `codex/player-keyboard-cues-20260830@04396d9b4ebfd50ad598ffaf1edb33df3de70840`; targeted RehearsalPlayer `24 passed`, desktop `264 passed` across 23 files and 100% configured coverage, TypeScript, ESLint, and `git diff --check` passed. Whole-second bounded cue correction, immutable song-map update, inversion rejection, and a Devin-triggered Tab focus regression are covered; accepted edits use the existing Save Project state but do not claim autosave or persisted provenance. Hosted state is `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, unresolved threads `0`, no formal review decision, no qualifying independent approval, and no emitted check-runs at capture.
+  - 2026-08-30 PR #1069 current-head verification: head `8a5160a797ae9f0a360aeb300ed42c35728a71e1`, base `codex/player-cue-boundary-editor-20260830@81efbe3716632acbbff72626258ef0b09b00fbde`; targeted RehearsalPlayer/rehearsalTransport `37 passed`, desktop `265 passed` across 23 files and 100% configured coverage, TypeScript, ESLint, and `git diff --check` passed. The range seek updates the scoped media currentTime and reducer state, rejects count-in seeks, clamps both bounds, and wraps the endpoint to the loop start; this remains mocked-media evidence. Hosted state is `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, unresolved threads `0`, no formal review decision, no qualifying independent approval, and no emitted check-runs at capture.
+  - 2026-08-30 PR #1071 current-head verification: head `dbd15a9f22bc94cd0676ac0c552a55a872f6c2b6`, base `codex/player-seek-control-20260830@8a5160a797ae9f0a360aeb300ed42c35728a71e1`; targeted RehearsalPlayer `25 passed`, desktop `266 passed` across 23 files and 100% configured coverage, TypeScript, ESLint, and `git diff --check` passed. Space/Escape transport shortcuts suppress editable/focused interactive targets and repeated keydown events, and dispatch only existing transport actions; restart-key binding, autosave, real-device timing, and real-audio accuracy remain unclaimed. Hosted state is `OPEN`, non-draft, `MERGEABLE`, `CLEAN`, unresolved threads `0` after the repeat-key fix, no formal review decision, no qualifying independent approval, and no emitted check-runs at capture.
+  - 2026-08-30 PR #970 current-head verification: head `9b7e3e90c03d775b2cc1181d6aaac2a66c8f1223`, base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`; `cargo fmt --all -- --check`, `python3 scripts/checks/verify_supply_chain.py`, `git diff --check`, and full Tauri persistence tests passed, including case-alias and completed-rollback behavior tests, Unix executable-bit coverage, and the Windows workflow's all-integration-target command. The current hosted query showed `OPEN`, non-draft, `MERGEABLE`, `BLOCKED`, `reviewDecision=REVIEW_REQUIRED`, twelve review replies resolved, zero qualifying approvals, `30` successful, `0` in-progress, and `0` queued checks, plus `noema-review` and `strix` failures recording `request_failed status=413 code=request_too_large` during sidecar preflight and `opencode-review` failing closed without an authenticated current-head verdict; no hosted pass or protected merge is claimed until the external gates are remediated and reverified.
+  - 2026-08-30 PR #1070 current-head verification: head `92d8ffe3df69f33f43367e610cc2ffa08105e768`; desktop `242` tests, configured coverage statements `99.37%`, branches `98.48%`, functions `100%`, lines `99.35%`, lint/typecheck, and diff checks passed. The exact-head repository CI/build/security/SBOM/supply-chain checks passed; Noema and Strix failed at the external `413 request_too_large` provider/gateway preflight and OpenCode failed closed without a current-head verdict. No qualifying independent approval exists.
+  - 2026-08-30 PR #1072 current-head verification: head `31d854162004b76ad6749607f9ae811668d82ae1`; desktop `230` tests and 100% configured coverage passed, with lint/typecheck and diff checks. The exact-head repository CI/build/security/SBOM/supply-chain checks passed; Noema and Strix failed at the external `413 request_too_large` provider/gateway preflight and OpenCode failed closed without a current-head verdict. No qualifying independent approval exists.
+  - 2026-08-30 PR #1073 current-head verification: head `d3337cf7bbe20884a3c5330291b1b9f7dbe044f0`, base `fix/project-save-atomic-publication-962@9b7e3e90c03d775b2cc1181d6aaac2a66c8f1223`; frontend build, core `23` tests, full Tauri persistence suite, clippy, formatting, supply-chain, docs/security-note checks, and diff checks passed. Hosted CodeRabbit and Devin Review later passed on this same head, but no default-base required workflow suite was emitted, formal review decision and qualifying approval are absent, and unresolved threads are 0.
   - `sed -n '70,110p' services/analysis-engine/src/bandscope_analysis/chords/chord_recognizer.py` -> hand-set transition prior 확인
   - `sed -n '1,40p' services/analysis-engine/src/bandscope_analysis/_native.py` -> bandscope_numeric 커널/parity 확인
   - `ls services/analysis-engine/rust && grep -n "maturin" services/analysis-engine/rust/pyproject.toml` -> Rust 커널 위치 확인
