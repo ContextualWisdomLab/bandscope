@@ -15,6 +15,14 @@ class _HashableText(str):
     """Compatible string subclass that remains safe as a mapping key."""
 
 
+class _ExplodingTruthText(str):
+    """Hashable string-like payload whose custom truth check must never run."""
+
+    def __bool__(self) -> bool:
+        """Raise if production accidentally delegates truthiness to the subclass."""
+        raise RuntimeError("subclass truthiness must not execute")
+
+
 def _role(role_id: str, name: str, cue: str, priority: str = "") -> dict[str, Any]:
     """Build the minimal role evidence consumed by the chart export boundary."""
     return {
@@ -157,3 +165,29 @@ def test_hashable_string_subclasses_remain_compatible_export_values() -> None:
             "roles": ["Guitar", "Bass"],
         }
     ]
+
+
+def test_string_subclass_truthiness_cannot_abort_public_exports() -> None:
+    """Hashable text is normalized without invoking subclass-defined truthiness."""
+    section = _section(
+        "verse",
+        "verse",
+        0,
+        16,
+        [
+            _role("guitar", _ExplodingTruthText("Guitar"), _ExplodingTruthText("Count in")),
+            _role("bass", "Bass", "Hold root"),
+        ],
+    )
+    song = {"sections": [section]}
+
+    assert build_cue_sheet_rows(song) == [
+        {
+            "section": "verse",
+            "start": "00:00",
+            "end": "00:16",
+            "cue": "Count in; Hold root",
+            "roles": ["Guitar", "Bass"],
+        }
+    ]
+    assert "roles: Guitar, Bass" in build_chart_text(song)
