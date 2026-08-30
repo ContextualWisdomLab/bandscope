@@ -153,7 +153,7 @@ describe("Workspace", () => {
     );
   });
 
-  it("names tonight's first D.S. al Fine without inventing segno or Fine destinations", () => {
+  it("checks the first range after a D.S. al Fine when sections are already named", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
@@ -162,7 +162,7 @@ describe("Workspace", () => {
     const callout = screen.getByTestId("first-ds-al-fine");
     expect(callout).toHaveTextContent("Tonight's first D.S. al Fine");
     expect(callout).toHaveTextContent(
-      "Tonight's first D.S. al Fine is D.S. al Fine: at D.S. al Fine, return to the segno and end at Fine, then name the first section so the room knows where it starts."
+      "Tonight's first D.S. al Fine is D.S. al Fine: at D.S. al Fine, return to the segno and end at Fine, then check tonight's first range."
     );
     expect(callout).not.toHaveTextContent("start the first verse");
   });
