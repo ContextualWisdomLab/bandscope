@@ -1,8 +1,6 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { firstRangeSqueeze } from "./firstRangeSqueeze";
 
-export /** Inclusive maximum length for a rehearsal-usable score display name. */ const MAX_SCORE_DISPLAY_NAME_LENGTH = 80;
-
 /** Tonight's first trusted attached score, optionally paired with the first range. */
 export type FirstScoreCheck = {
   fileName: string;
@@ -13,7 +11,6 @@ export type FirstScoreCheck = {
 };
 
 const SCORE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const RESERVED_SCORE_STEM = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/iu;
 
 /** Return whether a display name contains a forbidden path or control character. */
 function hasForbiddenScoreNameChar(value: string): boolean {
@@ -32,36 +29,30 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Admit only a display basename for an attached score PDF.
+ * Admit the native attachment's PDF file name as literal display metadata.
  *
- * Path separators, control characters, reserved Win32 device stems, parent
- * traversal, leading or trailing whitespace, and overlong names fail closed.
- * This is display copy only: it is not a filesystem path, PDF parser input,
- * or native score-storage authority.
+ * Native attachment owns filesystem validation and can legitimately persist
+ * long names, surrounding spaces, repeated dots, and platform-reserved stems.
+ * This UI helper therefore avoids imposing a second basename policy. It only
+ * rejects values that cannot represent a PDF display name safely in this
+ * copy surface; the value is never used to rebuild a filesystem path.
  */
 export function trustedScoreFileName(value: unknown): string | null {
-  if (typeof value !== "string") {
+  if (typeof value !== "string" || value.length === 0 || hasForbiddenScoreNameChar(value)) {
     return null;
   }
-  if (value.length < 5 || value.length > MAX_SCORE_DISPLAY_NAME_LENGTH) {
+
+  const withoutTrailingSpaces = value.replace(/ +$/u, "");
+  if (!/\.pdf$/iu.test(withoutTrailingSpaces) || withoutTrailingSpaces.length <= 4) {
     return null;
   }
-  if (value !== value.trim() || hasForbiddenScoreNameChar(value) || value.includes("..")) {
-    return null;
-  }
-  if (!/\.pdf$/iu.test(value)) {
-    return null;
-  }
-  const stem = value.slice(0, -4);
-  if (!stem || stem.endsWith(".") || stem.endsWith(" ") || RESERVED_SCORE_STEM.test(stem)) {
-    return null;
-  }
+
   return value;
 }
 
 /**
  * Admit a score attachment only when its id matches the native UUID allowlist
- * and its file name is a trusted display basename. Extra keys fail closed.
+ * and its file name is safe literal display metadata. Extra keys fail closed.
  */
 export function trustedScoreAttachment(
   value: unknown
