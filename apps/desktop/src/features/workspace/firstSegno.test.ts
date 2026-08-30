@@ -65,6 +65,18 @@ describe("firstSegnoPlan", () => {
     });
   });
 
+  it("uses the final meaningful section as the return-after anchor", () => {
+    expect(
+      firstSegnoPlan({
+        segno: { label: "Segno 2" },
+        sections: [{ label: "intro" }, { label: "bridge" }, { label: "outro" }]
+      })
+    ).toEqual({
+      label: "Segno 2",
+      sectionLabel: "outro"
+    });
+  });
+
   it("fails closed without a trusted segno and omits blank section labels", () => {
     const song = createDemoRehearsalSong();
     delete song.segno;
