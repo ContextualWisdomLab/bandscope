@@ -1023,6 +1023,46 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates dcAlCoda correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.dcAlCoda).toEqual({ label: "D.C. al Coda" });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.dcAlCoda = { label: "D.C. al Coda 2" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).dcAlCoda).toEqual({ label: "D.C. al Coda 2" });
+
+    const withoutDcAlCoda = createDemoRehearsalSong();
+    delete withoutDcAlCoda.dcAlCoda;
+    expect(isRehearsalSong(withoutDcAlCoda)).toBe(true);
+    expect(parseRehearsalSong(withoutDcAlCoda)).toEqual(withoutDcAlCoda);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlCoda: "D.C. al Coda" })).toThrow(
+      "dcAlCoda"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlCoda: { label: 1 } })).toThrow(
+      "dcAlCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlCoda: { label: "d.c. al coda" } })).toThrow(
+      "dcAlCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlCoda: { label: "Da Capo" } })).toThrow(
+      "dcAlCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlCoda: { label: "D.S. al Coda" } })).toThrow(
+      "dcAlCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlCoda: { label: "D.C. al Fine" } })).toThrow(
+      "dcAlCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlCoda: { label: "D.C." } })).toThrow(
+      "dcAlCoda.label"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), dcAlCoda: { label: "D.C. al Coda", extra: true } })
+    ).toThrow("dcAlCoda.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;

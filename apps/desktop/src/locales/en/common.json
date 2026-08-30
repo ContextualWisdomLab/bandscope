@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstDcAlCodaTitle": "Tonight's first D.C. al Coda",
+  "workspaceFirstDcAlCodaReady": "Tonight's first D.C. al Coda is {label}: at {label}, return to the beginning and take the coda jump, then check tonight's first range.",
+  "workspaceFirstDcAlCodaReadyNoSection": "Tonight's first D.C. al Coda is {label}: at {label}, return to the beginning and take the coda jump, then name the first section so the room knows where it starts.",
+  "workspaceFirstDcAlCodaMissing": "Tonight's first D.C. al Coda still needs a label. Stay on tonight's map until the first D.C. al Coda is marked, then check tonight's first range.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
