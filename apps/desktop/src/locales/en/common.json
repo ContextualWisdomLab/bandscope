@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstFineTitle": "Tonight's first Fine",
+  "workspaceFirstFineReady": "Tonight's first Fine is {label}. End together at {label} after the last {sectionLabel}, then check tonight's first range.",
+  "workspaceFirstFineReadyNoSection": "Tonight's first Fine is {label}. End together at {label}, then name the first section so the room knows where it starts.",
+  "workspaceFirstFineMissing": "Tonight's first Fine still needs a label. Stay on tonight's map until the first Fine is marked, then check tonight's first range.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }

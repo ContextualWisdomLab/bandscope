@@ -153,6 +153,43 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first Fine and the next end-together", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-fine");
+    expect(callout).toHaveTextContent("Tonight's first Fine");
+    expect(callout).toHaveTextContent(
+      "Tonight's first Fine is Fine. End together at Fine after the last verse, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to stay on the map when the Fine is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.fine;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-fine")).toHaveTextContent(
+      "Tonight's first Fine still needs a label. Stay on tonight's map until the first Fine is marked, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to name the first section after a trusted Fine", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-fine")).toHaveTextContent(
+      "Tonight's first Fine is Fine. End together at Fine, then name the first section so the room knows where it starts."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

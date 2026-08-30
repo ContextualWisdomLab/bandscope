@@ -1023,6 +1023,41 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates fine correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.fine).toEqual({ label: "Fine" });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.fine = { label: "Fine 2" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).fine).toEqual({ label: "Fine 2" });
+
+    const withoutFine = createDemoRehearsalSong();
+    delete withoutFine.fine;
+    expect(isRehearsalSong(withoutFine)).toBe(true);
+    expect(parseRehearsalSong(withoutFine)).toEqual(withoutFine);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), fine: "Fine" })).toThrow("fine");
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), fine: { label: 1 } })).toThrow(
+      "fine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), fine: { label: "fine" } })).toThrow(
+      "fine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), fine: { label: "D.C." } })).toThrow(
+      "fine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), fine: { label: "D.C. al Fine" } })).toThrow(
+      "fine.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), fine: { label: "Da Capo" } })).toThrow(
+      "fine.label"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), fine: { label: "Fine", extra: true } })
+    ).toThrow("fine.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;
