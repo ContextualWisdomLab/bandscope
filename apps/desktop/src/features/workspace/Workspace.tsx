@@ -166,17 +166,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     : t("workspaceFirstRangeMissing");
   const firstToCoda = useMemo(() => firstToCodaPlan(song), [song]);
   const firstToCodaCopy = firstToCoda
-    ? fillToCodaCopy(
-        t(
-          firstToCoda.sectionLabel
-            ? "workspaceFirstToCodaReady"
-            : "workspaceFirstToCodaReadyNoSection"
-        ),
-        {
-          label: firstToCoda.label,
-          sectionLabel: firstToCoda.sectionLabel ?? ""
-        }
-      )
+    ? fillToCodaCopy(t("workspaceFirstToCodaReadyNoSection"), {
+        label: firstToCoda.label
+      })
     : t("workspaceFirstToCodaMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
