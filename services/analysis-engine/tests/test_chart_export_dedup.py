@@ -20,7 +20,7 @@ class _ExplodingTruthText(str):
 
     def __bool__(self) -> bool:
         """Raise if production accidentally delegates truthiness to the subclass."""
-        raise RuntimeError("subclass truthiness must not execute")
+        raise TypeError("subclass truthiness must not execute")
 
 
 def _role(role_id: str, name: str, cue: str, priority: str = "") -> dict[str, Any]:
