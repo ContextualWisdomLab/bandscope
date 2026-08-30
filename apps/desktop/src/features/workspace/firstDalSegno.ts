@@ -22,9 +22,10 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
 /**
  * Admit only Gould/MusicXML Dal Segno labels: `D.S.` or `D.S. 1`–`D.S. 9`.
  *
- * Lowercase, extra keys, `Fine`, `D.S. al Coda`, `D.S. al Fine`, `Dal Segno`,
- * `D.C.`, `segno`, `D.S. 10`, and overlong strings fail closed. This is not
- * OCR, MIR Dal Segno detection, a segno mark, or a form tag.
+ * Lowercase, extra keys, inherited labels, `Fine`, `D.S. al Coda`,
+ * `D.S. al Fine`, `Dal Segno`, `D.C.`, `segno`, `D.S. 10`, and overlong
+ * strings fail closed. This is not OCR, MIR Dal Segno detection, a segno
+ * mark, or a form tag.
  */
 export function trustedDalSegno(value: unknown): TrustedDalSegno | null {
   if (!isRuntimeObject(value)) {
@@ -35,7 +36,11 @@ export function trustedDalSegno(value: unknown): TrustedDalSegno | null {
       return null;
     }
   }
-  if (typeof value.label !== "string" || !isTrustedDalSegnoLabel(value.label)) {
+  if (
+    !Object.prototype.hasOwnProperty.call(value, "label") ||
+    typeof value.label !== "string" ||
+    !isTrustedDalSegnoLabel(value.label)
+  ) {
     return null;
   }
 
@@ -55,8 +60,9 @@ export function isTrustedDalSegnoLabel(label: string): boolean {
 /**
  * Return the first named section label, skipping blank/`none` sentinels.
  *
- * Runtime roots and collection members are untrusted. Malformed entries are
- * isolated instead of becoming Dal Segno-section authority.
+ * Runtime roots and collection members are untrusted. This helper can describe
+ * the song form, but it must not be used as Dal Segno target authority unless
+ * a future contract explicitly links a restart mark to a section.
  */
 export function firstNamedSectionLabel(song: unknown): string | undefined {
   if (!isRuntimeObject(song) || !Array.isArray(song.sections)) {
@@ -79,9 +85,10 @@ export function firstNamedSectionLabel(song: unknown): string | undefined {
 /**
  * Build tonight's first Dal Segno from a trusted stored chart restart mark.
  *
- * Missing, extra-keyed, or unusable Dal Segno is not go-back-to-the-segno
- * authority. The next action is still to stay on tonight's map, then check
- * the first range.
+ * The song-level Dal Segno contract identifies the restart instruction but
+ * carries no verified segno target location. Do not invent that location from
+ * the first named section; customer copy must stay generic until a target is
+ * explicitly represented and validated.
  */
 export function firstDalSegnoPlan(song: RehearsalSong | unknown): FirstDalSegnoPlan | null {
   if (!isRuntimeObject(song)) {
@@ -95,7 +102,7 @@ export function firstDalSegnoPlan(song: RehearsalSong | unknown): FirstDalSegnoP
 
   return {
     label: dalSegno.label,
-    sectionLabel: firstNamedSectionLabel(song)
+    sectionLabel: undefined
   };
 }
 
