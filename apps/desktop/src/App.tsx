@@ -265,6 +265,7 @@ export function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
+  const appliedSucceededJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
   const workspaceSongInstanceTokenRef = useRef<object>({});
 
@@ -290,7 +291,12 @@ export function App() {
   /** Documented. */
   const applyJobStatus = useCallback((nextStatus: AnalysisJobStatus) => {
     setJobStatus(nextStatus);
-    if (nextStatus.state === "succeeded" && nextStatus.result) {
+    if (
+      nextStatus.state === "succeeded" &&
+      nextStatus.result &&
+      appliedSucceededJobIdRef.current !== nextStatus.jobId
+    ) {
+      appliedSucceededJobIdRef.current = nextStatus.jobId;
       replaceWorkspaceSong(nextStatus.result);
       setJobResultBootstrap(activeAnalysisBootstrap);
       setActiveAnalysisBootstrap(null);
@@ -394,6 +400,7 @@ export function App() {
   /** Documented. */
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
+    appliedSucceededJobIdRef.current = null;
     setJobError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
@@ -403,6 +410,7 @@ export function App() {
     try {
       const nextStatus = await startAnalysisJob(selectedRequest);
       if (nextStatus.state === "succeeded" && nextStatus.result) {
+        appliedSucceededJobIdRef.current = nextStatus.jobId;
         setJobStatus(nextStatus);
         replaceWorkspaceSong(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
