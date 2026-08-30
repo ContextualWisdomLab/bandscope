@@ -43,11 +43,45 @@ function stableHarmonicFunctionSongIdentity(song: RehearsalSong): unknown {
     : song;
 }
 
-/** Resolve the renderer-owned section position without allowing hostile song access to escape. */
+/** Resolve the renderer-owned section position from owned descriptors without invoking runtime getters. */
 function resolveHarmonicFunctionSectionIndex(song: RehearsalSong, section: RehearsalSection): number {
   try {
-    const runtimeSections = (song as unknown as Partial<RehearsalSong> | null)?.sections;
-    return Array.isArray(runtimeSections) ? runtimeSections.indexOf(section) : -1;
+    if (song === null || typeof song !== "object" || Array.isArray(song)) {
+      return -1;
+    }
+    const sectionsDescriptor = Object.getOwnPropertyDescriptor(song, "sections");
+    if (
+      sectionsDescriptor === undefined ||
+      !Object.prototype.hasOwnProperty.call(sectionsDescriptor, "value") ||
+      !Array.isArray(sectionsDescriptor.value)
+    ) {
+      return -1;
+    }
+    const runtimeSections = sectionsDescriptor.value as unknown[];
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(runtimeSections, "length");
+    const length =
+      lengthDescriptor !== undefined &&
+      Object.prototype.hasOwnProperty.call(lengthDescriptor, "value")
+        ? lengthDescriptor.value
+        : undefined;
+    if (
+      typeof length !== "number" ||
+      !Number.isSafeInteger(length) ||
+      length < 0 ||
+      length > 0xffffffff
+    ) {
+      return -1;
+    }
+    for (let index = 0; index < length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(runtimeSections, index);
+      if (descriptor === undefined || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+        return -1;
+      }
+      if (descriptor.value === section) {
+        return index;
+      }
+    }
+    return -1;
   } catch {
     return -1;
   }
@@ -100,7 +134,7 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
   }, [
     songIdentity,
     namedSectionIndex,
-    named?.section.id,
+    named?.sectionId,
     named?.holdingRoleId,
     named?.functionLabel,
     named?.atSeconds
@@ -124,7 +158,7 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
   const opened =
     openedHarmonicFunction !== null &&
     openedHarmonicFunction.songIdentity === songIdentity &&
-    openedHarmonicFunction.sectionId === named.section.id &&
+    openedHarmonicFunction.sectionId === named.sectionId &&
     openedHarmonicFunction.sectionIndex === namedSectionIndex &&
     openedHarmonicFunction.holdingRoleId === named.holdingRoleId &&
     openedHarmonicFunction.functionLabel === named.functionLabel &&
@@ -132,7 +166,7 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
   const at = formatHarmonicFunctionTime(named.atSeconds);
   const copyValues: HarmonicFunctionCopyValues = {
     role: named.holdingRoleName,
-    section: translateSectionFormLabel(locale, named.section.label),
+    section: translateSectionFormLabel(locale, named.sectionLabel),
     at
   };
   const actionLabel = formatHarmonicFunctionCopy(t("firstHarmonicFunctionOpenAction"), copyValues);
@@ -170,7 +204,7 @@ export function FirstHarmonicFunctionCallout({ song }: FirstHarmonicFunctionCall
           });
           setOpenedHarmonicFunction({
             songIdentity,
-            sectionId: named.section.id,
+            sectionId: named.sectionId,
             sectionIndex: namedSectionIndex,
             holdingRoleId: named.holdingRoleId,
             functionLabel: named.functionLabel,
