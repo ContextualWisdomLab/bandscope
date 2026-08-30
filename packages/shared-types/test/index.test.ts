@@ -1023,6 +1023,32 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates key correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.key).toEqual({ fifths: 4, mode: "major" });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.key = { fifths: -2, mode: "minor" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).key).toEqual({ fifths: -2, mode: "minor" });
+
+    const withoutKey = createDemoRehearsalSong();
+    delete withoutKey.key;
+    expect(isRehearsalSong(withoutKey)).toBe(true);
+    expect(parseRehearsalSong(withoutKey)).toEqual(withoutKey);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), key: "E major" })).toThrow("key");
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), key: { fifths: 8, mode: "major" } })).toThrow(
+      "key.fifths"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), key: { fifths: 4, mode: "dorian" } })).toThrow(
+      "key.mode"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), key: { fifths: 4, mode: "major", extra: true } })
+    ).toThrow("key.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;

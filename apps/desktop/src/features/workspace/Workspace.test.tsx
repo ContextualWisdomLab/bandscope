@@ -153,6 +153,31 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first key and the next tuning check", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-key");
+    expect(callout).toHaveTextContent("Tonight's first key");
+    expect(callout).toHaveTextContent(
+      "Tonight's first key is E major. Tune to E, then check tonight's first range before the verse."
+    );
+  });
+
+  it("asks the room to confirm the concert key by ear when key is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.key;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-key")).toHaveTextContent(
+      "Tonight's first key still needs an ear check. Confirm the concert key by ear, then check tonight's first range."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
