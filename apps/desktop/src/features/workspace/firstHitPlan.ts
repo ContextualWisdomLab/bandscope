@@ -235,8 +235,8 @@ function repeatedIds(ids: string[]): Set<string> {
   return repeated;
 }
 
-/** Prefer the earlier ranked role, then rehearsal priority, then a locale-independent id. */
-function pickLandingRole(roles: RankedRoleMetadata[]): RankedRoleMetadata | null {
+/** Prefer the higher rehearsal priority, then a locale-independent id. */
+function pickLandingRole<T extends RankedRoleMetadata>(roles: T[]): T | null {
   if (roles.length === 0) {
     return null;
   }
@@ -328,16 +328,12 @@ function resolveSafeFirstHitPlan(song: RehearsalSong): FirstHitPlan | null {
         return [];
       }
 
-      const landingRole = pickLandingRole(
-        rankedActiveRoles(section as RehearsalSection).filter(
-          (metadata) => ownedHitPlan(metadata.role) !== null
-        )
-      );
+      const plannedRoles = rankedActiveRoles(section as RehearsalSection).flatMap((metadata) => {
+        const hitPlan = ownedHitPlan(metadata.role);
+        return hitPlan === null ? [] : [{ ...metadata, ...hitPlan }];
+      });
+      const landingRole = pickLandingRole(plannedRoles);
       if (!landingRole) {
-        return [];
-      }
-      const hitPlan = ownedHitPlan(landingRole.role);
-      if (!hitPlan) {
         return [];
       }
       return [
@@ -349,8 +345,8 @@ function resolveSafeFirstHitPlan(song: RehearsalSong): FirstHitPlan | null {
           landingRole: landingRole.role,
           landingRoleId: landingRole.id,
           landingRoleName: landingRole.name,
-          hitPlan: hitPlan.hitPlan,
-          hitPlanSource: hitPlan.hitPlanSource,
+          hitPlan: landingRole.hitPlan,
+          hitPlanSource: landingRole.hitPlanSource,
           atSeconds: timeRange.start
         }
       ];
