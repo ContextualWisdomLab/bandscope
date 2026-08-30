@@ -1,15 +1,17 @@
-"""Bounded metadata preflight for caller-owned local audio handles.
+"""Bounded metadata preflight for caller-owned local audio sources.
 
 Security Notes:
-- Untrusted input: container headers parsed from caller-owned binary handles.
-- Trust boundary: this module inspects metadata only; it never decodes PCM,
-  follows paths, or opens network resources.
+- Untrusted input: container headers and decoder metadata from caller-owned
+  binary handles or already-selected local paths.
+- Trust boundary: this module inspects metadata only; path-backed sources use
+  the local libsndfile/audioread decoders and never open network resources.
 - Safe failure: parser failures and malformed metadata become payload-free
   ``AudioResourcePolicyError`` values before resampling, downmixing, or
   duration truncation can hide the original source characteristics.
 - Resource behavior: ``soundfile.info`` reads container metadata without
-  loading the audio contents into memory, and the handle is rewound for the
-  downstream decoder.
+  loading the audio contents into memory; path-backed fallback metadata uses
+  audioread's fixed local decoder invocation, while file-like handles are
+  rewound for the downstream decoder.
 """
 
 from __future__ import annotations
