@@ -196,6 +196,54 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first tacet and the next sit-out", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0] = {
+      ...song.sections[0]!,
+      partGraph: song.sections[0]!.partGraph.map((node) =>
+        node.role_id === "keys-right" ? { ...node, is_active: false } : node
+      )
+    };
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-tacet");
+    expect(callout).toHaveTextContent("Tonight's first tacet");
+    expect(callout).toHaveTextContent(
+      "Keyboard 1 Right Hand sits out of verse. Stay out until the next named section."
+    );
+  });
+
+  it("keeps the selected active part on tonight's first tacet", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0] = {
+      ...song.sections[0]!,
+      partGraph: song.sections[0]!.partGraph.map((node) =>
+        node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+      )
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-tacet")).toHaveTextContent(
+      "Lead Vocal sits out of verse. Stay out until the next named section."
+    );
+  });
+
+  it("asks the player to confirm the sit-out when every part is active", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-tacet")).toHaveTextContent(
+      "Tonight's first tacet still needs a sit-out. Confirm who sits before the first section."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -325,5 +373,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText("오늘 먼저 쉴 파트")).toBeTruthy();
   });
 });
