@@ -74,14 +74,15 @@ def _section_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
 
 
 def _hashable_text(value: object) -> str | None:
-    """Return non-empty string-like text only when it is safe as a mapping key."""
-    if not isinstance(value, str) or not value:
+    """Return compatible string-like text as a safe built-in mapping key."""
+    if not isinstance(value, str):
         return None
     try:
         hash(value)
+        text = str.__str__(value)
     except Exception:
         return None
-    return value
+    return text if text else None
 
 
 def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
