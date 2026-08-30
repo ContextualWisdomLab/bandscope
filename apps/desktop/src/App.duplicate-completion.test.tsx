@@ -34,6 +34,22 @@ vi.mock("./lib/analysis", async (importActual) => {
   };
 });
 
+function bootstrapResponse() {
+  return {
+    projectId: "project-duplicate-completion",
+    sourceMode: "reference",
+    projectRoot: "/tmp/bandscope/projects/project-duplicate-completion",
+    cacheRoot: "/tmp/bandscope/cache/project-duplicate-completion",
+    tempRoot: "/tmp/bandscope/temp/project-duplicate-completion",
+    source: {
+      sourcePath: "/Users/test/Music/duplicate-completion.wav",
+      fileName: "duplicate-completion.wav",
+      extension: "wav",
+      fileSizeBytes: 1024000
+    }
+  };
+}
+
 function queuedStatus() {
   return {
     jobId: "job-duplicate-completion",
@@ -116,6 +132,7 @@ describe("App duplicate terminal analysis delivery", () => {
   it("keeps an opened hit plan armed when event and poll deliver the same completed job", async () => {
     let resolvePoll: ((value: unknown) => void) | null = null;
     tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
       .mockResolvedValueOnce(queuedStatus())
       .mockImplementationOnce(
         () =>
@@ -125,6 +142,8 @@ describe("App duplicate terminal analysis delivery", () => {
       );
 
     render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await screen.findByText(/duplicate-completion\.wav/i);
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
 
     await waitFor(() => {
@@ -133,7 +152,7 @@ describe("App duplicate terminal analysis delivery", () => {
         expect.any(Function)
       );
     });
-    await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
     act(() => {
       latestStatusSubscription?.(succeededStatus());
