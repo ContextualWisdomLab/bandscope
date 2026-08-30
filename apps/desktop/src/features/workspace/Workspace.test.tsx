@@ -153,6 +153,43 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first Da Capo and the next go-back-to-the-beginning", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-dacapo");
+    expect(callout).toHaveTextContent("Tonight's first Da Capo");
+    expect(callout).toHaveTextContent(
+      "Tonight's first Da Capo is D.C.: go back to the beginning at D.C. and start the first verse, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to stay on the map when the Da Capo is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.daCapo;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-dacapo")).toHaveTextContent(
+      "Tonight's first Da Capo still needs a label. Stay on tonight's map until the first D.C. is marked, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to name the first section after a trusted Da Capo", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-dacapo")).toHaveTextContent(
+      "Tonight's first Da Capo is D.C.: go back to the beginning at D.C., then name the first section so the room knows where it starts."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

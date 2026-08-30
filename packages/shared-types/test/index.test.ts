@@ -1023,6 +1023,41 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates daCapo correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.daCapo).toEqual({ label: "D.C." });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.daCapo = { label: "D.C. 2" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).daCapo).toEqual({ label: "D.C. 2" });
+
+    const withoutDaCapo = createDemoRehearsalSong();
+    delete withoutDaCapo.daCapo;
+    expect(isRehearsalSong(withoutDaCapo)).toBe(true);
+    expect(parseRehearsalSong(withoutDaCapo)).toEqual(withoutDaCapo);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), daCapo: "D.C." })).toThrow("daCapo");
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), daCapo: { label: 1 } })).toThrow(
+      "daCapo.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), daCapo: { label: "d.c." } })).toThrow(
+      "daCapo.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), daCapo: { label: "Fine" } })).toThrow(
+      "daCapo.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), daCapo: { label: "D.C. al Fine" } })).toThrow(
+      "daCapo.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), daCapo: { label: "Da Capo" } })).toThrow(
+      "daCapo.label"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), daCapo: { label: "D.C.", extra: true } })
+    ).toThrow("daCapo.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;

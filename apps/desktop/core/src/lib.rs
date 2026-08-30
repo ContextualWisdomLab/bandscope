@@ -122,10 +122,69 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_da_capo",
+        skip_serializing_if = "Option::is_none"
+    )]
+    da_capo: Option<DaCapoPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DaCapoPayload {
+    label: String,
+}
+
+impl<'de> Deserialize<'de> for DaCapoPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawDaCapoPayload {
+            label: String,
+        }
+
+        let raw = RawDaCapoPayload::deserialize(deserializer)?;
+        if !is_trusted_da_capo_label(&raw.label) {
+            return Err(serde::de::Error::custom(
+                "daCapo label must be D.C. or D.C. 1–9",
+            ));
+        }
+
+        Ok(Self { label: raw.label })
+    }
+}
+
+fn is_trusted_da_capo_label(label: &str) -> bool {
+    matches!(
+        label,
+        "D.C."
+            | "D.C. 1"
+            | "D.C. 2"
+            | "D.C. 3"
+            | "D.C. 4"
+            | "D.C. 5"
+            | "D.C. 6"
+            | "D.C. 7"
+            | "D.C. 8"
+            | "D.C. 9"
+    )
+}
+
+fn deserialize_optional_da_capo<'de, D>(deserializer: D) -> Result<Option<DaCapoPayload>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<DaCapoPayload>::deserialize(deserializer)?
+        .map(Some)
+        .ok_or_else(|| serde::de::Error::custom("daCapo must be an object when present"))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -787,6 +846,70 @@ mod tests {
     }
 
     #[test]
+    fn rehearsal_song_payload_round_trips_optional_da_capo() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["daCapo"] = json!({ "label": "D.C." });
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with a daCapo should deserialize");
+        let da_capo = parsed
+            .da_capo
+            .as_ref()
+            .expect("daCapo should survive deserialization");
+        assert_eq!(da_capo.label, "D.C.");
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("marked song payload should serialize back");
+        assert_eq!(serialized["daCapo"], json!({ "label": "D.C." }));
+
+        let loaded = project_payload_from_content(
+            &serde_json::to_string(&serialized).expect("marked payload should encode"),
+        )
+        .expect("marked project should load");
+        assert_eq!(
+            loaded.da_capo.as_ref().map(|value| value.label.as_str()),
+            Some("D.C.")
+        );
+    }
+
+    #[test]
+    fn rehearsal_song_payload_round_trips_numbered_da_capo_labels() {
+        for label in ["D.C. 1", "D.C. 5", "D.C. 9"] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["daCapo"] = json!({ "label": label });
+
+            let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+                .unwrap_or_else(|_| panic!("trusted daCapo {label} should deserialize"));
+            assert_eq!(
+                parsed.da_capo.as_ref().map(|value| value.label.as_str()),
+                Some(label)
+            );
+        }
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_da_capo() {
+        for da_capo in [
+            json!({ "label": "d.c." }),
+            json!({ "label": "DC" }),
+            json!({ "label": "Fine" }),
+            json!({ "label": "D.C. al Fine" }),
+            json!({ "label": "Da Capo" }),
+            json!({ "label": "D.S." }),
+            json!({ "label": "D.C. 0" }),
+            json!({ "label": "D.C. 10" }),
+            json!({ "label": "" }),
+            json!({ "label": "D.C.", "confidence": "high" }),
+            json!({ "text": "D.C." }),
+            Value::Null,
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["daCapo"] = da_capo;
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
+    }
+
+    #[test]
     fn rehearsal_song_payload_round_trips_score_attachments() {
         let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
         payload["scoreAttachments"] = json!([
@@ -817,9 +940,11 @@ mod tests {
             .expect("legacy payload without score attachments should deserialize");
 
         assert!(parsed.score_attachments.is_none());
+        assert!(parsed.da_capo.is_none());
         let serialized =
             serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
         assert!(serialized.get("scoreAttachments").is_none());
+        assert!(serialized.get("daCapo").is_none());
     }
 
     #[test]
