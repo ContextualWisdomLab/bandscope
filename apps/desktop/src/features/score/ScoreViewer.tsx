@@ -258,7 +258,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomOut")}
-            title={t("scoreViewerZoomOut")}
+              title={t("scoreViewerZoomOut")}
               onClick={zoomOut}
             >
               <ZoomOut aria-hidden="true" />
@@ -268,7 +268,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomIn")}
-            title={t("scoreViewerZoomIn")}
+              title={t("scoreViewerZoomIn")}
               onClick={zoomIn}
             >
               <ZoomIn aria-hidden="true" />
