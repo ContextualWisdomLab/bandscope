@@ -104,5 +104,8 @@ def test_new_analysis_schema_ignores_v1_result_but_reuses_v1_features(tmp_path) 
     assert metadata_path.parent.name == "analysis-cache-v1"
     assert updates[-1]["result"] == fresh_result
     assert updates[-1]["result"]["id"] != "stale-v1-result"
-    assert any(update.get("progressLabel") == "Loaded reusable stems... (45%)" for update in updates)
+    assert any(
+        update.get("progressLabel") == "Loaded reusable stems... (45%)"
+        for update in updates
+    )
     separator.assert_not_called()
