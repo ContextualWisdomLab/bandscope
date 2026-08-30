@@ -331,6 +331,52 @@ describe("RehearsalPlayer", () => {
     expect(onSongUpdate.mock.calls[0]![0].sections[1]!.timeRange.start).toBe(12);
   });
 
+  it("preserves the selected cue when an earlier section is inserted", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [song.sections[0]!, chorus];
+    const onSongUpdate = vi.fn();
+    const { rerender } = render(
+      <RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /chorus/i }));
+    const inserted = structuredClone(song.sections[0]!);
+    inserted.id = "intro-1";
+    inserted.label = "intro";
+    inserted.timeRange = { start: 0, end: 5 };
+    const updatedSong = { ...song, sections: [inserted, ...song.sections] };
+    rerender(
+      <RehearsalPlayer song={updatedSong} onSongUpdate={onSongUpdate} />,
+    );
+
+    const chorusButton = screen.getByRole("button", { name: /chorus/i });
+    expect(chorusButton).toHaveAttribute("aria-pressed", "true");
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "42" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[1]!.timeRange.start).toBe(10);
+    expect(onSongUpdate.mock.calls[0]![0].sections[2]!.timeRange.start).toBe(42);
+    rerender(
+      <RehearsalPlayer
+        song={onSongUpdate.mock.calls[0]![0]}
+        onSongUpdate={onSongUpdate}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /chorus/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   it("explains when the active role has no playable sections", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

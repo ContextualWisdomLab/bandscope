@@ -89,7 +89,7 @@ function hasSameLoopTiming(
   next: RehearsalLoopWindow,
 ): boolean {
   return (
-    current.sourceIndex === next.sourceIndex &&
+    current.selectionKey === next.selectionKey &&
     current.sectionId === next.sectionId &&
     current.startSeconds === next.startSeconds &&
     current.endSeconds === next.endSeconds &&
@@ -100,7 +100,7 @@ function hasSameLoopTiming(
 
 /** Return a stable selection key when analysis emits duplicate section IDs. */
 function loopSelectionKey(loop: RehearsalLoopWindow): string {
-  return String(loop.sourceIndex);
+  return loop.selectionKey;
 }
 
 /** Render tonight's first section loop with a count-in and a named next action. */
@@ -261,7 +261,8 @@ export function RehearsalPlayer({
       ) {
         if (
           current.loop.sectionLabel === selectedLoop.sectionLabel &&
-          current.loop.tempoAssumed === selectedLoop.tempoAssumed
+          current.loop.tempoAssumed === selectedLoop.tempoAssumed &&
+          current.loop.sourceIndex === selectedLoop.sourceIndex
         ) {
           return current;
         }
