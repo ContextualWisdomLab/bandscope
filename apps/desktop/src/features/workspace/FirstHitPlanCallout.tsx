@@ -65,9 +65,9 @@ function localizedHitPlan(
   if (GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS.has(targetRole)) {
     return generatedTemplate.replace("{target}", () => targetRole);
   }
-  // The engine only names active parts from the resolver's trusted snapshot or
-  // an engine-owned aggregate label. Any other shaped sentence stays verbatim.
-  const matchesLineup = knownSectionRoleNames.some((name) => name.startsWith(targetRole));
+  // The engine only names an exact active part from the resolver's trusted snapshot or
+  // an engine-owned aggregate label. Prefix-only matches are ambiguous and stay verbatim.
+  const matchesLineup = knownSectionRoleNames.some((name) => name === targetRole);
   if (!matchesLineup) {
     return hitPlan;
   }
