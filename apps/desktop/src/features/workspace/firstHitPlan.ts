@@ -160,7 +160,7 @@ function ownedHitPlan(role: RehearsalRole): OwnedHitPlan | null {
     return null;
   }
   if (hitPlanSource === "user") {
-    return { hitPlan, hitPlanSource };
+    return { hitPlan: truncateCodePoints(hitPlan, MAX_HIT_PLAN_CHARACTERS), hitPlanSource };
   }
   const trimmed = hitPlan.trim();
   return {
