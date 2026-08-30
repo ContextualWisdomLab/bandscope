@@ -52,7 +52,7 @@ function stableCutoffPlanSongIdentity(song: RehearsalSong): unknown {
 function formatCutoffPlanCopy(template: string, values: CutoffPlanCopyValues): string {
   return template.replace(/\{(role|section|at)\}/g, (placeholder) => {
     const key = placeholder.slice(1, -1) as keyof CutoffPlanCopyValues;
-    return values[key] ?? placeholder;
+    return values[key];
   });
 }
 
