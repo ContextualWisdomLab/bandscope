@@ -1023,6 +1023,35 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates rehearsalMark correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.rehearsalMark).toEqual({ text: "A" });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.rehearsalMark = { text: "12" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).rehearsalMark).toEqual({ text: "12" });
+
+    const withoutMark = createDemoRehearsalSong();
+    delete withoutMark.rehearsalMark;
+    expect(isRehearsalSong(withoutMark)).toBe(true);
+    expect(parseRehearsalSong(withoutMark)).toEqual(withoutMark);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), rehearsalMark: "A" })).toThrow("rehearsalMark");
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), rehearsalMark: { text: 12 } })).toThrow(
+      "rehearsalMark.text"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), rehearsalMark: { text: "a" } })).toThrow(
+      "rehearsalMark.text"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), rehearsalMark: { text: "0" } })).toThrow(
+      "rehearsalMark.text"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), rehearsalMark: { text: "A", extra: true } })
+    ).toThrow("rehearsalMark.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;

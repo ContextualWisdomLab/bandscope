@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillRehearsalMarkCopy, firstRehearsalMarkPlan } from "./firstRehearsalMark";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,20 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstRehearsalMark = useMemo(() => firstRehearsalMarkPlan(song), [song]);
+  const firstRehearsalMarkCopy = firstRehearsalMark
+    ? fillRehearsalMarkCopy(
+        t(
+          firstRehearsalMark.sectionLabel
+            ? "workspaceFirstRehearsalMarkReady"
+            : "workspaceFirstRehearsalMarkReadyNoSection"
+        ),
+        {
+          text: firstRehearsalMark.text,
+          sectionLabel: firstRehearsalMark.sectionLabel ?? ""
+        }
+      )
+    : t("workspaceFirstRehearsalMarkMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +323,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+          <section
+            className="rounded-2xl border border-lime-300/20 bg-lime-300/[0.07] p-4"
+            data-testid="first-rehearsal-mark"
+            aria-label={t("workspaceFirstRehearsalMarkTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-lime-200">{t("workspaceFirstRehearsalMarkTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstRehearsalMarkCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

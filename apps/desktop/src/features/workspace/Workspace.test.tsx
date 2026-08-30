@@ -153,6 +153,43 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first rehearsal mark and the next start-together", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-rehearsal-mark");
+    expect(callout).toHaveTextContent("Tonight's first mark");
+    expect(callout).toHaveTextContent(
+      "Tonight's first mark is A. Start together at A, then check tonight's first range before the verse."
+    );
+  });
+
+  it("asks the room to stay on the map when the rehearsal mark is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.rehearsalMark;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-rehearsal-mark")).toHaveTextContent(
+      "Tonight's first mark still needs a letter. Stay on tonight's map until the first rehearsal letter is labeled, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to name the first section after a trusted mark", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-rehearsal-mark")).toHaveTextContent(
+      "Tonight's first mark is A. Start together at A, then name the first section so the room knows where it starts."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
