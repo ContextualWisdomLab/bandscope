@@ -368,7 +368,9 @@ class RoleExtractor:
             return None
 
         landing_role_ids = [
-            candidate_id for candidate_id, is_active in role_activity.items() if is_active
+            candidate_id
+            for candidate_id, is_active in role_activity.items()
+            if is_active
         ]
         named_source_ids = [
             candidate_id
