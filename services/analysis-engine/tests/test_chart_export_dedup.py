@@ -191,3 +191,18 @@ def test_string_subclass_truthiness_cannot_abort_public_exports() -> None:
         }
     ]
     assert "roles: Guitar, Bass" in build_chart_text(song)
+
+
+def test_priority_truthiness_cannot_abort_chart_export() -> None:
+    """Rehearsal priority text is normalized before footer truthiness checks."""
+    section = _section(
+        "verse",
+        "verse",
+        0,
+        16,
+        [_role("guitar", "Guitar", "Count in", _ExplodingTruthText("Lock chorus"))],
+    )
+
+    text = build_chart_text({"sections": [section]})
+
+    assert "  - Guitar: Lock chorus" in text
