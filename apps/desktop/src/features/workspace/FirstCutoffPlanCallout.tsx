@@ -87,14 +87,14 @@ function resolveCutoffPlanRenderer(origin: HTMLElement): HTMLElement | null {
   const localScope = origin.closest("aside")?.parentElement ?? null;
   const localRenderers = localScope?.querySelectorAll<HTMLElement>(selector) ?? [];
   if (localRenderers.length === 1) {
-    return localRenderers[0] ?? null;
+    return localRenderers[0]!;
   }
   if (localRenderers.length > 1) {
     return null;
   }
 
   const globalRenderers = document.querySelectorAll<HTMLElement>(selector);
-  return globalRenderers.length === 1 ? (globalRenderers[0] ?? null) : null;
+  return globalRenderers.length === 1 ? globalRenderers[0]! : null;
 }
 
 /** Name tonight's first cutoff plan and open the matching rendered map section. */
@@ -193,9 +193,7 @@ export function FirstCutoffPlanCallout({ song }: FirstCutoffPlanCalloutProps) {
             sectionIndex: named.sectionIndex,
             landingRoleId: named.landingRoleId,
             cutoffPlan: named.cutoffPlan,
-            ...(named.cutoffPlanSource === undefined
-              ? {}
-              : { cutoffPlanSource: named.cutoffPlanSource }),
+            cutoffPlanSource: named.cutoffPlanSource,
             atSeconds: named.atSeconds
           });
         }}
