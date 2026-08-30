@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   fillToCodaCopy,
   firstToCodaPlan,
-  firstNamedSectionLabel,
   isTrustedToCodaLabel,
   MAX_TO_CODA_LABEL_LENGTH,
   trustedToCoda
@@ -48,44 +47,18 @@ describe("isTrustedToCodaLabel", () => {
   });
 });
 
-describe("firstNamedSectionLabel", () => {
-  it("returns the first meaningful section label and isolates malformed entries", () => {
-    expect(
-      firstNamedSectionLabel({
-        sections: [
-          { label: "  " },
-          null,
-          { label: " none " },
-          { label: "intro" },
-          { label: "outro" }
-        ]
-      })
-    ).toBe("intro");
-
-    expect(firstNamedSectionLabel(null)).toBeUndefined();
-    expect(firstNamedSectionLabel({ sections: "nope" })).toBeUndefined();
-    expect(firstNamedSectionLabel({ sections: [null, "x", { label: "  " }] })).toBeUndefined();
-  });
-});
-
 describe("firstToCodaPlan", () => {
   it("builds a To Coda jump plan without inventing a destination section", () => {
-    expect(firstToCodaPlan(createDemoRehearsalSong())).toEqual({
-      label: "To Coda",
-      sectionLabel: undefined
-    });
+    expect(firstToCodaPlan(createDemoRehearsalSong())).toEqual({ label: "To Coda" });
   });
 
-  it("does not assign the first named section as the coda destination", () => {
+  it("ignores section order because the stored jump mark has no destination authority", () => {
     expect(
       firstToCodaPlan({
         toCoda: { label: "To Coda 2" },
         sections: [{ label: "intro" }, { label: "bridge" }, { label: "outro" }]
       })
-    ).toEqual({
-      label: "To Coda 2",
-      sectionLabel: undefined
-    });
+    ).toEqual({ label: "To Coda 2" });
   });
 
   it("fails closed without a trusted To Coda", () => {
@@ -100,11 +73,10 @@ describe("firstToCodaPlan", () => {
 describe("fillToCodaCopy", () => {
   it("fills own-property tokens once and keeps rehearsal values literal", () => {
     expect(
-      fillToCodaCopy("Tonight's first To Coda is {label}: jump to the coda at {label} and start the first {sectionLabel}.", {
-        label: "To Coda",
-        sectionLabel: "verse {label}"
+      fillToCodaCopy("Tonight's first To Coda is {label}: jump at {label}.", {
+        label: "To Coda {label}"
       })
-    ).toBe("Tonight's first To Coda is To Coda: jump to the coda at To Coda and start the first verse {label}.");
+    ).toBe("Tonight's first To Coda is To Coda {label}: jump at To Coda {label}.");
     expect(fillToCodaCopy("keep {toString}", {})).toBe("keep {toString}");
   });
 });
