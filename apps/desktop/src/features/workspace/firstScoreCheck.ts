@@ -83,16 +83,18 @@ export function trustedScoreAttachment(
 /**
  * Pick the first trusted attached score a player should open in Score.
  *
- * Skips malformed collection members instead of treating them as authority.
- * When a playable range also exists, pair it so the map names the notes to
- * check on the page. Runtime roots are untrusted; this never opens, reads,
- * or parses PDF bytes.
+ * Persisted attachment metadata is not proof that Score can read the native
+ * copy. A reopened `.bscope` song has the metadata but no live project
+ * workspace, so callers must explicitly pass `scoreWorkspaceAvailable=false`
+ * and the helper falls back rather than advertising an impossible open action.
+ * Runtime roots are untrusted; this never opens, reads, or parses PDF bytes.
  */
 export function firstScoreCheck(
   song: RehearsalSong | unknown,
-  activeRole: string | null = null
+  activeRole: string | null = null,
+  scoreWorkspaceAvailable = true
 ): FirstScoreCheck | null {
-  if (!isRuntimeObject(song) || !Array.isArray(song.scoreAttachments)) {
+  if (!scoreWorkspaceAvailable || !isRuntimeObject(song) || !Array.isArray(song.scoreAttachments)) {
     return null;
   }
 
