@@ -122,10 +122,47 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_project_tempo",
+        skip_serializing_if = "Option::is_none"
+    )]
+    tempo: Option<f64>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+fn deserialize_project_tempo<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::Number(number) => match number.as_f64() {
+            Some(tempo) if tempo.is_finite() && tempo > 0.0 => Ok(Some(tempo)),
+            _ => Err(serde::de::Error::custom(
+                "project tempo must be a finite positive number",
+            )),
+        },
+        _ => Err(serde::de::Error::custom(
+            "project tempo must be a finite positive number",
+        )),
+    }
+}
+
+/// Current on-disk project format version, independent of the app version.
+pub const CURRENT_PROJECT_FORMAT_VERSION: u16 = 1;
+
+/// Versioned project envelope. The song remains the compatibility view until
+/// source, derived, decision, handoff, preference, and runtime fields are
+/// promoted into typed sections in a later format version.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProjectFilePayload {
+    project_format_version: u16,
+    song: RehearsalSongPayload,
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -528,12 +565,25 @@ pub fn is_youtube_video_id(value: &str) -> bool {
 }
 
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
-    if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
+    let payload = serde_json::from_str::<Value>(content)
+        .map_err(|_| "Invalid project file format".to_string())?;
+
+    if let Some(version_value) = payload.get("projectFormatVersion") {
+        let version = version_value
+            .as_u64()
+            .ok_or_else(|| "Invalid project file format".to_string())?;
+        if version != u64::from(CURRENT_PROJECT_FORMAT_VERSION) {
+            return Err(format!("Unsupported project format version: {version}"));
+        }
+        let envelope = serde_json::from_value::<ProjectFilePayload>(payload)
+            .map_err(|_| "Invalid project file format".to_string())?;
+        return Ok(envelope.song);
+    }
+
+    if let Ok(parsed) = serde_json::from_value::<RehearsalSongPayload>(payload.clone()) {
         return Ok(parsed);
     }
 
-    let payload = serde_json::from_str::<Value>(content)
-        .map_err(|_| "Invalid project file format".to_string())?;
     if let Some(sections) = payload.get("sections").and_then(Value::as_array) {
         for (section_index, section) in sections.iter().enumerate() {
             if section
@@ -548,6 +598,15 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
     }
 
     serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+}
+
+/// Serialize one validated song into the current versioned project envelope.
+pub fn project_content_for_payload(payload: &RehearsalSongPayload) -> Result<String, String> {
+    serde_json::to_string_pretty(&ProjectFilePayload {
+        project_format_version: CURRENT_PROJECT_FORMAT_VERSION,
+        song: payload.clone(),
+    })
+    .map_err(|_| "Failed to serialize project file format".to_string())
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -867,6 +926,95 @@ mod tests {
             .expect("current shared contract should parse directly");
 
         assert_eq!(parsed.title, "Late Night Set");
+    }
+
+    #[test]
+    fn project_format_v1_round_trips_the_song_and_tempo() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["tempo"] = json!(120.0);
+        let song = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload should deserialize");
+
+        let content = project_content_for_payload(&song).expect("v1 project should serialize");
+        let encoded: Value = serde_json::from_str(&content).expect("v1 project should be JSON");
+        assert_eq!(
+            encoded["projectFormatVersion"],
+            json!(CURRENT_PROJECT_FORMAT_VERSION)
+        );
+        assert_eq!(encoded["song"]["tempo"], json!(120.0));
+
+        let parsed = project_payload_from_content(&content).expect("v1 project should load");
+        assert_eq!(parsed.title, "Late Night Set");
+        assert_eq!(parsed.tempo, Some(120.0));
+    }
+
+    #[test]
+    fn project_format_v1_fixture_is_loadable() {
+        let parsed = project_payload_from_content(include_str!("../testdata/project-v1.json"))
+            .expect("the checked-in v1 fixture should load");
+
+        assert_eq!(parsed.id, "fixture-song");
+        assert_eq!(parsed.tempo, Some(96.0));
+    }
+
+    #[test]
+    fn project_format_rejects_unknown_fields_and_unsupported_versions() {
+        let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        let mut envelope = json!({
+            "projectFormatVersion": CURRENT_PROJECT_FORMAT_VERSION,
+            "song": payload
+        });
+        envelope["unexpected"] = json!(true);
+        assert_eq!(
+            project_payload_from_content(&envelope.to_string())
+                .expect_err("unknown fields fail closed"),
+            "Invalid project file format"
+        );
+
+        let supported_payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        let supported_envelope = json!({
+            "projectFormatVersion": CURRENT_PROJECT_FORMAT_VERSION + 1,
+            "song": supported_payload
+        });
+        assert_eq!(
+            project_payload_from_content(&supported_envelope.to_string())
+                .expect_err("unsupported version should be explicit"),
+            "Unsupported project format version: 2"
+        );
+
+        let future_envelope = json!({
+            "projectFormatVersion": CURRENT_PROJECT_FORMAT_VERSION + 1,
+            "futureEnvelopeField": true,
+            "song": { "futureSongField": "new schema" }
+        });
+        assert_eq!(
+            project_payload_from_content(&future_envelope.to_string())
+                .expect_err("future schema should report its unsupported version"),
+            "Unsupported project format version: 2"
+        );
+    }
+
+    #[test]
+    fn project_format_rejects_invalid_tempo_values() {
+        for invalid_tempo in [json!(null), json!(0), json!(-10), json!("120")] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["tempo"] = invalid_tempo;
+            assert!(
+                serde_json::from_value::<RehearsalSongPayload>(payload).is_err(),
+                "invalid tempo should fail closed"
+            );
+        }
+
+        assert!(
+            project_payload_from_content(
+                &format!(
+                    r#"{{"projectFormatVersion":{},"song":{{"id":"song","title":"Song","tempo":1e999,"sections":[],"exportSummary":{{}}}}}}"#,
+                    CURRENT_PROJECT_FORMAT_VERSION
+                )
+            )
+            .is_err(),
+            "non-finite JSON numbers should fail closed"
+        );
     }
 
     #[test]

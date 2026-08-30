@@ -4,26 +4,32 @@ This document specifies the format and lifecycle of a BandScope `.bscope` projec
 
 ## Overview
 
-BandScope projects are saved as `.bscope` files. These files are standard JSON containing the serialized `RehearsalSong` data structure. They allow users to persist the results of audio analysis and their manual corrections (overrides) across sessions.
+BandScope projects are saved as `.bscope` files. Current writes use a standard JSON envelope with `projectFormatVersion: 1`; the nested `song` is the current compatibility view used by the desktop contract. Older raw `RehearsalSong` JSON remains loadable as an explicit legacy input and is never silently rewritten in memory as a newer version.
 
 ## Schema
 
 The primary data structure for a `.bscope` file is the `RehearsalSong` type from `@bandscope/shared-types`.
 
-### Top-Level Structure
+### Top-Level Structure (version 1)
 
 ```json
 {
-  "id": "string",
-  "title": "string",
-  "sections": [ ... ],
-  "exportSummary": {
-    "format": "cue-sheet",
-    "headline": "string",
-    "focusSections": ["string"]
+  "projectFormatVersion": 1,
+  "song": {
+    "id": "string",
+    "title": "string",
+    "tempo": 120,
+    "sections": [ ... ],
+    "exportSummary": {
+      "format": "cue-sheet",
+      "headline": "string",
+      "focusSections": ["string"]
+    }
   }
 }
 ```
+
+The version is independent of the application package version. The v1 reader rejects unknown envelope fields and returns an explicit unsupported-version error for a well-formed future version. The checked-in golden fixture is `apps/desktop/core/testdata/project-v1.json`.
 
 ### Sections and Roles
 
@@ -80,6 +86,10 @@ When loading `.bscope` files from disk, BandScope applies the following constrai
 2. **Schema Validation**: The loaded JSON is structurally validated against the `RehearsalSong` contract.
 3. **Bounded Processing**: The JSON parsing is standard and safe, avoiding arbitrary code execution or payload expansion attacks.
 
+## Current boundary and next migration slices
+
+Version 1 deliberately keeps the existing validated `RehearsalSong` as the compatibility view. Source references, derived analysis artifacts, user decisions, portable handoff data, UI preferences, and volatile player state are not fabricated or written into untyped bags. Their typed promotion, bounded autosave journal, backup rotation, migration receipts, and accessible restore/compare/discard flow remain the next #962 slices. Player state must use this authority after the transport state machine is stable; it must not create a second localStorage or session persistence authority.
+
 ## Extensibility
 
-Future updates to the `.bscope` format should be backward-compatible where possible, adding new fields to the `RehearsalSong` contract rather than breaking existing fields. If structural changes are required, a format version field may be introduced.
+Future updates to the `.bscope` format must add an ordered migration from the prior envelope, validate a copy before publication, retain the prior known-good artifact, and update the machine-verifiable fixture. Unknown fields must either be explicitly preserved by a typed schema or rejected; they must never be silently discarded.
