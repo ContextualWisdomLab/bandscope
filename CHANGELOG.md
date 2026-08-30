@@ -21,9 +21,9 @@
 - Fail closed when accuracy-report provenance cannot resolve a non-empty product `VERSION`, instead of publishing an `unknown` engine version as valid evidence.
 - Reject non-finite chord annotation and estimate timings before duration-weighted recall so NaN/Inf evidence cannot fabricate covered duration.
 - Reject non-finite tempo estimates, ground-truth BPM values, and Acc1 tolerances as invalid accuracy evidence instead of recording them as ordinary misses.
-- Require Numba 0.63.1 or newer for the librosa beat-tracking path; the prior
-  0.62.1 resolution reproducibly crashed on macOS arm64 during the decoded
-  120 BPM acceptance case.
+- Select Numba 0.66.0 for ARM64 librosa beat tracking after the prior 0.62.1
+  and 0.63.1 resolutions reproducibly crashed on macOS arm64, while retaining
+  the 0.62.1 Intel resolution because the newer release has no macOS Intel wheel.
 - Union overlapping matching chord-estimate intervals before duration-weighted recall so acceptance scores cannot double-count annotated time or exceed 100%.
 - Reject malformed accuracy-report provenance, including non-hex SHA-256 text and non-finite metric values, before acceptance evidence is consumed.
 - Score the C major acceptance case from checksummed on-disk WAV bytes instead of the pre-write in-memory triad.
