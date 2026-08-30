@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import type { ProvenanceSource, RehearsalSection, RehearsalSong } from "@bandscope/shared-types";
+import type { ProvenanceSource, RehearsalSong } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import {
   createTranslator,
@@ -67,7 +67,7 @@ function localizedHitPlan(
   hitPlanSource: ProvenanceSource,
   generatedTemplate: string,
   generatedBandTemplate: string,
-  knownSectionRoleNames: ReadonlySet<string>
+  knownSectionRoleNames: readonly string[]
 ): string {
   if (hitPlanSource !== "model") {
     return hitPlan;
@@ -83,47 +83,13 @@ function localizedHitPlan(
   if (GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS.has(targetRole)) {
     return generatedTemplate.replace("{target}", () => targetRole);
   }
-  // The engine only ever names a part from this section's lineup or the whole
-  // band. A shaped sentence naming an absent part is role-owned copy and must
-  // stay verbatim instead of being re-localized.
-  // The engine only ever names a part from this section's lineup or the whole
-  // band; the resolver may have bounded a long partner name, so lineup names
-  // count as matches when they start with the plan's target. Anything else is
-  // role-owned copy and must stay verbatim instead of being re-localized.
-  const matchesLineup = Array.from(knownSectionRoleNames).some((name) =>
-    name.startsWith(targetRole)
-  );
+  // The engine only names active parts from the resolver's trusted snapshot or
+  // an engine-owned aggregate label. Any other shaped sentence stays verbatim.
+  const matchesLineup = knownSectionRoleNames.some((name) => name.startsWith(targetRole));
   if (!matchesLineup) {
     return hitPlan;
   }
   return generatedTemplate.replace("{target}", () => targetRole);
-}
-
-/** Collect this section's role names through own-data reads so target checks never invoke accessors. */
-function collectSectionRoleNames(section: RehearsalSection): ReadonlySet<string> {
-  const names = new Set<string>();
-  try {
-    const rolesDescriptor = Object.getOwnPropertyDescriptor(section as object, "roles");
-    const roles =
-      rolesDescriptor && "value" in rolesDescriptor ? rolesDescriptor.value : undefined;
-    if (!Array.isArray(roles)) {
-      return names;
-    }
-    for (const role of roles) {
-      if (role === null || typeof role !== "object") {
-        continue;
-      }
-      const nameDescriptor = Object.getOwnPropertyDescriptor(role, "name");
-      const name =
-        nameDescriptor && "value" in nameDescriptor ? nameDescriptor.value : undefined;
-      if (typeof name === "string" && name.trim().length > 0) {
-        names.add(name.trim());
-      }
-    }
-  } catch {
-    return new Set<string>();
-  }
-  return names;
 }
 
 /** Use immediate scrolling when the operating system requests reduced motion. */
@@ -157,11 +123,6 @@ export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
   const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stableHitPlanSongIdentity(song);
   const named = useMemo(() => resolveFirstHitPlan(song), [song]);
-  // Derived from the memoized plan so rerenders never rescan role metadata.
-  const sectionRoleNames = useMemo(
-    () => (named ? collectSectionRoleNames(named.section) : new Set<string>()),
-    [named]
-  );
   const [openedHitPlan, setOpenedHitPlan] = useState<OpenedHitPlan | null>(null);
 
   useEffect(() => {
@@ -214,7 +175,7 @@ export function FirstHitPlanCallout({ song }: FirstHitPlanCalloutProps) {
     named.hitPlanSource,
     t("firstHitPlanGeneratedGuidance"),
     t("firstHitPlanGeneratedBandGuidance"),
-    sectionRoleNames
+    named.sectionRoleNames
   );
 
   return (
