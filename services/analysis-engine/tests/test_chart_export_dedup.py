@@ -11,6 +11,10 @@ class _UnhashableText(str):
     __hash__: Any = None
 
 
+class _HashableText(str):
+    """Compatible string subclass that remains safe as a mapping key."""
+
+
 def _role(role_id: str, name: str, cue: str, priority: str = "") -> dict[str, Any]:
     """Build the minimal role evidence consumed by the chart export boundary."""
     return {
@@ -105,7 +109,7 @@ def test_duplicate_priorities_across_sections_keep_first_occurrence_order() -> N
 
 
 def test_unhashable_string_subclasses_fail_closed_in_public_exports() -> None:
-    """Malformed string-like ids, names, and cues are skipped instead of raising."""
+    """Malformed unhashable text is skipped while a valid role id remains usable."""
     section = _section(
         "verse",
         "verse",
@@ -125,7 +129,31 @@ def test_unhashable_string_subclasses_fail_closed_in_public_exports() -> None:
             "start": "00:00",
             "end": "00:16",
             "cue": "Hold root",
-            "roles": ["Bass"],
+            "roles": ["guitar", "Bass"],
         }
     ]
-    assert "roles: Bass" in build_chart_text(song)
+    assert "roles: guitar, Bass" in build_chart_text(song)
+
+
+def test_hashable_string_subclasses_remain_compatible_export_values() -> None:
+    """Hashable string subclasses retain pre-optimization role and cue semantics."""
+    section = _section(
+        "verse",
+        "verse",
+        0,
+        16,
+        [
+            _role(_HashableText("guitar"), _HashableText("Guitar"), _HashableText("Count in")),
+            _role("bass", "Bass", "Hold root"),
+        ],
+    )
+
+    assert build_cue_sheet_rows({"sections": [section]}) == [
+        {
+            "section": "verse",
+            "start": "00:00",
+            "end": "00:16",
+            "cue": "Count in; Hold root",
+            "roles": ["Guitar", "Bass"],
+        }
+    ]
