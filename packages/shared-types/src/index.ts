@@ -1773,7 +1773,7 @@ function validateRehearsalDsAlCoda(value: unknown, path: string): string | null 
   if (extraKey) {
     return extraKey;
   }
-  if (typeof value.label !== "string") {
+  if (!Object.prototype.hasOwnProperty.call(value, "label") || typeof value.label !== "string") {
     return invalidField(`${path}.label`);
   }
   if (!/^D\.S\. al Coda(?: [1-9])?$/u.test(value.label)) {
