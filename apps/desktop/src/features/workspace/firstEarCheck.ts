@@ -18,6 +18,12 @@ export type FirstEarCheck = {
   hint: string;
 };
 
+/** A resolved ear check paired with the index from the same admitted sections snapshot. */
+export type FirstEarCheckResolution = Readonly<{
+  earCheck: FirstEarCheck;
+  sectionIndex: number;
+}>;
+
 /** Format a non-negative ear-check time as m:ss for rehearsal copy. */
 export function formatEarCheckTime(totalSeconds: number): string {
   const safeSeconds = Number.isFinite(totalSeconds) && totalSeconds >= 0 ? totalSeconds : 0;
@@ -48,6 +54,14 @@ function isRuntimeObject(value: unknown): value is object {
 function hasOwnData(value: object, key: PropertyKey): boolean {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
   return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value");
+}
+
+/** Read one owned data-property value without invoking a property getter or Proxy get trap. */
+function ownDataValue(value: object, key: PropertyKey): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
+    ? descriptor.value
+    : undefined;
 }
 
 /** Return whether every numeric index is an own data element in a bounded runtime array. */
@@ -278,15 +292,21 @@ function hasCanonicalSectionLabel(section: RehearsalSection): boolean {
   );
 }
 
-/** Resolve an ear check after the runtime root has passed its structural boundary checks. */
-function resolveSafeFirstEarCheck(song: RehearsalSong): FirstEarCheck | null {
-  if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
+/** Resolve an ear check and its renderer index from one admitted root sections snapshot. */
+function resolveSafeFirstEarCheck(song: RehearsalSong): FirstEarCheckResolution | null {
+  if (!isRuntimeObject(song)) {
     return null;
   }
+  const runtimeSections = ownDataValue(song, "sections");
+  if (!isDenseRuntimeArray(runtimeSections)) {
+    return null;
+  }
+  const sections = runtimeSections as RehearsalSection[];
 
-  const candidates = song.sections
+  const candidates = sections
+    .map((section, sectionIndex) => ({ section, sectionIndex }))
     .filter(
-      (section) =>
+      ({ section }) =>
         isRuntimeObject(section) &&
         hasCanonicalSectionLabel(section) &&
         hasOwnData(section, "id") &&
@@ -296,34 +316,44 @@ function resolveSafeFirstEarCheck(song: RehearsalSong): FirstEarCheck | null {
         sectionHasEarCheck(section)
     )
     .sort((left, right) => {
-      if (left.timeRange.start !== right.timeRange.start) {
-        return left.timeRange.start - right.timeRange.start;
+      if (left.section.timeRange.start !== right.section.timeRange.start) {
+        return left.section.timeRange.start - right.section.timeRange.start;
       }
-      return compareStableId(left.id, right.id);
+      return compareStableId(left.section.id, right.section.id);
     });
 
-  const section = candidates[0];
-  if (!section) {
+  const candidate = candidates[0];
+  if (!candidate) {
     return null;
   }
-
+  const { section, sectionIndex } = candidate;
   const holdingRole = pickHoldingRole(
     rankedActiveRoles(section).filter((role) => ownedEarCheckLevel(role) !== null)
   );
 
   return {
-    section,
-    holdingRole,
-    atSeconds: section.timeRange.start,
-    hint: ownedEarCheckHint(section, holdingRole)
+    earCheck: {
+      section,
+      holdingRole,
+      atSeconds: section.timeRange.start,
+      hint: ownedEarCheckHint(section, holdingRole)
+    },
+    sectionIndex
   };
 }
 
-/** Return the first named ear check, or null when untrusted runtime metadata cannot be read safely. */
-export function resolveFirstEarCheck(song: RehearsalSong): FirstEarCheck | null {
+/** Return the first named ear check with its index from the same validated sections snapshot. */
+export function resolveFirstEarCheckWithSectionIndex(
+  song: RehearsalSong
+): FirstEarCheckResolution | null {
   try {
     return resolveSafeFirstEarCheck(song);
   } catch {
     return null;
   }
+}
+
+/** Return the first named ear check, or null when untrusted runtime metadata cannot be read safely. */
+export function resolveFirstEarCheck(song: RehearsalSong): FirstEarCheck | null {
+  return resolveFirstEarCheckWithSectionIndex(song)?.earCheck ?? null;
 }
