@@ -4,16 +4,14 @@ import { describe, expect, it } from "vitest";
 import { FirstHarmonicFunctionCallout } from "./FirstHarmonicFunctionCallout";
 
 describe("FirstHarmonicFunctionCallout sections access", () => {
-  it("contains a hostile sections get trap after harmonic-function resolution", () => {
+  it("resolves navigation without invoking a hostile sections get trap", () => {
     const song = createDemoRehearsalSong();
     let sectionReads = 0;
     const hostileSong = new Proxy(song, {
       get(target, property, receiver) {
         if (property === "sections") {
           sectionReads += 1;
-          if (sectionReads > 2) {
-            throw new Error("hostile sections get trap");
-          }
+          throw new Error("hostile sections get trap");
         }
         return Reflect.get(target, property, receiver);
       }
@@ -22,6 +20,7 @@ describe("FirstHarmonicFunctionCallout sections access", () => {
     expect(() =>
       render(<FirstHarmonicFunctionCallout song={hostileSong as RehearsalSong} />)
     ).not.toThrow();
+    expect(sectionReads).toBe(0);
     expect(
       screen.getByRole("button", { name: "Open Bass Guitar function at 0:10" })
     ).toBeTruthy();
