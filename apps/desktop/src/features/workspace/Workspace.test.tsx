@@ -153,7 +153,7 @@ describe("Workspace", () => {
     );
   });
 
-  it("names tonight's first Dal Segno and the next go-back-to-the-segno", () => {
+  it("names tonight's first Dal Segno without inventing a restart section", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
@@ -162,8 +162,9 @@ describe("Workspace", () => {
     const callout = screen.getByTestId("first-dalsegno");
     expect(callout).toHaveTextContent("Tonight's first Dal Segno");
     expect(callout).toHaveTextContent(
-      "Tonight's first Dal Segno is D.S.: go back to the segno at D.S. and start the first verse, then check tonight's first range."
+      "Tonight's first Dal Segno is D.S.: go back to the segno at D.S., then name the first section so the room knows where it starts."
     );
+    expect(callout).not.toHaveTextContent("start the first verse");
   });
 
   it("asks the room to stay on the map when the Dal Segno is missing", () => {
@@ -178,7 +179,7 @@ describe("Workspace", () => {
     );
   });
 
-  it("asks the room to name the first section after a trusted Dal Segno", () => {
+  it("keeps Dal Segno copy target-agnostic even when the first section is unnamed", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
