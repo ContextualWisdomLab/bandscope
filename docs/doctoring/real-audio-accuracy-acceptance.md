@@ -130,7 +130,9 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   repository product `VERSION`.
 - Mitigations: no network, no shell, checksum fail-closed before C-major
   decode and before tempo scoring, deterministic file-decoder downmix for
-  ordinary multichannel WAV input, non-empty finite floating-point
+  ordinary mono/stereo and bounded multichannel WAV input, a 100 MiB fixture
+  byte cap before checksum reads, an eight-channel cap, a 192 kHz sample-rate
+  cap, and a 15-minute decoded-duration cap, non-empty finite floating-point
   one-dimensional mono PCM admission at the direct C-major evaluator boundary,
   finite positive non-Boolean decoded sample-rate evidence, overlap-safe chord
   duration, finite non-Boolean annotation/estimate timing, strictly increasing
@@ -142,8 +144,9 @@ Schreiber, H., & Müller, M. (2020). Music tempo estimation: Are we done yet?
   rejection, exact non-empty product-version provenance, bounded fixture
   durations, and no copyrighted commercial recordings. Fixture paths are pytest
   temp files; reports store SHA-256 and labels, not waveform bytes.
-- Test points: deterministic digest, C major recall after file decode, ordinary
-  stereo WAV downmix at the file-decoder boundary, direct decoded-PCM
+- Test points: deterministic digest, over-sized fixture rejection before digest
+  allocation, C major recall after file decode, ordinary stereo WAV downmix at
+  the file-decoder boundary, excessive channel/rate/duration rejection, direct decoded-PCM
   empty/non-floating/non-finite/non-mono rejection and invalid sample-rate
   rejection, overlapping matching intervals do not double-count annotation
   duration, non-finite and Boolean chord annotation/estimate timing rejection,

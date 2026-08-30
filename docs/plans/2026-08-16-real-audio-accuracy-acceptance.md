@@ -27,6 +27,8 @@ Trusted: in-repo generators, metric definitions, and registered floors.
 
 - No network and no shell interpolation.
 - Checksum mismatch raises before C-major decode and before tempo scoring.
+- Fixture bytes are capped before hashing; WAV headers are bounded by channel,
+  sample-rate, and duration limits before decoded PCM allocation.
 - Manifest parsing fails closed on missing or mistyped fields.
 - Fixtures are short, synthetic, and license-clean.
 
@@ -37,6 +39,7 @@ Trusted: in-repo generators, metric definitions, and registered floors.
 - Silence on disk fails even when a C major array exists in memory
 - 120 BPM Acc1 after file decode
 - Checksum mismatch through both file evaluators
+- Oversized, excessive-channel, excessive-rate, and excessive-duration input rejection
 - Malformed report rejection
 - Silence must not pass as C major
 
