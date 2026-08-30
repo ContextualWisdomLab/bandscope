@@ -166,6 +166,20 @@ function playableSectionSnapshot(
   };
 }
 
+/** Return whether a snapshotted section contains the selected rehearsal role. */
+function sectionContainsRole(section: object, roleId: string): boolean {
+  const roles = ownedDenseArray(ownDataValue(section, "roles"));
+  if (!roles) {
+    return false;
+  }
+  return roles.some(
+    (role) =>
+      role !== null &&
+      typeof role === "object" &&
+      ownDataValue(role, "id") === roleId,
+  );
+}
+
 /** Return whether a section exposes a usable closed loop window. */
 export function isPlayableLoopSection(
   section: RehearsalSection | undefined | null,
@@ -236,6 +250,7 @@ export function createLoopWindow(
 /** Snapshot every playable loop window from one untrusted song record. */
 export function resolveLoopWindows(
   song: RehearsalSong | null | undefined,
+  roleId: string | null | undefined = null,
 ): RehearsalLoopWindow[] {
   if (!song || typeof song !== "object") {
     return [];
@@ -245,8 +260,13 @@ export function resolveLoopWindows(
     return [];
   }
   const tempo = ownDataValue(song, "tempo");
+  const selectedRoleId =
+    typeof roleId === "string" && roleId.trim() ? roleId : null;
   return sections.flatMap((section) => {
     if (!section || typeof section !== "object") {
+      return [];
+    }
+    if (selectedRoleId && !sectionContainsRole(section, selectedRoleId)) {
       return [];
     }
     const window = createLoopWindow(section as RehearsalSection, tempo);

@@ -33,6 +33,8 @@ interface RehearsalPlayerProps {
   song: RehearsalSong;
   hasLocalAudio?: boolean;
   audioSourcePath?: string | null;
+  activeRole?: string | null;
+  activeRoleName?: string | null;
   startNonce?: number;
 }
 
@@ -89,19 +91,30 @@ function hasSameLoopTiming(
   );
 }
 
+/** Return a stable selection key when analysis emits duplicate section IDs. */
+function loopSelectionKey(loop: RehearsalLoopWindow): string {
+  return `${loop.sectionId}:${loop.startSeconds}:${loop.endSeconds}`;
+}
+
 /** Render tonight's first section loop with a count-in and a named next action. */
 export function RehearsalPlayer({
   song,
   hasLocalAudio = false,
   audioSourcePath = null,
+  activeRole = null,
+  activeRoleName = null,
   startNonce = 0,
 }: RehearsalPlayerProps): ReactElement {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const playableLoops = useMemo(() => resolveLoopWindows(song), [song]);
-  const [selectedSectionIndex, setSelectedSectionIndex] = useState(0);
-  const selectedRendererIndex = playableLoops[selectedSectionIndex]
-    ? selectedSectionIndex
-    : 0;
+  const playableLoops = useMemo(
+    () => resolveLoopWindows(song, activeRole),
+    [activeRole, song],
+  );
+  const [selectedLoopKey, setSelectedLoopKey] = useState<string | null>(null);
+  const selectedLoop =
+    playableLoops.find((loop) => loopSelectionKey(loop) === selectedLoopKey) ??
+    playableLoops[0] ??
+    null;
   const [transport, setTransport] = useState<RehearsalTransportState>(() =>
     reduceRehearsalTransport(createIdleTransportState(), {
       type: "arm",
@@ -184,24 +197,26 @@ export function RehearsalPlayer({
   }, [audioSourceUrl, hasNativeAudioConversionError]);
 
   useEffect(() => {
-    const nextLoop = playableLoops[selectedRendererIndex] ?? null;
     setTransport((current) => {
       if (
         current.loop &&
-        nextLoop &&
-        hasSameLoopTiming(current.loop, nextLoop)
+        selectedLoop &&
+        hasSameLoopTiming(current.loop, selectedLoop)
       ) {
         if (
-          current.loop.sectionLabel === nextLoop.sectionLabel &&
-          current.loop.tempoAssumed === nextLoop.tempoAssumed
+          current.loop.sectionLabel === selectedLoop.sectionLabel &&
+          current.loop.tempoAssumed === selectedLoop.tempoAssumed
         ) {
           return current;
         }
-        return { ...current, loop: nextLoop };
+        return { ...current, loop: selectedLoop };
       }
-      return reduceRehearsalTransport(current, { type: "arm", loop: nextLoop });
+      return reduceRehearsalTransport(current, {
+        type: "arm",
+        loop: selectedLoop,
+      });
     });
-  }, [playableLoops, selectedRendererIndex]);
+  }, [selectedLoop]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -226,7 +241,6 @@ export function RehearsalPlayer({
     if (!hasPlayableAudio) {
       return;
     }
-    const selectedLoop = playableLoops[selectedRendererIndex] ?? null;
     if (selectedLoop) {
       setPlaybackError(false);
       startAudio(selectedLoop, false);
@@ -242,8 +256,7 @@ export function RehearsalPlayer({
     startAudio,
     startNonce,
     hasPlayableAudio,
-    playableLoops,
-    selectedRendererIndex,
+    selectedLoop,
   ]);
 
   useEffect(() => {
@@ -397,10 +410,20 @@ export function RehearsalPlayer({
   ]);
 
   const actionKey = nextActionTemplateKey(transport, hasPlayableAudio);
-  const nextAction = fillRehearsalCopy(
-    t(actionKey as TranslationKey),
-    nextActionValues(transport),
-  );
+  const nextAction =
+    activeRoleName && playableLoops.length === 0
+      ? fillRehearsalCopy(t("workspaceLoopNoRoleSections"), {
+          roleName: activeRoleName,
+        })
+      : fillRehearsalCopy(
+          t(actionKey as TranslationKey),
+          nextActionValues(transport),
+        );
+  const sectionPickerLabel = activeRoleName
+    ? fillRehearsalCopy(t("workspaceLoopSectionPickerForRole"), {
+        roleName: activeRoleName,
+      })
+    : t("workspaceLoopSectionPickerLabel");
   const canStart =
     transport.loop !== null &&
     hasPlayableAudio &&
@@ -429,17 +452,30 @@ export function RehearsalPlayer({
       >
         {nextAction}
       </p>
+      {activeRoleName && playableLoops.length > 0 ? (
+        <p
+          className="mt-3 text-xs font-semibold text-cyan-100"
+          data-testid="rehearsal-loop-role-filter"
+        >
+          {fillRehearsalCopy(t("workspaceLoopRoleFilterHint"), {
+            roleName: activeRoleName,
+          })}
+        </p>
+      ) : null}
       {playableLoops.length > 0 ? (
         <div
           className="mt-3 flex flex-wrap gap-2"
           role="group"
-          aria-label={t("workspaceLoopSectionPickerLabel")}
+          aria-label={sectionPickerLabel}
         >
           {playableLoops.map((loop, index) => {
-            const selected = index === selectedRendererIndex;
+            const selectionKey = loopSelectionKey(loop);
+            const selected =
+              selectedLoop !== null &&
+              selectionKey === loopSelectionKey(selectedLoop);
             return (
               <Button
-                key={`rehearsal-loop-section-${index}`}
+                key={`rehearsal-loop-section-${selectionKey}-${index}`}
                 type="button"
                 variant={selected ? "default" : "outline"}
                 size="sm"
@@ -449,7 +485,7 @@ export function RehearsalPlayer({
                     ? "min-h-10 border-cyan-300/30 bg-cyan-300 font-semibold text-slate-950"
                     : "min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100"
                 }
-                onClick={() => setSelectedSectionIndex(index)}
+                onClick={() => setSelectedLoopKey(selectionKey)}
               >
                 <span>{loop.sectionLabel}</span>
                 <span> · </span>

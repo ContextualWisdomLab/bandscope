@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, memo, useEffect, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -146,6 +146,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return map;
   }, [song]);
 
+  const resolvedActiveRole = activeRole && roleMap.has(activeRole) ? activeRole : null;
+
+  useEffect(() => {
+    if (activeRole && !roleMap.has(activeRole)) {
+      setActiveRole(null);
+    }
+  }, [activeRole, roleMap]);
+
   const allRoles = useMemo(() => {
     // Performance: Avoid O(N) allocation of intermediate array from Array.from() before mapping
     const roles: { id: string; name: string }[] = [];
@@ -157,11 +165,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   // Performance: use the cached roleMap so activeRoleDetails does not rescan sections and roles on every render.
   const activeRoleDetails = useMemo(() => {
-    if (!activeRole) return undefined;
-    return roleMap.get(activeRole);
-  }, [activeRole, roleMap]);
+    if (!resolvedActiveRole) return undefined;
+    return roleMap.get(resolvedActiveRole);
+  }, [resolvedActiveRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
-  const firstRange = useMemo(() => firstRangeSqueeze(song, activeRole), [activeRole, song]);
+  const firstRange = useMemo(() => firstRangeSqueeze(song, resolvedActiveRole), [resolvedActiveRole, song]);
   const firstRangeCopy = firstRange
     ? fillRangeCopy(
         t(firstRange.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
@@ -176,13 +184,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
-    if (!activeRole || !onSongUpdate) return;
+    if (!resolvedActiveRole || !onSongUpdate) return;
 
     // Performance: Use shallow copying to avoid expensive structuredClone
     const nextSong = {
       ...song,
       sections: song.sections.map(section => {
-        const roleIndex = section.roles.findIndex(r => r.id === activeRole);
+        const roleIndex = section.roles.findIndex(r => r.id === resolvedActiveRole);
         if (roleIndex === -1) return section;
 
         const nextRoles = [...section.roles];
@@ -221,12 +229,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     [collaborationApprovals.length, collaborationAssignments.length, collaborationComments.length]
   );
   const activeRoleAssignments = useMemo(
-    () => collaborationAssignments.filter(assignment => assignment.roleId === undefined || assignment.roleId === activeRole),
-    [activeRole, collaborationAssignments]
+    () => collaborationAssignments.filter(assignment => assignment.roleId === undefined || assignment.roleId === resolvedActiveRole),
+    [resolvedActiveRole, collaborationAssignments]
   );
   const activeRoleComments = useMemo(
-    () => collaborationComments.filter(comment => comment.roleId === undefined || comment.roleId === activeRole),
-    [activeRole, collaborationComments]
+    () => collaborationComments.filter(comment => comment.roleId === undefined || comment.roleId === resolvedActiveRole),
+    [resolvedActiveRole, collaborationComments]
   );
   const roleHarmonicExplanation =
     nonBlankText(activeRoleDetails?.harmonicExplanation) ??
@@ -369,6 +377,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             song={song}
             hasLocalAudio={hasLocalAudio}
             audioSourcePath={parsedSourceBootstrap?.source.sourcePath ?? null}
+            activeRole={resolvedActiveRole}
+            activeRoleName={resolvedActiveRole ? activeRoleDetails?.name ?? resolvedActiveRole : null}
             startNonce={loopStartNonce}
           />
 
@@ -380,15 +390,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               </div>
               <RoleSwitcher
                 roles={allRoles}
-                activeRole={activeRole}
+                activeRole={resolvedActiveRole}
                 onRoleChange={setActiveRole}
                 />
             </div>
 
-            {activeRole && (
+            {resolvedActiveRole && (
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
-                <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? resolvedActiveRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -531,7 +541,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <SectionRoadmap
             song={song}
-            activeRole={activeRole}
+            activeRole={resolvedActiveRole}
             onSongUpdate={onSongUpdate}
           />
           </section>
