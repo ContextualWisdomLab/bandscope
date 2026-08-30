@@ -153,6 +153,44 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first To Coda without inventing a destination section", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-tocoda");
+    expect(callout).toHaveTextContent("Tonight's first To Coda");
+    expect(callout).toHaveTextContent(
+      "Tonight's first To Coda is To Coda: jump to the coda at To Coda, then name the first section so the room knows where it starts."
+    );
+    expect(callout).not.toHaveTextContent("start the first verse");
+  });
+
+  it("asks the room to stay on the map when the To Coda is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.toCoda;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-tocoda")).toHaveTextContent(
+      "Tonight's first To Coda still needs a label. Stay on tonight's map until the first To Coda is marked, then check tonight's first range."
+    );
+  });
+
+  it("keeps To Coda copy target-agnostic even when the first section is unnamed", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-tocoda")).toHaveTextContent(
+      "Tonight's first To Coda is To Coda: jump to the coda at To Coda, then name the first section so the room knows where it starts."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
