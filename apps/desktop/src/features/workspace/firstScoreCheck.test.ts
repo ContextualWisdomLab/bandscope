@@ -1,7 +1,6 @@
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
 import {
-  MAX_SCORE_DISPLAY_NAME_LENGTH,
   firstScoreCheck,
   trustedScoreAttachment,
   trustedScoreFileName
@@ -35,28 +34,35 @@ function blankRoleRange(song: RehearsalSong): RehearsalSong {
 }
 
 describe("trustedScoreFileName", () => {
-  it("admits a bounded PDF basename", () => {
+  it("admits a PDF basename", () => {
     expect(trustedScoreFileName("opener.pdf")).toBe("opener.pdf");
     expect(trustedScoreFileName("Late Night Set.PDF")).toBe("Late Night Set.PDF");
   });
 
-  it("fails closed on blank, overlong, path, control, and reserved names", () => {
+  it("keeps native-valid display basenames instead of hiding attached scores", () => {
+    for (const value of [
+      " opener.pdf",
+      "opener.pdf ",
+      "mix..final.pdf",
+      "CON.pdf",
+      `${"a".repeat(120)}.pdf`
+    ]) {
+      expect(trustedScoreFileName(value)).toBe(value);
+    }
+  });
+
+  it("fails closed on blank, path, control, and non-PDF names", () => {
     for (const value of [
       "",
       "pdf",
       ".pdf",
-      " opener.pdf",
-      "opener.pdf ",
       "opener.pdf/",
       "../opener.pdf",
       "folder/opener.pdf",
       "folder\\opener.pdf",
       "open\ner.pdf",
       "open\u0000er.pdf",
-      "CON.pdf",
-      "aux.PDF",
-      "opener.docx",
-      `${"a".repeat(MAX_SCORE_DISPLAY_NAME_LENGTH)}.pdf`
+      "opener.docx"
     ]) {
       expect(trustedScoreFileName(value)).toBeNull();
     }
