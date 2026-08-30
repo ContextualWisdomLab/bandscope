@@ -4,7 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeSqueeze, meaningfulRangeText } from "./firstRangeSqueeze";
 import { fillDsAlFineCopy, firstDsAlFinePlan } from "./firstDsAlFine";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
@@ -165,10 +165,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       )
     : t("workspaceFirstRangeMissing");
   const firstDsAlFine = useMemo(() => firstDsAlFinePlan(song), [song]);
+  const firstSectionIsNamed = meaningfulRangeText(song.sections[0]?.label) !== undefined;
   const firstDsAlFineCopy = firstDsAlFine
-    ? fillDsAlFineCopy(t("workspaceFirstDsAlFineReadyNoSection"), {
-        label: firstDsAlFine.label
-      })
+    ? fillDsAlFineCopy(
+        t(firstSectionIsNamed ? "workspaceFirstDsAlFineReady" : "workspaceFirstDsAlFineReadyNoSection"),
+        {
+          label: firstDsAlFine.label
+        }
+      )
     : t("workspaceFirstDsAlFineMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
