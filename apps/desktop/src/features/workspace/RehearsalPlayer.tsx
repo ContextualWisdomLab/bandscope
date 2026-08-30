@@ -605,6 +605,9 @@ export function RehearsalPlayer({
       const target = event.target;
       const targetIsButtonOrLink =
         target instanceof Element && target.closest("button, a") !== null;
+      const targetIsScrollableRegion =
+        target instanceof Element &&
+        target.closest('[role="region"][tabindex="0"]') !== null;
       const targetIsEditable =
         target instanceof HTMLElement &&
         (target.isContentEditable ||
@@ -619,6 +622,7 @@ export function RehearsalPlayer({
       if (
         event.key === " " &&
         !targetIsButtonOrLink &&
+        !targetIsScrollableRegion &&
         !event.altKey &&
         !event.ctrlKey &&
         !event.metaKey &&

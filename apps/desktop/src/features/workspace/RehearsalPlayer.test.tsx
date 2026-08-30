@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RehearsalPlayer } from "./RehearsalPlayer";
@@ -541,6 +547,45 @@ describe("RehearsalPlayer", () => {
     expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
       /Start the count-in/i,
     );
+  });
+
+  it("preserves native Space behavior for focused scroll regions", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+
+    render(
+      <>
+        <RehearsalPlayer
+          song={song}
+          hasLocalAudio={true}
+          audioSourcePath={audioSourcePath}
+        />
+        <div
+          aria-label="Scrollable rehearsal timeline"
+          role="region"
+          tabIndex={0}
+        />
+      </>,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    const region = screen.getByRole("region", {
+      name: "Scrollable rehearsal timeline",
+    });
+    const event = createEvent.keyDown(region, { key: " " });
+    region.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/looping/i);
   });
 
   it("caps long media boundary timers before the browser timeout limit", () => {
