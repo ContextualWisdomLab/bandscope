@@ -80,4 +80,29 @@ describe("resolveFirstHitPlan own-data authority", () => {
     expect(resolved?.landingRoleId).toBe(expectedId);
     expect(resolved?.landingRoleName).toBe(expectedName);
   });
+
+  it("snapshots the owned hit plan exactly once before ranking", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections.find((candidate) => candidate.id === "verse-1");
+    const roleIndex = section?.roles.findIndex((role) => role.id === "bass-guitar") ?? -1;
+    const role = roleIndex >= 0 ? section?.roles[roleIndex] : undefined;
+    expect(section).toBeDefined();
+    expect(role).toBeDefined();
+    if (!section || !role || roleIndex < 0) {
+      throw new Error("Demo hit-plan fixture is missing the expected Bass Guitar role.");
+    }
+
+    let hitPlanDescriptorReads = 0;
+    section.roles[roleIndex] = new Proxy(role, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === "hitPlan") {
+          hitPlanDescriptorReads += 1;
+        }
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      }
+    });
+
+    expect(resolveFirstHitPlan(song)?.hitPlan).toBe(DEMO_HIT_PLAN);
+    expect(hitPlanDescriptorReads).toBe(1);
+  });
 });
