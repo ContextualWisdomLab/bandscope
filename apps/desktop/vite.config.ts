@@ -27,7 +27,7 @@ export default defineConfig({
         "src/features/score/ScoreView.tsx",
         "src/features/score/scoreStorage.ts",
         "src/features/workspace/tapTempo.ts",
-        "src/features/workspace/TapTempo.tsx"
+        "src/features/workspace/TapTempoPanel.tsx"
       ],
       thresholds: {
         lines: 90,
