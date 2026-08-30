@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstDalSegnoTitle": "Tonight's first Dal Segno",
+  "workspaceFirstDalSegnoReady": "Tonight's first Dal Segno is {label}: go back to the segno at {label} and start the first {sectionLabel}, then check tonight's first range.",
+  "workspaceFirstDalSegnoReadyNoSection": "Tonight's first Dal Segno is {label}: go back to the segno at {label}, then name the first section so the room knows where it starts.",
+  "workspaceFirstDalSegnoMissing": "Tonight's first Dal Segno still needs a label. Stay on tonight's map until the first D.S. is marked, then check tonight's first range.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }

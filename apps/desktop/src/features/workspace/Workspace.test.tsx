@@ -153,6 +153,43 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first Dal Segno and the next go-back-to-the-segno", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-dalsegno");
+    expect(callout).toHaveTextContent("Tonight's first Dal Segno");
+    expect(callout).toHaveTextContent(
+      "Tonight's first Dal Segno is D.S.: go back to the segno at D.S. and start the first verse, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to stay on the map when the Dal Segno is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.dalSegno;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-dalsegno")).toHaveTextContent(
+      "Tonight's first Dal Segno still needs a label. Stay on tonight's map until the first D.S. is marked, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to name the first section after a trusted Dal Segno", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-dalsegno")).toHaveTextContent(
+      "Tonight's first Dal Segno is D.S.: go back to the segno at D.S., then name the first section so the room knows where it starts."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

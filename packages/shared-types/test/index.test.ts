@@ -1023,6 +1023,44 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates dalSegno correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.dalSegno).toEqual({ label: "D.S." });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.dalSegno = { label: "D.S. 2" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).dalSegno).toEqual({ label: "D.S. 2" });
+
+    const withoutDalSegno = createDemoRehearsalSong();
+    delete withoutDalSegno.dalSegno;
+    expect(isRehearsalSong(withoutDalSegno)).toBe(true);
+    expect(parseRehearsalSong(withoutDalSegno)).toEqual(withoutDalSegno);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dalSegno: "D.S." })).toThrow("dalSegno");
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dalSegno: { label: 1 } })).toThrow(
+      "dalSegno.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dalSegno: { label: "d.s." } })).toThrow(
+      "dalSegno.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dalSegno: { label: "Fine" } })).toThrow(
+      "dalSegno.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dalSegno: { label: "D.S. al Coda" } })).toThrow(
+      "dalSegno.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dalSegno: { label: "Dal Segno" } })).toThrow(
+      "dalSegno.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), dalSegno: { label: "D.C." } })).toThrow(
+      "dalSegno.label"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), dalSegno: { label: "D.S.", extra: true } })
+    ).toThrow("dalSegno.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;
