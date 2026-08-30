@@ -1,9 +1,17 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RehearsalPlayer } from "./RehearsalPlayer";
 
 const originalLanguage = navigator.language;
+const originalTauriInternals = Object.getOwnPropertyDescriptor(
+  window,
+  "__TAURI_INTERNALS__",
+);
+const tauriConfigPath = resolve(process.cwd(), "src-tauri/tauri.conf.json");
+const audioSourcePath = "/Users/test/Music/rehearsal.wav";
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -12,11 +20,52 @@ function setNavigatorLanguage(language: string) {
   });
 }
 
+function installPlayableAudioMocks() {
+  const convertFileSrc = vi.fn((path: string) => `asset://localhost/${path}`);
+  Object.defineProperty(window, "__TAURI_INTERNALS__", {
+    configurable: true,
+    value: { convertFileSrc },
+  });
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  const play = vi
+    .spyOn(HTMLMediaElement.prototype, "play")
+    .mockResolvedValue(undefined);
+  return { convertFileSrc, play };
+}
+
 describe("RehearsalPlayer", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
     vi.useRealTimers();
     vi.restoreAllMocks();
+    if (originalTauriInternals) {
+      Object.defineProperty(
+        window,
+        "__TAURI_INTERNALS__",
+        originalTauriInternals,
+      );
+    } else {
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__;
+    }
+  });
+
+  it("allows both platform Tauri asset origins in the media CSP", () => {
+    const config = JSON.parse(readFileSync(tauriConfigPath, "utf8")) as {
+      app: { security: { csp: string } };
+    };
+    const mediaDirective = config.app.security.csp
+      .split(";")
+      .find((directive) => directive.trim().startsWith("media-src "));
+    const sources = mediaDirective?.trim().split(/\s+/).slice(1) ?? [];
+
+    expect(sources).toEqual(
+      expect.arrayContaining(["asset:", "http://asset.localhost"]),
+    );
+    expect(sources).not.toContain("*");
+    expect(sources).not.toContain("http:");
+    expect(sources).not.toContain("https:");
   });
 
   it("names the first playable loop and blocks starting before local audio exists", () => {
@@ -28,7 +77,9 @@ describe("RehearsalPlayer", () => {
       screen.getByTestId("rehearsal-loop-next-action").getAttribute("role"),
     ).toBe("status");
     expect(
-      screen.getByTestId("rehearsal-loop-next-action").getAttribute("aria-live"),
+      screen
+        .getByTestId("rehearsal-loop-next-action")
+        .getAttribute("aria-live"),
     ).toBe("polite");
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
@@ -46,11 +97,7 @@ describe("RehearsalPlayer", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     render(
-      <RehearsalPlayer
-        song={song}
-        hasLocalAudio={false}
-        startNonce={1}
-      />,
+      <RehearsalPlayer song={song} hasLocalAudio={false} startNonce={1} />,
     );
 
     expect(
@@ -64,9 +111,14 @@ describe("RehearsalPlayer", () => {
   it("stops active count-in and loop ticking when local-audio authority is revoked", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
+    installPlayableAudioMocks();
     const song = createDemoRehearsalSong();
     const { rerender } = render(
-      <RehearsalPlayer song={song} hasLocalAudio={true} />,
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
     );
 
     fireEvent.click(
@@ -87,7 +139,13 @@ describe("RehearsalPlayer", () => {
       screen.getByTestId("rehearsal-loop-next-action").textContent,
     ).not.toMatch(/looping/i);
 
-    rerender(<RehearsalPlayer song={song} hasLocalAudio={true} />);
+    rerender(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
     fireEvent.click(
       screen.getByRole("button", { name: /Start the count-in/i }),
     );
@@ -100,6 +158,16 @@ describe("RehearsalPlayer", () => {
     act(() => {
       vi.advanceTimersByTime(500);
     });
+
+    const audio = screen.getByTestId(
+      "rehearsal-loop-audio",
+    ) as HTMLAudioElement;
+    Object.defineProperty(audio, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 15,
+    });
+    fireEvent(audio, new Event("timeupdate"));
 
     const playheadBeforeRevocation = screen
       .getByTestId("rehearsal-loop-playhead")
@@ -126,8 +194,15 @@ describe("RehearsalPlayer", () => {
   it("counts in then loops the selected section on the map clock", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
+    installPlayableAudioMocks();
     const song = createDemoRehearsalSong();
-    render(<RehearsalPlayer song={song} hasLocalAudio={true} />);
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
 
     fireEvent.click(
       screen.getByRole("button", { name: /Start the count-in/i }),
@@ -151,12 +226,114 @@ describe("RehearsalPlayer", () => {
     ).toContain("%");
   });
 
+  it("uses the scoped native asset as the media clock for a real loop", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const { convertFileSrc, play } = installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+
+    const audio = screen.getByTestId(
+      "rehearsal-loop-audio",
+    ) as HTMLAudioElement;
+    expect(convertFileSrc).toHaveBeenCalledWith(
+      "/Users/test/Music/rehearsal.wav",
+      "asset",
+    );
+    expect(audio.src).toContain("asset://localhost/");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    expect(play).toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    Object.defineProperty(audio, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 17.5,
+    });
+    fireEvent(audio, new Event("timeupdate"));
+    expect(
+      screen.getByTestId("rehearsal-loop-playhead").getAttribute("style"),
+    ).toContain("37.5%");
+
+    Object.defineProperty(audio, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 29.9,
+    });
+    fireEvent(audio, new Event("timeupdate"));
+    Object.defineProperty(audio, "currentTime", {
+      configurable: true,
+      writable: true,
+      value: 30,
+    });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(audio.currentTime).toBe(10);
+  });
+
+  it("caps long media boundary timers before the browser timeout limit", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    const convertFileSrc = vi.fn((path: string) => `asset://localhost/${path}`);
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: { convertFileSrc },
+    });
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.timeRange = {
+      start: 10,
+      end: 10 + 2_147_483_648,
+    };
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(setTimeoutSpy).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      2_147_483_647,
+    );
+  });
+
   it("keeps a live loop running across unrelated song metadata updates", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
+    installPlayableAudioMocks();
     const song = createDemoRehearsalSong();
     const { rerender } = render(
-      <RehearsalPlayer song={song} hasLocalAudio={true} />,
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
     );
 
     fireEvent.click(
@@ -176,16 +353,20 @@ describe("RehearsalPlayer", () => {
           ? {
               ...section,
               roles: section.roles.map((role, roleIndex) =>
-                roleIndex === 0
-                  ? { ...role, practiceProgress: 50 }
-                  : role,
+                roleIndex === 0 ? { ...role, practiceProgress: 50 } : role,
               ),
             }
           : section,
       ),
     };
 
-    rerender(<RehearsalPlayer song={updatedSong} hasLocalAudio={true} />);
+    rerender(
+      <RehearsalPlayer
+        song={updatedSong}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
 
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
@@ -195,8 +376,15 @@ describe("RehearsalPlayer", () => {
   it("disables start while count-in or loop timing is already active", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
+    installPlayableAudioMocks();
     const song = createDemoRehearsalSong();
-    render(<RehearsalPlayer song={song} hasLocalAudio={true} />);
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
 
     const startButton = screen.getByRole("button", {
       name: /Start the count-in/i,
@@ -218,9 +406,15 @@ describe("RehearsalPlayer", () => {
   it("restarts a paused loop from an external section-start request", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
+    installPlayableAudioMocks();
     const song = createDemoRehearsalSong();
     const { rerender } = render(
-      <RehearsalPlayer song={song} hasLocalAudio={true} startNonce={0} />,
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+        startNonce={0}
+      />,
     );
 
     fireEvent.click(
@@ -235,7 +429,12 @@ describe("RehearsalPlayer", () => {
     ).toMatch(/paused/i);
 
     rerender(
-      <RehearsalPlayer song={song} hasLocalAudio={true} startNonce={1} />,
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+        startNonce={1}
+      />,
     );
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
@@ -244,6 +443,7 @@ describe("RehearsalPlayer", () => {
 
   it("does not restart the count-in when section selection changes under the same start nonce", () => {
     setNavigatorLanguage("en-US");
+    installPlayableAudioMocks();
     const song = createDemoRehearsalSong();
     song.sections = [
       {
@@ -264,6 +464,7 @@ describe("RehearsalPlayer", () => {
       <RehearsalPlayer
         song={song}
         hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
         startNonce={1}
       />,
     );
@@ -285,6 +486,7 @@ describe("RehearsalPlayer", () => {
 
   it("keeps duplicate analysis section ids selectable by renderer position", () => {
     setNavigatorLanguage("en-US");
+    installPlayableAudioMocks();
     const song = createDemoRehearsalSong();
     song.sections = [
       {
@@ -301,7 +503,13 @@ describe("RehearsalPlayer", () => {
       },
     ];
 
-    render(<RehearsalPlayer song={song} hasLocalAudio={true} />);
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
 
     const verseButton = screen.getByRole("button", {
       name: /verse.*0:10.*0:20/i,

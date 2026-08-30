@@ -4,7 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { RehearsalPlayer } from "./RehearsalPlayer";
+import { isPlayableAudioSource, RehearsalPlayer } from "./RehearsalPlayer";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
@@ -124,7 +124,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [loopStartNonce, setLoopStartNonce] = useState(0);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const hasLocalAudio = safeProjectBootstrapSummary(sourceBootstrap) !== null;
+  const parsedSourceBootstrap = useMemo(
+    () => safeProjectBootstrapSummary(sourceBootstrap),
+    [sourceBootstrap],
+  );
+  const hasLocalAudio = parsedSourceBootstrap !== null;
+  const hasPlayableAudio =
+    hasLocalAudio &&
+    isPlayableAudioSource(parsedSourceBootstrap?.source.sourcePath ?? null);
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -361,6 +368,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <RehearsalPlayer
             song={song}
             hasLocalAudio={hasLocalAudio}
+            audioSourcePath={parsedSourceBootstrap?.source.sourcePath ?? null}
             startNonce={loopStartNonce}
           />
 
@@ -396,10 +404,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <Button
                     type="button"
                     aria-label={t("workspaceLoopThisSection")}
-                    aria-disabled={!hasLocalAudio}
+                    aria-disabled={!hasPlayableAudio}
                     title={t("workspaceLoopThisSection")}
                     onClick={(event) => {
-                      if (!hasLocalAudio) {
+                      if (!hasPlayableAudio) {
                         preventUnavailableAction(event);
                         return;
                       }
@@ -407,7 +415,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     }}
                     variant="outline"
                     className={
-                      hasLocalAudio
+                      hasPlayableAudio
                         ? "min-h-11 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white"
                         : "min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-400 opacity-70"
                     }

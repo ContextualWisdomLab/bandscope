@@ -317,6 +317,20 @@ fn lookup_bootstrap_source(
         .ok_or_else(|| "Analysis job source was not found. Choose local audio again.".to_string())
 }
 
+/// Allow only the already-normalized source file to be served by the asset protocol.
+///
+/// Security Notes: the path is produced by the native file dialog or by the
+/// validated, app-owned YouTube cache path. The protocol starts with an empty
+/// scope, so this does not expose a directory or accept a path from JavaScript.
+fn allow_audio_source_for_playback<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    source: &LocalAudioSourcePayload,
+) -> Result<(), String> {
+    app.asset_protocol_scope()
+        .allow_file(&source.source_path)
+        .map_err(|_| "Could not prepare the selected audio for playback.".to_string())
+}
+
 fn drain_analysis_status_updates(
     state: &AppState,
     app: &tauri::AppHandle<impl Runtime>,
@@ -643,6 +657,7 @@ fn select_local_audio_source(
         .pick_file()
         .ok_or_else(|| "Choose a WAV, MP3, FLAC, or M4A file to start analysis.".to_string())?;
     let source = normalize_local_audio_source(&path)?;
+    allow_audio_source_for_playback(&app, &source)?;
     let project_id = next_project_id(&state);
     let project_root = app_owned_root(&app, "projects", &project_id)?;
     let cache_root = app_owned_root(&app, "cache", &project_id)?;
@@ -712,6 +727,7 @@ async fn import_youtube_url(
     if parsed.get("ok").and_then(|v| v.as_bool()) == Some(true) {
         if let Some(metadata) = parsed.get("metadata") {
             let source = youtube_source_from_metadata(metadata, &cache_root)?;
+            allow_audio_source_for_playback(&app, &source)?;
 
             let summary = ProjectBootstrapSummaryPayload {
                 project_id,
