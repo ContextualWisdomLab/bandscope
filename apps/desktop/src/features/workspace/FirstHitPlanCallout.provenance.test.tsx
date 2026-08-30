@@ -33,6 +33,30 @@ describe("FirstHitPlanCallout hit-plan provenance", () => {
     ).toBeNull();
   });
 
+  it("bounds user-authored guidance at the display boundary without rewriting persisted copy", () => {
+    vi.stubGlobal("navigator", { language: "en-US" });
+    const song = createDemoRehearsalSong();
+    const section = song.sections[0]!;
+    const customPlan = `  ${"x".repeat(200)}  `;
+    const displayedPlan = customPlan.slice(0, 180);
+    section.roles = [
+      {
+        ...section.roles[2]!,
+        id: "piano",
+        name: "Piano",
+        rehearsalPriority: "high",
+        hitPlan: customPlan,
+        hitPlanSource: "user"
+      }
+    ];
+    section.partGraph = [{ role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] }];
+
+    render(<FirstHitPlanCallout song={song} />);
+
+    expect(screen.getByText(displayedPlan)).toBeTruthy();
+    expect(screen.queryByText(customPlan)).toBeNull();
+  });
+
   it("localizes engine-shaped guidance whose target names a part in this lineup", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
