@@ -719,17 +719,27 @@ describe("RehearsalPlayer", () => {
     ).toMatch(/Count in 4 beats at 90 BPM/i);
 
     act(() => {
-      vi.advanceTimersByTime(133);
+      vi.advanceTimersByTime(50);
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: /Playback speed/i }), {
+      target: { value: "1.25" },
     });
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
-    ).toMatch(/Count in 4 beats at 90 BPM/i);
+    ).toMatch(/Count in 4 beats at 150 BPM/i);
+
+    act(() => {
+      vi.advanceTimersByTime(369);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 150 BPM/i);
     act(() => {
       vi.advanceTimersByTime(1);
     });
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
-    ).toMatch(/Count in 3 beats at 90 BPM/i);
+    ).toMatch(/Count in 3 beats at 150 BPM/i);
   });
 
   it("applies supported playback speed while preserving pitch when available", () => {
