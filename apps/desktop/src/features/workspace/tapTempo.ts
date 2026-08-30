@@ -13,12 +13,6 @@ export /**
 export /**
  * Sliding window so a long groove cannot grow without bound.
  */ const MAX_TAP_HISTORY = 8;
-export /**
- * A pause longer than a 20 BPM interval starts a new tap group.
- */ const TAP_GAP_RESET_MS = 3_500;
-export /**
- * Reject a window whose fastest and slowest intervals disagree by more than 2×.
- */ const MAX_INTERVAL_SPREAD = 2;
 
 const TAP_TEMPO_SESSION_KEYS = new WeakMap<RehearsalSong, string>();
 let nextTapTempoSession = 1;
@@ -126,11 +120,11 @@ export function emptyTapTempo(): TapTempoState {
 }
 
 /**
- * Record one tap, fail closed on a bad clock, and reset after a long pause.
+ * Record one tap, fail closed on a bad clock, and keep a bounded history.
  *
  * Runtime clocks and prior state are untrusted. A backwards or non-finite
- * timestamp is ignored. A gap longer than `TAP_GAP_RESET_MS` starts a new
- * window so a late entrance cannot drag the median.
+ * timestamp is ignored. Long pauses stay in the bounded history; the median
+ * interval estimator limits their influence without an arbitrary reset gap.
  */
 export function recordTap(state: TapTempoState | unknown, nowMs: unknown): TapTempoState {
   const timestamp = trustedTimestampMs(nowMs);
@@ -144,9 +138,6 @@ export function recordTap(state: TapTempoState | unknown, nowMs: unknown): TapTe
     if (timestamp <= last) {
       return { tapsMs: taps };
     }
-    if (timestamp - last > TAP_GAP_RESET_MS) {
-      return { tapsMs: [timestamp] };
-    }
   }
 
   taps.push(timestamp);
@@ -159,8 +150,8 @@ export function recordTap(state: TapTempoState | unknown, nowMs: unknown): TapTe
 /**
  * Read a trusted BPM from at least four taps, fail closed otherwise.
  *
- * Uses the median interval so one rushed or late tap cannot own the tempo.
- * A window whose intervals disagree by more than 2× is unsteady, not a click.
+ * Uses the median interval so one rushed, late, or paused tap cannot own the
+ * tempo. The bounded history keeps the session state predictable.
  */
 export function tapTempoReading(state: TapTempoState | unknown): TapTempoReading | null {
   const taps = trustedTapTimestamps(state);
@@ -175,12 +166,6 @@ export function tapTempoReading(state: TapTempoState | unknown): TapTempoReading
       return null;
     }
     intervals.push(interval);
-  }
-
-  const fastest = Math.min(...intervals);
-  const slowest = Math.max(...intervals);
-  if (fastest <= 0 || slowest / fastest > MAX_INTERVAL_SPREAD) {
-    return null;
   }
 
   const intervalMs = median(intervals);

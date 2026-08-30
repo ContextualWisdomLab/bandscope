@@ -33,12 +33,10 @@ describe("trustedTempoBpm", () => {
 });
 
 describe("recordTap", () => {
-  it("ignores non-finite clocks, resets after a long pause, and caps history", () => {
+  it("ignores non-finite or backwards clocks and caps history", () => {
     expect(recordTap(emptyTapTempo(), Number.NaN)).toEqual({ tapsMs: [] });
     expect(recordTap({ tapsMs: [1000] }, 900)).toEqual({ tapsMs: [1000] });
-
-    const reset = recordTap({ tapsMs: [1000] }, 1000 + 3_501);
-    expect(reset).toEqual({ tapsMs: [4_501] });
+    expect(recordTap({ tapsMs: [1000] }, 4_501)).toEqual({ tapsMs: [1000, 4_501] });
 
     let state = emptyTapTempo();
     for (let index = 0; index < MAX_TAP_HISTORY + 3; index += 1) {
@@ -67,13 +65,16 @@ describe("tapTempoReading", () => {
     expect(tapTempoReading({ tapsMs: [0, 500, 500, 1_000] })).toBeNull();
   });
 
-  it("uses the median interval and fails closed on an unsteady or out-of-range window", () => {
+  it("uses the median interval and fails closed on an out-of-range window", () => {
     const medianState = recordTap(recordTap(recordTap(recordTap(emptyTapTempo(), 0), 480), 1_000), 1_500);
     expect(tapTempoReading(medianState)?.tempoBpm).toBe(120);
 
     expect(tapTempoReading(tapsAt(0, 100, 4))).toBeNull();
     expect(tapTempoReading(tapsAt(0, 4_000, 4))).toBeNull();
-    expect(tapTempoReading({ tapsMs: [0, 200, 1_200, 1_400] })).toBeNull();
+    expect(tapTempoReading({ tapsMs: [0, 200, 1_200, 1_400] })).toMatchObject({
+      tempoBpm: 300,
+      intervalMs: 200
+    });
     expect(tapTempoReading(null)).toBeNull();
   });
 });

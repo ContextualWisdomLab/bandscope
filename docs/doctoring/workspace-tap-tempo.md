@@ -7,8 +7,7 @@ When the ready rehearsal map has no trusted song tempo, the player taps a steady
 ## Authority
 
 - A stored tempo is trusted when `song.tempo` is finite and positive under the shared song contract. That hides the tap control so a session cannot override analysis; the narrower 20–400 BPM bound applies only to newly measured taps.
-- A session reading needs four taps, a median interval, integer BPM still inside 20–400, and a fastest/slowest interval ratio of at most 2×.
-- A pause longer than 3500 ms starts a new window. Malformed clocks and prior state fail closed.
+- A session reading needs four taps, the median of the bounded history's intervals, and integer BPM still inside 20–400. The median limits the influence of a rushed, late, or paused tap; malformed clocks and prior state fail closed.
 
 ## Trust boundary
 
@@ -18,4 +17,6 @@ When the ready rehearsal map has no trusted song tempo, the player taps a steady
 
 ## Primary standard
 
-International Organization for Standardization. (2013). *ISO 80000-3:2013 Quantities and units — Part 3: Space and time* (seconds as the time unit for frequency). https://www.iso.org/standard/31888.html
+International Organization for Standardization. (2019). *ISO 80000-3:2019 Quantities and units — Part 3: Space and time* (current edition; reviewed and confirmed in 2023). https://www.iso.org/standard/64974.html
+
+Kaya, E., & Henry, M. J. (2022). Reliable estimation of internal oscillator properties from a novel, fast-paced tapping paradigm. *Scientific Reports, 12*, 20466. https://doi.org/10.1038/s41598-022-24453-6
