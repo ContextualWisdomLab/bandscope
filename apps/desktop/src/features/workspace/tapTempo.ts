@@ -186,7 +186,7 @@ export function tapTempoReading(state: TapTempoState | unknown): TapTempoReading
  *
  * A stored tempo uses the shared song-contract authority: finite and positive.
  * That same value is already displayed by the workspace badge, so it must also
- * suppress session tapping even when it is outside the narrower 20–400 tap range.
+ * suppress session tapping even when it is outside the narrower 33–300 tap range.
  */
 export function songNeedsTapTempo(song: unknown): boolean {
   if (!isRuntimeObject(song)) {

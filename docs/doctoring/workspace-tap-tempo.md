@@ -6,7 +6,7 @@ When the ready rehearsal map has no trusted song tempo, the player taps a steady
 
 ## Authority
 
-- A stored tempo is trusted when `song.tempo` is finite and positive under the shared song contract. That hides the tap control so a session cannot override analysis; the narrower 20–400 BPM bound applies only to newly measured taps.
+- A stored tempo is trusted when `song.tempo` is finite and positive under the shared song contract. That hides the tap control so a session cannot override analysis; the narrower 33–300 BPM bound applies only to newly measured taps.
 - A session reading needs four taps, the median of the bounded history's intervals, and integer BPM still inside 33–300. The median limits the influence of a rushed, late, or paused tap; malformed clocks and prior state fail closed. The 33–300 BPM (200–1800 ms) boundary follows the documented human sensorimotor-synchronization range rather than an arbitrary UI threshold.
 
 ## Trust boundary
