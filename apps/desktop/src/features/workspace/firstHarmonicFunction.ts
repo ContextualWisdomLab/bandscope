@@ -1,5 +1,6 @@
 import {
   MAX_SECTION_TIME_SECONDS,
+  SECTION_FORM_LABELS,
   type RehearsalRole,
   type RehearsalSection,
   type RehearsalSong
@@ -50,6 +51,11 @@ function compareStableId(left: string, right: string): number {
 /** Return whether an untrusted runtime value can be inspected as a record. */
 function isRuntimeObject(value: unknown): value is object {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Return whether an untrusted runtime value is one canonical section-form label. */
+function isSectionFormLabel(value: unknown): value is RehearsalSection["label"] {
+  return typeof value === "string" && SECTION_FORM_LABELS.some((label) => label === value);
 }
 
 /** Snapshot one owned data-property value without invoking a getter or Proxy get trap. */
@@ -275,8 +281,7 @@ function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFun
       if (
         typeof sectionId !== "string" ||
         sectionId.trim().length === 0 ||
-        typeof sectionLabel !== "string" ||
-        sectionLabel.trim().length === 0 ||
+        !isSectionFormLabel(sectionLabel) ||
         timeRange === null
       ) {
         return [];
@@ -296,7 +301,7 @@ function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFun
         {
           section: section as RehearsalSection,
           sectionId,
-          sectionLabel: sectionLabel as RehearsalSection["label"],
+          sectionLabel,
           holdingRole,
           holdingRoleId: holdingRoleMetadata.id,
           holdingRoleName: holdingRoleMetadata.name,
