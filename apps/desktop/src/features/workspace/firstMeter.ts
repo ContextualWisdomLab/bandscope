@@ -75,7 +75,7 @@ export function trustedMeter(value: unknown): TrustedMeter | null {
  * written numerator.
  */
 export function countInBeatsForMeter(meter: TrustedMeter): number {
-  if (meter.beatType === 8 && meter.beats % 3 === 0) {
+  if (meter.beatType === 8 && [6, 9, 12].includes(meter.beats)) {
     return meter.beats / 3;
   }
   return meter.beats;

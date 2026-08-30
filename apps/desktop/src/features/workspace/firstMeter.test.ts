@@ -32,6 +32,8 @@ describe("countInBeatsForMeter", () => {
     expect(countInBeatsForMeter({ beats: 6, beatType: 8 })).toBe(2);
     expect(countInBeatsForMeter({ beats: 9, beatType: 8 })).toBe(3);
     expect(countInBeatsForMeter({ beats: 12, beatType: 8 })).toBe(4);
+    expect(countInBeatsForMeter({ beats: 3, beatType: 8 })).toBe(3);
+    expect(countInBeatsForMeter({ beats: 15, beatType: 8 })).toBe(15);
   });
 
   it("counts the written numerator for simple and irregular meters", () => {
