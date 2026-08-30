@@ -167,7 +167,7 @@ describe("ScoreViewer", () => {
     expect(screen.getByText("password protected")).toBeInTheDocument();
   });
 
-  it("navigates pages and clamps at both bounds", async () => {
+  it("navigates pages and exposes unavailable reasons to keyboard focus", async () => {
     const { doc } = createFakeDocument(3);
     mockLoadTaskOnce(Promise.resolve(doc));
 
@@ -177,6 +177,14 @@ describe("ScoreViewer", () => {
     const previousButton = screen.getByRole("button", { name: "Previous page" });
     const nextButton = screen.getByRole("button", { name: "Next page" });
     expect(previousButton).toHaveAttribute("aria-disabled", "true");
+    expect(previousButton).not.toHaveAttribute("title");
+
+    const previousReason = screen.getByRole("tooltip");
+    expect(previousReason).toHaveTextContent("Already on the first page");
+    expect(previousButton).toHaveAttribute("aria-describedby", previousReason.id);
+    previousButton.focus();
+    expect(previousButton).toHaveFocus();
+    expect(previousReason).toHaveClass("group-focus-within:opacity-100");
 
     const eventSpy = vi.spyOn(Event.prototype, "preventDefault");
 
@@ -192,6 +200,14 @@ describe("ScoreViewer", () => {
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
     expect(nextButton).toHaveAttribute("aria-disabled", "true");
+    expect(nextButton).not.toHaveAttribute("title");
+
+    const nextReason = screen.getByRole("tooltip");
+    expect(nextReason).toHaveTextContent("Already on the last page");
+    expect(nextButton).toHaveAttribute("aria-describedby", nextReason.id);
+    nextButton.focus();
+    expect(nextButton).toHaveFocus();
+    expect(nextReason).toHaveClass("group-focus-within:opacity-100");
 
     // clicking an aria-disabled button calls preventDefault and ignores the action
     fireEvent.click(nextButton);
