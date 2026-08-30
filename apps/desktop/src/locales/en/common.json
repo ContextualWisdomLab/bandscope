@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstRepeatTitle": "Tonight's first repeat",
+  "workspaceFirstRepeatReady": "Tonight's first repeat is {label}: play that passage again at {label} from the first {sectionLabel}, then check tonight's first range.",
+  "workspaceFirstRepeatReadyNoSection": "Tonight's first repeat is {label}: play that passage again at {label}, then name the first section so the room knows where it starts.",
+  "workspaceFirstRepeatMissing": "Tonight's first repeat still needs a label. Stay on tonight's map until the first repeat is marked, then check tonight's first range.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
