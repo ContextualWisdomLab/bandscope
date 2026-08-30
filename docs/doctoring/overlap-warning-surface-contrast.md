@@ -18,7 +18,7 @@ The light warning foreground/background pair is chosen to satisfy WCAG 2.2 Succe
 
 ## Design authority status
 
-The configured BandScope Figma file was freshly re-verified and repaired on 2026-08-28. Page `45:86` (`31 Component Contract Catalog`) now contains the reusable `OverlapWarningItem` component set at node `254:81` with `Surface=Dark` and `Surface=Light` variants. Contract frame `254:82` renders real instances of the same component set against the dark rehearsal surface (`254:85`) and white Ranges-card surface (`254:96`), while `254:107` records the intentional `NoClashes` state in which the runtime renders no warning list. The page also records the exact implementation-head token values and keeps repeated web objects as component instances rather than duplicated feature markup.
+The configured BandScope Figma file was freshly re-verified on 2026-08-30. Page `45:86` (`31 Component Contract Catalog`) contains the reusable `OverlapWarningItem` component set at node `254:81` with `Surface=Dark` and `Surface=Light` variants. Contract frame `254:82` renders real instances of the same component set against the dark rehearsal surface (`254:85`) and white Ranges-card surface (`254:96`), while `254:107` records the intentional `NoClashes` state in which the runtime renders no warning list. Fresh metadata also confirms that the former `252:19` reference is no longer present in the file, so it is historical/stale traceability and is not acceptable as design-gate evidence.
 
 The Figma values match the runtime/Storybook contract:
 
@@ -26,6 +26,10 @@ The Figma values match the runtime/Storybook contract:
 - Light: background `#FFF1F2`, border `#FECDD3`, foreground `#9F1239`.
 
 Older component node references in the broader BandScope catalog remain historical traceability unless their specific node is freshly verified. No Code Connect or Figma publishing requirement is added to CI; Storybook remains the executable design-review boundary and Figma remains the visual/component authority.
+
+## Security Notes
+
+This slice changes React presentation, Storybook coverage, shared CSS tokens, design-traceability documentation, and a static Figma design reference only. It does not add or widen filesystem handling, URL fetching, subprocess execution, IPC, WebView authority, updater behavior, model downloads, export paths, credential handling, or runtime network access. The light/dark warning selection operates only on already-provided warning strings and does not create a new trust boundary.
 
 ## Verification
 
