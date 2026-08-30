@@ -7,6 +7,7 @@ import {
   render,
   screen,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RehearsalPlayer } from "./RehearsalPlayer";
@@ -237,6 +238,30 @@ describe("RehearsalPlayer", () => {
     );
   });
 
+  it("keeps focus on the next boundary field after a Tab correction", async () => {
+    setNavigatorLanguage("en-US");
+    const user = userEvent.setup();
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    const end = screen.getByRole("spinbutton", {
+      name: "End time (seconds)",
+    });
+    await user.click(start);
+    await user.clear(start);
+    await user.type(start, "12");
+    await user.tab();
+
+    expect(end).toHaveFocus();
+    expect(start).toHaveValue(12);
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange.start).toBe(12);
+  });
+
   it("keeps the selected loop by section ID when an earlier section is filtered out", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -272,6 +297,89 @@ describe("RehearsalPlayer", () => {
     ).toBe("true");
     expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
       /Map chorus from 0:40–1:04/i,
+    );
+  });
+
+  it("keeps duplicate cue identities distinct for navigation and correction", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const duplicate = {
+      ...song.sections[0]!,
+      label: "verse copy",
+      timeRange: { ...song.sections[0]!.timeRange },
+    };
+    song.sections = [song.sections[0]!, duplicate];
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const sectionButtons = screen
+      .getAllByRole("button")
+      .filter((button) => button.id.startsWith("rehearsal-loop-section-"));
+    expect(sectionButtons).toHaveLength(2);
+    expect(sectionButtons[0]).toHaveAttribute("aria-pressed", "true");
+    expect(sectionButtons[1]).toHaveAttribute("aria-pressed", "false");
+
+    sectionButtons[0]!.focus();
+    fireEvent.keyDown(sectionButtons[0]!, { key: "ArrowRight" });
+
+    expect(sectionButtons[1]).toHaveFocus();
+    expect(sectionButtons[0]).toHaveAttribute("aria-pressed", "false");
+    expect(sectionButtons[1]).toHaveAttribute("aria-pressed", "true");
+
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "12" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange.start).toBe(10);
+    expect(onSongUpdate.mock.calls[0]![0].sections[1]!.timeRange.start).toBe(12);
+  });
+
+  it("preserves the selected cue when an earlier section is inserted", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [song.sections[0]!, chorus];
+    const onSongUpdate = vi.fn();
+    const { rerender } = render(
+      <RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /chorus/i }));
+    const inserted = structuredClone(song.sections[0]!);
+    inserted.id = "intro-1";
+    inserted.label = "intro";
+    inserted.timeRange = { start: 0, end: 5 };
+    const updatedSong = { ...song, sections: [inserted, ...song.sections] };
+    rerender(
+      <RehearsalPlayer song={updatedSong} onSongUpdate={onSongUpdate} />,
+    );
+
+    const chorusButton = screen.getByRole("button", { name: /chorus/i });
+    expect(chorusButton).toHaveAttribute("aria-pressed", "true");
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "42" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[1]!.timeRange.start).toBe(10);
+    expect(onSongUpdate.mock.calls[0]![0].sections[2]!.timeRange.start).toBe(42);
+    rerender(
+      <RehearsalPlayer
+        song={onSongUpdate.mock.calls[0]![0]}
+        onSongUpdate={onSongUpdate}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /chorus/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
   });
 
@@ -688,6 +796,9 @@ describe("RehearsalPlayer", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Start the count-in/i }),
     );
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 150 BPM/i);
     act(() => {
       vi.advanceTimersByTime(1600);
     });
@@ -702,6 +813,57 @@ describe("RehearsalPlayer", () => {
       20_000 / 0.75,
       5,
     );
+  });
+
+  it("keeps the remaining count-in beat when playback rate changes", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    fireEvent.change(screen.getByRole("combobox", { name: /Playback speed/i }), {
+      target: { value: "0.75" },
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 90 BPM/i);
+
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: /Playback speed/i }), {
+      target: { value: "1.25" },
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 150 BPM/i);
+
+    act(() => {
+      vi.advanceTimersByTime(369);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 150 BPM/i);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 3 beats at 150 BPM/i);
   });
 
   it("applies supported playback speed while preserving pitch when available", () => {

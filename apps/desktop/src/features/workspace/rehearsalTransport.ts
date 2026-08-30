@@ -27,6 +27,8 @@ export type RehearsalTransportPhase =
 
 /** Bounded loop window derived from one valid analyzed section. */
 export interface RehearsalLoopWindow {
+  sourceIndex: number;
+  selectionKey: string;
   sectionId: string;
   sectionLabel: string;
   startSeconds: number;
@@ -231,6 +233,7 @@ export function formatRehearsalClock(totalSeconds: number): string {
 export function createLoopWindow(
   section: RehearsalSection,
   tempo: unknown,
+  sourceIndex = 0,
 ): RehearsalLoopWindow | null {
   const snapshot = playableSectionSnapshot(section);
   if (!snapshot) {
@@ -238,6 +241,11 @@ export function createLoopWindow(
   }
   const { tempoBpm, tempoAssumed } = resolveRehearsalTempo(tempo);
   return {
+    sourceIndex,
+    selectionKey: JSON.stringify([
+      snapshot.id,
+      0,
+    ]),
     sectionId: snapshot.id,
     sectionLabel: snapshot.label,
     startSeconds: snapshot.startSeconds,
@@ -263,15 +271,36 @@ export function resolveLoopWindows(
   const tempo = ownDataValue(song, "tempo");
   const selectedRoleId =
     typeof roleId === "string" && roleId.trim() ? roleId : null;
-  return sections.flatMap((section) => {
+  const selectionOrdinals = new Map<string, number>();
+  return sections.flatMap((section, sourceIndex) => {
     if (!section || typeof section !== "object") {
+      return [];
+    }
+    const sectionId = ownDataValue(section, "id");
+    const ordinal =
+      typeof sectionId === "string"
+        ? (selectionOrdinals.get(sectionId) ?? 0)
+        : 0;
+    if (typeof sectionId === "string") {
+      selectionOrdinals.set(sectionId, ordinal + 1);
+    }
+    const window = createLoopWindow(
+      section as RehearsalSection,
+      tempo,
+      sourceIndex,
+    );
+    if (!window) {
       return [];
     }
     if (selectedRoleId && !sectionContainsRole(section, selectedRoleId)) {
       return [];
     }
-    const window = createLoopWindow(section as RehearsalSection, tempo);
-    return window ? [window] : [];
+    return [
+      {
+        ...window,
+        selectionKey: JSON.stringify([window.sectionId, ordinal]),
+      },
+    ];
   });
 }
 
@@ -498,6 +527,6 @@ export function nextActionValues(
     start: formatRehearsalClock(state.loop.startSeconds),
     end: formatRehearsalClock(state.loop.endSeconds),
     beats: String(state.countInRemainingBeats || state.loop.countInBeats),
-    tempo: String(state.loop.tempoBpm),
+    tempo: String(state.loop.tempoBpm * state.playbackRate),
   };
 }
