@@ -164,7 +164,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
-  const firstScore = useMemo(() => firstScoreCheck(song, activeRole), [activeRole, song]);
+  const scoreWorkspaceAvailable = useMemo(
+    () => safeProjectBootstrapSummary(sourceBootstrap) !== null,
+    [sourceBootstrap]
+  );
+  const firstScore = useMemo(
+    () => firstScoreCheck(song, activeRole, scoreWorkspaceAvailable),
+    [activeRole, scoreWorkspaceAvailable, song]
+  );
   const firstScoreCopy = firstScore
     ? fillRangeCopy(
         t(
