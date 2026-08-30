@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceFirstSegnoTitle": "오늘 먼저 맞출 세뇨",
+  "workspaceFirstSegnoReady": "오늘 첫 세뇨는 {label}입니다. 마지막 {sectionLabel} 다음에 {label}로 돌아간 뒤, 오늘 첫 음역을 확인하세요.",
+  "workspaceFirstSegnoReadyNoSection": "오늘 첫 세뇨는 {label}입니다. {label}로 함께 돌아간 다음, 첫 구간 이름을 정해 시작 위치를 공유하세요.",
+  "workspaceFirstSegnoMissing": "오늘 첫 세뇨는 아직 표시가 필요합니다. 첫 세뇨가 표시될 때까지 오늘 지도를 보고, 그다음 오늘 첫 음역을 확인하세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }

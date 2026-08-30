@@ -1023,6 +1023,35 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates segno correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.segno).toEqual({ label: "Segno" });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.segno = { label: "Segno 2" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).segno).toEqual({ label: "Segno 2" });
+
+    const withoutSegno = createDemoRehearsalSong();
+    delete withoutSegno.segno;
+    expect(isRehearsalSong(withoutSegno)).toBe(true);
+    expect(parseRehearsalSong(withoutSegno)).toEqual(withoutSegno);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), segno: "Segno" })).toThrow("segno");
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), segno: { label: 1 } })).toThrow(
+      "segno.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), segno: { label: "segno" } })).toThrow(
+      "segno.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), segno: { label: "D.S." } })).toThrow(
+      "segno.label"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), segno: { label: "Segno", extra: true } })
+    ).toThrow("segno.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;
