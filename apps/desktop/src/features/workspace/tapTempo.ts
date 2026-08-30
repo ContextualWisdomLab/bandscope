@@ -2,11 +2,11 @@ import type { RehearsalSong } from "@bandscope/shared-types";
 import { fillRangeCopy } from "./firstRangeSqueeze";
 
 export /**
- * Inclusive lower bound for a rehearsal-usable tap tempo.
- */ const MIN_TRUSTED_TEMPO_BPM = 20;
+ * Inclusive lower bound supported by the documented human tapping range.
+ */ const MIN_TRUSTED_TEMPO_BPM = 33;
 export /**
- * Inclusive upper bound for a rehearsal-usable tap tempo.
- */ const MAX_TRUSTED_TEMPO_BPM = 400;
+ * Inclusive upper bound supported by the documented human tapping range.
+ */ const MAX_TRUSTED_TEMPO_BPM = 300;
 export /**
  * Four taps yield three intervals, the minimum for a median BPM.
  */ const MIN_TAP_COUNT = 4;
@@ -99,7 +99,7 @@ export function inheritTapTempoSession(sourceSong: RehearsalSong, updatedSong: R
 }
 
 /**
- * Admit only a finite rehearsal-usable BPM in 20–400.
+ * Admit only a finite BPM in the documented 33–300 human tapping range.
  *
  * This bound applies to tempo measured from taps. Stored song tempo follows the
  * shared RehearsalSong contract, which accepts any finite positive BPM.

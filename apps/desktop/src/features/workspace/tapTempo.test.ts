@@ -20,12 +20,12 @@ function tapsAt(startMs: number, intervalMs: number, count: number) {
 }
 
 describe("trustedTempoBpm", () => {
-  it("admits only finite rehearsal-usable BPM in 20–400", () => {
+  it("admits only finite BPM in the documented 33–300 tapping range", () => {
     expect(trustedTempoBpm(120)).toBe(120);
-    expect(trustedTempoBpm(20)).toBe(20);
-    expect(trustedTempoBpm(400)).toBe(400);
-    expect(trustedTempoBpm(19)).toBeNull();
-    expect(trustedTempoBpm(401)).toBeNull();
+    expect(trustedTempoBpm(33)).toBe(33);
+    expect(trustedTempoBpm(300)).toBe(300);
+    expect(trustedTempoBpm(32)).toBeNull();
+    expect(trustedTempoBpm(301)).toBeNull();
     expect(trustedTempoBpm(0)).toBeNull();
     expect(trustedTempoBpm(Number.NaN)).toBeNull();
     expect(trustedTempoBpm("120")).toBeNull();
@@ -70,6 +70,7 @@ describe("tapTempoReading", () => {
     expect(tapTempoReading(medianState)?.tempoBpm).toBe(120);
 
     expect(tapTempoReading(tapsAt(0, 100, 4))).toBeNull();
+    expect(tapTempoReading(tapsAt(0, 1_800, 4))?.tempoBpm).toBe(33);
     expect(tapTempoReading(tapsAt(0, 4_000, 4))).toBeNull();
     expect(tapTempoReading({ tapsMs: [0, 200, 1_200, 1_400] })).toMatchObject({
       tempoBpm: 300,

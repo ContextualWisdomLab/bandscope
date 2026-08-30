@@ -7,7 +7,7 @@ When the ready rehearsal map has no trusted song tempo, the player taps a steady
 ## Authority
 
 - A stored tempo is trusted when `song.tempo` is finite and positive under the shared song contract. That hides the tap control so a session cannot override analysis; the narrower 20–400 BPM bound applies only to newly measured taps.
-- A session reading needs four taps, the median of the bounded history's intervals, and integer BPM still inside 20–400. The median limits the influence of a rushed, late, or paused tap; malformed clocks and prior state fail closed.
+- A session reading needs four taps, the median of the bounded history's intervals, and integer BPM still inside 33–300. The median limits the influence of a rushed, late, or paused tap; malformed clocks and prior state fail closed. The 33–300 BPM (200–1800 ms) boundary follows the documented human sensorimotor-synchronization range rather than an arbitrary UI threshold.
 
 ## Trust boundary
 
@@ -20,3 +20,5 @@ When the ready rehearsal map has no trusted song tempo, the player taps a steady
 International Organization for Standardization. (2019). *ISO 80000-3:2019 Quantities and units — Part 3: Space and time* (current edition; reviewed and confirmed in 2023). https://www.iso.org/standard/64974.html
 
 Kaya, E., & Henry, M. J. (2022). Reliable estimation of internal oscillator properties from a novel, fast-paced tapping paradigm. *Scientific Reports, 12*, 20466. https://doi.org/10.1038/s41598-022-24453-6
+
+Lem, N., & Fujioka, T. (2023). Individual differences of limitation to extract beat from Kuramoto coupled oscillators: Transition from beat-based tapping to frequent tapping with weaker coupling. *PLOS ONE, 18*(10), e0292059. https://doi.org/10.1371/journal.pone.0292059
