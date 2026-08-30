@@ -18,7 +18,7 @@ type RankedRoleMetadata = Readonly<{
 export type FirstHarmonicFunction = {
   section: RehearsalSection;
   sectionId: string;
-  sectionLabel: string;
+  sectionLabel: RehearsalSection["label"];
   holdingRole: RehearsalRole;
   holdingRoleId: string;
   holdingRoleName: string;
@@ -296,7 +296,7 @@ function resolveSafeFirstHarmonicFunction(song: RehearsalSong): FirstHarmonicFun
         {
           section: section as RehearsalSection,
           sectionId,
-          sectionLabel,
+          sectionLabel: sectionLabel as RehearsalSection["label"],
           holdingRole,
           holdingRoleId: holdingRoleMetadata.id,
           holdingRoleName: holdingRoleMetadata.name,
