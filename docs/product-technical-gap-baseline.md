@@ -378,6 +378,58 @@ The fixture is intentionally too short and tonally simple to qualify buyer-facin
 - The analyzer bounds file size and decoded duration before feature extraction, and low-confidence results remain visible rather than being presented as authoritative buyer-facing accuracy.
 - Validation points are the exact fixture bytes, finite BPM/beat output, bounded section/chord output, low-confidence handling, provenance/license manifest, and exact-head hosted review/check/approval re-query.
 
+### 4.18 2026-08-30 post-merge reconciliation
+
+The earlier sections are point-in-time captures and must not be read as the
+current hosted state. After those captures, the normal stacked merge sequence
+advanced the rehearsal-player line: #1062 merged at `949154375304ebef41e03d2e8bfde3ae86a40714`
+with merge commit `82ec4538a4452d38253509d142e72c7faa9c6b28`, #1063 merged at
+`d99c9358b4c7bdcbf7d090c287b40d8104f97ade` with merge commit
+`435cc020404b35d2f7aaeb777d4a049cfc45e416`, and #1069 merged at
+`b7fd15196a3ddb2855e367de3afa6515619d7931` with merge commit
+`e29739f92cf03a472b3bc8a61f92f569ca45a3cc`. The related role, cue, and
+transport slices #1066, #1067, and #1068 were also normally merged into their
+stacked parents. The current open umbrella PR #971 is `OPEN`, non-draft, and
+at head `e29739f92cf03a472b3bc8a61f92f569ca45a3cc` on protected
+`develop@749511c3ad4000090048718f685c6bee6b3d2c25`; this is stacked progress,
+not a protected `develop` merge.
+
+The canonical audio-resource line also advanced: #1065 merged its exact head
+`6bfe3c080026345d08dfbb7b637cdb07d7de3f6e` into the #985 branch with merge
+commit `209cc2fea4dea04876264bdf0cd8cb58c6b75eb5`. PR #985 remains draft and
+open on protected `develop`, now at head `209cc2fea4dea04876264bdf0cd8cb58c6b75eb5`.
+PR #892 likewise remains draft and open at head
+`9f50f446bb42b7ad1becf5377cdffd9b10e37b40`; #1064 is still stacked on that
+line. The #1071 and #1073 slices were normally merged into their respective
+stacked parents, but their parent PRs remain subject to their own current-head
+checks and protected-base gates.
+
+PRs #1070 (`92d8ffe3df69f33f43367e610cc2ffa08105e768`) and #1072
+(`759d571af92ddc6b13045e4f3ddc800cc44fcedd`) remain open, non-draft PRs on
+protected `develop`. Their repository/build/security/SBOM checks were
+successful at the captured heads, while Noema/Strix failed in the external
+provider or gateway preflight and OpenCode failed closed without an
+authenticated current-head verdict. They have no qualifying independent
+approval, so neither is merge evidence. Issue #770 and the known-take
+real-audio accuracy gap remain open; decoded or bundled fixture probes do not
+replace a representative known-take benchmark with quantitative accuracy
+thresholds.
+
+This reconciliation is a time-scoped snapshot. After every push or base-branch
+advance, re-fetch the exact PR head, same-SHA Checks, formal review decision,
+qualifying approval, unresolved threads, and merge state before changing the
+document or claiming readiness.
+
+#### Security Notes
+
+- This is documentation-only reconciliation; it adds no runtime file, URL,
+  subprocess, IPC, WebView, model, network, logging, or export boundary.
+- SHA values are repository metadata only; raw audio payloads, local paths, and
+  credentials are intentionally excluded. Stale predecessor evidence is kept
+  as historical context and explicitly superseded by the post-merge snapshot.
+- Validation points are the exact PR/base SHA queries, same-head hosted gate
+  results, review/approval/thread state, and re-query after any future push.
+
 시리즈 패턴: `feat(workspace): name tonight's first X on the map` — 워크스페이스 맵에 "오늘 밤 첫 X" next-action 카피를 올리고, Open 클릭 시 해당 섹션으로 이동. 각 PR은 role-owned plan 필드(예: `padPlan`)를 shared contract에 추가하고, own data-property descriptor 검증(Proxy `get` trap 방어), 한국어 조사 안전 카피(`패드`, `뱀프` 등), reduced-motion 처리, 그리고 강한 merge-gate 조항을 포함한다.
 
 capability cluster 분류와 착지 후 남는 Gap:
