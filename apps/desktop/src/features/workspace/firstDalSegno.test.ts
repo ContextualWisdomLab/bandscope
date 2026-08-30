@@ -10,10 +10,12 @@ import {
 } from "./firstDalSegno";
 
 describe("trustedDalSegno", () => {
-  it("admits only Gould/MusicXML D.S. and D.S. 1–9 labels", () => {
+  it("admits only own Gould/MusicXML D.S. and D.S. 1–9 labels", () => {
     expect(trustedDalSegno({ label: "D.S." })).toEqual({ label: "D.S." });
     expect(trustedDalSegno({ label: "D.S. 1" })).toEqual({ label: "D.S. 1" });
     expect(trustedDalSegno({ label: "D.S. 9" })).toEqual({ label: "D.S. 9" });
+    const inherited = Object.create({ label: "D.S." }) as Record<string, unknown>;
+    expect(trustedDalSegno(inherited)).toBeNull();
     expect(trustedDalSegno({ label: "d.s." })).toBeNull();
     expect(trustedDalSegno({ label: "DS" })).toBeNull();
     expect(trustedDalSegno({ label: " D.S." })).toBeNull();
@@ -66,14 +68,14 @@ describe("firstNamedSectionLabel", () => {
 });
 
 describe("firstDalSegnoPlan", () => {
-  it("builds a Dal Segno restart plan from the demo song", () => {
+  it("builds a Dal Segno restart plan without inventing a target section", () => {
     expect(firstDalSegnoPlan(createDemoRehearsalSong())).toEqual({
       label: "D.S.",
-      sectionLabel: "verse"
+      sectionLabel: undefined
     });
   });
 
-  it("uses the first meaningful section as the restart-at-the-segno anchor", () => {
+  it("does not assign the first named section as the segno location", () => {
     expect(
       firstDalSegnoPlan({
         dalSegno: { label: "D.S. 2" },
@@ -81,24 +83,16 @@ describe("firstDalSegnoPlan", () => {
       })
     ).toEqual({
       label: "D.S. 2",
-      sectionLabel: "intro"
+      sectionLabel: undefined
     });
   });
 
-  it("fails closed without a trusted Dal Segno and omits blank section labels", () => {
+  it("fails closed without a trusted Dal Segno", () => {
     const song = createDemoRehearsalSong();
     delete song.dalSegno;
     expect(firstDalSegnoPlan(song)).toBeNull();
     expect(firstDalSegnoPlan(undefined)).toBeNull();
     expect(firstDalSegnoPlan([])).toBeNull();
-
-    const unlabeled = createDemoRehearsalSong();
-    unlabeled.dalSegno = { label: "D.S. 3" };
-    unlabeled.sections = unlabeled.sections.map((section) => ({ ...section, label: "none" }));
-    expect(firstDalSegnoPlan(unlabeled)).toEqual({
-      label: "D.S. 3",
-      sectionLabel: undefined
-    });
   });
 });
 
