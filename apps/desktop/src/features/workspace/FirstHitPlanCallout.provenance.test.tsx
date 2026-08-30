@@ -58,7 +58,7 @@ describe("FirstHitPlanCallout hit-plan provenance", () => {
     expect(screen.queryByText(customPlan, { normalizer: preserveWhitespace })).toBeNull();
   });
 
-  it("localizes engine-shaped guidance whose target names a part in this lineup", () => {
+  it("localizes engine-shaped guidance whose target exactly names a part in this lineup", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
     const section = song.sections[0]!;
@@ -76,6 +76,24 @@ describe("FirstHitPlanCallout hit-plan provenance", () => {
       screen.getByText("Keyboard 1 Right Hand 파트와 이 히트를 맞추세요. 다운비트 뒤로 밀리지 마세요.")
     ).toBeTruthy();
     expect(screen.queryByText(engineLikePlan)).toBeNull();
+  });
+
+  it("does not authorize a model target through a lineup-name prefix", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    const section = song.sections[0]!;
+    for (const role of section.roles) {
+      role.hitPlan = "";
+    }
+    section.roles[1]!.name = "Lead Vocal";
+    const ambiguousPlan = "Land this hit with Lead; don't drift past the downbeat.";
+    section.roles[1]!.hitPlan = ambiguousPlan;
+    section.roles[1]!.hitPlanSource = "model";
+
+    render(<FirstHitPlanCallout song={song} />);
+
+    expect(screen.getByText(ambiguousPlan)).toBeTruthy();
+    expect(screen.queryByText("Lead 파트와 이 히트를 맞추세요. 다운비트 뒤로 밀리지 마세요.")).toBeNull();
   });
 
   it("localizes the engine's Accompaniment source label even without a lineup match", () => {
