@@ -507,7 +507,7 @@ describe("FirstEarCheckCallout", () => {
   });
 
   it("resolves the first ear check once per song instead of on every render", () => {
-    const resolveSpy = vi.spyOn(firstEarCheckModule, "resolveFirstEarCheck");
+    const resolveSpy = vi.spyOn(firstEarCheckModule, "resolveFirstEarCheckWithSectionIndex");
     try {
       const song = songWithEarCheck();
       const { rerender } = render(<FirstEarCheckCallout song={song} />);
