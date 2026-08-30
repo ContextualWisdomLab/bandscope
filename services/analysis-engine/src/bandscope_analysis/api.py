@@ -747,7 +747,7 @@ def _feature_cache_paths(
 
 
 def _legacy_feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
-    """Return the pre-fingerprint feature cache paths for one-time migration."""
+    """Return pre-fingerprint feature cache paths for one-time migration or invalidation."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
     cache_root = request.get("cacheRoot")
@@ -874,7 +874,8 @@ def _load_cached_local_audio_features(
     metadata_path: Path,
     arrays_path: Path,
     request: AnalysisJobRequest | None = None,
-    require_source_mtime: bool = False,
+    expected_source_fingerprint: str | None = None,
+    require_source_fingerprint: bool = False,
 ) -> dict[str, Any] | None:
     """Load cached stem/features payload, treating malformed files as cache misses."""
     try:
@@ -897,16 +898,11 @@ def _load_cached_local_audio_features(
             or cached_source.get("fileSizeBytes") != expected_source["fileSizeBytes"]
         ):
             return None
-        if require_source_mtime:
-            try:
-                source_stat = Path(expected_source["sourcePath"]).stat()
-                if (
-                    source_stat.st_size != expected_source["fileSizeBytes"]
-                    or source_stat.st_mtime_ns > metadata_path.stat().st_mtime_ns
-                ):
-                    return None
-            except OSError:
-                return None
+        if require_source_fingerprint and (
+            expected_source_fingerprint is None
+            or cached_source.get("sourceFingerprint") != expected_source_fingerprint
+        ):
+            return None
     if not isinstance(metadata_payload.get("sampleRate"), int):
         return None
     separation = metadata_payload.get("separation")
@@ -1320,7 +1316,8 @@ def run_analysis_job_updates(
             cached_features = _load_cached_local_audio_features(
                 *cast(tuple[Path, Path], legacy_feature_cache_paths),
                 request,
-                require_source_mtime=True,
+                source_fingerprint,
+                require_source_fingerprint=True,
             )
             legacy_feature_cache_loaded = cached_features is not None
         if cached_features is not None:
@@ -1413,6 +1410,26 @@ def run_analysis_job_updates(
     if temporal_features is not None:
         audio_features = {**(audio_features or {}), **temporal_features}
 
+    if source_fingerprint is not None and (
+        _local_audio_content_fingerprint(request) != source_fingerprint
+    ):
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                progress_label="Source audio changed during analysis",
+                progress_stage="analyze",
+                progress_percent=70,
+                cache_status=cache_status,
+                error={
+                    "code": "engine_unavailable",
+                    "message": "Source audio changed during analysis; retry the analysis.",
+                },
+            )
+        )
+        return updates
+
     result = build_demo_rehearsal_song(audio_features)
     updates.append(
         _build_job_status(
@@ -1425,17 +1442,10 @@ def run_analysis_job_updates(
             cache_status=cache_status,
         )
     )
-    cache_write_allowed = True
-    if source_fingerprint is not None:
-        cache_write_allowed = _local_audio_content_fingerprint(request) == source_fingerprint
-        if not cache_write_allowed:
-            logger.warning("Selected local audio changed during analysis; skipping cache writes.")
-
     final_cache_status = cache_status
     if (
         audio_features is not None
         and feature_cache_paths is not None
-        and cache_write_allowed
         and (not feature_cache_hit or legacy_feature_cache_loaded)
     ):
         feature_cache_stored = _store_cached_local_audio_features(
@@ -1449,7 +1459,7 @@ def run_analysis_job_updates(
             for legacy_path in cast(tuple[Path, Path], legacy_feature_cache_paths):
                 with suppress(OSError):
                     legacy_path.unlink()
-    if cache_path is not None and cache_write_allowed:
+    if cache_path is not None:
         final_cache_status = (
             "stored"
             if _store_cached_analysis(cache_path, request, result, source_fingerprint)

@@ -1,7 +1,6 @@
 """Tests for the public analysis-engine API helpers."""
 
 import json
-import os
 import queue
 import time
 from unittest.mock import patch
@@ -1029,7 +1028,8 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             metadata_path,
             arrays_path,
             request,
-            require_source_mtime=True,
+            _local_audio_content_fingerprint(request),
+            require_source_fingerprint=True,
         )
         is not None
     )
@@ -1104,22 +1104,24 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
         )
         is True
     )
+    stale_metadata = json.loads(stale_metadata_path.read_text(encoding="utf-8"))
+    stale_metadata["source"].pop("sourceFingerprint", None)
+    stale_metadata_path.write_text(json.dumps(stale_metadata), encoding="utf-8")
     stale_audio_path.write_bytes(b"BBBB")
-    future_mtime_ns = time.time_ns() + 1_000_000_000
-    os.utime(stale_audio_path, ns=(future_mtime_ns, future_mtime_ns))
     assert (
         _load_cached_local_audio_features(
             stale_metadata_path,
             stale_arrays_path,
             stale_request,
-            require_source_mtime=True,
+            _local_audio_content_fingerprint(stale_request),
+            require_source_fingerprint=True,
         )
         is None
     )
 
 
-def test_analysis_skips_cache_writes_when_source_changes_during_analysis(tmp_path) -> None:
-    """Ensure a mutable source cannot be cached under an earlier content identity."""
+def test_analysis_fails_when_source_changes_during_analysis(tmp_path) -> None:
+    """Ensure a mutable source cannot produce a mixed-version success result."""
     audio_path = tmp_path / "mutable.wav"
     audio_path.write_bytes(b"AAAA")
     request = validate_analysis_job_request(
@@ -1157,8 +1159,12 @@ def test_analysis_skips_cache_writes_when_source_changes_during_analysis(tmp_pat
             run_analysis_job_updates("job-mutable-source", request, "2026-03-12T00:00:00Z")
         )
 
-    assert updates[-1]["state"] == "succeeded"
-    assert updates[-1]["cacheStatus"] == "miss"
+    assert updates[-1]["state"] == "failed"
+    assert updates[-1]["progressStage"] == "analyze"
+    assert updates[-1]["error"] == {
+        "code": "engine_unavailable",
+        "message": "Source audio changed during analysis; retry the analysis.",
+    }
     store_features.assert_not_called()
     store_analysis.assert_not_called()
 
@@ -1318,7 +1324,8 @@ def test_local_feature_cache_rejects_missing_source_metadata_for_bound_request(t
             metadata_path,
             arrays_path,
             request,
-            require_source_mtime=True,
+            _local_audio_content_fingerprint(request),
+            require_source_fingerprint=True,
         )
         is None
     )
