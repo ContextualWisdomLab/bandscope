@@ -11,6 +11,7 @@ import {
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_HIT_PLAN_CHARACTERS = 180;
 const MIN_VISIBLE_HIT_PLAN_CHARACTERS = 16;
+const MAX_PRESERVED_HIT_PLAN_LEADING_WHITESPACE = 8;
 const GENERATED_ACTIVITY_HIT_PLAN_PREFIX = "Land this hit with ";
 const GENERATED_ACTIVITY_HIT_PLAN_SUFFIX = "; don't drift past the downbeat.";
 const GENERATED_ACTIVITY_HIT_PLAN_FIXED_CHARACTERS = Array.from(
@@ -123,15 +124,19 @@ function truncateCodePoints(value: string, maximum: number): string {
   return endIndex === value.length ? value : value.slice(0, endIndex);
 }
 
-/** Preserve fitting user formatting while preventing over-limit indentation from hiding guidance. */
+/** Preserve ordinary user formatting while preventing indentation from hiding bounded guidance. */
 function boundedUserHitPlan(value: string): string {
   const bounded = truncateCodePoints(value, MAX_HIT_PLAN_CHARACTERS);
-  if (bounded === value) {
-    return bounded;
+  const visibleBounded = bounded.trimStart();
+  const leadingWhitespaceCharacters =
+    Array.from(bounded).length - Array.from(visibleBounded).length;
+  if (
+    leadingWhitespaceCharacters > MAX_PRESERVED_HIT_PLAN_LEADING_WHITESPACE ||
+    (bounded !== value && Array.from(visibleBounded).length < MIN_VISIBLE_HIT_PLAN_CHARACTERS)
+  ) {
+    return truncateCodePoints(value.trimStart(), MAX_HIT_PLAN_CHARACTERS);
   }
-  return Array.from(bounded.trimStart()).length >= MIN_VISIBLE_HIT_PLAN_CHARACTERS
-    ? bounded
-    : truncateCodePoints(value.trimStart(), MAX_HIT_PLAN_CHARACTERS);
+  return bounded;
 }
 
 /** Keep a bounded engine-owned hit sentence structurally recognizable for localization. */
