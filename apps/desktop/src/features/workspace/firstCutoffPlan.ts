@@ -145,10 +145,7 @@ function boundedGeneratedActivityCutoffPlan(value: string): string | null {
 }
 
 /** Return a bounded snapshotted own cutoff plan and explicit source, or null when it cannot be shown. */
-function ownedCutoffPlan(role: unknown): OwnedCutoffPlan | null {
-  if (!isRuntimeObject(role)) {
-    return null;
-  }
+function ownedCutoffPlan(role: object): OwnedCutoffPlan | null {
   const cutoffPlan = ownDataValue(role, "cutoffPlan");
   if (typeof cutoffPlan !== "string") {
     return null;
@@ -242,16 +239,14 @@ function pickLandingRole<Role extends RankedRoleMetadata>(roles: Role[]): Role |
   if (roles.length === 0) {
     return null;
   }
-  return (
-    [...roles].sort((left, right) => {
-      const priorityDelta =
-        PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
-      if (priorityDelta !== 0) {
-        return priorityDelta;
-      }
-      return compareStableId(left.id, right.id);
-    })[0] ?? null
-  );
+  return [...roles].sort((left, right) => {
+    const priorityDelta =
+      PRIORITY_RANK[left.rehearsalPriority] - PRIORITY_RANK[right.rehearsalPriority];
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+    return compareStableId(left.id, right.id);
+  })[0]!;
 }
 
 /** Return ranked roles whose unique graph node is explicitly active. */
@@ -349,9 +344,7 @@ function resolveSafeFirstCutoffPlan(song: RehearsalSong): FirstCutoffPlan | null
           landingRoleId: landingRole.id,
           landingRoleName: landingRole.name,
           cutoffPlan: landingRole.cutoffPlan,
-          ...(landingRole.cutoffPlanSource === undefined
-            ? {}
-            : { cutoffPlanSource: landingRole.cutoffPlanSource }),
+          cutoffPlanSource: landingRole.cutoffPlanSource,
           atSeconds: timeRange.end
         }
       ];
