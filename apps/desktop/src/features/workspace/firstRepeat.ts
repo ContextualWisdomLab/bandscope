@@ -78,11 +78,12 @@ export function firstNamedSectionLabel(song: unknown): string | undefined {
 }
 
 /**
- * Build tonight's first repeat from a trusted stored chart repeat mark.
+ * Build tonight's first actionable repeat from a trusted stored chart mark.
  *
- * Missing, extra-keyed, or unusable repeat is not play-it-again authority.
- * The next action is still to stay on tonight's map, then check the first
- * range.
+ * A start-repeat (`|:`) marks where a repeated passage begins; it is not an
+ * instruction to play the passage again yet, so it fails closed here. The
+ * song-level repeat contract also carries no section identity, therefore this
+ * plan must not invent a passage anchor from the song's first named section.
  */
 export function firstRepeatPlan(song: RehearsalSong | unknown): FirstRepeatPlan | null {
   if (!isRuntimeObject(song)) {
@@ -90,13 +91,13 @@ export function firstRepeatPlan(song: RehearsalSong | unknown): FirstRepeatPlan 
   }
 
   const repeat = trustedRepeat(song.repeat);
-  if (repeat === null) {
+  if (repeat === null || repeat.label === "|:") {
     return null;
   }
 
   return {
     label: repeat.label,
-    sectionLabel: firstNamedSectionLabel(song)
+    sectionLabel: undefined
   };
 }
 
