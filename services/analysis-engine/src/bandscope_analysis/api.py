@@ -357,13 +357,17 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     return normalized
 
 
-def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
+def build_demo_rehearsal_song(
+    audio_features: dict[str, Any] | None = None,
+    *,
+    include_demo_coda: bool = True,
+) -> RehearsalSong:
     """Return the bootstrap rehearsal song payload for orchestration tests.
 
     When audio_features includes real stems from separation, this function runs
     the full integrated pipeline: structural segmentation, stem activity detection,
-    temporal grid fusion, and role extraction. Falls back to the arrangement-based
-    extraction when no real audio features are available.
+    temporal grid fusion, and role extraction. Arrangement fallback publishes the
+    demo coda only when the caller explicitly retains demo authority.
     """
     features = audio_features or {}
     stems = features.get("stems", {})
@@ -375,8 +379,8 @@ def build_demo_rehearsal_song(audio_features: dict[str, Any] | None = None) -> R
     if stems and duration_seconds > 0:
         return _build_from_pipeline(stems, sr, duration_seconds, features)
 
-    # --- Fallback: arrangement-based extraction (demo mode) ---
-    return _build_from_arrangement(audio_features)
+    # --- Fallback: arrangement-based extraction. Demo coda remains caller-authorized only. ---
+    return _build_from_arrangement(audio_features, include_demo_coda=include_demo_coda)
 
 
 def _build_from_pipeline(
@@ -396,12 +400,12 @@ def _build_from_pipeline(
     # Reconstruct mix from stems for segmentation
     mix = _reconstruct_mix(stems)
     if mix.size == 0:
-        return _build_from_arrangement(features)
+        return _build_from_arrangement(features, include_demo_coda=False)
 
     # 1+2. Structural segmentation and boundary detection (single pass)
     detected_sections, boundaries = segment_with_boundaries(mix, sr, duration_seconds)
     if not detected_sections:
-        return _build_from_arrangement(features)
+        return _build_from_arrangement(features, include_demo_coda=False)
 
     # 3. Role extraction with real stem activity
     extractor = RoleExtractor()
@@ -477,7 +481,11 @@ def _build_from_pipeline(
     return song
 
 
-def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> RehearsalSong:
+def _build_from_arrangement(
+    audio_features: dict[str, Any] | None = None,
+    *,
+    include_demo_coda: bool = True,
+) -> RehearsalSong:
     """Build a RehearsalSong from the arrangement-based extraction path."""
     arrangement = [{"label": "verse", "groove": "Straight eighths with a late snare feel"}]
     extraction_result = extract_sections(arrangement)
@@ -491,7 +499,6 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
     song: RehearsalSong = {
         "id": "demo-song",
         "title": "Late Night Set",
-        "coda": {"label": "Coda"},
         "sections": [
             {
                 "id": verse_section["id"],
@@ -513,6 +520,8 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
             "focusSections": ["verse"],
         },
     }
+    if include_demo_coda:
+        song["coda"] = {"label": "Coda"}
     _apply_tempo(song, audio_features)
     return song
 
@@ -1211,7 +1220,10 @@ def run_analysis_job_updates(
         )
     )
 
-    result = build_demo_rehearsal_song(audio_features)
+    result = build_demo_rehearsal_song(
+        audio_features,
+        include_demo_coda=request["sourceKind"] == "demo",
+    )
     updates.append(
         _build_job_status(
             job_id=job_id,
