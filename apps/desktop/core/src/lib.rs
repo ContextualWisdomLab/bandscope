@@ -122,10 +122,48 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    key: Option<RehearsalKeyPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RehearsalKeyPayload {
+    fifths: i32,
+    mode: String,
+}
+
+impl<'de> Deserialize<'de> for RehearsalKeyPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawRehearsalKeyPayload {
+            fifths: i32,
+            mode: String,
+        }
+
+        let raw = RawRehearsalKeyPayload::deserialize(deserializer)?;
+        if !(-7..=7).contains(&raw.fifths) {
+            return Err(serde::de::Error::custom(
+                "key fifths must be between -7 and 7",
+            ));
+        }
+        if raw.mode != "major" && raw.mode != "minor" {
+            return Err(serde::de::Error::custom("key mode must be major or minor"));
+        }
+
+        Ok(Self {
+            fifths: raw.fifths,
+            mode: raw.mode,
+        })
+    }
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -810,6 +848,44 @@ mod tests {
     }
 
     #[test]
+    fn rehearsal_song_payload_round_trips_optional_key() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["key"] = json!({ "fifths": 4, "mode": "major" });
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with a key should deserialize");
+        let key = parsed
+            .key
+            .as_ref()
+            .expect("key should survive deserialization");
+        assert_eq!(key.fifths, 4);
+        assert_eq!(key.mode, "major");
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("keyed song payload should serialize back");
+        assert_eq!(serialized["key"], json!({ "fifths": 4, "mode": "major" }));
+
+        let loaded = project_payload_from_content(
+            &serde_json::to_string(&serialized).expect("keyed payload should encode"),
+        )
+        .expect("keyed project should load");
+        assert_eq!(loaded.key.as_ref().map(|value| value.fifths), Some(4));
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_key() {
+        for key in [
+            json!({ "fifths": 8, "mode": "major" }),
+            json!({ "fifths": 4, "mode": "dorian" }),
+            json!({ "fifths": 4, "mode": "major", "confidence": "high" }),
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["key"] = key;
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
+    }
+
+    #[test]
     fn rehearsal_song_payload_accepts_legacy_files_without_score_attachments() {
         let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
 
@@ -817,9 +893,11 @@ mod tests {
             .expect("legacy payload without score attachments should deserialize");
 
         assert!(parsed.score_attachments.is_none());
+        assert!(parsed.key.is_none());
         let serialized =
             serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
         assert!(serialized.get("scoreAttachments").is_none());
+        assert!(serialized.get("key").is_none());
     }
 
     #[test]
