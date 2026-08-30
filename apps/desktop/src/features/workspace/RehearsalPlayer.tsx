@@ -633,7 +633,14 @@ export function RehearsalPlayer({
         } else {
           startOrResume();
         }
-      } else if (event.key === "Escape" && canStop) {
+      } else if (
+        event.key === "Escape" &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        canStop
+      ) {
         event.preventDefault();
         stopTransport();
       }

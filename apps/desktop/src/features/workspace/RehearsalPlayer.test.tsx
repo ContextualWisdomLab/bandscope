@@ -533,6 +533,10 @@ describe("RehearsalPlayer", () => {
     );
     const stop = screen.getByRole("button", { name: /Stop/i });
     stop.focus();
+    fireEvent.keyDown(stop, { key: "Escape", altKey: true });
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /paused/i,
+    );
     fireEvent.keyDown(stop, { key: "Escape" });
     expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
       /Start the count-in/i,
