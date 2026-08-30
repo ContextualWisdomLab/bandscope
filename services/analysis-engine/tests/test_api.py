@@ -1,6 +1,7 @@
 """Tests for the public analysis-engine API helpers."""
 
 import json
+import os
 import queue
 import time
 from unittest.mock import patch
@@ -12,6 +13,7 @@ from bandscope_analysis.api import (
     _analysis_cache_path,
     _build_local_audio_features,
     _feature_cache_paths,
+    _legacy_feature_cache_paths,
     _load_cached_analysis,
     _load_cached_local_audio_features,
     _local_audio_content_fingerprint,
@@ -966,6 +968,8 @@ def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp
 
 def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_path) -> None:
     """Ensure reusable stem/features cache can be loaded on subsequent analyses."""
+    audio_path = tmp_path / "legacy.wav"
+    audio_path.write_bytes(b"AAAA")
     request = validate_analysis_job_request(
         {
             "sourceKind": "local_audio",
@@ -973,16 +977,16 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "sourceLabel": "late-night-set.wav",
             "roleFocus": ["bass-guitar"],
             "localSource": {
-                "sourcePath": "/Users/test/Music/late-night-set.wav",
-                "fileName": "late-night-set.wav",
+                "sourcePath": str(audio_path),
+                "fileName": audio_path.name,
                 "extension": "wav",
-                "fileSizeBytes": 1024000,
+                "fileSizeBytes": 4,
             },
             "cacheRoot": str(tmp_path / "cache"),
             "tempRoot": str(tmp_path / "temp"),
         }
     )
-    metadata_path, arrays_path = _feature_cache_paths(request) or (None, None)
+    metadata_path, arrays_path = _legacy_feature_cache_paths(request) or (None, None)
     assert metadata_path is not None
     assert arrays_path is not None
     assert metadata_path.parent.name == "analysis-cache-v1"
@@ -1019,15 +1023,26 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
         "drums": "instrument",
         "other": "instrument",
     }
+    assert _load_cached_local_audio_features(metadata_path, arrays_path, request) is not None
+    assert (
+        _load_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            require_source_mtime=True,
+        )
+        is not None
+    )
+    mismatched_request = {
+        **request,
+        "localSource": {**request["localSource"], "fileSizeBytes": 999},
+    }
+    assert _load_cached_local_audio_features(metadata_path, arrays_path, mismatched_request) is None
 
     with (
         patch(
             "bandscope_analysis.api._load_cached_analysis",
             return_value=None,
-        ),
-        patch(
-            "bandscope_analysis.api._load_cached_local_audio_features",
-            return_value=loaded,
         ),
         patch("bandscope_analysis.api.TemporalAnalyzer") as temporal_analyzer,
         patch(
@@ -1045,7 +1060,6 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
             return_value=[],
         ),
-        patch("bandscope_analysis.api._store_cached_local_audio_features") as store_features,
     ):
         temporal_analyzer.return_value.analyze.return_value = {
             "bpm": 120.0,
@@ -1058,9 +1072,95 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
     assert updates[-1]["state"] == "succeeded"
     assert updates[-1]["result"]["tempoStability"]["stability"] == "steady"
     separator_class.return_value.separate.assert_not_called()
-    store_features.assert_not_called()
     temporal_analyzer.return_value.analyze.assert_called_once()
+    migrated_metadata_path, migrated_arrays_path = _feature_cache_paths(request) or (None, None)
+    assert migrated_metadata_path is not None
+    assert migrated_arrays_path is not None
+    assert migrated_metadata_path.exists()
+    assert migrated_arrays_path.exists()
+    assert not metadata_path.exists()
+    assert not arrays_path.exists()
     assert list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
+
+    stale_audio_path = tmp_path / "stale-legacy.wav"
+    stale_audio_path.write_bytes(b"AAAA")
+    stale_request = {
+        **request,
+        "localSource": {
+            **request["localSource"],
+            "sourcePath": str(stale_audio_path),
+            "fileName": stale_audio_path.name,
+        },
+    }
+    stale_metadata_path, stale_arrays_path = _legacy_feature_cache_paths(stale_request) or (
+        None,
+        None,
+    )
+    assert stale_metadata_path is not None
+    assert stale_arrays_path is not None
+    assert (
+        _store_cached_local_audio_features(
+            stale_metadata_path, stale_arrays_path, stale_request, features
+        )
+        is True
+    )
+    stale_audio_path.write_bytes(b"BBBB")
+    future_mtime_ns = time.time_ns() + 1_000_000_000
+    os.utime(stale_audio_path, ns=(future_mtime_ns, future_mtime_ns))
+    assert (
+        _load_cached_local_audio_features(
+            stale_metadata_path,
+            stale_arrays_path,
+            stale_request,
+            require_source_mtime=True,
+        )
+        is None
+    )
+
+
+def test_analysis_skips_cache_writes_when_source_changes_during_analysis(tmp_path) -> None:
+    """Ensure a mutable source cannot be cached under an earlier content identity."""
+    audio_path = tmp_path / "mutable.wav"
+    audio_path.write_bytes(b"AAAA")
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": audio_path.name,
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": str(audio_path),
+                "fileName": audio_path.name,
+                "extension": "wav",
+                "fileSizeBytes": 4,
+            },
+            "cacheRoot": str(tmp_path / "cache"),
+            "tempRoot": str(tmp_path / "temp"),
+        }
+    )
+
+    def mutate_source(_request, _source_fingerprint=None):
+        audio_path.write_bytes(b"BBBB")
+        return {}
+
+    with (
+        patch(
+            "bandscope_analysis.api._build_local_audio_features",
+            side_effect=mutate_source,
+        ),
+        patch("bandscope_analysis.api._build_local_temporal_features", return_value=None),
+        patch("bandscope_analysis.api.build_demo_rehearsal_song", return_value={"id": "song"}),
+        patch("bandscope_analysis.api._store_cached_local_audio_features") as store_features,
+        patch("bandscope_analysis.api._store_cached_analysis") as store_analysis,
+    ):
+        updates = list(
+            run_analysis_job_updates("job-mutable-source", request, "2026-03-12T00:00:00Z")
+        )
+
+    assert updates[-1]["state"] == "succeeded"
+    assert updates[-1]["cacheStatus"] == "miss"
+    store_features.assert_not_called()
+    store_analysis.assert_not_called()
 
 
 def test_stem_work_arrays_path_requires_local_temp_root(tmp_path) -> None:
@@ -1096,6 +1196,8 @@ def test_stem_work_arrays_path_requires_local_temp_root(tmp_path) -> None:
     assert _stem_work_arrays_path(demo_request) is None
     assert _stem_work_arrays_path(local_request) is None
     assert _stem_work_arrays_path(local_request_with_temp) is not None
+    assert _legacy_feature_cache_paths(demo_request) is None
+    assert _legacy_feature_cache_paths(local_request) is None
 
 
 def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None:
@@ -1169,6 +1271,133 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     )
     with patch("bandscope_analysis.api.np.load", return_value=BadArchive()):
         assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
+def test_local_feature_cache_rejects_missing_source_metadata_for_bound_request(tmp_path) -> None:
+    """Ensure a cache without source metadata cannot be reused during migration."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    metadata_path.write_text('{"schemaVersion": 1}', encoding="utf-8")
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+        }
+    )
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path, request) is None
+
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "source": {
+                    "fileName": "late-night-set.wav",
+                    "extension": "wav",
+                    "fileSizeBytes": 1024000,
+                },
+                "sampleRate": 22050,
+                "separation": {},
+                "stemKeys": ["bass"],
+                "stemRoleTypes": {"bass": "instrument"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    np.savez_compressed(arrays_path, stem_bass=np.zeros(4))
+    assert (
+        _load_cached_local_audio_features(
+            metadata_path,
+            arrays_path,
+            request,
+            require_source_mtime=True,
+        )
+        is None
+    )
+
+
+def test_analysis_reports_cache_miss_when_feature_cache_store_fails(tmp_path) -> None:
+    """Ensure a failed feature migration does not delete the legacy cache."""
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+            "cacheRoot": str(tmp_path / "cache"),
+            "tempRoot": str(tmp_path / "temp"),
+        }
+    )
+
+    with (
+        patch("bandscope_analysis.api._build_local_audio_features", return_value={}),
+        patch("bandscope_analysis.api._build_local_temporal_features", return_value=None),
+        patch("bandscope_analysis.api.build_demo_rehearsal_song", return_value={"id": "song"}),
+        patch(
+            "bandscope_analysis.api._store_cached_local_audio_features",
+            return_value=False,
+        ) as store_features,
+        patch("bandscope_analysis.api._store_cached_analysis", return_value=False),
+    ):
+        updates = list(
+            run_analysis_job_updates("job-feature-store-failure", request, "2026-03-12T00:00:00Z")
+        )
+
+    assert updates[-1]["state"] == "succeeded"
+    assert updates[-1]["cacheStatus"] == "miss"
+    store_features.assert_called_once()
+
+
+def test_analysis_uses_current_feature_cache_without_legacy_lookup(tmp_path) -> None:
+    """Ensure a current feature-cache hit does not fall through to migration."""
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+            "cacheRoot": str(tmp_path / "cache"),
+            "tempRoot": str(tmp_path / "temp"),
+        }
+    )
+
+    with (
+        patch("bandscope_analysis.api._load_cached_analysis", return_value=None),
+        patch(
+            "bandscope_analysis.api._load_cached_local_audio_features",
+            return_value={},
+        ) as load_features,
+        patch("bandscope_analysis.api._build_local_temporal_features", return_value=None),
+        patch("bandscope_analysis.api.build_demo_rehearsal_song", return_value={"id": "song"}),
+        patch("bandscope_analysis.api._store_cached_analysis", return_value=False),
+    ):
+        updates = list(
+            run_analysis_job_updates("job-current-feature-cache", request, "2026-03-12T00:00:00Z")
+        )
+
+    assert updates[1]["progressLabel"] == "Loaded reusable stems... (45%)"
+    assert updates[-1]["state"] == "succeeded"
+    assert load_features.call_count == 1
 
 
 def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
