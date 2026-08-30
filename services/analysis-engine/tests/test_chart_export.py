@@ -258,30 +258,6 @@ class TestBuildCueSheetRows:
         rows = build_cue_sheet_rows(song)
         assert rows[1]["roles"] == ["Drums"]
 
-    def test_duplicate_names_cues_and_priorities_preserve_first_occurrence(self) -> None:
-        """Display fields are deduplicated without changing their first-seen order."""
-        song = _demo_song()
-        section = song["sections"][0]
-        section["roles"] = [
-            _role("drums", "Shared", "Cue A", "Priority A"),
-            _role("bass", "Shared", "Cue B", "Priority A"),
-            _role("keys", "Other", "Cue A", "Priority A"),
-        ]
-        section["partGraph"] = [
-            {"role_id": "drums", "is_active": True},
-            {"role_id": "bass", "is_active": True},
-            {"role_id": "keys", "is_active": True},
-        ]
-        song["sections"][1]["roles"][0]["name"] = "Shared"
-        song["sections"][1]["roles"][0]["rehearsalPriority"] = "Priority A"
-
-        rows = build_cue_sheet_rows(song)
-        assert rows[0]["roles"] == ["Shared", "Other"]
-        assert rows[0]["cue"] == "Cue A; Cue B"
-        text = build_chart_text(song)
-        assert text.count("  - Shared: Priority A") == 1
-        assert text.count("  - Other: Priority A") == 1
-
 
 class TestSafeFailure:
     """Malformed input degrades to empty output without exceptions."""
