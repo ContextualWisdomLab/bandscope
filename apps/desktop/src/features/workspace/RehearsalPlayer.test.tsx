@@ -672,6 +672,9 @@ describe("RehearsalPlayer", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Start the count-in/i }),
     );
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 150 BPM/i);
     act(() => {
       vi.advanceTimersByTime(1600);
     });
@@ -686,6 +689,47 @@ describe("RehearsalPlayer", () => {
       20_000 / 0.75,
       5,
     );
+  });
+
+  it("keeps the remaining count-in beat when playback rate changes", () => {
+    setNavigatorLanguage("en-US");
+    vi.useFakeTimers();
+    installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    fireEvent.change(screen.getByRole("combobox", { name: /Playback speed/i }), {
+      target: { value: "0.75" },
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 90 BPM/i);
+
+    act(() => {
+      vi.advanceTimersByTime(133);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 4 beats at 90 BPM/i);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(
+      screen.getByTestId("rehearsal-loop-next-action").textContent,
+    ).toMatch(/Count in 3 beats at 90 BPM/i);
   });
 
   it("applies supported playback speed while preserving pitch when available", () => {

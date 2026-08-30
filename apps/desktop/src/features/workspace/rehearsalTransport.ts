@@ -503,6 +503,6 @@ export function nextActionValues(
     start: formatRehearsalClock(state.loop.startSeconds),
     end: formatRehearsalClock(state.loop.endSeconds),
     beats: String(state.countInRemainingBeats || state.loop.countInBeats),
-    tempo: String(state.loop.tempoBpm),
+    tempo: String(state.loop.tempoBpm * state.playbackRate),
   };
 }

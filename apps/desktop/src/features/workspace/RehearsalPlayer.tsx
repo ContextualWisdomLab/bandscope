@@ -179,6 +179,11 @@ export function RehearsalPlayer({
   );
   const lastHandledStartNonce = useRef(0);
   const restartAudioOnLoopRef = useRef(false);
+  const countInBeatRef = useRef<{
+    durationMs: number;
+    startedAt: number;
+    remainingBeats: number;
+  } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioSourceUrl = useMemo(
     () => resolveAudioSourceUrl(audioSourcePath),
@@ -330,15 +335,53 @@ export function RehearsalPlayer({
 
   useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
+      countInBeatRef.current = null;
       return undefined;
     }
-    const timer = window.setInterval(() => {
-      setTransport((current) =>
-        reduceRehearsalTransport(current, { type: "beat" }),
-      );
-    }, beatDurationMs(transport.loop.tempoBpm) / transport.playbackRate);
-    return () => window.clearInterval(timer);
-  }, [transport.phase, transport.loop, transport.playbackRate]);
+    const durationMs =
+      beatDurationMs(transport.loop.tempoBpm) / transport.playbackRate;
+    const now = performance.now();
+    const previous = countInBeatRef.current;
+    const sameBeat =
+      previous?.remainingBeats === transport.countInRemainingBeats;
+    const elapsedMs = sameBeat
+      ? Math.max(0, now - previous.startedAt)
+      : 0;
+    const progress = sameBeat
+      ? Math.min(1, elapsedMs / previous.durationMs)
+      : 0;
+    countInBeatRef.current = {
+      durationMs,
+      startedAt: now,
+      remainingBeats: transport.countInRemainingBeats,
+    };
+    let timer: number | undefined;
+    /** Schedule the next count-in beat without coupling it to React commits. */
+    const scheduleBeat = (delayMs: number) => {
+      timer = window.setTimeout(() => {
+        const current = countInBeatRef.current;
+        if (!current || current.remainingBeats <= 0) {
+          return;
+        }
+        current.remainingBeats -= 1;
+        setTransport((state) => reduceRehearsalTransport(state, { type: "beat" }));
+        if (current.remainingBeats > 0) {
+          current.startedAt = performance.now();
+          scheduleBeat(current.durationMs);
+        }
+      }, delayMs);
+    };
+    scheduleBeat(Math.ceil(Math.max(0, durationMs * (1 - progress))));
+    return () => {
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [
+    transport.loop,
+    transport.phase,
+    transport.playbackRate,
+  ]);
 
   useEffect(() => {
     if (!audioSourceUrl || !transport.loop) {
