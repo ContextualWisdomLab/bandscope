@@ -162,8 +162,9 @@ describe("Workspace", () => {
     const callout = screen.getByTestId("first-ds-al-coda");
     expect(callout).toHaveTextContent("Tonight's first D.S. al Coda");
     expect(callout).toHaveTextContent(
-      "Tonight's first D.S. al Coda is D.S. al Coda: at D.S. al Coda, return to the segno and take the coda jump, then name the first section so the room knows where it starts."
+      "Tonight's first D.S. al Coda is D.S. al Coda: at D.S. al Coda, return to the segno and take the coda jump, then check tonight's first range."
     );
+    expect(callout).not.toHaveTextContent("name the first section");
     expect(callout).not.toHaveTextContent("start the first verse");
   });
 
@@ -179,16 +180,18 @@ describe("Workspace", () => {
     );
   });
 
-  it("keeps D.S. al Coda copy target-agnostic even when the first section is unnamed", () => {
+  it("keeps D.S. al Coda copy target-agnostic when section labels change", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
-    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+    song.sections = song.sections.map((section) => ({ ...section, label: "chorus" }));
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByTestId("first-ds-al-coda")).toHaveTextContent(
-      "Tonight's first D.S. al Coda is D.S. al Coda: at D.S. al Coda, return to the segno and take the coda jump, then name the first section so the room knows where it starts."
+    const callout = screen.getByTestId("first-ds-al-coda");
+    expect(callout).toHaveTextContent(
+      "Tonight's first D.S. al Coda is D.S. al Coda: at D.S. al Coda, return to the segno and take the coda jump, then check tonight's first range."
     );
+    expect(callout).not.toHaveTextContent("chorus");
   });
 
   it("asks for an ear check when the selected part has no named span", () => {
