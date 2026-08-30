@@ -4,9 +4,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type FocusEvent,
+  type KeyboardEvent,
   type ReactElement,
 } from "react";
-import type { RehearsalSong } from "@bandscope/shared-types";
+import {
+  MAX_SECTION_TIME_SECONDS,
+  type RehearsalSong,
+} from "@bandscope/shared-types";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +26,8 @@ import {
   formatRehearsalClock,
   nextActionTemplateKey,
   nextActionValues,
+  isRehearsalPlaybackRate,
+  rehearsalPlaybackRates,
   reduceRehearsalTransport,
   resolveLoopWindows,
   type RehearsalLoopWindow,
@@ -29,8 +36,11 @@ import {
 
 interface RehearsalPlayerProps {
   song: RehearsalSong;
+  onSongUpdate?: (song: RehearsalSong) => void;
   hasLocalAudio?: boolean;
   audioSourcePath?: string | null;
+  activeRole?: string | null;
+  activeRoleName?: string | null;
   startNonce?: number;
 }
 
@@ -79,6 +89,7 @@ function hasSameLoopTiming(
   next: RehearsalLoopWindow,
 ): boolean {
   return (
+    current.selectionKey === next.selectionKey &&
     current.sectionId === next.sectionId &&
     current.startSeconds === next.startSeconds &&
     current.endSeconds === next.endSeconds &&
@@ -87,19 +98,79 @@ function hasSameLoopTiming(
   );
 }
 
+/** Return a stable selection key when analysis emits duplicate section IDs. */
+function loopSelectionKey(loop: RehearsalLoopWindow): string {
+  return loop.selectionKey;
+}
+
 /** Render tonight's first section loop with a count-in and a named next action. */
 export function RehearsalPlayer({
   song,
+  onSongUpdate,
   hasLocalAudio = false,
   audioSourcePath = null,
+  activeRole = null,
+  activeRoleName = null,
   startNonce = 0,
 }: RehearsalPlayerProps): ReactElement {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const playableLoops = useMemo(() => resolveLoopWindows(song), [song]);
-  const [selectedSectionIndex, setSelectedSectionIndex] = useState(0);
-  const selectedRendererIndex = playableLoops[selectedSectionIndex]
-    ? selectedSectionIndex
-    : 0;
+  const playableLoops = useMemo(
+    () => resolveLoopWindows(song, activeRole),
+    [activeRole, song],
+  );
+  const [selectedLoopKey, setSelectedLoopKey] = useState<string | null>(null);
+  const [boundaryError, setBoundaryError] = useState(false);
+  const selectedLoop =
+    playableLoops.find((loop) => loopSelectionKey(loop) === selectedLoopKey) ??
+    playableLoops[0] ??
+    null;
+  const selectedBoundaryKey = selectedLoop ? loopSelectionKey(selectedLoop) : null;
+  const [boundaryDraft, setBoundaryDraft] = useState(() => ({
+    end: selectedLoop ? String(selectedLoop.endSeconds) : "",
+    start: selectedLoop ? String(selectedLoop.startSeconds) : "",
+  }));
+  useEffect(() => {
+    setBoundaryError(false);
+    setBoundaryDraft({
+      end: selectedLoop ? String(selectedLoop.endSeconds) : "",
+      start: selectedLoop ? String(selectedLoop.startSeconds) : "",
+    });
+  }, [selectedBoundaryKey, selectedLoop?.endSeconds, selectedLoop?.startSeconds]);
+  const handleSectionKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+        return;
+      }
+      const focusedIndex = Number(event.currentTarget.dataset.loopIndex);
+      const selectedIndex = selectedLoop
+        ? playableLoops.indexOf(selectedLoop)
+        : -1;
+      const currentIndex =
+        Number.isSafeInteger(focusedIndex) &&
+        focusedIndex >= 0 &&
+        focusedIndex < playableLoops.length
+          ? focusedIndex
+          : selectedIndex;
+      const nextIndex =
+        currentIndex + (event.key === "ArrowRight" ? 1 : -1);
+      if (
+        currentIndex < 0 ||
+        nextIndex < 0 ||
+        nextIndex >= playableLoops.length
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const nextLoop = playableLoops[nextIndex];
+      setSelectedLoopKey(loopSelectionKey(nextLoop));
+      document
+        .getElementById(
+          `rehearsal-loop-section-${loopSelectionKey(nextLoop)}-${nextIndex}`,
+        )
+        ?.focus();
+    },
+    [playableLoops, selectedLoop],
+  );
   const [transport, setTransport] = useState<RehearsalTransportState>(() =>
     reduceRehearsalTransport(createIdleTransportState(), {
       type: "arm",
@@ -108,6 +179,11 @@ export function RehearsalPlayer({
   );
   const lastHandledStartNonce = useRef(0);
   const restartAudioOnLoopRef = useRef(false);
+  const countInBeatRef = useRef<{
+    durationMs: number;
+    startedAt: number;
+    remainingBeats: number;
+  } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioSourceUrl = useMemo(
     () => resolveAudioSourceUrl(audioSourcePath),
@@ -182,24 +258,42 @@ export function RehearsalPlayer({
   }, [audioSourceUrl, hasNativeAudioConversionError]);
 
   useEffect(() => {
-    const nextLoop = playableLoops[selectedRendererIndex] ?? null;
     setTransport((current) => {
       if (
         current.loop &&
-        nextLoop &&
-        hasSameLoopTiming(current.loop, nextLoop)
+        selectedLoop &&
+        hasSameLoopTiming(current.loop, selectedLoop)
       ) {
         if (
-          current.loop.sectionLabel === nextLoop.sectionLabel &&
-          current.loop.tempoAssumed === nextLoop.tempoAssumed
+          current.loop.sectionLabel === selectedLoop.sectionLabel &&
+          current.loop.tempoAssumed === selectedLoop.tempoAssumed &&
+          current.loop.sourceIndex === selectedLoop.sourceIndex
         ) {
           return current;
         }
-        return { ...current, loop: nextLoop };
+        return { ...current, loop: selectedLoop };
       }
-      return reduceRehearsalTransport(current, { type: "arm", loop: nextLoop });
+      return reduceRehearsalTransport(current, {
+        type: "arm",
+        loop: selectedLoop,
+      });
     });
-  }, [playableLoops, selectedRendererIndex]);
+  }, [selectedLoop]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    try {
+      audio.playbackRate = transport.playbackRate;
+      if ("preservesPitch" in audio) {
+        audio.preservesPitch = true;
+      }
+    } catch {
+      handlePlaybackError();
+    }
+  }, [audioSourceUrl, handlePlaybackError, transport.playbackRate]);
 
   useEffect(() => {
     if (startNonce <= lastHandledStartNonce.current) {
@@ -209,7 +303,6 @@ export function RehearsalPlayer({
     if (!hasPlayableAudio) {
       return;
     }
-    const selectedLoop = playableLoops[selectedRendererIndex] ?? null;
     if (selectedLoop) {
       setPlaybackError(false);
       startAudio(selectedLoop, false);
@@ -225,8 +318,7 @@ export function RehearsalPlayer({
     startAudio,
     startNonce,
     hasPlayableAudio,
-    playableLoops,
-    selectedRendererIndex,
+    selectedLoop,
   ]);
 
   useEffect(() => {
@@ -243,15 +335,53 @@ export function RehearsalPlayer({
 
   useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
+      countInBeatRef.current = null;
       return undefined;
     }
-    const timer = window.setInterval(() => {
-      setTransport((current) =>
-        reduceRehearsalTransport(current, { type: "beat" }),
-      );
-    }, beatDurationMs(transport.loop.tempoBpm));
-    return () => window.clearInterval(timer);
-  }, [transport.phase, transport.loop]);
+    const durationMs =
+      beatDurationMs(transport.loop.tempoBpm) / transport.playbackRate;
+    const now = performance.now();
+    const previous = countInBeatRef.current;
+    const sameBeat =
+      previous?.remainingBeats === transport.countInRemainingBeats;
+    const elapsedMs = sameBeat
+      ? Math.max(0, now - previous.startedAt)
+      : 0;
+    const progress = sameBeat
+      ? Math.min(1, elapsedMs / previous.durationMs)
+      : 0;
+    countInBeatRef.current = {
+      durationMs,
+      startedAt: now,
+      remainingBeats: transport.countInRemainingBeats,
+    };
+    let timer: number | undefined;
+    /** Schedule the next count-in beat without coupling it to React commits. */
+    const scheduleBeat = (delayMs: number) => {
+      timer = window.setTimeout(() => {
+        const current = countInBeatRef.current;
+        if (!current || current.remainingBeats <= 0) {
+          return;
+        }
+        current.remainingBeats -= 1;
+        setTransport((state) => reduceRehearsalTransport(state, { type: "beat" }));
+        if (current.remainingBeats > 0) {
+          current.startedAt = performance.now();
+          scheduleBeat(current.durationMs);
+        }
+      }, delayMs);
+    };
+    scheduleBeat(Math.ceil(Math.max(0, durationMs * (1 - progress))));
+    return () => {
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [
+    transport.loop,
+    transport.phase,
+    transport.playbackRate,
+  ]);
 
   useEffect(() => {
     if (!audioSourceUrl || !transport.loop) {
@@ -297,6 +427,7 @@ export function RehearsalPlayer({
       return undefined;
     }
     const loop = transport.loop;
+    const playbackRate = transport.playbackRate;
     let boundaryTimer: number | undefined;
     /** Cancel the pending media-clock boundary check. */
     const clearBoundaryTimer = () => {
@@ -337,7 +468,12 @@ export function RehearsalPlayer({
         } else {
           scheduleLoopBoundary();
         }
-      }, Math.min(remainingSeconds * 1000, 2_147_483_647));
+      },
+        Math.min(
+          (remainingSeconds / playbackRate) * 1000,
+          2_147_483_647,
+        ),
+      );
     };
     /** Keep the map playhead aligned with the scoped audio element. */
     const syncPlayhead = () => {
@@ -365,13 +501,29 @@ export function RehearsalPlayer({
       audio.removeEventListener("error", failPlayback);
       audio.removeEventListener("ended", failPlayback);
     };
-  }, [audioSourceUrl, handlePlaybackError, transport.phase, transport.loop]);
+  }, [
+    audioSourceUrl,
+    handlePlaybackError,
+    transport.phase,
+    transport.loop,
+    transport.playbackRate,
+  ]);
 
   const actionKey = nextActionTemplateKey(transport, hasPlayableAudio);
-  const nextAction = fillRehearsalCopy(
-    t(actionKey as TranslationKey),
-    nextActionValues(transport),
-  );
+  const nextAction =
+    activeRoleName && playableLoops.length === 0
+      ? fillRehearsalCopy(t("workspaceLoopNoRoleSections"), {
+          roleName: activeRoleName,
+        })
+      : fillRehearsalCopy(
+          t(actionKey as TranslationKey),
+          nextActionValues(transport),
+        );
+  const sectionPickerLabel = activeRoleName
+    ? fillRehearsalCopy(t("workspaceLoopSectionPickerForRole"), {
+        roleName: activeRoleName,
+      })
+    : t("workspaceLoopSectionPickerLabel");
   const canStart =
     transport.loop !== null &&
     hasPlayableAudio &&
@@ -383,6 +535,84 @@ export function RehearsalPlayer({
     transport.phase === "paused"
       ? t("workspaceLoopResume")
       : t("workspaceLoopStart");
+  const handleBoundaryBlur = useCallback(
+    (boundary: "start" | "end", event: FocusEvent<HTMLInputElement>) => {
+      if (!selectedLoop || !onSongUpdate) {
+        return;
+      }
+      const rawValue = event.currentTarget.value.trim();
+      const value = Number(rawValue);
+      const valid =
+        rawValue !== "" &&
+        Number.isSafeInteger(value) &&
+        value >= 0 &&
+        value <= MAX_SECTION_TIME_SECONDS &&
+        (boundary === "start"
+          ? value < selectedLoop.endSeconds
+          : value > selectedLoop.startSeconds);
+      if (!valid) {
+        const currentValue =
+          boundary === "start"
+            ? selectedLoop.startSeconds
+            : selectedLoop.endSeconds;
+        setBoundaryDraft((current) => ({
+          ...current,
+          [boundary]: String(currentValue),
+        }));
+        setBoundaryError(true);
+        return;
+      }
+
+      setBoundaryError(false);
+      const currentValue =
+        boundary === "start"
+          ? selectedLoop.startSeconds
+          : selectedLoop.endSeconds;
+      if (value === currentValue) {
+        setBoundaryDraft((current) => ({
+          ...current,
+          [boundary]: String(currentValue),
+        }));
+        return;
+      }
+
+      const sectionIndex = selectedLoop.sourceIndex;
+      const section = song.sections[sectionIndex];
+      if (
+        !section ||
+        section.id !== selectedLoop.sectionId ||
+        section.timeRange.start !== selectedLoop.startSeconds ||
+        section.timeRange.end !== selectedLoop.endSeconds
+      ) {
+        return;
+      }
+      const nextSong = {
+        ...song,
+        sections: song.sections.map((currentSection, index) =>
+          index === sectionIndex
+            ? {
+                ...section,
+                timeRange: {
+                  ...section.timeRange,
+                  [boundary]: value,
+                },
+              }
+            : currentSection,
+        ),
+      };
+      const nextLoop =
+        boundary === "start"
+          ? { ...selectedLoop, startSeconds: value }
+          : { ...selectedLoop, endSeconds: value };
+      setBoundaryDraft((current) => ({
+        ...current,
+        [boundary]: String(value),
+      }));
+      setSelectedLoopKey(loopSelectionKey(nextLoop));
+      onSongUpdate(nextSong);
+    },
+    [onSongUpdate, selectedLoop, song],
+  );
 
   return (
     <section
@@ -400,27 +630,44 @@ export function RehearsalPlayer({
       >
         {nextAction}
       </p>
+      {activeRoleName && playableLoops.length > 0 ? (
+        <p
+          className="mt-3 text-xs font-semibold text-cyan-100"
+          data-testid="rehearsal-loop-role-filter"
+        >
+          {fillRehearsalCopy(t("workspaceLoopRoleFilterHint"), {
+            roleName: activeRoleName,
+          })}
+        </p>
+      ) : null}
       {playableLoops.length > 0 ? (
         <div
           className="mt-3 flex flex-wrap gap-2"
           role="group"
-          aria-label={t("workspaceLoopSectionPickerLabel")}
+          aria-label={sectionPickerLabel}
         >
           {playableLoops.map((loop, index) => {
-            const selected = index === selectedRendererIndex;
+            const selectionKey = loopSelectionKey(loop);
+            const selected =
+              selectedLoop !== null &&
+              selectionKey === loopSelectionKey(selectedLoop);
             return (
               <Button
-                key={`rehearsal-loop-section-${index}`}
+                key={`rehearsal-loop-section-${selectionKey}-${index}`}
                 type="button"
                 variant={selected ? "default" : "outline"}
                 size="sm"
+                id={`rehearsal-loop-section-${selectionKey}-${index}`}
+                data-loop-index={index}
                 aria-pressed={selected}
+                aria-keyshortcuts="ArrowLeft ArrowRight"
                 className={
                   selected
                     ? "min-h-10 border-cyan-300/30 bg-cyan-300 font-semibold text-slate-950"
                     : "min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100"
                 }
-                onClick={() => setSelectedSectionIndex(index)}
+                onClick={() => setSelectedLoopKey(selectionKey)}
+                onKeyDown={handleSectionKeyDown}
               >
                 <span>{loop.sectionLabel}</span>
                 <span> · </span>
@@ -433,6 +680,112 @@ export function RehearsalPlayer({
           })}
         </div>
       ) : null}
+      {playableLoops.length > 1 ? (
+        <p
+          className="mt-2 text-xs text-slate-400"
+          data-testid="rehearsal-loop-keyboard-hint"
+        >
+          {t("workspaceLoopSectionKeyboardHint")}
+        </p>
+      ) : null}
+      {selectedLoop && onSongUpdate ? (
+        <div
+          className="mt-3 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.06] p-3"
+          data-testid="rehearsal-loop-boundary-editor"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-100">
+              {t("workspaceLoopBoundaryTitle")}
+            </p>
+            <span className="rounded-full border border-indigo-200/20 bg-indigo-200/10 px-2 py-1 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-indigo-100">
+              {t("workspaceLoopBoundaryCorrectionBadge")}
+            </span>
+          </div>
+          <p
+            className={`mt-2 text-xs ${boundaryError ? "text-amber-200" : "text-slate-400"}`}
+            id="rehearsal-loop-boundary-hint"
+          >
+            {boundaryError
+              ? t("workspaceLoopBoundaryError")
+              : t("workspaceLoopBoundaryHint")}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs font-semibold text-slate-300">
+              <span>{t("workspaceLoopBoundaryStartLabel")}</span>
+              <input
+                aria-describedby="rehearsal-loop-boundary-hint"
+                aria-invalid={boundaryError}
+                className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                id="rehearsal-loop-boundary-start"
+                max={MAX_SECTION_TIME_SECONDS}
+                min={0}
+                onBlur={(event) => handleBoundaryBlur("start", event)}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setBoundaryDraft((current) => ({ ...current, start: value }));
+                }}
+                step={1}
+                type="number"
+                value={boundaryDraft.start}
+              />
+            </label>
+            <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs font-semibold text-slate-300">
+              <span>{t("workspaceLoopBoundaryEndLabel")}</span>
+              <input
+                aria-describedby="rehearsal-loop-boundary-hint"
+                aria-invalid={boundaryError}
+                className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                id="rehearsal-loop-boundary-end"
+                max={MAX_SECTION_TIME_SECONDS}
+                min={0}
+                onBlur={(event) => handleBoundaryBlur("end", event)}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setBoundaryDraft((current) => ({ ...current, end: value }));
+                }}
+                step={1}
+                type="number"
+                value={boundaryDraft.end}
+              />
+            </label>
+          </div>
+        </div>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <label className="flex min-h-11 items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
+          <span>{t("workspaceLoopPlaybackRateLabel")}</span>
+          <select
+            aria-describedby="rehearsal-loop-playback-rate-hint"
+            aria-label={t("workspaceLoopPlaybackRateLabel")}
+            className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold normal-case tracking-normal text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            data-testid="rehearsal-loop-playback-rate"
+            value={transport.playbackRate}
+            onChange={(event) => {
+              const nextRate = Number(event.currentTarget.value);
+              if (isRehearsalPlaybackRate(nextRate)) {
+                setTransport((current) =>
+                  reduceRehearsalTransport(current, {
+                    type: "set-playback-rate",
+                    rate: nextRate,
+                  }),
+                );
+              }
+            }}
+          >
+            {rehearsalPlaybackRates().map((rate) => (
+              <option key={rate} value={rate}>
+                {rate}×
+              </option>
+            ))}
+          </select>
+        </label>
+        <p
+          className="text-xs text-slate-400"
+          id="rehearsal-loop-playback-rate-hint"
+        >
+          {t("workspaceLoopPlaybackRateHint")}
+        </p>
+      </div>
       <div
         className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"
         aria-hidden="true"

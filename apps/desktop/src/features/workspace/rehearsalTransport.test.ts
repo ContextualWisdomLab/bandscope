@@ -6,11 +6,14 @@ import {
   createLoopWindow,
   fillRehearsalCopy,
   formatRehearsalClock,
+  isRehearsalPlaybackRate,
   isPlayableLoopSection,
   nextActionTemplateKey,
   nextActionValues,
+  rehearsalPlaybackRates,
   reduceRehearsalTransport,
   resolveLoopWindow,
+  resolveLoopWindows,
   resolveRehearsalTempo,
   wrapPlayhead,
 } from "./rehearsalTransport";
@@ -57,6 +60,27 @@ describe("rehearsalTransport", () => {
     expect(window?.endSeconds).toBe(64);
   });
 
+  it("filters loop windows to sections containing the selected role", () => {
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    chorus.roles = chorus.roles.filter((role) => role.id !== "lead-vocal");
+    song.sections.push(chorus);
+
+    expect(
+      resolveLoopWindows(song, "lead-vocal").map((window) => window.sectionId),
+    ).toEqual(["verse-1"]);
+    expect(
+      resolveLoopWindows(song, "bass-guitar").map((window) => window.sectionId),
+    ).toEqual(["verse-1", "chorus-1"]);
+    expect(resolveLoopWindows(song).map((window) => window.sectionId)).toEqual([
+      "verse-1",
+      "chorus-1",
+    ]);
+  });
+
   it("rejects a sparse hostile section array without scanning its declared length", () => {
     const song = createDemoRehearsalSong();
     song.sections = new Array(0xffffffff) as typeof song.sections;
@@ -78,6 +102,30 @@ describe("rehearsalTransport", () => {
       tempoAssumed: false,
     });
     expect(beatDurationMs(120)).toBe(500);
+  });
+
+  it("keeps playback speed inside the supported media contract", () => {
+    const loop = resolveLoopWindow(createDemoRehearsalSong());
+    const armed = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+
+    expect(rehearsalPlaybackRates()).toEqual([0.75, 1, 1.25]);
+    expect(isRehearsalPlaybackRate(0.75)).toBe(true);
+    expect(isRehearsalPlaybackRate(2)).toBe(false);
+    expect(
+      reduceRehearsalTransport(armed, {
+        type: "set-playback-rate",
+        rate: 0.75,
+      }).playbackRate,
+    ).toBe(0.75);
+    expect(
+      reduceRehearsalTransport(armed, {
+        type: "set-playback-rate",
+        rate: 2 as never,
+      }),
+    ).toBe(armed);
   });
 
   it("counts in four beats then wraps the playhead inside the section", () => {

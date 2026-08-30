@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import {
   createDemoRehearsalSong,
   type ProjectBootstrapSummary,
@@ -229,6 +229,52 @@ describe("Workspace", () => {
     expect(
       screen.queryByRole("button", { name: /Loop section coming soon/i }),
     ).toBeNull();
+  });
+
+  it("passes the selected role into the player section filter", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    chorus.roles = chorus.roles.filter((role) => role.id !== "lead-vocal");
+    song.sections.push(chorus);
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    const playerSections = screen.getByRole("group", {
+      name: "Playable sections for Lead Vocal",
+    });
+    expect(within(playerSections).getByRole("button", { name: /verse/i })).toBeTruthy();
+    expect(within(playerSections).queryByRole("button", { name: /chorus/i })).toBeNull();
+  });
+
+  it("clears a role that is absent after replacing the song", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const replacement = createDemoRehearsalSong();
+    replacement.sections = replacement.sections.map((section) => ({
+      ...section,
+      roles: section.roles.filter((role) => role.id !== "lead-vocal"),
+    }));
+
+    const { rerender } = render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+    expect(screen.getByTestId("rehearsal-loop-role-filter")).toHaveTextContent(
+      "Showing sections that include Lead Vocal.",
+    );
+
+    rerender(<Workspace song={replacement} />);
+
+    expect(screen.queryByTestId("rehearsal-loop-role-filter")).toBeNull();
+    expect(
+      screen.getByRole("tab", { name: "All Roles", selected: true }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("rehearsal-loop-next-action")).not.toHaveTextContent(
+      /No playable sections include Lead Vocal/i,
+    );
   });
 
   it("enables bass transcription from selected role metadata rather than role id text", () => {

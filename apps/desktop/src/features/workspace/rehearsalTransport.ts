@@ -8,6 +8,18 @@ const DEFAULT_REHEARSAL_TEMPO_BPM = 120;
 const DEFAULT_COUNT_IN_BEATS = 4;
 const MIN_REHEARSAL_TEMPO_BPM = 30;
 const MAX_REHEARSAL_TEMPO_BPM = 300;
+const DEFAULT_REHEARSAL_PLAYBACK_RATE = 1;
+
+/** Documented playback-rate choices supported by the rehearsal media contract. */
+const REHEARSAL_PLAYBACK_RATES = [0.75, 1, 1.25] as const;
+
+/** Playback-rate value accepted by the rehearsal media contract. */
+export type RehearsalPlaybackRate = (typeof REHEARSAL_PLAYBACK_RATES)[number];
+
+/** Return the supported playback-rate choices for the rehearsal control. */
+export function rehearsalPlaybackRates(): readonly RehearsalPlaybackRate[] {
+  return REHEARSAL_PLAYBACK_RATES;
+}
 
 /** Documented rehearsal transport phases for the first section loop. */
 export type RehearsalTransportPhase =
@@ -15,6 +27,8 @@ export type RehearsalTransportPhase =
 
 /** Bounded loop window derived from one valid analyzed section. */
 export interface RehearsalLoopWindow {
+  sourceIndex: number;
+  selectionKey: string;
   sectionId: string;
   sectionLabel: string;
   startSeconds: number;
@@ -30,6 +44,7 @@ export interface RehearsalTransportState {
   loop: RehearsalLoopWindow | null;
   countInRemainingBeats: number;
   playheadSeconds: number;
+  playbackRate: RehearsalPlaybackRate;
 }
 
 /** Discrete transport commands that never inspect the filesystem. */
@@ -39,6 +54,7 @@ export type RehearsalTransportEvent =
   | { type: "beat" }
   | { type: "sync"; playheadSeconds: number }
   | { type: "tick"; deltaSeconds: number }
+  | { type: "set-playback-rate"; rate: RehearsalPlaybackRate }
   | { type: "pause" }
   | { type: "stop" };
 
@@ -52,6 +68,16 @@ type PlayableSectionSnapshot = Readonly<{
 /** Return true only for finite numeric values greater than or equal to zero. */
 export function isFiniteNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/** Return true only for playback rates supported by the rehearsal contract. */
+export function isRehearsalPlaybackRate(
+  value: unknown,
+): value is RehearsalPlaybackRate {
+  return (
+    typeof value === "number" &&
+    REHEARSAL_PLAYBACK_RATES.includes(value as RehearsalPlaybackRate)
+  );
 }
 
 /** Read one own data-property value without activating accessors or Proxy get traps. */
@@ -142,6 +168,20 @@ function playableSectionSnapshot(
   };
 }
 
+/** Return whether a snapshotted section contains the selected rehearsal role. */
+function sectionContainsRole(section: object, roleId: string): boolean {
+  const roles = ownedDenseArray(ownDataValue(section, "roles"));
+  if (!roles) {
+    return false;
+  }
+  return roles.some(
+    (role) =>
+      role !== null &&
+      typeof role === "object" &&
+      ownDataValue(role, "id") === roleId,
+  );
+}
+
 /** Return whether a section exposes a usable closed loop window. */
 export function isPlayableLoopSection(
   section: RehearsalSection | undefined | null,
@@ -192,6 +232,7 @@ export function formatRehearsalClock(totalSeconds: number): string {
 export function createLoopWindow(
   section: RehearsalSection,
   tempo: unknown,
+  sourceIndex = 0,
 ): RehearsalLoopWindow | null {
   const snapshot = playableSectionSnapshot(section);
   if (!snapshot) {
@@ -199,6 +240,11 @@ export function createLoopWindow(
   }
   const { tempoBpm, tempoAssumed } = resolveRehearsalTempo(tempo);
   return {
+    sourceIndex,
+    selectionKey: JSON.stringify([
+      snapshot.id,
+      0,
+    ]),
     sectionId: snapshot.id,
     sectionLabel: snapshot.label,
     startSeconds: snapshot.startSeconds,
@@ -212,6 +258,7 @@ export function createLoopWindow(
 /** Snapshot every playable loop window from one untrusted song record. */
 export function resolveLoopWindows(
   song: RehearsalSong | null | undefined,
+  roleId: string | null | undefined = null,
 ): RehearsalLoopWindow[] {
   if (!song || typeof song !== "object") {
     return [];
@@ -221,12 +268,38 @@ export function resolveLoopWindows(
     return [];
   }
   const tempo = ownDataValue(song, "tempo");
-  return sections.flatMap((section) => {
+  const selectedRoleId =
+    typeof roleId === "string" && roleId.trim() ? roleId : null;
+  const selectionOrdinals = new Map<string, number>();
+  return sections.flatMap((section, sourceIndex) => {
     if (!section || typeof section !== "object") {
       return [];
     }
-    const window = createLoopWindow(section as RehearsalSection, tempo);
-    return window ? [window] : [];
+    const sectionId = ownDataValue(section, "id");
+    const ordinal =
+      typeof sectionId === "string"
+        ? (selectionOrdinals.get(sectionId) ?? 0)
+        : 0;
+    if (typeof sectionId === "string") {
+      selectionOrdinals.set(sectionId, ordinal + 1);
+    }
+    const window = createLoopWindow(
+      section as RehearsalSection,
+      tempo,
+      sourceIndex,
+    );
+    if (!window) {
+      return [];
+    }
+    if (selectedRoleId && !sectionContainsRole(section, selectedRoleId)) {
+      return [];
+    }
+    return [
+      {
+        ...window,
+        selectionKey: JSON.stringify([window.sectionId, ordinal]),
+      },
+    ];
   });
 }
 
@@ -254,6 +327,7 @@ export function createIdleTransportState(): RehearsalTransportState {
     loop: null,
     countInRemainingBeats: 0,
     playheadSeconds: 0,
+    playbackRate: DEFAULT_REHEARSAL_PLAYBACK_RATE,
   };
 }
 
@@ -286,6 +360,7 @@ export function reduceRehearsalTransport(
         loop: event.loop,
         countInRemainingBeats: event.loop.countInBeats,
         playheadSeconds: event.loop.startSeconds,
+        playbackRate: state.playbackRate,
       };
     }
     case "start": {
@@ -348,6 +423,12 @@ export function reduceRehearsalTransport(
         ),
       };
     }
+    case "set-playback-rate": {
+      if (!isRehearsalPlaybackRate(event.rate)) {
+        return state;
+      }
+      return { ...state, playbackRate: event.rate };
+    }
     case "pause": {
       if (state.phase !== "looping" && state.phase !== "counting-in") {
         return state;
@@ -363,6 +444,7 @@ export function reduceRehearsalTransport(
         loop: state.loop,
         countInRemainingBeats: state.loop.countInBeats,
         playheadSeconds: state.loop.startSeconds,
+        playbackRate: state.playbackRate,
       };
     }
     default:
@@ -421,6 +503,6 @@ export function nextActionValues(
     start: formatRehearsalClock(state.loop.startSeconds),
     end: formatRehearsalClock(state.loop.endSeconds),
     beats: String(state.countInRemainingBeats || state.loop.countInBeats),
-    tempo: String(state.loop.tempoBpm),
+    tempo: String(state.loop.tempoBpm * state.playbackRate),
   };
 }
