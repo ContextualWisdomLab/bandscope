@@ -73,6 +73,17 @@ def _section_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
     return [role for role in roles if isinstance(role, Mapping)]
 
 
+def _hashable_text(value: object) -> str | None:
+    """Return non-empty string-like text only when it is safe as a mapping key."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        hash(value)
+    except Exception:
+        return None
+    return value
+
+
 def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
     """Return active role ids from the part graph, or ``None`` when absent."""
     part_graph = section.get("partGraph")
@@ -82,8 +93,8 @@ def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
     for node in part_graph:
         if not isinstance(node, Mapping) or node.get("is_active") is not True:
             continue
-        role_id = node.get("role_id")
-        if type(role_id) is str and role_id:
+        role_id = _hashable_text(node.get("role_id"))
+        if role_id is not None:
             active[role_id] = None
     return list(active)
 
@@ -102,23 +113,18 @@ def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
         return roles
     by_id: dict[str, Mapping[str, object]] = {}
     for role in roles:
-        role_id = role.get("id")
-        if type(role_id) is str and role_id not in by_id:
+        role_id = _hashable_text(role.get("id"))
+        if role_id is not None and role_id not in by_id:
             by_id[role_id] = role
     return [by_id.get(role_id, {"id": role_id, "name": role_id}) for role_id in active_ids]
 
 
 def _role_display_name(role: Mapping[str, object]) -> str | None:
-    """Return a plain-string display name, falling back to a plain-string id."""
-    name = role.get("name")
-    if type(name) is str and name:
+    """Return a hashable display name, falling back to a hashable role id."""
+    name = _hashable_text(role.get("name"))
+    if name is not None:
         return name
-    if isinstance(name, str) and type(name) is not str:
-        return None
-    role_id = role.get("id")
-    if type(role_id) is str and role_id:
-        return role_id
-    return None
+    return _hashable_text(role.get("id"))
 
 
 def _active_role_names(section: Mapping[str, object]) -> list[str]:
@@ -138,8 +144,8 @@ def _section_cue(section: Mapping[str, object]) -> str:
         cue = role.get("cue")
         if not isinstance(cue, Mapping):
             continue
-        value = cue.get("value")
-        if type(value) is str and value:
+        value = _hashable_text(cue.get("value"))
+        if value is not None:
             cues[value] = None
     return "; ".join(cues)
 
