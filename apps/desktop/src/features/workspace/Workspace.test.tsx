@@ -196,6 +196,47 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first count-out and the next leave-together", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-count-out");
+    expect(callout).toHaveTextContent("Tonight's first count-out");
+    expect(callout).toHaveTextContent("verse ends at 0:30. Count out that last bar before you leave the verse.");
+  });
+
+  it("keeps the selected active part on tonight's first count-out", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-count-out")).toHaveTextContent(
+      "verse ends at 0:30. Count out that last bar before you leave the verse."
+    );
+  });
+
+  it("asks the player to confirm the end when the selected part sits out", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0] = {
+      ...song.sections[0]!,
+      partGraph: song.sections[0]!.partGraph.map((node) =>
+        node.role_id === "keys-right" ? { ...node, is_active: false } : node
+      )
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Keyboard 1 Right Hand" }));
+
+    expect(screen.getByTestId("first-count-out")).toHaveTextContent(
+      "Tonight's first count-out still needs an end time. Confirm where the first section ends before you leave it."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -325,5 +366,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText("오늘 먼저 맞출 끝 박")).toBeTruthy();
   });
 });
