@@ -145,7 +145,7 @@ function boundedGeneratedActivityHitPlan(value: string): string | null {
   return `${GENERATED_ACTIVITY_HIT_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_HIT_PLAN_SUFFIX}`;
 }
 
-/** Return a bounded snapshotted own hit plan and explicit source, or null when it cannot be shown. */
+/** Return a snapshotted own hit plan and explicit source, or null when it cannot be shown. */
 function ownedHitPlan(role: unknown): OwnedHitPlan | null {
   if (!isRuntimeObject(role)) {
     return null;
@@ -157,11 +157,14 @@ function ownedHitPlan(role: unknown): OwnedHitPlan | null {
   if (!isNonEmptySingleLineText(hitPlan)) {
     return null;
   }
-  const trimmed = hitPlan.trim();
   const hitPlanSource = ownDataValue(role, "hitPlanSource");
   if (hitPlanSource !== "model" && hitPlanSource !== "user") {
     return null;
   }
+  if (hitPlanSource === "user") {
+    return { hitPlan, hitPlanSource };
+  }
+  const trimmed = hitPlan.trim();
   return {
     hitPlan:
       boundedGeneratedActivityHitPlan(trimmed) ??
