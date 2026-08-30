@@ -603,16 +603,28 @@ export function RehearsalPlayer({
     /** Keep transport shortcuts out of editable controls. */
     const handleTransportShortcut = (event: KeyboardEvent) => {
       const target = event.target;
+      const targetIsButtonOrLink =
+        target instanceof Element && target.closest("button, a") !== null;
+      const targetIsEditable =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("input, select, textarea") !== null);
       if (
         event.defaultPrevented ||
         event.repeat ||
-        (target instanceof HTMLElement &&
-          (target.isContentEditable ||
-            target.closest("button, a, input, select, textarea")))
+        targetIsEditable
       ) {
         return;
       }
-      if (event.key === " " && (canPause || canStart)) {
+      if (
+        event.key === " " &&
+        !targetIsButtonOrLink &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        (canPause || canStart)
+      ) {
         event.preventDefault();
         if (canPause) {
           setTransport((current) =>

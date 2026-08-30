@@ -490,7 +490,7 @@ describe("RehearsalPlayer", () => {
     expect(seek).toHaveValue("18.5");
   });
 
-  it("supports transport shortcuts without capturing field editing", () => {
+  it("supports transport shortcuts without capturing controls or modifiers", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
     const { play } = installPlayableAudioMocks();
@@ -521,12 +521,19 @@ describe("RehearsalPlayer", () => {
     act(() => {
       vi.advanceTimersByTime(2000);
     });
+    fireEvent.keyDown(window, { key: " ", ctrlKey: true });
+    fireEvent.keyDown(window, { key: " ", shiftKey: true });
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /looping/i,
+    );
     fireEvent.keyDown(window, { key: " " });
     fireEvent.keyDown(window, { key: " ", repeat: true });
     expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
       /paused/i,
     );
-    fireEvent.keyDown(window, { key: "Escape" });
+    const stop = screen.getByRole("button", { name: /Stop/i });
+    stop.focus();
+    fireEvent.keyDown(stop, { key: "Escape" });
     expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
       /Start the count-in/i,
     );
