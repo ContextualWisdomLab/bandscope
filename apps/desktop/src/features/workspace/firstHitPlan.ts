@@ -108,7 +108,7 @@ function ownedDenseRuntimeArray(value: unknown): unknown[] | null {
   return items;
 }
 
-/** Bound buyer-visible model text by Unicode code points without splitting a surrogate pair. */
+/** Bound buyer-visible hit-plan text by Unicode code points without splitting a surrogate pair. */
 function truncateCodePoints(value: string, maximum: number): string {
   let codePoints = 0;
   let endIndex = 0;
@@ -120,6 +120,14 @@ function truncateCodePoints(value: string, maximum: number): string {
     codePoints += 1;
   }
   return endIndex === value.length ? value : value.slice(0, endIndex);
+}
+
+/** Preserve ordinary user formatting while keeping a pathological whitespace prefix from hiding guidance. */
+function boundedUserHitPlan(value: string): string {
+  const bounded = truncateCodePoints(value, MAX_HIT_PLAN_CHARACTERS);
+  return isNonEmptySingleLineText(bounded)
+    ? bounded
+    : truncateCodePoints(value.trimStart(), MAX_HIT_PLAN_CHARACTERS);
 }
 
 /** Keep a bounded engine-owned hit sentence structurally recognizable for localization. */
@@ -160,7 +168,7 @@ function ownedHitPlan(role: RehearsalRole): OwnedHitPlan | null {
     return null;
   }
   if (hitPlanSource === "user") {
-    return { hitPlan: truncateCodePoints(hitPlan, MAX_HIT_PLAN_CHARACTERS), hitPlanSource };
+    return { hitPlan: boundedUserHitPlan(hitPlan), hitPlanSource };
   }
   const trimmed = hitPlan.trim();
   return {
