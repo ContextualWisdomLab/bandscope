@@ -41,3 +41,23 @@ it("uses the owned sections snapshot without invoking a proxy get trap", () => {
   expect(readSections).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Open Bass Guitar ear check at 0:10" })).toBeTruthy();
 });
+
+it("rejects a hostile nested time-range accessor without invoking it for identity", () => {
+  const song = createDemoRehearsalSong();
+  const readTimeRange = vi.fn(() => {
+    throw new Error("hostile section time-range getter");
+  });
+  Object.defineProperty(song.sections[0]!, "timeRange", {
+    configurable: true,
+    enumerable: true,
+    get: readTimeRange
+  });
+
+  expect(() => render(<FirstEarCheckCallout song={song as RehearsalSong} />)).not.toThrow();
+  expect(readTimeRange).not.toHaveBeenCalled();
+  expect(
+    screen.getByText(
+      "Nothing still needs an ear check. Stay on tonight's map until a part is marked uncertain."
+    )
+  ).toBeTruthy();
+});
