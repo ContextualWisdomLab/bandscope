@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RehearsalPlayer } from "./RehearsalPlayer";
@@ -156,6 +157,105 @@ describe("RehearsalPlayer", () => {
     );
   });
 
+  it("moves section cues with the arrow keys and keeps the selected cue focused", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [song.sections[0]!, chorus];
+
+    render(<RehearsalPlayer song={song} />);
+
+    const verse = screen.getByRole("button", { name: /verse/i });
+    const chorusButton = screen.getByRole("button", { name: /chorus/i });
+    expect(
+      screen.getByTestId("rehearsal-loop-keyboard-hint"),
+    ).toHaveTextContent("Use Left and Right Arrow to move between section cues.");
+
+    chorusButton.focus();
+    fireEvent.keyDown(chorusButton, { key: "ArrowLeft" });
+    expect(verse).toHaveFocus();
+
+    fireEvent.keyDown(verse, { key: "ArrowRight" });
+    expect(chorusButton).toHaveAttribute("aria-pressed", "true");
+    expect(chorusButton).toHaveFocus();
+
+    fireEvent.keyDown(chorusButton, { key: "ArrowRight" });
+    expect(chorusButton).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(chorusButton, { key: "ArrowLeft" });
+    expect(verse).toHaveAttribute("aria-pressed", "true");
+    expect(verse).toHaveFocus();
+  });
+
+  it("lets the selected cue keep a manual range correction in the song map", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    expect(screen.getByTestId("rehearsal-loop-boundary-editor")).toHaveTextContent(
+      "Manual cue correction",
+    );
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "12" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange).toEqual({
+      start: 12,
+      end: 30,
+    });
+    expect(song.sections[0]!.timeRange.start).toBe(10);
+  });
+
+  it("rejects a boundary correction that would invert the selected cue", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const end = screen.getByRole("spinbutton", {
+      name: "End time (seconds)",
+    });
+    fireEvent.change(end, { target: { value: "5" } });
+    fireEvent.blur(end);
+
+    expect(onSongUpdate).not.toHaveBeenCalled();
+    expect(end).toHaveValue(30);
+    expect(end).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("rehearsal-loop-boundary-editor")).toHaveTextContent(
+      "with the end after the start",
+    );
+  });
+
+  it("keeps focus on the next boundary field after a Tab correction", async () => {
+    setNavigatorLanguage("en-US");
+    const user = userEvent.setup();
+    const song = createDemoRehearsalSong();
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    const end = screen.getByRole("spinbutton", {
+      name: "End time (seconds)",
+    });
+    await user.click(start);
+    await user.clear(start);
+    await user.type(start, "12");
+    await user.tab();
+
+    expect(end).toHaveFocus();
+    expect(start).toHaveValue(12);
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange.start).toBe(12);
+  });
+
   it("keeps the selected loop by section ID when an earlier section is filtered out", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -191,6 +291,89 @@ describe("RehearsalPlayer", () => {
     ).toBe("true");
     expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
       /Map chorus from 0:40–1:04/i,
+    );
+  });
+
+  it("keeps duplicate cue identities distinct for navigation and correction", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const duplicate = {
+      ...song.sections[0]!,
+      label: "verse copy",
+      timeRange: { ...song.sections[0]!.timeRange },
+    };
+    song.sections = [song.sections[0]!, duplicate];
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const sectionButtons = screen
+      .getAllByRole("button")
+      .filter((button) => button.id.startsWith("rehearsal-loop-section-"));
+    expect(sectionButtons).toHaveLength(2);
+    expect(sectionButtons[0]).toHaveAttribute("aria-pressed", "true");
+    expect(sectionButtons[1]).toHaveAttribute("aria-pressed", "false");
+
+    sectionButtons[0]!.focus();
+    fireEvent.keyDown(sectionButtons[0]!, { key: "ArrowRight" });
+
+    expect(sectionButtons[1]).toHaveFocus();
+    expect(sectionButtons[0]).toHaveAttribute("aria-pressed", "false");
+    expect(sectionButtons[1]).toHaveAttribute("aria-pressed", "true");
+
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "12" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange.start).toBe(10);
+    expect(onSongUpdate.mock.calls[0]![0].sections[1]!.timeRange.start).toBe(12);
+  });
+
+  it("preserves the selected cue when an earlier section is inserted", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [song.sections[0]!, chorus];
+    const onSongUpdate = vi.fn();
+    const { rerender } = render(
+      <RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /chorus/i }));
+    const inserted = structuredClone(song.sections[0]!);
+    inserted.id = "intro-1";
+    inserted.label = "intro";
+    inserted.timeRange = { start: 0, end: 5 };
+    const updatedSong = { ...song, sections: [inserted, ...song.sections] };
+    rerender(
+      <RehearsalPlayer song={updatedSong} onSongUpdate={onSongUpdate} />,
+    );
+
+    const chorusButton = screen.getByRole("button", { name: /chorus/i });
+    expect(chorusButton).toHaveAttribute("aria-pressed", "true");
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "42" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[1]!.timeRange.start).toBe(10);
+    expect(onSongUpdate.mock.calls[0]![0].sections[2]!.timeRange.start).toBe(42);
+    rerender(
+      <RehearsalPlayer
+        song={onSongUpdate.mock.calls[0]![0]}
+        onSongUpdate={onSongUpdate}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /chorus/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
   });
 
