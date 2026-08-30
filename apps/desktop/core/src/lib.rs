@@ -122,7 +122,11 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_rehearsal_key",
+        skip_serializing_if = "Option::is_none"
+    )]
     key: Option<RehearsalKeyPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
@@ -164,6 +168,17 @@ impl<'de> Deserialize<'de> for RehearsalKeyPayload {
             mode: raw.mode,
         })
     }
+}
+
+fn deserialize_optional_rehearsal_key<'de, D>(
+    deserializer: D,
+) -> Result<Option<RehearsalKeyPayload>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<RehearsalKeyPayload>::deserialize(deserializer)?
+        .map(Some)
+        .ok_or_else(|| serde::de::Error::custom("key must be an object when present"))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -878,6 +893,7 @@ mod tests {
             json!({ "fifths": 8, "mode": "major" }),
             json!({ "fifths": 4, "mode": "dorian" }),
             json!({ "fifths": 4, "mode": "major", "confidence": "high" }),
+            Value::Null,
         ] {
             let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
             payload["key"] = key;
