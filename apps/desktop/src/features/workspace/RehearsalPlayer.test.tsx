@@ -294,6 +294,43 @@ describe("RehearsalPlayer", () => {
     );
   });
 
+  it("keeps duplicate cue identities distinct for navigation and correction", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const duplicate = {
+      ...song.sections[0]!,
+      label: "verse copy",
+      timeRange: { ...song.sections[0]!.timeRange },
+    };
+    song.sections = [song.sections[0]!, duplicate];
+    const onSongUpdate = vi.fn();
+    render(<RehearsalPlayer song={song} onSongUpdate={onSongUpdate} />);
+
+    const sectionButtons = screen
+      .getAllByRole("button")
+      .filter((button) => button.id.startsWith("rehearsal-loop-section-"));
+    expect(sectionButtons).toHaveLength(2);
+    expect(sectionButtons[0]).toHaveAttribute("aria-pressed", "true");
+    expect(sectionButtons[1]).toHaveAttribute("aria-pressed", "false");
+
+    sectionButtons[0]!.focus();
+    fireEvent.keyDown(sectionButtons[0]!, { key: "ArrowRight" });
+
+    expect(sectionButtons[1]).toHaveFocus();
+    expect(sectionButtons[0]).toHaveAttribute("aria-pressed", "false");
+    expect(sectionButtons[1]).toHaveAttribute("aria-pressed", "true");
+
+    const start = screen.getByRole("spinbutton", {
+      name: "Start time (seconds)",
+    });
+    fireEvent.change(start, { target: { value: "12" } });
+    fireEvent.blur(start);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(onSongUpdate.mock.calls[0]![0].sections[0]!.timeRange.start).toBe(10);
+    expect(onSongUpdate.mock.calls[0]![0].sections[1]!.timeRange.start).toBe(12);
+  });
+
   it("explains when the active role has no playable sections", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

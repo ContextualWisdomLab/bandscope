@@ -89,6 +89,7 @@ function hasSameLoopTiming(
   next: RehearsalLoopWindow,
 ): boolean {
   return (
+    current.sourceIndex === next.sourceIndex &&
     current.sectionId === next.sectionId &&
     current.startSeconds === next.startSeconds &&
     current.endSeconds === next.endSeconds &&
@@ -99,7 +100,7 @@ function hasSameLoopTiming(
 
 /** Return a stable selection key when analysis emits duplicate section IDs. */
 function loopSelectionKey(loop: RehearsalLoopWindow): string {
-  return `${loop.sectionId}:${loop.startSeconds}:${loop.endSeconds}`;
+  return String(loop.sourceIndex);
 }
 
 /** Render tonight's first section loop with a count-in and a named next action. */
@@ -531,18 +532,19 @@ export function RehearsalPlayer({
         return;
       }
 
-      const sectionIndex = song.sections.findIndex(
-        (section) =>
-          section.id === selectedLoop.sectionId &&
-          section.timeRange.start === selectedLoop.startSeconds &&
-          section.timeRange.end === selectedLoop.endSeconds,
-      );
-      if (sectionIndex < 0) {
+      const sectionIndex = selectedLoop.sourceIndex;
+      const section = song.sections[sectionIndex];
+      if (
+        !section ||
+        section.id !== selectedLoop.sectionId ||
+        section.timeRange.start !== selectedLoop.startSeconds ||
+        section.timeRange.end !== selectedLoop.endSeconds
+      ) {
         return;
       }
       const nextSong = {
         ...song,
-        sections: song.sections.map((section, index) =>
+        sections: song.sections.map((currentSection, index) =>
           index === sectionIndex
             ? {
                 ...section,
@@ -551,7 +553,7 @@ export function RehearsalPlayer({
                   [boundary]: value,
                 },
               }
-            : section,
+            : currentSection,
         ),
       };
       const nextLoop =

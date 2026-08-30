@@ -27,6 +27,7 @@ export type RehearsalTransportPhase =
 
 /** Bounded loop window derived from one valid analyzed section. */
 export interface RehearsalLoopWindow {
+  sourceIndex: number;
   sectionId: string;
   sectionLabel: string;
   startSeconds: number;
@@ -230,6 +231,7 @@ export function formatRehearsalClock(totalSeconds: number): string {
 export function createLoopWindow(
   section: RehearsalSection,
   tempo: unknown,
+  sourceIndex = 0,
 ): RehearsalLoopWindow | null {
   const snapshot = playableSectionSnapshot(section);
   if (!snapshot) {
@@ -237,6 +239,7 @@ export function createLoopWindow(
   }
   const { tempoBpm, tempoAssumed } = resolveRehearsalTempo(tempo);
   return {
+    sourceIndex,
     sectionId: snapshot.id,
     sectionLabel: snapshot.label,
     startSeconds: snapshot.startSeconds,
@@ -262,14 +265,18 @@ export function resolveLoopWindows(
   const tempo = ownDataValue(song, "tempo");
   const selectedRoleId =
     typeof roleId === "string" && roleId.trim() ? roleId : null;
-  return sections.flatMap((section) => {
+  return sections.flatMap((section, sourceIndex) => {
     if (!section || typeof section !== "object") {
       return [];
     }
     if (selectedRoleId && !sectionContainsRole(section, selectedRoleId)) {
       return [];
     }
-    const window = createLoopWindow(section as RehearsalSection, tempo);
+    const window = createLoopWindow(
+      section as RehearsalSection,
+      tempo,
+      sourceIndex,
+    );
     return window ? [window] : [];
   });
 }

@@ -25,6 +25,7 @@ describe("rehearsal transport descriptor authority", () => {
     });
 
     expect(createLoopWindow(proxiedSection, song.tempo)).toEqual({
+      sourceIndex: 0,
       sectionId: expectedId,
       sectionLabel: expectedLabel,
       startSeconds: expectedRange.start,
