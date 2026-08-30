@@ -70,14 +70,14 @@ describe("firstNamedSectionLabel", () => {
 });
 
 describe("firstRepeatPlan", () => {
-  it("builds a play-it-again plan from the demo song", () => {
+  it("builds a play-it-again plan from the demo end-repeat without inventing a passage anchor", () => {
     expect(firstRepeatPlan(createDemoRehearsalSong())).toEqual({
       label: ":|",
-      sectionLabel: "verse"
+      sectionLabel: undefined
     });
   });
 
-  it("uses the first meaningful section as the play-again anchor", () => {
+  it("does not attach a song-level repeat to an unrelated first named section", () => {
     expect(
       firstRepeatPlan({
         repeat: { label: "x2" },
@@ -85,24 +85,20 @@ describe("firstRepeatPlan", () => {
       })
     ).toEqual({
       label: "x2",
-      sectionLabel: "intro"
+      sectionLabel: undefined
     });
   });
 
-  it("fails closed without a trusted repeat and omits blank section labels", () => {
+  it("fails closed for a start-repeat marker or without a trusted repeat", () => {
     const song = createDemoRehearsalSong();
     delete song.repeat;
     expect(firstRepeatPlan(song)).toBeNull();
     expect(firstRepeatPlan(undefined)).toBeNull();
     expect(firstRepeatPlan([])).toBeNull();
 
-    const unlabeled = createDemoRehearsalSong();
-    unlabeled.repeat = { label: "|:" };
-    unlabeled.sections = unlabeled.sections.map((section) => ({ ...section, label: "none" }));
-    expect(firstRepeatPlan(unlabeled)).toEqual({
-      label: "|:",
-      sectionLabel: undefined
-    });
+    const startOnly = createDemoRehearsalSong();
+    startOnly.repeat = { label: "|:" };
+    expect(firstRepeatPlan(startOnly)).toBeNull();
   });
 });
 
