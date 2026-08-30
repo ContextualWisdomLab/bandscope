@@ -1023,6 +1023,32 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates meter correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.meter).toEqual({ beats: 4, beatType: 4 });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.meter = { beats: 6, beatType: 8 };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).meter).toEqual({ beats: 6, beatType: 8 });
+
+    const withoutMeter = createDemoRehearsalSong();
+    delete withoutMeter.meter;
+    expect(isRehearsalSong(withoutMeter)).toBe(true);
+    expect(parseRehearsalSong(withoutMeter)).toEqual(withoutMeter);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), meter: "4/4" })).toThrow("meter");
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), meter: { beats: 0, beatType: 4 } })).toThrow(
+      "meter.beats"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), meter: { beats: 4, beatType: 3 } })).toThrow(
+      "meter.beatType"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), meter: { beats: 4, beatType: 4, extra: true } })
+    ).toThrow("meter.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;

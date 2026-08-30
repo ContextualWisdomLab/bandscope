@@ -219,10 +219,17 @@ export type ScoreAttachment = {
 };
 
 /** Documented. */
+export type RehearsalMeter = {
+  beats: number;
+  beatType: number;
+};
+
+/** Documented. */
 export type RehearsalSong = {
   id: string;
   title: string;
   tempo?: number;
+  meter?: RehearsalMeter;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
   collaboration?: RehearsalCollaboration;
@@ -432,6 +439,10 @@ const demoRehearsalSongSeed: RehearsalSong = {
   id: "demo-song",
   title: "Late Night Set",
   tempo: 120,
+  meter: {
+    beats: 4,
+    beatType: 4
+  },
   sections: [
     {
       id: "verse-1",
@@ -1756,6 +1767,29 @@ function migrateLegacySectionTimeRanges(value: unknown): unknown {
 }
 
 /** Documented. */
+function validateRehearsalMeter(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["beats", "beatType"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.beats !== "number" || !Number.isInteger(value.beats) || value.beats < 1 || value.beats > 16) {
+    return invalidField(`${path}.beats`);
+  }
+  if (
+    typeof value.beatType !== "number" ||
+    !Number.isInteger(value.beatType) ||
+    ![1, 2, 4, 8, 16].includes(value.beatType)
+  ) {
+    return invalidField(`${path}.beatType`);
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateScoreAttachment(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -1787,7 +1821,7 @@ function validateRehearsalSong(
   }
   const extraKey = unexpectedKey(
     normalized,
-    ["id", "title", "tempo", "sections", "exportSummary", "collaboration", "scoreAttachments"],
+    ["id", "title", "tempo", "meter", "sections", "exportSummary", "collaboration", "scoreAttachments"],
     ""
   );
   if (extraKey) {
@@ -1804,6 +1838,12 @@ function validateRehearsalSong(
     (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)
   ) {
     return invalidField("tempo");
+  }
+  if (normalized.meter !== undefined) {
+    const meterError = validateRehearsalMeter(normalized.meter, "meter");
+    if (meterError) {
+      return meterError;
+    }
   }
   if (!isDenseArray(normalized.sections)) {
     return invalidField("sections");

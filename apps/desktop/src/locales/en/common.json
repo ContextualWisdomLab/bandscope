@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstMeterTitle": "Tonight's first meter",
+  "workspaceFirstMeterReady": "Tonight's first meter is {label}. Count in {beats}, then check tonight's first range before the {sectionLabel}.",
+  "workspaceFirstMeterReadyNoSection": "Tonight's first meter is {label}. Count in {beats}, then name the first section so the room knows where it starts.",
+  "workspaceFirstMeterMissing": "Tonight's first meter still needs an ear check. Count the first bar by ear, then check tonight's first range.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }

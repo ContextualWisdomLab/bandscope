@@ -153,6 +153,31 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first meter and the next count-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-meter");
+    expect(callout).toHaveTextContent("Tonight's first meter");
+    expect(callout).toHaveTextContent(
+      "Tonight's first meter is 4/4. Count in 4, then check tonight's first range before the verse."
+    );
+  });
+
+  it("asks the room to count the first bar by ear when meter is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.meter;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-meter")).toHaveTextContent(
+      "Tonight's first meter still needs an ear check. Count the first bar by ear, then check tonight's first range."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
