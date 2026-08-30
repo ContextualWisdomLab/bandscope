@@ -27,12 +27,12 @@ type OpenedEarCheck = Readonly<{
 const MAX_EAR_CHECK_FINGERPRINT_SECTIONS = 32;
 
 /** Read one owned data value without invoking an accessor or ordinary Proxy get trap. */
-function ownedSongData(song: RehearsalSong, key: PropertyKey): unknown {
-  if (song === null || typeof song !== "object" || Array.isArray(song)) {
+function ownedRuntimeData(value: unknown, key: PropertyKey): unknown {
+  if (value === null || typeof value !== "object") {
     return undefined;
   }
   try {
-    const descriptor = Object.getOwnPropertyDescriptor(song, key);
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
     return descriptor !== undefined && Object.prototype.hasOwnProperty.call(descriptor, "value")
       ? descriptor.value
       : undefined;
@@ -44,24 +44,34 @@ function ownedSongData(song: RehearsalSong, key: PropertyKey): unknown {
 /** Summarize bounded owned song content so distinct songs sharing an id do not share armed guidance. */
 function earCheckSongFingerprint(song: RehearsalSong): string | null {
   try {
-    const runtimeSections = ownedSongData(song, "sections");
-    const title = ownedSongData(song, "title");
+    const runtimeSections = ownedRuntimeData(song, "sections");
+    const title = ownedRuntimeData(song, "title");
     if (!Array.isArray(runtimeSections) || typeof title !== "string") {
       return null;
     }
-    const sections = runtimeSections;
-    if (sections.length > MAX_EAR_CHECK_FINGERPRINT_SECTIONS) {
+    const sectionCount = ownedRuntimeData(runtimeSections, "length");
+    if (
+      !Number.isSafeInteger(sectionCount) ||
+      (sectionCount as number) < 0 ||
+      (sectionCount as number) > MAX_EAR_CHECK_FINGERPRINT_SECTIONS
+    ) {
       return null;
     }
-    return JSON.stringify({
-      title,
-      sectionCount: sections.length,
-      sections: sections.map((section) => ({
-        id: section?.id,
-        start: section?.timeRange?.start,
-        end: section?.timeRange?.end
-      }))
-    });
+
+    const sections: Array<{ id: string; start: number; end: number }> = [];
+    for (let sectionIndex = 0; sectionIndex < (sectionCount as number); sectionIndex += 1) {
+      const section = ownedRuntimeData(runtimeSections, sectionIndex);
+      const id = ownedRuntimeData(section, "id");
+      const timeRange = ownedRuntimeData(section, "timeRange");
+      const start = ownedRuntimeData(timeRange, "start");
+      const end = ownedRuntimeData(timeRange, "end");
+      if (typeof id !== "string" || typeof start !== "number" || typeof end !== "number") {
+        return null;
+      }
+      sections.push({ id, start, end });
+    }
+
+    return JSON.stringify({ title, sectionCount, sections });
   } catch {
     return null;
   }
@@ -69,7 +79,7 @@ function earCheckSongFingerprint(song: RehearsalSong): string | null {
 
 /** Read a stable owned song id, falling back to object identity for untrusted identity metadata. */
 function stableEarCheckSongId(song: RehearsalSong): string | null {
-  const songId = ownedSongData(song, "id");
+  const songId = ownedRuntimeData(song, "id");
   return typeof songId === "string" && songId.trim().length > 0 ? songId : null;
 }
 
