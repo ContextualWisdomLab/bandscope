@@ -83,7 +83,7 @@ def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
         if not isinstance(node, Mapping) or node.get("is_active") is not True:
             continue
         role_id = node.get("role_id")
-        if isinstance(role_id, str) and role_id:
+        if type(role_id) is str and role_id:
             active[role_id] = None
     return list(active)
 
@@ -103,18 +103,20 @@ def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
     by_id: dict[str, Mapping[str, object]] = {}
     for role in roles:
         role_id = role.get("id")
-        if isinstance(role_id, str) and role_id not in by_id:
+        if type(role_id) is str and role_id not in by_id:
             by_id[role_id] = role
     return [by_id.get(role_id, {"id": role_id, "name": role_id}) for role_id in active_ids]
 
 
 def _role_display_name(role: Mapping[str, object]) -> str | None:
-    """Return the role's display name, falling back to its id."""
+    """Return a plain-string display name, falling back to a plain-string id."""
     name = role.get("name")
-    if isinstance(name, str) and name:
+    if type(name) is str and name:
         return name
+    if isinstance(name, str) and type(name) is not str:
+        return None
     role_id = role.get("id")
-    if isinstance(role_id, str) and role_id:
+    if type(role_id) is str and role_id:
         return role_id
     return None
 
@@ -137,7 +139,7 @@ def _section_cue(section: Mapping[str, object]) -> str:
         if not isinstance(cue, Mapping):
             continue
         value = cue.get("value")
-        if isinstance(value, str) and value:
+        if type(value) is str and value:
             cues[value] = None
     return "; ".join(cues)
 
