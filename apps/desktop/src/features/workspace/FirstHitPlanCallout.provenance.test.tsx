@@ -53,8 +53,9 @@ describe("FirstHitPlanCallout hit-plan provenance", () => {
 
     render(<FirstHitPlanCallout song={song} />);
 
-    expect(screen.getByText(displayedPlan)).toBeTruthy();
-    expect(screen.queryByText(customPlan)).toBeNull();
+    const preserveWhitespace = (value: string) => value;
+    expect(screen.getByText(displayedPlan, { normalizer: preserveWhitespace })).toBeTruthy();
+    expect(screen.queryByText(customPlan, { normalizer: preserveWhitespace })).toBeNull();
   });
 
   it("localizes engine-shaped guidance whose target names a part in this lineup", () => {
