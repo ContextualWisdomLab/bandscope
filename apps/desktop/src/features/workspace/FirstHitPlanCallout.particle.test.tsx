@@ -148,4 +148,74 @@ describe("FirstHitPlanCallout Korean role copy", () => {
       )
     ).toBeTruthy();
   });
+
+  it("keeps a short generated prefix verbatim instead of inferring a lineup target", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    const seed = song.sections[0]!;
+    seed.roles = [
+      {
+        ...seed.roles[2]!,
+        id: "piano",
+        name: "피아노",
+        rehearsalPriority: "high",
+        hitPlan: "Land this hit with Lead; don't drift past the downbeat.",
+        hitPlanSource: "model"
+      },
+      {
+        ...seed.roles[2]!,
+        id: "lead-vocal",
+        name: "Lead Vocal",
+        rehearsalPriority: "medium"
+      }
+    ];
+    seed.partGraph = [
+      { role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] },
+      { role_id: "lead-vocal", is_active: true, handoff_to: [], handoff_from: [] }
+    ];
+
+    render(<FirstHitPlanCallout song={song} />);
+
+    expect(screen.getByText("Land this hit with Lead; don't drift past the downbeat.")).toBeTruthy();
+    expect(screen.queryByText("Lead 파트와 이 히트를 맞추세요. 다운비트 뒤로 밀리지 마세요.")).toBeNull();
+  });
+
+  it("fails closed when a bounded generated target matches multiple long lineup names", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    const seed = song.sections[0]!;
+    const targetRole = `Lead-${"A".repeat(180)}`;
+    seed.roles = [
+      {
+        ...seed.roles[2]!,
+        id: "piano",
+        name: "피아노",
+        rehearsalPriority: "high",
+        hitPlan: `Land this hit with ${targetRole}; don't drift past the downbeat.`,
+        hitPlanSource: "model"
+      },
+      {
+        ...seed.roles[2]!,
+        id: "long-part-a",
+        name: `${targetRole}-A`,
+        rehearsalPriority: "medium"
+      },
+      {
+        ...seed.roles[2]!,
+        id: "long-part-b",
+        name: `${targetRole}-B`,
+        rehearsalPriority: "low"
+      }
+    ];
+    seed.partGraph = [
+      { role_id: "piano", is_active: true, handoff_to: [], handoff_from: [] },
+      { role_id: "long-part-a", is_active: true, handoff_to: [], handoff_from: [] },
+      { role_id: "long-part-b", is_active: true, handoff_to: [], handoff_from: [] }
+    ];
+
+    render(<FirstHitPlanCallout song={song} />);
+
+    expect(screen.getByText(/^Land this hit with /)).toBeTruthy();
+    expect(screen.queryByText(/파트와 이 히트를 맞추세요. 다운비트 뒤로 밀리지 마세요.$/)).toBeNull();
+  });
 });
