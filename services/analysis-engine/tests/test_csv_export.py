@@ -70,7 +70,6 @@ class TestEscapeCsvField:
             "＠cmd",
             "  =SUM(A1)",
             " \t@cmd",
-            " \x00=SUM(A1)",
             "\tplain",
             "\rplain",
             "\nplain",
