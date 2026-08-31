@@ -65,3 +65,7 @@
 ## 2026-08-31 - Reject unmeasured Array.find micro-optimization
 **Learning:** Replacing `Array.prototype.find()` over four static progress entries with a manual loop removes a theoretical closure allocation but has no demonstrated product-level benefit and makes the bounded lookup less readable.
 **Action:** Keep idiomatic `Array.prototype.find()` for tiny bounded collections unless profiling or benchmark evidence shows a material latency or allocation problem; prefer measurable algorithmic improvements such as keyed caches for genuinely repeated large lookups.
+
+## 2026-08-31 - Deduplicate chart priorities with dict keys
+**Learning:** Using `item not in list` for deduplication in a nested loop creates O(N^2) complexity where N is the number of priorities. While N is small, `dict` keys provide O(1) deduplication and maintain insertion order in modern Python, making it a better primitive for building deterministic text artifacts.
+**Action:** Replace `if item not in list: list.append(item)` with `dict[item] = None` followed by `list(dict.keys())` when deduplicating items to avoid O(N^2) list membership checks.
