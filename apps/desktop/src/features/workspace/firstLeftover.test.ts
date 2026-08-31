@@ -52,6 +52,31 @@ function withPartialReturn(
   };
 }
 
+function sectionWithInactiveRoles(
+  template: RehearsalSong["sections"][number],
+  id: string,
+  label: string,
+  start: number,
+  inactiveRoleIds: readonly string[],
+  activeOnlyRoles = false
+): RehearsalSong["sections"][number] {
+  const inactive = new Set(inactiveRoleIds);
+  const partGraph = template.partGraph.map((node) => ({
+    ...node,
+    is_active: !inactive.has(node.role_id)
+  }));
+  return {
+    ...template,
+    id,
+    label: label as RehearsalSong["sections"][number]["label"],
+    timeRange: { start, end: start + 20 },
+    partGraph,
+    roles: activeOnlyRoles
+      ? template.roles.filter((role) => !inactive.has(role.id))
+      : template.roles
+  };
+}
+
 describe("firstLeftover", () => {
   it("returns null on the demo song where every graph node is active", () => {
     expect(firstLeftover(createDemoRehearsalSong())).toBeNull();
@@ -67,6 +92,89 @@ describe("firstLeftover", () => {
       leftoverRoleId: "keys-right",
       leftoverRoleName: "Keyboard 1 Right Hand"
     });
+  });
+
+  it("uses song-wide role names when inactive analysis roles are omitted from section roles", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "opening-1", "opening", 0, []),
+        sectionWithInactiveRoles(
+          template,
+          "bridge-1",
+          "bridge",
+          20,
+          ["bass-guitar", "keys-right"],
+          true
+        ),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 40, ["keys-right"], true)
+      ]
+    };
+
+    expect(firstLeftover(song)).toEqual({
+      sectionLabel: "chorus",
+      fromSectionLabel: "bridge",
+      leftoverRoleId: "keys-right",
+      leftoverRoleName: "Keyboard 1 Right Hand"
+    });
+  });
+
+  it("treats repeated form labels as distinct timeline sections", () => {
+    const song = withPartialReturn(createDemoRehearsalSong(), "bass-guitar", "keys-right");
+    song.sections[1] = {
+      ...song.sections[1]!,
+      label: song.sections[0]!.label
+    };
+
+    expect(firstLeftover(song)).toEqual({
+      sectionLabel: "verse",
+      fromSectionLabel: "verse",
+      leftoverRoleId: "keys-right",
+      leftoverRoleName: "Keyboard 1 Right Hand"
+    });
+  });
+
+  it("starts a new reduction baseline after the prior sit-outs fully return", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "verse-1", "verse", 0, ["lead-vocal"]),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, []),
+        sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, ["bass-guitar", "keys-right"]),
+        sectionWithInactiveRoles(template, "outro-1", "outro", 60, ["keys-right"])
+      ]
+    };
+
+    expect(firstLeftover(song)).toEqual({
+      sectionLabel: "outro",
+      fromSectionLabel: "bridge",
+      leftoverRoleId: "keys-right",
+      leftoverRoleName: "Keyboard 1 Right Hand"
+    });
+  });
+
+  it("fails closed on contradictory duplicate graph identities", () => {
+    for (const reverse of [false, true]) {
+      const song = withPartialReturn(createDemoRehearsalSong(), "bass-guitar", "keys-right");
+      const section = song.sections[1]!;
+      const keysNode = section.partGraph.find((node) => node.role_id === "keys-right")!;
+      const withoutKeys = section.partGraph.filter((node) => node.role_id !== "keys-right");
+      const inactiveKeys = { ...keysNode, is_active: false };
+      const activeKeys = { ...keysNode, is_active: true };
+      song.sections[1] = {
+        ...section,
+        partGraph: [
+          ...withoutKeys,
+          ...(reverse ? [activeKeys, inactiveKeys] : [inactiveKeys, activeKeys])
+        ]
+      };
+
+      expect(firstLeftover(song)).toBeNull();
+    }
   });
 
   it("skips blank leftover labels until a named partial return exists", () => {
