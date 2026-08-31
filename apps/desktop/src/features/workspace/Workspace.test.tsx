@@ -140,7 +140,7 @@ describe("Workspace", () => {
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
-  it("names tonight's first leftover last-dropout remaining return after leftover last-dropout remaining", () => {
+  it("names the next part back in and gives the band a count-in action", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
@@ -227,13 +227,13 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const callout = screen.getByTestId("first-leftover-last-dropout-remaining-return");
-    expect(callout).toHaveTextContent("Tonight's first leftover last-dropout remaining return");
+    expect(callout).toHaveTextContent("Next part back in");
     expect(callout).toHaveTextContent(
-      "Bass Guitar comes back at ending after staying out through leftover last-dropout remaining at stop. Count Bass Guitar in from the top of ending."
+      "Bass Guitar comes back at ending after sitting out at stop. Count Bass Guitar in from the top of ending."
     );
   });
 
-  it("tells the leftover last-dropout remaining return to come back after leftover last-dropout remaining", () => {
+  it("tells the selected returning player where to come back in", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
@@ -321,18 +321,18 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     expect(screen.getByTestId("first-leftover-last-dropout-remaining-return")).toHaveTextContent(
-      "Bass Guitar comes back at ending after staying out through leftover last-dropout remaining at stop. Come back from leftover last-dropout remaining at the top of ending."
+      "Bass Guitar comes back at ending after sitting out at stop. Come in from the top of ending."
     );
   });
 
-  it("asks the player to confirm leftover last-dropout remaining return when every part stays active", () => {
+  it("asks the player to confirm the next return when no return is mapped", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-leftover-last-dropout-remaining-return")).toHaveTextContent(
-      "Tonight's first leftover last-dropout remaining return still needs a named leftover last-dropout remaining and a later remaining return. Confirm who comes back after leftover last-dropout remaining before the first section."
+      "The next return is not clear yet. Confirm which part comes back after parts drop out before rehearsal."
     );
   });
 
