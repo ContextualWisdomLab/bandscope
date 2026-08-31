@@ -110,4 +110,24 @@ describe("firstHandoffAction", () => {
       clash: true
     });
   });
+
+  it("validates nonblank ids without changing their literal handoff identity", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0] = {
+      ...song.sections[0]!,
+      id: "  verse-1  ",
+      roles: [
+        {
+          ...song.sections[0]!.roles[0]!,
+          id: "  bass-guitar  "
+        }
+      ]
+    };
+
+    expect(firstHandoffAction(song)).toMatchObject({
+      sectionId: "  verse-1  ",
+      roleId: "  bass-guitar  ",
+      clash: true
+    });
+  });
 });
