@@ -121,16 +121,7 @@ function namedGraphNodes(
     nodes.push({ roleId, active });
   }
 
-  if (seenRoleIds.size !== namedRoles.size) {
-    return null;
-  }
-  for (const roleId of namedRoles.keys()) {
-    if (!seenRoleIds.has(roleId)) {
-      return null;
-    }
-  }
-
-  return nodes;
+  return seenRoleIds.size === namedRoles.size ? nodes : null;
 }
 
 /**
@@ -187,25 +178,22 @@ export function firstLeftover(
       continue;
     }
 
+    const baselineIds = sittingOutIds;
     const returning = nodes.filter(
-      (node) => node.active === true && sittingOutIds.has(node.roleId)
+      (node) => node.active === true && baselineIds.has(node.roleId)
     );
-    const leftover = sittingOut.find((node) => sittingOutIds.has(node.roleId));
+    const leftover = sittingOut.find((node) => baselineIds.has(node.roleId));
 
     if (returning.length > 0 && leftover) {
-      const leftoverRoleName = namedRoles.get(leftover.roleId);
-      if (!leftoverRoleName) {
-        return null;
-      }
       return {
         sectionLabel,
         fromSectionLabel: reducedFrom,
         leftoverRoleId: leftover.roleId,
-        leftoverRoleName
+        leftoverRoleName: namedRoles.get(leftover.roleId)!
       };
     }
 
-    if (returning.length === sittingOutIds.size && !leftover) {
+    if (returning.length === baselineIds.size && !leftover) {
       if (sittingOut.length === 0) {
         reducedFrom = null;
         sittingOutIds = null;
