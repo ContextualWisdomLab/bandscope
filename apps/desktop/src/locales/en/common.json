@@ -153,10 +153,10 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
-  "workspaceFirstLeftoverLastReturnTitle": "Tonight's first leftover last-return",
-  "workspaceFirstLeftoverLastReturnNamed": "{lastRoleName} comes back last at {sectionLabel} after staying leftover from {remainingSectionLabel}. Count {lastRoleName} in from the top of {sectionLabel}.",
-  "workspaceFirstLeftoverLastReturnComeIn": "{lastRoleName} comes back last at {sectionLabel} after staying leftover from {remainingSectionLabel}. Come in from the top of {sectionLabel}.",
-  "workspaceFirstLeftoverLastReturnMissing": "Tonight's first leftover last-return still needs a named leftover part that comes back last after remaining leftover. Confirm who comes in last at that return before the first section.",
+  "workspaceFirstLeftoverLastReturnTitle": "Tonight's first final re-entry",
+  "workspaceFirstLeftoverLastReturnNamed": "{lastRoleName} is the last part back at {sectionLabel}; the others started returning at {remainingSectionLabel}. Count {lastRoleName} in from the top of {sectionLabel}.",
+  "workspaceFirstLeftoverLastReturnComeIn": "{lastRoleName} is the last part back at {sectionLabel}; the others started returning at {remainingSectionLabel}. Come in from the top of {sectionLabel}.",
+  "workspaceFirstLeftoverLastReturnMissing": "No final re-entry is confirmed yet. Before the first section, check which part returns last after the band begins coming back in.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
