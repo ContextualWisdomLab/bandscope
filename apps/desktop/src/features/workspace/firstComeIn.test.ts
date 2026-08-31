@@ -63,6 +63,30 @@ describe("firstComeIn", () => {
     });
   });
 
+  it("keeps the first return when a later section repeats the sit-out label", () => {
+    const song = withSitOutThenComeIn(createDemoRehearsalSong(), "keys-right");
+    const repeatedVerse = {
+      ...song.sections[1]!,
+      id: "verse-2",
+      label: "verse" as RehearsalSong["sections"][number]["label"]
+    };
+    const laterChorus = {
+      ...song.sections[1]!,
+      id: "chorus-2",
+      timeRange: {
+        start: song.sections[1]!.timeRange.end,
+        end: song.sections[1]!.timeRange.end + 20
+      }
+    };
+    song.sections = [song.sections[0]!, repeatedVerse, laterChorus];
+
+    expect(firstComeIn(song)).toEqual({
+      sectionLabel: "verse",
+      roleName: "Keyboard 1 Right Hand",
+      fromSectionLabel: "verse"
+    });
+  });
+
   it("skips blank come-in labels until a named return exists", () => {
     const song = withSitOutThenComeIn(createDemoRehearsalSong(), "keys-right");
     song.sections[1] = {
