@@ -97,4 +97,17 @@ describe("firstHandoffAction", () => {
       clash: true
     });
   });
+
+  it("validates a role name without trimming the literal display name in the handoff", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "  Bass Guitar  "
+    };
+
+    expect(firstHandoffAction(song)).toMatchObject({
+      roleName: "  Bass Guitar  ",
+      clash: true
+    });
+  });
 });
