@@ -1,7 +1,7 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
 import type { TranslationKey } from "../../i18n";
 import type { CueSheetLeadRow } from "../../lib/export";
-import { fillRangeCopy, firstRangeSqueeze, meaningfulRangeText } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeSqueezeTarget, meaningfulRangeText } from "./firstRangeSqueeze";
 
 /** Documented. */
 type Translator = (key: TranslationKey) => string;
@@ -19,71 +19,75 @@ function runtimeText(value: unknown): string {
 /**
  * Build the cue-sheet lead row for tonight's first playable-range action.
  *
- * Fail closed when the squeeze cannot be matched to a concrete role on the
- * untrusted song payload, so the export never invents a first action.
+ * Retains the exact section/role target chosen by the range selector instead
+ * of rematching display labels, so repeated form labels cannot attach an
+ * earlier section's groove, harmony, cue, or priority to a later clash.
  */
 export function firstCueSheetLead(
   song: RehearsalSong,
   activeRole: string | null,
   t: Translator
 ): CueSheetLeadRow | null {
-  const squeeze = firstRangeSqueeze(song, activeRole);
-  if (!squeeze) {
+  const target = firstRangeSqueezeTarget(song, activeRole);
+  if (!target) {
     return null;
   }
+  const { squeeze } = target;
 
   const runtimeSong: unknown = song;
   if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
 
-  for (const sectionValue of runtimeSong.sections) {
-    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
-      continue;
-    }
-    if (meaningfulRangeText(sectionValue.label) !== squeeze.sectionLabel) {
-      continue;
-    }
-
-    for (const roleValue of sectionValue.roles) {
-      if (!isRuntimeObject(roleValue) || !isRuntimeObject(roleValue.range)) {
-        continue;
-      }
-      if (activeRole && meaningfulRangeText(roleValue.id) !== activeRole) {
-        continue;
-      }
-      if (meaningfulRangeText(roleValue.name) !== squeeze.roleName) {
-        continue;
-      }
-      if (
-        meaningfulRangeText(roleValue.range.lowestNote) !== squeeze.lowestNote
-        || meaningfulRangeText(roleValue.range.highestNote) !== squeeze.highestNote
-      ) {
-        continue;
-      }
-
-      const harmony = isRuntimeObject(roleValue.harmony) ? runtimeText(roleValue.harmony.chord) : "";
-      const cue = isRuntimeObject(roleValue.cue) ? runtimeText(roleValue.cue.value) : "";
-
-      return {
-        section: t("workspaceCueSheetFirstActionSection"),
-        groove: runtimeText(sectionValue.groove),
-        role: squeeze.roleName,
-        harmony,
-        cue,
-        priority: runtimeText(roleValue.rehearsalPriority),
-        notes: fillRangeCopy(
-          t(squeeze.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
-          {
-            roleName: squeeze.roleName,
-            lowestNote: squeeze.lowestNote,
-            highestNote: squeeze.highestNote,
-            sectionLabel: squeeze.sectionLabel
-          }
-        )
-      };
-    }
+  const sectionValue = runtimeSong.sections[target.sectionIndex];
+  if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+    return null;
+  }
+  if (meaningfulRangeText(sectionValue.label) !== squeeze.sectionLabel) {
+    return null;
+  }
+  if (target.sectionId && meaningfulRangeText(sectionValue.id) !== target.sectionId) {
+    return null;
   }
 
-  return null;
+  const roleValue = sectionValue.roles[target.roleIndex];
+  if (!isRuntimeObject(roleValue) || !isRuntimeObject(roleValue.range)) {
+    return null;
+  }
+  if (meaningfulRangeText(roleValue.id) !== target.roleId) {
+    return null;
+  }
+  if (activeRole && target.roleId !== activeRole) {
+    return null;
+  }
+  if (meaningfulRangeText(roleValue.name) !== squeeze.roleName) {
+    return null;
+  }
+  if (
+    meaningfulRangeText(roleValue.range.lowestNote) !== squeeze.lowestNote
+    || meaningfulRangeText(roleValue.range.highestNote) !== squeeze.highestNote
+  ) {
+    return null;
+  }
+
+  const harmony = isRuntimeObject(roleValue.harmony) ? runtimeText(roleValue.harmony.chord) : "";
+  const cue = isRuntimeObject(roleValue.cue) ? runtimeText(roleValue.cue.value) : "";
+
+  return {
+    section: t("workspaceCueSheetFirstActionSection"),
+    groove: runtimeText(sectionValue.groove),
+    role: squeeze.roleName,
+    harmony,
+    cue,
+    priority: runtimeText(roleValue.rehearsalPriority),
+    notes: fillRangeCopy(
+      t(squeeze.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
+      {
+        roleName: squeeze.roleName,
+        lowestNote: squeeze.lowestNote,
+        highestNote: squeeze.highestNote,
+        sectionLabel: squeeze.sectionLabel
+      }
+    )
+  };
 }
