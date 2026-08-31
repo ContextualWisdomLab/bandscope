@@ -29,6 +29,12 @@ type RankedRoleMetadata = Readonly<{
 type OwnedHitPlan = Readonly<{
   hitPlan: string;
   hitPlanSource: ProvenanceSource;
+  hitPlanTargetWasTruncated: boolean;
+}>;
+
+type BoundedGeneratedActivityHitPlan = Readonly<{
+  hitPlan: string;
+  targetWasTruncated: boolean;
 }>;
 
 /** Tonight's first hit plan: the earliest labeled section and the part that lands it. */
@@ -43,6 +49,8 @@ export type FirstHitPlan = {
   landingRoleName: string;
   hitPlan: string;
   hitPlanSource: ProvenanceSource;
+  /** True only when the generated target itself was shortened to the display boundary. */
+  hitPlanTargetWasTruncated: boolean;
   atSeconds: number;
 };
 
@@ -139,8 +147,8 @@ function boundedUserHitPlan(value: string): string {
   return bounded;
 }
 
-/** Keep a bounded engine-owned hit sentence structurally recognizable for localization. */
-function boundedGeneratedActivityHitPlan(value: string): string | null {
+/** Keep a bounded engine-owned hit sentence structurally recognizable and record actual truncation. */
+function boundedGeneratedActivityHitPlan(value: string): BoundedGeneratedActivityHitPlan | null {
   if (
     !value.startsWith(GENERATED_ACTIVITY_HIT_PLAN_PREFIX) ||
     !value.endsWith(GENERATED_ACTIVITY_HIT_PLAN_SUFFIX)
@@ -160,7 +168,10 @@ function boundedGeneratedActivityHitPlan(value: string): string | null {
     target,
     MAX_HIT_PLAN_CHARACTERS - GENERATED_ACTIVITY_HIT_PLAN_FIXED_CHARACTERS
   );
-  return `${GENERATED_ACTIVITY_HIT_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_HIT_PLAN_SUFFIX}`;
+  return {
+    hitPlan: `${GENERATED_ACTIVITY_HIT_PLAN_PREFIX}${boundedTarget}${GENERATED_ACTIVITY_HIT_PLAN_SUFFIX}`,
+    targetWasTruncated: boundedTarget !== target
+  };
 }
 
 /** Return a snapshotted own hit plan and explicit source, or null when it cannot be shown. */
@@ -177,14 +188,25 @@ function ownedHitPlan(role: RehearsalRole): OwnedHitPlan | null {
     return null;
   }
   if (hitPlanSource === "user") {
-    return { hitPlan: boundedUserHitPlan(hitPlan), hitPlanSource };
+    return {
+      hitPlan: boundedUserHitPlan(hitPlan),
+      hitPlanSource,
+      hitPlanTargetWasTruncated: false
+    };
   }
   const trimmed = hitPlan.trim();
+  const generatedHitPlan = boundedGeneratedActivityHitPlan(trimmed);
+  if (generatedHitPlan) {
+    return {
+      hitPlan: generatedHitPlan.hitPlan,
+      hitPlanSource,
+      hitPlanTargetWasTruncated: generatedHitPlan.targetWasTruncated
+    };
+  }
   return {
-    hitPlan:
-      boundedGeneratedActivityHitPlan(trimmed) ??
-      truncateCodePoints(trimmed, MAX_HIT_PLAN_CHARACTERS),
-    hitPlanSource
+    hitPlan: truncateCodePoints(trimmed, MAX_HIT_PLAN_CHARACTERS),
+    hitPlanSource,
+    hitPlanTargetWasTruncated: false
   };
 }
 
@@ -367,6 +389,7 @@ function resolveSafeFirstHitPlan(song: RehearsalSong): FirstHitPlan | null {
           landingRoleName: landingRole.name,
           hitPlan: landingRole.hitPlan,
           hitPlanSource: landingRole.hitPlanSource,
+          hitPlanTargetWasTruncated: landingRole.hitPlanTargetWasTruncated,
           atSeconds: timeRange.start
         }
       ];
