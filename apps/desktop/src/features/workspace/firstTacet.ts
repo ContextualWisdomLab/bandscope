@@ -27,40 +27,58 @@ function ownActiveFlag(value: Record<string, unknown>): boolean | null {
 }
 
 /**
- * Resolve a named role from a section's own-property `roles` list.
+ * Resolve one role name from trustworthy song-wide role metadata.
  *
- * Blank, `none`, inherited, or non-string names are not rehearsal authority.
+ * Production analysis keeps inactive parts in `partGraph` but omits them from
+ * that section's active-only `roles` list. Search every section for an own
+ * `roles` array and accept only own, meaningful id/name fields. Inherited,
+ * blank, malformed, or contradictory metadata cannot become display guidance.
  */
-function namedRoleOnSection(
-  sectionValue: Record<string, unknown>,
-  roleId: string
-): string | undefined {
-  if (!Array.isArray(sectionValue.roles)) {
+function namedRoleOnSong(songValue: Record<string, unknown>, roleId: string): string | undefined {
+  if (!Array.isArray(songValue.sections)) {
     return undefined;
   }
-  for (const roleValue of sectionValue.roles) {
-    if (!isRuntimeObject(roleValue) || !Object.prototype.hasOwnProperty.call(roleValue, "id")) {
+
+  let roleName: string | undefined;
+  for (const sectionValue of songValue.sections) {
+    if (
+      !isRuntimeObject(sectionValue) ||
+      !Object.prototype.hasOwnProperty.call(sectionValue, "roles") ||
+      !Array.isArray(sectionValue.roles)
+    ) {
       continue;
     }
-    if (meaningfulRangeText(roleValue.id) !== roleId) {
-      continue;
+    for (const roleValue of sectionValue.roles) {
+      if (
+        !isRuntimeObject(roleValue) ||
+        !Object.prototype.hasOwnProperty.call(roleValue, "id") ||
+        !Object.prototype.hasOwnProperty.call(roleValue, "name") ||
+        meaningfulRangeText(roleValue.id) !== roleId
+      ) {
+        continue;
+      }
+      const candidate = meaningfulRangeText(roleValue.name);
+      if (!candidate) {
+        continue;
+      }
+      if (roleName && roleName !== candidate) {
+        return undefined;
+      }
+      roleName = candidate;
     }
-    return meaningfulRangeText(
-      Object.prototype.hasOwnProperty.call(roleValue, "name") ? roleValue.name : undefined
-    );
   }
-  return undefined;
+  return roleName;
 }
 
 /**
  * Pick the first explicit sit-out a player should honor before playing.
  *
  * Uses existing `partGraph` `is_active: false` authority already produced by
- * analysis. This is a tacet: the part does not play the named section. It is
- * not a dropout (leaving after playing), handoff, Fine, or first breath.
- * Inherited `is_active`, missing graph nodes, blank labels, and malformed
- * roots fail closed. When a role is selected, only that part's own-property
- * sit-out is named.
+ * analysis and resolves the role name from trustworthy song-wide metadata so
+ * production-shaped inactive nodes remain nameable. Inherited or missing
+ * activity flags, inherited role arrays, missing graph nodes, blank labels,
+ * unnamed or contradictory roles, and malformed roots fail closed. When a
+ * role is selected, only that part's own-property sit-out is named.
  */
 export function firstTacet(
   song: RehearsalSong | unknown,
@@ -99,7 +117,7 @@ export function firstTacet(
       if (ownActiveFlag(nodeValue) !== false) {
         continue;
       }
-      const roleName = namedRoleOnSection(sectionValue, roleId);
+      const roleName = namedRoleOnSong(song, roleId);
       if (!roleName) {
         continue;
       }
