@@ -78,4 +78,45 @@ describe("firstRemainingLeftover selected-role search", () => {
 
     expect(firstRemainingLeftover(song, "bass-guitar")).toBeNull();
   });
+
+  it("does not show another part's leftover cue to a selected part that stayed active", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const selectedRole = {
+      ...template.roles[0]!,
+      id: "always-active",
+      name: "Always Active"
+    };
+    const selectedTemplate: RehearsalSong["sections"][number] = {
+      ...template,
+      roles: [...template.roles, selectedRole],
+      partGraph: [
+        ...template.partGraph,
+        {
+          ...template.partGraph[0]!,
+          role_id: "always-active",
+          is_active: true,
+          handoff_to: [],
+          handoff_from: []
+        }
+      ]
+    };
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(selectedTemplate, "verse-1", "verse", 0, [
+          "bass-guitar",
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(selectedTemplate, "chorus-1", "chorus", 20, [
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(selectedTemplate, "bridge-1", "bridge", 40, ["lead-vocal"])
+      ]
+    };
+
+    expect(firstRemainingLeftover(song, "always-active")).toBeNull();
+  });
 });
