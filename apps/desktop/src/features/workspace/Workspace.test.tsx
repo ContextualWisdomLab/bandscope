@@ -151,6 +151,9 @@ describe("Workspace", () => {
     expect(callout).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
     );
+    expect(callout).toContainElement(
+      screen.getByRole("button", { name: "Download tonight's first-action sheet" })
+    );
   });
 
   it("asks for an ear check when the selected part has no named span", () => {
@@ -194,6 +197,70 @@ describe("Workspace", () => {
     expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Check that span on your instrument before the verse."
     );
+  });
+
+  it("names tonight's first-action download and leads the cue sheet with that row", async () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const createObjectUrl = vi.fn(() => "blob:cuesheet");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-range-squeeze");
+    const download = screen.getByRole("button", { name: "Download tonight's first-action sheet" });
+    expect(callout).toContainElement(download);
+
+    fireEvent.click(download);
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const csv = await blob.text();
+    const lines = csv.split("\n");
+    expect(lines[0]).toBe("Section,Groove,Role,Harmony,Cue,Priority,Notes");
+    expect(lines[1]).toBe(
+      "Tonight first,Straight eighths with a late snare feel,Bass Guitar,C#m7,Hold through the pickup before the downbeat.,high,Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
+    );
+    expect(lines[2]).toContain("verse,Straight eighths with a late snare feel,Bass Guitar");
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:cuesheet");
+  });
+
+  it("does not invent a first-action lead when the first range still needs an ear check", async () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      range: { lowestNote: "", highestNote: "none" },
+      overlapWarnings: []
+    }));
+    const createObjectUrl = vi.fn(() => "blob:cuesheet-missing");
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Download tonight's first-action sheet" }));
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const lines = (await blob.text()).split("\n");
+    expect(lines[0]).toBe("Section,Groove,Role,Harmony,Cue,Priority,Notes");
+    expect(lines[1]).toMatch(/^verse,/);
+    expect(lines.some((line) => line.startsWith("Tonight first,"))).toBe(false);
   });
 
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
@@ -325,5 +392,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "오늘 먼저 할 일 시트 받기" })).toBeTruthy();
   });
 });

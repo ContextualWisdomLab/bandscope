@@ -126,6 +126,31 @@ describe("export generation", () => {
     expect(lines[1]).toBe('verse,swing,Bass,\'=Cmaj7,"1, 2, 3",high,setup | simple');
   });
 
+  it("leads the cue sheet with tonight's first action when a lead row is provided", () => {
+    const csv = generateCueSheetCsv(mockSong, {
+      leadRow: {
+        section: "Tonight first",
+        groove: "swing",
+        role: "Bass",
+        harmony: "=Cmaj7",
+        cue: "1, 2, 3",
+        priority: "high",
+        notes: "Bass sits C2–C3 in verse. Check that span on your instrument before the verse."
+      }
+    });
+    const lines = csv.split("\n");
+    expect(lines[0]).toBe("Section,Groove,Role,Harmony,Cue,Priority,Notes");
+    expect(lines[1]).toBe(
+      'Tonight first,swing,Bass,\'=Cmaj7,"1, 2, 3",high,Bass sits C2–C3 in verse. Check that span on your instrument before the verse.'
+    );
+    expect(lines[2]).toBe('verse,swing,Bass,\'=Cmaj7,"1, 2, 3",high,setup | simple');
+  });
+
+  it("does not invent a first action when the lead row is omitted or null", () => {
+    expect(generateCueSheetCsv(mockSong).split("\n")).toHaveLength(2);
+    expect(generateCueSheetCsv(mockSong, { leadRow: null }).split("\n")).toHaveLength(2);
+  });
+
   it("generates chart summary JSON", () => {
     const jsonStr = generateChartSummaryJson(mockSong);
     const parsed = JSON.parse(jsonStr);

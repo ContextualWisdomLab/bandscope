@@ -34,25 +34,48 @@ export function escapeCsvField(value: string): string {
   return escapedValue;
 }
 
+/** One cue-sheet data row, including the optional tonight-first lead action. */
+export type CueSheetLeadRow = {
+  section: string;
+  groove: string;
+  role: string;
+  harmony: string;
+  cue: string;
+  priority: string;
+  notes: string;
+};
+
 /** Documented. */
-export function generateCueSheetCsv(song: RehearsalSong): string {
+function formatCueSheetRow(row: CueSheetLeadRow): string {
+  return [row.section, row.groove, row.role, row.harmony, row.cue, row.priority, row.notes]
+    .map(escapeCsvField)
+    .join(",");
+}
+
+/** Documented. */
+export function generateCueSheetCsv(
+  song: RehearsalSong,
+  options?: { leadRow?: CueSheetLeadRow | null }
+): string {
   const headers = ["Section", "Groove", "Role", "Harmony", "Cue", "Priority", "Notes"];
   const rows: string[] = [headers.join(",")];
+
+  if (options?.leadRow) {
+    rows.push(formatCueSheetRow(options.leadRow));
+  }
 
   for (const section of song.sections) {
     for (const role of section.roles) {
       const notes = [role.setupNote, role.simplification].filter(Boolean).join(" | ");
-      const row = [
-        section.label,
-        section.groove,
-        role.name,
-        role.harmony.chord,
-        role.cue.value,
-        role.rehearsalPriority,
+      rows.push(formatCueSheetRow({
+        section: section.label,
+        groove: section.groove,
+        role: role.name,
+        harmony: role.harmony.chord,
+        cue: role.cue.value,
+        priority: role.rehearsalPriority,
         notes
-      ].map(escapeCsvField);
-      
-      rows.push(row.join(","));
+      }));
     }
   }
 

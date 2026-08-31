@@ -23,7 +23,7 @@ It is technically defined as a rehearsal-analysis product, not a single-output c
 
 ## Exported rehearsal deliverables
 
-- BandScope should support cue-sheet or chart-style outputs derived from the same section and role model.
+- BandScope should support cue-sheet or chart-style outputs derived from the same section and role model. The cue sheet leads with tonight's first playable-range action so a player can start from the same check the board already named.
 - Exported artifacts should stay compact and rehearsal-friendly rather than becoming DAW sessions or engraved scores.
 
 ## Delivery flow
