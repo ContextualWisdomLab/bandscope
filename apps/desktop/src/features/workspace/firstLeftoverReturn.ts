@@ -124,6 +124,40 @@ function namedGraphNodes(
   return seenRoleIds.size === namedRoles.size ? nodes : null;
 }
 
+/** Return true only when every trustworthy named graph section keeps every role active. */
+export function hasTrustworthyAllActiveTimeline(song: RehearsalSong | unknown): boolean {
+  if (!isRuntimeObject(song) || !Array.isArray(song.sections)) {
+    return false;
+  }
+
+  const namedRoles = namedSongRoles(song);
+  if (!namedRoles) {
+    return false;
+  }
+
+  let sawNamedSection = false;
+  for (const sectionValue of song.sections) {
+    if (!isRuntimeObject(sectionValue)) {
+      return false;
+    }
+    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    if (!sectionLabel) {
+      continue;
+    }
+
+    const nodes = namedGraphNodes(sectionValue, namedRoles);
+    if (!nodes) {
+      return false;
+    }
+    sawNamedSection = true;
+    if (nodes.some((node) => !node.active)) {
+      return false;
+    }
+  }
+
+  return sawNamedSection;
+}
+
 type PendingLeftoverRole = {
   roleId: string;
   roleName: string;
