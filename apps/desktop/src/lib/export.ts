@@ -96,26 +96,8 @@ export function createMetadataHandoffArtifact(
     ? parseProjectBootstrapSummary(options.sourceBootstrap)
     : null;
 
-  const payload: {
-    artifactKind: "bandscope.metadata-handoff";
-    artifactVersion: 1;
-    createdAt: string;
-    workspace: {
-      id: string;
-      title: string;
-      workspaceVersion: number;
-    };
-    song: {
-      id: string;
-      title: string;
-      exportSummary: RehearsalSong["exportSummary"];
-    };
-    firstAction?: MetadataHandoffFirstAction;
-    sections: MetadataHandoffArtifact["sections"];
-    sourceAssets: MetadataHandoffArtifact["sourceAssets"];
-  } = {
-    artifactKind: "bandscope.metadata-handoff",
-    artifactVersion: 1,
+  const payload = {
+    artifactKind: "bandscope.metadata-handoff" as const,
     createdAt: options.createdAt ?? new Date().toISOString(),
     workspace: {
       id: options.workspaceId ?? parsedSong.id,
@@ -143,32 +125,29 @@ export function createMetadataHandoffArtifact(
     sourceAssets: sourceBootstrap
       ? [
           {
-            referenceKind: "local_audio",
-            sourceMode: "reference",
+            referenceKind: "local_audio" as const,
+            sourceMode: "reference" as const,
             fileName: sourceBootstrap.source.fileName,
             extension: sourceBootstrap.source.extension,
             fileSizeBytes: sourceBootstrap.source.fileSizeBytes,
-            status: "referenced"
+            status: "referenced" as const
           }
         ]
       : []
   };
 
   if (options.firstAction) {
-    const { artifactKind, artifactVersion, createdAt, workspace, song: handoffSong, sections, sourceAssets } = payload;
     return parseMetadataHandoffArtifact({
-      artifactKind,
-      artifactVersion,
-      createdAt,
-      workspace,
-      song: handoffSong,
-      firstAction: options.firstAction,
-      sections,
-      sourceAssets
+      ...payload,
+      artifactVersion: 2,
+      firstAction: options.firstAction
     });
   }
 
-  return parseMetadataHandoffArtifact(payload);
+  return parseMetadataHandoffArtifact({
+    ...payload,
+    artifactVersion: 1
+  });
 }
 
 /** Documented. */

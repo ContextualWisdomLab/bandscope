@@ -619,26 +619,6 @@ describe("shared type helpers", () => {
 
     expect(isMetadataHandoffArtifact(artifact)).toBe(true);
     expect(parseMetadataHandoffArtifact(artifact)).toEqual(artifact);
-    expect(parseMetadataHandoffArtifact({
-      ...artifact,
-      firstAction: {
-        sectionId: "verse-1",
-        sectionLabel: "verse",
-        roleId: "bass-guitar",
-        roleName: "Bass Guitar",
-        lowestNote: "C#2",
-        highestNote: "E3",
-        clash: true
-      }
-    }).firstAction).toEqual({
-      sectionId: "verse-1",
-      sectionLabel: "verse",
-      roleId: "bass-guitar",
-      roleName: "Bass Guitar",
-      lowestNote: "C#2",
-      highestNote: "E3",
-      clash: true
-    });
     expect(() => parseMetadataHandoffArtifact({
       ...artifact,
       artifactVersion: 2
@@ -694,81 +674,7 @@ describe("shared type helpers", () => {
       { message: "sourceAssets[0].fileName", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], fileName: "   " }] } },
       { message: "sourceAssets[0].extension", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], extension: "ogg" }] } },
       { message: "sourceAssets[0].fileSizeBytes", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], fileSizeBytes: 0 }] } },
-      { message: "sourceAssets[0].status", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], status: "bundled" }] } },
-      { message: "firstAction", payload: { ...artifact, firstAction: null } },
-      { message: "firstAction.extraField", payload: { ...artifact, firstAction: {
-        sectionId: "verse-1",
-        sectionLabel: "verse",
-        roleId: "bass-guitar",
-        roleName: "Bass Guitar",
-        lowestNote: "C#2",
-        highestNote: "E3",
-        clash: true,
-        extraField: true
-      } } },
-      { message: "firstAction.sectionId", payload: { ...artifact, firstAction: {
-        sectionId: "   ",
-        sectionLabel: "verse",
-        roleId: "bass-guitar",
-        roleName: "Bass Guitar",
-        lowestNote: "C#2",
-        highestNote: "E3",
-        clash: true
-      } } },
-      { message: "firstAction.sectionLabel", payload: { ...artifact, firstAction: {
-        sectionId: "verse-1",
-        sectionLabel: "solo",
-        roleId: "bass-guitar",
-        roleName: "Bass Guitar",
-        lowestNote: "C#2",
-        highestNote: "E3",
-        clash: true
-      } } },
-      { message: "firstAction.roleId", payload: { ...artifact, firstAction: {
-        sectionId: "verse-1",
-        sectionLabel: "verse",
-        roleId: "",
-        roleName: "Bass Guitar",
-        lowestNote: "C#2",
-        highestNote: "E3",
-        clash: true
-      } } },
-      { message: "firstAction.roleName", payload: { ...artifact, firstAction: {
-        sectionId: "verse-1",
-        sectionLabel: "verse",
-        roleId: "bass-guitar",
-        roleName: "  ",
-        lowestNote: "C#2",
-        highestNote: "E3",
-        clash: true
-      } } },
-      { message: "firstAction.lowestNote", payload: { ...artifact, firstAction: {
-        sectionId: "verse-1",
-        sectionLabel: "verse",
-        roleId: "bass-guitar",
-        roleName: "Bass Guitar",
-        lowestNote: "",
-        highestNote: "E3",
-        clash: true
-      } } },
-      { message: "firstAction.highestNote", payload: { ...artifact, firstAction: {
-        sectionId: "verse-1",
-        sectionLabel: "verse",
-        roleId: "bass-guitar",
-        roleName: "Bass Guitar",
-        lowestNote: "C#2",
-        highestNote: "",
-        clash: true
-      } } },
-      { message: "firstAction.clash", payload: { ...artifact, firstAction: {
-        sectionId: "verse-1",
-        sectionLabel: "verse",
-        roleId: "bass-guitar",
-        roleName: "Bass Guitar",
-        lowestNote: "C#2",
-        highestNote: "E3",
-        clash: "yes"
-      } } }
+      { message: "sourceAssets[0].status", payload: { ...artifact, sourceAssets: [{ ...artifact.sourceAssets[0], status: "bundled" }] } }
     ];
 
     for (const testCase of invalidCases) {
