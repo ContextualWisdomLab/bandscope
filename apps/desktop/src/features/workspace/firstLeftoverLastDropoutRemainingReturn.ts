@@ -302,9 +302,16 @@ export function firstLeftoverLastDropoutRemainingReturn(
           const selectedReturning = returningRemaining.find((node) => node!.roleId === activeRole);
           if (selectedReturning) {
             returning = selectedReturning;
-          } else if (remaining.leftoverLastDropoutRemainingIds.includes(activeRole) && stillRemaining.some((node) => node!.roleId === activeRole)) {
+          } else if (
+            remaining.leftoverLastDropoutRemainingIds.includes(activeRole) &&
+            stillRemaining.some((node) => node!.roleId === activeRole)
+          ) {
             continue;
+          } else if (returningRemaining.length > 1) {
+            return null;
           }
+        } else if (returningRemaining.length > 1) {
+          return null;
         }
         return {
           sectionLabel,
