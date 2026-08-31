@@ -129,7 +129,7 @@ class PartGraphNodePayload(TypedDict):
 
 
 class SectionTimeRangePayload(TypedDict):
-    """Typed time range payload nested inside rehearsal sections."""
+    """Typed timing range payload nested inside rehearsal sections."""
 
     start: int
     end: int
@@ -621,10 +621,24 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
     """Return metadata + array cache paths for intermediate local-audio features."""
-    analysis_cache_path = _analysis_cache_path(request)
-    if analysis_cache_path is None:
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
-    stem_cache_base = analysis_cache_path.with_suffix("")
+    cache_root = request.get("cacheRoot")
+    if not cache_root:
+        return None
+
+    local_source = request["localSource"]
+    key_payload = {
+        "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+        "projectId": request.get("projectId", ""),
+        "sourcePath": local_source["sourcePath"],
+        "fileName": local_source["fileName"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
+    }
+    digest = hashlib.sha256(
+        json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    stem_cache_base = Path(cache_root) / "analysis-cache-v1" / digest
     return (
         stem_cache_base.with_suffix(".features.json"),
         stem_cache_base.with_suffix(".features.npz"),
