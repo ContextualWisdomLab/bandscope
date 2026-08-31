@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { firstChartAction } from "./firstChartAction";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -234,7 +235,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Documented. */
   const handleExportChart = () => {
-    const json = generateChartSummaryJson(song);
+    const json = generateChartSummaryJson(song, { firstAction: firstChartAction(song, activeRole, t) });
     downloadTextFile(json, "application/json;charset=utf-8;", `${sanitizeFilename(song.title)}_chart.json`);
   };
 
@@ -285,7 +286,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 shadow-sm hover:bg-white/10 hover:text-white"
             >
                 <Download className="mr-2 size-4 text-slate-300" aria-hidden="true" />
-              Export Chart (JSON)
+              {t("workspaceFirstRangeDownloadChart")}
             </Button>
             <Button
               variant="outline"

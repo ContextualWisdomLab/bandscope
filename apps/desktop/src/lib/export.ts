@@ -59,10 +59,36 @@ export function generateCueSheetCsv(song: RehearsalSong): string {
   return rows.join("\n");
 }
 
+/** Tonight's first playable-range action for the rehearsal chart JSON. */
+export type ChartFirstAction = {
+  section: string;
+  role: string;
+  lowestNote: string;
+  highestNote: string;
+  next: string;
+};
+
 /** Documented. */
-export function generateChartSummaryJson(song: RehearsalSong): string {
+export function generateChartSummaryJson(
+  song: RehearsalSong,
+  options?: { firstAction?: ChartFirstAction | null }
+): string {
   // Just a clean JSON stringification for now, focusing on the core chart data
-  const summary = {
+  const summary: {
+    title: string;
+    firstAction?: ChartFirstAction;
+    headline: string;
+    sections: Array<{
+      label: string;
+      groove: string;
+      roles: Array<{
+        name: string;
+        chord: string;
+        cue: string;
+        priority: string;
+      }>;
+    }>;
+  } = {
     title: song.title,
     headline: song.exportSummary?.headline || "",
     sections: song.sections.map(s => ({
@@ -76,6 +102,19 @@ export function generateChartSummaryJson(song: RehearsalSong): string {
       }))
     }))
   };
+  if (options?.firstAction) {
+    const { title, headline, sections } = summary;
+    return JSON.stringify(
+      {
+        title,
+        firstAction: options.firstAction,
+        headline,
+        sections
+      },
+      null,
+      2
+    );
+  }
   return JSON.stringify(summary, null, 2);
 }
 
