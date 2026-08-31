@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import io
-import json
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 from bandscope_analysis import api as analysis_api
-from bandscope_analysis import cli
 from bandscope_analysis.chords.analyzer import ChordAnalyzer
 from bandscope_analysis.chords.chord_recognizer import ChordRecognizer
 from bandscope_analysis.exports import chart
@@ -95,34 +91,35 @@ def test_chord_segment_builder_handles_zero_frames_without_final_segment() -> No
     assert result == []
 
 
-def test_cli_skips_temporal_probe_when_local_source_path_is_empty(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Do not invoke the temporary temporal probe for an empty local source path."""
-    payload = {
-        "jobId": "job-empty-source",
-        "request": {
-            "sourceKind": "local_audio",
-            "localSource": {"sourcePath": "", "fileName": "song.wav"},
-        },
+def test_temporal_feature_builder_returns_none_for_non_local_or_missing_source() -> None:
+    """Skip temporal extraction unless the request carries a local-audio source."""
+    assert (
+        analysis_api._build_local_temporal_features(
+            {"sourceKind": "youtube", "sourceLabel": "clip"}
+        )
+        is None
+    )
+    assert (
+        analysis_api._build_local_temporal_features(
+            {"sourceKind": "local_audio", "sourceLabel": "clip"}
+        )
+        is None
+    )
+
+
+def test_temporal_feature_builder_recovers_when_source_path_cannot_be_read() -> None:
+    """Fall back to no temporal features when the analyzer cannot open the path."""
+    request = {
+        "sourceKind": "local_audio",
+        "sourceLabel": "song.wav",
+        "localSource": {"sourcePath": "", "fileName": "song.wav"},
     }
-    stdout = io.StringIO()
-    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
-    monkeypatch.setattr(cli.sys, "stdin", io.StringIO(json.dumps(payload)))
-    monkeypatch.setattr(cli.sys, "stdout", stdout)
-
-    with (
-        patch.object(cli, "TemporalAnalyzer") as temporal_analyzer,
-        patch.object(
-            cli,
-            "run_analysis_job",
-            return_value={"jobId": "job-empty-source", "state": "failed"},
-        ),
+    with patch.object(
+        analysis_api,
+        "TemporalAnalyzer",
+        side_effect=FileNotFoundError("no such file"),
     ):
-        assert cli.main() == 0
-
-    temporal_analyzer.assert_not_called()
-    assert json.loads(stdout.getvalue())["jobId"] == "job-empty-source"
+        assert analysis_api._build_local_temporal_features(request) is None
 
 
 def test_chart_section_without_active_roles_and_duplicate_priority_footer() -> None:

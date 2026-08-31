@@ -34,7 +34,7 @@ pub struct AppStateInner {
 
 pub const MAX_IN_FLIGHT_JOBS: usize = 2;
 
-pub const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
+pub const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(360);
 
 pub const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 

@@ -396,8 +396,9 @@ def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
 
 def test_build_demo_rehearsal_song_with_tempo() -> None:
     """Ensure build_demo_rehearsal_song incorporates tempo from audio features."""
-    song = build_demo_rehearsal_song({"bpm": 120.4})
+    song = build_demo_rehearsal_song({"bpm": 120.4, "title": "actual-recording.wav"})
     assert song.get("tempo") == 120
+    assert song["title"] == "actual-recording.wav"
 
 
 def test_coerce_tempo_bpm() -> None:
@@ -1333,10 +1334,14 @@ def test_stop_process_kills_stubborn_worker() -> None:
 
 def test_run_analysis_job_updates_degrades_when_stem_step_is_unavailable() -> None:
     """Ensure runtime ML failures continue with fallback cues."""
-    with patch(
-        "bandscope_analysis.api._build_local_audio_features",
-        side_effect=RuntimeError("oom"),
+    with (
+        patch(
+            "bandscope_analysis.api._build_local_audio_features",
+            side_effect=RuntimeError("oom"),
+        ),
+        patch("bandscope_analysis.api.TemporalAnalyzer") as temporal_analyzer,
     ):
+        temporal_analyzer.return_value.analyze.return_value = {"bpm": 156.605}
         updates = list(
             run_analysis_job_updates(
                 "job-runtime",
@@ -1357,6 +1362,7 @@ def test_run_analysis_job_updates_degrades_when_stem_step_is_unavailable() -> No
         )
 
     assert updates[-1]["state"] == "succeeded"
+    assert updates[-1]["result"]["tempo"] == 157
     assert any(
         update.get("progressLabel") == "Stem separation unavailable; continuing with fallback cues"
         for update in updates
