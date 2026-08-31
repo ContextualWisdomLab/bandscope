@@ -29,6 +29,7 @@ type OpenedHitPlan = Readonly<{
 const GENERATED_ACTIVITY_HIT_PLAN =
   /^Land this hit with (.+); don't drift past the downbeat\.$/u;
 const GENERATED_ACTIVITY_HIT_PLAN_BAND_TARGET = "the rest of the band";
+const MAX_GENERATED_HIT_PLAN_CHARACTERS = 180;
 /** Engine-owned source labels that can appear as targets without being section lineup names. */
 const GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS = new Set<string>([
   GENERATED_ACTIVITY_HIT_PLAN_BAND_TARGET,
@@ -41,6 +42,26 @@ function formatHitPlanCopy(template: string, values: HitPlanCopyValues): string 
     const key = placeholder.slice(1, -1) as keyof HitPlanCopyValues;
     return values[key] ?? placeholder;
   });
+}
+
+/**
+ * Admit a truncated generated target only when it uniquely prefixes one active lineup name.
+ *
+ * The resolver bounds model-owned guidance to 180 Unicode code points while preserving the
+ * generated sentence shape. A long role name can therefore be truncated inside that sentence.
+ * Prefix inference is safe only for a sentence that reached that bound and only when one active
+ * role extends the bounded target; ordinary short prefixes remain verbatim and ambiguous long
+ * prefixes fail closed.
+ */
+function uniquelyMatchesBoundedLineupTarget(
+  hitPlan: string,
+  targetRole: string,
+  knownSectionRoleNames: readonly string[]
+): boolean {
+  if (Array.from(hitPlan).length !== MAX_GENERATED_HIT_PLAN_CHARACTERS) {
+    return false;
+  }
+  return knownSectionRoleNames.filter((name) => name.startsWith(targetRole)).length === 1;
 }
 
 /** Localize the analysis-engine-owned hit sentence while preserving custom role-owned guidance verbatim. */
@@ -65,9 +86,11 @@ function localizedHitPlan(
   if (GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS.has(targetRole)) {
     return generatedTemplate.replace("{target}", () => targetRole);
   }
-  // The engine only names an exact active part from the resolver's trusted snapshot or
-  // an engine-owned aggregate label. Prefix-only matches are ambiguous and stay verbatim.
-  const matchesLineup = knownSectionRoleNames.some((name) => name === targetRole);
+  // An exact active-part name is authoritative. When the resolver had to bound a generated
+  // sentence, a unique long-name prefix is equivalent evidence; short or ambiguous prefixes are not.
+  const matchesLineup =
+    knownSectionRoleNames.some((name) => name === targetRole) ||
+    uniquelyMatchesBoundedLineupTarget(hitPlan, targetRole, knownSectionRoleNames);
   if (!matchesLineup) {
     return hitPlan;
   }
