@@ -279,14 +279,14 @@ describe("Workspace", () => {
     );
   });
 
-  it("asks the player to confirm the leftover return when every part stays active", () => {
+  it("explains when no leftover return is needed because every part stays active", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-leftover-return")).toHaveTextContent(
-      "Tonight's first leftover return still needs a named leftover part that comes back after a leftover sit-out. Confirm where that leftover part returns before the first section."
+      "No leftover return is needed: every named part stays active. Rehearse from the first section without a count-back cue."
     );
   });
 
