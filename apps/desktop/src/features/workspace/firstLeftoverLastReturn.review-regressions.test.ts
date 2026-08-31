@@ -196,10 +196,12 @@ describe("firstLeftoverLastReturn review regressions", () => {
       ...seed,
       sections: [
         sectionWithInactiveRoles(selectedTemplate, "verse-1", "verse", 0, [
+          "bass-guitar",
           "keys-right",
           "lead-vocal"
         ]),
         sectionWithInactiveRoles(selectedTemplate, "chorus-1", "chorus", 20, [
+          "keys-right",
           "lead-vocal"
         ]),
         sectionWithInactiveRoles(selectedTemplate, "bridge-1", "bridge", 40, [
