@@ -147,14 +147,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     }
     if (existing.state === "queued" || existing.state === "running") {
       const currentPercent = existing.progressPercent ?? 0;
-      // Performance: Use a loop with early exit instead of .find() to avoid closure allocation overhead
-      let nextStep;
-      for (const step of BROWSER_PROGRESS_STEPS) {
-        if (step.progressPercent > currentPercent) {
-          nextStep = step;
-          break;
-        }
-      }
+      const nextStep = BROWSER_PROGRESS_STEPS.find((step) => step.progressPercent > currentPercent);
       if (nextStep) {
         const running = createAnalysisJobStatus({
           jobId,
