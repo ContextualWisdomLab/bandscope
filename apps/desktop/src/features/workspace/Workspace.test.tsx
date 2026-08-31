@@ -140,7 +140,7 @@ describe("Workspace", () => {
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
-  it("names tonight's first leftover last-dropout after leftover last-return", () => {
+  it("names the next part to sit out after the band is back in", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
@@ -204,13 +204,13 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const callout = screen.getByTestId("first-leftover-last-dropout");
-    expect(callout).toHaveTextContent("Tonight's first leftover last-dropout");
+    expect(callout).toHaveTextContent("Next part to sit out");
     expect(callout).toHaveTextContent(
-      "Keyboard 1 Right Hand sits out at tag after leftover last-return at outro. Count Keyboard 1 Right Hand out from the top of tag."
+      "Keyboard 1 Right Hand sits out at tag after the band is back in at outro. Count Keyboard 1 Right Hand out from the top of tag."
     );
   });
 
-  it("tells the leftover last-dropout to stay out from the leftover last-dropout", () => {
+  it("tells the selected player where to stay out", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
@@ -275,18 +275,18 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Keyboard 1 Right Hand" }));
 
     expect(screen.getByTestId("first-leftover-last-dropout")).toHaveTextContent(
-      "Keyboard 1 Right Hand sits out at tag after leftover last-return at outro. Stay out from the top of tag."
+      "Keyboard 1 Right Hand sits out at tag after the band is back in at outro. Stay out from the top of tag."
     );
   });
 
-  it("asks the player to confirm the leftover last-dropout when every part stays active", () => {
+  it("asks the player to confirm the next sit-out when no sit-out is mapped", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-leftover-last-dropout")).toHaveTextContent(
-      "Tonight's first leftover last-dropout still needs a named leftover last-return and a later named sit-out. Confirm who sits out after leftover last-return before the first section."
+      "The next sit-out is not clear yet. Confirm who sits out after the band is back in before rehearsal."
     );
   });
 
