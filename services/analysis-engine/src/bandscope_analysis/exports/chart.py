@@ -188,8 +188,7 @@ def _section_lines(sections: list[Mapping[str, object]]) -> list[str]:
 def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object]]) -> list[str]:
     """Build the footer: per-role rehearsal priorities and the export focus."""
     lines: list[str] = []
-    # Performance: O(1) deduplication via dict keys instead of O(N^2) list membership checks
-    priorities_dict: dict[str, None] = {}
+    priorities: list[str] = []
     for section in sections:
         for role in _section_roles(section):
             name = _role_display_name(role)
@@ -197,8 +196,8 @@ def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object
             if name is None or not isinstance(priority, str) or not priority:
                 continue
             entry = f"  - {name}: {priority}"
-            priorities_dict[entry] = None
-    priorities: list[str] = list(priorities_dict.keys())
+            if entry not in priorities:
+                priorities.append(entry)
     if priorities:
         lines.append("Priorities:")
         lines.extend(priorities)
