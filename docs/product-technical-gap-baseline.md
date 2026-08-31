@@ -140,11 +140,13 @@ capability cluster 분류와 착지 후 남는 Gap:
 | `strix` | `…/strix.yml` | 5–11분 후 fail | OpenCode app-token 교환/스캐너 실행이 공급자 키에 의존; §5(k) 계열 공급자 라우팅 장애의 연장선 |
 | `noema-review` | `…/noema-review.yml` | 2–6분 후 fail | contextual-orchestrator 사이드카 + 공급자 키(BYTEZ/NVIDIA_NIM/OPENROUTER/OPENAI) 필요; `call_llm` HTTP 타임아웃(120s)이 조직 정책보다 짧아 verdict 미제출 |
 
-관측된 진행 중 조치(중복 금지, 관망 대상): `ContextualWisdomLab/.github`의 `pr-review-merge-scheduler`가 분 단위로 재실행 중이며 `fix(noema): raise call_llm HTTP timeout from 120s to org policy` 브랜치가 활성 상태(원격 에이전트 소유). `bandscope-hourly-review-repair`는 시간별로 대체로 success이나 backlog를 해소하지 못한다. 로컬 git 세션에서 이 필수 체크를 직접 통과시킬 방법은 없다(branch protection + 조직 자격). 로컬 레버리지는 (1) 코드가 원인인 PR의 실질 리뷰·수정 stack, (2) 본 baseline 최신화, (3) `codex/project-format-v1` 같은 stale/이름 충돌 로컬 브랜치 정리에 한정된다.
+관측된 진행 중 조치(중복 금지, 관망 대상): `ContextualWisdomLab/.github`가 Noema 리뷰 신뢰성을 집중 수정 중 — 2026-08-31 반나절에 #1477·#1480·#1483·#1487·#1490·#1497·#1501·#1504 착지 + `fix(noema): remove fixed LLM response timeout`(#1415/#1511) 활성. `pr-review-merge-scheduler`는 분 단위 재실행, `bandscope-hourly-review-repair`는 시간별 대체로 success이나 backlog 미해소. 로컬 git 세션에서 이 필수 체크를 직접 통과시킬 방법은 없다(branch protection + 조직 자격). 로컬 레버리지는 (1) 코드가 원인인 PR의 실질 리뷰·수정 stack, (2) 본 baseline 최신화, (3) `codex/project-format-v1` 같은 stale/이름 충돌 로컬 브랜치 정리에 한정된다.
 
 조치 상태:
 - **미해결 / 상위 에스컬레이션 필요** — 필수 리뷰 3종 fail-closed로 인해 185건 전부 merge 불가. 소유: `ContextualWisdomLab/.github` (원격 에이전트가 noema 타임아웃 수정 중). bandscope 측 액션: 없음(계약 수정은 중앙에서만). §5(k) 교훈 재확인 — repo 단위 우회 금지.
-- **부분 조치** — 문서화 및 로컬 브랜치 위생(본 커밋). stale `codex/project-format-v1` 로컬 체크아웃(자기 origin 대비 78 커밋 뒤처짐, PR #1073 이미 merged)에서 baseline 문서를 `develop` 기준 새 브랜치로 재분리했다. 임시 hack(`cli.py`의 "Temporary: Inject temporal analyzer") → `api.py` `_build_local_temporal_features` 정식화 WIP는 stash 보존(다음 Loop에서 별도 PR 예정).
+- **부분 조치 (merge-ready 대기열 축적)** — 게이트가 열리는 즉시 착지할 수 있도록 코드 원인 PR을 `develop` 기준으로 정비:
+  - **PR #1116** — 본 baseline. stale `codex/project-format-v1`(자기 origin 대비 78 커밋 뒤처짐, PR #1073 이미 merged) 로컬 체크아웃에서 `develop` 기준 새 브랜치로 재분리. stale 로컬 브랜치는 삭제.
+  - **PR #1117** — `refactor(engine): promote temporal probe from cli hack to api integration`. `cli.py`의 "Temporary: Inject temporal analyzer … just to prove it works" probe를 `api._build_local_temporal_features()` 정식 통합으로 대체(§5(d)·§6(a) 방향, 임시/데모 코드의 production 반입 금지 원칙). stem 분리 불가 시에도 tempo/제목 큐 보존. `STEM_SEPARATION_TIMEOUT_SECONDS` 20→300s, Rust `ANALYSIS_PROCESS_TIMEOUT` 30→360s(기존 값은 실제 길이 곡에서 무조건 timeout). `ruff`/`ruff format`/`mypy src`/`pytest --cov-fail-under=100`(678 pass, 100%) 로컬 통과.
 
 (g) **i18n/현지화** — `src/i18n` + `locales/en`, `locales/ko` 존재, 하드코딩 한국어 문자열 미탐지(workspace tsx grep 0건), interpolation hardening PR #744 진행. en/ko 2개 언어뿐이며, PR 시리즈가 추가할 다수의 카피 키가 locales에 아직 없다.
 
