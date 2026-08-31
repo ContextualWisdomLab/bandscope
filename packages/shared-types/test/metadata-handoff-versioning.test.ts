@@ -84,6 +84,39 @@ describe("metadata handoff versioning", () => {
     expect(() => parseMetadataHandoffArtifact(v2({ unexpected: true }))).toThrow("unexpected");
   });
 
+  it("rejects fabricated or internally inconsistent v2 first actions", () => {
+    expect(() =>
+      parseMetadataHandoffArtifact(
+        v2({ firstAction: { ...firstAction, lowestNote: "H2" } })
+      )
+    ).toThrow("firstAction.lowestNote");
+    expect(() =>
+      parseMetadataHandoffArtifact(
+        v2({ firstAction: { ...firstAction, lowestNote: "E3", highestNote: "C#2" } })
+      )
+    ).toThrow("firstAction.highestNote");
+    expect(() =>
+      parseMetadataHandoffArtifact(
+        v2({ firstAction: { ...firstAction, sectionId: "missing-section" } })
+      )
+    ).toThrow("firstAction.sectionId");
+    expect(() =>
+      parseMetadataHandoffArtifact(
+        v2({ firstAction: { ...firstAction, sectionLabel: "chorus" } })
+      )
+    ).toThrow("firstAction.sectionLabel");
+    expect(() =>
+      parseMetadataHandoffArtifact(
+        v2({ firstAction: { ...firstAction, roleId: "missing-role" } })
+      )
+    ).toThrow("firstAction.roleId");
+    expect(() =>
+      parseMetadataHandoffArtifact(
+        v2({ firstAction: { ...firstAction, roleName: "Someone Else" } })
+      )
+    ).toThrow("firstAction.roleName");
+  });
+
   it("exposes a boolean guard for both supported versions and invalid input", () => {
     expect(isMetadataHandoffArtifact(legacyV1Artifact())).toBe(true);
     expect(isMetadataHandoffArtifact(v2())).toBe(true);
