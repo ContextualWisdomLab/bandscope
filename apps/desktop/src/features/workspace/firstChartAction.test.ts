@@ -16,14 +16,14 @@ describe("firstChartAction", () => {
     });
   });
 
-  it("limits the lead to the selected part", () => {
+  it("keeps the full-band lead when a UI role is selected", () => {
     const action = firstChartAction(createDemoRehearsalSong(), "lead-vocal", t);
 
-    expect(action?.role).toBe("Lead Vocal");
-    expect(action?.lowestNote).toBe("G#3");
-    expect(action?.highestNote).toBe("C#5");
+    expect(action?.role).toBe("Bass Guitar");
+    expect(action?.lowestNote).toBe("C#2");
+    expect(action?.highestNote).toBe("E3");
     expect(action?.next).toBe(
-      "Lead Vocal sits G#3–C#5 in verse. Hear that clash on your instrument before the verse."
+      "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
     );
   });
 
