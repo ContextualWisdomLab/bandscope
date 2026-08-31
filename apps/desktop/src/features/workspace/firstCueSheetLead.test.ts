@@ -86,6 +86,33 @@ describe("firstCueSheetLead", () => {
     });
   });
 
+  it("preserves literal none values from the selected source row", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections[0]!;
+    const bass = section.roles[0]!;
+
+    song.sections[0] = {
+      ...section,
+      groove: "none",
+      roles: [
+        {
+          ...bass,
+          harmony: { ...bass.harmony, chord: "none" },
+          cue: { ...bass.cue, value: "none" },
+          rehearsalPriority: "none"
+        },
+        ...section.roles.slice(1)
+      ]
+    };
+
+    expect(firstCueSheetLead(song, "bass-guitar", t)).toMatchObject({
+      groove: "none",
+      harmony: "none",
+      cue: "none",
+      priority: "none"
+    });
+  });
+
   it("returns null when no named span exists", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
