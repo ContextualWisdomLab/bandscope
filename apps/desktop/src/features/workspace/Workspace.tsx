@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { firstNewDropout, hasTrustworthyAllActiveTimeline } from "./firstNewDropout";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -91,8 +92,12 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
+          {sections.map((section, sectionIndex) => (
+            <div
+              key={section.id}
+              data-section-index={sectionIndex}
+              className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0"
+            >
               <p className="text-sm font-black text-white">
                 {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
               </p>
@@ -163,6 +168,44 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const namedNewDropout = useMemo(() => firstNewDropout(song, activeRole), [activeRole, song]);
+  const noNewDropoutNeeded = useMemo(() => hasTrustworthyAllActiveTimeline(song), [song]);
+  const firstNewDropoutCopy = namedNewDropout
+    ? fillRangeCopy(
+        t(
+          activeRole && activeRole === namedNewDropout.dropoutRoleId
+            ? "workspaceFirstNewDropoutStayOut"
+            : "workspaceFirstNewDropoutNamed"
+        ),
+        {
+          dropoutRoleName: namedNewDropout.dropoutRoleName,
+          sectionLabel: namedNewDropout.sectionLabel,
+          returnSectionLabel: namedNewDropout.returnSectionLabel,
+          fromSectionLabel: namedNewDropout.fromSectionLabel
+        }
+      )
+    : t(noNewDropoutNeeded ? "workspaceFirstNewDropoutNone" : "workspaceFirstNewDropoutMissing");
+
+  /** Open the named new-dropout landing on the renderer-owned map section. */
+  const openNamedNewDropout = () => {
+    if (!namedNewDropout) {
+      return;
+    }
+    const grid = document.querySelector("[data-testid='song-structure-grid']");
+    if (!(grid instanceof HTMLElement)) {
+      return;
+    }
+    const landing = grid.querySelector(`[data-section-index="${namedNewDropout.sectionIndex}"]`);
+    if (!(landing instanceof HTMLElement)) {
+      return;
+    }
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    landing.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "nearest",
+      inline: "nearest"
+    });
+  };
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +351,25 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+          <section
+            className="rounded-2xl border border-orange-300/20 bg-orange-300/[0.07] p-4"
+            data-testid="first-new-dropout"
+            aria-label={t("workspaceFirstNewDropoutTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-orange-200">{t("workspaceFirstNewDropoutTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstNewDropoutCopy}</p>
+            {namedNewDropout ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 min-h-10 border-orange-300/30 bg-orange-300/10 font-semibold text-orange-50 hover:bg-orange-300/20 hover:text-white"
+                onClick={openNamedNewDropout}
+              >
+                {t("workspaceFirstNewDropoutOpen")}
+              </Button>
+            ) : null}
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
