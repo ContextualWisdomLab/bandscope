@@ -5,6 +5,7 @@ import {
   parseRehearsalSong,
   type AnalysisJobRequest,
   type MetadataHandoffArtifact,
+  type MetadataHandoffFirstAction,
   type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
@@ -87,6 +88,7 @@ export function createMetadataHandoffArtifact(
     sourceBootstrap?: ProjectBootstrapSummary | null;
     workspaceId?: string;
     workspaceTitle?: string;
+    firstAction?: MetadataHandoffFirstAction | null;
   } = {}
 ): MetadataHandoffArtifact {
   const parsedSong = parseRehearsalSong(song);
@@ -94,7 +96,24 @@ export function createMetadataHandoffArtifact(
     ? parseProjectBootstrapSummary(options.sourceBootstrap)
     : null;
 
-  return parseMetadataHandoffArtifact({
+  const payload: {
+    artifactKind: "bandscope.metadata-handoff";
+    artifactVersion: 1;
+    createdAt: string;
+    workspace: {
+      id: string;
+      title: string;
+      workspaceVersion: number;
+    };
+    song: {
+      id: string;
+      title: string;
+      exportSummary: RehearsalSong["exportSummary"];
+    };
+    firstAction?: MetadataHandoffFirstAction;
+    sections: MetadataHandoffArtifact["sections"];
+    sourceAssets: MetadataHandoffArtifact["sourceAssets"];
+  } = {
     artifactKind: "bandscope.metadata-handoff",
     artifactVersion: 1,
     createdAt: options.createdAt ?? new Date().toISOString(),
@@ -133,7 +152,23 @@ export function createMetadataHandoffArtifact(
           }
         ]
       : []
-  });
+  };
+
+  if (options.firstAction) {
+    const { artifactKind, artifactVersion, createdAt, workspace, song: handoffSong, sections, sourceAssets } = payload;
+    return parseMetadataHandoffArtifact({
+      artifactKind,
+      artifactVersion,
+      createdAt,
+      workspace,
+      song: handoffSong,
+      firstAction: options.firstAction,
+      sections,
+      sourceAssets
+    });
+  }
+
+  return parseMetadataHandoffArtifact(payload);
 }
 
 /** Documented. */

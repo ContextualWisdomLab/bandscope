@@ -287,6 +287,17 @@ export type MetadataHandoffSection = {
 };
 
 /** Documented. */
+export type MetadataHandoffFirstAction = {
+  sectionId: string;
+  sectionLabel: SectionFormLabel;
+  roleId: string;
+  roleName: string;
+  lowestNote: string;
+  highestNote: string;
+  clash: boolean;
+};
+
+/** Documented. */
 export type MetadataHandoffArtifact = {
   artifactKind: "bandscope.metadata-handoff";
   artifactVersion: 1;
@@ -301,6 +312,7 @@ export type MetadataHandoffArtifact = {
     title: string;
     exportSummary: ExportSummary;
   };
+  firstAction?: MetadataHandoffFirstAction;
   sections: MetadataHandoffSection[];
   sourceAssets: MetadataHandoffSourceAsset[];
 };
@@ -855,13 +867,51 @@ function validateMetadataHandoffSection(value: unknown, path: string): string | 
 }
 
 /** Documented. */
+function validateMetadataHandoffFirstAction(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(
+    value,
+    ["sectionId", "sectionLabel", "roleId", "roleName", "lowestNote", "highestNote", "clash"],
+    path
+  );
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.sectionId !== "string" || value.sectionId.trim().length === 0) {
+    return invalidField(`${path}.sectionId`);
+  }
+  if (!isOneOf(SECTION_FORM_LABELS, value.sectionLabel)) {
+    return invalidField(`${path}.sectionLabel`);
+  }
+  if (typeof value.roleId !== "string" || value.roleId.trim().length === 0) {
+    return invalidField(`${path}.roleId`);
+  }
+  if (typeof value.roleName !== "string" || value.roleName.trim().length === 0) {
+    return invalidField(`${path}.roleName`);
+  }
+  if (typeof value.lowestNote !== "string" || value.lowestNote.trim().length === 0) {
+    return invalidField(`${path}.lowestNote`);
+  }
+  if (typeof value.highestNote !== "string" || value.highestNote.trim().length === 0) {
+    return invalidField(`${path}.highestNote`);
+  }
+  if (typeof value.clash !== "boolean") {
+    return invalidField(`${path}.clash`);
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateMetadataHandoffArtifact(value: unknown): string | null {
   if (!isRecord(value)) {
     return invalidField("root");
   }
   const extraKey = unexpectedKey(
     value,
-    ["artifactKind", "artifactVersion", "createdAt", "workspace", "song", "sections", "sourceAssets"],
+    ["artifactKind", "artifactVersion", "createdAt", "workspace", "song", "firstAction", "sections", "sourceAssets"],
     ""
   );
   if (extraKey) {
@@ -912,6 +962,12 @@ function validateMetadataHandoffArtifact(value: unknown): string | null {
   const exportSummaryError = validateExportSummary(value.song.exportSummary, "song.exportSummary");
   if (exportSummaryError) {
     return exportSummaryError;
+  }
+  if (Object.prototype.hasOwnProperty.call(value, "firstAction")) {
+    const firstActionError = validateMetadataHandoffFirstAction(value.firstAction, "firstAction");
+    if (firstActionError) {
+      return firstActionError;
+    }
   }
   if (!isDenseArray(value.sections)) {
     return invalidField("sections");

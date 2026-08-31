@@ -196,6 +196,87 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first-action handoff download and leads the file with that action", async () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const createObjectUrl = vi.fn(() => "blob:handoff");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    render(<Workspace song={song} />);
+
+    const download = screen.getByRole("button", { name: "Download tonight's first-action handoff" });
+    fireEvent.click(download);
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const payload = JSON.parse(await blob.text());
+    expect(Object.keys(payload)).toEqual([
+      "artifactKind",
+      "artifactVersion",
+      "createdAt",
+      "workspace",
+      "song",
+      "firstAction",
+      "sections",
+      "sourceAssets"
+    ]);
+    expect(payload.firstAction).toEqual({
+      sectionId: "verse-1",
+      sectionLabel: "verse",
+      roleId: "bass-guitar",
+      roleName: "Bass Guitar",
+      lowestNote: "C#2",
+      highestNote: "E3",
+      clash: true
+    });
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:handoff");
+  });
+
+  it("does not invent a first-action handoff lead when the first range still needs an ear check", async () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      range: { lowestNote: "", highestNote: "none" },
+      overlapWarnings: []
+    }));
+    const createObjectUrl = vi.fn(() => "blob:handoff-missing");
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Download tonight's first-action handoff" }));
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const payload = JSON.parse(await blob.text());
+    expect(payload.firstAction).toBeUndefined();
+    expect(Object.keys(payload)).toEqual([
+      "artifactKind",
+      "artifactVersion",
+      "createdAt",
+      "workspace",
+      "song",
+      "sections",
+      "sourceAssets"
+    ]);
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -249,7 +330,7 @@ describe("Workspace", () => {
     });
 
     render(<Workspace song={song} sourceBootstrap={sourceBootstrap} />);
-    fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+    fireEvent.click(screen.getByRole("button", { name: /first-action handoff/i }));
 
     const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
     const payload = JSON.parse(await blob.text());
@@ -278,7 +359,7 @@ describe("Workspace", () => {
     });
 
     render(<Workspace song={song} sourceBootstrap={invalidSourceBootstrap} />);
-    fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+    fireEvent.click(screen.getByRole("button", { name: /first-action handoff/i }));
 
     const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
     const payload = JSON.parse(await blob.text());
@@ -325,5 +406,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "오늘 먼저 할 일 핸드오프 받기" })).toBeTruthy();
   });
 });

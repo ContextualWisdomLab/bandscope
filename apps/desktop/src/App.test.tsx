@@ -923,7 +923,7 @@ describe("App", () => {
       fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
       await waitFor(() => expect(screen.getByText(/next-song\.wav/i)).toBeTruthy());
 
-      fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
+      fireEvent.click(screen.getByRole("button", { name: /first-action handoff/i }));
       const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
       const payload = JSON.parse(await blob.text());
 

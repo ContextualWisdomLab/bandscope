@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { firstHandoffAction } from "./firstHandoffAction";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -244,7 +245,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     const json = generateMetadataHandoffJson(song, {
       sourceBootstrap: parsedSourceBootstrap,
       workspaceId: song.id,
-      workspaceTitle: song.title
+      workspaceTitle: song.title,
+      firstAction: firstHandoffAction(song)
     });
     downloadTextFile(json, "application/json;charset=utf-8;", `${sanitizeFilename(song.title)}_handoff.json`);
   };
@@ -294,7 +296,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               className="min-h-10 border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 shadow-sm hover:bg-teal-300/20 hover:text-white"
             >
               <Download className="mr-2 size-4 text-teal-200" aria-hidden="true" />
-              Export Handoff (JSON)
+              {t("workspaceFirstRangeDownloadHandoff")}
             </Button>
           </div>
           </div>
