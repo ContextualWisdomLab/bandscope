@@ -66,6 +66,47 @@ def _step_action(step: list[str]) -> str | None:
     return None
 
 
+def _yaml_scalar(value: str) -> str | None:
+    """Normalize the simple YAML scalars used by workflow ``with`` mappings.
+
+    A ``#`` starts an inline YAML comment only when it is outside quotes and is
+    separated from the scalar by whitespace. Hash characters inside quoted
+    values, or inside an unquoted value such as ``result#1.sarif``, are data.
+    """
+    quote: str | None = None
+    escaped = False
+    comment_at: int | None = None
+
+    for index, character in enumerate(value):
+        if quote == '"':
+            if escaped:
+                escaped = False
+                continue
+            if character == "\\":
+                escaped = True
+                continue
+            if character == '"':
+                quote = None
+            continue
+        if quote == "'":
+            if character == "'":
+                quote = None
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            continue
+        if character == "#" and (index == 0 or value[index - 1].isspace()):
+            comment_at = index
+            break
+
+    scalar = value[:comment_at].strip() if comment_at is not None else value.strip()
+    if not scalar:
+        return None
+    if len(scalar) >= 2 and scalar[0] == scalar[-1] and scalar[0] in {"'", '"'}:
+        return scalar[1:-1]
+    return scalar
+
+
 def _mapping_value(lines: list[str], header: str, key: str) -> str | None:
     """Return a scalar from a nested mapping without borrowing sibling evidence."""
     target = f"{header}:"
@@ -82,8 +123,7 @@ def _mapping_value(lines: list[str], header: str, key: str) -> str | None:
                 break
             key_prefix = f"{key}:"
             if stripped.startswith(key_prefix):
-                value = stripped[len(key_prefix) :].strip()
-                return value.strip("'\"") if value else None
+                return _yaml_scalar(stripped[len(key_prefix) :].strip())
         return None
     return None
 
