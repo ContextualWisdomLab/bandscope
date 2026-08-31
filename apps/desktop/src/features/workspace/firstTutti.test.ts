@@ -62,6 +62,18 @@ describe("firstTutti", () => {
     });
   });
 
+  it("keeps a later tutti when its form label repeats the reduced section", () => {
+    const song = withReducedThenTutti(createDemoRehearsalSong(), "keys-right");
+    song.sections[1] = {
+      ...song.sections[1]!,
+      label: "verse"
+    };
+    expect(firstTutti(song)).toEqual({
+      sectionLabel: "verse",
+      fromSectionLabel: "verse"
+    });
+  });
+
   it("uses production-shaped inactive graph evidence omitted from the section role list", () => {
     const song = withReducedThenTutti(createDemoRehearsalSong(), "keys-right");
     song.sections[0] = {
