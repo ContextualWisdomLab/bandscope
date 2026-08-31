@@ -179,7 +179,7 @@ export function firstTutti(
       continue;
     }
 
-    if (!reducedFrom || reducedFrom === sectionLabel) {
+    if (!reducedFrom) {
       continue;
     }
     if (nodes.some((node) => node.active !== true)) {
