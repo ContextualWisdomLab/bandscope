@@ -5,7 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
-import { firstLeftoverReturn } from "./firstLeftoverReturn";
+import { firstLeftoverReturn, hasTrustworthyAllActiveTimeline } from "./firstLeftoverReturn";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -168,6 +168,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     () => firstLeftoverReturn(song, activeRole),
     [activeRole, song]
   );
+  const noLeftoverReturnNeeded = useMemo(
+    () => hasTrustworthyAllActiveTimeline(song),
+    [song]
+  );
   const firstLeftoverReturnCopy = namedLeftoverReturn
     ? fillRangeCopy(
         t(
@@ -181,7 +185,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           leftoverSectionLabel: namedLeftoverReturn.leftoverSectionLabel
         }
       )
-    : t("workspaceFirstLeftoverReturnMissing");
+    : t(
+        noLeftoverReturnNeeded
+          ? "workspaceFirstLeftoverReturnNone"
+          : "workspaceFirstLeftoverReturnMissing"
+      );
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
