@@ -87,6 +87,33 @@ describe("firstLeftoverLastDropoutRemainingLastReturnTutti selected-role search"
     });
   });
 
+  it("invalidates the candidate when a new part drops out during remaining-leftover return", () => {
+    const seed = createDemoRehearsalSong();
+    const template = sectionTemplateWithObserver(seed.sections[0]!);
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "verse-1", "verse", 0, [
+          "bass-guitar",
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, [
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, ["lead-vocal"]),
+        sectionWithInactiveRoles(template, "outro-1", "outro", 60, ["observer"]),
+        sectionWithInactiveRoles(template, "tag-1", "tag", 80, ["bass-guitar", "keys-right"]),
+        sectionWithInactiveRoles(template, "stop-1", "stop", 100, ["bass-guitar"]),
+        sectionWithInactiveRoles(template, "ending-1", "ending", 120, ["lead-vocal"]),
+        sectionWithInactiveRoles(template, "fine-1", "fine", 140, [])
+      ]
+    };
+
+    expect(firstLeftoverLastDropoutRemainingLastReturnTutti(song, "lead-vocal")).toBeNull();
+  });
+
   it("keeps searching after an earlier completed sequence excludes the selected part", () => {
     const seed = createDemoRehearsalSong();
     const template = sectionTemplateWithObserver(seed.sections[0]!);
