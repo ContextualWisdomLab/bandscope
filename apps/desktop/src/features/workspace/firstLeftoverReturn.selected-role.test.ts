@@ -51,6 +51,52 @@ describe("firstLeftoverReturn selected-role search", () => {
     });
   });
 
+  it("does not show another cohort's leftover return to a continuously active selected role", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "verse-1", "verse", 0, [
+          "bass-guitar",
+          "keys-right"
+        ]),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, ["keys-right"]),
+        sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, [])
+      ]
+    };
+
+    expect(firstLeftoverReturn(song, "lead-vocal")).toBeNull();
+  });
+
+  it("returns the first eligible leftover even when a later graph entry returns first", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "verse-1", "verse", 0, [
+          "bass-guitar",
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, [
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, ["keys-right"])
+      ]
+    };
+
+    expect(firstLeftoverReturn(song)).toEqual({
+      sectionLabel: "bridge",
+      leftoverSectionLabel: "chorus",
+      fromSectionLabel: "verse",
+      leftoverRoleId: "lead-vocal",
+      leftoverRoleName: "Lead Vocal"
+    });
+  });
+
   it("does not tell a new dropout to come back from an earlier leftover sit-out", () => {
     const seed = createDemoRehearsalSong();
     const template = seed.sections[0]!;
