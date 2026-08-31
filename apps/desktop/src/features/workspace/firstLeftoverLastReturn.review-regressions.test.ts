@@ -51,6 +51,29 @@ describe("firstLeftoverLastReturn review regressions", () => {
     expect(firstLeftoverLastReturn(song)).toBeNull();
   });
 
+  it("rejects a final return when another part newly drops out in the same section", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "verse-1", "verse", 0, [
+          "bass-guitar",
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, [
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, ["lead-vocal"]),
+        sectionWithInactiveRoles(template, "outro-1", "outro", 60, ["bass-guitar"])
+      ]
+    };
+
+    expect(firstLeftoverLastReturn(song)).toBeNull();
+  });
+
   it("keeps searching after an unrelated complete return for the selected part", () => {
     const seed = createDemoRehearsalSong();
     const template = seed.sections[0]!;
