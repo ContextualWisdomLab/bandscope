@@ -1,0 +1,18 @@
+# Tonight's first leftover last-dropout return
+
+The ready rehearsal map names the first leftover last-dropout return from existing `partGraph` evidence: a named leftover sit-out, then a later named leftover return where at least one leftover named part is own-property active and at least one leftover remains own-property tacet, then a later named leftover last-return where every remaining leftover is own-property active, then a later named leftover last-dropout where at least one named part is own-property tacet, then a later named section where that leftover last-dropout named part is own-property active. This is when the leftover last-dropout comes back. It is not a come-in, tacet, leftover sit-out, leftover return, remaining leftover, leftover last-return, leftover last-dropout, tutti, handoff, Fine, last-line breath, a leftover last-dropout without a later return, a new dropout after remaining leftover, or a new MIR product.
+
+## Next action
+
+- Named leftover last-dropout return: come in from the top of the named leftover last-dropout return after leftover last-dropout.
+- Named returning or other included part: count the leftover last-dropout in from the top of that return.
+- Missing: confirm when the leftover last-dropout comes back before the first section.
+
+## Security Notes
+
+- Untrusted inputs: `RehearsalSong` JSON, section labels, `partGraph` nodes, `is_active`, role ids, and role names from analysis or a reopened project.
+- Trust boundary: this helper never opens files, URLs, IPC, WebView, subprocesses, model artifacts, or export paths. It only admits an own-property leftover sit-out, leftover return with remaining leftover, leftover last-return, leftover last-dropout, and a later named leftover last-dropout return where that leftover last-dropout named part is own-property active.
+- Allowlist: section labels and role names must be meaningful text. A missing graph node is not a leftover last-dropout return. Inherited `is_active` is isolated. A leftover last-dropout is leftover last-dropout, not leftover last-dropout return. A leftover last-return is leftover last-return, not leftover last-dropout return. A new dropout after remaining leftover is a dropout, not a leftover last-dropout return. All-active later sections after leftover last-return are tuttis, not leftover last-dropout returns, until a leftover last-dropout exists and later returns. When a role is selected, only a leftover last-dropout return after a leftover last-dropout that includes that named part, or a later return of that named part, is shown.
+- Safe failure: inherited flags, blank labels, missing names, leftover sit-outs without leftover return, leftover last-dropouts without a later return, come-ins without a leftover, full-band returns, remaining leftovers without last-return, new dropouts after remaining leftover, unnamed roles, empty graphs, and malformed roots return `null` so the workspace shows the missing-copy next action instead of crashing or inventing a leftover last-dropout return.
+- Logging/privacy: rejected or accepted leftover last-dropout returns are not logged. Copy interpolation keeps rehearsal values literal.
+- Tests: `firstLeftoverLastDropoutReturn.test.ts` and the Workspace callout cover the demo all-active case, an explicit keys leftover last-dropout return after leftover last-dropout, selected-role scoping, inherited flags, missing `is_active`, leftover last-dropouts without later return, tuttis, come-ins, leftover returns with nobody still out, remaining leftovers without last-return, new dropouts after remaining leftover, unnamed roles, empty graphs, and literal copy filling.
