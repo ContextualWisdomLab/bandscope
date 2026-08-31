@@ -42,14 +42,15 @@ def escape_csv_field(value: str) -> str:
     if not value:
         return value
 
-    for char in value:
-        if char in _CONTROL_PREFIXES:
-            return f"'{value}"
-        if not char.isspace():
-            if char in _FORMULA_PREFIXES:
-                return f"'{value}"
-            break
+    if value[0] in _CONTROL_PREFIXES:
+        return f"'{value}"
 
+    stripped = value.lstrip()
+    leading = value[: len(value) - len(stripped)]
+    if any(character in _CONTROL_PREFIXES for character in leading):
+        return f"'{value}"
+    if stripped and stripped[0] in _FORMULA_PREFIXES:
+        return f"'{value}"
     return value
 
 
