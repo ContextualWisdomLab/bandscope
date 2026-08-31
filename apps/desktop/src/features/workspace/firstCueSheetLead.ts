@@ -11,9 +11,9 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Documented. */
+/** Preserve literal source-row text while trimming surrounding whitespace. */
 function runtimeText(value: unknown): string {
-  return meaningfulRangeText(value) ?? "";
+  return typeof value === "string" ? value.trim() : "";
 }
 
 /**
