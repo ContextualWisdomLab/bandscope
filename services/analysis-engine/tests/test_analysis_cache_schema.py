@@ -85,9 +85,10 @@ def test_new_analysis_schema_ignores_v1_result_but_reuses_v1_features(tmp_path) 
             "notes": "Separated selected local audio into 4 canonical stems.",
         },
     }
-    assert _store_cached_local_audio_features(
-        metadata_path, arrays_path, request, reusable_features
-    ) is True
+    assert (
+        _store_cached_local_audio_features(metadata_path, arrays_path, request, reusable_features)
+        is True
+    )
 
     fresh_result = build_demo_rehearsal_song()
     with (
@@ -101,7 +102,6 @@ def test_new_analysis_schema_ignores_v1_result_but_reuses_v1_features(tmp_path) 
     assert updates[-1]["result"] == fresh_result
     assert updates[-1]["result"]["id"] != "stale-v1-result"
     assert any(
-        update.get("progressLabel") == "Loaded reusable stems... (45%)"
-        for update in updates
+        update.get("progressLabel") == "Loaded reusable stems... (45%)" for update in updates
     )
     separator.assert_not_called()
