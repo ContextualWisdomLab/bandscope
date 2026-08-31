@@ -28,88 +28,124 @@ function ownActiveFlag(value: Record<string, unknown>): boolean | null {
   return null;
 }
 
+type NamedRoleCatalog = Map<string, string>;
+
 /**
- * Resolve a named role from a section's own-property `roles` list.
+ * Build trustworthy role identity evidence across the whole song.
  *
- * Blank, `none`, inherited, or non-string names are not rehearsal authority.
+ * Production analysis emits active-only section `roles` while keeping inactive
+ * identities in `partGraph`. The song-wide catalog therefore lets a role keep
+ * its trustworthy display name across sections without treating inherited,
+ * blank, duplicate, or contradictory metadata as authority.
  */
-function namedRoleOnSection(
-  sectionValue: Record<string, unknown>,
-  roleId: string
-): string | undefined {
-  if (!Array.isArray(sectionValue.roles)) {
-    return undefined;
+function namedSongRoles(songValue: Record<string, unknown>): NamedRoleCatalog | null {
+  if (!Array.isArray(songValue.sections)) {
+    return null;
   }
-  for (const roleValue of sectionValue.roles) {
-    if (!isRuntimeObject(roleValue) || !Object.prototype.hasOwnProperty.call(roleValue, "id")) {
-      continue;
+
+  const namedRoles: NamedRoleCatalog = new Map();
+  for (const sectionValue of songValue.sections) {
+    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+      return null;
     }
-    if (meaningfulRangeText(roleValue.id) !== roleId) {
-      continue;
+
+    const sectionRoleIds = new Set<string>();
+    for (const roleValue of sectionValue.roles) {
+      if (
+        !isRuntimeObject(roleValue) ||
+        !Object.prototype.hasOwnProperty.call(roleValue, "id") ||
+        !Object.prototype.hasOwnProperty.call(roleValue, "name")
+      ) {
+        return null;
+      }
+
+      const roleId = meaningfulRangeText(roleValue.id);
+      const roleName = meaningfulRangeText(roleValue.name);
+      if (!roleId || !roleName || sectionRoleIds.has(roleId)) {
+        return null;
+      }
+      sectionRoleIds.add(roleId);
+
+      const knownName = namedRoles.get(roleId);
+      if (knownName && knownName !== roleName) {
+        return null;
+      }
+      namedRoles.set(roleId, roleName);
     }
-    return meaningfulRangeText(
-      Object.prototype.hasOwnProperty.call(roleValue, "name") ? roleValue.name : undefined
-    );
   }
-  return undefined;
+
+  return namedRoles.size > 0 ? namedRoles : null;
 }
 
 type NamedGraphNode = {
   roleId: string;
-  roleName: string;
   active: boolean;
 };
 
 /**
- * Collect named graph nodes whose `is_active` flag is own-property evidence.
+ * Collect one complete, unique activity record for every song-wide named role.
  *
- * A node with a blank role, unnamed part, inherited flag, or missing graph
- * identity is isolated instead of becoming leftover or return authority.
+ * Missing, unknown, duplicate, inherited, or non-boolean graph evidence fails
+ * closed so one part can never satisfy both the returning and leftover sides of
+ * the same transition.
  */
-function namedGraphNodes(sectionValue: Record<string, unknown>): NamedGraphNode[] | null {
+function namedGraphNodes(
+  sectionValue: Record<string, unknown>,
+  namedRoles: NamedRoleCatalog
+): NamedGraphNode[] | null {
   if (!Array.isArray(sectionValue.partGraph)) {
     return null;
   }
 
   const nodes: NamedGraphNode[] = [];
+  const seenRoleIds = new Set<string>();
   for (const nodeValue of sectionValue.partGraph) {
     if (
       !isRuntimeObject(nodeValue) ||
       !Object.prototype.hasOwnProperty.call(nodeValue, "role_id")
     ) {
-      continue;
+      return null;
     }
+
     const roleId = meaningfulRangeText(nodeValue.role_id);
-    if (!roleId) {
-      continue;
+    if (!roleId || !namedRoles.has(roleId) || seenRoleIds.has(roleId)) {
+      return null;
     }
+
     const active = ownActiveFlag(nodeValue);
     if (active === null) {
-      continue;
+      return null;
     }
-    const roleName = namedRoleOnSection(sectionValue, roleId);
-    if (!roleName) {
-      continue;
-    }
-    nodes.push({ roleId, roleName, active });
+
+    seenRoleIds.add(roleId);
+    nodes.push({ roleId, active });
   }
+
+  if (seenRoleIds.size !== namedRoles.size) {
+    return null;
+  }
+  for (const roleId of namedRoles.keys()) {
+    if (!seenRoleIds.has(roleId)) {
+      return null;
+    }
+  }
+
   return nodes;
 }
 
 /**
  * Pick the first leftover sit-out a player should honor after others return.
  *
- * Uses existing `partGraph` `is_active` authority already produced by
- * analysis. A leftover is the first later named section where at least one
- * previously sitting-out named part is own-property active and at least one
- * previously sitting-out named part is still own-property tacet. It is not a come-in, tacet,
- * dropout, tutti, handoff, Fine, last-line breath, a continued sit-out
- * with nobody returning, or a new dropout after every original sit-out
- * returns. Inherited `is_active`, missing graph nodes, blank
- * labels, unnamed roles, same-section false-then-true nodes, all-active
- * returns, all-tacet later sections, and malformed roots fail closed. When
- * a role is selected, only a leftover section that includes that named part
- * is shown.
+ * Uses song-wide role identity plus complete `partGraph` activity evidence. A
+ * leftover is the first later named section where at least one member of the
+ * current reduced cohort has returned and at least one remains out. A complete
+ * return closes that cohort; a new sit-out in the same or a later section can
+ * establish the next reduction baseline. Section labels remain display data,
+ * so repeated form labels never collapse distinct timeline positions.
+ *
+ * Inherited/missing activity, incomplete or contradictory graphs, unnamed
+ * roles, and malformed runtime data fail closed. When a role is selected, only
+ * a transition in a song that contains that trustworthy role is shown.
  */
 export function firstLeftover(
   song: RehearsalSong | unknown,
@@ -119,25 +155,30 @@ export function firstLeftover(
     return null;
   }
 
+  const namedRoles = namedSongRoles(song);
+  if (!namedRoles || (activeRole && !namedRoles.has(activeRole))) {
+    return null;
+  }
+
   let reducedFrom: string | null = null;
   let sittingOutIds: Set<string> | null = null;
 
   for (const sectionValue of song.sections) {
     if (!isRuntimeObject(sectionValue)) {
-      continue;
+      return null;
     }
     const sectionLabel = meaningfulRangeText(sectionValue.label);
     if (!sectionLabel) {
       continue;
     }
 
-    const nodes = namedGraphNodes(sectionValue);
-    if (!nodes || nodes.length === 0) {
-      continue;
+    const nodes = namedGraphNodes(sectionValue, namedRoles);
+    if (!nodes) {
+      return null;
     }
 
     const sittingOut = nodes.filter((node) => node.active === false);
-    if (!reducedFrom) {
+    if (!sittingOutIds || !reducedFrom) {
       if (sittingOut.length === 0) {
         continue;
       }
@@ -146,27 +187,33 @@ export function firstLeftover(
       continue;
     }
 
-    if (reducedFrom === sectionLabel || !sittingOutIds) {
-      continue;
-    }
-
     const returning = nodes.filter(
       (node) => node.active === true && sittingOutIds.has(node.roleId)
     );
     const leftover = sittingOut.find((node) => sittingOutIds.has(node.roleId));
-    if (returning.length === 0 || !leftover) {
-      continue;
-    }
-    if (activeRole && !nodes.some((node) => node.roleId === activeRole)) {
-      continue;
+
+    if (returning.length > 0 && leftover) {
+      const leftoverRoleName = namedRoles.get(leftover.roleId);
+      if (!leftoverRoleName) {
+        return null;
+      }
+      return {
+        sectionLabel,
+        fromSectionLabel: reducedFrom,
+        leftoverRoleId: leftover.roleId,
+        leftoverRoleName
+      };
     }
 
-    return {
-      sectionLabel,
-      fromSectionLabel: reducedFrom,
-      leftoverRoleId: leftover.roleId,
-      leftoverRoleName: leftover.roleName
-    };
+    if (returning.length === sittingOutIds.size && !leftover) {
+      if (sittingOut.length === 0) {
+        reducedFrom = null;
+        sittingOutIds = null;
+      } else {
+        reducedFrom = sectionLabel;
+        sittingOutIds = new Set(sittingOut.map((node) => node.roleId));
+      }
+    }
   }
 
   return null;
