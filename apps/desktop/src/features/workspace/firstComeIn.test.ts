@@ -138,6 +138,42 @@ describe("firstComeIn", () => {
     expect(firstComeIn(song)).toBeNull();
   });
 
+  it("rejects inherited return-section roles as naming authority", () => {
+    const song = withSitOutThenComeIn(createDemoRehearsalSong(), "keys-right");
+    const returnSection = song.sections[1]!;
+    const returnWithoutOwnRoles = { ...returnSection } as Record<string, unknown>;
+    delete returnWithoutOwnRoles.roles;
+    song.sections[1] = Object.assign(
+      Object.create({ roles: returnSection.roles }),
+      returnWithoutOwnRoles
+    ) as RehearsalSong["sections"][number];
+
+    expect(firstComeIn(song)).toBeNull();
+  });
+
+  it("fails closed when the first active return has no trustworthy role name", () => {
+    const song = withSitOutThenComeIn(createDemoRehearsalSong(), "keys-right");
+    const chorus = song.sections[1]!;
+    const unnamedChorus = {
+      ...chorus,
+      roles: chorus.roles.map((role) =>
+        role.id === "keys-right" ? { ...role, name: "   " } : role
+      )
+    };
+    const bridge = {
+      ...chorus,
+      id: "bridge-1",
+      label: "bridge" as RehearsalSong["sections"][number]["label"],
+      timeRange: {
+        start: chorus.timeRange.end,
+        end: chorus.timeRange.end + 20
+      }
+    };
+    song.sections = [song.sections[0]!, unnamedChorus, bridge];
+
+    expect(firstComeIn(song)).toBeNull();
+  });
+
   it("fails closed on malformed runtime roots", () => {
     for (const malformed of [null, {}, { sections: {} }, { sections: [null] }]) {
       expect(firstComeIn(malformed as unknown as RehearsalSong)).toBeNull();
