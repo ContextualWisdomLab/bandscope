@@ -168,7 +168,7 @@ export function firstTutti(
 
     const nodes = namedGraphNodes(sectionValue, namedRoles);
     if (!nodes) {
-      continue;
+      return null;
     }
 
     const sittingOut = nodes.some((node) => node.active === false);
