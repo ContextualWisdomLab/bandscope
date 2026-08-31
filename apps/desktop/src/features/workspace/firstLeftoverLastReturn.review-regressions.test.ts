@@ -74,6 +74,61 @@ describe("firstLeftoverLastReturn review regressions", () => {
     expect(firstLeftoverLastReturn(song)).toBeNull();
   });
 
+  it("invalidates a remaining-leftover sequence when an untracked role drops and returns before the tracked final return", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "verse-1", "verse", 0, [
+          "bass-guitar",
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, [
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, ["lead-vocal"]),
+        sectionWithInactiveRoles(template, "break-1", "break", 60, [
+          "bass-guitar",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "tag-1", "tag", 80, ["lead-vocal"]),
+        sectionWithInactiveRoles(template, "outro-1", "outro", 100, [])
+      ]
+    };
+
+    expect(firstLeftoverLastReturn(song)).toBeNull();
+  });
+
+  it("invalidates a selected-role sequence when an untracked role returns alongside the tracked final role", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const song: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "verse-1", "verse", 0, [
+          "bass-guitar",
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, [
+          "keys-right",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, ["lead-vocal"]),
+        sectionWithInactiveRoles(template, "break-1", "break", 60, [
+          "bass-guitar",
+          "lead-vocal"
+        ]),
+        sectionWithInactiveRoles(template, "outro-1", "outro", 80, [])
+      ]
+    };
+
+    expect(firstLeftoverLastReturn(song, "lead-vocal")).toBeNull();
+  });
+
   it("keeps searching after an unrelated complete return for the selected part", () => {
     const seed = createDemoRehearsalSong();
     const template = seed.sections[0]!;
