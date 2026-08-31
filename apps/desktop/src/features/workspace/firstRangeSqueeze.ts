@@ -9,6 +9,15 @@ export type FirstRangeSqueeze = {
   overlapWarning?: string;
 };
 
+/** Exact runtime position and identifiers that produced a first-range squeeze. */
+export type FirstRangeSqueezeTarget = {
+  squeeze: FirstRangeSqueeze;
+  sectionIndex: number;
+  roleIndex: number;
+  sectionId?: string;
+  roleId: string;
+};
+
 const NATURAL_PITCH_CLASS = {
   C: 0,
   D: 2,
@@ -85,26 +94,24 @@ export function playableRange(
 }
 
 /**
- * Pick the first playable range a player should check before the next section.
+ * Pick the exact section/role target behind the first playable range.
  *
- * Prefers a named span that also carries a clash warning so the board names
- * the squeeze that will waste rehearsal time. Falls back to the first named
- * span when no clash is present. Runtime roots and collection members are
- * treated as untrusted; malformed evidence is isolated instead of crashing
- * the buyer-visible workspace or becoming playable-range authority.
+ * The positional identity is retained alongside stable identifiers so a
+ * consumer that needs the source section does not have to rematch lossy
+ * display values such as repeated section labels or duplicated ranges.
  */
-export function firstRangeSqueeze(
+export function firstRangeSqueezeTarget(
   song: RehearsalSong,
   activeRole: string | null = null
-): FirstRangeSqueeze | null {
+): FirstRangeSqueezeTarget | null {
   const runtimeSong: unknown = song;
   if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
 
-  let fallback: FirstRangeSqueeze | null = null;
+  let fallback: FirstRangeSqueezeTarget | null = null;
 
-  for (const sectionValue of runtimeSong.sections) {
+  for (const [sectionIndex, sectionValue] of runtimeSong.sections.entries()) {
     if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
       continue;
     }
@@ -112,8 +119,9 @@ export function firstRangeSqueeze(
     if (!sectionLabel) {
       continue;
     }
+    const sectionId = meaningfulRangeText(sectionValue.id);
 
-    for (const roleValue of sectionValue.roles) {
+    for (const [roleIndex, roleValue] of sectionValue.roles.entries()) {
       if (!isRuntimeObject(roleValue)) {
         continue;
       }
@@ -142,11 +150,17 @@ export function firstRangeSqueeze(
         }
       }
 
-      const candidate: FirstRangeSqueeze = {
-        sectionLabel,
-        roleName,
-        ...range,
-        overlapWarning
+      const candidate: FirstRangeSqueezeTarget = {
+        squeeze: {
+          sectionLabel,
+          roleName,
+          ...range,
+          overlapWarning
+        },
+        sectionIndex,
+        roleIndex,
+        sectionId,
+        roleId
       };
 
       if (overlapWarning) {
@@ -160,6 +174,22 @@ export function firstRangeSqueeze(
   }
 
   return fallback;
+}
+
+/**
+ * Pick the first playable range a player should check before the next section.
+ *
+ * Prefers a named span that also carries a clash warning so the board names
+ * the squeeze that will waste rehearsal time. Falls back to the first named
+ * span when no clash is present. Runtime roots and collection members are
+ * treated as untrusted; malformed evidence is isolated instead of crashing
+ * the buyer-visible workspace or becoming playable-range authority.
+ */
+export function firstRangeSqueeze(
+  song: RehearsalSong,
+  activeRole: string | null = null
+): FirstRangeSqueeze | null {
+  return firstRangeSqueezeTarget(song, activeRole)?.squeeze ?? null;
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
