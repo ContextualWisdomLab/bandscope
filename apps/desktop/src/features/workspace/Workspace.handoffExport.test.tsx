@@ -44,7 +44,7 @@ describe("Workspace handoff export contract", () => {
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
-    fireEvent.click(screen.getByRole("button", { name: "Download tonight's first-action handoff" }));
+    fireEvent.click(screen.getByRole("button", { name: "Download tonight's first-range handoff" }));
 
     const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
     const payload = JSON.parse(await blob.text()) as {
@@ -57,5 +57,12 @@ describe("Workspace handoff export contract", () => {
     expect(payload.sections?.[0]?.roleBuckets?.map((role) => role.name)).toEqual(
       expect.arrayContaining(["Bass Guitar", "Lead Vocal"])
     );
+  });
+
+  it("names the Korean download as the first playable-range share file", () => {
+    setNavigatorLanguage("ko-KR");
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(screen.getByRole("button", { name: "오늘 첫 연주 구간 공유 파일 다운로드" })).toBeTruthy();
   });
 });
