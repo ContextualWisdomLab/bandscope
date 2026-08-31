@@ -290,6 +290,9 @@ export function firstLeftoverLastDropoutRemainingLastReturn(
       const stillRemaining = remainingNodes.filter((node) => node!.active === false);
 
       if (returningLast.length > 0 && stillRemaining.length === 0) {
+        if (returningLast.length !== 1) {
+          return null;
+        }
         let last = returningLast[0]!;
         if (activeRole) {
           if (!selectedPartBelongs(remaining, activeRole)) {
@@ -434,6 +437,9 @@ export function firstLeftoverLastDropoutRemainingLastReturn(
       const stillRemaining = remainingNodes.filter((node) => node.active === false);
 
       if (returningLast.length > 0 && stillRemaining.length === 0) {
+        if (sittingOut.length > 0) {
+          return null;
+        }
         let last = returningLast[0]!;
         if (activeRole) {
           const activeRoleNode = nodes.find((node) => node.roleId === activeRole);
