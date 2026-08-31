@@ -2,6 +2,7 @@ import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-t
 import { describe, expect, it } from "vitest";
 import { firstLeftoverLastDropoutRemainingReturn } from "./firstLeftoverLastDropoutRemainingReturn";
 
+/** Build a section fixture that keeps role identity stable while changing only activity evidence. */
 function sectionWithInactiveRoles(
   template: RehearsalSong["sections"][number],
   id: string,
