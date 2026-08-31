@@ -270,6 +270,14 @@ export function firstLeftoverLastDropout(
         remainingNodes.push(remainingNode);
       }
 
+      const trackedRemainingIds = new Set(pendingRemaining.remainingIds);
+      if (sittingOut.some((node) => !trackedRemainingIds.has(node.roleId))) {
+        pendingRemaining = null;
+        reducedFrom = sectionLabel;
+        sittingOutIds = new Set(sittingOut.map((node) => node.roleId));
+        continue;
+      }
+
       const returningLast = remainingNodes.filter((node) => node.active);
       const stillRemaining = remainingNodes.filter((node) => node.active === false);
 
