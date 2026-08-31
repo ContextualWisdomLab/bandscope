@@ -376,9 +376,6 @@ export function firstLeftoverLastDropoutRemainingReturn(
       }
 
       if (sittingOut.length < 2) {
-        pendingLastReturn = null;
-        reducedFrom = sectionLabel;
-        sittingOutIds = new Set(sittingOut.map((node) => node.roleId));
         continue;
       }
 
